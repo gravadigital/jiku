@@ -1,0 +1,28 @@
+@use '@/styles/mixins' as *;
+
+.sectionCardContainer {
+  background-color: var(--color-background);
+  border-radius: var(--radius-items);
+  box-shadow: var(--box-shadow);
+  padding: 1.5rem;
+  width: 100%;
+  margin-block: 2.5rem;
+
+  h2 {
+    font-family: var(--font-primary);
+    font-size: 1.5rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--color-general-title);
+    margin-bottom: 2rem;
+  }
+
+  h3 {
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    line-height: 1.2;
+    font-weight: bold;
+    color: var(--color-general-title);
+    margin-bottom: 1.5rem;
+  }
+}

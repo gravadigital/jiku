@@ -1,0 +1,32 @@
+@use '@/styles/mixins' as *;
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  cursor: pointer;
+  transition:
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal);
+
+  @include focus-ring;
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
+  }
+
+  @include mobile {
+    width: 100%;
+  }
+}
+
+.name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: var(--line-height-normal);
+  @include truncate;
+}

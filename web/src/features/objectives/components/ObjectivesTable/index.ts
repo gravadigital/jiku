@@ -1,0 +1,1 @@
+export { ObjectivesTable } from './ObjectivesTable';

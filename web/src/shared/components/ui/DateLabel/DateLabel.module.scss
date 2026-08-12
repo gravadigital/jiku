@@ -1,0 +1,25 @@
+.dateLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  span {
+    font-family: var(--font-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 1rem;
+    line-height: 1.2;
+    font-weight: 500;
+    color: var(--color-general-text);
+  }
+
+  p {
+    font-family: var(--font-primary);
+    margin: 0;
+    font-size: 0.65rem;
+    line-height: 1.2;
+    font-weight: 400;
+    color: var(--color-general-text);
+  }
+}

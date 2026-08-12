@@ -1,0 +1,69 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  @include flex-column;
+  gap: var(--spacing-md);
+}
+
+.section {
+  @include flex-column;
+  gap: var(--spacing-sm);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-general-title);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.timeButton {
+  @include button-base;
+  background-color: var(--color-surface-light);
+  color: var(--color-general-title);
+  min-width: 48px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-base);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.selected {
+  background-color: var(--color-button);
+  color: var(--color-background);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-button);
+    filter: brightness(0.9);
+  }
+}
+
+.customInput {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.input {
+  @include input-base;
+  width: 100px;
+}
+
+.footer {
+  @include flex-between;
+  margin-top: var(--spacing-sm);
+}
+
+.total {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-general-title);
+}

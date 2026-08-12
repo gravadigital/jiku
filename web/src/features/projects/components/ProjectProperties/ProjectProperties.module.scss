@@ -1,0 +1,47 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+
+  dt {
+    font-weight: 400;
+    color: var(--color-general-text);
+  }
+
+  dd {
+    color: #626a81;
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #DA2C6A;
+  text-decoration: none;
+  font-weight: 500;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.empty {
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+  color: #626a81;
+  font-style: italic;
+  margin: 0;
+}

@@ -1,0 +1,47 @@
+@use '@/styles/mixins' as *;
+
+.buttonContainer {
+  display: inline-flex;
+  cursor: pointer;
+
+  button {
+    background-color: var(--color-button);
+    border-radius: var(--radius-items);
+    padding: 1rem 2rem;
+    height: 3rem;
+    width: auto;
+    cursor: pointer;
+    @include focus-ring;
+
+    &[data-disabled] {
+      pointer-events: none;
+      cursor: none;
+      background-color: var(--color-general-disabled);
+    }
+
+    &.primary,
+    &.secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      font-family: var(--font-primary);
+      color: var(--color-background);
+      font-size: 1rem;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    &.secondary {
+      background-color: var(--color-background);
+      color: var(--color-button);
+      border: 1px solid var(--color-button);
+    }
+  }
+}
+
+.small button {
+  padding: 0.4rem 0.8rem !important;
+  height: auto !important;
+  font-size: 0.85rem !important;
+}

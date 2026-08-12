@@ -1,0 +1,32 @@
+@use '@/styles/mixins' as *;
+
+.formContainer {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+.leftColumn {
+  display: grid;
+  gap: 1rem;
+}
+
+.descriptionField {
+  textarea {
+    min-height: 18rem !important;
+  }
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.errorText {
+  color: var(--color-button-delete);
+  margin: 0;
+  font-size: 0.85rem;
+}

@@ -1,0 +1,63 @@
+.formContainer {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  column-gap: 2rem;
+  opacity: 1;
+  transform: translateY(0);
+  transition: transform 250ms ease-out, opacity 250ms ease-out;
+
+  .column {
+    width: 50%;
+  }
+
+  .textareaCont {
+    width: 50%;
+  }
+}
+
+.saveButtonContainer{
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 1.5rem;
+}
+
+.buttonsContainer{
+  display: flex;
+  justify-content: flex-end;
+  margin-left: auto;
+  gap:1rem;
+}
+
+.deleteButtonContainer{
+  width: max-content;
+  margin-left: auto;
+}
+
+.invalidFormContainer{
+  color: var(--color-button);
+  display: flex;
+  gap: .5rem;
+  padding-block:1rem;
+  align-items: center;
+}
+
+.generalError {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  width: 100%;
+
+  p {
+    text-align: right;
+    color: var(--color-status-cancelado);
+    font-size: 1rem;
+  }
+}
+
+.loader {
+  text-align: center;
+}

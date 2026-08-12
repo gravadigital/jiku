@@ -1,0 +1,1 @@
+export { RequirementDetail } from './RequirementDetail';

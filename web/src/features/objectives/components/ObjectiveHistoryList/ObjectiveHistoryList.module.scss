@@ -1,0 +1,151 @@
+.container {
+  h2 {
+    font-family: var(--font-primary);
+    font-size: 1.5rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--color-general-title);
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+
+  ul {
+    margin-left: 0.4em;
+    list-style-type: disc;
+  }
+
+  li {
+    margin-top: 1rem;
+  }
+
+  li > p {
+    font-size: medium;
+    line-height: 1.5;
+  }
+
+  span {
+    font-size: medium;
+    font-weight: bold;
+  }
+
+  .noActivity {
+    font-style: italic;
+    color: gray;
+    padding: 0.5rem 0 0.5rem 0;
+  }
+
+  .previousValue {
+    background-color: var(--color-general-disabled);
+    padding: 0.2rem;
+    border-radius: var(--radius-items);
+  }
+
+  .newValue {
+    background-color: var(--color-area-gestion);
+    padding: 0.2rem;
+    border-radius: var(--radius-items);
+  }
+
+  .activityTitle {
+    position: relative;
+    padding-left: 1.3rem;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      top: 0.2rem;
+      font-size: 2rem;
+      color: var(--color-button);
+      line-height: 1.6rem;
+    }
+  }
+}
+
+
+ul.connectedList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+
+  li {
+    position: relative;
+    padding-left: 1.2rem;
+
+    .listContainer {
+      font-size: medium;
+      line-height: 1.5;
+    }
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 1.5rem;
+      color: var(--color-text-muted);
+      line-height: 1.6rem;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 0.9rem;
+      width: 1px;
+      height: calc(140% - 0rem);
+      background-color: var(--color-border-default);
+    }
+
+    &:last-child::after {
+      display: none;
+    }
+  }
+}
+
+.commentDate{
+  color: gray;
+}
+
+ul.connectedComments {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+
+  li {
+    position: relative;
+    padding-left: 1.2rem;
+
+    .listContainer {
+      font-size: medium;
+      line-height: 1.5;
+    }
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      top: 0.6rem;
+      font-size: 1.5rem;
+      color: var(--color-button);
+      line-height: 1.6rem;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 1.1rem;
+      bottom: -0.75rem;
+      width: 1px;
+      background-color: var(--color-border-default);
+    }
+
+    &:last-child::after {
+      display: none;
+    }
+  }
+}

@@ -1,0 +1,179 @@
+# Producción: no buildea, hace pull de imágenes con versión fijada por variable.
+# Para desarrollo local usar docker-compose.dev.yml
+name: jiku
+
+services:
+  # ------------------------------------------------------------------
+  # Fronts
+  # ------------------------------------------------------------------
+  web:
+    image: gravadigital/jiku-web:${WEB_VERSION}
+    container_name: jiku-${STAGE}-web
+    restart: always
+    environment:
+      - VIRTUAL_HOST=${DOMAIN}
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=${DOMAIN}
+      - API_URL=http://api:3000/
+      - APP_NAME=${APP_NAME:-Jiku}
+      - EXTERNAL_LINKS=${EXTERNAL_LINKS:-}
+      - AUTH_URL=https://${DOMAIN}
+      - AUTH_SECRET=${WEB_NEXTAUTH_SECRET}
+      - ZITADEL_ISSUER=${IDENTITY_ISSUER}
+      - ZITADEL_CLIENT_ID=${IDENTITY_CLIENT_ID}
+      - ZITADEL_PROJECT_ID=${IDENTITY_PROJECT_ID}
+    networks:
+      - ingress-network
+
+  opus-web:
+    image: gravadigital/jiku-opus-web:${OPUS_WEB_VERSION}
+    container_name: jiku-${STAGE}-opus-web
+    restart: always
+    environment:
+      - VIRTUAL_HOST=${OPUS_DOMAIN}
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=${OPUS_DOMAIN}
+      - API_URL=http://api:3000/
+      - NEXTAUTH_URL=https://${OPUS_DOMAIN}
+      - NEXTAUTH_SECRET=${OPUS_NEXTAUTH_SECRET}
+      - ZITADEL_ISSUER=${IDENTITY_ISSUER}
+      - ZITADEL_CLIENT_ID=${IDENTITY_CLIENT_ID}
+      - ZITADEL_PROJECT_ID=${IDENTITY_PROJECT_ID}
+    networks:
+      - ingress-network
+
+  # ------------------------------------------------------------------
+  # Bus
+  # ------------------------------------------------------------------
+  nats:
+    image: nats:2.10-alpine
+    container_name: jiku-${STAGE}-nats
+    restart: always
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    volumes:
+      - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./nats/creds:/etc/nats/creds:ro
+    networks:
+      - jiku-bus
+
+  auth-callout:
+    image: ${AUTH_CALLOUT_IMAGE}:${AUTH_CALLOUT_VERSION}
+    container_name: jiku-${STAGE}-auth-callout
+    restart: always
+    environment:
+      # Prefijo CALLOUT_*: es el contrato de la imagen publicada.
+      - CALLOUT_SERVER_MODE=operator
+      - CALLOUT_NATS_URL=${NATS_URL}
+      - CALLOUT_HANDLER_CREDS=/etc/nats-creds/sentinel-handler.creds
+      - CALLOUT_APP_ACCOUNT_SK_SEED=/etc/nats-creds/app-account.sk.seed
+      - CALLOUT_APP_ACCOUNT_PUB=/etc/nats-creds/app-account.pub
+      - CALLOUT_AUTH_ACCOUNT_SK_SEED=/etc/nats-creds/auth-account.sk.seed
+      - CALLOUT_XKEY_SEED=/etc/nats-creds/callout-xkey.seed
+      - CALLOUT_RULES_PATH=/etc/auth-callout/rules.yaml
+      - CALLOUT_INSTANCE=${NATS_INSTANCE}
+      - CALLOUT_IDP_MODE=${GESTION_IDP_MODE}
+      - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+    volumes:
+      - ./nats/auth-callout:/etc/auth-callout:ro
+      - ./nats/creds:/etc/nats-creds:ro
+    depends_on:
+      - nats
+    networks:
+      - jiku-bus
+
+  # ------------------------------------------------------------------
+  # Backend
+  # ------------------------------------------------------------------
+  api:
+    image: gravadigital/jiku-api:${API_VERSION}
+    container_name: jiku-${STAGE}-api
+    restart: always
+    environment:
+      - VIRTUAL_HOST=api.${DOMAIN}
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=api.${DOMAIN}
+      # Credenciales de SOLO LECTURA: la api no escribe.
+      - POSTGRESQL_DB=${DATABASE_NAME}
+      - POSTGRESQL_USER=${DATABASE_READONLY_USER}
+      - POSTGRESQL_PASSWORD=${DATABASE_READONLY_PASSWORD}
+      - POSTGRESQL_HOST=database
+      # Las migraciones corren al arrancar y necesitan escribir.
+      - POSTGRESQL_MIGRATION_USER=${DATABASE_USER}
+      - POSTGRESQL_MIGRATION_PASSWORD=${DATABASE_PASSWORD}
+      - IDENTITY_URL=${IDENTITY_URL}
+      - NATS_URL=${NATS_URL}
+      - NATS_CREDS=${NATS_CREDS}
+      - ZITADEL_SERVICE_USER_KEY_B64=${API_SERVICE_USER_KEY_B64}
+      - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      - NATS_INSTANCE=${NATS_INSTANCE}
+      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      - NATS_REQUEST_TIMEOUT_MS=${NATS_REQUEST_TIMEOUT_MS}
+    volumes:
+      - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
+    depends_on:
+      - nats
+      - database
+    networks:
+      - jiku-database
+      - jiku-bus
+      - ingress-network
+
+  core:
+    image: gravadigital/jiku-core:${CORE_VERSION}
+    container_name: jiku-${STAGE}-core
+    restart: always
+    environment:
+      # Core es el único que escribe, y el que corre las migraciones.
+      - POSTGRESQL_DB=${DATABASE_NAME}
+      - POSTGRESQL_USER=${DATABASE_USER}
+      - POSTGRESQL_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRESQL_HOST=database
+      - NATS_URL=${NATS_URL}
+      - NATS_CREDS=${NATS_CREDS}
+      # La key del service user, en base64: el servicio pide el token y lo renueva solo.
+      - ZITADEL_SERVICE_USER_KEY_B64=${CORE_SERVICE_USER_KEY_B64}
+      - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      - NATS_INSTANCE=${NATS_INSTANCE}
+      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+    volumes:
+      - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
+    depends_on:
+      - nats
+      - database
+    networks:
+      - jiku-database
+      - jiku-bus
+
+  # ------------------------------------------------------------------
+  # Base de datos
+  # ------------------------------------------------------------------
+  database:
+    image: postgres:15.4-alpine3.18
+    container_name: jiku-${STAGE}-database
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_DB=${DATABASE_NAME}
+    volumes:
+      - jiku-database-data:/var/lib/postgresql/data
+    networks:
+      - jiku-database
+
+volumes:
+  jiku-database-data:
+    name: "jiku-${STAGE}-database-data"
+
+networks:
+  jiku-bus:
+  jiku-database:
+    name: "${DATABASE_NETWORK}"
+    external: true
+  ingress-network:
+    external: true
+    name: "${INGRESS_NETWORK}"

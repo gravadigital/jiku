@@ -1,0 +1,1 @@
+export { ObjectiveDetails } from './ObjectiveDetails';

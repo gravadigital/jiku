@@ -1,0 +1,24 @@
+.icon {
+  height: 0.75rem;
+  width: 0.75rem;
+  border-radius: var(--radius-items);
+
+  &[data-priority="0"] {
+    background-color: var(--color-priority-0);
+  }
+  &[data-priority="1"] {
+    background-color: var(--color-priority-1);
+  }
+  &[data-priority="2"] {
+    background-color: var(--color-priority-2);
+  }
+  &[data-priority="3"] {
+    background-color: var(--color-priority-3);
+  }
+  &[data-priority="4"] {
+    background-color: var(--color-priority-4);
+  }
+  &[data-priority="5"] {
+    background-color: var(--color-priority-5);
+  }
+}

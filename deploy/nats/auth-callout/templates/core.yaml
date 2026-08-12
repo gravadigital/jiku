@@ -1,0 +1,39 @@
+# SERVICE USER de core.
+#
+# Gramática: {instance}.{user-id}.{svc}.{version}.{comando}
+#
+# IDENTIDAD vs ENDPOINT
+#   Son dos cosas distintas, y core usa las dos:
+#     - {{user_id}}  QUIÉN es: el `sub` de su service user. Único por réplica.
+#     - {{service}}  QUÉ atiende: `gestion`, el endpoint. Compartido entre réplicas, que
+#                    es lo que permite balancear con queue groups.
+#
+# CÓMO ATIENDE
+#   Se suscribe a `{instance}.*.gestion.v1.>`: el `*` cubre el user id de CUALQUIER caller
+#   (hoy solo la api, mañana otros servicios). El user id de quien llamó viene en el
+#   subject del mensaje, avalado por el callout — core lo lee de ahí y no del cuerpo.
+#
+#   Eso garantiza que core sepa QUÉ SERVICE USER le habla. NO le dice qué persona originó
+#   la acción: eso viaja en el cuerpo (`creator` / `author`), porque la api usa un único
+#   service_user para todos sus usuarios.
+
+pub:
+  allow:
+    # Requests salientes bajo su propia identidad. Hoy core no llama a nadie;
+    # queda declarado porque es la forma del permiso en un despliegue real.
+    - "{{instance}}.{{user_id}}.>"
+
+sub:
+  allow:
+    # Atender los comandos dirigidos a su endpoint, de cualquier caller.
+    - "{{instance}}.*.{{service}}.v1.>"
+    # Inbox propio (respuestas de los servicios que llame), bajo el hash de su user id.
+    # Es POR RÉPLICA, no por endpoint: dos réplicas con distinto service user no se roban
+    # las respuestas.
+    - "_INBOX.{{user_id_hash}}.>"
+
+response:
+  # allow_responses: deja que core conteste al inbox del caller sin necesitar un
+  # permiso de pub explícito hacia ese inbox.
+  max: 1
+  ttl: 45s

@@ -1,0 +1,209 @@
+# Stack completo en la máquina, contra el Zitadel real y con el dump de producción.
+# Se levanta con ./local.sh up (no directamente con docker compose: el script carga el
+# dump, crea el usuario de solo lectura y renueva los tokens de los service users).
+name: jiku-local
+
+services:
+  database:
+    image: postgres:15.4-alpine3.18
+    container_name: jiku-local-database
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_DB=${DATABASE_NAME}
+    volumes:
+      - jiku-local-db:/var/lib/postgresql/data
+    networks:
+      - jiku
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: jiku-local-nats
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./nats/creds:/etc/nats/creds:ro
+    networks:
+      - jiku
+
+  auth-callout:
+    # Imagen publicada: el callout no vive en este monorepo. Trae SOLO el callout — el
+    # servidor NATS es el servicio `nats` de arriba.
+    image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-latest}
+    container_name: jiku-local-auth-callout
+    # Las creds son 600 y pertenecen al usuario del host: el contenedor corre con ese
+    # mismo uid para poder leerlas sin aflojar permisos en el host.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      # Prefijo CALLOUT_*: es el contrato de la imagen publicada.
+      - CALLOUT_SERVER_MODE=operator
+      - CALLOUT_NATS_URL=nats://nats:4222
+      # El handler tiene que ser el usuario declarado en `nsc edit authcallout --auth-user`:
+      # el server lo autoriza directo, porque un callout no puede autorizarse a sí mismo.
+      - CALLOUT_HANDLER_CREDS=/etc/nats-creds/sentinel-handler.creds
+      # Dos signing keys distintas: APP firma el User JWT, AUTH firma el authorization_response.
+      - CALLOUT_APP_ACCOUNT_SK_SEED=/etc/nats-creds/app-account.sk.seed
+      - CALLOUT_APP_ACCOUNT_PUB=/etc/nats-creds/app-account.pub
+      - CALLOUT_AUTH_ACCOUNT_SK_SEED=/etc/nats-creds/auth-account.sk.seed
+      # Sin la xkey, el access token viajaría en claro por $SYS.REQ.USER.AUTH.
+      - CALLOUT_XKEY_SEED=/etc/nats-creds/callout-xkey.seed
+      - CALLOUT_RULES_PATH=/etc/auth-callout/rules.yaml
+      # Primer segmento de los subjects; los templates lo usan como {{instance}}.
+      - CALLOUT_INSTANCE=${NATS_INSTANCE}
+      - CALLOUT_IDP_MODE=zitadel
+      - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      - CALLOUT_LOG_LEVEL=debug
+    volumes:
+      - ./nats/auth-callout:/etc/auth-callout:ro
+      - ./nats/creds:/etc/nats-creds:ro
+    depends_on:
+      - nats
+    networks:
+      - jiku
+
+  core:
+    build:
+      # El contexto es el root: estos servicios usan los paquetes de packages/.
+      context: ..
+      dockerfile: core/Dockerfile
+    container_name: jiku-local-core
+    environment:
+      # Core es el único que escribe: usa el usuario con permisos completos.
+      - POSTGRESQL_DB=${DATABASE_NAME}
+      - POSTGRESQL_USER=${DATABASE_USER}
+      - POSTGRESQL_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRESQL_HOST=database
+      - NATS_URL=nats://nats:4222
+      - NATS_CREDS=/run/secrets/nats.creds
+      # La key del service user, en base64: el servicio pide el token y lo renueva solo.
+      - ZITADEL_SERVICE_USER_KEY_B64=${CORE_SERVICE_USER_KEY_B64}
+      - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      - NATS_INSTANCE=${NATS_INSTANCE}
+      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      # Traza de diagnóstico: imprime cada comando y su respuesta. Ver bus-inspect.sh
+      - LOG_COMMANDS=${LOG_COMMANDS:-false}
+      # En NODE_ENV=production el logger escribe a archivo y exige estas rutas.
+      - LOGGER_INFO_PATH=/tmp/core_info.log
+      - LOGGER_INFO_LEVEL=info
+      - LOGGER_ERROR_PATH=/tmp/core_error.log
+      - LOGGER_ERROR_LEVEL=error
+      - LOGGER_FILE_MAX_SIZE=1000000
+      - LOGGER_MAX_FILES=5
+    volumes:
+      - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
+    depends_on:
+      - nats
+      - database
+    networks:
+      - jiku
+
+  api:
+    build:
+      # El contexto es el root: estos servicios usan los paquetes de packages/.
+      context: ..
+      dockerfile: api/Dockerfile
+    container_name: jiku-local-api
+    ports:
+      - "3100:3000"
+    environment:
+      # SOLO LECTURA: la api no puede escribir ni queriendo.
+      - POSTGRESQL_DB=${DATABASE_NAME}
+      - POSTGRESQL_USER=${DATABASE_READONLY_USER}
+      - POSTGRESQL_PASSWORD=${DATABASE_READONLY_PASSWORD}
+      - POSTGRESQL_HOST=database
+      # Las migraciones corren al arrancar y necesitan escribir: van con el usuario
+      # dueño de la base, no con el de solo lectura de la api.
+      - POSTGRESQL_MIGRATION_USER=${DATABASE_USER}
+      - POSTGRESQL_MIGRATION_PASSWORD=${DATABASE_PASSWORD}
+      - IDENTITY_URL=${IDENTITY_URL}
+      - IDENTITY_ISSUER=${IDENTITY_ISSUER}
+      - IDENTITY_CLIENT_ID=${IDENTITY_CLIENT_ID}
+      - NATS_URL=nats://nats:4222
+      - NATS_CREDS=/run/secrets/nats.creds
+      # La key del service user, en base64: el servicio pide el token y lo renueva solo.
+      - ZITADEL_SERVICE_USER_KEY_B64=${API_SERVICE_USER_KEY_B64}
+      - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
+      - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      - NATS_INSTANCE=${NATS_INSTANCE}
+      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      # El user id del subject NO se configura acá: sale del `sub` de la key del service
+      # user, porque tiene que ser el mismo que el callout lee del token.
+      - NATS_REQUEST_TIMEOUT_MS=${NATS_REQUEST_TIMEOUT_MS}
+      # Los recordatorios se eliminan del alcance; apagados.
+      - LAST_WEEK_MISSING_HOURS_ENABLED=false
+      - CURRENT_WEEK_MISSING_HOURS_ENABLED=false
+      - CONSOLIDATED_HOURS_REMINDER_ENABLED=false
+      # Las rutas de attachments siguen vivas y exigen estas variables al arrancar.
+      - STORAGE_S3_REGION=${STORAGE_S3_REGION}
+      - STORAGE_S3_CREDENTIALS_ACCESSKEY=${STORAGE_S3_CREDENTIALS_ACCESSKEY}
+      - STORAGE_S3_CREDENTIALS_SECRETKEY=${STORAGE_S3_CREDENTIALS_SECRETKEY}
+      - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
+      - STORAGE_S3_BUCKETNAME=${STORAGE_S3_BUCKETNAME}
+      - STORAGE_S3_FORCEPATHSTYLE=${STORAGE_S3_FORCEPATHSTYLE}
+    volumes:
+      - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
+    depends_on:
+      - nats
+      - database
+    networks:
+      - jiku
+
+  web:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    container_name: jiku-local-web
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_URL=http://localhost:3000
+      - AUTH_SECRET=${WEB_NEXTAUTH_SECRET}
+      - ZITADEL_ISSUER=${IDENTITY_ISSUER}
+      - ZITADEL_CLIENT_ID=${IDENTITY_CLIENT_ID}
+      - ZITADEL_PROJECT_ID=${IDENTITY_PROJECT_ID}
+      # Temporal: imprime el access token en los logs para probar la api a mano.
+      - LOG_ACCESS_TOKEN=${LOG_ACCESS_TOKEN:-false}
+      # La web llama a la api desde el SERVIDOR (sus rutas /api/* proxean, y axios.ts
+      # es 'use server'), así que la URL se resuelve dentro de la red de Docker:
+      # `localhost` ahí es el propio contenedor web, no la api.
+      # Ningún componente de cliente usa esta variable, así que no hace falta que sea
+      # alcanzable desde el navegador.
+      - API_URL=http://api:3000/
+    networks:
+      - jiku
+
+  opus-web:
+    build:
+      context: ..
+      dockerfile: opus-web/Dockerfile
+    container_name: jiku-local-opus-web
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_SECRET=${OPUS_NEXTAUTH_SECRET}
+      - ZITADEL_ISSUER=${IDENTITY_ISSUER}
+      # La app de la web ya tiene declarado el redirect del 3001.
+      - ZITADEL_CLIENT_ID=${IDENTITY_CLIENT_ID}
+      - ZITADEL_PROJECT_ID=${IDENTITY_PROJECT_ID}
+      # opus llama a la api desde los dos lados: el navegador usa
+      # NEXT_PUBLIC_API_URL (localhost:3100) y el servidor, esta. Dentro del
+      # contenedor localhost es el propio opus, no la api.
+      - API_URL=http://api:3000/
+    networks:
+      - jiku
+
+volumes:
+  jiku-local-db:
+
+networks:
+  jiku:

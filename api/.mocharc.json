@@ -1,0 +1,11 @@
+{
+  "require": [
+    "ts-node/register",
+    "tests/register-jwt-mock.ts",
+    "tests/setup-env.ts",
+    "tests/global-setup.ts"
+  ],
+  "timeout": 60000,
+  "exit": true,
+  "recursive": true
+}

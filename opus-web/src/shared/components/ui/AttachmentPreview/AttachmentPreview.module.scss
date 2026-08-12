@@ -1,0 +1,68 @@
+.wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-width: 300px;
+}
+
+.mediaContainer {
+  position: relative;
+  display: inline-block;
+
+  &:hover .actionBtn[aria-label='Descargar adjunto'] {
+    opacity: 1;
+  }
+}
+
+.image {
+  display: block;
+  max-width: 300px;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.actionBtn {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+
+  &[aria-label='Descargar adjunto'] {
+    opacity: 0;
+    transition: opacity var(--transition-fast), background var(--transition-fast);
+  }
+}
+
+.fileName {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.fallback {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.pdfLink {
+  font-size: var(--font-size-sm);
+  color: var(--color-primary, #2563eb);
+  text-decoration: underline;
+}

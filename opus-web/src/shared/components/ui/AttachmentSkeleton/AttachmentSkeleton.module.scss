@@ -1,0 +1,55 @@
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@mixin shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.base {
+  border-radius: var(--radius-md);
+}
+
+.image {
+  @include shimmer;
+  width: 300px;
+  height: 180px;
+}
+
+.file {
+  @include shimmer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 360px;
+  height: 62px;
+  padding: 0 var(--spacing-md);
+  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+}
+
+.iconPlaceholder {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.namePlaceholder {
+  flex: 1;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.sizePlaceholder {
+  width: 40px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}

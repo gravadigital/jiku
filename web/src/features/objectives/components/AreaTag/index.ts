@@ -1,0 +1,1 @@
+export { AreaTag } from './AreaTag';

@@ -1,0 +1,57 @@
+# rules.yaml — rol de Zitadel -> (tipo de identidad, plantilla)
+#
+# CÓMO SE EVALÚA
+#   Se recorren las reglas EN ORDEN y gana la PRIMERA cuyo `match` coincida con algún rol
+#   del token. Sin coincidencia, la conexión se RECHAZA: no hay permisos por defecto.
+#   Poner lo más restrictivo arriba.
+#
+# EL ROL ES LO ÚNICO QUE DECIDE
+#   No hay heurística que adivine si un token es de una persona o de un servicio: lo
+#   declara `type`, y el rol lo asigna quien administra Zitadel.
+#
+# `service` ES EL ENDPOINT, NO LA IDENTIDAD
+#   La identidad de todo caller —persona o servicio— es su `sub` de Zitadel, y es lo que
+#   va como `<user-id>` en el subject. El campo `service` de acá abajo nombra el ENDPOINT
+#   que ese usuario atiende: es el `{{service}}` de la plantilla y el segmento `<svc>` por
+#   el que otros lo llaman.
+#
+#   Gramática completa: <instance>.<user-id>.<svc>.<version>.<method>
+#
+# ROLES DEL PRODUCTO
+#   user           usuario de la web       -> NO accede a NATS
+#   external-user  usuario de opus         -> NO accede a NATS
+#   internal-app   la api                  -> accede a NATS y consulta a core
+#   core           el servicio core        -> atiende los comandos
+#
+#   Las personas no conectan al bus: hablan HTTP con la api, y es la api la que publica
+#   los comandos con su propio service_user. Por eso `user` y `external-user` NO tienen
+#   regla acá: sin coincidencia, la conexión se rechaza. Es el comportamiento buscado,
+#   no un olvido.
+
+version: 1
+
+rules:
+  # La api. Único emisor de comandos hacia core.
+  #
+  # `service: api` reserva el nombre del endpoint, pero la api HOY NO ATIENDE NINGUNO:
+  # su plantilla no se suscribe a `{{instance}}.*.{{service}}.>`, solo publica y escucha
+  # su inbox. Queda declarado para el día que algo tenga que llamarla por el bus.
+  - match: internal-app
+    type: service
+    service: api
+    template: templates/api.yaml
+
+  # Core: atiende el endpoint `gestion`, que es por donde entran todos los comandos.
+  - match: core
+    type: service
+    service: gestion
+    template: templates/core.yaml
+
+  # Rol de diagnóstico: escucha todo sin publicar. Solo para entornos locales.
+  - match: bus-observer
+    type: service
+    service: gestion
+    template: templates/observer.yaml
+
+  # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.
+  # Es lo que mantiene a `user` y `external-user` fuera del bus.

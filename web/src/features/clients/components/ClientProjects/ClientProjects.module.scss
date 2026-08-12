@@ -1,0 +1,15 @@
+.projectsGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  margin-top: 1rem;
+}
+
+.projectItem {
+  display: contents;
+}
+
+.empty {
+  margin-top: 1rem;
+  color: var(--color-text-muted);
+}

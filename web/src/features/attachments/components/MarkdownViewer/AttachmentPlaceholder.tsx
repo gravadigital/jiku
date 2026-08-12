@@ -1,0 +1,125 @@
+'use client';
+import React, { useState } from 'react';
+import { toast } from 'react-toastify';
+import { Button } from '@/shared/components/ui/Button';
+import { useAttachmentMeta } from '../../hooks/useAttachmentMeta';
+import { getDownloadUrl } from '../../services/attachmentsClientApi';
+import { getFileIcon } from '../../utils/fileIcons';
+import styles from './AttachmentPlaceholder.module.scss';
+
+interface AttachmentPlaceholderProps {
+  readonly attachmentId: number;
+  readonly fileName?: string;
+  /**
+   * Cuando se provee, reemplaza los botones Preview/Descargar por un único
+   * botón "Eliminar" — usado en editores donde el adjunto todavía no se
+   * confirmó (ej. input de comentario) y el usuario puede quitarlo.
+   */
+  readonly onRemove?: () => void;
+}
+
+function formatFileSize(bytes?: number): string | null {
+  if (bytes === undefined || Number.isNaN(bytes)) {
+    return null;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function AttachmentPlaceholder({
+  attachmentId,
+  fileName,
+  onRemove,
+}: AttachmentPlaceholderProps) {
+  const { data, isLoading, isError, error } = useAttachmentMeta(attachmentId);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  if (isLoading) {
+    return (
+      <span
+        className={styles.loading}
+        data-testid="attachment-placeholder-loading"
+        aria-busy="true"
+        aria-label="Cargando adjunto"
+      >
+        <span className={styles.skeletonBar} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (isError) {
+    const isForbidden = error?.status === 403;
+    return (
+      <span className={styles.errorCard} role="note">
+        {isForbidden
+          ? 'No tenés permisos para acceder a este adjunto'
+          : `Adjunto no disponible (ID: ${attachmentId})`}
+      </span>
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const displayName = fileName || data.fileName;
+  const sizeLabel = formatFileSize(data.fileSize);
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch(getDownloadUrl(attachmentId));
+      if (response.status === 403) {
+        toast.error('No tenés permisos para descargar este archivo');
+        return;
+      }
+      if (!response.ok) {
+        toast.error('Error al descargar el archivo');
+        return;
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = displayName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error('Error al descargar el archivo');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <span className={styles.card}>
+      <span className={styles.icon} aria-hidden="true">
+        {getFileIcon(data.mimeType)}
+      </span>
+      <span className={styles.info}>
+        <span className={styles.fileName} title={displayName}>
+          {displayName}
+        </span>
+      </span>
+      <span className={styles.actions}>
+        {sizeLabel && <span className={styles.sizeInline}>{sizeLabel}</span>}
+        {onRemove ? (
+          <Button label="Eliminar" onClick={onRemove} size="small" variant="secondary" />
+        ) : (
+          <Button
+            label="Descargar"
+            onClick={handleDownload}
+            size="small"
+            variant="secondary"
+            disabled={isDownloading}
+            loading={isDownloading}
+          />
+        )}
+      </span>
+    </span>
+  );
+}

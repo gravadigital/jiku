@@ -1,0 +1,202 @@
+@use '@/styles/mixins' as *;
+
+/* ── Overlay (desktop) ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+/* ── Modal container (desktop) ── */
+.container {
+  display: flex;
+  flex-direction: column;
+  width: 1632px;
+  max-width: 100%;
+  height: calc(100vh - 80px);
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-family-sans);
+}
+
+/* ── Body: two-panel row ── */
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left panel ── */
+.leftPanel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: #fff;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+/* ── Right panel ── */
+.rightPanel {
+  width: 558px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-left: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+/* Right panel topbar */
+.rightPanelTopbar {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.rightPanelTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Activity feed (scrollable) */
+.activityFeed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+/* Comment input — fixed at bottom */
+.commentInputWrapper {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 14px 20px;
+  background: #fff;
+}
+
+/* ── Centered (loading / error) ── */
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--spacing-xl);
+  gap: var(--spacing-md);
+}
+
+.errorText {
+  font-size: var(--font-size-base);
+  color: var(--color-error);
+  text-align: center;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════
+   MOBILE LAYOUT (fullscreen with tabs)
+═══════════════════════════════════════ */
+
+.overlayMobile {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: #fff;
+}
+
+.containerMobile {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  font-family: var(--font-family-sans);
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.tab {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-family-sans);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+
+  &[data-active='true'] {
+    color: #2a67dd;
+    border-bottom-color: #2a67dd;
+  }
+
+  &:hover:not([data-active='true']) {
+    color: var(--color-text-primary);
+  }
+}
+
+/* ── Tab content area ── */
+.tabContent {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Activity tab: feed scrollable + input fixed at bottom */
+.activityTabWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.activityFeedMobile {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}

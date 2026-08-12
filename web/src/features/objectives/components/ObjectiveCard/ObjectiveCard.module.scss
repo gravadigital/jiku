@@ -1,0 +1,175 @@
+@use '@/styles/mixins' as *;
+
+.objectiveCardContainer {
+  border-radius: var(--radius-items);
+  box-shadow: var(--box-shadow);
+  border-bottom: 1.5px solid var(--color-general-background);
+  background-color: var(--color-background);
+  opacity: 0;
+  animation: fadeIn 250ms cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+  cursor: pointer;
+  border: 2px solid transparent;
+
+  &[data-state="closeToDeadline"] {
+    border-color: var(--color-objective-close-to-deadline);
+
+    .title {
+      color: var(--color-objective-close-to-deadline);
+    }
+
+    .bottomContent {
+      border-color: var(--color-objective-close-to-deadline);
+    }
+  }
+
+  &[data-state="expiresToday"] {
+    border-color: var(--color-objective-close-to-deadline);
+
+    .title {
+      color: var(--color-objective-close-to-deadline);
+    }
+
+    .bottomContent {
+      border-color: var(--color-objective-close-to-deadline);
+    }
+  }
+
+  &[data-state="expired"] {
+    border-color: var(--color-objective-expired);
+
+    .title {
+      color: var(--color-objective-expired);
+    }
+
+    .bottomContent {
+      background-color: var(--color-objective-expired);
+      border-color: var(--color-objective-expired);
+      border-radius: 0 0 5px 5px;
+
+      p,
+      span {
+        color: var(--color-background);
+        font-weight: bold;
+      }
+    }
+
+    .starIcon {
+      background-color: var(--color-objective-expired) !important;
+    }
+  }
+
+  &[data-state="finished"] {
+    border-color: var(--color-objective-finished);
+
+    .title {
+      color: var(--color-objective-finished);
+    }
+
+    .bottomContent {
+      border-color: var(--color-objective-finished);
+    }
+  }
+
+  .topComponent {
+    padding: 1rem;
+    margin-top: 0.3rem;
+    position: relative;
+
+    .title {
+      font-family: var(--font-primary);
+      font-size: 1rem;
+      line-height: 1.2;
+      font-weight: 400;
+      color: var(--color-general-title);
+      height: 2.4em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .starIcon {
+      background-color: var(--color-button);
+      position: absolute;
+      top: 0.4rem;
+      right: 1.2rem;
+      transform: translateY(-50%);
+      padding: 0.1rem 0.3rem 0.3rem 0.3rem;
+      border-radius: 0 0 10px 10px;
+      @include flex-center;
+    }
+  }
+
+  .middleContent {
+    padding: 0.7rem;
+    @include flex-between;
+    align-items: flex-end;
+    column-gap: 0.5rem;
+  }
+
+  .bottomContent {
+    border-radius: 0 0 8px 8px;
+    width: 100%;
+    padding: 1rem;
+    box-shadow: var(--box-shadow);
+    @include flex-between;
+    gap: 1rem;
+    background-color: var(--color-general-background);
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+.workedTimeContainer {
+  @include flex-start;
+  gap: 0.25rem;
+  padding-inline: 1rem;
+  padding-bottom: 0.5rem;
+
+  .workedText {
+    font-family: var(--font-primary);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    font-weight: 500;
+    color: var(--color-general-title);
+  }
+}
+
+.workedTimesTooltip {
+  position: absolute;
+  bottom: 120%;
+  left: 80%;
+  opacity: 0;
+  pointer-events: none;
+  width: max-content;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem 0.5rem 0.5rem 0;
+  background-color: var(--color-general-title);
+  transition: opacity 150ms ease-out;
+
+  .tooltipText {
+    font-family: var(--font-primary);
+    font-size: 0.75rem;
+    line-height: 150%;
+    font-weight: 400;
+    color: var(--color-general-disabled);
+  }
+}
+
+.personsWorkedTimes {
+  position: relative;
+  @include flex-center;
+
+  &:hover {
+    .workedTimesTooltip {
+      opacity: 1;
+      pointer-events: all;
+    }
+  }
+}

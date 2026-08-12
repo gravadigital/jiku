@@ -1,0 +1,77 @@
+@use '@/styles/mixins' as *;
+
+.button {
+  @include button-reset;
+  @include flex-center;
+  @include focus-ring;
+
+  position: relative;
+  gap: var(--spacing-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-lg);
+  transition:
+    background-color var(--transition-fast),
+    opacity var(--transition-fast);
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  // Sizes
+  &[data-size='sm'] {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    min-height: 32px;
+  }
+
+  &[data-size='md'] {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-base);
+    min-height: 40px;
+  }
+
+  &[data-size='lg'] {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-lg);
+    min-height: 48px;
+  }
+
+  // Variants
+  &[data-variant='primary'] {
+    background-color: var(--color-primary);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+    }
+  }
+
+  &[data-variant='secondary'] {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-border);
+    }
+  }
+
+  &[data-variant='danger'] {
+    background-color: var(--color-error);
+    color: white;
+
+    &:hover:not(:disabled) {
+      background-color: #b91c1c;
+    }
+  }
+}
+
+.spinnerWrapper {
+  position: absolute;
+  @include flex-center;
+}
+
+.hiddenText {
+  visibility: hidden;
+}

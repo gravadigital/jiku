@@ -1,0 +1,221 @@
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+
+  // Mobile/tablet: los botones (ancho fijo, flex-shrink: 0) le quitaban espacio horizontal
+  // al título en pantallas angostas, cortándolo. Se apila verticalmente en el orden que ya
+  // trae el DOM: título, pills (ambos dentro de .headerLeft), y por último los botones.
+  @media (max-width: 1023px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.headerLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.reqTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #000;
+  line-height: 1.15;
+  margin: 0;
+  word-break: break-word;
+}
+
+.badgesRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.reqCode {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #626a81;
+  background: #fff;
+  border: 1px solid #626a81;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+// ── Estado ───────────────────────────────────────────────────────────
+.badgeState {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #94a3b8;
+
+  &[data-state='analisis']      { background: #f1f5f9; color: #475569; border-color: #94a3b8; .dot { background: #94a3b8; } }
+  &[data-state='planificacion'] { background: #ede9fe; color: #6d28d9; border-color: #8b5cf6; .dot { background: #8b5cf6; } }
+  &[data-state='en_cola']       { background: #e0f2fe; color: #0369a1; border-color: #0ea5e9; .dot { background: #0ea5e9; } }
+  &[data-state='desarrollo']    { background: #dcfce7; color: #15803d; border-color: #22c55e; .dot { background: #22c55e; } }
+  &[data-state='revision']      { background: #fef3c7; color: #b45309; border-color: #f59e0b; .dot { background: #f59e0b; } }
+  &[data-state='resuelto']      { background: #dbeafe; color: #1d4ed8; border-color: #2563eb; .dot { background: #2563eb; } }
+  &[data-state='cancelado']     { background: #fee2e2; color: #dc2626; border-color: #ef4444; .dot { background: #ef4444; } }
+}
+
+// ── Tipo ─────────────────────────────────────────────────────────────
+.badgeType {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #94a3b8;
+}
+
+// ── Prioridad ─────────────────────────────────────────────────────────
+.badgePriority {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #94a3b8;
+
+  &[data-priority='sin_prioridad'] { background: #f1f5f9; color: #64748b;  border-color: #94a3b8; }
+  &[data-priority='baja']          { background: #eff6ff; color: #1d4ed8;  border-color: #1d4ed8; }
+  &[data-priority='media']         { background: #fffbeb; color: #b45309;  border-color: #b45309; }
+  &[data-priority='alta']          { background: #fff7ed; color: #c2410c;  border-color: #c2410c; }
+  &[data-priority='urgente']       { background: #fff1f2; color: #e11d48;  border-color: #e11d48; }
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+// ── Visibilidad ───────────────────────────────────────────────────────
+.badgeVisibility {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #94a3b8;
+}
+
+// ── Pill dropdown ─────────────────────────────────────────────────────
+.pillWrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.pillClickable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+  &:hover { opacity: 0.8; }
+}
+
+.pillDisabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.pillChevron {
+  font-size: 0.6rem;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+.pillMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-width: 140px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pillMenuItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  font-family: var(--font-primary);
+  font-weight: 400;
+  color: #1f2633;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover { background: #f1f5f9; }
+}
+
+.pillMenuItemActive {
+  font-weight: 600;
+  color: var(--color-button);
+}
+
+.pillMenuItemDisabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.backButton {
+  background: #fff;
+  color: var(--color-button);
+  border: 1.5px solid var(--color-button);
+  border-radius: 10px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 150ms ease;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+.editButton {
+  background-color: var(--color-button);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 150ms ease;
+
+  &:hover {
+    opacity: 0.88;
+  }
+}

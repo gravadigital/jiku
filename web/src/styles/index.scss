@@ -1,0 +1,5 @@
+// Archivo índice para importar todos los estilos base
+// Usar con: @use '@/styles' as *;
+
+@forward 'variables';
+@forward 'mixins';

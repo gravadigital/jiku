@@ -1,0 +1,86 @@
+.wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 300px;
+}
+
+.mediaContainer {
+  position: relative;
+  display: inline-block;
+
+  &:hover .actionBtn[aria-label='Descargar adjunto'] {
+    opacity: 1;
+  }
+}
+
+.image {
+  display: block;
+  max-width: 300px;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #e6e8ed;
+}
+
+.actionBtn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+
+  &[aria-label='Descargar adjunto'] {
+    opacity: 0;
+    background: #fff;
+    color: var(--color-text-muted);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.15s, background 0.15s;
+
+    &:hover {
+      background: #fff;
+      color: var(--color-button);
+    }
+  }
+}
+
+.fileName {
+  font-size: 0.75rem;
+  font-family: var(--font-primary);
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.fileSize {
+  font-size: inherit;
+  color: var(--color-text-light);
+  white-space: nowrap;
+}
+
+.fallback {
+  font-size: 0.75rem;
+  font-family: var(--font-primary);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.pdfLink {
+  font-size: 0.875rem;
+  font-family: var(--font-primary);
+  color: var(--color-button);
+  text-decoration: underline;
+}

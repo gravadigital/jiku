@@ -1,0 +1,1 @@
+export { TintedIcon } from './TintedIcon';

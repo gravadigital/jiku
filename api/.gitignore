@@ -1,0 +1,7 @@
+package-lock.json
+node_modules
+.env
+dist/
+doc.md
+*.log
+*.sql

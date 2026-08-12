@@ -1,0 +1,27 @@
+.hiddenInput {
+  display: none;
+}
+
+.attachButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: 1px solid var(--color-general-border);
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-general-text);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-button);
+    color: var(--color-button);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

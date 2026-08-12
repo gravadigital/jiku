@@ -1,0 +1,157 @@
+name: Release
+
+# Publishing is driven by tags, not by branches: pushing `v1.2.3` builds the four
+# images and pushes them to Docker Hub. Nothing here runs on a normal commit.
+on:
+  push:
+    tags: ['v*.*.*']
+
+# A release must never be cancelled halfway: two of four images on the registry is
+# worse than none. Unlike ci.yml, this does not cancel in progress.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_NAMESPACE: gravadigital
+
+jobs:
+  # The tag is the only thing that names the images, so it has to agree with the
+  # tree before anything is built. A `v1.3.0` tag on a tree that says 1.2.0 would
+  # otherwise publish mislabelled images with no way to tell from the registry.
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive the version from the tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: The tag must match the version in the tree
+        run: |
+          tag_version="${{ steps.version.outputs.version }}"
+          tree_version="$(node -p 'require("./package.json").version')"
+          if [[ "$tag_version" != "$tree_version" ]]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json ($tree_version)."
+            echo "::error::Run scripts/set-version.sh $tag_version, commit, and re-tag."
+            exit 1
+          fi
+          echo "Tag and tree agree on $tag_version."
+
+      - name: Every workspace must carry the same version
+        run: ./scripts/set-version.sh --check
+
+  # The release validates itself rather than trusting that CI ran on this commit:
+  # a tag can point at anything. If this fails, no image reaches the registry.
+  test:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    # Mirrors ci.yml: api and core test against a real database.
+    services:
+      postgres:
+        image: postgres:15.4-alpine3.18
+        env:
+          POSTGRES_DB: gestionTest
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRESQL_HOST: localhost
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DB: gestionTest
+      POSTGRESQL_USER: test
+      POSTGRESQL_PASSWORD: testing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    strategy:
+      # One failed image must not cancel the other three: a partial release is
+      # easier to finish than to reconstruct.
+      fail-fast: false
+      matrix:
+        service: [api, core, web, opus-web]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Produces the three tags per image: the exact version, the minor series so
+      # adopters can track patches, and latest.
+      - name: Compute tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_NAMESPACE }}/jiku-${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=jiku-${{ matrix.service }}
+            org.opencontainers.image.vendor=Grava Digital
+
+      # The build context is the repository root, not the service directory: each
+      # service is a workspace and consumes the shared packages under packages/.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The four images share the npm ci layers, so the cache is worth much
+          # more here than in a single-image repo. Scoped per service to keep
+          # them from evicting each other.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # Fails the run if any image is missing, so a red check means "do not announce
+  # this release" even though fail-fast is off above.
+  summary:
+    needs: publish
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          if [[ "${{ needs.publish.result }}" != "success" ]]; then
+            echo "::error::At least one image failed to publish. Check the matrix jobs before announcing ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+          echo "Published ${GITHUB_REF_NAME}: jiku-api, jiku-core, jiku-web, jiku-opus-web."

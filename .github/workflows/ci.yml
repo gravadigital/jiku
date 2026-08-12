@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+    # Docs-only changes do not need the full suite. The workflow file itself is
+    # excluded from the ignore list on purpose: editing CI must still run CI.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+
+# One run per branch: if pushes arrive back to back, the previous one is cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # The api and core tests run against a real database. Outside CI they start it
+    # themselves in Docker; here the pipeline provides it, and `CI=true` — which
+    # Actions sets on its own — makes them use it instead of starting a container.
+    # These values have to match api/.env.test and core/.env.test.
+    services:
+      postgres:
+        image: postgres:15.4-alpine3.18
+        env:
+          POSTGRES_DB: gestionTest
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRESQL_HOST: localhost
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DB: gestionTest
+      POSTGRESQL_USER: test
+      POSTGRESQL_PASSWORD: testing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Compiles packages/* via postinstall: api and core consume them from dist/.
+      - name: Install
+        run: npm ci
+
+      # Catches a half-applied version bump here, in the pull request, instead of
+      # at tag time when the release is already blocked.
+      - name: Versions agree across the monorepo
+        run: ./scripts/set-version.sh --check
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test

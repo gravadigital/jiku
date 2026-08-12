@@ -1,0 +1,25 @@
+# ROL DE DIAGNÓSTICO — solo para entornos locales.
+#
+# Escucha todo el tráfico del protocolo sin poder publicar nada. Sirve para ver qué
+# comandos manda la api y qué responde core, sin aflojar los permisos de ninguno de los
+# dos.
+#
+# NO habilitar en producción: leería el contenido de todos los comandos, incluidos los
+# datos de negocio.
+
+pub:
+  # No publica nada: es solo un observador.
+  allow: []
+
+sub:
+  allow:
+    # Todo el protocolo, de cualquier caller. El `*` cubre el user id de quien publica.
+    - "{{instance}}.*.{{service}}.>"
+    # Las respuestas viajan por el inbox del caller, cuyo prefijo es el hash de SU user
+    # id. Como el observador mira el tráfico de todos, acá va `>` en vez de
+    # `{{user_id_hash}}`: es justamente el permiso amplio que lo hace inadecuado para
+    # producción.
+    - "_INBOX.>"
+
+response:
+  max: 0

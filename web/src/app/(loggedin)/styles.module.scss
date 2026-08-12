@@ -1,0 +1,26 @@
+.layoutContainer {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebarContainer {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 290px;
+  height: 100vh;
+  background-color: var(--color-surface-light);
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.mainContainer {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  padding: 1rem 2rem;
+  background-color: var(--color-general-background);
+}

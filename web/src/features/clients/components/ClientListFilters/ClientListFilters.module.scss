@@ -1,0 +1,31 @@
+@use '@/styles/mixins' as *;
+
+.filterSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 1rem;
+  flex-direction: row;
+
+  & > div {
+    flex: 1;
+  }
+
+  & > div.search {
+    flex: 2;
+  }
+}
+
+@include mobile {
+  .filterSection {
+    flex-direction: column;
+
+    & > div {
+      width: 100%;
+    }
+
+    & > div.search {
+      width: 100%;
+    }
+  }
+}

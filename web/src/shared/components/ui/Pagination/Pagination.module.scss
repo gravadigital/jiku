@@ -1,0 +1,54 @@
+@use '@/styles/mixins' as *;
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  gap: 8px;
+
+  button {
+    background-color: var(--color-general-background);
+    color: var(--color-general-text);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: var(--font-primary);
+    font-size: 14px;
+    line-height: 1.2;
+    transition: background-color 0.3s ease;
+    @include focus-ring;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-general-disabled);
+    }
+
+    &:disabled {
+      background-color: var(--color-button);
+      color: var(--color-background);
+      cursor: not-allowed;
+    }
+
+    &:not(:disabled)[data-active] {
+      background-color: var(--color-button);
+      color: var(--color-background);
+      font-weight: bold;
+    }
+  }
+
+  button:first-of-type, button:last-of-type {
+    background-color: transparent;
+    border: none;
+
+    &:disabled {
+      color: var(--color-text-light);
+      background-color: var(--color-general-disabled);
+    }
+
+    &:not(:disabled) {
+      background-color: var(--color-button);
+      color: var(--color-background);
+    }
+
+  }
+}

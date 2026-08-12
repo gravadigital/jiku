@@ -1,0 +1,35 @@
+.formContainer {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  column-gap: 2rem;
+
+  .column {
+    width: 50%;
+  }
+
+  .textareaCont {
+    width: 50%;
+  }
+}
+
+.generalError {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  width: 100%;
+
+  p {
+    text-align: right;
+    color: var(--color-status-cancelado);
+    font-size: 1rem;
+  }
+}
+
+.loader {
+  text-align: center;
+}
+

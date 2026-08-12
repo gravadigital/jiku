@@ -1,0 +1,11 @@
+.container {
+  margin-bottom: 1rem;
+
+  label {
+    font-family: var(--font-primary);
+    font-size: 12px;
+    line-height: 12px;
+    color: var(--color-general-text);
+    padding-left: 1rem;
+  }
+}

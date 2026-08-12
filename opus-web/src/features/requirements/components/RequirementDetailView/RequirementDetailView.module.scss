@@ -1,0 +1,100 @@
+@use '@/styles/mixins' as *;
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Panel izquierdo: contenido del objetivo */
+.leftPanel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: #fff;
+
+  /* Override título a 28px (vs 26px del modal) */
+  :global(.title) {
+    font-size: 28px;
+  }
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+/* Panel derecho: actividad */
+.rightPanel {
+  width: 559px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-left: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.rightPanelTopbar {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 48px;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.rightPanelTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.activityFeed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+.commentInputWrapper {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 14px 20px;
+  background: #fff;
+}
+
+@include mobile {
+  .body {
+    flex-direction: column;
+  }
+
+  .rightPanel {
+    width: 100%;
+    flex-shrink: 1;
+  }
+}

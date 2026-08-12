@@ -1,0 +1,232 @@
+@use '@/styles/mixins' as *;
+
+.row {
+  display: grid;
+  grid-template-columns: 64px 1fr 140px 140px 160px 120px 150px;
+  padding: 0 16px;
+  border-top: 1px solid #e2e8f0;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.tdId {
+  padding: 12px 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.td {
+  padding: 12px 10px;
+  font-size: 13px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.taskName {
+  font-weight: 500;
+  color: #0f172a;
+  font-size: 13px;
+  @include truncate;
+}
+
+// Status pill
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+
+  &.backlog {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #94a3b8;
+  }
+
+  &.planificacion {
+    background: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #8b5cf6;
+  }
+
+  &.enCola {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #0ea5e9;
+  }
+
+  &.active {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #22c55e;
+  }
+
+  &.review {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #f59e0b;
+  }
+
+  &.done {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #2563eb;
+  }
+
+  &.cancelado {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #ef4444;
+  }
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &.dotBacklog {
+    background: #94a3b8;
+  }
+
+  &.dotPlanificacion {
+    background: #8b5cf6;
+  }
+
+  &.dotEnCola {
+    background: #0ea5e9;
+  }
+
+  &.dotActive {
+    background: #22c55e;
+  }
+
+  &.dotReview {
+    background: #f59e0b;
+  }
+
+  &.dotDone {
+    background: #2563eb;
+  }
+
+  &.dotCancelado {
+    background: #ef4444;
+  }
+}
+
+.dateCell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.creator {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+// Type — plain text, same style as date
+.typeText {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+// Priority pill
+.priorityPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.priorityNone {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #94a3b8;
+}
+.priorityLow {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #1d4ed8;
+}
+.priorityMedium {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #b45309;
+}
+.priorityHigh {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #c2410c;
+}
+.priorityUrgent {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #e11d48;
+}
+
+// Pill dropdown wrappers
+.pillWrapper {
+  display: inline-flex;
+  position: relative;
+}
+
+.pillDropdown {
+  // wrapper sin estilos adicionales
+}
+
+.pillTrigger {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+
+  &:hover {
+    background: transparent !important;
+  }
+}
+
+.tdPriority {
+  justify-content: flex-start;
+}
+
+.dropdownItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Responsive: ocultar columnas secundarias en mobile
+@include mobile {
+  .row {
+    grid-template-columns: 64px 1fr 140px;
+  }
+
+  .td:nth-child(4),
+  .td:nth-child(5),
+  .td:nth-child(6),
+  .td:nth-child(7) {
+    display: none;
+  }
+}

@@ -1,0 +1,42 @@
+@use '@/styles' as *;
+
+.container {
+  @include flex-start;
+  gap: 0;
+  background-color: var(--color-general-disabled);
+  border-radius: var(--radius-items);
+  padding: 3px;
+  width: fit-content;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 25px;
+  border: none;
+  font-family: var(--font-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 0 0.8rem;
+  border-radius: calc(var(--radius-items) - 3px);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background-color: transparent;
+  color: var(--color-general-text);
+  @include focus-ring;
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.95);
+  }
+
+  &.active {
+    background-color: var(--color-button);
+    color: var(--color-background);
+
+    &:hover:not(:disabled) {
+      filter: brightness(0.9);
+    }
+  }
+}

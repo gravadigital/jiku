@@ -1,0 +1,41 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  height: 250px;
+  resize: vertical;
+  margin-top: 0;
+  border: 1px solid var(--color-general-disabled, #e6e8ed);
+  border-radius: 8px;
+  padding: 0.5rem 0.625rem;
+  font-size: var(--font-size-base);
+  font-family: var(--font-primary);
+  line-height: var(--line-height-normal);
+  color: var(--color-general-text);
+  background: var(--color-background, #fff);
+  box-sizing: border-box;
+}
+
+.preview {
+  height: 250px;
+  resize: vertical;
+  overflow: auto;
+  border: 1px solid var(--color-general-disabled, #e6e8ed);
+  border-radius: 8px;
+  padding: 0.5rem 0.625rem;
+  box-sizing: border-box;
+}
+
+.placeholder {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-family: var(--font-primary);
+  line-height: var(--line-height-normal);
+  color: var(--color-general-text);
+  font-style: italic;
+}

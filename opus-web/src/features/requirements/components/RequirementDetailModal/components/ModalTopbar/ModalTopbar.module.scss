@@ -1,0 +1,81 @@
+@use '@/styles/mixins' as *;
+
+.topbar {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 48px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: #374151;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.projectName {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.separator {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0 4px;
+}
+
+.objectiveId {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  font-family: var(--font-family-sans);
+  transition: background-color var(--transition-fast);
+  margin-left: 2px;
+
+  &:hover {
+    background: #f3f4f6;
+    color: #374151;
+  }
+}
+
+.actionBtnFirst {
+  margin-left: auto;
+}
+
+.actionBtnSubscribed {
+  color: var(--color-primary, #2a67dd);
+
+  &:hover {
+    background: #eff4ff;
+    color: var(--color-primary, #2a67dd);
+  }
+}
+
+.actionBtnError {
+  color: #ef4444;
+
+  &:hover {
+    background: #fef2f2;
+    color: #dc2626;
+  }
+}
+

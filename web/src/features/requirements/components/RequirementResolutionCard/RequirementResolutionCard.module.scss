@@ -1,0 +1,140 @@
+.card {
+  background: #fff;
+  border: 1.5px solid #e6e8ed;
+  border-radius: 10px;
+  padding: 1.25rem 1.375rem;
+  box-shadow: var(--box-shadow);
+}
+
+.cardTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 0.875rem 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.625rem;
+}
+
+.resolveButton {
+  height: 34px;
+  padding: 0 1.125rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-button, #da2c6a);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 1;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.cancelButton {
+  height: 34px;
+  padding: 0 1.125rem;
+  border-radius: var(--radius-buttons);
+  border: 1.5px solid var(--color-button);
+  background: #fff;
+  color: var(--color-button);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 1;
+  transition: opacity 0.15s;
+
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.resultBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.resultBadgeCancelled {
+  background: #f3f4f6;
+  color: #5f6d7f;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0 0 0.875rem 0;
+
+  dt {
+    font-weight: 400;
+    color: var(--color-general-text);
+  }
+
+  dd {
+    color: #626a81;
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+.rowLast {
+  margin-bottom: 0;
+}
+
+.resolutionFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.fieldLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2633;
+}
+
+.inlineFormTextarea,
+.inlineFormInput {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.875rem;
+  color: #1f2633;
+  background: #fff;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.inlineFormTextarea {
+  min-height: 110px;
+  resize: vertical;
+}

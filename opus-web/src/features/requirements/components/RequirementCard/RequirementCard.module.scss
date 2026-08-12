@@ -1,0 +1,45 @@
+@use '@/styles/mixins' as *;
+
+.card {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 400;
+  color: #111827;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.id {
+  color: #9ca3af;
+}
+
+.date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #9ca3af;
+}
+
+.calendarIcon {
+  flex-shrink: 0;
+}

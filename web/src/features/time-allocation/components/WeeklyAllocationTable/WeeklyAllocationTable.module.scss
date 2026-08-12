@@ -1,0 +1,132 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  @include flex-column;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-lg);
+}
+
+.loaderContainer {
+  @include flex-center;
+  min-height: 200px;
+}
+
+.emptyState {
+  @include flex-center;
+  min-height: 200px;
+  background: var(--color-background);
+  border-radius: var(--radius-cards);
+  box-shadow: var(--box-shadow);
+
+  p {
+    font-family: var(--font-primary);
+    font-size: var(--font-size-md);
+    color: var(--color-text-muted);
+  }
+}
+
+.tableContainer {
+  @include table-container;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.projectHeader {
+  text-align: left !important;
+}
+
+.projectCell {
+  text-align: left !important;
+}
+
+.projectName {
+  @include truncate;
+  max-width: 200px;
+}
+
+.cell {
+  .percentage {
+    display: block;
+    color: var(--color-general-title);
+  }
+
+  .hours {
+    display: block;
+    color: var(--color-text-muted);
+  }
+}
+
+.emptyCell {
+  opacity: 0.25;
+}
+
+.totalCell {
+  font-weight: bold;
+
+  .percentage,
+  .hours {
+    display: block;
+  }
+}
+
+.groupRow {
+  background-color: var(--color-surface-alt);
+
+  &:hover {
+    background-color: var(--color-surface-alt);
+  }
+}
+
+.groupLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--spacing-xs) var(--spacing-md) !important;
+}
+
+.totalRow {
+  background-color: var(--color-general-disabled);
+
+  &:hover {
+    background-color: var(--color-general-disabled);
+  }
+
+  .projectName {
+    font-weight: bold;
+  }
+}
+
+.preloadBanner {
+  @include flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background-color: var(--color-surface-alt);
+  border-left: 4px solid var(--color-status-activo);
+  border-radius: var(--radius-items);
+  margin-bottom: var(--spacing-md);
+
+  span {
+    font-size: var(--font-size-base);
+    color: var(--color-text-dark);
+  }
+}
+
+.saveButtonContainer {
+  @include flex-end;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-surface-light);
+  border-radius: var(--radius-items);
+}
+
+.overallocated {
+  background-color: rgba(251, 3, 63, 0.1) !important;
+
+  .percentage,
+  .hours {
+    color: var(--color-objective-expired) !important;
+    font-weight: var(--font-weight-bold);
+  }
+}

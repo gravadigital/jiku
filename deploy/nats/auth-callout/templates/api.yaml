@@ -1,0 +1,52 @@
+# SERVICE USER de la api.
+#
+# GRAMÁTICA
+#   {instance}.{user-id}.{svc}.{version}.{comando}
+#     instance  despliegue (dev / prod)
+#     user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo
+#     svc       A QUIÉN le habla: `gestion` (core)
+#     version   versión del protocolo: v1
+#     comando   clients.new, requirements.{id}.edit, ...
+#
+#   Ejemplo: dev.323332022539911171.gestion.v1.requirements.new
+#
+# PLACEHOLDERS
+#   {{instance}}      la instancia de deploy
+#   {{user_id}}       el `sub` del token, crudo (guion BAJO, no `{{user-id}}`)
+#   {{user_id_hash}}  hash estable del user id — solo para el prefijo de inbox
+#   {{service}}       el nombre del endpoint que atiende; la api no atiende ninguno
+#
+# IDENTIDAD vs ENDPOINT
+#   La api es un service user de Zitadel: su identidad es su `sub`, igual que la de una
+#   persona. `service: api` en rules.yaml nombra el ENDPOINT que atendería; hoy la api no
+#   atiende ninguno (no tiene `sub.allow` de servicio), solo emite.
+#
+# NOTA IMPORTANTE
+#   La api conecta con UN service_user, así que el `user-id` del subject es el de ESE
+#   usuario y NO identifica al usuario final. Por eso el autor de cada acción viaja en el
+#   cuerpo del mensaje (`creator` / `author`). Ver docs/definitions/nats_protocol.md.
+
+pub:
+  allow:
+    # Comandos hacia core, bajo su propia identidad. El `>` final cubre todos los comandos
+    # del protocolo; acotarlo uno por uno tendría sentido si hubiera roles distintos
+    # publicando, pero hoy la api es el único emisor y ya filtra por rol antes de publicar.
+    - "{{instance}}.{{user_id}}.gestion.v1.>"
+
+sub:
+  allow:
+    # Inbox propio: por acá llegan las respuestas de core. Va bajo el HASH del user id,
+    # no el user id crudo.
+    #
+    # El cliente DEBE fijar este prefijo al conectar (`inboxPrefix` en nats.js), o la
+    # librería genera un _INBOX.<aleatorio> que ningún permiso autoriza y las respuestas
+    # nunca llegan. La api lo deriva de la key de su service user con `inboxPrefix()`
+    # (packages/nats-protocol).
+    #
+    # Para saber qué hash le toca a un usuario: `go run ./cmd/session <sub>` en el repo
+    # de auth-callout.
+    - "_INBOX.{{user_id_hash}}.>"
+
+response:
+  max: 1
+  ttl: 45s

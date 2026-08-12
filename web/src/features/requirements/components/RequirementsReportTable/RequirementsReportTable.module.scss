@@ -1,0 +1,33 @@
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-general-border);
+  border-radius: var(--radius-items);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    background: var(--color-general-background, #f8f9fb);
+    color: var(--color-general-text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--color-general-border);
+    color: var(--color-general-title);
+    white-space: nowrap;
+  }
+}
+
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-general-text);
+}

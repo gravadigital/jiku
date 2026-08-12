@@ -1,0 +1,62 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  padding: var(--spacing-sm) 0;
+}
+
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.dayButton {
+  @include button-base;
+  position: relative;
+  background-color: var(--color-surface-light);
+  color: var(--color-general-title);
+  min-width: 70px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  padding-bottom: calc(var(--spacing-sm) + 4px);
+  font-size: var(--font-size-sm);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-surface-hover);
+  }
+}
+
+.selected {
+  background-color: var(--color-button);
+  color: var(--color-background);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-button);
+    filter: brightness(0.9);
+  }
+}
+
+.today:not(.selected) {
+  border: 2px solid var(--color-button);
+}
+
+.dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.completed {
+  background-color: var(--color-status-activo);
+}
+
+.partial {
+  background-color: var(--color-priority-0);
+}
+
+.empty {
+  background-color: var(--color-button-delete);
+}

@@ -1,0 +1,229 @@
+@use '@/styles/mixins' as *;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 100%;
+
+  @include mobile {
+    overflow-y: visible;
+  }
+}
+
+/* ── Two-column layout ── */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+
+  @include mobile {
+    flex-direction: column;
+    overflow: visible;
+  }
+}
+
+/* ── Sidebar (left) ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+
+  @include mobile {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+}
+
+.sidebarSection {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e7eb;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.sidebarTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.sidebarValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// ── State dot ──
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotBacklog {
+  background: #94a3b8;
+}
+.dotPlanificacion {
+  background: #8b5cf6;
+}
+.dotEnCola {
+  background: #0ea5e9;
+}
+.dotActive {
+  background: #22c55e;
+}
+.dotReview {
+  background: #f59e0b;
+}
+.dotDone {
+  background: #2563eb;
+}
+.dotCancelado {
+  background: #ef4444;
+}
+
+// ── Priority icon ──
+.priorityIconNone {
+  color: #cbd5e1;
+}
+.priorityIconLow {
+  color: #3b82f6;
+}
+.priorityIconMedium {
+  color: #f59e0b;
+}
+.priorityIconHigh {
+  color: #f97316;
+}
+.priorityIconUrgent {
+  color: #ef4444;
+}
+
+.sidebarValueEmpty {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.stateDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ── Main content (right) ── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-width: 0;
+
+  @include mobile {
+    overflow-y: visible;
+  }
+}
+
+/* ── Title ── */
+.title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+  margin: 2.25rem 3rem 1rem;
+
+  @include mobile {
+    margin: var(--spacing-lg) var(--spacing-md) var(--spacing-md);
+  }
+}
+
+/* ── Description ── */
+.description {
+  font-size: var(--font-size-sm);
+  color: #374151;
+  line-height: 1.65;
+  margin: 0 3rem;
+  padding: 0 0 1.5rem;
+  flex: 1;
+
+  :global(ul) {
+    padding-left: 18px;
+    margin-top: 4px;
+  }
+  :global(li) {
+    margin-bottom: 2px;
+  }
+
+  @include mobile {
+    margin: 0 var(--spacing-md);
+    padding: 0 0 var(--spacing-lg);
+  }
+}
+
+.descriptionEmpty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}
+
+/* ── Resolution ── */
+.resolution {
+  margin: 0 3rem 1.5rem;
+
+  @include mobile {
+    margin: 0 var(--spacing-md) var(--spacing-lg);
+  }
+}
+
+.resolutionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.resolutionContent {
+  font-size: var(--font-size-sm);
+  color: #374151;
+  line-height: 1.65;
+}
+
+/* ── Footer ── */
+.footer {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 3rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #6b7280;
+  flex-shrink: 0;
+
+  strong {
+    color: #374151;
+    font-weight: 500;
+  }
+
+  @include mobile {
+    padding: 0 var(--spacing-md);
+  }
+}

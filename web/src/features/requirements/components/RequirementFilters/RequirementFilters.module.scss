@@ -1,0 +1,40 @@
+.filterSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: nowrap;
+  margin-bottom: 0.75rem;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fLabel {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--color-general-text);
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.fInput {
+  height: 40px;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  color: var(--color-general-title);
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+.fInput:focus {
+  outline: 2px solid var(--color-highlighted, #DA2C6A);
+}
+

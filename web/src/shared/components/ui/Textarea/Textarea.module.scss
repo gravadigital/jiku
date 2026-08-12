@@ -1,0 +1,33 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  margin-bottom: 1rem;
+
+  label {
+    font-family: var(--font-primary);
+    font-size: 12px;
+    line-height: 12px;
+    color: var(--color-general-text);
+    padding-left: 1rem;
+  }
+
+  textarea {
+    display: block;
+    margin-top: 7px;
+    width: 100%;
+    min-height: 9rem;
+    height: 100%;
+    background-color: var(--color-background);
+    box-sizing: border-box;
+    border-radius: var(--radius-items);
+    padding: 0.5rem 1rem;
+    border: 0.5px solid var(--color-general-border);
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5rem;
+    color: var(--color-general-title);
+    resize: none;
+    @include focus-ring;
+  }
+}

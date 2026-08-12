@@ -1,0 +1,1 @@
+export { RequirementsReportTable } from './RequirementsReportTable';

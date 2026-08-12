@@ -1,0 +1,159 @@
+# Known limitations
+
+Things that will surprise you, documented rather than hidden. None of these are secrets or
+bugs to be reported — they are the current state, with the reasoning behind each one.
+
+## The NATS identity has to be generated, and there is no rotation
+
+The NATS server runs in operator mode and needs a resolver configuration plus sentinel
+credentials. None of that is versioned, so a fresh clone cannot start NATS until you run
+`deploy/nats/bootstrap.sh` once.
+
+That part is solved. What remains:
+
+- **There is no rotation mechanism.** Regenerating the identity breaks the server's trust and
+  forces reissuing every credential, which is why the bootstrap refuses to overwrite an
+  existing one without `--force`. It cannot run as part of `docker compose up`.
+- **Backups are manual.** Losing `deploy/nats/creds/` means reissuing everything.
+- **The auth-callout is a separate component**, consumed as a published image. Its source is
+  not in this repository, so its behaviour cannot be inspected or patched from here.
+
+You also need two service users in the identity provider, each with a JSON key.
+
+## The migrations cannot build the schema from scratch
+
+The 95 migrations under `api/db-upgrade/migrations/` all assume an existing schema. The
+earliest one modifies the `objectives` table, and **no migration creates it**. Against an
+empty database the API fails on startup:
+
+```
+ERROR: relation "public.objectives" does not exist
+```
+
+So a new installation needs a `.sql` with the schema, loaded before the first start
+(`DUMP_FILE` in `deploy/.env`). There is no `db:create` or baseline migration to generate it.
+
+This is a consequence of how the project was imported: the schema predates the migration
+history. Fixing it means writing a baseline migration that creates the current schema and
+marking the existing ones as applied — worth doing before there are external adopters, since
+right now nobody can start from zero without a dump they do not have.
+
+## Users cannot be created through the product
+
+Jiku reads identities from the provider; it does not manage them. `POST /api/auth/present`
+used to create or update a user on first login, but it is **the one write that never got a
+command**, and with the API read-only it can no longer do it.
+
+It now responds 200 and does nothing. The consequence: **a person who authenticates but is not
+in the `users` table gets 401 `user_not_found` from every other route.** Today the only way in
+is inserting them directly.
+
+Whether that becomes a core command, something the auth-callout does at authentication time,
+or a route that keeps its own write access, is undecided.
+
+## A lost command is a lost command
+
+The protocol is direct request/reply with **no JetStream**, which means:
+
+- No retries and no distributed transaction.
+- If core writes and the reply is lost, **the client sees an error for an operation that
+  actually happened**.
+- Commands are not guaranteed to be idempotent, so blindly retrying can duplicate work.
+
+For the current volume this is a considered trade, not an oversight. It is the first thing to
+revisit if writes become critical.
+
+## Error codes are not catalogued
+
+Replies carry `errorCode` and `errorMessage`, but there is no closed list of codes and no
+documented mapping to HTTP statuses. Some errors also carry extra data — a daily-limit
+rejection includes the remaining minutes — and the reply format does not account for it.
+
+Practical effect: a client integrating over the bus cannot enumerate what it might receive.
+
+## Error messages are in Spanish, and they are UI text
+
+The frontends display the API's `message` field directly to the user, which makes those
+messages part of the interface rather than a debugging aid. They are currently **mixed**:
+some English, some Spanish.
+
+They stay in Spanish because the frontends are in Spanish, and translating them would break
+the interface with nothing to replace it. The proper fix is a closed error-code catalogue plus
+i18n in the frontends.
+
+## Some enum values are in Spanish, inside the schema
+
+Requirement priority, state and type are stored with Spanish values (`sin_prioridad`,
+`en_cola`, `sin_tipo`, …), baked into the PostgreSQL schema and into the bus contract.
+
+Treat them as **opaque identifiers**. Changing them requires a data migration and an
+incompatible contract change, which is why they have not been touched.
+
+Related: `mattermost_group_name` survives as a project property even though the integration
+that named it was removed. It is free-form text; the name is the only leftover.
+
+## The interface is Spanish-only
+
+Both frontends have their text hardcoded in Spanish, with no i18n layer. Documentation and
+code comments are in English; the interface is not.
+
+## Core trusts the message body for the acting user's identity
+
+The API connects to the bus as itself, so the user id in the subject is the API's. The acting
+user travels in the body (`creator` / `author`) and core trusts it.
+
+That is safe **only because the access policy lets nothing but the API publish those
+commands**. If you add a second publisher, this assumption stops holding and core would need
+to verify identity itself.
+
+## Attachment identifiers are sequential
+
+`GET /api/opus/attachments/:id/public` needs no authentication by design: it serves
+attachments explicitly marked public and refuses everything else. Because ids are sequential
+integers, they can be enumerated to discover which attachments are public.
+
+For large files it redirects to a pre-signed storage URL, which is then outside the
+application's control until it expires.
+
+## The `bus-observer` role reads everything
+
+It exists for local debugging: it can subscribe to the entire protocol and publish nothing.
+That means it can read every command's payload, including business data. The policy file
+marks it local-only. **Do not grant it in production.**
+
+## A key rotation at the identity provider can take the bus down
+
+If the provider rotates its signing key, the auth-callout can start rejecting every token,
+including valid ones, and not recover until it is restarted. While it lasts, no service can
+connect to the bus.
+
+The fix belongs in the auth-callout, which is a separate component. If it happens, restart
+the callout.
+
+## Two lint rules are warnings, not errors
+
+`react-hooks/set-state-in-effect` fires on two components in `opus-web`
+(`RichTextEditor`, `CreateRequirementModal`). The code works — they synchronise state with
+props — but the rule is new in the React 19 plugin and fixing it properly means deriving the
+state instead, which is a behavioural change. It is a warning so CI stays meaningful.
+
+One test in `web` is skipped (`CreateRequirementForm`, `S-088 TS-3`): it asserts on
+react-select's computed styles through a node jsdom does not accept. `web` declares
+`jsdom ^24` while `vitest ^4` ships with 26+; aligning those is the moment to revisit it.
+
+## Operational notes
+
+- **Attachment storage keys** carry a prefix stored in `attachments.storage_key`. Changing
+  `STORAGE_S3_KEY_PREFIX` on an installation with data makes existing attachments
+  unreachable.
+- **Three unused tables remain**: `objective_mail_threads`, `requirement_mail_threads` and
+  `inbound_mail_threads`, left over from the removed email notifications. No migration drops
+  them, because removing a model does not remove its table and a destructive migration would
+  lose data.
+- **`week-assigned-times`** is still present but its future is undecided — it may be kept,
+  reshaped or removed.
+- **Both frontends run NextAuth v5, which has no stable release yet.** They are pinned to the
+  same exact beta (`5.0.0-beta.32`) rather than a `^` range, so an install cannot silently pick
+  up a different beta — but the dependency is a prerelease, and its API has changed between
+  betas before. Upgrading should be done deliberately, with a login test against a real
+  identity provider.

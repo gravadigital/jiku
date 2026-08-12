@@ -1,0 +1,132 @@
+@use '@/styles/mixins' as *;
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 61px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.projectName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.separator {
+  color: #cbd5e1;
+  font-size: 16px;
+}
+
+.current {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.currentLink {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover {
+    color: #0f172a;
+    text-decoration: underline;
+  }
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 7px;
+  line-height: 1;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background-color var(--transition-fast, 0.15s);
+
+  &:hover:not(:disabled) {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.actionBtnSubscribed {
+  color: var(--color-primary, #2a67dd);
+
+  &:hover:not(:disabled) {
+    background: #eff4ff;
+    color: var(--color-primary, #2a67dd);
+  }
+}
+
+.actionBtnError {
+  color: #ef4444;
+
+  &:hover:not(:disabled) {
+    background: #fef2f2;
+    color: #dc2626;
+  }
+}
+
+.viewToggles {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    color: #334155;
+  }
+
+  &.active {
+    color: #2563eb;
+    background: #eff6ff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+}

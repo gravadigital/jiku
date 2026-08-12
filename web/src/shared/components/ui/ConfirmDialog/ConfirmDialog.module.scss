@@ -1,0 +1,47 @@
+@use '@/styles/mixins' as *;
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: none;
+  border-radius: var(--radius-cards);
+  padding: 0;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 24px rgb(0 0 0 / 20%);
+  z-index: var(--z-index-modal);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 40%);
+  }
+}
+
+.content {
+  @include flex-column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+}
+
+.title {
+  font-family: var(--font-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-general-title);
+  margin: 0;
+}
+
+.message {
+  font-size: 0.95rem;
+  color: var(--color-general-text);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}

@@ -1,0 +1,1 @@
+export { WeeklyAllocationTable } from './WeeklyAllocationTable';

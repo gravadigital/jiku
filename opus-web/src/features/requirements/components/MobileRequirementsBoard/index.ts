@@ -1,0 +1,1 @@
+export { MobileRequirementsBoard } from './MobileRequirementsBoard';

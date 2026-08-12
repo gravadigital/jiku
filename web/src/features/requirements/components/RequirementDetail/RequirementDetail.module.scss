@@ -1,0 +1,431 @@
+@use '@/styles' as *;
+
+.container {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 1.25rem;
+  align-items: start;
+
+  // Mobile + tablet unificados: en esta pantalla, tablet se comporta igual que mobile
+  // (apilado vertical), a diferencia del patrón de ObjectiveDetails/ProjectDetails, que
+  // en tablet mantienen el layout de 2 columnas. Pedido explícito del usuario.
+  @media (max-width: 1023px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.leftColumn,
+.rightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* ── Cards ── */
+.card {
+  background: #fff;
+  border: 1.5px solid #e6e8ed;
+  border-radius: 10px;
+  padding: 1.25rem 1.375rem;
+  box-shadow: var(--box-shadow);
+}
+
+.cardTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 0.875rem 0;
+}
+
+.emptyText {
+  font-size: 0.875rem;
+  color: var(--color-general-text);
+  font-style: italic;
+}
+
+.activityScroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.75rem;
+  margin-right: -0.75rem;
+}
+
+.contextBody {
+  max-height: 335px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  padding-right: 0.75rem;
+  margin-right: -0.75rem;
+}
+
+/* ── Objetivos ── */
+.objSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.875rem;
+}
+
+.addBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-button);
+  color: #fff;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e6e8ed;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #626a81;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0 0.5rem 0;
+  margin-right: 1.25rem;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+
+.tabActive {
+  color: var(--color-button);
+  border-bottom-color: var(--color-button);
+
+  .tabCount {
+    background: var(--color-button);
+    color: #fff;
+  }
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+  color: #626a81;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.objTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  thead th {
+    background: #fafbfb;
+    text-align: left;
+    padding: 0.875rem 1rem;
+    font-weight: 400;
+    color: #626a81;
+    border: none;
+    border-bottom: 1.5px solid #e6e8ed;
+    white-space: nowrap;
+    overflow: visible;
+
+    &:nth-child(1) { width: 56px; }
+    &:nth-child(3),
+    &:nth-child(4),
+    &:nth-child(5) { width: 1%; white-space: nowrap; }
+  }
+
+  tbody td {
+    padding: 0.875rem 1rem;
+    border: none;
+    border-bottom: 1px solid #e6e8ed;
+    color: #626a81;
+    vertical-align: middle;
+    white-space: nowrap;
+    text-align: left;
+    overflow: visible;
+    text-overflow: unset;
+    max-width: unset;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fafbfb; }
+}
+
+.objRow {
+  cursor: pointer;
+}
+
+.objPagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e6e8ed;
+  flex-wrap: wrap;
+}
+
+.pageBtn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid #e6e8ed;
+  background: #fff;
+  font-size: 0.8125rem;
+  color: #626a81;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover { border-color: var(--color-button); color: var(--color-button); }
+}
+
+.pageBtnActive {
+  background: var(--color-button);
+  color: #fff;
+  border-color: var(--color-button);
+}
+
+.objPaginationEllipsis {
+  font-size: 0.8125rem;
+  color: #626a81;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.perPageSelect {
+  height: 28px;
+  padding: 0 0.5rem;
+  border: 1px solid #e6e8ed;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: #626a81;
+  background: #fff;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+.objTitleCell {
+  white-space: normal !important;
+  color: #1f2633;
+}
+
+.objEmpty {
+  text-align: center;
+  color: #aaa;
+  font-style: italic;
+  padding: 1.5rem 1rem !important;
+}
+
+/* ── Información General grid ── */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+
+  dt {
+    font-weight: 400;
+    color: var(--color-general-text);
+  }
+
+  dd {
+    color: #626a81;
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+.responsibleLeader {
+  font-weight: 600;
+  color: var(--color-general-title) !important;
+}
+
+.responsiblesGrouped {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.infoGenSelect {
+  display: block;
+  width: 100%;
+  height: 45px;
+  border: 1px solid var(--color-general-border);
+  border-radius: var(--radius-items);
+  padding: 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--color-general-title);
+  background: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+
+  &:focus {
+    outline: 2px solid var(--color-highlighted);
+  }
+
+  &:disabled {
+    background: var(--color-general-disabled);
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+}
+
+.infoGenInput {
+  display: block;
+  width: 100%;
+  height: 45px;
+  border: 1px solid var(--color-general-border);
+  border-radius: var(--radius-items);
+  padding: 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--color-general-title);
+  background: #fff;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: 2px solid var(--color-highlighted);
+  }
+
+  &:disabled {
+    background: var(--color-general-disabled);
+    cursor: not-allowed;
+  }
+}
+
+/* ── Etiquetas ── */
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  min-height: 0;
+}
+
+.tagPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--color-general-background);
+  border: 1px solid var(--color-general-border);
+  color: var(--color-general-title);
+}
+
+.tagPillRemove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-general-text);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+
+  &:hover {
+    color: var(--color-general-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
+.tagInputRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tagInput {
+  flex: 1;
+  display: block;
+  height: 45px;
+  border: 1px solid var(--color-general-border);
+  border-radius: var(--radius-items);
+  padding: 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: var(--color-general-title);
+  background: #fff;
+  box-sizing: border-box;
+  min-width: 0;
+
+  &:focus {
+    outline: 2px solid var(--color-highlighted);
+  }
+}
+
+.addTagButton {
+  display: inline-flex;
+  align-items: center;
+  height: 45px;
+  padding: 0 1.25rem;
+  background: var(--color-button);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-buttons);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+}

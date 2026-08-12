@@ -1,0 +1,144 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px;
+  overflow-y: auto;
+  flex: 1;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+}
+
+.empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--spacing-xl) 0;
+  margin: 0;
+}
+
+/* ── Comment item ── */
+.comment {
+  margin-bottom: 12px;
+}
+
+.commentAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2a67dd;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.commentBody {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 15px;
+}
+
+.commentHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.commentAuthor {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: #111827;
+}
+
+.commentTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.commentText {
+  font-size: var(--font-size-sm);
+  color: #374151;
+  line-height: 1.5;
+}
+
+/* ── Change/event item ── */
+.event {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.eventDotWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 7px;
+}
+
+.dotSm {
+  width: 7px;
+  height: 7px;
+  background: #d1d5db;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.eventLine {
+  width: 1px;
+  flex: 1;
+  background: var(--color-border);
+  margin: 4px 0 0;
+}
+
+.eventBody {
+  flex: 1;
+  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eventText {
+  font-size: var(--font-size-sm);
+  color: #374151;
+  line-height: 1.5;
+  margin: 0;
+
+  strong {
+    color: #111827;
+    font-weight: 700;
+  }
+}
+
+.fieldName {
+  font-weight: var(--font-weight-medium);
+}
+
+.newValue {
+  color: #2a67dd;
+  font-weight: 700;
+}
+
+.eventTime {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}

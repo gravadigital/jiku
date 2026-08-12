@@ -1,0 +1,187 @@
+.markdown {
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+  font-size: var(--font-size-sm);
+
+  // Headers
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    line-height: var(--line-height-tight);
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  h2 {
+    font-size: var(--font-size-xl);
+  }
+
+  h3 {
+    font-size: var(--font-size-lg);
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: var(--font-size-base);
+  }
+
+  // Paragraphs
+  p {
+    margin: 0 0 var(--spacing-sm) 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Bold and italic
+  strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  // Links
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+
+    &:hover {
+      color: var(--color-primary-hover);
+      text-decoration: underline;
+    }
+  }
+
+  // Lists
+  ul,
+  ol {
+    margin: 0 0 var(--spacing-sm) 0;
+    padding-left: var(--spacing-lg);
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  li {
+    margin-bottom: var(--spacing-xs);
+    overflow-wrap: break-word;
+    word-break: break-word;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul {
+    list-style-type: disc;
+
+    ul {
+      list-style-type: circle;
+    }
+  }
+
+  ol {
+    list-style-type: decimal;
+  }
+
+  // Code inline
+  code {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    background: var(--color-background);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+  }
+
+  // Code blocks - wrapper with scroll
+  pre {
+    margin: 0 0 var(--spacing-sm) 0;
+    padding: var(--spacing-md);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    code {
+      padding: 0;
+      background: none;
+      font-size: var(--font-size-sm);
+      white-space: pre;
+      display: block;
+    }
+  }
+
+  // Blockquotes
+  blockquote {
+    margin: 0 0 var(--spacing-sm) 0;
+    padding-left: var(--spacing-md);
+    border-left: 3px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-style: italic;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Horizontal rules
+  hr {
+    margin: var(--spacing-md) 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+  }
+
+  // Tables - wrapper with scroll
+  .tableWrapper {
+    overflow-x: auto;
+    margin: 0 0 var(--spacing-sm) 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  table {
+    border-collapse: collapse;
+    font-size: var(--font-size-xs);
+    min-width: 100%;
+  }
+
+  th,
+  td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th {
+    background: var(--color-background);
+    font-weight: var(--font-weight-semibold);
+  }
+}

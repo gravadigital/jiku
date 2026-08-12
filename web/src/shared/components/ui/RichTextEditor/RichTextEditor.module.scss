@@ -1,0 +1,35 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 0;
+}
+
+.textArea {
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-primary);
+  font-size: 0.875rem;
+  color: #1f2633;
+  line-height: 1.5;
+  padding: 0;
+  height: auto;
+  overflow: hidden;
+
+  &::placeholder {
+    color: var(--color-text-placeholder, #a0aec0);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.attachmentNode {
+  display: inline-block;
+}

@@ -1,0 +1,31 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  @include flex-column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-background);
+  border-radius: var(--radius-cards);
+  box-shadow: var(--box-shadow);
+}
+
+.navigation {
+  @include flex-between;
+  width: 100%;
+  gap: var(--spacing-md);
+}
+
+.rangeLabel {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-general-title);
+  white-space: nowrap;
+}
+
+.rightActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}

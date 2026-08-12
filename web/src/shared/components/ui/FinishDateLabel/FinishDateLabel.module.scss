@@ -1,0 +1,75 @@
+.dateLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+
+  &[data-state="closeToDeadline"] {
+    color: var(--color-objective-close-to-deadline);
+  }
+
+  &[data-state="expiresToday"] {
+    color: var(--color-objective-close-to-deadline);
+  }
+
+  &[data-state="expired"] {
+    color: var(--color-objective-expired);
+  }
+
+  &[data-state="finished"] {
+    color: var(--color-objective-finished);
+  }
+
+  &[data-state="default"] {
+    color: var(--color-general-text);
+  }
+
+  span {
+    font-family: var(--font-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 1rem;
+    line-height: 1.2;
+    font-weight: 500;
+    color: inherit;
+  }
+
+  p {
+    font-family: var(--font-primary);
+    margin: 0;
+    font-size: 0.65rem;
+    line-height: 1.2;
+    font-weight: 400;
+    color: inherit;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.datePicker {
+  animation: fadeIn 0.3s ease-in-out;
+  &.fade-out {
+    animation: fadeOut 0.3s ease-in-out;
+  }
+}

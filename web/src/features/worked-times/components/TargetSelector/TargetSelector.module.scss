@@ -1,0 +1,12 @@
+@use '@/styles/mixins' as *;
+
+.container {
+  @include flex-column;
+  gap: var(--spacing-xs);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-general-title);
+}

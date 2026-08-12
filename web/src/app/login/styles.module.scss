@@ -1,0 +1,104 @@
+.container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 50%;
+  background-color: var(--color-background);
+  padding: 0;
+  height: 100%;
+}
+
+.formContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.inputSection {
+  & > div {
+    margin: 1rem 0;
+  }
+}
+
+.header {
+  & > h1 {
+    font-family: var(--font-primary);
+    font-size: 2rem;
+    line-height: 1.2;
+    font-weight: 800;
+    color: var(--color-general-primary);
+    margin-bottom: .3rem;
+  }
+
+  & > p {
+    font-family: var(--font-primary);
+    font-size: .9rem;
+    line-height: 1.4;
+    color: var(--color-general-text);
+    font-weight: bold;
+  }
+}
+
+.inputBox {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+
+  & > input {
+    border-radius: 10px;
+    border: .1rem solid var(--color-text-placeholder);
+    padding: 1rem 1rem;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--color-general-title);
+  }
+
+  & > input:focus {
+    outline: none;
+  }
+
+  & > input::placeholder {
+    color: var(--color-text-placeholder);
+  }
+
+}
+
+.buttonBox {
+  border-radius: var(--radius-items);
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  background-color: var(--color-general-primary);
+  padding: 1.2rem;
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--color-background);
+  font-weight: bold;
+}
+
+.right {
+  flex: 0 0 50%;
+  background-color: var(--color-surface-light);
+  background-image: url('../../assets/loginBackground.png');
+  background-size: cover;
+  height: 100%;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+.error {
+  font-family: var(--font-primary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-general-primary);
+}

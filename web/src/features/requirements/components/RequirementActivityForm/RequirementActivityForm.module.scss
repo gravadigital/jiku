@@ -1,0 +1,123 @@
+.activityForm {
+  border-top: 1px solid #e6e8ed;
+  padding-top: 1rem;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.activityFormRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.commentEditor {
+  flex: none;
+
+  :global(.rich-text-editor-input-box) {
+    flex: none;
+  }
+
+  :global(.rich-text-editor-scroll-area) {
+    flex: none;
+    height: 170px;
+    overflow-y: auto;
+  }
+}
+
+.uploadError {
+  color: var(--color-general-primary);
+  font-size: 0.8125rem;
+}
+
+.activityFormFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.attachIconBtn {
+  background: none;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #626a81;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: color 150ms ease, border-color 150ms ease;
+
+  &:hover:not(:disabled) {
+    color: var(--color-button);
+    border-color: var(--color-button);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.visToggle {
+  display: inline-flex;
+  border: 1px solid #e6e8ed;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.visToggleBtn {
+  height: 34px;
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #626a81;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  transition: background 150ms ease, color 150ms ease;
+
+  &[data-active='true'] {
+    background: var(--color-button);
+    color: #fff;
+  }
+
+  &:hover:not([data-active='true']) {
+    background: var(--color-general-background);
+  }
+}
+
+.sendBtn {
+  height: 34px;
+  padding: 0 1rem;
+  border-radius: 8px;
+  background: var(--color-button);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity 150ms ease;
+
+  &:hover:not(:disabled) {
+    opacity: 0.88;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}

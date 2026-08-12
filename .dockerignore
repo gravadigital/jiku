@@ -1,0 +1,32 @@
+# El contexto de build es el root del repo: sin esto se envía todo, incluidos los
+# node_modules de cada servicio.
+**/node_modules
+**/dist
+**/.next
+**/coverage
+
+.git
+/local
+deploy/nats/creds
+
+# herramientas locales: no forman parte de ninguna imagen
+**/.claude
+**/.vscode
+
+# `.env` a secas es el que lleva valores reales: nunca entra al contexto.
+**/.env
+**/.env.local
+
+# Los .env.dev/.prod/.localstack de los fronts SÍ entran: los Dockerfile los copian
+# para embeber las NEXT_PUBLIC_* en el bundle. Son plantillas con placeholders, sin
+# secretos — los valores reales van por variables del compose.
+
+**/*.log
+
+# material sensible: que nunca entre al contexto de build
+**/*.pem
+**/*.key
+**/*.seed
+**/*.creds
+**/*.sql
+**/*-su.json

@@ -1,0 +1,20 @@
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: var(--spacing-md);
+}
+
+.loadingText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.errorText {
+  font-size: var(--font-size-base);
+  color: var(--color-error);
+  margin: 0;
+}

@@ -1,0 +1,239 @@
+.card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+}
+
+// Fila 1: ID
+.id {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+// Fila 2: Título
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.4;
+  margin-bottom: 2px;
+}
+
+// Fila 3: Fecha + Creador
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.date {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.divider {
+  color: #cbd5e1;
+}
+
+.creator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Fila 4: Pills
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+// State pill
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.pillBacklog {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #94a3b8;
+}
+
+.pillPlanificacion {
+  background: #ede9fe;
+  color: #6d28d9;
+  border: 1px solid #8b5cf6;
+}
+
+.pillEnCola {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #0ea5e9;
+}
+
+.active {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #22c55e;
+}
+
+.pillRevision {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #f59e0b;
+}
+
+.pillResuelto {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #2563eb;
+}
+
+.pillCancelado {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #ef4444;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotBacklog {
+  background: #94a3b8;
+}
+
+.dotPlanificacion {
+  background: #8b5cf6;
+}
+
+.dotEnCola {
+  background: #0ea5e9;
+}
+
+.dotActive {
+  background: #22c55e;
+}
+
+.dotRevision {
+  background: #f59e0b;
+}
+
+.dotResuelto {
+  background: #2563eb;
+}
+
+.dotCancelado {
+  background: #ef4444;
+}
+
+// Priority badge
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.priorityNone {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #94a3b8;
+}
+.priorityLow {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #1d4ed8;
+}
+.priorityMedium {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #b45309;
+}
+.priorityHigh {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #c2410c;
+}
+.priorityUrgent {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #e11d48;
+}
+
+// Tipo pill
+.tipo {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #94a3b8;
+}
+
+// Pill dropdown wrappers
+.pillWrapper {
+  display: inline-flex;
+  position: relative;
+}
+
+.pillDropdown {
+  // wrapper sin estilos adicionales — el trigger se controla via pillTrigger
+}
+
+.pillTrigger {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+
+  &:hover {
+    background: transparent !important;
+  }
+}
+
+.dropdownItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

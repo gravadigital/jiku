@@ -1,0 +1,1 @@
+export { RequirementResolutionCard } from './RequirementResolutionCard';

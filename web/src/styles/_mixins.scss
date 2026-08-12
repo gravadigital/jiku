@@ -1,0 +1,462 @@
+// Mixins SCSS del front interno
+// Usar con: @use '@/styles/mixins' as *;
+
+// ============================================
+// Tipografía - Headings
+// ============================================
+
+// Valores basados en globals.scss original
+@mixin heading-1 {
+  font-family: var(--font-primary);
+  font-size: 2rem;
+  line-height: 2rem;
+  font-weight: 800;
+  color: var(--color-general-title);
+}
+
+@mixin heading-2 {
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--color-general-title);
+}
+
+@mixin heading-3 {
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--color-general-title);
+}
+
+// ============================================
+// Tipografía - Body
+// ============================================
+
+// Basado en p de globals.scss: font-size: 0.75rem
+@mixin body-text {
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--color-general-text);
+}
+
+// Basado en span de globals.scss: font-size: 1.25rem
+@mixin body-large {
+  font-family: var(--font-primary);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  color: var(--color-general-title);
+}
+
+@mixin body-small {
+  font-family: var(--font-primary);
+  font-size: 0.625rem;
+  line-height: 1.3;
+  font-weight: 400;
+  color: var(--color-general-text);
+}
+
+@mixin label-text {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-general-title);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+// ============================================
+// Layout - Flexbox
+// ============================================
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-start {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+@mixin flex-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin flex-column-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+// ============================================
+// Layout - Grid
+// ============================================
+
+@mixin grid-auto-fill($min-width: 300px, $gap: var(--spacing-md)) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax($min-width, 1fr));
+  gap: $gap;
+}
+
+@mixin grid-auto-fit($min-width: 300px, $gap: var(--spacing-md)) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax($min-width, 1fr));
+  gap: $gap;
+}
+
+// ============================================
+// Componentes Base
+// ============================================
+
+@mixin card-base {
+  background: var(--color-background);
+  border-radius: var(--radius-cards);
+  box-shadow: var(--box-shadow);
+  padding: var(--spacing-md);
+}
+
+@mixin table-container {
+  border-radius: var(--radius-cards);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+@mixin card-interactive {
+  @include card-base;
+  cursor: pointer;
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+
+  &:hover {
+    box-shadow: var(--box-shadow-hover);
+    transform: translateY(-2px);
+  }
+}
+
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-buttons);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+@mixin button-primary {
+  @include button-base;
+  background-color: var(--color-button);
+  color: var(--color-background);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.9);
+  }
+}
+
+@mixin button-secondary {
+  @include button-base;
+  background-color: var(--color-general-disabled);
+  color: var(--color-general-title);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.9);
+  }
+}
+
+@mixin button-danger {
+  @include button-base;
+  background-color: var(--color-button-delete);
+  color: var(--color-background);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.9);
+  }
+}
+
+// ============================================
+// Inputs
+// ============================================
+
+@mixin input-base {
+  display: block;
+  width: 100%;
+  background: var(--color-background);
+  box-sizing: border-box;
+  height: 40px;
+  border-radius: var(--radius-items);
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--color-general-border);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+  appearance: none;
+  transition: border-color var(--transition-fast), outline var(--transition-fast);
+
+  &:focus {
+    outline: 2px solid var(--color-highlighted);
+    border-color: var(--color-highlighted);
+  }
+
+  &::placeholder {
+    color: var(--color-general-text);
+    opacity: 0.6;
+  }
+}
+
+@mixin input-error {
+  border-color: var(--color-button-delete);
+
+  &:focus {
+    outline-color: var(--color-button-delete);
+  }
+}
+
+// ============================================
+// Tags y Badges
+// ============================================
+
+@mixin tag-base {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-items);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+@mixin status-tag($bg-color, $text-color: white) {
+  @include tag-base;
+  background-color: $bg-color;
+  color: $text-color;
+}
+
+// ============================================
+// Utilidades
+// ============================================
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin truncate-lines($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@mixin scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-general-disabled) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-general-disabled);
+    border-radius: 3px;
+  }
+}
+
+// ============================================
+// Responsive Breakpoints
+// ============================================
+
+@mixin mobile {
+  @media (max-width: 767px) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: 1024px) {
+    @content;
+  }
+}
+
+@mixin large-desktop {
+  @media (min-width: 1440px) {
+    @content;
+  }
+}
+
+// ============================================
+// Accesibilidad - Focus States
+// ============================================
+
+/// Focus ring visible para navegación por teclado
+/// Usar en elementos interactivos (botones, links, inputs)
+@mixin focus-ring($color: var(--color-highlighted), $offset: 2px) {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $color;
+    outline-offset: $offset;
+  }
+}
+
+/// Focus ring para elementos dentro de contenedores oscuros
+@mixin focus-ring-light {
+  @include focus-ring(var(--color-background), 2px);
+}
+
+/// Focus ring con sombra (alternativa más suave)
+@mixin focus-ring-shadow {
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px rgba(54, 0, 136, 0.4);
+  }
+}
+
+// ============================================
+// Resets
+// ============================================
+
+/// Reset completo de estilos de botón
+@mixin button-reset {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+/// Reset de estilos de link
+@mixin link-reset {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus,
+  &:active {
+    text-decoration: none;
+  }
+}
+
+// ============================================
+// Utilidades Adicionales
+// ============================================
+
+/// Mantener aspect ratio en contenedores
+@mixin aspect-ratio($width: 16, $height: 9) {
+  aspect-ratio: #{$width} / #{$height};
+}
+
+/// Contenido solo para screen readers (alias de visually-hidden)
+@mixin sr-only {
+  @include visually-hidden;
+}
+
+/// Efecto de elevación en hover
+@mixin hover-lift($distance: -2px) {
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+
+  &:hover {
+    transform: translateY($distance);
+    box-shadow: var(--box-shadow-hover);
+  }
+}
+
+/// Scroll suave para contenedores
+@mixin smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/// Deshabilitar selección de texto
+@mixin no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/// Recolorea un SVG (importado como asset con su propio fill) a un color sólido
+/// vía CSS mask, sin duplicar el archivo. La URL del SVG se pasa por variable CSS
+/// (--icon-mask-url) desde el componente, ya que Next.js resuelve el import del
+/// asset a una ruta de build que SCSS no puede referenciar directamente.
+@mixin icon-tint($color: #DA2C6A, $size: 20px) {
+  display: inline-block;
+  width: $size;
+  height: $size;
+  flex-shrink: 0;
+  background-color: $color;
+  -webkit-mask-image: var(--icon-mask-url);
+  mask-image: var(--icon-mask-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
