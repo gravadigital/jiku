@@ -89,7 +89,7 @@ export class Consumer {
       } catch {
         // Un cuerpo que no es JSON no se puede procesar ni reintentar: se responde el
         // error y se sigue.
-        logger.warn(`[bus] payload inválido en ${message.subject}`);
+        logger.warn(`[bus] invalid payload on ${message.subject}`);
         message.respond(encode(failure(ErrorCode.INVALID_FIELDS, 'Malformed JSON payload')));
         continue;
       }

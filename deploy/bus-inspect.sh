@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 #
-# bus-inspect.sh — mirar qué pasa en el bus.
+# bus-inspect.sh — look at what is happening on the bus.
 #
-#   ./bus-inspect.sh status     conexiones, suscripciones y contadores
-#   ./bus-inspect.sh tail       sigue los comandos en vivo (api -> core)
-#   ./bus-inspect.sh logs       los comandos que ya procesó core
-#   ./bus-inspect.sh send <comando> <json>    publica un comando a mano
+#   ./bus-inspect.sh status     connections, subscriptions and counters
+#   ./bus-inspect.sh tail       follow the commands live (api -> core)
+#   ./bus-inspect.sh logs       the commands core already processed
+#   ./bus-inspect.sh send <command> <json>    publish a command by hand
 #
-# Ejemplos:
+# Examples:
 #   ./bus-inspect.sh tail
-#   ./bus-inspect.sh send clients.new '{"name":"Prueba"}'
+#   ./bus-inspect.sh send clients.new '{"name":"Test"}'
 #
-# POR QUÉ NO ALCANZA CON `nats sub`
-#   Los permisos que mintea el auth-callout son cerrados: `internal-app` solo publica y
-#   `core` solo escucha su endpoint. Nadie puede suscribirse al tráfico ajeno, que es
-#   justamente lo que protege el bus. Para espiar en vivo hay que conectarse con las
-#   creds del sentinel de la cuenta de sistema, que es lo que hace `tail`.
+# WHY `nats sub` IS NOT ENOUGH
+#   The permissions the auth-callout mints are narrow: `internal-app` only publishes and
+#   `core` only listens on its endpoint. Nobody can subscribe to someone else's traffic,
+#   which is exactly what protects the bus. To watch live you have to connect with the
+#   system account sentinel's creds, which is what `tail` does.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -32,7 +32,7 @@ nats_box() {
 
 case "${1:-status}" in
   status)
-    echo "=== conexiones ==="
+    echo "=== connections ==="
     curl -s "$MONITOR/connz" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -41,7 +41,7 @@ for c in d.get('connections', []):
     print(f\"  {c.get('name','?'):22} in={c.get('in_msgs'):<6} out={c.get('out_msgs'):<6} subs={c.get('subscriptions')}\")
 "
     echo
-    echo "=== subjects del protocolo (sin los internos de NATS) ==="
+    echo "=== protocol subjects (excluding NATS internals) ==="
     curl -s "$MONITOR/subsz?subs=1" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -53,41 +53,42 @@ for s in rows:
     ;;
 
   tail)
-    # Un observador necesita un service user con el rol `bus-observer` en Zitadel
-    # (ver nats/auth-callout/templates/observer.yaml). Sin eso, la forma de ver el
-    # tráfico es el log de core, que imprime cada comando que atiende.
-    echo "siguiendo los comandos que atiende core  (ctrl-c para salir)"
+    # An observer needs a service user with the `bus-observer` role in Zitadel (see
+    # nats/auth-callout/templates/observer.yaml). Without that, the way to see the
+    # traffic is core's log, which prints every command it serves.
+    echo "following the commands core serves  (ctrl-c to quit)"
     echo
     docker logs -f jiku-local-core 2>&1 | grep --line-buffered -E "\[cmd\]|dispatch"
     ;;
 
   logs)
-    echo "=== comandos que procesó core ==="
-    docker logs jiku-local-core 2>&1 | grep -E "\[cmd\]|dispatch\]|comandos registrados|bus\]" | tail -30
+    echo "=== commands core processed ==="
+    docker logs jiku-local-core 2>&1 | grep -E "\[cmd\]|dispatch\]|registered commands|bus\]" | tail -30
     echo
-    echo "=== errores que devolvió la api al publicar ==="
+    echo "=== errors the api returned when publishing ==="
     docker logs jiku-local-api 2>&1 | grep -E "\[bus\]" | tail -10
     ;;
 
   send)
-    COMMAND="${2:?uso: $0 send <comando> <json>}"
+    COMMAND="${2:?usage: $0 send <command> <json>}"
     PAYLOAD="${3:-\{\}}"
-    # La key sale del .env (ver service-user-key.sh), así que no hace falta ningún
-    # archivo suelto en el repo.
+    # The key comes from the .env (see service-user-key.sh), so no loose file is needed
+    # in the repo.
     [[ -f .env ]] && { set -a; . ./.env; set +a; }
     [[ -n "${API_SERVICE_USER_KEY_B64:-}" ]] || {
-      echo "falta API_SERVICE_USER_KEY_B64 en deploy/.env — ver ./service-user-key.sh" >&2
+      echo "API_SERVICE_USER_KEY_B64 is missing from deploy/.env — see ./service-user-key.sh" >&2
       exit 1
     }
     KEY_TMP=$(mktemp); trap 'rm -f "$KEY_TMP"' EXIT
     base64 -d <<<"$API_SERVICE_USER_KEY_B64" > "$KEY_TMP"
-    TOKEN=$(ZITADEL_ISSUER_URL="${GESTION_ZITADEL_ISSUER_URL:?falta GESTION_ZITADEL_ISSUER_URL}" \
+    TOKEN=$(ZITADEL_ISSUER_URL="${GESTION_ZITADEL_ISSUER_URL:?GESTION_ZITADEL_ISSUER_URL is missing}" \
             ZITADEL_PROJECT_ID="${GESTION_ZITADEL_PROJECT_ID:-}" \
             ./zitadel-token.sh "$KEY_TMP")
 
-    # El subject lleva el user id CRUDO y el inbox su HASH. Los dos salen de la misma key,
-    # porque tienen que coincidir con lo que el callout deriva del token; hardcodearlos
-    # haría que el permiso no cubra el subject y la request muera por timeout.
+    # The subject carries the RAW user id and the inbox its HASH. Both come from the same
+    # key, because they have to match what the callout derives from the token; hardcoding
+    # them would leave the permission not covering the subject and the request would time
+    # out.
     USER_ID=$(jq -r .userId "$KEY_TMP")
     INBOX_HASH=$(python3 -c '
 import base64, hashlib, sys
@@ -102,7 +103,7 @@ print(base64.b32encode(digest).decode().rstrip("=")[:16].lower())' "$USER_ID")
     ;;
 
   *)
-    echo "uso: $0 [status|tail|logs|send <comando> <json>]" >&2
+    echo "usage: $0 [status|tail|logs|send <command> <json>]" >&2
     exit 1
     ;;
 esac

@@ -11,7 +11,7 @@ const consumer = new Consumer(new Dispatcher(registry));
 
 async function main(): Promise<void> {
   await initializeDb();
-  logger.info(`[core] ${registry.patterns().length} comandos registrados`);
+  logger.info(`[core] ${registry.patterns().length} registered commands`);
   await consumer.start();
 }
 

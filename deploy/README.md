@@ -1,31 +1,31 @@
 # Deploy
 
-Cómo levantar Jiku: en una máquina de desarrollo y en un servidor.
+How to run Jiku: on a development machine and on a server.
 
 ```
 deploy/
-├── local.sh                  levanta el stack completo en la máquina
-├── service-user-key.sh       prepara la key de un service user para el .env
-├── zitadel-token.sh          diagnostica una key contra Zitadel
-├── bus-inspect.sh            mirar qué pasa en el bus
-├── .env.dist                 plantilla de variables — copiar a .env
-├── docker-compose.local.yml  desarrollo: buildea desde el repo
-├── docker-compose.yml        producción: pull de imágenes del registry
-├── docker-compose.dev.yml    sin dependencias externas (IdP mock)
+├── local.sh                  brings the whole stack up on this machine
+├── service-user-key.sh       prepares a service user key for the .env
+├── zitadel-token.sh          diagnoses a key against Zitadel
+├── bus-inspect.sh            look at what is happening on the bus
+├── .env.dist                 variable template — copy to .env
+├── docker-compose.local.yml  development: builds from the repo
+├── docker-compose.yml        production: pulls images from the registry
+├── docker-compose.dev.yml    no external dependencies (mock IdP)
 └── nats/
     ├── nats-server.conf
-    ├── auth-callout/         rules.yaml + templates/ (política de acceso)
-    └── creds/                identidad de NATS — NO se versiona
+    ├── auth-callout/         rules.yaml + templates/ (access policy)
+    └── creds/                NATS identity — NOT versioned
 ```
 
-**Nada de lo que hace falta para levantar el stack vive fuera de `deploy/`.** Los secretos
-van en `deploy/.env` y en `deploy/nats/creds/`, ninguno de los dos versionado.
+**Nothing needed to run the stack lives outside `deploy/`.** Secrets go in `deploy/.env` and
+in `deploy/nats/creds/`, neither of them versioned.
 
 ---
 
-## Puesta en marcha
+## Getting started
 
-Cuatro pasos. Los tres primeros son de una sola vez.
+Four steps. The first three are one-time.
 
 ### 1. Variables
 
@@ -34,112 +34,111 @@ cd deploy
 cp .env.dist .env
 ```
 
-Completar en `.env`:
+Fill in, in `.env`:
 
-| Variable                                      | Qué poner                                                                          |
-| --------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `DATABASE_PASSWORD`                           | contraseña del dueño de la base                                                    |
-| `DATABASE_READONLY_PASSWORD`                  | contraseña del usuario de solo lectura de la api                                   |
-| `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID`   | la aplicación de Zitadel que usan los fronts                                       |
-| `GESTION_ZITADEL_PROJECT_ID`                  | el proyecto donde viven los roles                                                  |
-| `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                                          |
-| `STORAGE_S3_*`                                | credenciales del almacenamiento compatible con S3 (en local sirve cualquier valor) |
-| `DUMP_FILE`                                   | opcional: un `.sql` para precargar la base                                         |
+| Variable                                      | What goes in it                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------------- |
+| `DATABASE_PASSWORD`                           | password of the database owner                                         |
+| `DATABASE_READONLY_PASSWORD`                  | password of the api's read-only user                                   |
+| `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID`   | the Zitadel application the frontends use                              |
+| `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live                                       |
+| `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                              |
+| `STORAGE_S3_*`                                | credentials for the S3-compatible storage (locally any value will do)  |
+| `DUMP_FILE`                                   | optional: a `.sql` to preload the database                             |
 
-### 2. Service users de Zitadel
+### 2. Zitadel service users
 
-api y core se conectan al bus con un machine user cada uno. En Zitadel hace falta:
+api and core each connect to the bus with their own machine user. In Zitadel you need:
 
-- Un **machine user** para cada servicio, con **Access Token Type = JWT**. Por defecto es
-  `Bearer`, que emite tokens opacos y el auth-callout rechaza.
-- El **rol** correspondiente sobre el proyecto de `GESTION_ZITADEL_PROJECT_ID`:
-  `internal-app` para la api, `core` para core.
-- Una **key JSON** de cada uno: Keys → New → JSON.
+- A **machine user** for each service, with **Access Token Type = JWT**. The default is
+  `Bearer`, which issues opaque tokens that the auth-callout rejects.
+- The matching **role** on the `GESTION_ZITADEL_PROJECT_ID` project: `internal-app` for the
+  api, `core` for core.
+- A **JSON key** for each: Keys → New → JSON.
 
-Con esas dos keys:
+With those two keys:
 
 ```sh
-./service-user-key.sh api  ~/Descargas/api-su.json
-./service-user-key.sh core ~/Descargas/core-su.json
+./service-user-key.sh api  ~/Downloads/api-su.json
+./service-user-key.sh core ~/Downloads/core-su.json
 ```
 
-El script verifica la key contra Zitadel —que el token sea JWT y traiga el rol correcto— y
-la escribe en `.env` codificada en base64. Los `.json` no hacen falta después.
+The script verifies the key against Zitadel — that the token is a JWT and carries the right
+role — and writes it into `.env` base64-encoded. The `.json` files are not needed afterwards.
 
-Cada servicio pide su token con esa key y lo renueva antes de que venza, así que no hay
-nada que refrescar a mano.
+Each service requests its token with that key and renews it before it expires, so there is
+nothing to refresh by hand.
 
-### 3. Identidad de NATS
+### 3. NATS identity
 
-El servidor corre en modo operator y necesita una identidad que se genera una sola vez:
+The server runs in operator mode and needs an identity, generated once:
 
 ```sh
 cd nats
-./bootstrap.sh          # requiere nsc
+./bootstrap.sh          # requires nsc
 ```
 
-Detalle en [nats/creds/README.md](nats/creds/README.md). Nada de eso se versiona, así que
-**hay que guardar una copia**: regenerarla obliga a reemitir las credenciales de todos los
-servicios.
+Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
+copy**: regenerating it forces reissuing the credentials of every service.
 
-Sin `nats/creds/nats-resolver.conf` el servidor no arranca.
+Without `nats/creds/nats-resolver.conf` the server does not start.
 
-### 4. Levantar
+### 4. Bring it up
 
 ```sh
 ./local.sh up
 ```
 
-| Servicio         | URL                   |
+| Service          | URL                   |
 | ---------------- | --------------------- |
 | web              | http://localhost:3000 |
 | opus-web         | http://localhost:3001 |
 | api              | http://localhost:3100 |
-| NATS (monitoreo) | http://localhost:8222 |
+| NATS (monitoring)| http://localhost:8222 |
 
-`./local.sh down` baja todo y borra los datos. `./local.sh logs api` sigue los logs de un
-servicio.
+`./local.sh down` takes everything down and deletes the data. `./local.sh logs api` follows
+one service's logs.
 
 ---
 
-## En un servidor
+## On a server
 
-Mismo esquema, con `docker-compose.yml`, que hace `pull` de imágenes en vez de buildear:
+Same shape, with `docker-compose.yml`, which pulls images instead of building:
 
 ```sh
-cp .env.dist .env      # completar, incluidas las versiones de cada servicio
+cp .env.dist .env      # fill in, including each service's version
 ./service-user-key.sh api  <key.json>
 ./service-user-key.sh core <key.json>
-cd nats && ./bootstrap.sh && cd ..    # o copiar el creds/ ya generado
+cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
 docker compose pull
 docker compose up -d
 ```
 
-Diferencias con el entorno local:
+Differences from the local environment:
 
-- Requiere dos redes externas: la de ingress (`INGRESS_NETWORK`) y la de base de datos
+- Requires two external networks: the ingress one (`INGRESS_NETWORK`) and the database one
   (`DATABASE_NETWORK`).
-- Las versiones se fijan por servicio (`API_VERSION`, `CORE_VERSION`, …), así se puede
-  desplegar core sin tocar los fronts.
-- El usuario de solo lectura hay que crearlo a mano (SQL más abajo); `local.sh` lo hace
-  solo, pero el compose de producción no.
+- Versions are pinned per service (`API_VERSION`, `CORE_VERSION`, …), so core can be deployed
+  without touching the frontends.
+- The read-only user has to be created by hand (SQL below); `local.sh` does it on its own, but
+  the production compose does not.
 
 ---
 
-## Cómo se reparten los secretos
+## How the secrets are split
 
-| Qué                                               | Dónde                       | Versionado |
-| ------------------------------------------------- | --------------------------- | ---------- |
-| Contraseñas, client ids, keys de service user     | `deploy/.env`               | no         |
-| Identidad de NATS (operator, cuentas, sentinelas) | `deploy/nats/creds/`        | no         |
-| Política de acceso al bus (roles → permisos)      | `deploy/nats/auth-callout/` | **sí**     |
+| What                                              | Where                       | Versioned |
+| ------------------------------------------------- | --------------------------- | --------- |
+| Passwords, client ids, service user keys          | `deploy/.env`               | no        |
+| NATS identity (operator, accounts, sentinels)     | `deploy/nats/creds/`        | no        |
+| Bus access policy (roles → permissions)           | `deploy/nats/auth-callout/` | **yes**   |
 
-La política de acceso se versiona a propósito: es una decisión de producto, no un secreto.
+The access policy is versioned on purpose: it is a product decision, not a secret.
 
-### El usuario de solo lectura
+### The read-only user
 
-La api conecta con `DATABASE_READONLY_USER`. `local.sh` lo crea; en un servidor hay que
-hacerlo una vez:
+The api connects as `DATABASE_READONLY_USER`. `local.sh` creates it; on a server it has to be
+done once:
 
 ```sql
 CREATE USER jiku_readonly WITH PASSWORD '...';
@@ -149,92 +148,92 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO jiku_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO jiku_readonly;
 ```
 
-La última línea importa: sin ella, las tablas que cree una migración futura quedan
-inaccesibles para la api.
+That last line matters: without it, tables created by a future migration are inaccessible to
+the api.
 
-**Las migraciones son la excepción**: las corre la api al arrancar y necesitan escribir,
-así que usan `POSTGRESQL_MIGRATION_USER` (el dueño de la base).
+**Migrations are the exception**: the api runs them at startup and they need to write, so they
+use `POSTGRESQL_MIGRATION_USER` (the database owner).
 
 ---
 
-## Diagnóstico
+## Diagnosis
 
-### `Errors.App.NotFound` al loguear en un front
+### `Errors.App.NotFound` when logging into a frontend
 
-Zitadel no reconoce el `client_id`: la **aplicación** no existe o fue recreada. El
-_proyecto_ puede existir igual — son cosas distintas.
+Zitadel does not recognise the `client_id`: the **application** does not exist or was
+recreated. The _project_ may well exist — they are different things.
 
 ```sh
-curl -s "https://<tu-instancia-zitadel>/oauth/v2/authorize?client_id=<CLIENT_ID>\
+curl -s "https://<your-zitadel-instance>/oauth/v2/authorize?client_id=<CLIENT_ID>\
 &redirect_uri=http%3A%2F%2Flocalhost%3A3001%2Fapi%2Fauth%2Fcallback%2Fzitadel\
 &response_type=code&scope=openid" -o /dev/null -w "%{http_code}\n"
 ```
 
-`302` = la app existe. `400` = no.
+`302` = the app exists. `400` = it does not.
 
-La aplicación tiene que ser de tipo **User Agent / PKCE** (los fronts no usan client
-secret) y declarar el redirect URI exacto:
-`http://localhost:3000/api/auth/callback/zitadel` para web, `:3001` para opus-web.
+The application has to be of type **User Agent / PKCE** (the frontends use no client secret)
+and declare the exact redirect URI:
+`http://localhost:3000/api/auth/callback/zitadel` for web, `:3001` for opus-web.
 
-### `Authorization Violation` al conectar al bus
+### `Authorization Violation` when connecting to the bus
 
-El token del service user no sirve. Para ver por qué:
+The service user's token is no good. To see why:
 
 ```sh
 ./zitadel-token.sh --check <key.json>
 ```
 
-Dice si el token es JWT u opaco, cuándo expira y qué roles trae. Las dos causas
-habituales: el machine user emite tokens opacos (Access Token Type = Bearer), o le falta
-el rol.
+It reports whether the token is a JWT or opaque, when it expires and which roles it carries.
+The two usual causes: the machine user issues opaque tokens (Access Token Type = Bearer), or
+it is missing the role.
 
-### Inspeccionar el bus
+### Inspecting the bus
 
 ```sh
-./bus-inspect.sh status                            # conexiones y contadores
-./bus-inspect.sh logs                              # comandos que procesó core
-./bus-inspect.sh tail                              # en vivo
-./bus-inspect.sh send clients.new '{"name":"X"}'   # publicar uno a mano
+./bus-inspect.sh status                            # connections and counters
+./bus-inspect.sh logs                              # commands core processed
+./bus-inspect.sh tail                              # live
+./bus-inspect.sh send clients.new '{"name":"X"}'   # publish one by hand
 ```
 
-`tail` y `logs` leen la traza de core, que con `LOG_COMMANDS=true` imprime cada comando y
-su respuesta:
+`tail` and `logs` read core's trace, which with `LOG_COMMANDS=true` prints each command and
+its reply:
 
 ```
-[cmd] clients.new <- {"name":"Prueba"}
+[cmd] clients.new <- {"name":"Test"}
 [cmd] clients.new -> {"status":"success","data":{"id":10}}
 ```
 
-Apagada por defecto: el payload lleva datos de negocio.
+Off by default: the payload carries business data.
 
-**Un `nats sub` no sirve para espiar.** Los permisos que mintea el auth-callout son
-cerrados a propósito: `internal-app` solo publica bajo su sesión y `core` solo escucha su
-endpoint. Para eso está el rol `bus-observer` en
-[nats/auth-callout/templates/observer.yaml](nats/auth-callout/templates/observer.yaml),
-que escucha todo sin poder publicar. Necesita un service user con ese rol y es **solo para
-entornos locales**: leería el contenido de todos los comandos.
+**A `nats sub` is no good for eavesdropping.** The permissions the auth-callout mints are
+deliberately narrow: `internal-app` only publishes under its own session and `core` only
+listens on its endpoint. That is what the `bus-observer` role in
+[nats/auth-callout/templates/observer.yaml](nats/auth-callout/templates/observer.yaml) is for,
+which listens to everything without being able to publish. It needs a service user with that
+role and is **for local environments only**: it would read the contents of every command.
 
 ---
 
-## Sin dependencias externas
+## Without external dependencies
 
-`docker-compose.dev.yml` levanta el stack con el IdP `mock` del callout, sin Zitadel ni
-red. Los tokens tienen formato `mock:<sub>:<username>:<roles>`.
+`docker-compose.dev.yml` brings the stack up with the callout's `mock` IdP, with no Zitadel and
+no network. Tokens have the form `mock:<sub>:<username>:<roles>`.
 
 ```sh
 cp .env.dist .env
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-web en 3001, opus-web en 3002, NATS en 4222, PostgreSQL en 5432.
+web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
 
 ---
 
-## Notas
+## Notes
 
-- **Las migraciones las corre la api** al arrancar, con `POSTGRESQL_MIGRATION_USER`.
-- **auth-callout no vive en este repo**: se consume como imagen publicada en Docker Hub
-  (`gravadigital/nats-zitadel-auth-callout`), y trae **solo el callout** — el servidor NATS es
-  un servicio propio del compose. Lo que sí está acá es su configuración
-  (`nats/auth-callout/`), que se monta por path y se lee al arrancar.
-- **JetStream está apagado**: el protocolo es request/reply directo.
+- **The api runs the migrations** at startup, with `POSTGRESQL_MIGRATION_USER`.
+- **auth-callout does not live in this repo**: it is consumed as an image published on Docker
+  Hub (`gravadigital/nats-zitadel-auth-callout`), and it ships **only the callout** — the NATS
+  server is a compose service of its own. What is here is its configuration
+  (`nats/auth-callout/`), mounted by path and read at startup.
+- **JetStream is off**: the protocol is direct request/reply.

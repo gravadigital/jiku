@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 #
-# Genera la identidad de NATS que necesita el servidor en modo operator.
+# Generates the NATS identity the server needs in operator mode.
 #
-# El modo operator es un requisito del auth-callout: la autorización se decide con JWTs
-# firmados por cuentas, y es lo que le permite al callout emitir un User JWT distinto por
-# conexión. Un server en modo `authorization {}` clásico no puede hacerlo.
+# Operator mode is a requirement of the auth-callout: authorisation is decided with
+# account-signed JWTs, and that is what lets the callout issue a different User JWT per
+# connection. A server in classic `authorization {}` mode cannot do it.
 #
-# Produce en creds/:
-#   nats-resolver.conf       operator, system account y JWTs de cuenta (lo incluye nats-server.conf)
-#   sentinel-client.creds    con lo que conectan api y core
-#   sentinel-handler.creds   con lo que conecta el auth-callout
-#   app-account.{pub,sk.seed}    cuenta APP: firma los User JWT que emite el callout
-#   auth-account.{pub,sk.seed}   cuenta AUTH: firma el authorization_response
-#   callout-xkey.{pub,seed}      XKey (curve25519) que desencripta los requests de auth
-#   callout-env.sh           contrato de rutas para el callout
+# Produces, in creds/:
+#   nats-resolver.conf       operator, system account and account JWTs (included by nats-server.conf)
+#   sentinel-client.creds    what api and core connect with
+#   sentinel-handler.creds   what the auth-callout connects with
+#   app-account.{pub,sk.seed}    APP account: signs the User JWTs the callout issues
+#   auth-account.{pub,sk.seed}   AUTH account: signs the authorization_response
+#   callout-xkey.{pub,seed}      XKey (curve25519) that decrypts the auth requests
+#   callout-env.sh           path contract for the callout
 #
-# Requiere `nsc` (https://github.com/nats-io/nsc).
+# Requires `nsc` (https://github.com/nats-io/nsc).
 #
-# ES IDEMPOTENTE PERO NO REPETIBLE: regenerar la identidad invalida las credenciales ya
-# distribuidas y obliga a reemitirlas. Se corre UNA VEZ por instalación. Si creds/ ya tiene
-# contenido, el script se niega a seguir salvo que pases --force.
+# IDEMPOTENT BUT NOT REPEATABLE: regenerating the identity invalidates already-distributed
+# credentials and forces reissuing them. Run it ONCE per installation. If creds/ already has
+# content, the script refuses to continue unless you pass --force.
 
 set -euo pipefail
 
@@ -34,22 +34,22 @@ FORCE=false
 [[ "${1:-}" == "--force" ]] && FORCE=true
 
 if ! command -v nsc >/dev/null 2>&1; then
-  echo "error: falta nsc. Instalalo con:" >&2
+  echo "error: nsc is missing. Install it with:" >&2
   echo "  curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh" >&2
   exit 1
 fi
 
-# Solo el README debería estar versionado; cualquier otra cosa es identidad ya generada.
+# Only the README should be versioned; anything else is already-generated identity.
 if [[ -f "$OUT/nats-resolver.conf" ]] && [[ "$FORCE" != true ]]; then
-  echo "error: $OUT/ ya tiene una identidad generada." >&2
+  echo "error: $OUT/ already holds a generated identity." >&2
   echo "" >&2
-  echo "Regenerarla invalida las credenciales ya distribuidas y obliga a reemitirlas en" >&2
-  echo "todos los servicios. Si es lo que querés, corré:  $0 --force" >&2
+  echo "Regenerating it invalidates already-distributed credentials and forces reissuing" >&2
+  echo "them on every service. If that is what you want, run:  $0 --force" >&2
   exit 1
 fi
 
-# nsc trabaja sobre su propio store. Usamos uno efímero y local para no tocar el del
-# usuario ni depender de su estado previo.
+# nsc works against its own store. We use an ephemeral, local one so as not to touch the
+# user's or depend on its prior state.
 STORE="$(mktemp -d)"
 trap 'rm -rf "$STORE"' EXIT
 export NSC_HOME="$STORE"
@@ -57,54 +57,56 @@ NSC="nsc --data-dir $STORE/store --config-dir $STORE/config --keystore-dir $STOR
 
 mkdir -p "$OUT"
 
-# Con --force se regenera desde cero: `nsc generate config` no sobrescribe, así que hay que
-# limpiar lo anterior. Se preserva el README, que es lo único versionado.
+# With --force it is regenerated from scratch: `nsc generate config` does not overwrite, so
+# the previous content has to be cleaned. The README is preserved, being the only versioned
+# file.
 if [[ "$FORCE" == true ]]; then
   find "$OUT" -mindepth 1 ! -name 'README.md' -delete
 fi
 
 echo "==> operator $OPERATOR"
 $NSC add operator --name "$OPERATOR" --sys >/dev/null
-# Con signing key propia: el operator no firma cuentas con su clave raíz.
+# With its own signing key: the operator does not sign accounts with its root key.
 $NSC edit operator --sk generate >/dev/null
 
-echo "==> cuenta $APP_ACCOUNT (la de los servicios)"
+echo "==> account $APP_ACCOUNT (the services')"
 $NSC add account --name "$APP_ACCOUNT" >/dev/null
 $NSC edit account --name "$APP_ACCOUNT" --sk generate >/dev/null
 
-echo "==> cuenta $AUTH_ACCOUNT (la del callout)"
+echo "==> account $AUTH_ACCOUNT (the callout's)"
 $NSC add account --name "$AUTH_ACCOUNT" >/dev/null
 $NSC edit account --name "$AUTH_ACCOUNT" --sk generate >/dev/null
 
-echo "==> sentinelas"
-# LOS DOS sentinelas viven en la cuenta AUTH, y la diferencia entre ellos es si están
-# declarados en `--auth-user`:
+echo "==> sentinels"
+# BOTH sentinels live in the AUTH account, and what differs between them is whether they are
+# declared in `--auth-user`:
 #
-#   sentinel-handler  SÍ está: el callout conecta con él y el server lo autoriza directo,
-#                     porque un servicio de autorización no puede autorizarse a sí mismo.
-#   sentinel-client   NO está: conectar con él DISPARA el callout, que mintea un User JWT
-#                     hacia la cuenta APP según el rol del token.
+#   sentinel-handler  IT IS: the callout connects with it and the server authorises it
+#                     directly, because an authorisation service cannot authorise itself.
+#   sentinel-client   IT IS NOT: connecting with it TRIGGERS the callout, which mints a User
+#                     JWT into the APP account according to the token's role.
 #
-# El client deniega todo por su cuenta, así que no concede nada por sí solo: todo el acceso
-# real viene del JWT que emite el callout. Por eso es seguro distribuirlo a los servicios.
+# The client denies everything on its own, so it grants nothing by itself: all real access
+# comes from the JWT the callout issues. That is why it is safe to distribute to the
+# services.
 $NSC add user --account "$AUTH_ACCOUNT" --name sentinel-handler >/dev/null
 $NSC add user --account "$AUTH_ACCOUNT" --name sentinel-client \
   --deny-pub '>' --deny-sub '>' >/dev/null
 
-echo "==> xkey del callout"
-# Curve25519: con esta clave el callout desencripta los requests de autorización.
-# `nsc generate nkey --curve` imprime las dos líneas: seed (SX...) y pública (X...).
+echo "==> callout xkey"
+# Curve25519: with this key the callout decrypts the authorisation requests.
+# `nsc generate nkey --curve` prints both lines: seed (SX...) and public (X...).
 XKEY_OUT=$(nsc generate nkey --curve 2>/dev/null)
 XKEY_SEED=$(printf '%s\n' "$XKEY_OUT" | grep -E '^SX' | head -1)
 XKEY_PUB=$(printf '%s\n' "$XKEY_OUT" | grep -E '^X' | head -1)
 if [[ -z "$XKEY_SEED" || -z "$XKEY_PUB" ]]; then
-  echo "error: no se pudo generar la xkey del callout" >&2
+  echo "error: could not generate the callout xkey" >&2
   exit 1
 fi
 printf '%s\n' "$XKEY_SEED" > "$OUT/callout-xkey.seed"
 printf '%s\n' "$XKEY_PUB"  > "$OUT/callout-xkey.pub"
 
-echo "==> declarando el auth callout en $AUTH_ACCOUNT"
+echo "==> declaring the auth callout on $AUTH_ACCOUNT"
 HANDLER_PUB=$($NSC describe user --account "$AUTH_ACCOUNT" --name sentinel-handler --field sub 2>/dev/null | tr -d '"')
 APP_PUB=$($NSC describe account --name "$APP_ACCOUNT" --field sub 2>/dev/null | tr -d '"')
 $NSC edit authcallout --account "$AUTH_ACCOUNT" \
@@ -112,18 +114,18 @@ $NSC edit authcallout --account "$AUTH_ACCOUNT" \
   --allowed-account "$APP_PUB" \
   --curve "$XKEY_PUB" >/dev/null
 
-echo "==> exportando"
+echo "==> exporting"
 $NSC generate config --mem-resolver --config-file "$OUT/nats-resolver.conf" >/dev/null
 $NSC generate creds --account "$AUTH_ACCOUNT" --name sentinel-client  > "$OUT/sentinel-client.creds"
 $NSC generate creds --account "$AUTH_ACCOUNT" --name sentinel-handler > "$OUT/sentinel-handler.creds"
 
-# Dos cosas distintas por cuenta, y confundirlas rompe el arranque:
+# Two different things per account, and confusing them breaks startup:
 #
-#   *.pub      la pubkey de la CUENTA. Es el claim IssuerAccount del User JWT que mintea el
-#              callout, y tiene que coincidir con lo declarado en --allowed-account. Si acá
-#              va la signing key, el server rechaza con "not permitted as valid account
-#              option for auth callout".
-#   *.sk.seed  la SEED de la signing key. Es con lo que el callout firma.
+#   *.pub      the ACCOUNT's pubkey. It is the IssuerAccount claim of the User JWT the
+#              callout mints, and it has to match what was declared in --allowed-account. If
+#              the signing key goes here, the server rejects it with "not permitted as valid
+#              account option for auth callout".
+#   *.sk.seed  the signing key's SEED. That is what the callout signs with.
 AUTH_PUB=$($NSC describe account --name "$AUTH_ACCOUNT" --field sub 2>/dev/null | tr -d '"')
 printf '%s\n' "$APP_PUB"  > "$OUT/app-account.pub"
 printf '%s\n' "$AUTH_PUB" > "$OUT/auth-account.pub"
@@ -135,9 +137,9 @@ for pair in "$APP_ACCOUNT:app-account" "$AUTH_ACCOUNT:auth-account"; do
 done
 
 cat > "$OUT/callout-env.sh" <<'ENVEOF'
-# callout-env.sh — GENERADO por bootstrap.sh. NO COMMITEAR.
-# Rutas relativas a nats/. Las variables apuntan a ARCHIVOS; el binario acepta tanto el
-# path como la seed literal.
+# callout-env.sh — GENERATED by bootstrap.sh. DO NOT COMMIT.
+# Paths relative to nats/. The variables point at FILES; the binary accepts either the path
+# or the literal seed.
 export GESTION_HANDLER_CREDS="${GESTION_NATS_DIR:-.}/creds/sentinel-handler.creds"
 export GESTION_APP_ACCOUNT_SK_SEED="${GESTION_NATS_DIR:-.}/creds/app-account.sk.seed"
 export GESTION_APP_ACCOUNT_PUB="${GESTION_NATS_DIR:-.}/creds/app-account.pub"
@@ -145,13 +147,13 @@ export GESTION_AUTH_ACCOUNT_SK_SEED="${GESTION_NATS_DIR:-.}/creds/auth-account.s
 export GESTION_XKEY_SEED="${GESTION_NATS_DIR:-.}/creds/callout-xkey.seed"
 ENVEOF
 
-# Material secreto: seeds y creds con permisos restrictivos.
+# Secret material: seeds and creds with restrictive permissions.
 chmod 600 "$OUT"/*.creds "$OUT"/*.seed 2>/dev/null || true
 chmod 644 "$OUT"/*.pub "$OUT/callout-env.sh" "$OUT/nats-resolver.conf" 2>/dev/null || true
 
 echo
-echo "Listo. Generado en deploy/nats/$OUT/:"
+echo "Done. Generated in deploy/nats/$OUT/:"
 ls -1 "$OUT" | grep -v '^README.md$' | sed 's/^/  /'
 echo
-echo "Nada de esto se versiona (salvo el README). Guardá una copia segura: regenerarlo"
-echo "obliga a reemitir las credenciales de todos los servicios."
+echo "None of this is versioned (except the README). Keep a safe copy: regenerating it"
+echo "forces reissuing the credentials of every service."
