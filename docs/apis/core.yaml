@@ -1241,7 +1241,7 @@ components:
 
 tags:
   - name: clients
-    description: Actors. 2 commands.
+    description: Actors — called `clients` in the database and on the bus. 2 commands.
   - name: projects
     description: Projects. 2 commands.
   - name: tasks
