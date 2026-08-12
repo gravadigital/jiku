@@ -7,6 +7,13 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    // Pins the timezone so date assertions do not depend on the machine's. A
+    // date literal like '2026-08-01' is parsed as midnight UTC, which is the
+    // previous day west of Greenwich: without this, tests pass locally and fail
+    // in CI, where the runner is UTC.
+    env: {
+      TZ: 'UTC',
+    },
   },
   resolve: {
     alias: {

@@ -47,8 +47,15 @@ describe('FinishDateLabel', () => {
     );
 
     fireEvent.click(screen.getByText('Cierra en'));
+
+    // Has to be a day other than the selected one: react-datepicker only fires
+    // onChange when the date actually changes, so clicking the already-selected
+    // day updates nothing. Which day is selected depends on the machine's
+    // timezone — `new Date('2026-08-01')` is midnight UTC, so it lands on Jul 31
+    // west of Greenwich and on Aug 1 in CI — hence picking by exclusion rather
+    // than by a fixed date.
     const dayButton = portalContainer.querySelector(
-      '.react-datepicker__day--selected'
+      '.react-datepicker__day:not(.react-datepicker__day--selected):not(.react-datepicker__day--outside-month)'
     ) as HTMLElement;
     fireEvent.click(dayButton);
 
