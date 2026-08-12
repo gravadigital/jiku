@@ -14,6 +14,10 @@
 #
 # The release workflow runs --check against the git tag, so a tag that disagrees
 # with the tree fails the build instead of publishing mislabelled images.
+#
+# Only the versioned template, deploy/.env.dist, is checked. An actual deploy/.env
+# is free to point the same variables at the mutable `dev` tag — that file is not
+# versioned and this script never reads it.
 
 set -euo pipefail
 

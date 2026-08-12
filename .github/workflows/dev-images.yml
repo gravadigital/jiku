@@ -1,0 +1,143 @@
+name: Dev images
+
+# Every push to dev republishes the four images under the `dev` tag, overwriting the
+# previous ones. That tag is a moving pointer to the tip of dev, not a release.
+#
+# To run a server against it, point the per-service versions at the tag:
+# `API_VERSION=dev` (and so on) in deploy/.env, which docker-compose.yml consumes.
+# The local and dev composes build from the repo instead, so they ignore it.
+#
+# Releases are a different workflow: release.yml, driven by version tags, is what
+# publishes the immutable `1.2.3` / `1.2` / `latest` tags.
+on:
+  push:
+    branches: [dev]
+    # A docs-only change does not alter the images. Mirrors ci.yml so the two agree
+    # about what is worth a run.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+  # Lets a dev image be rebuilt without an empty commit, which is useful when a
+  # publish failed for reasons outside the tree.
+  workflow_dispatch:
+
+# Pushes to dev can arrive in bursts. Only the newest matters, since all of them
+# compete for the same mutable tag — but a run in flight is not cancelled, so the
+# registry never keeps half of one build and half of another.
+concurrency:
+  group: dev-images
+  cancel-in-progress: false
+
+env:
+  REGISTRY_NAMESPACE: gravadigital
+
+jobs:
+  # An image is only published if the suite passes. ci.yml runs on this same commit,
+  # but it cannot be depended on from here: two workflows triggered by one push run
+  # independently, so this repeats the gate rather than assuming it.
+  #
+  # The duplicated run is deliberate. Dropping it would save a few minutes per push,
+  # at the cost of being able to publish a `dev` image from a commit whose tests
+  # failed — and a published image is what someone else then pulls.
+  test:
+    runs-on: ubuntu-latest
+
+    # Mirrors ci.yml: api and core test against a real database.
+    services:
+      postgres:
+        image: postgres:15.4-alpine3.18
+        env:
+          POSTGRES_DB: gestionTest
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRESQL_HOST: localhost
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DB: gestionTest
+      POSTGRESQL_USER: test
+      POSTGRESQL_PASSWORD: testing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    strategy:
+      # One failed image must not cancel the other three.
+      fail-fast: false
+      matrix:
+        service: [api, core, web, opus-web]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Two tags: `dev`, which moves, and `dev-<sha>`, which does not. The immutable
+      # one is what makes a bad dev image diagnosable — without it, "the dev image
+      # from yesterday" is unrecoverable once the tag moves.
+      #
+      # The build context is the repository root, not the service directory: each
+      # service is a workspace and consumes the shared packages under packages/.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY_NAMESPACE }}/jiku-${{ matrix.service }}:dev
+            ${{ env.REGISTRY_NAMESPACE }}/jiku-${{ matrix.service }}:dev-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=jiku-${{ matrix.service }}
+            org.opencontainers.image.vendor=Grava Digital
+            org.opencontainers.image.revision=${{ github.sha }}
+          # Shares the cache scope with release.yml on purpose: the layers are the
+          # same, so a dev build warms the release build and the other way round.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # With fail-fast off, a partial publish would otherwise report green.
+  summary:
+    needs: publish
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          if [[ "${{ needs.publish.result }}" != "success" ]]; then
+            echo "::error::At least one dev image failed to publish. The dev tag may be a mix of this build and the previous one."
+            exit 1
+          fi
+          echo "Published dev and dev-${GITHUB_SHA} for jiku-api, jiku-core, jiku-web, jiku-opus-web."

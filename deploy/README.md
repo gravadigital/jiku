@@ -119,7 +119,9 @@ Differences from the local environment:
 - Requires two external networks: the ingress one (`INGRESS_NETWORK`) and the database one
   (`DATABASE_NETWORK`).
 - Versions are pinned per service (`API_VERSION`, `CORE_VERSION`, …), so core can be deployed
-  without touching the frontends.
+  without touching the frontends. Setting them to `dev` tracks the tip of the `dev` branch,
+  which is republished on every push — handy for a staging environment, with no stability
+  promise. `dev-<commit-sha>` pins one specific dev build.
 - The read-only user has to be created by hand (SQL below); `local.sh` does it on its own, but
   the production compose does not.
 

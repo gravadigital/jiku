@@ -47,6 +47,24 @@ tree, runs build, lint and the full suite, and then pushes four images to Docker
 A tag that disagrees with `package.json` fails before anything is built, so a
 mislabelled image never reaches the registry.
 
+### The `dev` tag
+
+Separately from releases, every push to `dev` republishes the same four images tagged
+`dev`, overwriting the previous ones. It is a moving pointer to the tip of the branch,
+useful for a staging environment; it is not a release and carries no stability promise.
+
+Each build also publishes an immutable `dev-<commit-sha>` tag, so a specific dev image
+stays reachable after the `dev` tag has moved on.
+
+To run against it, set the per-service versions to `dev` in `deploy/.env`:
+
+```
+API_VERSION=dev
+CORE_VERSION=dev
+WEB_VERSION=dev
+OPUS_WEB_VERSION=dev
+```
+
 ---
 
 ## [Unreleased]
