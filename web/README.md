@@ -3,7 +3,7 @@
 The internal frontend: what the team uses. Next.js, in Spanish.
 
 Covers actors, projects, requirements, tasks, time allocation, worked hours and reports. What
-each of those means is in [docs/features.md](../docs/features.md).
+each of those means is in [documentation/features.md](../documentation/features.md).
 
 ## Running it
 
@@ -19,7 +19,7 @@ npm run lint --workspace web
 **It needs the API running.** Point `API_URL` at it. It is read on the server at runtime, so it
 only has to be reachable from this process — the browser calls this frontend, which forwards.
 
-To bring up the whole stack instead, see [docs/installation.md](../docs/installation.md).
+To bring up the whole stack instead, see [documentation/installation.md](../documentation/installation.md).
 
 ## Authentication
 
@@ -32,7 +32,7 @@ reaching this frontend sees a reduced navigation, but the portal they are meant 
 [opus-web](../opus-web).
 
 > A person who authenticates but is not in the `users` table gets a 401 from the API. Jiku
-> does not create users — see [docs/known-limitations.md](../docs/known-limitations.md).
+> does not create users — see [documentation/known-limitations.md](../documentation/known-limitations.md).
 
 ## Layout
 
@@ -56,4 +56,4 @@ Tests live next to the code they cover, as `*.test.tsx`.
 | `APP_NAME`, `APP_DESCRIPTION`                               | application name and meta description                                                                     |
 | `EXTERNAL_LINKS`                                            | optional JSON with shortcuts to your team's tools, shown at the foot of the navigation. Empty by default. |
 
-Full reference in [docs/configuration.md](../docs/configuration.md).
+Full reference in [documentation/configuration.md](../documentation/configuration.md).

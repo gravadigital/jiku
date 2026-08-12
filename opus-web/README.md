@@ -7,7 +7,7 @@ subscribe to follow progress. They never see hours, internal comments or other c
 projects.
 
 It consumes `/api/opus/*` with the `external-user` role — see
-[docs/api-reference.md](../docs/api-reference.md#client-portal-endpoints).
+[documentation/api-reference.md](../documentation/api-reference.md#client-portal-endpoints).
 
 ## Running it
 
@@ -23,7 +23,7 @@ npm run lint --workspace opus-web
 **It needs the API running.** `API_URL` is read on the server, so it only has to be reachable
 from this container: the browser calls this portal and a route handler forwards the request.
 
-To bring up the whole stack, see [docs/installation.md](../docs/installation.md).
+To bring up the whole stack, see [documentation/installation.md](../documentation/installation.md).
 
 ## Authentication
 
@@ -36,7 +36,7 @@ what they were explicitly granted.
 
 > Both frontends run NextAuth v5. This one keeps the v4 variable names (`NEXTAUTH_*`), which v5
 > still reads, while `web` uses the v5 ones (`AUTH_*`). See
-> [docs/known-limitations.md](../docs/known-limitations.md).
+> [documentation/known-limitations.md](../documentation/known-limitations.md).
 
 ## Layout
 
@@ -59,4 +59,4 @@ Both run under vitest, same as `web`.
 | `NEXTAUTH_URL`, `NEXTAUTH_SECRET`                           | NextAuth. The v4 names, still honoured by v5                 |
 | `ZITADEL_ISSUER`, `ZITADEL_CLIENT_ID`, `ZITADEL_PROJECT_ID` | the OIDC application                                         |
 
-Full reference in [docs/configuration.md](../docs/configuration.md).
+Full reference in [documentation/configuration.md](../documentation/configuration.md).

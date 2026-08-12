@@ -79,4 +79,4 @@ Keep a safe copy of this directory. Regenerating the identity is not a recoverab
 in practice: the server's trust changes and every credential has to be reissued.
 
 There is no rotation mechanism yet — see
-[../../../docs/known-limitations.md](../../../docs/known-limitations.md).
+[../../../documentation/known-limitations.md](../../../documentation/known-limitations.md).

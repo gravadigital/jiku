@@ -1,0 +1,1253 @@
+asyncapi: '2.6.0'
+
+# Messaging contract of `core` — the 17 commands it serves over NATS.
+#
+# WHY AsyncAPI AND NOT OpenAPI
+#   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
+#   request/reply over NATS. An OpenAPI spec would have to invent routes that do not exist.
+#
+# THIS FILE IS THE SOURCE OF TRUTH
+#   Everything that travels over the bus is answered by core, so this spec is the whole
+#   contract. Where the code and this file disagree, the file wins.
+#
+#   It was written by reading the Joi schemas in `core/src/commands/`, so it describes what
+#   core actually accepts. Three points where an earlier prose version of this protocol said
+#   otherwise are called out inline as "Corrected": in all three the code was right.
+
+info:
+  title: Jiku core — NATS command contract
+  version: 1.0.0
+  description: |
+    `core` is the only service that writes to Jiku's database. It serves commands published by
+    the api over NATS, validates the business rules and writes.
+
+    **Pattern: request/reply, no JetStream.** Every message is answered on the spot. There is
+    no queue, no retry and no persistence: if core is down, the api's request times out and
+    the operation did not happen.
+
+    **Core does not authenticate users and knows nothing about roles.** It trusts the
+    `creator` / `author` / `editor` that travels in the body. That trust rests entirely on the
+    bus access policy, which lets nobody but the api publish these commands.
+
+    **People never connect to the bus.** They speak HTTP with the api, and the api publishes
+    with its own service user. That is why the acting user travels in the body instead of
+    being read from the subject: the subject identifies the api, not the person.
+
+    **The transaction belongs to the dispatcher**: commit if the reply is `success`, rollback
+    in any other case.
+  license:
+    name: Apache-2.0
+  contact:
+    name: Grava Digital
+
+defaultContentType: application/json
+
+servers:
+  dev:
+    url: nats://localhost:4222
+    protocol: nats
+    description: |
+      Development instance. `NATS_INSTANCE=dev`.
+
+      Authentication has two layers: the sentinel creds (`NATS_CREDS`) grant no permissions on
+      their own — it is the Zitadel service user token that triggers the auth-callout, which
+      reads the role and mints the subject permissions for that connection.
+  prod:
+    url: nats://nats:4222
+    protocol: nats
+    description: Production instance. `NATS_INSTANCE=prod`.
+
+# ---------------------------------------------------------------------------
+# Subject grammar
+# ---------------------------------------------------------------------------
+#
+#   {instance}.{user-id}.{svc}.{version}.{command}
+#   dev.323332022539911171.gestion.v1.clients.new
+#
+#   instance   deployment: dev / prod              (NATS_INSTANCE)
+#   user-id    WHO publishes: the token's `sub`, RAW
+#   svc        who it talks to: `gestion`          (NATS_SERVICE_NAME)
+#   version    protocol version: `v1`              (NATS_PROTOCOL_VERSION)
+#   command    clients.new, requirements.{id}.edit, ...
+#
+# Core subscribes to `{instance}.*.{svc}.{version}.>` with queue group `gestion`, so the
+# wildcard covers any caller and several replicas share the messages between them.
+#
+# The `channels` below are named after the COMMAND, not the full subject: the prefix is the same
+# for all of them and depends on the environment.
+#
+# THE user-id IDENTIFIES THE SERVICE, NOT THE PERSON. The api uses a single service user for
+# everybody; the end user travels in the body.
+#
+# The reply inbox uses the HASHED user id: `_INBOX.<sha256 base32, 16 chars, lowercase>`. The
+# client MUST set that prefix when connecting, or the replies never arrive.
+
+channels:
+
+  # -------------------------------------------------------------------------
+  # clients
+  # -------------------------------------------------------------------------
+
+  clients.new:
+    description: Actor creation.
+    publish:
+      operationId: clientsNew
+      summary: Create an actor
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/ClientsNew'
+
+  clients.{id}.edit:
+    description: Partial edit of an actor.
+    parameters:
+      id:
+        description: Actor id (`clients.id`).
+        schema:
+          type: string
+    publish:
+      operationId: clientsEdit
+      summary: Edit an actor
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/ClientsEdit'
+
+  # -------------------------------------------------------------------------
+  # projects
+  # -------------------------------------------------------------------------
+
+  projects.new:
+    description: Project creation.
+    publish:
+      operationId: projectsNew
+      summary: Create a project
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/ProjectsNew'
+
+  projects.{id}.edit:
+    description: |
+      Partial edit of a project.
+
+      **Difference from the previous api:** `PATCH /projects/:id` required almost every field and
+      cleared `endDate` when it was absent. Here an absent field is left as it was, which is what
+      the protocol defines.
+    parameters:
+      id:
+        description: Project id (`projects.id`).
+        schema:
+          type: string
+    publish:
+      operationId: projectsEdit
+      summary: Edit a project
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/ProjectsEdit'
+
+  # -------------------------------------------------------------------------
+  # tasks  (the table is `objectives`; the protocol calls them tasks)
+  # -------------------------------------------------------------------------
+
+  tasks.new:
+    description: |
+      Task creation.
+
+      Validates the project, the existence of ALL the responsible people and, if
+      `requirementId` is present, that the requirement belongs to the same project. The first of
+      `responsiblePersonIds` becomes the lead.
+    publish:
+      operationId: tasksNew
+      summary: Create a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksNew'
+
+  tasks.{id}.edit:
+    description: |
+      Partial edit of a task, with an activity log.
+
+      Six fields leave a trace in `objective_activities`: `title`, `estimatedFinishDate`,
+      `state`, `area`, `priority`, `description`. The log is computed BEFORE writing, because it
+      needs the previous value. Going to empty is not logged, except for `estimatedFinishDate`.
+
+      Each activity's visibility is automatic: `state`, `title` and `description` are `public`;
+      the rest, `internal`.
+
+      `responsiblePersonIds` is a full replacement.
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksEdit
+      summary: Edit a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksEdit'
+
+  tasks.{id}.comment:
+    description: |
+      Comment on a task. Stored as an `ObjectiveActivity` of type `comment`.
+
+      **Difference from the previous api:** it did not check that the task existed, so commenting
+      on a nonexistent id failed on the foreign key with a 500. Here it is validated and the
+      reply is `objective_not_found`.
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksComment
+      summary: Comment on a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksComment'
+
+  # -------------------------------------------------------------------------
+  # requirements
+  # -------------------------------------------------------------------------
+
+  requirements.new:
+    description: |
+      Requirement creation.
+
+      Attachments are confirmed from their draft. The draft's anchor depends on
+      `attachmentScope`: the internal route anchors it to the user (`entityId` may be null), the
+      Opus one anchors it to the project.
+    publish:
+      operationId: requirementsNew
+      summary: Create a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsNew'
+
+  requirements.{id}.edit:
+    description: |
+      Partial edit of a requirement, with an activity log.
+
+      The activity log is computed by the model's `@BeforeUpdate` hook, which fills `activityLog`
+      and —when the state changes— sets the transition timestamps (`scheduledAt`,
+      `inProgressAt`, ...). The command persists what the hook left behind. **This is a different
+      mechanism from `tasks.{id}.edit`**, which computes it in the command.
+
+      `attachmentIds` is the COMPLETE set that must end up linked: the ones that were not there
+      are confirmed from draft, and the ones no longer present are soft-deleted.
+
+      `responsiblePersonIds` is a full replacement.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsEdit
+      summary: Edit a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsEdit'
+
+  requirements.{id}.resolve:
+    description: |
+      Resolve a requirement: moves it to `resuelto` and stores the reason.
+
+      Inherited rule: an `incidencia` is not resolved without a conclusion. If none comes in the
+      payload, the one already stored on the requirement is accepted.
+
+      > **DEAD SURFACE.** It is implemented and tested, but **no api route publishes it**:
+      > resolution still comes in through `requirements.{id}.edit`, which accepts
+      > `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly that reason.
+      >
+      > Effect: the mandatory-conclusion rule lives only here, so **today it is not enforced**.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsResolve
+      summary: Resolve a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsResolve'
+
+  requirements.{id}.comment:
+    description: |
+      Comment on a requirement. Stored as a `RequirementActivity` of type `comment`.
+
+      It does not notify: notifications were removed from the product.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsComment
+      summary: Comment on a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsComment'
+
+  requirements.{id}.subscriptors.new:
+    description: |
+      Subscribe a user to a requirement.
+
+      Core checks that the user exists and is not subscribed already. **The permission over the
+      project is validated by the api**, because it depends on the role.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsSubscriptorsNew
+      summary: Subscribe a user to a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsSubscriptorsNew'
+
+  requirements.{id}.subscriptors.{userId}.delete:
+    description: |
+      Unsubscribe a user from a requirement. No body: the user comes in the subject.
+
+      **Core does not check whose subscription it is** — "core deletes what it is told to".
+      That somebody can only unsubscribe themselves is validated by the api.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+      userId:
+        description: |
+          User id in the identity provider (`users.id`, string). It may contain characters that
+          are not digits, and that is why subject matching is done by segments and not by regex.
+        schema:
+          type: string
+    publish:
+      operationId: requirementsSubscriptorsDelete
+      summary: Unsubscribe a user from a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+  # -------------------------------------------------------------------------
+  # times
+  # -------------------------------------------------------------------------
+
+  worked-times.new:
+    description: |
+      Log worked time.
+
+      Cap of 1440 minutes (24 h) per person per day, counting worked time only.
+
+      `taskId` and `requirementId` are mutually exclusive (`oxor`). If `requirementId` is
+      present, it has to belong to the given project.
+
+      **The submission window (the current day and the 10 before it) is validated by the api**,
+      not core: it depends on the calendar and not on the data.
+    publish:
+      operationId: workedTimesNew
+      summary: Log worked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/WorkedTimesNew'
+
+  worked-times.{id}.delete:
+    description: |
+      Delete a worked time entry. No body.
+
+      **Core deletes what it is told to:** that the entry is the caller's own and that the date is
+      within the allowed window is validated by the api, which is the one that knows the role and
+      the calendar.
+    parameters:
+      id:
+        description: Entry id (`worked_times.id`).
+        schema:
+          type: string
+    publish:
+      operationId: workedTimesDelete
+      summary: Delete worked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+  unworked-times.new:
+    description: |
+      Record unworked time.
+
+      Cap of 1440 minutes (24 h) per person per day, **adding up worked AND unworked time** —
+      unlike `worked-times.new`, which only counts worked time.
+    publish:
+      operationId: unworkedTimesNew
+      summary: Record unworked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/UnworkedTimesNew'
+
+  unworked-times.{id}.delete:
+    description: Delete an unworked time record. No body. The permission is validated by the api.
+    parameters:
+      id:
+        description: Record id (`unworked_times.id`).
+        schema:
+          type: string
+    publish:
+      operationId: unworkedTimesDelete
+      summary: Delete unworked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+# ---------------------------------------------------------------------------
+
+components:
+
+  messages:
+
+    ClientsNew:
+      name: ClientsNew
+      title: clients.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ClientsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, internal_error]
+
+    ClientsEdit:
+      name: ClientsEdit
+      title: clients.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ClientsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, client_not_found, internal_error]
+
+    ProjectsNew:
+      name: ProjectsNew
+      title: projects.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ProjectsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, client_not_found, internal_error]
+
+    ProjectsEdit:
+      name: ProjectsEdit
+      title: projects.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ProjectsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, project_not_found, client_not_found, internal_error]
+
+    TasksNew:
+      name: TasksNew
+      title: tasks.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - project_not_found
+        - person_not_found
+        - requirement_project_mismatch
+        - internal_error
+
+    TasksEdit:
+      name: TasksEdit
+      title: tasks.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - objective_not_found
+        - person_not_found
+        - requirement_project_mismatch
+        - internal_error
+
+    TasksComment:
+      name: TasksComment
+      title: tasks.{id}.comment
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksCommentPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, objective_not_found, invalid_attachment_id, internal_error]
+
+    RequirementsNew:
+      name: RequirementsNew
+      title: requirements.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - project_not_found
+        - invalid_responsible_person
+        - invalid_attachment_id
+        - internal_error
+
+    RequirementsEdit:
+      name: RequirementsEdit
+      title: requirements.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - invalid_responsible_person
+        - invalid_attachment_id
+        - internal_error
+
+    RequirementsResolve:
+      name: RequirementsResolve
+      title: requirements.{id}.resolve
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsResolvePayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error]
+
+    RequirementsComment:
+      name: RequirementsComment
+      title: requirements.{id}.comment
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsCommentPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, requirement_not_found, invalid_attachment_id, internal_error]
+
+    RequirementsSubscriptorsNew:
+      name: RequirementsSubscriptorsNew
+      title: requirements.{id}.subscriptors.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SubscriptorNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - user_not_found
+        - already_subscribed
+        - internal_error
+
+    WorkedTimesNew:
+      name: WorkedTimesNew
+      title: worked-times.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkedTimesNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - person_not_found
+        - project_not_found
+        - objective_not_found
+        - requirement_not_found
+        - requirement_project_mismatch
+        - daily_limit_exceeded
+        - internal_error
+
+    UnworkedTimesNew:
+      name: UnworkedTimesNew
+      title: unworked-times.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/UnworkedTimesNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, person_not_found, daily_limit_exceeded, internal_error]
+
+    EmptyBody:
+      name: EmptyBody
+      title: Command with no body
+      contentType: application/json
+      description: |
+        The delete commands and the unsubscribe carry no body. They are validated all the same,
+        with `joi.object({}).unknown(false)`, so **a payload with any field is rejected** with
+        `invalid_fields`. An absent or empty body is normalized to `{}`.
+      payload:
+        $ref: '#/components/schemas/EmptyPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - subscription_not_found
+        - worked_time_not_found
+        - unworked_time_not_found
+        - internal_error
+
+  schemas:
+
+    # -----------------------------------------------------------------------
+    # Reply — identical for every command
+    # -----------------------------------------------------------------------
+
+    Reply:
+      type: object
+      description: |
+        Reply format, the same for every command. Defined in
+        `@jiku/nats-protocol`.
+
+        **The `status` decides the transaction**: the dispatcher commits if it is `success` and
+        rolls back in any other case.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success, failure]
+        errorCode:
+          type: string
+          description: 'Present only with `status: failure`. See `ErrorCode`.'
+        errorMessage:
+          type: string
+          description: |
+            Free text. **It reaches the end user** through the api.
+
+            English and Spanish are mixed, sometimes in the same file. It is inherited
+            inconsistency that was not unified because the frontends display some of them
+            directly.
+        data:
+          type: object
+          description: Reply body. Absent on edits and deletes.
+
+    ReplyWithId:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of a creation. It returns **only the id**: since the contract with the frontends
+            is the full record with its relations, the api re-reads the entity from the database
+            after the command.
+          properties:
+            data:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+          example:
+            status: success
+            data:
+              id: 7
+
+    ReplyEmpty:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: 'Reply with no content: the `status` is the whole reply.'
+          example:
+            status: success
+
+    ErrorCode:
+      type: string
+      description: |
+        Catalog of error codes, defined in `@jiku/nats-protocol`.
+
+        > **The catalog is not closed.** The api maps to HTTP only the codes its routes use
+        > today; any other one falls through to a 500. In particular, `unknown_command` has
+        > **no** mapping.
+
+        Three codes are emitted today as a string literal instead of the constant
+        (`resolution_required`, `worked_time_not_found`, `unworked_time_not_found`). The value is
+        correct, but it is duplicated by hand.
+      enum:
+        - invalid_fields
+        - internal_error
+        - unknown_command
+        - client_not_found
+        - project_not_found
+        - objective_not_found
+        - requirement_not_found
+        - user_not_found
+        - person_not_found
+        - invalid_responsible_person
+        - invalid_attachment_id
+        - requirement_project_mismatch
+        - daily_limit_exceeded
+        - invalid_date_range
+        - already_subscribed
+        - subscription_not_found
+        - invalid_state_transition
+        - stage_not_found
+        - resolution_required
+        - worked_time_not_found
+        - unworked_time_not_found
+
+    EmptyPayload:
+      type: object
+      additionalProperties: false
+      description: No fields. Any property is rejected with `invalid_fields`.
+
+    # -----------------------------------------------------------------------
+    # Reused types
+    # -----------------------------------------------------------------------
+
+    IdentityUserId:
+      type: string
+      description: |
+        User id from the identity provider (`users.id`). **Not to be confused with `personId`**,
+        which is the id from the `persons` table (a number). Both concepts coexist in
+        `worked-times`.
+
+    DateOnly:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: '`YYYY-MM-DD` date. The column is a STRING, not a DATE.'
+      example: '2026-08-12'
+
+    Property:
+      type: object
+      description: |
+        Pair from the bus contract. It is translated into the `key_value_pairs` column, which
+        stores a flat object: `[{code: 'documentacion', value: 'https://...'}]` is stored as
+        `{documentacion: 'https://...'}`.
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum: [documentacion, diseño, board_de_tareas, mattermost_group_name]
+          description: Accepted keys (`DefaultKeyValuePairs`).
+        value:
+          type: [string, 'null']
+          description: |
+            The first three codes are validated as a URI; `mattermost_group_name` is free text.
+            It accepts `null` and the empty string.
+
+    Tag:
+      type: object
+      description: Requirement tag. Stored in a JSONB column.
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+
+    AttachmentIds:
+      type: array
+      description: |
+        Ids of the attachments to confirm. They have to be the user's own live drafts, anchored to
+        the corresponding entity; if any of them is not, the command replies
+        `invalid_attachment_id` and **the whole write is discarded**.
+      items:
+        type: integer
+        minimum: 1
+
+    ResponsiblePersonIds:
+      type: array
+      description: |
+        Ids from the `persons` table. **The first one in the list becomes the lead** — the order is
+        information, not a detail.
+
+        It is validated with a `count` against the length of the list, so **it does not report
+        which one is missing**.
+      items:
+        type: integer
+
+    # -----------------------------------------------------------------------
+    # clients
+    # -----------------------------------------------------------------------
+
+    ClientsNewPayload:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          description: Accepts the empty string.
+
+    ClientsEditPayload:
+      type: object
+      description: |
+        Partial edit: no field is required. Absent = left untouched; with a value = replaced;
+        `null` = cleared; `null` on a field that is mandatory at creation = fails.
+      properties:
+        name:
+          type: string
+          description: '**Does not accept `null`**: it is mandatory at creation.'
+        description:
+          type: [string, 'null']
+
+    # -----------------------------------------------------------------------
+    # projects
+    # -----------------------------------------------------------------------
+
+    ProjectsNewPayload:
+      type: object
+      required: [creator, name, code]
+      properties:
+        creator:
+          $ref: '#/components/schemas/IdentityUserId'
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [analisis, activo, inactivo, finalizado, cancelado]
+          default: analisis
+        type:
+          type: string
+          enum: [interno, comercial, investigacion, propuesta]
+          default: comercial
+        description:
+          type: string
+        initDate:
+          type: string
+          format: date-time
+          description: 'Default: the moment of validation.'
+        endDate:
+          type: [string, 'null']
+          format: date-time
+        clientId:
+          type: [integer, 'null']
+          description: If present, the actor is validated to exist.
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+
+    ProjectsEditPayload:
+      type: object
+      description: 'Partial edit: no field is required and no defaults are applied.'
+      properties:
+        name:
+          type: string
+          description: Does not accept `null`.
+        code:
+          type: string
+          description: Does not accept `null`.
+        status:
+          type: string
+          enum: [analisis, activo, inactivo, finalizado, cancelado]
+        type:
+          type: string
+          enum: [interno, comercial, investigacion, propuesta]
+        description:
+          type: [string, 'null']
+        initDate:
+          type: string
+          format: date-time
+          description: Does not accept `null`.
+        endDate:
+          type: [string, 'null']
+          format: date-time
+        clientId:
+          type: [integer, 'null']
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+
+    # -----------------------------------------------------------------------
+    # tasks
+    # -----------------------------------------------------------------------
+
+    TaskPriority:
+      type: string
+      description: |
+        Task priority. **An enum on the bus, an integer in the column** (`objectives.priority` is
+        INTEGER NOT NULL): `sin_prioridad`=0, `baja`=1, `media`=2, `alta`=3, `urgente`=4.
+
+        Not to be confused with `requirements.priority`, which is an actual enum in the database.
+      enum: [sin_prioridad, baja, media, alta, urgente]
+
+    TasksNewPayload:
+      type: object
+      required: [creator, title, projectId, responsiblePersonIds]
+      properties:
+        creator:
+          $ref: '#/components/schemas/IdentityUserId'
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        estimatedFinishDate:
+          type: [string, 'null']
+          description: |
+            Accepted as a date and coerced to `YYYY-MM-DD`: the column is a STRING, not a DATE.
+        state:
+          type: string
+          enum: [backlog, activo, finalizado, cancelado, en_revision]
+          default: backlog
+        area:
+          type: string
+          enum: [diseño, desarrollo, gestion, investigacion]
+          default: desarrollo
+          description: |
+            **Corrected:** an earlier prose version marked this both required and defaulted,
+            which is contradictory. It is optional, with default `desarrollo`.
+        priority:
+          allOf:
+            - $ref: '#/components/schemas/TaskPriority'
+          default: sin_prioridad
+        priorityValue:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: |
+            **A transitional escape hatch, not part of the contract.** The enum has 5 values and
+            the column accepted 0-5, so the round-trip translation would collapse 5 into 4. The api
+            sends the original number here and core uses it as is, ignoring `priority`.
+
+            It goes away once the web speaks in priority names.
+        projectId:
+          type: integer
+        responsiblePersonIds:
+          $ref: '#/components/schemas/ResponsiblePersonIds'
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: public
+        requirementId:
+          type: [integer, 'null']
+          description: If present, it has to belong to the given project.
+
+    TasksEditPayload:
+      type: object
+      required: [editor]
+      description: 'Partial edit: only `editor` is required.'
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            **Required even though the protocol does not declare it.**
+            `objective_activities.changed_by` has a foreign key against `users`, so without a real
+            user id the activity cannot be logged.
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        estimatedFinishDate:
+          type: [string, 'null']
+        state:
+          type: string
+          enum: [backlog, activo, finalizado, cancelado, en_revision]
+        area:
+          type: string
+          enum: [diseño, desarrollo, gestion, investigacion]
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        priorityValue:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: See `TasksNewPayload.priorityValue`.
+        responsiblePersonIds:
+          allOf:
+            - $ref: '#/components/schemas/ResponsiblePersonIds'
+          description: |
+            Full replacement: the ones not present are deleted and the ones that are get upserted,
+            preserving the row and its `createdAt`.
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        requirementId:
+          type: [integer, 'null']
+
+    TasksCommentPayload:
+      type: object
+      required: [author, comment]
+      properties:
+        author:
+          $ref: '#/components/schemas/IdentityUserId'
+        comment:
+          type: string
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: internal
+          description: |
+            The comment is the only activity type whose visibility the user chooses; in the rest it
+            is automatic, per field.
+        attachmentIds:
+          allOf:
+            - $ref: '#/components/schemas/AttachmentIds'
+          description: |
+            Drafts anchored to the task. Two `entityType` values are accepted:
+            `objective_comment_draft` and `comment_draft` (the old name, with attachments still
+            stored that way). The web always sends this field, even when the array is empty.
+
+    # -----------------------------------------------------------------------
+    # requirements
+    # -----------------------------------------------------------------------
+
+    RequirementsNewPayload:
+      type: object
+      required: [creator, title, description, projectId]
+      properties:
+        creator:
+          $ref: '#/components/schemas/IdentityUserId'
+        title:
+          type: string
+        description:
+          type: string
+        projectId:
+          type: integer
+        type:
+          type: [string, 'null']
+          enum: [funcionalidad, mejora, incidencia, otro, null]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+          default: sin_prioridad
+          description: 'Unlike tasks, here the enum is an enum in the database too.'
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: public
+        state:
+          type: string
+          enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+          description: |
+            **Corrected:** an earlier prose version did not declare `state` on creation, but
+            the api accepts it and the web uses it. Default `analisis`.
+        responsiblePersonIds:
+          $ref: '#/components/schemas/ResponsiblePersonIds'
+        estimatedFinishDate:
+          type: [string, 'null']
+          format: date-time
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        attachmentIds:
+          $ref: '#/components/schemas/AttachmentIds'
+        attachmentScope:
+          type: string
+          enum: [user, project]
+          default: user
+          description: |
+            The draft's anchor. The internal route anchors it to the user (`entityId` may be null);
+            the Opus one anchors it to the project.
+        scope:
+          type: [string, 'null']
+        technicalSolution:
+          type: [string, 'null']
+        acceptanceCriteria:
+          type: [string, 'null']
+
+    RequirementsEditPayload:
+      type: object
+      required: [editor]
+      description: 'Partial edit: only `editor` is required.'
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Required: `requirement_activities.changed_by` has an FK against `users`.'
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: [string, 'null']
+          enum: [funcionalidad, mejora, incidencia, otro, null]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        state:
+          type: string
+          enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+          description: |
+            A state change triggers the model's hook, which sets the transition timestamps and logs
+            the activity.
+        responsiblePersonIds:
+          allOf:
+            - $ref: '#/components/schemas/ResponsiblePersonIds'
+          description: 'Full replacement: ALL of them are deleted and recreated.'
+        estimatedFinishDate:
+          type: [string, 'null']
+          format: date-time
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        attachmentIds:
+          allOf:
+            - $ref: '#/components/schemas/AttachmentIds'
+          description: |
+            The **COMPLETE set** that must end up linked: the ones that were not there are
+            confirmed from draft and the ones no longer present are soft-deleted. This differs from
+            creation, where it is only the list to confirm.
+        resolutionType:
+          type: [string, 'null']
+          enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro, null]
+          description: |
+            **Known overlap:** resolution has its own command (`requirements.{id}.resolve`), but
+            the api's `PATCH` still sends these three fields here, and in fact it is the only path
+            through which resolution happens today.
+        resolutionConclusion:
+          type: [string, 'null']
+        resolutionComment:
+          type: [string, 'null']
+        scope:
+          type: [string, 'null']
+        technicalSolution:
+          type: [string, 'null']
+        acceptanceCriteria:
+          type: [string, 'null']
+
+    RequirementsResolvePayload:
+      type: object
+      required: [editor, type]
+      properties:
+        editor:
+          $ref: '#/components/schemas/IdentityUserId'
+        type:
+          type: string
+          enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro]
+          description: |
+            Resolution type (`RequirementResolution`). Not to be confused with the `state`, which
+            moves to `resuelto`: this is the REASON.
+        conclusion:
+          type: [string, 'null']
+          description: |
+            If the requirement is of type `incidencia`, a conclusion is needed: the one in the
+            payload or the one already stored. If there is neither, it replies
+            `resolution_required`.
+        comment:
+          type: [string, 'null']
+
+    RequirementsCommentPayload:
+      type: object
+      required: [author, comment]
+      properties:
+        author:
+          $ref: '#/components/schemas/IdentityUserId'
+        comment:
+          type: string
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: internal
+        attachmentIds:
+          allOf:
+            - $ref: '#/components/schemas/AttachmentIds'
+          description: |
+            Drafts anchored to the requirement. `requirement_comment_draft` and `comment_draft`
+            (the old name) are accepted.
+
+    SubscriptorNewPayload:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          $ref: '#/components/schemas/IdentityUserId'
+
+    # -----------------------------------------------------------------------
+    # times
+    # -----------------------------------------------------------------------
+
+    WorkedTimesNewPayload:
+      type: object
+      required: [date, minutes, projectId, personId]
+      description: 'Extra constraint: `taskId` and `requirementId` are mutually exclusive.'
+      properties:
+        date:
+          $ref: '#/components/schemas/DateOnly'
+        minutes:
+          type: integer
+          minimum: 1
+          description: 'Cap: the day''s total cannot go over 1440.'
+        projectId:
+          type: integer
+        taskId:
+          type: [integer, 'null']
+          description: |
+            The bus name for `objective_id`. **Exclusive with `requirementId`.**
+        requirementId:
+          type: [integer, 'null']
+          description: |
+            **Exclusive with `taskId`.** If present, it has to belong to the given project.
+        personId:
+          type: integer
+          description: |
+            Id from the `persons` table, **required**.
+
+            **Corrected:** an earlier prose version declared it optional, defaulting to "the
+            authenticated user's person". Core cannot do that — it does not know the end user.
+            The api resolves that default before publishing.
+
+    UnworkedTimesNewPayload:
+      type: object
+      required: [date, minutes, reason, personId]
+      properties:
+        date:
+          $ref: '#/components/schemas/DateOnly'
+        minutes:
+          type: integer
+          minimum: 1
+          description: |
+            Cap of 1440 per day, **adding up worked AND unworked time**.
+        reason:
+          type: string
+          enum:
+            - tramite
+            - corte_servicios
+            - vacaciones
+            - dia_no_laborable
+            - personal
+            - medico
+            - estudio
+            - enfermedad
+            - otro
+        personId:
+          type: integer
+          minimum: 1
+          description: 'Required, just like in `worked-times.new`.'
+
+tags:
+  - name: clients
+    description: Actors. 2 commands.
+  - name: projects
+    description: Projects. 2 commands.
+  - name: tasks
+    description: |
+      Tasks. 3 commands. The table is `objectives`; the protocol calls them `tasks`.
+  - name: requirements
+    description: Requirements, comments and subscriptions. 6 commands.
+  - name: times
+    description: Worked and unworked time logging. 4 commands.

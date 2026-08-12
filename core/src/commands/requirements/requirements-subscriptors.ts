@@ -16,7 +16,7 @@ const newSchema = joi.object({
  * Suscribir un usuario a un requisito.
  *
  * El permiso sobre el proyecto lo valida la api, porque depende del rol (ver
- * docs/api-reference.md). Core verifica que el usuario exista y que no esté ya suscripto.
+ * documentation/api-reference.md). Core verifica que el usuario exista y que no esté ya suscripto.
  */
 export const requirementsSubscriptorsNew: Command<SubscriptorNewPayload, { id: number }> = {
   pattern: 'requirements.{id}.subscriptors.new',

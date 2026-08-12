@@ -35,7 +35,7 @@ requires NATS credentials and Zitadel service users that are not in the reposito
 
 ## How the pieces fit
 
-Read [docs/README.md](docs/README.md) first. The short version:
+Read [documentation/README.md](documentation/README.md) first. The short version:
 
 - **`api`** serves HTTP. It reads the database directly and **cannot write to it** — it
   connects with a read-only database role. Mutations are published as commands on NATS.
@@ -51,7 +51,7 @@ change belongs in `core`.
 ## The protocol is the contract
 
 The subjects, request and reply formats and the list of commands live in
-[docs/nats-protocol.md](docs/nats-protocol.md). When the code and
+[docs/apis/core.yaml](docs/apis/core.yaml). When the code and
 that document disagree, the document wins — fix the code, or change the document
 deliberately as part of your PR.
 

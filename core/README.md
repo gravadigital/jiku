@@ -5,7 +5,7 @@ NATS consumer: **the only service that writes to the database**.
 It handles the commands the API publishes, validates business rules and writes. It exposes no
 HTTP and validates neither tokens nor roles — that is the API's job.
 
-The contract is [docs/nats-protocol.md](../docs/nats-protocol.md).
+The contract is [docs/apis/core.yaml](../docs/apis/core.yaml).
 **When the code and that document disagree, the document wins.**
 
 ## How it works
@@ -29,7 +29,7 @@ half-written change by forgetting a rollback.
 **The dispatcher never throws.** An unexpected error becomes an error `Reply` — there is a
 request waiting, and silence would hang the API until its timeout.
 
-More on the design in [docs/architecture.md](../docs/architecture.md).
+More on the design in [documentation/README.md](../documentation/README.md).
 
 ## Adding a command
 
@@ -71,7 +71,7 @@ verifies a command stores exactly what the API used to store.
 | `NATS_PROTOCOL_VERSION`                    | protocol version (`v1`)                                                                                                                                                                                                                 |
 | `LOG_COMMANDS`                             | prints each command and its reply. Off by default: payloads carry business data.                                                                                                                                                        |
 
-Full reference in [docs/configuration.md](../docs/configuration.md).
+Full reference in [documentation/configuration.md](../documentation/configuration.md).
 
 ## Migrations
 

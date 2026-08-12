@@ -16,7 +16,7 @@ const eslintConfig = defineConfig([
       // Regla nueva del plugin de React 19. Marca dos efectos que hoy funcionan
       // (RichTextEditor y CreateRequirementModal) y arreglarlos bien es un cambio de
       // comportamiento, no de estilo. Queda como warning para no bloquear el CI, y
-      // anotado en docs/known-limitations.md.
+      // anotado en documentation/known-limitations.md.
       'react-hooks/set-state-in-effect': 'warn',
     },
   },

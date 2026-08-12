@@ -1,7 +1,7 @@
 /**
  * El contrato del bus, en código.
  *
- * La fuente de verdad es `docs/nats-protocol.md`: ante cualquier
+ * La fuente de verdad es `docs/apis/core.yaml`: ante cualquier
  * discrepancia, manda el documento. Este paquete es la única definición de subjects y
  * formatos, compartida por la api (que publica) y core (que atiende).
  */

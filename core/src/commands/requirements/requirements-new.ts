@@ -104,7 +104,7 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
             id,
             entityType: AttachmentEntityType.RequirementDraft,
             // La ruta interna ancla el draft al usuario (entityId puede ser null); la de
-            // Opus lo ancla al proyecto. Ver docs/nats-protocol.md.
+            // Opus lo ancla al proyecto. Ver docs/apis/core.yaml.
             ...(payload.attachmentScope === 'project'
               ? { entityId: payload.projectId }
               : {}),

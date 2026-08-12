@@ -82,7 +82,7 @@ function validatePersonPermission(req: Request, res: Response, next: NextFunctio
  * Ventana de carga: el día actual y los 10 previos.
  *
  * Se queda en la api porque no está en el protocolo y depende del calendario, no de los
- * datos. Ver docs/known-limitations.md.
+ * datos. Ver documentation/known-limitations.md.
  */
 function validateDateRange(req: Request, res: Response, next: NextFunction) {
   const date = new Date(req.body.date);

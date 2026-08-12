@@ -70,7 +70,7 @@ export function httpStatusFor(errorCode: string | undefined): number {
  * contrato a la web.
  *
  * Es una solución de transición: cuando se defina el catálogo de errores conviene que
- * los datos extra viajen estructurados. Ver docs/known-limitations.md.
+ * los datos extra viajen estructurados. Ver documentation/known-limitations.md.
  */
 export function errorBody(reply: Reply): Record<string, unknown> {
   const body: Record<string, unknown> = {

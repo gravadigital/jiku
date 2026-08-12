@@ -32,7 +32,7 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
     // La api no verificaba que la tarea existiera: comentar sobre un id inexistente
     // fallaba por la foreign key con un 500. Acá se valida y se responde el código del
-    // protocolo. Ver docs/nats-protocol.md.
+    // protocolo. Ver docs/apis/core.yaml.
     const task = await Objective.findByPk(ctx.params.id, { transaction: ctx.transaction });
     if (!task) {
       return failure(ErrorCode.OBJECTIVE_NOT_FOUND, 'Objective not found');

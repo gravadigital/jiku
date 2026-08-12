@@ -5,7 +5,7 @@ every mutation into a command published on NATS.
 
 It cannot write: it connects with a database role that only holds `SELECT`. That is what makes
 the read/write split a guarantee rather than a convention — see
-[docs/architecture.md](../docs/architecture.md).
+[documentation/README.md](../documentation/README.md).
 
 **Migrations are the exception.** They run on startup and do write, using a separate set of
 credentials (`POSTGRESQL_MIGRATION_USER`).
@@ -25,7 +25,7 @@ credentials (`POSTGRESQL_MIGRATION_USER`).
 for every path except the exemptions in `config/public.ts`, built as a negative-lookahead
 regex. Deny-by-default, so a route file can look unprotected while being covered.
 
-The endpoint list is in [docs/api-reference.md](../docs/api-reference.md).
+The endpoint list is in [documentation/api-reference.md](../documentation/api-reference.md).
 
 ## Running it
 
@@ -38,7 +38,7 @@ npm start  --workspace @jiku/api     # runs migrations, then serves
 ```
 
 It needs a PostgreSQL and, for writes to work, a reachable NATS. To bring up the whole stack
-see [docs/installation.md](../docs/installation.md).
+see [documentation/installation.md](../documentation/installation.md).
 
 > The process **refuses to start** if there is no identity provider configured and no explicit
 > `AUTH_BYPASS=true`. That is deliberate: it used to start anyway and serve every request as an
@@ -70,7 +70,7 @@ Any file works on its own: the schema and the authentication mock are prepared i
 ## Configuration
 
 The variables and what breaks if they are wrong are in
-[docs/configuration.md](../docs/configuration.md). `.env.dist` is the template for running this
+[documentation/configuration.md](../documentation/configuration.md). `.env.dist` is the template for running this
 service outside Docker.
 
 ## Migrations

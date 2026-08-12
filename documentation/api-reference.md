@@ -1,7 +1,7 @@
 # HTTP API reference
 
 The 61 endpoints the API serves, generated from the route definitions. For the bus contract
-behind the writes, see [nats-protocol.md](nats-protocol.md).
+behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
 
@@ -66,7 +66,7 @@ can return 503 if the bus is unreachable, or time out if core does not answer wi
 ### Tasks
 
 Called `objectives` here; the bus protocol calls them `task`. Same entity — see
-[architecture.md](architecture.md#names-differ-between-the-bus-and-the-database).
+[README.md](README.md).
 
 | Method | Path                               | Roles | Bus |
 | ------ | ---------------------------------- | ----- | --- |

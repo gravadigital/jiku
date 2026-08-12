@@ -20,7 +20,7 @@ export interface WorkedTimesNewPayload {
  *
  * `personId` es requerido acá. El protocolo lo declara opcional con default "persona del
  * usuario autenticado", pero core no conoce al usuario final: es la api la que resuelve
- * ese default (ver docs/known-limitations.md).
+ * ese default (ver documentation/known-limitations.md).
  */
 const schema = joi.object({
   date: joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),

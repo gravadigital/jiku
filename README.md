@@ -25,7 +25,7 @@ Actors and projects, requirements with a lifecycle and client-visible comments, 
 and unworked hours with reports, and attachments on any S3-compatible storage. Two frontends:
 one internal, one for clients.
 
-Full description in [docs/features.md](docs/features.md).
+Full description in [documentation/features.md](documentation/features.md).
 
 ## Structure
 
@@ -52,7 +52,7 @@ npm test
 npm run lint
 ```
 
-To run the whole stack, see [docs/installation.md](docs/installation.md).
+To run the whole stack, see [documentation/installation.md](documentation/installation.md).
 
 > **Read that first if you plan to deploy.** Starting the stack needs a NATS identity and two
 > identity-provider service users that are not in this repository, and there is no way around
@@ -60,12 +60,22 @@ To run the whole stack, see [docs/installation.md](docs/installation.md).
 
 ## Documentation
 
-[docs/README.md](docs/README.md) is the index. It is organised in four parts:
+Two sets of documentation, for two audiences:
 
-- **The product** — [features.md](docs/features.md)
-- **Installation** — [installation.md](docs/installation.md) · [configuration.md](docs/configuration.md)
-- **Usage** — [usage.md](docs/usage.md) · [api-reference.md](docs/api-reference.md) · [the bus protocol](docs/nats-protocol.md)
-- **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md) · [architecture.md](docs/architecture.md) · [known-limitations.md](docs/known-limitations.md)
+**[documentation/](documentation/README.md)** — using and running Jiku. English, brief, stable.
+Start with its README: it maps how the parts fit together.
+
+| | |
+|---|---|
+| [features.md](documentation/features.md) | what the product does |
+| [installation.md](documentation/installation.md) · [configuration.md](documentation/configuration.md) | how to run and configure it |
+| [api-reference.md](documentation/api-reference.md) | the 61 HTTP endpoints |
+| [docs/apis/core.yaml](docs/apis/core.yaml) | the bus contract (AsyncAPI) — source of truth for anything crossing the bus |
+| [known-limitations.md](documentation/known-limitations.md) | **read before adopting** |
+
+**[docs/](docs/)** — the internal working documentation: architecture per service, conventions,
+stories and decision records. Written in Spanish, for the team that builds Jiku. It follows the
+grava-workflow methodology in [`.claude/`](.claude/).
 
 ## Contributing
 

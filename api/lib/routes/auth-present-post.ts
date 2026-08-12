@@ -15,7 +15,7 @@ const router: Router = Router();
  *
  * Pendiente: definir si el alta pasa a ser un comando de core, si la resuelve el
  * auth-callout al autenticar, o si esta ruta conserva escritura propia.
- * Ver docs/known-limitations.md.
+ * Ver documentation/known-limitations.md.
  */
 function present(_req: Request, res: Response) {
   return res.status(200).json({});

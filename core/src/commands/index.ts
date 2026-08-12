@@ -20,7 +20,7 @@ import { unworkedTimesNew, unworkedTimesDelete } from './times/unworked-times';
 /**
  * Registro único de comandos. Agregar uno nuevo es sumarlo a esta lista.
  *
- * Los patrones tienen que coincidir con `docs/nats-protocol.md`.
+ * Los patrones tienen que coincidir con `docs/apis/core.yaml`.
  */
 export const registry = new CommandRegistry().registerAll([
   clientsNew,

@@ -29,7 +29,7 @@ export interface TasksEditPayload {
  *
  * `editor` no está en el protocolo pero es REQUERIDO: `objective_activity.changed_by`
  * tiene una foreign key contra `users`, así que sin un id de usuario real no se puede
- * registrar la actividad. Ver docs/nats-protocol.md.
+ * registrar la actividad. Ver docs/apis/core.yaml.
  */
 const schema = joi.object({
   editor: joi.string().required(),

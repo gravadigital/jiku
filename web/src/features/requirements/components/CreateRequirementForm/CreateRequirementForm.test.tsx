@@ -627,7 +627,7 @@ describe('CreateRequirementForm', () => {
   // S-088 (CA-2, TS-3): el tamaño de chip no se reduce al agregar más responsables
   // Saltado: la aserción depende de los estilos calculados de react-select, y jsdom no
   // resuelve el nodo que devuelve el querySelector sobre sus clases de emotion. Falla
-  // desde antes de que existiera este CI. Ver docs/known-limitations.md:
+  // desde antes de que existiera este CI. Ver documentation/known-limitations.md:
   // hay que reescribirlo para no depender de getComputedStyle, o alinear jsdom con vitest.
   it.skip('S-088 TS-3: agregar 6 responsables no achica los chips (permite wrap)', async () => {
     vi.mocked(usePersonsModule.usePersons).mockReturnValue({
