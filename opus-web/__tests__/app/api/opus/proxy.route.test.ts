@@ -12,7 +12,11 @@ vi.mock('@/features/auth/config/nextauth.config', () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-function makeRequest(url = 'http://localhost:3001/api/opus/projects', init?: RequestInit) {
+// `NextRequest` acepta su propio `RequestInit`, más estricto que el global (su `signal`
+// no admite `null`). Se toma el tipo del constructor para no divergir.
+type NextRequestInit = ConstructorParameters<typeof NextRequest>[1];
+
+function makeRequest(url = 'http://localhost:3001/api/opus/projects', init?: NextRequestInit) {
   return new NextRequest(url, init);
 }
 

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProjectsPage from '@/app/(dashboard)/projects/page';
 import { ProjectProvider } from '@/contexts/ProjectContext';

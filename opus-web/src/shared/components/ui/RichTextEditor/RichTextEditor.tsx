@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { AttachmentPreview } from '../AttachmentPreview/AttachmentPreview';
 import { AttachmentDownload } from '../AttachmentDownload/AttachmentDownload';
-import { AttachmentSkeleton } from '../AttachmentSkeleton/AttachmentSkeleton';
+import { attachmentsApi } from '@/features/attachments/services/attachmentsApi';
 import styles from './RichTextEditor.module.scss';
 
 export interface AttachmentMeta {
@@ -20,7 +20,10 @@ interface RichTextEditorProps {
   placeholder?: string;
   disabled?: boolean;
   uploading?: boolean;
-  uploadingMimeType?: string;
+  /** Nombre del archivo en curso, para el microcopy del bloque de progreso. */
+  uploadingFileName?: string;
+  /** Porcentaje real del `PUT` a S3, 0-100. */
+  uploadProgress?: number;
 }
 
 type EditorSegment =
@@ -76,7 +79,8 @@ export function RichTextEditor({
   placeholder,
   disabled,
   uploading = false,
-  uploadingMimeType = '',
+  uploadingFileName = '',
+  uploadProgress = 0,
 }: RichTextEditorProps) {
   const [segments, setSegments] = useState<EditorSegment[]>(() =>
     parseToSegments(value, attachmentMeta)
@@ -142,7 +146,10 @@ export function RichTextEditor({
               <AttachmentPreview
                 attachmentId={segment.id}
                 fileName={segment.fileName}
-                previewUrl={`/api/attachments/${segment.id}/preview`}
+                // El editor lee por `fileId` porque el vínculo todavía no existe; el feed
+                // lee por `attachments.id` porque ya existe. Confundirlos es silencioso:
+                // devuelve el archivo equivocado o un 404, según qué exista con ese número.
+                previewUrl={attachmentsApi.getFilePreviewUrl(segment.id)}
                 mimeType={segment.mimeType}
                 fileSize={segment.fileSize}
                 onRemove={() => handleRemove(segment.id)}
@@ -159,8 +166,20 @@ export function RichTextEditor({
         );
       })}
       {uploading && (
-        <div className={styles.attachmentNode}>
-          <AttachmentSkeleton isImage={uploadingMimeType.startsWith('image/')} />
+        <div
+          className={styles.uploadProgress}
+          role="progressbar"
+          aria-valuenow={uploadProgress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Subiendo ${uploadingFileName}`}
+        >
+          <span className={styles.progressLabel}>
+            {`Subiendo ${uploadingFileName}... ${uploadProgress}%`}
+          </span>
+          <span className={styles.progressTrack}>
+            <span className={styles.progressFill} style={{ width: `${uploadProgress}%` }} />
+          </span>
         </div>
       )}
     </div>

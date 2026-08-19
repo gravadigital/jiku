@@ -1,3 +1,5 @@
+@use '@/styles/mixins' as *;
+
 .editor {
   display: flex;
   flex-direction: column;
@@ -31,4 +33,40 @@
 
 .attachmentNode {
   display: inline-block;
+}
+
+.uploadProgress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+  padding: var(--spacing-sm) 0;
+}
+
+.progressLabel {
+  @include truncate;
+
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.progressTrack {
+  display: block;
+  width: 100%;
+  height: var(--spacing-xs);
+  border-radius: var(--radius-full);
+  background: var(--color-primary-light);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  transition: width var(--transition-normal);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 }

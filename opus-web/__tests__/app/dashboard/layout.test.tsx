@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DashboardLayout from '@/app/(dashboard)/layout';
 import { ProjectProvider } from '@/contexts/ProjectContext';
 import { useProjects } from '@/features/projects';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { vi, type Mock } from 'vitest';
 
 vi.mock('next-auth/react', () => ({
@@ -90,5 +92,34 @@ describe('DashboardLayout', () => {
       </Wrapper>
     );
     expect(screen.getByText('Proyectos')).toBeInTheDocument();
+  });
+
+  // TS-24 — presencia de bloques por viewport. Es la ÚNICA diferencia de presencia entre
+  // mobile y desktop en el detalle de requisito: el resto del cambio de S-007 (el bloque
+  // de progreso) aparece igual en los dos.
+  describe('TS-24: el chrome de navegación existe en desktop y no en mobile', () => {
+    it('el shell monta el Sidebar', () => {
+      const Wrapper = createWrapper();
+      render(
+        <Wrapper>
+          <DashboardLayout>
+            <div>contenido</div>
+          </DashboardLayout>
+        </Wrapper>
+      );
+
+      expect(screen.getByRole('complementary')).toBeInTheDocument();
+    });
+
+    it('bajo 768px el Sidebar se oculta por CSS, sin reemplazo montado', () => {
+      const sidebarStyles = readFileSync(
+        join(process.cwd(), 'src/features/projects/components/Sidebar/Sidebar.module.scss'),
+        'utf-8'
+      );
+
+      // El corte de la superficie es 768px y pasa por el mixin, no por una @media cruda.
+      expect(sidebarStyles).toMatch(/@include mobile\s*\{[^}]*display:\s*none/);
+      expect(sidebarStyles).not.toMatch(/@media\s*\(max-width/);
+    });
   });
 });

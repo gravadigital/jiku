@@ -20,8 +20,30 @@ export function AttachmentPreview({
   onRemove,
 }: AttachmentPreviewProps) {
   const [failed, setFailed] = useState(false);
+  const [notAvailable, setNotAvailable] = useState(false);
   const isPdf = mimeType === 'application/pdf';
   const displayName = fileName || 'Archivo adjunto';
+
+  /**
+   * Cuando la imagen no carga, se pregunta el motivo: un 404 con `file_not_available`
+   * significa que el byte nunca llegó al storage, y ese caso merece un mensaje entendible
+   * en vez de un preview roto. Cualquier otro fallo conserva el comportamiento de siempre
+   * — convertirlos todos en mensajes de error cambiaría lo que ve un adjunto que sí está
+   * bien.
+   */
+  async function handleImageError() {
+    setFailed(true);
+    try {
+      const response = await fetch(previewUrl, { method: 'GET' });
+      if (response.status !== 404) return;
+      const body = await response.json().catch(() => null);
+      if (body?.code === 'file_not_available') {
+        setNotAvailable(true);
+      }
+    } catch {
+      // Un fallo de red no dice nada sobre el archivo: no se inventa un mensaje.
+    }
+  }
 
   function renderMedia() {
     if (isPdf) {
@@ -38,6 +60,14 @@ export function AttachmentPreview({
       );
     }
 
+    if (notAvailable) {
+      return (
+        <span className={styles.fallback} role="alert">
+          El archivo no está disponible
+        </span>
+      );
+    }
+
     if (failed) {
       return <span className={styles.fallback}>archivo no disponible</span>;
     }
@@ -48,7 +78,7 @@ export function AttachmentPreview({
         alt={displayName}
         loading="lazy"
         className={styles.image}
-        onError={() => setFailed(true)}
+        onError={handleImageError}
       />
     );
   }

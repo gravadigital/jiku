@@ -8,6 +8,14 @@ import { RichTextEditor } from '@/shared/components/ui/RichTextEditor/RichTextEd
 import type { ApiError } from '@/lib/axios';
 import styles from './CommentInput.module.scss';
 
+/**
+ * Validación de CONVENIENCIA, para fallar rápido sin ida y vuelta.
+ *
+ * NO es la fuente de verdad: el límite de tamaño y las listas de extensiones y MIME viven
+ * en `system_settings` de `core` y son configurables en caliente. Por eso los mensajes no
+ * nombran ningún número ni ninguna extensión — un valor escrito acá queda mintiendo sin
+ * que nadie lo note. El rechazo autoritativo llega del servidor.
+ */
 const ALLOWED_EXTENSIONS = [
   'jpg',
   'jpeg',
@@ -29,7 +37,8 @@ interface CommentInputProps {
 }
 
 interface PendingAttachment {
-  id: number;
+  /** Id de `files`: el archivo existe solo, sin vínculo. NO es un id de `attachments`. */
+  fileId: number;
   fileName: string;
   mimeType: string;
   fileSize?: number;
@@ -38,6 +47,18 @@ interface PendingAttachment {
 function getErrorMessage(error: unknown): string {
   const apiError = error as ApiError | null;
   if (!apiError) return '';
+
+  switch (apiError.code) {
+    case 'file_not_owned':
+      return 'No podés adjuntar un archivo que subió otra persona';
+    case 'file_not_available':
+      return 'El archivo no está disponible';
+    case 'file_too_large':
+      return 'El archivo supera el tamaño máximo permitido';
+    case 'file_type_not_allowed':
+      return 'Ese tipo de archivo no está permitido';
+  }
+
   if (apiError.status === 403 || apiError.code === 'access_denied') {
     return 'Sin permiso para comentar';
   }
@@ -53,14 +74,17 @@ export function CommentInput({ requirementId }: CommentInputProps) {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [uploadingMimeType, setUploadingMimeType] = useState('');
+  const [uploadingFileName, setUploadingFileName] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { mutate, isPending, isError, error } = useCreateComment(requirementId);
 
   function handleCommentChange(newValue: string) {
     setComment(newValue);
-    setPendingAttachments((prev) => prev.filter((att) => newValue.includes(`attach:${att.id}`)));
+    setPendingAttachments((prev) =>
+      prev.filter((att) => newValue.includes(`attach:${att.fileId}`))
+    );
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -69,46 +93,49 @@ export function CommentInput({ requirementId }: CommentInputProps) {
     fileInputRef.current.value = '';
 
     if (!file) return;
+    // Se sube de a uno: mientras hay una subida en curso el botón está deshabilitado.
+    if (uploading) return;
     setUploadError('');
 
+    // Validación de conveniencia — ver la nota de ALLOWED_EXTENSIONS. Los mensajes son
+    // los MISMOS que los del servidor, así que el usuario no distingue el origen.
     if (file.size > MAX_SIZE_BYTES) {
-      setUploadError('El archivo supera el límite de 10MB');
+      setUploadError('El archivo supera el tamaño máximo permitido');
       return;
     }
 
     const ext = getExtension(file.name);
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setUploadError('Tipo de archivo no permitido');
+      setUploadError('Ese tipo de archivo no está permitido');
       return;
     }
 
     try {
-      const mimeGuess = file.type;
       setUploading(true);
-      setUploadingMimeType(mimeGuess);
-      const [attachment] = await attachmentsApi.uploadFile(
-        'requirement_comment_draft',
-        requirementId,
-        file
-      );
-      const isImage = attachment.mimeType.startsWith('image/');
-      const placeholder = isImage ? `![attach:${attachment.id}]` : `[attach:${attachment.id}]`;
+      setUploadingFileName(file.name);
+      setUploadProgress(0);
+      const uploaded = await attachmentsApi.uploadFile(file, setUploadProgress);
+      const isImage = uploaded.mimeType.startsWith('image/');
+      const placeholder = isImage ? `![attach:${uploaded.fileId}]` : `[attach:${uploaded.fileId}]`;
 
       setComment((prev) => prev + placeholder);
       setPendingAttachments((prev) => [
         ...prev,
         {
-          id: attachment.id,
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-          fileSize: attachment.fileSize,
+          fileId: uploaded.fileId,
+          fileName: uploaded.fileName,
+          mimeType: uploaded.mimeType,
+          fileSize: uploaded.fileSize,
         },
       ]);
-    } catch {
-      setUploadError('Error al subir el archivo');
+    } catch (error) {
+      setUploadError(getErrorMessage(error) || 'Error al subir el archivo');
     } finally {
+      // Los tres caminos limpian el estado de subida, o el editor queda con una barra
+      // congelada para siempre.
       setUploading(false);
-      setUploadingMimeType('');
+      setUploadingFileName('');
+      setUploadProgress(0);
     }
   }
 
@@ -118,7 +145,7 @@ export function CommentInput({ requirementId }: CommentInputProps) {
     if (!trimmed) return;
 
     mutate(
-      { comment: trimmed, attachmentIds: pendingAttachments.map((a) => a.id) },
+      { comment: trimmed, fileIds: pendingAttachments.map((a) => a.fileId) },
       {
         onSuccess: () => {
           setComment('');
@@ -130,7 +157,9 @@ export function CommentInput({ requirementId }: CommentInputProps) {
   }
 
   const hasContent = comment.trim() || pendingAttachments.length > 0;
-  const isDisabled = !hasContent || isPending;
+  // Enviar mientras el byte viaja vincularía un archivo incompleto, y el sistema no
+  // verifica que haya llegado.
+  const isDisabled = !hasContent || isPending || uploading;
   const displayError = uploadError || (isError ? getErrorMessage(error) : '');
 
   return (
@@ -145,11 +174,17 @@ export function CommentInput({ requirementId }: CommentInputProps) {
           <RichTextEditor
             value={comment}
             onChange={handleCommentChange}
-            attachmentMeta={pendingAttachments}
+            attachmentMeta={pendingAttachments.map((a) => ({
+              id: a.fileId,
+              fileName: a.fileName,
+              mimeType: a.mimeType,
+              fileSize: a.fileSize,
+            }))}
             placeholder="Escribe un comentario..."
             disabled={isPending}
             uploading={uploading}
-            uploadingMimeType={uploadingMimeType}
+            uploadingFileName={uploadingFileName}
+            uploadProgress={uploadProgress}
           />
         </div>
         <div className={styles.toolbar}>
@@ -166,7 +201,7 @@ export function CommentInput({ requirementId }: CommentInputProps) {
             className={styles.attachBtn}
             onClick={() => fileInputRef.current?.click()}
             aria-label="Adjuntar archivo al comentario"
-            disabled={isPending}
+            disabled={isPending || uploading}
           >
             <Paperclip size={16} aria-hidden="true" />
             Adjuntar

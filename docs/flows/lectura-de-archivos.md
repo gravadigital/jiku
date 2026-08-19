@@ -2,7 +2,7 @@
 id: lectura-de-archivos
 title: Lectura de archivos
 type: feature
-status: Draft
+status: Active
 created: 2026-08-19
 last_updated: 2026-08-19
 stories: [S-002, S-005, S-006, S-007]
@@ -11,19 +11,25 @@ stories: [S-002, S-005, S-006, S-007]
 # Lectura de Archivos
 
 **Tipo:** Feature
-**Status:** Draft
+**Status:** Active
 **Creado:** 2026-08-19
 **Última actualización:** 2026-08-19
 **Stories:** S-002, S-005, S-006, S-007
 
-> **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)** y
-> el de **`web` (S-006)** están implementados: los cinco caminos de lectura autorizan, publican
+> **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)**,
+> el de **`web` (S-006)** y el de **`opus-web` (S-007)** están implementados: los cinco caminos de lectura autorizan, publican
 > `files.{fileId}.request-download` y responden 302, y los dos route handlers de `web`
 > (`/api/attachments/{id}/preview` y `/download`) **propagan esa redirección con
 > `redirect: 'manual'` en lugar de proxear el binario**, sin `Content-Length` en el `GET`. El `HEAD`
-> se mantiene para que `useAttachmentMeta` resuelva nombre, tamaño y mime. El flujo sigue en
-> **Draft** porque los handlers de `opus-web` (S-007) todavía proxean. Pasa a `Active` cuando esa
-> cierre.
+> se mantiene para que `useAttachmentMeta` resuelva nombre, tamaño y mime.
+>
+> **El flujo está completo y pasa a `Active` con S-007:** los dos handlers propios de `opus-web` —`/api/attachments/[id]/preview`
+> (autenticado) y el público `/attachments/[id]/[fileName]`— **también propagan el 302 con
+> `redirect: 'manual'`** y dejaron de propagar `Content-Length`. Ambos devuelven ahora el body de
+> error tal cual llega, para que el `code` (`file_not_available`, `file_not_found`, `not_found`)
+> sobreviva y la interfaz pueda distinguirlos. Se sumó `GET`/`HEAD /api/files/[id]/preview`, el
+> camino de lectura **por `fileId`** que permite previsualizar lo recién subido antes de que exista
+> el vínculo.
 
 ## Descripción
 

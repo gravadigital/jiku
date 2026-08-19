@@ -119,6 +119,17 @@ literalmente** entre `CommentInput` y `CreateRequirementModal` (10 MB, 12 extens
 
 Es validación de conveniencia: **la autoritativa es la de la api**.
 
+> **Actualizado por S-007 (`opus-web`) y S-006 (`web`).** El paso **se conserva** como conveniencia
+> —falla rápido, sin ida y vuelta— pero **dejó de ser autoritativo**: la fuente de verdad es `core`,
+> que lee la política de `system_settings` **en caliente**. En el código de `opus-web` la constante
+> `ALLOWED_EXTENSIONS` lleva un comentario que lo declara.
+>
+> **Consecuencia visible:** los mensajes de rechazo **ya no nombran los límites**. `"El archivo
+> supera el límite de 10MB"` pasó a `"El archivo supera el tamaño máximo permitido"` y `"Tipo de
+> archivo no permitido"` a `"Ese tipo de archivo no está permitido"` — un número escrito en la
+> interfaz queda mintiendo cuando la configuración cambia por SQL. Son **los mismos mensajes** que
+> devuelve el servidor, así que el usuario no distingue el origen del rechazo.
+
 ---
 
 ### Paso 2: Subida con streaming
