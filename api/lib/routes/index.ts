@@ -37,6 +37,7 @@ export { default as AttachmentsDownloadGet } from './attachments-download';
 export { default as AttachmentsDeleteDelete } from './attachments-delete';
 export { default as OpusAttachmentsPost } from './opus-attachments-post';
 export { default as OpusAttachmentsPreviewGet } from './opus-attachments-preview';
+export { default as FilesPreviewGet } from './files-preview';
 export { default as UnworkedTimesReasonsGet } from './unworked-times-reasons-get';
 export { default as UnworkedTimesReportGet } from './unworked-times-report-get';
 export { default as UnworkedTimesGet } from './unworked-times-get';

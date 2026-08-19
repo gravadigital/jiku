@@ -118,6 +118,40 @@ sola imagen sirve para todos los entornos, configurada enteramente en runtime.
   ningún archivo de `src/`.
   - **Mitigación:** la regla explícita de arriba.
 
+## Revisión: el endpoint del bucket en cada lectura (REQ-001 / S-005, 2026-08-19)
+
+**La premisa central de este ADR se mantiene: el access token NO llega al navegador.** Lo que se
+amplía es una excepción ya declarada, y conviene dejarla explícita en vez de implícita.
+
+Con REQ-001 la subida va **directo del navegador a S3** con una URL prefirmada, y desde S-005 la
+**lectura también**: la `api` responde **302** a una prefirmada que firmó `core`, y el navegador
+sigue la redirección.
+
+**La ampliación:** el navegador conoce el endpoint del bucket **en cada lectura**, no solo al
+subir. Cada preview de una imagen embebida expone la URL del bucket.
+
+### Por qué el ADR se mantiene en lo que más importa
+
+- **No es el token.** Una URL prefirmada da acceso a **un objeto**, por un TTL corto y
+  configurable (`download-url-ttl-seconds`, default 300 s). El access token da acceso a la sesión.
+- **La URL viaja por respuesta de la api** —el header `Location` del 302—, **no por
+  `NEXT_PUBLIC_*`**. La regla *"NO SE DEBE agregar `NEXT_PUBLIC_*` funcional"* **sigue intacta**, y
+  con ella la premisa de que el bundle no revela la topología del backend por configuración de
+  build.
+
+### Consecuencia a tener presente
+
+Una URL de lectura filtrada da acceso al contenido **sin ninguna credencial**, y con el 302 esa URL
+llega al navegador en cada preview: queda en el historial, en los logs de proxy y en el `Referer`.
+**El default de `download-url-ttl-seconds` debería ser el más corto que la UI tolere.**
+
+### Sobre la regla de las respuestas binarias
+
+La regla *"al reenviar respuestas binarias, DEBEN propagarse `Content-Type`,
+`Content-Disposition` y `Content-Length`"* **sigue vigente para lo que quede de proxy binario**,
+pero los route handlers de adjuntos de `web` y `opus-web` **ya no proxean el byte**: manejan un 302.
+Los metadatos que el `HEAD` necesita viajan en los headers de esa redirección.
+
 ## Alternativas Consideradas
 
 ### Alternativa 1: SPA clásica con el token en el navegador

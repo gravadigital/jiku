@@ -11,6 +11,30 @@ import { Readable } from 'stream';
 import logger from '../logger';
 
 /**
+ * ESTE ARCHIVO ESTÁ EN VÍAS DE ELIMINACIÓN, Y NO SE LE AGREGAN CONSUMIDORES.
+ *
+ * Con REQ-001 el storage pasa a tener un solo dueño —`core`— y la `api` pierde el cliente de
+ * S3 y sus credenciales. La garantía es de INFRAESTRUCTURA, no de disciplina: sin
+ * credenciales la `api` no puede tocar un objeto que `core` no le firmó, ni por error ni por
+ * un endpoint nuevo que se olvide de autorizar.
+ *
+ * S-005 ya cerró la mitad de lectura: los cinco caminos (`attachments-preview`,
+ * `attachments-download`, las dos rutas de opus y el nuevo `files-preview`) autorizan,
+ * publican `files.{fileId}.request-download` y responden 302 a la prefirmada que firmó
+ * `core`. Ninguno importa este módulo.
+ *
+ * SOBREVIVE SOLO por los dos consumidores de SUBIDA —`lib/routes/attachments-post.ts` y
+ * `lib/routes/opus-attachments-post.ts`—, que son de la S-004. Borrarlo antes rompería su
+ * compilación.
+ *
+ * LO QUE FALTA, y es trabajo de la S-004: borrar este archivo, `tests/utils/storage-service.test.ts`,
+ * las dependencias `@aws-sdk/client-s3` / `@aws-sdk/s3-request-presigner` (y `multer`, si
+ * queda huérfano) del `package.json` de la `api`, y las variables `STORAGE_S3_*` de
+ * `.env.dist` y `.env.test`. En `deploy/docker-compose.yml` ya no están en el bloque `api`:
+ * las movió la S-002 y hoy solo figuran bajo `core`.
+ */
+
+/**
  * Prefijo de las claves de los objetos en el bucket.
  *
  * Configurable, pero con el valor histórico como default a propósito: cambiarlo en una
