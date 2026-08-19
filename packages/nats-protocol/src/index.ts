@@ -158,6 +158,23 @@ export const ErrorCode = {
   RESOLUTION_REQUIRED: 'resolution_required',
   WORKED_TIME_NOT_FOUND: 'worked_time_not_found',
   UNWORKED_TIME_NOT_FOUND: 'unworked_time_not_found',
+
+  // Los cinco de archivos (REQ-001). El enum de `docs/apis/core.yaml` ya los declara: esto
+  // alinea el paquete con el contrato, que es la fuente de verdad.
+  //
+  // FILE_NOT_OWNED lo emite S-003 al vincular, no los comandos de storage de S-002. Se declara
+  // igual porque un código declarado y no usado no rompe nada, mientras que uno usado y no
+  // declarado obliga al literal a mano — la deuda que este catálogo ya arrastra tres veces
+  // (`resolution_required`, `worked_time_not_found`, `unworked_time_not_found`).
+  //
+  // FILE_NOT_OWNED mapea a 403, NO a 400: reusar `invalid_attachment_id` haría indistinguible
+  // "el archivo no existe" de "el archivo no es tuyo", y el segundo es la regla nueva del REQ.
+  // El mapeo a HTTP en `api/lib/utils/bus/protocol.ts` es de S-004/S-005.
+  FILE_TYPE_NOT_ALLOWED: 'file_type_not_allowed',
+  FILE_TOO_LARGE: 'file_too_large',
+  FILE_NOT_OWNED: 'file_not_owned',
+  FILE_NOT_FOUND: 'file_not_found',
+  FILE_NOT_AVAILABLE: 'file_not_available',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

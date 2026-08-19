@@ -43,7 +43,8 @@ Fill in, in `.env`:
 | `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID`   | the Zitadel application the frontends use                              |
 | `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live                                       |
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                              |
-| `STORAGE_S3_*`                                | credentials for the S3-compatible storage (locally any value will do)  |
+| `CORE_TRUSTED_PUBLISHER_ID`                   | the `userId` from the api's service user JSON key — **core will not start without it** |
+| `STORAGE_S3_*`                                | S3-compatible storage. **core** signs both uploads and downloads, so the credentials need read **and** write permission. Any value works locally until something actually uploads a file. |
 | `DUMP_FILE`                                   | optional: a `.sql` to preload the database                             |
 
 ### 2. Zitadel service users
@@ -64,7 +65,14 @@ With those two keys:
 ```
 
 The script verifies the key against Zitadel — that the token is a JWT and carries the right
-role — and writes it into `.env` base64-encoded. The `.json` files are not needed afterwards.
+role — and writes it into `.env` base64-encoded.
+
+Keep the api's `.json` at least until `CORE_TRUSTED_PUBLISHER_ID` is filled in: its `userId`
+field is that variable's value. Core compares it against the subject's `caller` to tell the
+api's channel from an external publisher's — get it wrong and every upload is attributed to
+the api's service user instead of the person, and nobody can link what they uploaded. The
+only symptom is `file_not_owned`, which looks like a permissions problem. Once that is done,
+the `.json` files are no longer needed.
 
 Each service requests its token with that key and renews it before it expires, so there is
 nothing to refresh by hand.

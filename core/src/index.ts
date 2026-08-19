@@ -3,6 +3,7 @@ dotenv.config();
 
 import logger from './logger';
 import initializeDb from './models';
+import { loadConfig } from './config';
 import { Consumer } from './bus/consumer';
 import { Dispatcher } from './bus/dispatcher';
 import { registry } from './commands';
@@ -10,6 +11,10 @@ import { registry } from './commands';
 const consumer = new Consumer(new Dispatcher(registry));
 
 async function main(): Promise<void> {
+  // Antes que nada: si falta configuración obligatoria, el proceso tiene que morir acá y no
+  // atender el primer comando con una identidad mal resuelta.
+  loadConfig();
+
   await initializeDb();
   logger.info(`[core] ${registry.patterns().length} registered commands`);
   await consumer.start();

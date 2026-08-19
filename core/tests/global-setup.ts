@@ -6,6 +6,12 @@ import { execFileSync } from 'child_process';
 import { DB_CONTAINER } from './setup-env';
 
 export async function mochaGlobalSetup(): Promise<void> {
+  // La misma validación de arranque que corre `src/index.ts`. Los comandos de `files`
+  // resuelven la identidad contra `CORE_TRUSTED_PUBLISHER_ID`, que `.env.test` provee: sin
+  // esta llamada `getTrustedPublisherId()` lanzaría y la causa quedaría lejos del síntoma.
+  const { loadConfig } = await import('../src/config');
+  loadConfig();
+
   // Importar acá: `src/models` construye el Sequelize al importarse, y para este punto
   // `setup-env.ts` ya dejó las variables de conexión listas.
   const initializeDb = (await import('../src/models')).default;
