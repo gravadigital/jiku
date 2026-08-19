@@ -1,261 +1,74 @@
-import { Request, Response, Router, NextFunction } from 'express';
-import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
-import path from 'path';
-import { Attachment, AttachmentEntityType, Requirement, UserProjectPermission } from '@jiku/models';
-import storageService, { STORAGE_KEY_PREFIX } from '../utils/storage-service';
-import logger from '../logger';
-import upload from '../utils/multer-config';
+import { Request, Response, Router } from 'express';
+import joi from 'joi';
 import hasAnyRole from '../utils/middlewares/has-any-role';
-import validateObjective from '../utils/middlewares/validate-objective';
-import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
-import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE } from './attachments-post';
+import validateBodyFields from '../utils/validate-body-fields';
+import { sendCommand, actor } from '../utils/bus/send-command';
+import { UploadTicketReply, toUploadTicket } from '../utils/bus/upload-ticket';
 
 const router: Router = Router();
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/plain', 'text/csv'
-];
+/**
+ * El MISMO esquema que el endpoint interno, campo por campo. La convención `validation` manda
+ * el esquema junto a la ruta y solo habilita compartirlo cuando dos rutas usan literalmente el
+ * mismo — que es este caso —; se duplica igual porque son cuatro líneas y este servicio es
+ * fuertemente "todo junto en el archivo de la ruta". LO QUE NO PUEDE PASAR ES QUE DIVERJAN: si
+ * uno cambia, el otro cambia en el mismo commit.
+ *
+ * Sin `.unknown(true)`: un cuerpo con `entityType` cae en 400 `invalid_fields`.
+ */
+const uploadTicketSchema = joi.object({
+  fileName: joi.string().max(255).required(),
+  mimeType: joi.string().max(100).required(),
+  fileSize: joi.number().integer().min(1).required(),
+  checksum: joi.string().allow(null).optional(),
+})
+  // `.required()` SOBRE EL OBJETO, y es lo que hace que un `multipart/form-data` salga 400 y no
+  // 500: `express.json()` no parsea multipart, así que `req.body` llega `undefined`, y un
+  // esquema de objeto sin `.required()` da POR VÁLIDO el `undefined` —Joi valida la forma de un
+  // valor que no existe—. Sin esto la cadena seguiría hasta el handler y el destructuring
+  // reventaría con un TypeError. Es CA-3 verificado desde afuera (TS-11).
+  .required();
 
-const ALLOWED_OPUS_ENTITY_TYPES: AttachmentEntityType[] = [
-  AttachmentEntityType.CommentDraft,
-  AttachmentEntityType.RequirementCommentDraft,
-  AttachmentEntityType.Objective,
-  AttachmentEntityType.ObjectiveDraft,
-  AttachmentEntityType.Requirement,
-  AttachmentEntityType.RequirementDraft,
-];
+/**
+ * El portal pide permiso de subida. Idéntico al endpoint interno en cuerpo y respuesta
+ * (REQ-001, S-004).
+ *
+ * LO QUE ESTE ARCHIVO PERDIÓ, Y POR QUÉ: toda la validación de entidad propia del portal
+ * —`ALLOWED_OPUS_ENTITY_TYPES`, `validateEntityType`, `validateUploadPermissions`,
+ * `conditionalValidateObjective`, `conditionalValidateProjectPermissions`—, unas 140 líneas
+ * cuya única razón de existir era resolver el proyecto a partir del `entityType` que este
+ * endpoint YA NO RECIBE (D-12). Mantenerlas significaría validar permisos sobre una entidad
+ * que el cuerpo no declara. Con ellas se fue el código `invalid_entity_type`.
+ *
+ * ⚠ LA CADENA QUEDA CON DOS CAPAS Y NO TRES, Y ES CORRECTO. La convención `authorization` dice
+ * que todo endpoint de `/api/opus/*` lleva las tres capas (rol, forma, permiso por entidad).
+ * Acá la tercera NO TIENE SOBRE QUÉ OPERAR: no hay entidad en el cuerpo. El control se corre
+ * al momento de vincular, donde la entidad existe (CA-5, D-12). Sin este comentario la próxima
+ * revisión lo va a leer como un permiso que se olvidaron de migrar.
+ */
+async function requestUpload(req: Request, res: Response) {
+  const { fileName, mimeType, fileSize, checksum } = req.body;
 
-function validateEntityType(req: Request, res: Response, next: NextFunction) {
-  const { entityType, entityId } = req.body;
+  const data = await sendCommand<UploadTicketReply>(res, 'files.request-upload', {
+    // Del token, nunca del cuerpo: es lo que hace que el `external-user` pueda vincular
+    // después lo que subió.
+    uploader: actor(req),
+    fileName,
+    mimeType,
+    fileSize,
+    ...(checksum !== undefined ? { checksum } : {}),
+  });
+  if (!data) return;
 
-  if (!entityType) {
-    return res.status(400).json({ code: 'invalid_fields', message: '"entityType" is required' });
-  }
-
-  if (!ALLOWED_OPUS_ENTITY_TYPES.includes(entityType as AttachmentEntityType)) {
-    return res.status(400).json({ code: 'invalid_entity_type', message: `"entityType" must be one of: ${ALLOWED_OPUS_ENTITY_TYPES.join(', ')}` });
-  }
-
-  if (!entityId) {
-    return res.status(400).json({ code: 'invalid_fields', message: '"entityId" is required' });
-  }
-
-  return next();
-}
-
-// For objective_draft and requirement_draft: entityId is projectId — validate project permission directly.
-// For requirement: entityId is requirementId — lookup projectId then validate permission.
-// For comment_draft and objective: entityId is objectiveId — use validateObjective + validateProjectPermissions.
-function validateUploadPermissions(req: Request, res: Response, next: NextFunction) {
-  const { entityType, entityId } = req.body;
-
-  const isDraft = entityType === AttachmentEntityType.ObjectiveDraft
-    || entityType === AttachmentEntityType.RequirementDraft;
-
-  if (isDraft) {
-    if (!req.decodedTokenRoles.includes('external-user')) {
-      return next();
-    }
-    return UserProjectPermission.findOne({
-      where: { userId: req.user.id, projectId: Number(entityId) }
-    })
-      .then((permission) => {
-        if (!permission) {
-          return res.status(403).json({ code: 'access_denied', message: 'Access denied for this project.' });
-        }
-        return next();
-      })
-      .catch((error: Error) => {
-        logger.error(`POST /opus/attachments validateUploadPermissions error: ${error.message}`);
-        return res.status(500).json({ code: 'internal_error', message: 'Internal error' });
-      });
-  }
-
-  if (entityType === AttachmentEntityType.Requirement) {
-    return Requirement.findByPk(Number(entityId), { attributes: ['projectId'] })
-      .then((requirement) => {
-        if (!requirement) {
-          return res.status(404).json({ code: 'not_found', message: 'Requirement not found' });
-        }
-        if (!req.decodedTokenRoles.includes('external-user')) {
-          return next();
-        }
-        return UserProjectPermission.findOne({
-          where: { userId: req.user.id, projectId: requirement.projectId }
-        }).then((permission) => {
-          if (!permission) {
-            return res.status(403).json({ code: 'access_denied', message: 'Access denied for this project.' });
-          }
-          return next();
-        });
-      })
-      .catch((error: Error) => {
-        logger.error(`POST /opus/attachments validateUploadPermissions (requirement) error: ${error.message}`);
-        return res.status(500).json({ code: 'internal_error', message: 'Internal error' });
-      });
-  }
-
-  if (entityType === AttachmentEntityType.RequirementCommentDraft) {
-    return Requirement.findByPk(Number(entityId), { attributes: ['projectId'] })
-      .then((requirement) => {
-        if (!requirement) {
-          return res.status(404).json({ code: 'not_found', message: 'Requirement not found' });
-        }
-        if (!req.decodedTokenRoles.includes('external-user')) {
-          return next();
-        }
-        return UserProjectPermission.findOne({
-          where: { userId: req.user.id, projectId: requirement.projectId }
-        }).then((permission) => {
-          if (!permission) {
-            return res.status(403).json({ code: 'access_denied', message: 'Access denied for this project.' });
-          }
-          return next();
-        });
-      })
-      .catch((error: Error) => {
-        logger.error(`POST /opus/attachments validateUploadPermissions (requirementCommentDraft) error: ${error.message}`);
-        return res.status(500).json({ code: 'internal_error', message: 'Internal error' });
-      });
-  }
-
-  // comment_draft and objective: set objid param and delegate to validateObjective chain
-  req.params.objid = String(entityId);
-  return next();
-}
-
-function multerErrorHandler(err: any, _req: Request, res: Response, next: NextFunction) {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ code: 'upload_failed', message: 'File size exceeds maximum of 10MB' });
-    }
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ code: 'upload_failed', message: 'Too many files. Maximum is 10 files per request' });
-    }
-    return res.status(400).json({ code: 'upload_failed', message: err.message });
-  }
-  return next(err);
-}
-
-// Only run validateObjective when entityType is objective or comment_draft (not drafts or requirement)
-function conditionalValidateObjective(req: Request, res: Response, next: NextFunction) {
-  const skipTypes = [
-    AttachmentEntityType.ObjectiveDraft,
-    AttachmentEntityType.RequirementDraft,
-    AttachmentEntityType.Requirement,
-    AttachmentEntityType.RequirementCommentDraft,
-  ];
-  if (skipTypes.includes(req.body.entityType as AttachmentEntityType)) {
-    return next();
-  }
-  return validateObjective(req, res, next);
-}
-
-// Only run validateProjectPermissions when entityType is objective or comment_draft (not drafts or requirement)
-function conditionalValidateProjectPermissions(req: Request, res: Response, next: NextFunction) {
-  const skipTypes = [
-    AttachmentEntityType.ObjectiveDraft,
-    AttachmentEntityType.RequirementDraft,
-    AttachmentEntityType.Requirement,
-    AttachmentEntityType.RequirementCommentDraft,
-  ];
-  if (skipTypes.includes(req.body.entityType as AttachmentEntityType)) {
-    return next();
-  }
-  return validateProjectPermissions(req, res, next);
-}
-
-async function uploadOpusAttachments(req: Request, res: Response) {
-  const { entityType, entityId } = req.body;
-  const files = req.files as Express.Multer.File[];
-
-  if (!files || files.length === 0) {
-    return res.status(400).json({ code: 'no_files', message: 'At least one file is required' });
-  }
-
-  const parsedEntityId = parseInt(entityId, 10);
-  const createdAttachments: Attachment[] = [];
-  const uploadedKeys: string[] = [];
-
-  try {
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        throw { code: 'upload_failed', message: `File ${file.originalname} exceeds maximum size of 10MB` };
-      }
-
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        throw { code: 'upload_failed', message: `File type "${ext}" is not allowed. Allowed extensions: ${ALLOWED_EXTENSIONS.join(', ')}` };
-      }
-
-      if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-        throw { code: 'upload_failed', message: `MIME type "${file.mimetype}" is not allowed` };
-      }
-
-      const uuid = uuidv4();
-      const storageKey = `${STORAGE_KEY_PREFIX}/${entityType}/${parsedEntityId}/${uuid}${ext}`;
-      const checksum = crypto.createHash('sha256').update(file.buffer).digest('hex');
-
-      const uploadResult = await storageService.uploadFromBuffer(storageKey, file.buffer, file.mimetype);
-      uploadedKeys.push(storageKey);
-
-      const attachment = await Attachment.create({
-        entityType,
-        entityId: parsedEntityId,
-        fileName: file.originalname,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-        storageKey,
-        storageBucket: uploadResult.bucket,
-        storageRegion: uploadResult.region,
-        uploadedBy: req.user.id,
-        checksum,
-      });
-
-      createdAttachments.push(attachment);
-    }
-
-    return res.status(201).json(createdAttachments);
-
-  } catch (error: any) {
-    for (const key of uploadedKeys) {
-      try {
-        await storageService.deleteFile(key);
-        logger.warn(`Rolled back uploaded file: ${key}`);
-      } catch (rollbackError: any) {
-        logger.error(`Failed to rollback file ${key}: ${rollbackError.message}`);
-      }
-    }
-
-    logger.error(`POST /opus/attachments failed: ${error.message}`, { userId: req.user?.id, entityType, entityId });
-
-    const errorCodes = ['upload_failed', 'no_files', 'invalid_fields', 'invalid_entity_type'];
-    const statusCode = errorCodes.includes(error.code) ? 400 : 500;
-
-    return res.status(statusCode).json({
-      code: error.code || 'internal_error',
-      message: error.message || 'Internal error'
-    });
-  }
+  return res.status(201).json(toUploadTicket(data));
 }
 
 router.post('/opus/attachments',
+  // Se CONSERVA: el spec declara `x-roles: [user, external-user]` para este endpoint, y es la
+  // única diferencia real con el interno.
   hasAnyRole(['user', 'external-user']),
-  upload.array('files', 10),
-  multerErrorHandler,
-  validateEntityType,
-  validateUploadPermissions,
-  conditionalValidateObjective,
-  conditionalValidateProjectPermissions,
-  uploadOpusAttachments
+  validateBodyFields(uploadTicketSchema),
+  requestUpload
 );
 
 export default router;

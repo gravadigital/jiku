@@ -25,7 +25,7 @@ async function addComment(req: Request, res: Response) {
       // usuario interno o externo: el portal es la vista que comparte el cliente. No es
       // configurable, por eso no sale del cuerpo.
       visibilityLevel: VisibilityLevel.Public,
-      ...(req.body.attachmentIds !== undefined ? { attachmentIds: req.body.attachmentIds } : {}),
+      ...(req.body.fileIds !== undefined ? { fileIds: req.body.fileIds } : {}),
     }
   );
   if (!data) {
@@ -55,7 +55,10 @@ router.post('/opus/requirements/:reqid/comments',
   validateProjectPermissions,
   validateBodyFields(joi.object({
     comment: joi.string().required(),
-    attachmentIds: joi.array().items(joi.number().integer().min(1)).optional(),
+    // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al
+    // guardar la entidad. El `max(10)` es el `maxItems` que declara el spec — se valida acá para
+    // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
+    fileIds: joi.array().items(joi.number().integer().min(1)).max(10).optional(),
   })),
   addComment
 );

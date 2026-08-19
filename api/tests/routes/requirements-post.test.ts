@@ -3,26 +3,17 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, User } from '@jiku/models';
-import sinon from 'sinon';
-import storageService from '../../lib/utils/storage-service';
+import { Attachment, File, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, User } from '@jiku/models';
 
 describe('POST /api/requirements', () => {
   let application: Application;
-  let uploadStub: sinon.SinonStub;
 
   before(function () {
     this.timeout(30000);
     application = start();
 
-    uploadStub = sinon.stub(storageService, 'uploadFromBuffer').resolves({
-      key: 'mocked-key',
-      bucket: 'test-bucket',
-      region: 'us-east-1',
-      etag: 'etag-mock',
-      size: 1024,
-    });
-
+    // El stub de `storageService.uploadFromBuffer` se retiró con S-004: ninguna ruta mueve
+    // bytes ya, el módulo no existe y el doble solo cubría un camino que desapareció.
     return User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'user01', email: 'user01@mail.com' })
       .then(() => User.create({ id: 'zitadel-sub-04', name: 'User 04', username: 'user04', email: 'user04@mail.com' }))
       .then(() => Project.create({ id: 1, name: 'Project1', code: 'P1', type: 'comercial', status: 'activo', initDate: new Date(), createdBy: 'zitadel-sub-01' }))
@@ -30,27 +21,33 @@ describe('POST /api/requirements', () => {
       .then(() => Person.create({ id: 99, firstName: 'Otro', lastName: 'Persona', enabled: true, initDate: new Date() }))
       .then(() => ProjectPerson.create({ projectId: 1, personId: 10 }))
       // persona 99 NO asociada al proyecto
-      .then(() => Attachment.create({
-        id: 101,
-        entityType: 'requirement_draft',
-        entityId: 1,
-        fileName: 'img.png',
-        fileSize: 1024,
-        mimeType: 'image/png',
-        storageKey: 'key-101',
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01',
-        retentionStatus: 'active',
-        checksum: 'abc',
-      }));
+      ;
   });
 
+  /**
+   * Los `fileIds` son ids de `files`, no de `attachments` (REQ-001, S-003): el archivo ya
+   * existe por sí solo y el vínculo lo crea core contra el requisito recién guardado. Por eso
+   * el fixture es un `File`, y `uploadedBy` importa: es la regla de titularidad (RF-12).
+   */
+  function createFile(uploadedBy = 'zitadel-sub-01'): Promise<File> {
+    return File.create({
+      fileName: 'img.png',
+      fileSize: 1024,
+      mimeType: 'image/png',
+      storageKey: `grava-gestion/f/${Math.random()}.png`,
+      storageBucket: 'test-bucket',
+      storageRegion: 'sfo2',
+      byteStatus: 'pending',
+      retentionStatus: 'active',
+      uploadedBy,
+    } as any, { validate: false });
+  }
+
   after(() => {
-    uploadStub.restore();
     return RequirementActivity.destroy({ where: {} })
       .then(() => Requirement.destroy({ where: {} }))
       .then(() => Attachment.destroy({ where: {}, force: true }))
+      .then(() => File.destroy({ where: {}, force: true }))
       .then(() => ProjectPerson.destroy({ where: {} }))
       .then(() => Person.destroy({ where: {} }))
       .then(() => Project.destroy({ where: {} }))
@@ -231,18 +228,19 @@ describe('POST /api/requirements', () => {
       });
   });
 
-  // TS-9: adjunto inválido → 400 y rollback
-  it('TS-9: should return 400 for invalid attachmentId and not create requirement', () => {
+  // TS-9: `fileId` inexistente → 400 `invalid_fields` y rollback del requisito. El rollback es
+  // la mitad que importa: la entidad y sus vínculos quedan juntos o ninguno.
+  it('TS-9: should return 400 invalid_fields for a non-existent fileId and not create requirement', () => {
     let countBefore: number;
     return Requirement.count()
       .then((c) => { countBefore = c; })
       .then(() => request(application)
         .post('/api/requirements')
         .set('Authorization', 'Bearer token_01_user')
-        .send({ title: 'Con adjunto invalido', description: 'd', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, attachmentIds: [7777] })
+        .send({ title: 'Con adjunto invalido', description: 'd', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, fileIds: [7777] })
         .expect(400))
       .then((res) => {
-        res.body.code.should.equal('invalid_attachment_id');
+        res.body.code.should.equal('invalid_fields');
         return Requirement.count();
       })
       .then((countAfter) => {
@@ -250,23 +248,64 @@ describe('POST /api/requirements', () => {
       });
   });
 
-  // create completo con responsable y adjunto
-  it('should create requirement with state, visibilityLevel, responsiblePersonIds and re-link attachment', () => {
+  // RF-12: titularidad. El archivo lo subió otro usuario, así que el actor no puede vincularlo.
+  it('should return 403 file_not_owned when the file was uploaded by another user', () => {
+    let countBefore: number;
+    return Requirement.count()
+      .then((c) => { countBefore = c; })
+      .then(() => createFile('zitadel-sub-04'))
+      .then((file) => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Archivo ajeno', description: 'd', type: 'funcionalidad', projectId: 1, fileIds: [file.id] })
+        .expect(403))
+      .then((res) => {
+        res.body.code.should.equal('file_not_owned');
+        return Requirement.count();
+      })
+      .then((countAfter) => {
+        countAfter.should.equal(countBefore);
+      });
+  });
+
+  // Más de 10 `fileIds`: lo corta Joi en la api, sin round-trip del bus.
+  it('should return 400 invalid_fields for more than 10 fileIds', () => {
     return request(application)
       .post('/api/requirements')
       .set('Authorization', 'Bearer token_01_user')
       .send({
-        title: 'Req A',
-        description: 'desc',
+        title: 'Demasiados',
+        description: 'd',
         type: 'funcionalidad',
-        estimatedFinishDate: '2026-07-01',
         projectId: 1,
-        state: 'planificacion',
-        visibilityLevel: 'internal',
-        responsiblePersonIds: [10],
-        attachmentIds: [101],
+        fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       })
-      .expect(201)
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // create completo con responsable y archivo vinculado
+  it('should create requirement with state, visibilityLevel, responsiblePersonIds and link the file', () => {
+    let file: File;
+    return createFile()
+      .then((created) => { file = created; })
+      .then(() => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req A',
+          description: 'desc',
+          type: 'funcionalidad',
+          estimatedFinishDate: '2026-07-01',
+          projectId: 1,
+          state: 'planificacion',
+          visibilityLevel: 'internal',
+          responsiblePersonIds: [10],
+          fileIds: [file.id],
+        })
+        .expect(201))
       .then((res) => {
         res.body.should.have.property('id');
         res.body.state.should.equal('planificacion');
@@ -278,10 +317,16 @@ describe('POST /api/requirements', () => {
         res.body.responsiblePeople[0].lastName.should.equal('Gómez');
         res.body.responsiblePeople[0].isLeader.should.equal(true);
         const reqId = res.body.id;
-        return Attachment.findByPk(101).then((att) => {
-          att!.entityType.should.equal('requirement');
-          att!.entityId!.should.equal(reqId);
-        });
+        return Attachment.findOne({ where: { fileId: file.id } })
+          .then((att) => {
+            att!.entityType.should.equal('requirement');
+            att!.entityId!.should.equal(reqId);
+            // El PUT al bucket lo reportó el cliente: vincular es lo que da por subido el byte.
+            return File.findByPk(file.id);
+          })
+          .then((refreshed) => {
+            (refreshed as any).byteStatus.should.equal('uploaded');
+          });
       });
   });
 

@@ -63,6 +63,25 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   file_not_found: 404,
   file_not_available: 404,
 
+  // Los dos rechazos de la política de subida (`files.request-upload`, core S-002) son 400
+  // porque describen una ENTRADA rechazada: el nombre o el MIME están fuera de la allowlist,
+  // o el tamaño supera el máximo. La política vive en `system_settings` y core la lee en
+  // caliente, así que la api no puede anticiparlos: llegan como reply y se traducen acá
+  // (REQ-001, S-004).
+  file_type_not_allowed: 400,
+  file_too_large: 400,
+
+  // `file_not_owned` es 403 y NO 400, y ES LA ENTRADA MÁS FÁCIL DE MAPEAR MAL. Describe un
+  // PERMISO —el archivo existe y está bien formado, pero lo subió otra persona (RF-12)—, no
+  // una entrada inválida. Reusar `invalid_attachment_id`, que ya está mapeado a 400, haría
+  // INDISTINGUIBLE "el archivo no existe" de "el archivo no es tuyo", y la segunda es
+  // justamente la regla nueva que RF-12 introduce.
+  //
+  // No lo emite ningún comando que esta story publique: lo emiten los seis comandos de
+  // dominio al vincular (S-003). Se mapea igual porque el mapa es DEL SERVICIO, no del
+  // endpoint, y sin la entrada ese 403 saldría 500.
+  file_not_owned: 403,
+
   unknown_command: 500,
   internal_error: 500,
 };

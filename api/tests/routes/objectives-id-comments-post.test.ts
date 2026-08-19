@@ -5,7 +5,7 @@ import {start} from '../mocks/app';
 import request from 'supertest';
 import {Application} from 'express';
 import nock from 'nock';
-import { Objective, ObjectiveActivity, ObjectiveMailThread, Project, User } from '@jiku/models';
+import { Attachment, File, Objective, ObjectiveActivity, ObjectiveMailThread, Project, User } from '@jiku/models';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -20,6 +20,13 @@ describe('POST /api/objectives/:id/comments', () => {
       username: 'user01',
       email: 'user01@mail.com'
     })
+      // Segundo usuario: es el que sube el archivo ajeno del caso de titularidad (RF-12).
+      .then(() => User.create({
+        id: 'zitadel-sub-02',
+        name: 'User 02',
+        username: 'user02',
+        email: 'user02@mail.com'
+      }))
       .then(() => {
         return Project.create({
           id: 1,
@@ -253,16 +260,103 @@ describe('POST /api/objectives/:id/comments', () => {
   });
 
 
-  it('should accept an empty attachmentIds array, as the web always sends it', () => {
-    return request(application)
-      .post('/api/objectives/1/comments')
-      .set('Accept', 'application/json')
-      .set('Authorization', 'Bearer token_01_user')
-      .send({ comment: 'comentario sin adjuntos', attachmentIds: [] })
-      .expect(201)
-      .then((response) => {
-        response.body.newValue.should.equal('comentario sin adjuntos');
-      });
+  describe('archivos vinculados al comentario (REQ-001, S-003)', () => {
+    /**
+     * `fileIds` son ids de `files`, no de `attachments`: el archivo ya existe y el vínculo se
+     * crea contra el comentario recién creado. `uploadedBy` decide la titularidad (RF-12).
+     */
+    function createFile(uploadedBy: string = 'zitadel-sub-01'): Promise<File> {
+      return File.create({
+        fileName: 'adjunto.png',
+        fileSize: 1024,
+        mimeType: 'image/png',
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
+        storageBucket: 'test-bucket',
+        storageRegion: 'sfo2',
+        byteStatus: 'pending',
+        retentionStatus: 'active',
+        uploadedBy,
+      } as any, { validate: false });
+    }
+
+    afterEach(() => {
+      return Attachment.destroy({ where: {}, force: true })
+        .then(() => File.destroy({ where: {}, force: true }));
+    });
+
+    it('acepta un fileIds vacío, porque la web siempre lo manda', () => {
+      return request(application)
+        .post('/api/objectives/1/comments')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ comment: 'comentario sin adjuntos', fileIds: [] })
+        .expect(201)
+        .then((response) => {
+          response.body.newValue.should.equal('comentario sin adjuntos');
+        });
+    });
+
+    it('vincula el archivo al comentario creado', () => {
+      let file: File;
+      return createFile()
+        .then((created) => { file = created; })
+        .then(() => request(application)
+          .post('/api/objectives/1/comments')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ comment: 'comentario con adjunto', fileIds: [file.id] })
+          .expect(201))
+        .then((response) => Attachment.findOne({ where: { fileId: file.id } })
+          .then((att) => {
+            att!.entityType.should.equal('objective_comment');
+            att!.entityId!.should.equal(response.body.id);
+            return File.findByPk(file.id);
+          }))
+        .then((refreshed) => {
+          (refreshed as any).byteStatus.should.equal('uploaded');
+        });
+    });
+
+    // RF-12: sin excepción por rol. Acá el actor es el dueño del comentario, no del archivo.
+    it('devuelve 403 file_not_owned y no crea el comentario cuando el archivo es ajeno', () => {
+      let countBefore: number;
+      return ObjectiveActivity.count()
+        .then((c) => { countBefore = c; })
+        .then(() => createFile('zitadel-sub-02'))
+        .then((file) => request(application)
+          .post('/api/objectives/1/comments')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ comment: 'archivo ajeno', fileIds: [file.id] })
+          .expect(403))
+        .then((response) => {
+          response.body.code.should.equal('file_not_owned');
+          return ObjectiveActivity.count();
+        })
+        .then((countAfter) => {
+          countAfter.should.equal(countBefore);
+        });
+    });
+
+    it('devuelve 400 invalid_fields cuando el fileId no existe', () => {
+      return request(application)
+        .post('/api/objectives/1/comments')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ comment: 'archivo inexistente', fileIds: [987654] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('devuelve 400 invalid_fields con más de 10 fileIds', () => {
+      return request(application)
+        .post('/api/objectives/1/comments')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ comment: 'demasiados', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
   });
 
 });

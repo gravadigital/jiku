@@ -15,7 +15,7 @@ export async function addComment(req: Request, res: Response) {
     author: req.user.id,
     comment: req.body.comment,
     ...(req.body.visibilityLevel ? { visibilityLevel: req.body.visibilityLevel } : {}),
-    ...(req.body.attachmentIds?.length ? { attachmentIds: req.body.attachmentIds } : {}),
+    ...(req.body.fileIds?.length ? { fileIds: req.body.fileIds } : {}),
   });
   if (!data) {
     return;
@@ -46,7 +46,10 @@ router.post(
       comment: joi.string().required(),
       visibilityLevel: joi.string().valid('public', 'internal').default('internal'),
       // La web siempre lo manda, aunque el array esté vacío.
-      attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+      // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al
+      // guardar la entidad. El `max(10)` es el `maxItems` que declara el spec — se valida acá para
+      // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
+      fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
     })
   ),
   addComment

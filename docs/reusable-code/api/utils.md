@@ -45,3 +45,43 @@ return redirectToPresigned(req, res, data, 'inline');
 
 **Used by:** `attachments-preview.ts`, `attachments-download.ts`, `opus-attachments-preview.ts`
 (both handlers) and `files-preview.ts`.
+
+## toUploadTicket
+
+**Location:** `api/lib/utils/bus/upload-ticket.ts`
+
+**Description:** Translates the `data` of a `files.request-upload` reply into the `UploadTicket`
+the HTTP contract declares, renaming `id` to `fileId`.
+
+The rename is deliberate, not an oversight to be "unified away". On the bus, `id` is the convention
+for every creation command. Over HTTP, `fileId` states *which* id it is — which matters here
+because the attachments HTTP contract juggles **two** id spaces: the link id (`/attachments/{id}`)
+and the file id (the one that later travels in `fileIds` when saving an entity). Confusing them is
+precisely the mistake this name prevents.
+
+It lives in `lib/utils/bus/` —the folder the convention reserves for bus contract translations—
+rather than inside a handler, because **both** upload endpoints (internal and opus) share it.
+Duplicating it would guarantee they eventually diverge.
+
+**Signature:**
+
+```ts
+function toUploadTicket(data: UploadTicketReply): UploadTicket
+```
+
+**Usage example:**
+
+```ts
+const data = await sendCommand<UploadTicketReply>(res, 'files.request-upload', {
+  uploader: actor(req),
+  fileName,
+  mimeType,
+  fileSize,
+  ...(checksum !== undefined ? { checksum } : {}),
+});
+if (!data) return;
+
+return res.status(201).json(toUploadTicket(data));
+```
+
+**Used by:** `attachments-post.ts` and `opus-attachments-post.ts`.

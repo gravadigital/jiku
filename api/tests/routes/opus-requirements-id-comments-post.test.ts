@@ -5,7 +5,7 @@ import nock from 'nock';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, AttachmentEntityType, Project, Requirement, RequirementActivity, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
+import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -101,56 +101,96 @@ describe('POST /api/opus/requirements/:reqid/comments', () => {
       .expect(200);
   });
 
-  describe('Attachments (S-095)', () => {
-    function createDraft(entityType: AttachmentEntityType, uploadedBy: string = 'zitadel-sub-04') {
-      return Attachment.create({
-        entityType,
-        entityId: requirementId,
+  describe('archivos vinculados al comentario (REQ-001, S-003)', () => {
+    /**
+     * `fileIds` son ids de `files`: el archivo ya existe y el vínculo se crea contra el
+     * comentario recién creado. `uploadedBy` decide la titularidad (RF-12).
+     */
+    function createFile(uploadedBy: string = 'zitadel-sub-04'): Promise<File> {
+      return File.create({
         fileName: 'test.png',
         fileSize: 1024,
         mimeType: 'image/png',
-        storageKey: `test-key-${Math.random()}`,
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
         storageBucket: 'test-bucket',
         storageRegion: 'us-east-1',
-        uploadedBy,
+        byteStatus: 'pending',
         retentionStatus: RetentionStatus.Active,
-      });
+        uploadedBy,
+      } as any, { validate: false });
     }
 
     afterEach(() => {
-      return Attachment.destroy({ where: {}, force: true });
+      return Attachment.destroy({ where: {}, force: true })
+        .then(() => File.destroy({ where: {}, force: true }));
     });
 
-    // TS-10: confirmacion de comentario con adjunto persiste como requirement_comment
-    it('TS-10: should re-link attachment to requirement_comment on comment confirmation', () => {
-      return createDraft(AttachmentEntityType.RequirementCommentDraft).then((draft) =>
-        request(application)
+    // TS-10: el vínculo apunta al comentario creado, con entityType requirement_comment.
+    it('TS-10: vincula el archivo al comentario como requirement_comment', () => {
+      let file: File;
+      return createFile()
+        .then((created) => { file = created; })
+        .then(() => request(application)
           .post(`/api/opus/requirements/${requirementId}/comments`)
           .set('Authorization', 'Bearer token_04_external_user')
-          .send({ comment: 'Comentario con adjunto', attachmentIds: [draft.id] })
-          .expect(200)
-          .then(() =>
-            Attachment.findByPk(draft.id).then((updated) => {
-              updated!.entityType.should.equal(AttachmentEntityType.RequirementComment);
-            })
-          )
-      );
+          .send({ comment: 'Comentario con adjunto', fileIds: [file.id] })
+          .expect(200))
+        .then((response) => Attachment.findOne({ where: { fileId: file.id } })
+          .then((link) => {
+            link!.entityType.should.equal(AttachmentEntityType.RequirementComment);
+            link!.entityId!.should.equal(response.body.id);
+            return File.findByPk(file.id);
+          }))
+        .then((refreshed) => {
+          (refreshed as any).byteStatus.should.equal('uploaded');
+        });
     });
 
-    // TS-11: compatibilidad transitoria con el valor legado comment_draft
-    it('TS-11: should still confirm a legacy comment_draft attachment during the transition window', () => {
-      return createDraft(AttachmentEntityType.CommentDraft).then((draft) =>
-        request(application)
+    // ELIMINADO (REQ-001, S-003): "TS-11: confirmar un comment_draft legado durante la
+    // ventana de transición". No hay drafts ni ventana que sostener: el archivo existe solo
+    // en `files` y el vínculo se crea contra el comentario ya creado.
+
+    // RF-12: el externo no puede vincular lo que subió el interno, aunque tenga permiso
+    // sobre el proyecto.
+    it('devuelve 403 file_not_owned y no crea el comentario cuando el archivo es ajeno', () => {
+      let countBefore: number;
+      return RequirementActivity.count({ where: { requirementId } })
+        .then((c) => { countBefore = c; })
+        .then(() => createFile('zitadel-sub-01'))
+        .then((file) => request(application)
           .post(`/api/opus/requirements/${requirementId}/comments`)
           .set('Authorization', 'Bearer token_04_external_user')
-          .send({ comment: 'Comentario con adjunto legado', attachmentIds: [draft.id] })
-          .expect(200)
-          .then(() =>
-            Attachment.findByPk(draft.id).then((updated) => {
-              updated!.entityType.should.equal(AttachmentEntityType.RequirementComment);
-            })
-          )
-      );
+          .send({ comment: 'Comentario con archivo ajeno', fileIds: [file.id] })
+          .expect(403))
+        .then((response) => {
+          response.body.code.should.equal('file_not_owned');
+          return RequirementActivity.count({ where: { requirementId } });
+        })
+        .then((countAfter) => {
+          countAfter.should.equal(countBefore);
+        });
+    });
+
+    it('devuelve 400 invalid_fields cuando el fileId no existe', () => {
+      return request(application)
+        .post(`/api/opus/requirements/${requirementId}/comments`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ comment: 'Comentario con archivo inexistente', fileIds: [99999999] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('devuelve 400 invalid_fields con más de 10 fileIds', () => {
+      return request(application)
+        .post(`/api/opus/requirements/${requirementId}/comments`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ comment: 'Demasiados', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
     });
   });
 });

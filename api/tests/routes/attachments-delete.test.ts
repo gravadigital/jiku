@@ -1,252 +1,277 @@
 import 'mocha';
 import 'should';
-import sinon from 'sinon';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, Objective, Project, User } from '@jiku/models';
-import storageService from '../../lib/utils/storage-service';
+import { Attachment, File, Objective, Project, User, UserProjectPermission } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
 
 // Tokens del mock:
-// token_01_user  → sub: zitadel-sub-01, rol: user  (uploader en estos tests)
-// token_02_user  → sub: zitadel-sub-02, rol: user  (otro usuario, no uploader)
-// token_03_admin → sub: zitadel-sub-03, rol: admin
+// token_01_user          → sub: zitadel-sub-01, rol: user (interno: accede a toda entidad)
+// token_04_external_user → sub: zitadel-sub-04, rol: external-user, con permiso SOLO en el proyecto 301
 
+/**
+ * El DELETE ya no borra nada: AUTORIZA sobre la entidad del vínculo y PUBLICA
+ * `attachments.{id}.delete` (REQ-001, S-004). Era la tercera escritura implícita de la api.
+ *
+ * El fixture central son DOS vínculos sobre EL MISMO `File`. Es lo que hace verificables los
+ * tres criterios que dan sentido a la story: que el archivo se retiene, que el otro vínculo
+ * sobrevive y que el vínculo borrado deja de dar acceso.
+ */
 describe('DELETE /api/attachments/:id', () => {
   let application: Application;
-  let attachmentId: number;
-  let attachmentForAdminId: number;
-  let attachmentForOtherUserId: number;
-  let attachmentForGracePeriodId: number;
-  let attachmentAlreadyDeletedId: number;
+  let sharedFile: File;
+  let link1: Attachment;
+  let link2: Attachment;
+  let linkRestricted: Attachment;
 
-  let deleteFileStub: sinon.SinonStub;
+  async function createFile(overrides: Record<string, any> = {}): Promise<File> {
+    return File.create({
+      fileName: 'compartido.pdf',
+      fileSize: 1024,
+      mimeType: 'application/pdf',
+      storageKey: `grava-gestion/f/${Math.random()}.pdf`,
+      storageBucket: 'test-bucket',
+      storageRegion: 'sfo2',
+      byteStatus: 'uploaded',
+      retentionStatus: 'active',
+      uploadedBy: 'zitadel-sub-01',
+      ...overrides,
+    } as any, { validate: false });
+  }
 
-  before(function() {
+  // Las columnas viejas de `attachments` siguen siendo `allowNull: false` en el modelo
+  // compartido (la migración 20260819_05 las dropeó de la base, pero `sync()` las recrea en el
+  // esquema de tests), así que hay que poblarlas aunque el código ya no las lea.
+  async function createLink(file: File, overrides: Record<string, any> = {}): Promise<Attachment> {
+    return Attachment.create({
+      entityType: 'objective',
+      entityId: 301,
+      fileId: file.id,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      mimeType: file.mimeType,
+      storageKey: file.storageKey,
+      storageBucket: file.storageBucket,
+      storageRegion: file.storageRegion,
+      uploadedBy: file.uploadedBy,
+      ...overrides,
+    } as any, { validate: false });
+  }
+
+  before(async function() {
     this.timeout(30000);
     application = start();
 
-    deleteFileStub = sinon.stub(storageService, 'deleteFile').resolves();
+    await User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'u01del', email: 'u01del@mail.com' } as any);
+    await User.create({ id: 'zitadel-sub-04', name: 'External', username: 'e04del', email: 'e04del@mail.com' } as any);
 
-    return User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'user01del', email: 'u1del@mail.com' })
-      .then(() => User.create({ id: 'zitadel-sub-02', name: 'User 02', username: 'user02del', email: 'u2del@mail.com' }))
-      .then(() => User.create({ id: 'zitadel-sub-03', name: 'Admin User', username: 'admindel', email: 'admindel@mail.com' }))
-      .then(() => Project.create({
-        id: 201, code: 'DEL1', name: 'DEL Project 1', type: 'comercial',
-        status: 'activo', priority: 1, initDate: new Date(), createdBy: 'zitadel-sub-01'
-      }))
-      .then(() => Objective.create({
-        id: 201, title: 'DEL Objective 1', state: 'activo', area: 'desarrollo',
-        priority: 1, projectId: 201, createdBy: 'zitadel-sub-01'
-      }))
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 201,
-        fileName: 'my-file.pdf',
-        fileSize: 1024,
-        mimeType: 'application/pdf',
-        storageKey: `grava-gestion/objective/201/myfile-${Math.random()}.pdf`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { attachmentId = a.id; })
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 201,
-        fileName: 'admin-target.pdf',
-        fileSize: 2048,
-        mimeType: 'application/pdf',
-        storageKey: `grava-gestion/objective/201/admin-${Math.random()}.pdf`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { attachmentForAdminId = a.id; })
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 201,
-        fileName: 'other-user-file.pdf',
-        fileSize: 512,
-        mimeType: 'application/pdf',
-        storageKey: `grava-gestion/objective/201/other-${Math.random()}.pdf`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { attachmentForOtherUserId = a.id; })
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 201,
-        fileName: 'grace-period-file.pdf',
-        fileSize: 256,
-        mimeType: 'application/pdf',
-        storageKey: `grava-gestion/objective/201/grace-${Math.random()}.pdf`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { attachmentForGracePeriodId = a.id; })
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 201,
-        fileName: 'already-deleted.pdf',
-        fileSize: 128,
-        mimeType: 'application/pdf',
-        storageKey: `grava-gestion/objective/201/already-deleted-${Math.random()}.pdf`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01',
-        deletedAt: new Date(),
-        deletedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { attachmentAlreadyDeletedId = a.id; });
+    // Proyecto 301: el external-user tiene permiso. Proyecto 302: no.
+    await Project.create({
+      id: 301, code: 'DEL1', name: 'Del Project 1', type: 'comercial',
+      status: 'activo', priority: 1, initDate: new Date(), createdBy: 'zitadel-sub-01'
+    } as any);
+    await Project.create({
+      id: 302, code: 'DEL2', name: 'Del Project 2', type: 'comercial',
+      status: 'activo', priority: 2, initDate: new Date(), createdBy: 'zitadel-sub-01'
+    } as any);
+    await Objective.create({
+      id: 301, title: 'Del Objective 1', state: 'activo', area: 'desarrollo',
+      priority: 1, projectId: 301, createdBy: 'zitadel-sub-01'
+    } as any);
+    await Objective.create({
+      id: 302, title: 'Del Objective 2', state: 'activo', area: 'desarrollo',
+      priority: 2, projectId: 302, createdBy: 'zitadel-sub-01'
+    } as any);
+
+    await UserProjectPermission.create({ userId: 'zitadel-sub-04', projectId: 301 } as any);
   });
 
-  after(() => {
-    deleteFileStub.restore();
+  beforeEach(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {}, force: true });
 
-    return Attachment.destroy({ where: {}, force: true })
-      .then(() => Objective.destroy({ where: { id: [201] } }))
-      .then(() => Project.destroy({ where: { id: [201] } }))
-      .then(() => User.destroy({ where: { id: ['zitadel-sub-01', 'zitadel-sub-02', 'zitadel-sub-03'] } }));
+    // UN archivo, DOS vínculos.
+    sharedFile = await createFile();
+    link1 = await createLink(sharedFile);
+    link2 = await createLink(sharedFile);
+
+    // Un vínculo sobre una entidad del proyecto 302, donde el external-user NO tiene permiso.
+    const restrictedFile = await createFile();
+    linkRestricted = await createLink(restrictedFile, { entityId: 302 });
   });
 
-  // TS-15: Sin token
-  it('should return 401 without token', () => {
+  after(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {}, force: true });
+    await UserProjectPermission.destroy({ where: {} });
+    await Objective.destroy({ where: {} });
+    await Project.destroy({ where: {} });
+    await User.destroy({ where: {} });
+  });
+
+  // TS-27 (CA-8, CA-9): publica el comando con el id DEL VÍNCULO.
+  it('devuelve 200 y publica attachments.{id}.delete con el id del vínculo', () => {
+    fakeBus.reply(`attachments.${link1.id}.delete`, { status: 'success' });
+
     return request(application)
-      .delete(`/api/attachments/${attachmentId}`)
-      .expect(401)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
       .then(res => {
-        res.body.code.should.equal('unauthorized');
+        res.body.code.should.equal('attachment_unlinked');
+        res.body.should.have.property('message');
+        fakeBus.sent.length.should.equal(1);
+        (fakeBus.last as any).command.should.equal(`attachments.${link1.id}.delete`);
+        (fakeBus.last as any).payload.should.deepEqual({});
       });
   });
 
-  // TS-16: ID no numérico
-  it('should return 400 when id is not numeric', () => {
+  // TS-28 (CA-9): EL TEST MÁS IMPORTANTE DE LA TAREA, y la prueba DIRECTA de que la api no
+  // escribe. Con `replyDefault` core NO ejecuta el borrado, así que si la fila desapareciera
+  // habría sido la api quien la borró.
+  it('no borra la fila por su cuenta: con core mockeado el vínculo sigue existiendo', async () => {
+    fakeBus.replyDefault({ status: 'success' });
+
+    await request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200);
+
+    // `scope('active')` y no `findByPk` a secas: un `softDelete()` de la api dejaría la fila
+    // presente pero fuera del scope, y este test tiene que detectar TAMBIÉN esa variante.
+    const stillThere = await Attachment.scope('active').findByPk(link1.id);
+    (stillThere !== null).should.be.true();
+  });
+
+  // TS-29 (CA-8, CA-9): no toca `files` ni el bucket. La api ya no importa ningún cliente de
+  // storage, así que lo verificable desde acá es que el archivo se conserva intacto.
+  it('no toca la fila de files ni su estado de retención', async () => {
+    await request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200);
+
+    const file = await File.findByPk(sharedFile.id);
+    (file !== null).should.be.true();
+    (file as any).retentionStatus.should.equal('active');
+  });
+
+  // TS-30 (CA-8): con la ejecución REAL del comando de core, el otro vínculo sobrevive. Es lo
+  // que D-04 protege: con 0..N vínculos, borrar el objeto rompería los demás.
+  it('deja intacto el otro vínculo del mismo archivo', async () => {
+    await request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200);
+
+    // El comando de core lo ejecutó el FakeBus de verdad: la fila 1 se fue.
+    ((await Attachment.findByPk(link1.id)) === null).should.be.true();
+    ((await Attachment.findByPk(link2.id)) !== null).should.be.true();
+
+    await request(application)
+      .get(`/api/attachments/${link2.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        res.body.fileId.should.equal(sharedFile.id);
+      });
+  });
+
+  // TS-31 (CA-10): el vínculo eliminado deja de dar acceso, AUNQUE el archivo siga existiendo
+  // por el otro vínculo.
+  it('deja de dar acceso por el vínculo eliminado aunque el archivo siga existiendo', async () => {
+    await request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200);
+
+    await request(application)
+      .get(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(404)
+      .then(res => {
+        res.body.code.should.equal('not_found');
+      });
+
+    // El archivo sigue vivo: lo sostiene el otro vínculo.
+    ((await File.findByPk(sharedFile.id)) !== null).should.be.true();
+  });
+
+  // TS-32 (CA-9): AUTORIZA ANTES DE PUBLICAR. El `commands.length === 0` es la mitad que
+  // importa: sin él, un handler que publique primero y autorice después pasaría igual.
+  it('devuelve 403 sin publicar cuando el usuario no tiene permiso sobre la entidad', () => {
+    return request(application)
+      .delete(`/api/attachments/${linkRestricted.id}`)
+      .set('Authorization', 'Bearer token_04_external_user')
+      .expect(403)
+      .then(res => {
+        res.body.code.should.equal('access_denied');
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-33: vínculo inexistente, resuelto antes de publicar.
+  it('devuelve 404 sin publicar cuando el vínculo no existe', () => {
+    return request(application)
+      .delete('/api/attachments/999999')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(404)
+      .then(res => {
+        res.body.code.should.equal('not_found');
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-34: id no numérico.
+  it('devuelve 400 invalid_id sin publicar cuando el id no es numérico', () => {
     return request(application)
       .delete('/api/attachments/abc')
       .set('Authorization', 'Bearer token_01_user')
       .expect(400)
       .then(res => {
         res.body.code.should.equal('invalid_id');
-        res.body.message.should.equal('Attachment ID must be a valid integer');
+        fakeBus.sent.length.should.equal(0);
       });
   });
 
-  // TS-13: Attachment no existe
-  it('should return 404 for non-existent attachment', () => {
+  // TS-35: sin token.
+  it('devuelve 401 sin token y no publica', () => {
     return request(application)
-      .delete('/api/attachments/9999')
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(404)
-      .then(res => {
-        res.body.code.should.equal('not_found');
-        res.body.message.should.equal('Attachment not found');
-      });
-  });
-
-  // TS-14: Attachment ya soft-deleted → 404
-  it('should return 404 for already soft-deleted attachment', () => {
-    return request(application)
-      .delete(`/api/attachments/${attachmentAlreadyDeletedId}`)
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(404)
-      .then(res => {
-        res.body.code.should.equal('not_found');
-      });
-  });
-
-  // TS-11: Usuario que no es uploader ni admin → 403
-  it('should return 403 for user who is not uploader nor admin', () => {
-    return request(application)
-      .delete(`/api/attachments/${attachmentForOtherUserId}`)
-      .set('Authorization', 'Bearer token_02_user')
-      .expect(403)
-      .then(res => {
-        res.body.code.should.equal('access_denied');
-        res.body.message.should.equal('Only the uploader or admin can delete this attachment');
-      });
-  });
-
-  // TS-9: Delete exitoso como uploader (happy path)
-  it('should soft delete attachment as uploader and return 200 with deletion info', () => {
-    return request(application)
-      .delete(`/api/attachments/${attachmentId}`)
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(200)
-      .then(res => {
-        res.body.message.should.equal('Attachment marked for deletion');
-        res.body.attachmentId.should.equal(attachmentId);
-        res.body.deletedBy.should.equal('zitadel-sub-01');
-        res.body.should.have.property('deletedAt');
-        res.body.should.have.property('scheduledPermanentDeletion');
-      });
-  });
-
-  // TS-10: Delete exitoso como admin (no es el uploader)
-  it('should soft delete attachment as admin even if not the uploader', () => {
-    return request(application)
-      .delete(`/api/attachments/${attachmentForAdminId}`)
-      .set('Authorization', 'Bearer token_03_admin')
-      .expect(200)
-      .then(res => {
-        res.body.message.should.equal('Attachment marked for deletion');
-        res.body.deletedBy.should.equal('zitadel-sub-03');
-        res.body.should.have.property('deletedAt');
-        res.body.should.have.property('scheduledPermanentDeletion');
-      });
-  });
-
-  // TS-17: scheduledPermanentDeletion es ~7 días después de deletedAt
-  it('should have scheduledPermanentDeletion approximately 7 days after deletedAt', () => {
-    return request(application)
-      .delete(`/api/attachments/${attachmentForGracePeriodId}`)
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(200)
-      .then(res => {
-        const deletedAt = new Date(res.body.deletedAt);
-        const scheduled = new Date(res.body.scheduledPermanentDeletion);
-        const diffDays = (scheduled.getTime() - deletedAt.getTime()) / (1000 * 60 * 60 * 24);
-        diffDays.should.be.approximately(7, 0.1);
-      });
-  });
-
-  // TS-12: Attachment soft-deleted no aparece en listados (scope 'active')
-  it('should not include soft-deleted attachment in GET /api/attachments list', () => {
-    return request(application)
-      .get('/api/attachments?entityType=objective&entityId=201')
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(200)
-      .then(res => {
-        const ids = res.body.map((a: any) => a.id);
-        ids.should.not.containEql(attachmentId);
-      });
-  });
-
-  // TS-19: storageService.deleteFile NO fue llamado durante el delete
-  it('should NOT call storageService.deleteFile when soft deleting', () => {
-    deleteFileStub.resetHistory();
-
-    return Attachment.create({
-      entityType: 'objective',
-      entityId: 201,
-      fileName: 'no-spaces-delete.pdf',
-      fileSize: 64,
-      mimeType: 'application/pdf',
-      storageKey: `grava-gestion/objective/201/no-spaces-${Math.random()}.pdf`,
-      storageBucket: 'test-bucket',
-      storageRegion: 'sfo2',
-      uploadedBy: 'zitadel-sub-01'
-    })
-      .then((a: Attachment) => {
-        return request(application)
-          .delete(`/api/attachments/${a.id}`)
-          .set('Authorization', 'Bearer token_01_user')
-          .expect(200);
-      })
+      .delete(`/api/attachments/${link1.id}`)
+      .expect(401)
       .then(() => {
-        deleteFileStub.called.should.be.false();
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-36 (CA-7): el `invalid_fields` de core sale 400, no 500.
+  it('traduce invalid_fields de core a 400', () => {
+    fakeBus.reply(`attachments.${link1.id}.delete`, {
+      status: 'failure',
+      errorCode: 'invalid_fields',
+      errorMessage: 'El vínculo no existe',
+    });
+
+    return request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(400)
+      .then(res => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // TS-37 (CA-13): timeout del bus → 503.
+  it('devuelve 503 cuando el bus no responde', () => {
+    fakeBus.failWith(new Error('timeout'));
+
+    return request(application)
+      .delete(`/api/attachments/${link1.id}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(503)
+      .then(res => {
+        res.body.code.should.equal('service_unavailable');
       });
   });
 });

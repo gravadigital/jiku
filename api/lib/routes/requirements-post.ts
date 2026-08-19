@@ -18,7 +18,10 @@ const createSchema = joi.object({
   responsiblePersonIds: joi.array().items(joi.number().integer()).allow(null).optional(),
   estimatedFinishDate: joi.date().allow(null).optional(),
   projectId: joi.number().integer().required(),
-  attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+  // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al
+  // guardar la entidad. El `max(10)` es el `maxItems` que declara el spec — se valida acá para
+  // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
+  fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
   tags: joi.array().items(joi.object({ key: joi.string(), value: joi.string() })).optional(),
   scope: joi.string().optional(),
   technicalSolution: joi.string().optional(),
@@ -53,7 +56,7 @@ function validateProject(req: Request, res: Response, next: NextFunction) {
 async function createRequirement(req: Request, res: Response) {
   const {
     title, description, type, priority, state, visibilityLevel, responsiblePersonIds,
-    estimatedFinishDate, projectId, tags, attachmentIds, scope, technicalSolution,
+    estimatedFinishDate, projectId, tags, fileIds, scope, technicalSolution,
     acceptanceCriteria,
   } = req.body;
 
@@ -69,7 +72,7 @@ async function createRequirement(req: Request, res: Response) {
     ...(responsiblePersonIds !== undefined ? { responsiblePersonIds } : {}),
     ...(estimatedFinishDate !== undefined ? { estimatedFinishDate } : {}),
     ...(tags !== undefined ? { tags } : {}),
-    ...(attachmentIds !== undefined ? { attachmentIds } : {}),
+    ...(fileIds !== undefined ? { fileIds } : {}),
     ...(scope !== undefined ? { scope } : {}),
     ...(technicalSolution !== undefined ? { technicalSolution } : {}),
     ...(acceptanceCriteria !== undefined ? { acceptanceCriteria } : {}),
