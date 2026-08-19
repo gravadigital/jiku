@@ -156,13 +156,6 @@ services:
       - LAST_WEEK_MISSING_HOURS_ENABLED=false
       - CURRENT_WEEK_MISSING_HOURS_ENABLED=false
       - CONSOLIDATED_HOURS_REMINDER_ENABLED=false
-      # Las rutas de attachments siguen vivas y exigen estas variables al arrancar.
-      - STORAGE_S3_REGION=${STORAGE_S3_REGION}
-      - STORAGE_S3_CREDENTIALS_ACCESSKEY=${STORAGE_S3_CREDENTIALS_ACCESSKEY}
-      - STORAGE_S3_CREDENTIALS_SECRETKEY=${STORAGE_S3_CREDENTIALS_SECRETKEY}
-      - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
-      - STORAGE_S3_BUCKETNAME=${STORAGE_S3_BUCKETNAME}
-      - STORAGE_S3_FORCEPATHSTYLE=${STORAGE_S3_FORCEPATHSTYLE}
     volumes:
       - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
     depends_on:
