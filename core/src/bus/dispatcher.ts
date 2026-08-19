@@ -14,6 +14,35 @@ import { ErrorCode, Reply, callerFromSubject, commandFromSubject, failure } from
  * lado hay una request esperando respuesta. Quedarse sin contestar dejaría a la api
  * esperando hasta su timeout.
  */
+/**
+ * Claves del `data` de un reply cuyo valor NUNCA puede llegar al log.
+ *
+ * Una URL prefirmada lleva la firma: da acceso al contenido del objeto sin ninguna credencial,
+ * durante todo su TTL. Loguearla convierte el archivo de log en un repositorio de accesos
+ * anónimos, así que se redacta incluso bajo `LOG_COMMANDS`, que es una traza de diagnóstico y
+ * no una excepción a la regla.
+ */
+const REDACTED_REPLY_KEYS = ['uploadUrl', 'downloadUrl'];
+
+/** Reemplaza por un marcador los valores sensibles del reply, solo para el log. */
+function redactReply(reply: Reply): Reply {
+  const data = reply.data;
+  if (!data || typeof data !== 'object') {
+    return reply;
+  }
+
+  const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+  let touched = false;
+  for (const key of REDACTED_REPLY_KEYS) {
+    if (key in redacted) {
+      redacted[key] = '[redacted]';
+      touched = true;
+    }
+  }
+
+  return touched ? { ...reply, data: redacted } : reply;
+}
+
 export class Dispatcher {
   constructor(private registry: CommandRegistry) {}
 
@@ -54,7 +83,7 @@ export class Dispatcher {
       }
 
       if (process.env.LOG_COMMANDS === 'true') {
-        logger.info(`[cmd] ${name} -> ${JSON.stringify(reply)}`);
+        logger.info(`[cmd] ${name} -> ${JSON.stringify(redactReply(reply))}`);
       }
       return reply;
     } catch (error: any) {

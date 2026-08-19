@@ -98,6 +98,11 @@ comando dice más que la query.
 
 - **El payload de un comando fuera de `LOG_COMMANDS`.** Ni siquiera parcialmente.
 - **El token del service user**, ni la key de Zitadel, ni las creds del bus.
+- **Las URLs prefirmadas de storage** (`uploadUrl`, `downloadUrl`). Llevan la firma: dan acceso al
+  contenido del objeto sin ninguna credencial durante todo su TTL. **Ni siquiera bajo
+  `LOG_COMMANDS`** — el despachador las reemplaza por `[redacted]` antes de serializar el reply
+  (`src/bus/dispatcher.ts`, `REDACTED_REPLY_KEYS`). Un campo nuevo que transporte una firma o un
+  token se agrega a esa lista en el mismo cambio que lo introduce.
 - **El SQL.** `logging: false` en la conexión.
 - **El stack de un error esperado.** Solo los inesperados llevan stack (`src/index.ts:32`).
 - Comentarios, descripciones y títulos de entidades fuera de la traza opt-in.
@@ -139,7 +144,8 @@ se sacan los transports de archivo — hoy son configuración muerta que aparent
 - Un `failure` esperado no se loguea como `error`.
 - El payload de un comando solo se loguea bajo `LOG_COMMANDS`, y esa variable queda apagada en
   producción.
-- Nunca loguees tokens, keys ni credenciales.
+- Nunca loguees tokens, keys ni credenciales — **incluidas las URLs prefirmadas**, que el
+  despachador redacta incluso con `LOG_COMMANDS` encendido.
 - El detalle de un error inesperado va al log; el mensaje que cruza el bus es genérico.
 - Los mensajes son cortos y descriptivos, con el dato variable al final.
 
