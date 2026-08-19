@@ -1,0 +1,480 @@
+template:
+  id: db-schema-template
+  name: Database Schema Document Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-technical-architecture.md
+
+  description: |
+    Structure specification for database schema documentation.
+
+    This template supports a two-stage schema definition approach:
+    1. **Draft Entities (Markdown)**: Preliminary entity definitions during initial design
+    2. **DBML Schema**: Formal schema specification once entities are solidified
+
+    Both formats can coexist in the same document during evolution.
+
+# Output specification
+output:
+  path: docs/db-schemas/{db-name}.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Draft", "In Review", "Approved"
+
+# Section definitions
+sections:
+
+  - id: database-overview
+    title: Database Overview
+    description: |
+      Basic information about the database: name, purpose, technology, and role in system.
+
+    format: |
+      ## Database Overview
+
+      **Name:** {database name}
+
+      **Purpose:** {What this database stores and manages}
+
+      **Technology:** {Database type and version (e.g., PostgreSQL 15, MongoDB 6)}
+
+      **Used By:** {List of services that access this database}
+
+    example: |
+      ## Database Overview
+
+      **Name:** `users-db`
+
+      **Purpose:** Stores all user-related data including profiles, authentication credentials, sessions, and preferences.
+
+      **Technology:** PostgreSQL 15
+
+      **Used By:**
+      - user-service (primary owner)
+      - api-gateway (session validation)
+
+  - id: draft-entities
+    title: Draft Entities (Optional)
+    description: |
+      Preliminary entity definitions in markdown format.
+
+      Use this section during initial design when the schema is still evolving.
+      Once entities are finalized, migrate to DBML format in next section.
+
+      This section is OPTIONAL and can be removed once DBML schema is complete.
+
+      IMPORTANT: By default, only include table name, description, and relationships.
+      Only include attributes if explicitly provided by the user.
+
+    format: |
+      ## Draft Entities
+
+      > **Note:** These are preliminary entity definitions. Once finalized, they will be
+      > formalized in DBML format below.
+
+      ### Entity: {EntityName}
+
+      **Description:** {What this entity stores and its purpose in the system}
+
+      **Relationships:**
+      - {Relationship to other entities with cardinality}
+
+      **Attributes:** (Optional - only if user provided)
+      - `{attribute}` ({type}): {description}
+
+      ---
+
+      ### Entity: {EntityName}
+      [Repeat for each entity]
+
+    example: |
+      ## Draft Entities
+
+      > **Note:** These are preliminary entity definitions. Once finalized, they will be
+      > formalized in DBML format below.
+
+      ### Entity: User
+
+      **Description:** Stores user accounts and authentication credentials for the system
+
+      **Relationships:**
+      - User has many Sessions (one-to-many)
+      - User has many ProjectMemberships (one-to-many)
+      - User has many OAuthProviders (one-to-many)
+
+      ---
+
+      ### Entity: Session
+
+      **Description:** Stores active user sessions for authentication and authorization
+
+      **Relationships:**
+      - Session belongs to User (many-to-one)
+
+      ---
+
+      ### Entity: OAuthProvider
+
+      **Description:** Stores OAuth provider accounts linked to users for social login
+
+      **Relationships:**
+      - OAuthProvider belongs to User (many-to-one)
+
+      ---
+
+      ### Entity: ProjectMembership
+
+      **Description:** Stores user membership in projects with roles and permissions
+
+      **Relationships:**
+      - ProjectMembership belongs to User (many-to-one)
+      - ProjectMembership belongs to Project (many-to-one)
+
+  - id: dbml-schema
+    title: DBML Schema
+    description: |
+      Formal database schema definition using DBML (Database Markup Language).
+
+      DBML is:
+      - Human-readable and version-control friendly
+      - Machine-parseable (can generate SQL, diagrams, etc.)
+      - Supports relationships, indexes, constraints
+      - Industry standard for schema documentation
+
+      Learn more: https://dbml.dbdiagram.io/docs/
+
+    format: |
+      ## DBML Schema
+
+      ```dbml
+      // Database: {db-name}
+      // Generated: {date}
+
+      Table {table_name} {
+        {column_name} {type} [pk, increment] // Primary key, auto-increment
+        {column_name} {type} [not null]
+        {column_name} {type} [unique]
+        {column_name} {type} [ref: > {other_table}.{column}] // Foreign key
+        {column_name} {type} [default: {value}]
+        {column_name} {type} [note: '{description}']
+
+        indexes {
+          ({column1}, {column2}) [unique]
+          {column} [name: '{index_name}']
+        }
+
+        Note: '{Table description}'
+      }
+
+      // Relationships
+      Ref: {table1}.{column} > {table2}.{column} // many-to-one
+      Ref: {table1}.{column} < {table2}.{column} // one-to-many
+      Ref: {table1}.{column} - {table2}.{column} // one-to-one
+      Ref: {table1}.{column} <> {table2}.{column} // many-to-many
+      ```
+
+    example: |
+      ## DBML Schema
+
+      ```dbml
+      // Database: users-db
+      // PostgreSQL 15
+      // Generated: 2024-01-15
+
+      Table users {
+        id uuid [pk, default: `gen_random_uuid()`]
+        email varchar(255) [not null, unique]
+        password_hash varchar(255) [not null, note: 'bcrypt hash']
+        name varchar(100) [not null]
+        avatar_url text [null]
+        timezone varchar(50) [not null, default: 'UTC']
+        created_at timestamp [not null, default: `now()`]
+        updated_at timestamp [not null, default: `now()`]
+
+        indexes {
+          email [unique, name: 'idx_users_email']
+          created_at [name: 'idx_users_created_at']
+        }
+
+        Note: 'User accounts and profiles'
+      }
+
+      Table sessions {
+        id uuid [pk, default: `gen_random_uuid()`]
+        user_id uuid [not null, ref: > users.id]
+        refresh_token text [not null, unique]
+        expires_at timestamp [not null]
+        created_at timestamp [not null, default: `now()`]
+
+        indexes {
+          user_id [name: 'idx_sessions_user_id']
+          expires_at [name: 'idx_sessions_expires_at']
+          refresh_token [unique, name: 'idx_sessions_refresh_token']
+        }
+
+        Note: 'Active user sessions for authentication'
+      }
+
+      Table oauth_providers {
+        id uuid [pk, default: `gen_random_uuid()`]
+        user_id uuid [not null, ref: > users.id]
+        provider varchar(50) [not null, note: 'google, github, etc.']
+        provider_user_id varchar(255) [not null]
+        access_token text [not null, note: 'encrypted']
+        refresh_token text [null, note: 'encrypted']
+        created_at timestamp [not null, default: `now()`]
+
+        indexes {
+          user_id [name: 'idx_oauth_user_id']
+          (provider, provider_user_id) [unique, name: 'idx_oauth_provider_user']
+        }
+
+        Note: 'OAuth provider accounts linked to users'
+      }
+
+      // Relationships
+      Ref: sessions.user_id > users.id [delete: cascade]
+      Ref: oauth_providers.user_id > users.id [delete: cascade]
+      ```
+
+  - id: migrations
+    title: Migrations Strategy
+    description: |
+      How database migrations are managed and executed.
+
+    format: |
+      ## Migrations Strategy
+
+      **Tool:** {Migration tool name (e.g., Prisma Migrate, Flyway, Liquibase)}
+
+      **Location:** {Where migration files are stored}
+
+      **Process:**
+      1. {Step 1}
+      2. {Step 2}
+      3. {Step 3}
+
+      **Rollback strategy:** {How to rollback failed migrations}
+
+    example: |
+      ## Migrations Strategy
+
+      **Tool:** Prisma Migrate
+
+      **Location:** `services/user-service/prisma/migrations/`
+
+      **Process:**
+      1. Developer modifies `prisma/schema.prisma`
+      2. Run `prisma migrate dev --name <migration_name>` to generate migration SQL
+      3. Prisma creates `migrations/{timestamp}_{name}/migration.sql`
+      4. Migration is applied to local dev database automatically
+      5. Commit migration files to git
+      6. CI/CD applies migrations to staging/production on deploy
+
+      **Rollback strategy:**
+      - Manual: Execute the previous migration's SQL in reverse
+      - Automated: Use `prisma migrate resolve --rolled-back {migration_name}`
+      - Critical failures: Restore from database backup (daily automated backups, 30-day retention)
+
+  - id: indexing-strategy
+    title: Indexing Strategy
+    description: |
+      Indexes created for query optimization, with justification.
+
+    format: |
+      ## Indexing Strategy
+
+      | Table | Index | Columns | Type | Reason |
+      |-------|-------|---------|------|--------|
+      | {table} | {index_name} | {columns} | {type} | {why needed} |
+
+    example: |
+      ## Indexing Strategy
+
+      | Table | Index | Columns | Type | Reason |
+      |-------|-------|---------|------|--------|
+      | users | idx_users_email | email | UNIQUE BTREE | Email lookups during login (primary query pattern) |
+      | users | idx_users_created_at | created_at | BTREE | User growth analytics, pagination by signup date |
+      | sessions | idx_sessions_user_id | user_id | BTREE | Retrieve all sessions for a user (logout all devices) |
+      | sessions | idx_sessions_expires_at | expires_at | BTREE | Cleanup expired sessions (daily cron job) |
+      | sessions | idx_sessions_refresh_token | refresh_token | UNIQUE BTREE | Token validation on every API request |
+      | oauth_providers | idx_oauth_provider_user | (provider, provider_user_id) | UNIQUE BTREE | OAuth login (lookup by provider + provider_user_id) |
+
+  - id: constraints-and-rules
+    title: Constraints and Business Rules
+    description: |
+      Database-level constraints enforcing business rules and data integrity.
+
+    format: |
+      ## Constraints and Business Rules
+
+      **Check Constraints:**
+      - {Description of check constraint and why}
+
+      **Foreign Key Constraints:**
+      - {FK constraint with cascade rules}
+
+      **Unique Constraints:**
+      - {Unique constraint and reason}
+
+      **Triggers:**
+      - {Trigger name and purpose}
+
+    example: |
+      ## Constraints and Business Rules
+
+      **Check Constraints:**
+      - `users.email` must match email regex pattern (enforced by CHECK constraint)
+      - `sessions.expires_at` must be in the future (CHECK: expires_at > created_at)
+
+      **Foreign Key Constraints:**
+      - `sessions.user_id → users.id` with ON DELETE CASCADE (delete sessions when user is deleted)
+      - `oauth_providers.user_id → users.id` with ON DELETE CASCADE
+
+      **Unique Constraints:**
+      - `users.email` must be unique (prevents duplicate accounts)
+      - `sessions.refresh_token` must be unique (prevents token reuse attacks)
+      - `oauth_providers(provider, provider_user_id)` must be unique (one OAuth account per provider)
+
+      **Triggers:**
+      - `update_updated_at_timestamp` trigger on users table: automatically sets `updated_at = now()` on UPDATE
+
+  - id: seed-data
+    title: Seed Data (Optional)
+    description: |
+      Initial data loaded for development and testing environments.
+      This section is OPTIONAL.
+
+    format: |
+      ## Seed Data
+
+      **Purpose:** {Why seed data is needed}
+
+      **Environments:** {Where seed data is loaded (dev, test, staging, production)}
+
+      **Data:**
+      - {Description of seed data 1}
+      - {Description of seed data 2}
+
+    example: |
+      ## Seed Data
+
+      **Purpose:** Provide test accounts and sample data for development and testing.
+
+      **Environments:** Development and Test only (NOT staging or production)
+
+      **Data:**
+      - **Test users:**
+        - `test@example.com` (password: `Test1234!`) - Regular user
+        - `admin@example.com` (password: `Admin1234!`) - Admin user
+      - **OAuth test accounts:**
+        - Google test account linked to `test@example.com`
+      - **Sessions:** Pre-created sessions for both test users (valid for 7 days)
+
+  - id: backup-and-recovery
+    title: Backup and Recovery
+    description: |
+      Database backup strategy and recovery procedures.
+
+    format: |
+      ## Backup and Recovery
+
+      **Backup Schedule:**
+      - {Backup frequency and timing}
+
+      **Retention Policy:**
+      - {How long backups are kept}
+
+      **Backup Location:**
+      - {Where backups are stored}
+
+      **Recovery Process:**
+      1. {Step 1}
+      2. {Step 2}
+      3. {Step 3}
+
+      **RTO/RPO:**
+      - RTO (Recovery Time Objective): {target time to restore}
+      - RPO (Recovery Point Objective): {maximum acceptable data loss}
+
+    example: |
+      ## Backup and Recovery
+
+      **Backup Schedule:**
+      - Full backup: Daily at 2:00 AM UTC
+      - Incremental backup: Every 6 hours
+      - Point-in-time recovery: Enabled (PostgreSQL WAL archiving)
+
+      **Retention Policy:**
+      - Daily backups: 30 days
+      - Weekly backups: 12 weeks
+      - Monthly backups: 12 months
+
+      **Backup Location:**
+      - Primary: DigitalOcean Spaces (object storage, us-east-1)
+      - Secondary: AWS S3 (cross-provider redundancy, us-west-2)
+
+      **Recovery Process:**
+      1. Identify the backup to restore from (by timestamp)
+      2. Stop the database service
+      3. Restore backup using `pg_restore` command
+      4. Replay WAL logs for point-in-time recovery (if needed)
+      5. Verify data integrity with checksums
+      6. Restart database service and test application connectivity
+
+      **RTO/RPO:**
+      - RTO (Recovery Time Objective): < 1 hour
+      - RPO (Recovery Point Objective): < 15 minutes (via WAL archiving)
+
+  - id: security-considerations
+    title: Security Considerations
+    description: |
+      Security measures implemented at the database level.
+
+    format: |
+      ## Security Considerations
+
+      **Encryption:**
+      - {Encryption at rest and in transit}
+
+      **Access Control:**
+      - {Database users, roles, and permissions}
+
+      **Sensitive Data:**
+      - {How sensitive fields are protected}
+
+      **Audit Logging:**
+      - {What database operations are logged}
+
+    example: |
+      ## Security Considerations
+
+      **Encryption:**
+      - At rest: Full disk encryption (LUKS) on database server
+      - In transit: TLS 1.3 required for all connections
+      - Application-level: `access_token` and `refresh_token` in `oauth_providers` are encrypted with AES-256-GCM before storage
+
+      **Access Control:**
+      - Database user `user_service_app`: CRUD on all tables, no DDL
+      - Database user `migration_user`: DDL and DML (used by CI/CD for migrations)
+      - Database user `readonly_analytics`: SELECT only (for analytics queries)
+      - No direct superuser access from application
+
+      **Sensitive Data:**
+      - `users.password_hash`: Bcrypt with cost factor 12
+      - `oauth_providers.access_token`: Encrypted with app secret key
+      - `sessions.refresh_token`: Stored as opaque tokens, validated server-side
+
+      **Audit Logging:**
+      - All DDL operations logged (CREATE, ALTER, DROP)
+      - Failed login attempts logged (via application, not DB)
+      - User deletions logged with timestamp and reason
+
+# Complete example
+complete_example_path: |
+  See example file at: docs/db-schemas/users-db.md (generated during /initialize-product)

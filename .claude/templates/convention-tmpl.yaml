@@ -1,0 +1,424 @@
+template:
+  id: convention-template
+  name: Convention Document Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-create-backend-architecture/SKILL.md
+    - .claude/skills/product-create-frontend-architecture/SKILL.md
+    - .claude/skills/product-change-technical-definition/SKILL.md
+
+  description: |
+    Structure specification for convention documents.
+
+    A convention defines how to solve one concrete development concern
+    (logging, validation, http-server, etc.) for a given language: which
+    package to use, how to configure it, how to use it, and which rules
+    to follow.
+
+    Conventions live in two places:
+    - Catalog: .claude/conventions/{language}/{id}.md (shared, maintained
+      in the workflow repo)
+    - Custom: docs/architectures/{service}/conventions/{id}.md (service-
+      specific, created when the catalog does not fit)
+
+    Both follow the same structure. A custom convention with the same id
+    as a catalog one replaces it for that service only.
+
+    Conventions are read by skills like service-planify-story and
+    service-implement-story to inform code generation. They are written
+    for an agent audience (concise, concrete, action-oriented), but
+    humans on the team also read them.
+
+# Output specification
+output:
+  path:
+    catalog: .claude/conventions/{language}/{id}.md
+    custom: docs/architectures/{service}/conventions/{id}.md
+  format: markdown
+  language: english
+  naming:
+    pattern: "{id}.md"
+    id_format: "kebab-case, no spaces; `_base` reserved for the base convention of each language"
+    examples:
+      - "logging.md"
+      - "http-server.md"
+      - "error-handling.md"
+      - "_base.md"
+
+# Frontmatter (mandatory)
+frontmatter:
+  format: |
+    ---
+    id: {convention-id}
+    display_name: {short human-readable name in Spanish}
+    language: {node | nextjs | ...}
+    description: {one-line description in English}
+    applies_to: [{api}, {worker}, {cli}, {library}, {frontend}]
+    required_by: [{other-convention-id}, ...]
+    package: {recommended-package-name or null}
+    ---
+
+  fields:
+    id:
+      required: true
+      type: string (kebab-case)
+      description: |
+        Stable identifier. Used in manifests and cross-references between
+        conventions. Must match the filename (without .md). The literal
+        `_base` is reserved for the always-active base convention.
+    display_name:
+      required: true
+      type: string
+      description: |
+        Human-readable name shown to end users in skills. Written in
+        Spanish. When the package is integral to the convention identity,
+        include it between parens (e.g., "Logging estructurado (Pino)",
+        "Servidor HTTP (Fastify)").
+    language:
+      required: true
+      type: string
+      description: |
+        Language or runtime. Must match a folder under .claude/conventions/.
+    description:
+      required: true
+      type: string (one line)
+      description: |
+        One-line summary in English. Used by skills for tooltips and
+        catalog listings. Avoid marketing language; describe what the
+        convention defines.
+    applies_to:
+      required: true
+      type: array of service types
+      values: [api, worker, cli, library, frontend]
+      description: |
+        Service types where this convention is relevant. Used by skills
+        to filter suggestions. Empty array means it applies to none and
+        is invalid.
+    required_by:
+      required: true
+      type: array of convention ids (may be empty)
+      description: |
+        Auto-include trigger. If any convention listed here is active in
+        the manifest, THIS convention is also activated by the resolver
+        (transitive closure). Use it to express dependencies: e.g.,
+        `error-handling` lists `[http-server, validation, auth-jwt]`
+        because any of those needs the error contract.
+    package:
+      required: true
+      type: string or null
+      description: |
+        Recommended package name. Null when the convention does not
+        prescribe a package (e.g., pure pattern conventions). The package
+        is part of the convention's identity: changing it means a new
+        convention, not a parameter.
+
+# Body sections
+sections:
+
+  - id: title
+    title: Title (H1)
+    required: true
+    description: |
+      Document title.
+
+      Format: `# {Concern} ({Language}, {Package})` for catalog conventions.
+      For custom conventions, you can be slightly more specific
+      (e.g., `# HTTP Server (Node, Express)`).
+
+      The `_base` convention uses `# Base Conventions ({Language})`.
+
+    examples:
+      - "# Logging (Node)"
+      - "# HTTP Server (Node)"
+      - "# Error Handling (Node)"
+      - "# Base Conventions (Node)"
+
+  - id: intro
+    title: Intro paragraph (no heading)
+    required: true
+    description: |
+      One short paragraph (2-4 sentences) right after the H1, no heading.
+      Explains in plain language what this convention covers and the
+      chosen package.
+
+      For custom conventions: optionally mention briefly that this is a
+      service-local replacement of the catalog default and why.
+
+    examples:
+      - |
+        Structured JSON logging with [Pino](https://getpino.io). A single
+        shared logger for the whole service.
+
+  - id: when-to-use
+    title: When to use
+    heading: "## When to use"
+    required: true
+    description: |
+      Bullet list (short, 2-5 items) describing the service types and
+      situations where this convention applies. Reflects `applies_to`
+      from the frontmatter, with brief context.
+
+      Skills use this to decide whether to suggest the convention.
+
+    format: |
+      ## When to use
+
+      - {situation 1}
+      - {situation 2}
+      - {situation 3}
+
+    example: |
+      ## When to use
+
+      Any Node service that needs observability: APIs, workers,
+      long-running CLIs. May not apply to short interactive CLIs.
+
+  - id: package
+    title: Package
+    heading: "## Package"
+    required: true
+    description: |
+      Lists the npm/pip/etc. packages used by this convention. Short.
+      Code block with package names, one per line, plus a short comment
+      when relevant (dev only, optional, etc.).
+
+      If the convention does not prescribe a package, this section may
+      be omitted (set frontmatter `package: null`) OR replaced with a
+      short note explaining there is no package.
+
+    format: |
+      ## Package
+
+      ```
+      {package-name}             # role
+      {other-package}            # role (dev only / optional)
+      ```
+
+    example: |
+      ## Package
+
+      ```
+      pino                # runtime
+      pino-pretty         # dev only, for readable output
+      ```
+
+  - id: configuration
+    title: Configuration / Base configuration
+    heading: "## Configuration" or "## Base configuration"
+    required: true_when_applicable
+    description: |
+      Code block showing the canonical setup: imports, instantiation,
+      configuration object. This is the snippet a developer can copy and
+      adapt.
+
+      Use the actual code style of the language (TypeScript for Node).
+      Include the file path as a comment at the top of the block.
+
+      For very generic conventions (like `_base` or `error-handling`)
+      where there is no single setup file, this section may be split
+      across multiple smaller code blocks under different sub-headings,
+      OR omitted in favor of inline code throughout other sections.
+
+    example: |
+      ## Configuration
+
+      ```ts
+      // src/shared/logger.ts
+      import pino from 'pino';
+      ...
+      ```
+
+  - id: structure
+    title: Structure
+    heading: "## Structure"
+    required: false
+    description: |
+      Optional. Shows the directory layout this convention assumes inside
+      the service. Use a tree block.
+
+      Include this section when the convention introduces directories or
+      file naming that the developer must follow (e.g., http-server
+      defines `src/http/`, `src/domain/{module}/`).
+
+      Skip when the convention does not impose layout (e.g., logging,
+      error-handling — these add files but to whatever location the
+      developer already follows).
+
+    example: |
+      ## Structure
+
+      ```
+      src/
+      ├── http/
+      │   ├── server.ts
+      │   └── ...
+      └── domain/
+          └── {module}/
+              └── ...
+      ```
+
+  - id: how-to-use
+    title: How to use
+    heading: "## How to use"
+    required: true
+    description: |
+      Core section. Shows the developer how to actually use the package
+      in production code: code samples with explanations, patterns,
+      common scenarios.
+
+      Organize with `###` sub-headings when the section covers multiple
+      angles (e.g., "Global logger" vs "Child loggers"). Keep each
+      sub-section short — one code block plus 1-2 sentences of context.
+
+      This is where most of the technical content lives. Show real
+      patterns, not just toy examples.
+
+    sub_sections_when_needed:
+      - "### {Scenario or pattern}"
+
+    example: |
+      ## How to use
+
+      ### Global logger
+
+      ```ts
+      import { logger } from '@/shared/logger';
+
+      logger.info({ userId: user.id }, 'User created');
+      ```
+
+      ### Child loggers (per request / job context)
+
+      Create a child logger per request, job, or flow:
+
+      ```ts
+      const reqLogger = logger.child({ requestId, userId });
+      reqLogger.info('Processing request');
+      ```
+
+  - id: domain-specific-sections
+    title: Domain-specific sections
+    heading: "## {Topic}"
+    required: false
+    description: |
+      Optional. Conventions can add sections for topics that don't fit
+      under "How to use" but are essential to the convention. Examples:
+
+      - Logging adds `## Levels` (table of log levels).
+      - HTTP Server adds `## REST conventions` (table of methods/status).
+      - Error Handling adds `## When to use each one` (table per error class).
+      - HTTP Server adds `## Global error handler`, `## Request context`.
+
+      Use H2 for each topic. Tables are encouraged for normative content
+      (status codes, levels, naming rules).
+
+    when_to_add: |
+      Add a section when:
+      - There is normative content that doesn't fit elsewhere
+        (a table of values, a list of conventions to follow).
+      - The topic is referenced from `## Rules` and needs its own
+        explanation.
+
+      Do NOT add a section for things that fit naturally inside
+      "How to use" — those go there.
+
+  - id: rules
+    title: Rules
+    heading: "## Rules"
+    required: true
+    description: |
+      Numbered or bulleted list of normative statements. Each rule is:
+      - One line (or one short paragraph if context is essential).
+      - Imperative ("never log passwords", "use kebab-case for files").
+      - Verifiable (a reviewer can check whether the rule was followed).
+
+      Aim for 5-15 rules. Fewer is fine for narrow conventions; more
+      means the convention is doing too much and should be split.
+
+      Rules in custom conventions that replace a catalog one should
+      preserve the intent of catalog rules (renumber as needed). Adding
+      new rules specific to the new package is fine.
+
+      Format prefers bullets over numbers unless ordering matters.
+
+    format: |
+      ## Rules
+
+      - {rule 1}.
+      - {rule 2}.
+      - ...
+
+    example: |
+      ## Rules
+
+      - One logger per service. No multiple instances with different configs.
+      - Never log: passwords, tokens, API keys, session cookies.
+      - Messages are short, descriptive, static. No dynamic info in the string.
+
+  - id: integration
+    title: Integration with other conventions
+    heading: "## Integration with other conventions" or "## Consumption by other conventions"
+    required: false
+    description: |
+      Optional. Lists how this convention interacts with others in the
+      catalog. Use when the convention is consumed by or consumes another.
+
+      Format: bulleted list, each item names the related convention and
+      the integration point in one short sentence.
+
+      Skip when the convention is standalone.
+
+    format: |
+      ## Integration with other conventions
+
+      - **{other-convention}**: {brief integration point}.
+      - **{other-convention}**: {brief integration point}.
+
+    example: |
+      ## Integration with other conventions
+
+      - **http-server**: validates `body`, `query`, `params` per endpoint.
+      - **error-handling**: Zod errors are translated to `ValidationError` (status 400).
+
+# Special convention: _base
+special_cases:
+  base:
+    id: _base
+    description: |
+      Each language has a `_base.md` convention that is always active.
+      It contains rules universal to that language (naming, dates,
+      strict mode, imports, project structure).
+
+      Differences from a normal convention:
+      - The "When to use" section is replaced by a short note clarifying
+        that it is always active.
+      - The "How to use" section is replaced by multiple H2 sections
+        organized by topic (TypeScript, Naming, Dates, Imports, etc.).
+      - The "Package" section may list the language itself (e.g.,
+        `typescript`) or be omitted.
+      - The "Integration with other conventions" section is typically
+        absent.
+
+      `_base` still uses the same frontmatter format.
+
+# Quality checklist
+quality_checklist:
+  description: |
+    A well-written convention satisfies all of these.
+
+  items:
+    - "Frontmatter includes all mandatory fields with valid values."
+    - "Title is `# {Concern} ({Language})` or `# {Concern} ({Language}, {Package})`."
+    - "Intro paragraph (no heading) right after the title, 2-4 sentences."
+    - "## When to use is present (or replaced for `_base`)."
+    - "## Package lists exact package names with roles."
+    - "## How to use shows real usage patterns with TypeScript code."
+    - "## Rules has 5-15 imperative, verifiable statements."
+    - "Optional sections (Structure, Integration, domain-specific) are present when applicable."
+    - "All section headings are H2 (`##`). Sub-headings are H3 (`###`)."
+    - "Code blocks have language tags (` ```ts `, ` ```yaml `, etc.) and a file-path comment at the top when applicable."
+    - "Content is in English (catalog and custom alike)."
+    - "No filler, no marketing language, no `// TODO`. Every paragraph earns its place."

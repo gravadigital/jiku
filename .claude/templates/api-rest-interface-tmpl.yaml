@@ -1,0 +1,708 @@
+template:
+  id: api-rest-interface-template
+  name: API REST Interface Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-technical-architecture.md
+
+  description: |
+    Structure specification for API documentation using OpenAPI 3.0 YAML format.
+
+    This template defines the structure for API specifications that document
+    REST APIs for each service. The output MUST be in OpenAPI 3.0 YAML format,
+    NOT markdown or JSON.
+
+    OpenAPI specs serve multiple purposes:
+    - Human-readable API documentation
+    - Machine-readable for code generation (clients, servers, types)
+    - API testing and validation
+    - Interactive documentation (Swagger UI, Redoc)
+
+# Output specification
+output:
+  path: docs/apis/{service-name}-api.yaml
+  format: yaml  # CRITICAL: OpenAPI YAML, not markdown
+  naming:
+    pattern: "{service-name}-api.yaml"
+    examples:
+      - "user-service-api.yaml"
+      - "task-service-api.yaml"
+      - "project-service-api.yaml"
+
+# OpenAPI 3.0 Structure
+structure:
+
+  - id: metadata
+    title: OpenAPI Metadata
+    description: |
+      Basic information about the API: version, title, description, contact.
+
+    required_fields:
+      - openapi: "3.0.0"
+      - info.title: string
+      - info.version: string
+      - info.description: string
+
+    optional_fields:
+      - info.contact: object
+      - info.license: object
+      - externalDocs: object
+
+    format: |
+      openapi: 3.0.0
+      info:
+        title: {Service Name} API
+        version: {version}
+        description: |
+          {Multi-line description of what this API does}
+        contact:
+          name: {Team name}
+          email: {contact email}
+      externalDocs:
+        description: {Link to additional docs}
+        url: {URL}
+
+    example: |
+      openapi: 3.0.0
+      info:
+        title: User Service API
+        version: 1.0.0
+        description: |
+          API for user management, authentication, and profile operations.
+
+          This service handles:
+          - User registration (email/password and OAuth)
+          - Authentication (login, logout, token refresh)
+          - Profile management (view, update, avatar upload)
+          - Password recovery
+        contact:
+          name: TaskFlow Team
+          email: dev@taskflow.example.com
+      externalDocs:
+        description: User Service Architecture
+        url: https://docs.taskflow.example.com/architectures/user-service
+
+  - id: servers
+    title: Servers
+    description: |
+      List of server URLs for different environments (dev, staging, production).
+
+    format: |
+      servers:
+        - url: {base URL}
+          description: {environment description}
+
+    example: |
+      servers:
+        - url: https://api.taskflow.example.com/v1
+          description: Production server
+        - url: https://staging-api.taskflow.example.com/v1
+          description: Staging server
+        - url: http://localhost:3000/v1
+          description: Local development server
+
+  - id: paths
+    title: Paths (Endpoints)
+    description: |
+      All API endpoints with operations (GET, POST, PUT, PATCH, DELETE).
+
+      For each endpoint:
+      - HTTP method
+      - Summary and description
+      - Parameters (path, query, header)
+      - Request body (if applicable)
+      - Responses (success and error cases)
+      - Security requirements
+
+    structure_per_endpoint: |
+      /path:
+        method:
+          summary: Brief summary
+          description: Detailed description
+          operationId: uniqueOperationId
+          tags: [tag1, tag2]
+          parameters: [...]
+          requestBody: {...}
+          responses:
+            '200':
+              description: Success
+              content:
+                application/json:
+                  schema: {...}
+            '400':
+              description: Bad request
+              content:
+                application/json:
+                  schema: {...}
+          security:
+            - bearerAuth: []
+
+    example: |
+      paths:
+        /health:
+          get:
+            summary: Health check
+            description: Returns service health status
+            operationId: healthCheck
+            tags:
+              - Health
+            responses:
+              '200':
+                description: Service is healthy
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                          example: ok
+                        timestamp:
+                          type: string
+                          format: date-time
+
+        /users:
+          post:
+            summary: Create new user
+            description: Register a new user with email and password
+            operationId: createUser
+            tags:
+              - Users
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required:
+                      - email
+                      - password
+                      - name
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                        example: john@example.com
+                      password:
+                        type: string
+                        format: password
+                        minLength: 8
+                        example: SecureP@ss123
+                      name:
+                        type: string
+                        minLength: 2
+                        maxLength: 100
+                        example: John Doe
+            responses:
+              '201':
+                description: User created successfully
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/User'
+              '400':
+                description: Invalid input
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+              '409':
+                description: Email already exists
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+
+        /users/{userId}:
+          get:
+            summary: Get user by ID
+            description: Retrieve user profile information
+            operationId: getUserById
+            tags:
+              - Users
+            parameters:
+              - name: userId
+                in: path
+                required: true
+                description: User ID
+                schema:
+                  type: string
+                  example: usr_123456
+            responses:
+              '200':
+                description: User found
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/User'
+              '404':
+                description: User not found
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+            security:
+              - bearerAuth: []
+
+          patch:
+            summary: Update user profile
+            description: Update user information (name, avatar, timezone)
+            operationId: updateUser
+            tags:
+              - Users
+            parameters:
+              - name: userId
+                in: path
+                required: true
+                description: User ID
+                schema:
+                  type: string
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      avatar:
+                        type: string
+                        format: uri
+                      timezone:
+                        type: string
+                        example: America/New_York
+            responses:
+              '200':
+                description: User updated successfully
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/User'
+              '400':
+                description: Invalid input
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+              '403':
+                description: Forbidden (can only update own profile)
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+              '404':
+                description: User not found
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+            security:
+              - bearerAuth: []
+
+        /auth/login:
+          post:
+            summary: User login
+            description: Authenticate user with email and password
+            operationId: login
+            tags:
+              - Authentication
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required:
+                      - email
+                      - password
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                      password:
+                        type: string
+                        format: password
+            responses:
+              '200':
+                description: Login successful
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        accessToken:
+                          type: string
+                          description: JWT access token (15min expiry)
+                        refreshToken:
+                          type: string
+                          description: JWT refresh token (7 days expiry)
+                        user:
+                          $ref: '#/components/schemas/User'
+              '401':
+                description: Invalid credentials
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Error'
+
+  - id: components
+    title: Components
+    description: |
+      Reusable schemas, security schemes, parameters, responses.
+
+      This section defines shared objects referenced throughout the spec
+      using $ref syntax.
+
+    subsections:
+
+      - id: schemas
+        title: Schemas
+        description: |
+          Data models and structures used in requests and responses.
+
+        example: |
+          components:
+            schemas:
+              User:
+                type: object
+                required:
+                  - id
+                  - email
+                  - name
+                  - createdAt
+                properties:
+                  id:
+                    type: string
+                    description: Unique user identifier
+                    example: usr_123456
+                  email:
+                    type: string
+                    format: email
+                    example: john@example.com
+                  name:
+                    type: string
+                    example: John Doe
+                  avatar:
+                    type: string
+                    format: uri
+                    nullable: true
+                    example: https://cdn.example.com/avatars/usr_123456.jpg
+                  timezone:
+                    type: string
+                    example: America/New_York
+                  createdAt:
+                    type: string
+                    format: date-time
+                    example: 2024-01-15T10:30:00Z
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    example: 2024-01-20T14:22:00Z
+
+              Error:
+                type: object
+                required:
+                  - code
+                  - message
+                properties:
+                  code:
+                    type: string
+                    description: Error code for programmatic handling
+                    example: INVALID_INPUT
+                  message:
+                    type: string
+                    description: Human-readable error message
+                    example: The email address is invalid
+                  details:
+                    type: object
+                    description: Additional error details
+                    additionalProperties: true
+                    example:
+                      field: email
+                      reason: Must be a valid email format
+
+      - id: security-schemes
+        title: Security Schemes
+        description: |
+          Authentication and authorization schemes used by the API.
+
+        example: |
+          components:
+            securitySchemes:
+              bearerAuth:
+                type: http
+                scheme: bearer
+                bearerFormat: JWT
+                description: |
+                  JWT token obtained from /auth/login.
+                  Include in Authorization header: `Bearer <token>`
+
+  - id: tags
+    title: Tags
+    description: |
+      Logical grouping of operations for better organization in documentation.
+
+    format: |
+      tags:
+        - name: {tag name}
+          description: {tag description}
+
+    example: |
+      tags:
+        - name: Health
+          description: Health check endpoints
+        - name: Users
+          description: User management operations
+        - name: Authentication
+          description: Authentication and authorization
+
+# Complete example
+complete_example: |
+  openapi: 3.0.0
+  info:
+    title: User Service API
+    version: 1.0.0
+    description: |
+      API for user management, authentication, and profile operations.
+
+      This service handles:
+      - User registration (email/password and OAuth)
+      - Authentication (login, logout, token refresh)
+      - Profile management (view, update, avatar upload)
+      - Password recovery
+    contact:
+      name: TaskFlow Team
+      email: dev@taskflow.example.com
+
+  externalDocs:
+    description: User Service Architecture
+    url: https://docs.taskflow.example.com/architectures/user-service
+
+  servers:
+    - url: https://api.taskflow.example.com/v1
+      description: Production server
+    - url: https://staging-api.taskflow.example.com/v1
+      description: Staging server
+    - url: http://localhost:3000/v1
+      description: Local development server
+
+  tags:
+    - name: Health
+      description: Health check endpoints
+    - name: Users
+      description: User management operations
+    - name: Authentication
+      description: Authentication and authorization
+
+  paths:
+    /health:
+      get:
+        summary: Health check
+        description: Returns service health status
+        operationId: healthCheck
+        tags:
+          - Health
+        responses:
+          '200':
+            description: Service is healthy
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                      example: ok
+                    timestamp:
+                      type: string
+                      format: date-time
+
+    /users:
+      post:
+        summary: Create new user
+        description: Register a new user with email and password
+        operationId: createUser
+        tags:
+          - Users
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - email
+                  - password
+                  - name
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  password:
+                    type: string
+                    format: password
+                    minLength: 8
+                  name:
+                    type: string
+                    minLength: 2
+                    maxLength: 100
+        responses:
+          '201':
+            description: User created successfully
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/User'
+          '400':
+            description: Invalid input
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+          '409':
+            description: Email already exists
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    /users/{userId}:
+      get:
+        summary: Get user by ID
+        description: Retrieve user profile information
+        operationId: getUserById
+        tags:
+          - Users
+        parameters:
+          - name: userId
+            in: path
+            required: true
+            schema:
+              type: string
+        responses:
+          '200':
+            description: User found
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/User'
+          '404':
+            description: User not found
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+        security:
+          - bearerAuth: []
+
+    /auth/login:
+      post:
+        summary: User login
+        description: Authenticate user with email and password
+        operationId: login
+        tags:
+          - Authentication
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - email
+                  - password
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  password:
+                    type: string
+                    format: password
+        responses:
+          '200':
+            description: Login successful
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    accessToken:
+                      type: string
+                    refreshToken:
+                      type: string
+                    user:
+                      $ref: '#/components/schemas/User'
+          '401':
+            description: Invalid credentials
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+  components:
+    schemas:
+      User:
+        type: object
+        required:
+          - id
+          - email
+          - name
+          - createdAt
+        properties:
+          id:
+            type: string
+            example: usr_123456
+          email:
+            type: string
+            format: email
+          name:
+            type: string
+          avatar:
+            type: string
+            format: uri
+            nullable: true
+          timezone:
+            type: string
+          createdAt:
+            type: string
+            format: date-time
+          updatedAt:
+            type: string
+            format: date-time
+
+      Error:
+        type: object
+        required:
+          - code
+          - message
+        properties:
+          code:
+            type: string
+          message:
+            type: string
+          details:
+            type: object
+            additionalProperties: true
+
+    securitySchemes:
+      bearerAuth:
+        type: http
+        scheme: bearer
+        bearerFormat: JWT
+
+# Best practices
+best_practices:
+  - Use meaningful operationIds (used for code generation)
+  - Include examples in schemas and responses
+  - Document all possible response codes (success + errors)
+  - Use $ref for reusable schemas (DRY principle)
+  - Tag endpoints for logical grouping
+  - Include descriptions for complex fields
+  - Use format validators (email, date-time, uri)
+  - Define security requirements per endpoint
+  - Version your API in the URL (/v1, /v2)
+  - Include externalDocs for additional documentation

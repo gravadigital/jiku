@@ -1,0 +1,41 @@
+service: web
+type: frontend
+language: nextjs
+
+# Todas las convenciones son CUSTOM (viven en ./conventions/), no del catálogo.
+#
+# El catálogo de Next.js recomienda Tailwind, Zustand + nuqs, `fetch` nativo en Server
+# Components, Server Actions con `useActionState` + Zod, y CI en GitLab. Este servicio usa
+# Sass + CSS Modules, TanStack Query, axios de servidor, react-hook-form/yup y GitHub Actions.
+#
+# No es una desviación a corregir: `web` es un frontend existente que se importó al workflow,
+# y su stack es anterior al catálogo. Las reglas transversales del catálogo —Server Components
+# por defecto, TypeScript strict, el token nunca en el cliente, boundaries de error por ruta—
+# SÍ aplican y están recogidas en cada convención custom.
+#
+# `ci-github` no tiene equivalente en el catálogo (que solo trae `ci-gitlab`): es una
+# convención nueva, no un reemplazo.
+#
+# `testing-e2e` NO se declara: el servicio no tiene tests end-to-end.
+conventions:
+  - data-fetching       # Server Actions + axios de servidor + TanStack Query
+  - mutations           # Server Action o BFF, e invalidación explícita de queries
+  - api-routes          # BFF selectivo: solo lo que el navegador no puede resolver server-side
+  - auth                # Auth.js v5 + Zitadel OIDC, guard en el layout del grupo de rutas
+  - state-management    # TanStack Query (servidor) + searchParams (filtros) + useState (local)
+  - forms               # Tres enfoques conviviendo; cuál usar en código nuevo
+  - styling             # Sass + CSS Modules + custom properties, sin librería de componentes
+  - error-handling      # error.tsx por ruta, ApiError normalizado, toasts
+  - testing-unit        # Vitest + Testing Library, tests junto al código, TZ fijada
+  - ci-github           # CI y publicación de imágenes en GitHub Actions
+  - dockerfile          # Multi-stage con contexto en la raíz del monorepo
+
+modules:
+  - clients
+  - projects
+  - requirements
+  - objectives
+  - time-allocation
+  - worked-times
+  - attachments
+  - auth

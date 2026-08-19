@@ -1,0 +1,231 @@
+template:
+  id: discovery-domain
+  name: Discovery - Domain Analysis (DDD-light)
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-discovery-functional/SKILL.md
+
+  description: |
+    Structure specification for the Domain Analysis document (DDD-light), the
+    second artifact of the optional Discovery phase. It is the BRIDGE between the
+    functional and the technical analysis.
+
+    DDD-light means: ubiquitous language + entities (with types/enums) +
+    relationships + lifecycle/states + invariants/business rules + domain events
+    + bounded contexts. It deliberately omits the heavier DDD machinery
+    (aggregates, value objects, formal context maps).
+
+    DOWNSTREAM CONTRACTS (both load-bearing):
+    1. The "Entities" section is a verbatim-reusable SUPERSET of the PRD
+       Domain Entities section (see prd-requirements-tmpl.yaml `domain-entities`).
+       Names, types and enum values defined here are transcribed as-is by
+       /product-initialize Step 3 — keep the same notation:
+       `campo (tipo, req/opt, constraint)`, `estado (enum: a/b/c, default: a)`.
+    2. The "Bounded Contexts" section maps each context to the service(s) it
+       becomes. This feeds the "Owns Entities" column of prd-architecture-tmpl.yaml
+       and is what linearizes /product-discovery-technical and
+       /product-initialize-technical. EVERY bounded context MUST name a service.
+
+# Output specification
+output:
+  path: docs/discovery/analisis-dominio.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Análisis en progreso", "Análisis de dominio cerrado"
+    - analisis_funcional: string  # path to docs/discovery/analisis-funcional.md
+
+# Section definitions
+sections:
+
+  - id: ubiquitous-language
+    title: Ubiquitous Language
+    description: |
+      The shared glossary. Every term used in the entities, events and contexts
+      below must be defined here. This anchors the whole domain — the same word
+      must mean the same thing in the functional doc, the PRD and the code.
+
+    format: |
+      ## Lenguaje Ubicuo
+
+      | Término | Definición | Notas |
+      |---|---|---|
+      | [término] | [definición precisa] | [alias / lo que NO es] |
+
+    example: |
+      ## Lenguaje Ubicuo
+
+      | Término | Definición | Notas |
+      |---|---|---|
+      | Equipo | Selección confirmada de 11 jugadores con una formación | Inmutable tras confirmar. No confundir con "Sala" |
+      | Sala | Espacio de draft en vivo para 2-8 participantes | Efímera; se cierra al terminar el draft |
+      | Pick | Selección de un jugador por un participante en su turno | Exclusivo dentro de una sala |
+
+  - id: entities
+    title: Entities
+    description: |
+      The domain entities with attributes, types, enums, relationships and rules.
+      This is a SUPERSET of the PRD `domain-entities` section — use the SAME
+      notation so /product-initialize can transcribe it verbatim.
+
+      RULES:
+      - List only business entities, not technical infrastructure.
+      - Attributes with type + req/opt + constraints.
+      - Enums MUST list ALL valid values, with the default.
+      - Relationships with cardinality (belongs_to / has_many / references).
+      - Per-entity business rules in Notes.
+
+    per_entity_structure:
+      - name: Entity name (matches the ubiquitous language)
+      - key_attributes: "campo (tipo, req/opt, constraint), estado (enum: a/b/c, default: a)"
+      - relationships: belongs_to [Entity], has_many [Entity]
+      - notes: Business rules specific to this entity
+
+    format: |
+      ## Entidades
+
+      ### [Entidad]
+      - **Atributos clave:** campo (tipo, req/opt), estado (enum: val1/val2, default: val1)
+      - **Relaciones:** belongs_to [Entidad], has_many [Entidad]
+      - **Notas:** [reglas de negocio propias de la entidad]
+
+    example: |
+      ## Entidades
+
+      ### Equipo
+      - **Atributos clave:** codigo (string, req, único, Crockford Base32, 7 chars), nombre (string, opt, max: 24), formacion (enum: 4-4-2/4-3-3/4-2-3-1/3-5-2/3-4-3/5-3-2/5-4-1/4-5-1, req), modo_origen (enum: solo/draft, req), card_status (enum: pending/generating/ready, default: pending)
+      - **Relaciones:** has_many Seleccion (11), belongs_to Sala (opt, solo si modo_origen=draft)
+      - **Notas:** Inmutable tras confirmar. El código es único y permanente.
+
+      ### Participante
+      - **Atributos clave:** apodo (string, req, max: 24), seat_index (int, req), rol (enum: host/jugador/espectador, default: jugador), estado (enum: conectado/desconectado/abandono, default: conectado)
+      - **Relaciones:** belongs_to Sala
+      - **Notas:** Identificado por un token efímero por sala. Un espectador no tiene Equipo propio.
+
+  - id: lifecycle-and-states
+    title: Lifecycle and States
+    description: |
+      For each STATEFUL entity: its states, when each is reached, and which
+      transitions are allowed vs forbidden. Forbidden transitions are as
+      important as allowed ones — they become validation rules downstream.
+
+    format: |
+      ## Ciclos de Vida y Estados
+
+      ### [Entidad]
+
+      | Estado | Cuándo | Transiciones permitidas | Prohibidas |
+      |---|---|---|---|
+      | [estado] | [cuándo] | [→ estados] | [→ estados] |
+
+    example: |
+      ## Ciclos de Vida y Estados
+
+      ### Participante
+
+      | Estado | Cuándo | Transiciones permitidas | Prohibidas |
+      |---|---|---|---|
+      | conectado | Conexión activa | → desconectado | — |
+      | desconectado | Conexión caída dentro de la ventana | → conectado, → abandono | — |
+      | abandono | 3 turnos perdidos o salida explícita | (terminal) | → conectado |
+
+  - id: invariants-and-business-rules
+    title: Invariants and Business Rules
+    description: |
+      Rules that must ALWAYS hold across the domain, each tagged with the entity
+      or context it governs. These are implementation contracts — must be
+      specific enough to test.
+
+    format: |
+      ## Invariantes y Reglas de Negocio
+
+      1. **[Entidad/Contexto]** — [regla que siempre debe cumplirse]
+
+    example: |
+      ## Invariantes y Reglas de Negocio
+
+      1. **Equipo** — Un equipo confirmado es inmutable: ni la card ni la página pública cambian aunque el plantel real cambie.
+      2. **Sala** — Un país no se repite dentro de un mismo draft en modo "país al azar".
+      3. **Sala** — Una sala siempre tiene exactamente un host; si el host se va, se transfiere al participante más antiguo.
+
+  - id: domain-events
+    title: Domain Events
+    description: |
+      Significant state changes worth reacting to. These foreshadow the technical
+      phase's event/subject design, but do NOT decide transport here (no NATS/
+      Kafka/webhooks — that's /product-discovery-technical's job).
+
+    format: |
+      ## Eventos de Dominio
+
+      | Evento | Disparado por | Datos clave | Contexto |
+      |---|---|---|---|
+      | [evento] | [qué lo dispara] | [payload mínimo] | [bounded context] |
+
+    example: |
+      ## Eventos de Dominio
+
+      | Evento | Disparado por | Datos clave | Contexto |
+      |---|---|---|---|
+      | EquipoConfirmado | Confirmar 11 en modo solo | codigo, formacion | Equipos |
+      | PickRealizado | Participante elige jugador en su turno | sala, participante, jugador | Draft |
+      | EquipoReportado | Click en "Reportar este equipo" | codigo, motivo | Moderación |
+
+  - id: bounded-contexts
+    title: Bounded Contexts
+    description: |
+      THE bridge section. Group entities into bounded contexts and name the
+      service(s) each context becomes. EVERY bounded context MUST name at least
+      one service — this is what lets the technical analysis map service↔entity
+      without re-deciding, and feeds the "Owns Entities" column of
+      prd-architecture-tmpl.yaml. Entities listed here must match the Entities
+      section names exactly. REQUIRED.
+
+    per_context_structure:
+      - name: Bounded context name
+      - entities_owned: List of entities (must match Entities section)
+      - responsibility: What this context is responsible for
+      - maps_to_service: Service(s) this context becomes (REQUIRED)
+      - relationships: Light note on upstream/downstream/shared with other contexts
+
+    format: |
+      ## Contextos Delimitados
+
+      | Contexto | Entidades | Responsabilidad | Servicio(s) |
+      |---|---|---|---|
+      | [contexto] | [entidades] | [responsabilidad] | [servicio(s)] |
+
+      **Relaciones entre contextos:** [notas upstream/downstream/shared]
+
+    example: |
+      ## Contextos Delimitados
+
+      | Contexto | Entidades | Responsabilidad | Servicio(s) |
+      |---|---|---|---|
+      | Equipos | Equipo, Seleccion | CRUD de equipos, generación de códigos | API Service |
+      | Draft | Sala, Participante, Pick | State machine del draft en vivo | API Service (Draft Engine) |
+      | Generación de Cards | Equipo (lectura) | Render de la card a imagen | Image Worker |
+
+      **Relaciones entre contextos:** Draft produce Equipos al cerrar; Generación de Cards consume Equipos (downstream, read-only).
+
+  - id: consistency-notes
+    title: Consistency Notes (optional)
+    description: |
+      Cross-references and detected ambiguities flagged for the team. Include only
+      if there are inconsistencies between the functional analysis and the domain
+      model worth surfacing (entity mentioned in a feature but not modeled, etc.).
+
+    format: |
+      ## Notas de Consistencia
+
+      - [inconsistencia detectada y cómo se resolvió / qué falta resolver]
+
+    example: |
+      ## Notas de Consistencia
+
+      - El "indicador de titularidad reciente" del análisis funcional implicaría datos
+        históricos de lineups que ninguna entidad modela aún → marcado como diferido.

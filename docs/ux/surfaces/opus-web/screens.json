@@ -1,0 +1,2188 @@
+{
+  "_generated": "derivado de screens/*.md por /product-ux-wireframes — no editar a mano",
+  "surface": "opus-web",
+  "platform": "web",
+  "viewports": [
+    "desktop",
+    "mobile"
+  ],
+  "accent_color": "#2563eb",
+  "grid_baseline": 8,
+  "viewport_widths": {
+    "desktop": 1440
+  },
+  "screens": [
+    {
+      "name": "login",
+      "displayName": "Login",
+      "route": "/login",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "fondo-arcos",
+          "type": "image",
+          "category": "content",
+          "content": "Fondo decorativo · ocho elipses + gradiente",
+          "aspect_ratio": "16:10",
+          "h": 120,
+          "annotation": "SVG inline escrito a mano en el JSX · preserveAspectRatio=\"xMidYMid slice\": recorta en vez de deformarse"
+        },
+        {
+          "name": "logo-circular",
+          "type": "image",
+          "category": "content",
+          "content": "Opus",
+          "aspect_ratio": "1:1",
+          "h": 110,
+          "annotation": "logo.png a 76×76 dentro de un círculo blanco de 120×120 · lleva priority"
+        },
+        {
+          "name": "titulo",
+          "type": "heading",
+          "category": "content",
+          "level": "h1",
+          "content": "¡Bienvenido a OPUS!",
+          "annotation": "única vez en toda la aplicación que la marca se escribe en mayúsculas"
+        },
+        {
+          "name": "descripcion",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Seguí el avance de tu proyecto y conocé el estado de cada tarea al instante.",
+          "annotation": "única declaración de propósito de producto del código · dice \"tarea\", no \"requisito\""
+        },
+        {
+          "name": "flecha-descendente",
+          "type": "icon",
+          "category": "content",
+          "icon": "arrow-down",
+          "content": "",
+          "annotation": "decorativa, apunta al botón · sin aria-hidden"
+        },
+        {
+          "name": "boton-ingresar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Iniciar sesión",
+          "annotation": "signIn('zitadel') · navega fuera de la aplicación",
+          "state_overrides": {
+            "loading": {
+              "variant": "disabled",
+              "content": "Cargando...",
+              "annotation": "el estado no se revierte nunca: sin catch ni finally"
+            }
+          }
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "fondo-arcos",
+          "logo-circular",
+          "titulo",
+          "descripcion",
+          "flecha-descendente",
+          "boton-ingresar"
+        ],
+        "desktop": [
+          {
+            "row": "centrado",
+            "cols": [
+              {
+                "w": 3,
+                "stack": []
+              },
+              {
+                "w": 6,
+                "stack": [
+                  "fondo-arcos",
+                  "logo-circular",
+                  "titulo",
+                  "descripcion",
+                  "flecha-descendente",
+                  "boton-ingresar"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": []
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "login-entrada",
+      "displayName": "Login entrada (sin UI)",
+      "route": "/login/enter",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "sin-interfaz",
+          "type": "section",
+          "category": "layout",
+          "h": 90,
+          "content": "Sin interfaz — server component que redirige",
+          "annotation": "POST /api/auth/present (timeout 10 s) y redirect('/') · el componente no devuelve JSX, así que no hay DOM que pintar"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "sin-interfaz"
+        ],
+        "desktop": [
+          "sin-interfaz"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "proyectos-redireccion",
+      "displayName": "Proyectos (redirección)",
+      "route": "/projects",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "sidebar-navegacion",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Opus",
+          "items": [
+            {
+              "title": "Proyecto Alfa",
+              "icon": "folder"
+            },
+            {
+              "title": "Proyecto Beta",
+              "icon": "folder"
+            },
+            {
+              "title": "Nuevo requisito",
+              "icon": "plus"
+            },
+            {
+              "title": "Cerrar sesión",
+              "icon": "lock"
+            }
+          ],
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "annotation": "chrome de (dashboard) · 263px fijos · display:none bajo 768px, y no se monta reemplazo"
+        },
+        {
+          "name": "indicador-carga",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando...",
+          "hidden_in_states": [
+            "empty",
+            "error de sistema"
+          ],
+          "annotation": "Spinner size=lg · role=\"status\" + aria-label=\"Cargando\""
+        },
+        {
+          "name": "texto-estado",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Redirigiendo...",
+          "annotation": "la pantalla no tiene <h1> en ningún estado",
+          "state_overrides": {
+            "loading": {
+              "content": "Cargando proyectos..."
+            },
+            "empty": {
+              "content": "No tienes proyectos asignados",
+              "annotation": "usa \"tú\" mientras el resto de la aplicación vosea · no distingue \"no te asignaron\" de \"perdiste el permiso\" ni de \"el alta falló\""
+            },
+            "error de sistema": {
+              "content": "Error al cargar los proyectos",
+              "annotation": "se pinta en --color-error · sin role=\"alert\", no se anuncia"
+            }
+          }
+        },
+        {
+          "name": "boton-reintentar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Reintentar",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "refetch() de useProjects · no navega"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "indicador-carga",
+          "texto-estado",
+          "boton-reintentar"
+        ],
+        "desktop": [
+          {
+            "row": "shell",
+            "cols": [
+              {
+                "w": 3,
+                "stack": [
+                  "sidebar-navegacion"
+                ]
+              },
+              {
+                "w": 9,
+                "stack": [
+                  {
+                    "row": "centrado",
+                    "cols": [
+                      {
+                        "w": 3,
+                        "stack": []
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "indicador-carga",
+                          "texto-estado",
+                          "boton-reintentar"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "tablero-requisitos",
+      "displayName": "Tablero de requisitos",
+      "route": "/projects/[projectId]/requirements",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "sidebar-navegacion",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Opus",
+          "items": [
+            {
+              "title": "Proyecto Alfa",
+              "icon": "folder"
+            },
+            {
+              "title": "Proyecto Beta",
+              "icon": "folder"
+            },
+            {
+              "title": "Nuevo requisito",
+              "icon": "plus"
+            },
+            {
+              "title": "Cerrar sesión",
+              "icon": "lock"
+            }
+          ],
+          "active": 0,
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "toda la navegación de la superficie · bajo 768px desaparece y no hay reemplazo"
+        },
+        {
+          "name": "boton-nuevo-requisito",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Nuevo requisito",
+          "icon": "plus",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "vive en el sidebar del shell (Sidebar.tsx:95-98) · abre CreateRequirementModal montado por (dashboard)/layout.tsx:13 · bajo 768px desaparece con el sidebar"
+        },
+        {
+          "name": "breadcrumb",
+          "type": "breadcrumbs",
+          "category": "navigation",
+          "items": [
+            "Proyecto Alfa",
+            "Requisitos"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "si useProjects falla cae al literal \"Proyecto\" · <div> sin <nav>, no es semántico"
+        },
+        {
+          "name": "toggle-vista",
+          "type": "tabs",
+          "category": "navigation",
+          "labels": [
+            "Lista",
+            "Columnas"
+          ],
+          "active": 0,
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "router.replace con ?view= · en mobile se muestra y no hace nada: la rama de useIsMobile está por encima"
+        },
+        {
+          "name": "cabecera-columnas",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "ID",
+              "width": 6
+            },
+            {
+              "label": "TÍTULO",
+              "width": 34
+            },
+            {
+              "label": "ESTADO",
+              "width": 13
+            },
+            {
+              "label": "CREACIÓN",
+              "width": 12
+            },
+            {
+              "label": "AUTOR",
+              "width": 13
+            },
+            {
+              "label": "TIPO",
+              "width": 10
+            },
+            {
+              "label": "PRIORIDAD",
+              "width": 12
+            }
+          ],
+          "rows": [],
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "sticky con sombra al scrollear · mayúsculas en el código, no por CSS"
+        },
+        {
+          "name": "fila-grupo",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Desarrollo · 12",
+              "icon": "chevron-down"
+            }
+          ],
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "clickeable, colapsa el grupo · en desktop arrancan colapsados solo resuelto y cancelado"
+        },
+        {
+          "name": "fila-requisito",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "ID",
+              "width": 6
+            },
+            {
+              "label": "TÍTULO",
+              "width": 34
+            },
+            {
+              "label": "ESTADO",
+              "width": 13
+            },
+            {
+              "label": "CREACIÓN",
+              "width": 12
+            },
+            {
+              "label": "AUTOR",
+              "width": 13
+            },
+            {
+              "label": "TIPO",
+              "width": 10
+            },
+            {
+              "label": "PRIORIDAD",
+              "width": 12
+            }
+          ],
+          "rows": [
+            [
+              "#1042",
+              "Exportar reporte de horas a Excel",
+              "badge:Desarrollo",
+              "12 mar 2026",
+              "María Núñez",
+              "Funcionalidad",
+              "badge:Alta"
+            ],
+            [
+              "#1041",
+              "El filtro por fecha no aplica al volver",
+              "badge:Revisión",
+              "10 mar 2026",
+              "Diego Sosa",
+              "Incidencia",
+              "badge:Urgente"
+            ],
+            [
+              "#1038",
+              "Renombrar \"objetivos\" a \"tareas\" en la UI",
+              "badge:Análisis",
+              "06 mar 2026",
+              "—",
+              "Mejora",
+              "badge:Media"
+            ],
+            [
+              "#1035",
+              "Alta masiva de usuarios por CSV",
+              "badge:En cola",
+              "28 feb 2026",
+              "María Núñez",
+              "Funcionalidad",
+              "badge:Baja"
+            ]
+          ],
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "click abre el overlay de detalle · autor ausente → \"—\", tipo nulo → \"Sin tipo\" · fila sin role ni tabIndex, no alcanzable por teclado"
+        },
+        {
+          "name": "pill-estado",
+          "type": "badge",
+          "category": "input",
+          "content": "Desarrollo",
+          "icon": "chevron-down",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "es dropdown solo para roles internos (user/admin) · para external-user es un <span> estático, sin chevron y sin nada que indique que es de solo lectura · click hace stopPropagation para no abrir el detalle"
+        },
+        {
+          "name": "pill-prioridad",
+          "type": "badge",
+          "category": "input",
+          "content": "Alta",
+          "icon": "chevron-down",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "bandera de color + chevron cuando es editable · mismo tratamiento por rol que pill-estado · valores: Sin prioridad, Baja, Media, Alta, Urgente"
+        },
+        {
+          "name": "columna-kanban",
+          "type": "section",
+          "category": "content",
+          "h": 64,
+          "content": "Desarrollo · 12",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "?view=kanban · 500px fijos, colapsable por click en la cabecera · las 7 columnas suman 3620px: siempre hay scroll horizontal"
+        },
+        {
+          "name": "card-kanban",
+          "type": "card",
+          "category": "content",
+          "content": "#1042 · Exportar reporte de horas a Excel\n12 mar 2026 · María Núñez",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "los pills solo se muestran si el requisito tiene descripción — condición no explicada en el código · fecha en UTC con formato propio, distinto del de la lista"
+        },
+        {
+          "name": "boton-ver-mas",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "solo si hasMore · trae 20 más de ese estado · paginación independiente por estado",
+          "state_overrides": {}
+        },
+        {
+          "name": "acordeon-estado",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Análisis · 4",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Planificación · 2",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "En cola · 3",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Desarrollo · 12",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Revisión · 1",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Resuelto · 28",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Cancelado · 5",
+              "icon": "chevron-down"
+            }
+          ],
+          "visible_only_in_viewports": [
+            "mobile"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "todos arrancan colapsados · su aria-label dice \"objetivos\", no \"requisitos\" · los 7 se pintan del mismo color (getStateDataAttribute siempre devuelve 'backlog')"
+        },
+        {
+          "name": "card-requisito-mobile",
+          "type": "card",
+          "category": "content",
+          "content": "Exportar reporte de horas a Excel\n#1042 · 12 mar 2026",
+          "icon": "calendar",
+          "visible_only_in_viewports": [
+            "mobile"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "no muestra estado, tipo, autor ni prioridad — la representación más reducida de las tres · es un <Link>: navega en vez de abrir overlay"
+        },
+        {
+          "name": "indicador-carga",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando requisitos...",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "disparado por queries.some(isLoading) — las siete a la vez: la pantalla espera a la más lenta, sin carga progresiva"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "breadcrumb",
+          "toggle-vista",
+          "acordeon-estado",
+          "card-requisito-mobile",
+          "boton-ver-mas",
+          "indicador-carga"
+        ],
+        "desktop": [
+          {
+            "row": "shell",
+            "cols": [
+              {
+                "w": 3,
+                "stack": [
+                  "sidebar-navegacion",
+                  "boton-nuevo-requisito"
+                ]
+              },
+              {
+                "w": 9,
+                "stack": [
+                  {
+                    "row": "header",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "breadcrumb"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "toggle-vista"
+                        ]
+                      }
+                    ]
+                  },
+                  "cabecera-columnas",
+                  "fila-grupo",
+                  "fila-requisito",
+                  {
+                    "row": "tablero-kanban",
+                    "fixed_cols": "500px 500px 500px",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban",
+                          "card-kanban",
+                          "pill-estado",
+                          "pill-prioridad"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban",
+                          "card-kanban"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban"
+                        ]
+                      }
+                    ]
+                  },
+                  "boton-ver-mas",
+                  "indicador-carga"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "detalle-requisito",
+      "displayName": "Detalle de requisito",
+      "route": "/projects/[projectId]/requirements/[requirementId]",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "sidebar-navegacion",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Opus",
+          "items": [
+            {
+              "title": "Proyecto Alfa",
+              "icon": "folder"
+            },
+            {
+              "title": "Proyecto Beta",
+              "icon": "folder"
+            },
+            {
+              "title": "Nuevo requisito",
+              "icon": "plus"
+            },
+            {
+              "title": "Cerrar sesión",
+              "icon": "lock"
+            }
+          ],
+          "active": 0,
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "chrome de (dashboard) · ausente en mobile"
+        },
+        {
+          "name": "breadcrumb",
+          "type": "breadcrumbs",
+          "category": "navigation",
+          "items": [
+            "Proyecto Alfa",
+            "Requisitos",
+            "#1042"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "con requirementId presente, \"Requisitos\" pasa a ser un <button> clickeable"
+        },
+        {
+          "name": "boton-enlace",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Enlace",
+          "icon": "link",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "copia la URL y vuelve a \"Enlace\" a los 2 s · el cambio a \"Copiado\" no se anuncia (sin aria-live)"
+        },
+        {
+          "name": "boton-suscripcion",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Suscribirse",
+          "icon": "bell",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "solo se renderiza para external-user · no dispara ninguna notificación: no hay canal en el producto (FG-2) · en error dice \"Error\" con el motivo en un title, invisible en touch"
+        },
+        {
+          "name": "boton-volver",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Volver",
+          "icon": "arrow-left",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "router.push al tablero"
+        },
+        {
+          "name": "panel-propiedades",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Propiedades",
+          "items": [
+            {
+              "title": "ESTADO · Desarrollo"
+            },
+            {
+              "title": "TIPO · Funcionalidad"
+            },
+            {
+              "title": "PRIORIDAD · Alta"
+            },
+            {
+              "title": "SUSCRIPTORES · María Núñez"
+            },
+            {
+              "title": "FECHA DE CREACIÓN · 12 de marzo 2026"
+            },
+            {
+              "title": "ÚLTIMA ACTUALIZACIÓN · 18 de marzo 2026"
+            }
+          ],
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "220px fijos en desktop · en mobile pasa a ancho completo con borde inferior · ausencias: \"Sin tipo\", \"Sin prioridad\", \"Sin suscriptores\", \"Sin fecha\"; la fecha de finalización no se renderiza si no hay"
+        },
+        {
+          "name": "titulo-requisito",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "content": "Exportar reporte de horas a Excel",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "28px acá y 26px en el overlay, mismo componente · la jerarquía arranca en h2: no hay h1 en la pantalla"
+        },
+        {
+          "name": "descripcion",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Necesitamos bajar las horas cargadas por proyecto y por persona a una planilla, con el mismo corte semanal que usamos hoy en la reunión de los lunes. Ausencia: \"Sin descripción\".",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "RichContentRenderer: parsea adjuntos en dos formatos y el resto por markdown · si el HEAD del adjunto falla hay un catch vacío y se muestra sin nombre ni tamaño"
+        },
+        {
+          "name": "bloque-resolucion",
+          "type": "section",
+          "category": "content",
+          "h": 54,
+          "content": "Resolución — solo si type === 'incidencia' y hay resolutionComment",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "un requisito de otro tipo con resolución cargada no la muestra"
+        },
+        {
+          "name": "pie-autoria",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Elemento creado por María Núñez",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "dice \"Elemento\", no \"Requisito\" · creador ausente → \"—\""
+        },
+        {
+          "name": "titulo-actividad",
+          "type": "heading",
+          "category": "content",
+          "level": "h3",
+          "content": "ACTIVIDAD",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "en mayúsculas en el código; en el overlay el literal es \"Actividad\" y las dos hojas aplican uppercase"
+        },
+        {
+          "name": "feed-actividad",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "María Núñez · hace 3 días",
+              "subtitle": "Confirmamos que el export tiene que incluir las ausencias."
+            },
+            {
+              "title": "Diego Sosa cambió Estado",
+              "subtitle": "de En cola a Desarrollo · hace 2 días"
+            },
+            {
+              "title": "Diego Sosa · hace 1 día",
+              "subtitle": "Arranco por el reporte semanal y sigo con el mensual."
+            }
+          ],
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "orden ascendente: lo último queda al fondo, junto al editor · sin auto-scroll · vacío: \"No hay actividad registrada\" · no es una lista semántica (<div> anidados)"
+        },
+        {
+          "name": "editor-comentario",
+          "type": "text-input",
+          "category": "input",
+          "state": "default",
+          "content": "Escribe un comentario...",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "usa \"tú\", no voseo · el <textarea> no tiene etiqueta, solo placeholder · se parte en un textarea por segmento de texto al insertar un adjunto",
+          "state_overrides": {
+            "error de validación": {
+              "state": "error",
+              "error_msg": "El archivo supera el límite de 10MB"
+            },
+            "success": {
+              "content": "Escribe un comentario...",
+              "annotation": "tras enviar se limpian texto, adjuntos y error — pero el foco no vuelve al editor"
+            }
+          }
+        },
+        {
+          "name": "boton-adjuntar",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Adjuntar",
+          "icon": "upload",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "input file oculto con las 12 extensiones permitidas"
+        },
+        {
+          "name": "boton-enviar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Enviar",
+          "icon": "arrow-right",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "deshabilitado si no hay contenido o si la mutación está en curso · el comentario vacío no da mensaje: el submit hace return en silencio",
+          "state_overrides": {
+            "error de validación": {
+              "variant": "disabled"
+            }
+          }
+        },
+        {
+          "name": "indicador-carga",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando requisito...",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "reemplaza la pantalla entera por spinner + texto centrados"
+        },
+        {
+          "name": "alerta-sistema",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "Error al cargar el requisito",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "disparado por error de useRequirement"
+        },
+        {
+          "name": "alerta-not-found",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Requisito no encontrado",
+          "visible_only_in_states": [
+            "not found"
+          ],
+          "annotation": "query resuelta sin error y sin datos · no se distingue del permiso denegado · único not-found implementado de la superficie"
+        },
+        {
+          "name": "boton-volver-listado",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Volver al listado",
+          "visible_only_in_states": [
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "en not found es la única acción: no hay reintentar"
+        },
+        {
+          "name": "boton-reintentar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Reintentar",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "solo en error de sistema"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "breadcrumb",
+          "boton-enlace",
+          "boton-suscripcion",
+          "boton-volver",
+          "indicador-carga",
+          "alerta-sistema",
+          "alerta-not-found",
+          "boton-volver-listado",
+          "boton-reintentar",
+          "panel-propiedades",
+          "titulo-requisito",
+          "descripcion",
+          "bloque-resolucion",
+          "pie-autoria",
+          "titulo-actividad",
+          "feed-actividad",
+          "editor-comentario",
+          {
+            "row": "acciones-comentario",
+            "cols": [
+              {
+                "w": 6,
+                "stack": [
+                  "boton-adjuntar"
+                ]
+              },
+              {
+                "w": 6,
+                "stack": [
+                  "boton-enviar"
+                ]
+              }
+            ]
+          }
+        ],
+        "desktop": [
+          {
+            "row": "shell",
+            "cols": [
+              {
+                "w": 3,
+                "stack": [
+                  "sidebar-navegacion"
+                ]
+              },
+              {
+                "w": 9,
+                "stack": [
+                  {
+                    "row": "header",
+                    "cols": [
+                      {
+                        "w": 5,
+                        "stack": [
+                          "breadcrumb"
+                        ]
+                      },
+                      {
+                        "w": 7,
+                        "stack": [
+                          {
+                            "row": "acciones",
+                            "cols": [
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-enlace"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-suscripcion"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-volver"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "indicador-carga",
+                  "alerta-sistema",
+                  "alerta-not-found",
+                  {
+                    "row": "acciones-error",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-volver-listado"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-reintentar"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "cuerpo",
+                    "fixed_cols": "minmax(0,1fr) 559px",
+                    "cols": [
+                      {
+                        "w": 7,
+                        "stack": [
+                          {
+                            "row": "info",
+                            "fixed_cols": "220px minmax(0,1fr)",
+                            "cols": [
+                              {
+                                "w": 3,
+                                "stack": [
+                                  "panel-propiedades"
+                                ]
+                              },
+                              {
+                                "w": 9,
+                                "stack": [
+                                  "titulo-requisito",
+                                  "descripcion",
+                                  "bloque-resolucion",
+                                  "pie-autoria"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "w": 5,
+                        "card": true,
+                        "stack": [
+                          "titulo-actividad",
+                          "feed-actividad",
+                          "editor-comentario",
+                          {
+                            "row": "acciones-comentario",
+                            "cols": [
+                              {
+                                "w": 6,
+                                "stack": [
+                                  "boton-adjuntar"
+                                ]
+                              },
+                              {
+                                "w": 6,
+                                "stack": [
+                                  "boton-enviar"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": true
+        },
+        {
+          "name": "not found",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-detalle-requisito",
+      "displayName": "O-01 · Detalle de requisito",
+      "overlay": true,
+      "overlay_type": "modal",
+      "triggered_by": "tablero-requisitos",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "topbar-modal",
+          "type": "header",
+          "category": "layout",
+          "content": "#1042 · Exportar reporte de horas a Excel",
+          "icon": "close",
+          "annotation": "ModalTopbar propio: botones Abrir, Enlace y cerrar · ancho máximo 1632px"
+        },
+        {
+          "name": "tabs-mobile",
+          "type": "tabs",
+          "category": "navigation",
+          "labels": [
+            "Detalle",
+            "Actividad"
+          ],
+          "active": 0,
+          "visible_only_in_viewports": [
+            "mobile"
+          ],
+          "annotation": "en mobile los paneles son tabs excluyentes, no dos columnas que se apilan — es la diferencia clave contra la pantalla #5, que en mobile es scroll continuo"
+        },
+        {
+          "name": "panel-propiedades",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Propiedades",
+          "items": [
+            {
+              "title": "ESTADO · Desarrollo"
+            },
+            {
+              "title": "TIPO · Funcionalidad"
+            },
+            {
+              "title": "PRIORIDAD · Alta"
+            },
+            {
+              "title": "SUSCRIPTORES · María Núñez"
+            },
+            {
+              "title": "FECHA DE CREACIÓN · 12 de marzo 2026"
+            }
+          ],
+          "annotation": "220px fijos · mismos tres paneles que la pantalla #5"
+        },
+        {
+          "name": "titulo-requisito",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "content": "Exportar reporte de horas a Excel",
+          "annotation": "26px acá contra 28px en la pantalla — mismo componente, override distinto"
+        },
+        {
+          "name": "descripcion",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Necesitamos bajar las horas cargadas por proyecto y por persona a una planilla, con el mismo corte semanal que usamos hoy en la reunión de los lunes."
+        },
+        {
+          "name": "titulo-actividad",
+          "type": "heading",
+          "category": "content",
+          "level": "h3",
+          "content": "Actividad",
+          "annotation": "literal en capitalización normal acá; \"ACTIVIDAD\" en la pantalla. Las dos hojas aplican uppercase: el resultado visual no difiere"
+        },
+        {
+          "name": "feed-actividad",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "María Núñez · hace 3 días",
+              "subtitle": "Confirmamos que el export tiene que incluir las ausencias."
+            },
+            {
+              "title": "Diego Sosa cambió Estado",
+              "subtitle": "de En cola a Desarrollo · hace 2 días"
+            },
+            {
+              "title": "Diego Sosa · hace 1 día",
+              "subtitle": "Arranco por el reporte semanal y sigo con el mensual."
+            }
+          ],
+          "annotation": "panel de 558px acá y 559px en la pantalla, para el mismo contenido"
+        },
+        {
+          "name": "editor-comentario",
+          "type": "text-input",
+          "category": "input",
+          "state": "default",
+          "content": "Escribe un comentario...",
+          "annotation": "mismo CommentInput que la pantalla"
+        },
+        {
+          "name": "boton-enviar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Enviar",
+          "icon": "arrow-right"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "tabs-mobile",
+          "panel-propiedades",
+          "titulo-requisito",
+          "descripcion",
+          "titulo-actividad",
+          "feed-actividad",
+          "editor-comentario",
+          "boton-enviar"
+        ],
+        "desktop": [
+          {
+            "row": "cuerpo",
+            "fixed_cols": "minmax(0,1fr) 558px",
+            "cols": [
+              {
+                "w": 7,
+                "stack": [
+                  {
+                    "row": "info",
+                    "fixed_cols": "220px minmax(0,1fr)",
+                    "cols": [
+                      {
+                        "w": 3,
+                        "stack": [
+                          "panel-propiedades"
+                        ]
+                      },
+                      {
+                        "w": 9,
+                        "stack": [
+                          "titulo-requisito",
+                          "descripcion"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "w": 5,
+                "card": true,
+                "stack": [
+                  "titulo-actividad",
+                  "feed-actividad",
+                  "editor-comentario",
+                  "boton-enviar"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-nuevo-requisito",
+      "displayName": "O-02 · Nuevo requisito",
+      "overlay": true,
+      "overlay_type": "modal",
+      "triggered_by": "tablero-requisitos",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "titulo-modal",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "content": "Nuevo requisito",
+          "icon": "close"
+        },
+        {
+          "name": "chip-estado",
+          "type": "badge",
+          "category": "content",
+          "content": "Análisis",
+          "annotation": "chip fijo, no editable: todo requisito nace en Análisis"
+        },
+        {
+          "name": "campo-titulo",
+          "type": "text-input",
+          "category": "input",
+          "state": "focused",
+          "content": "Título del requisito",
+          "annotation": "único campo obligatorio de todo el formulario",
+          "state_overrides": {
+            "loading": {
+              "state": "disabled"
+            }
+          }
+        },
+        {
+          "name": "campo-descripcion",
+          "type": "text-input",
+          "category": "input",
+          "state": "default",
+          "content": "Descripción (opcional)",
+          "annotation": "admite adjuntos embebidos, subidos como borrador antes de que el requisito exista"
+        },
+        {
+          "name": "select-proyecto",
+          "type": "dropdown",
+          "category": "input",
+          "state": "closed",
+          "content": "Proyecto Alfa"
+        },
+        {
+          "name": "select-prioridad",
+          "type": "dropdown",
+          "category": "input",
+          "state": "closed",
+          "content": "Sin prioridad",
+          "options": [
+            "Sin prioridad",
+            "Baja",
+            "Media",
+            "Alta",
+            "Urgente"
+          ]
+        },
+        {
+          "name": "select-tipo",
+          "type": "dropdown",
+          "category": "input",
+          "state": "closed",
+          "content": "Otro",
+          "options": [
+            "Funcionalidad — nueva función del sistema",
+            "Mejora — optimización de algo existente",
+            "Incidencia — bug, error o comportamiento inesperado",
+            "Otro — tarea operativa, documentación, gestión"
+          ],
+          "annotation": "el default es \"otro\", no \"funcionalidad\""
+        },
+        {
+          "name": "selector-suscriptores",
+          "type": "dropdown",
+          "category": "input",
+          "state": "closed",
+          "content": "Suscriptores",
+          "annotation": "panel posicionado a mano contra los usuarios del proyecto (O-06)"
+        },
+        {
+          "name": "boton-adjuntar",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Adjuntar",
+          "icon": "upload",
+          "annotation": "10 MB y 12 extensiones, validado en el cliente · si un adjunto falla del lado del servidor se descarta toda la creación"
+        },
+        {
+          "name": "boton-crear",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Crear elemento",
+          "annotation": "dice \"elemento\", no \"requisito\"",
+          "state_overrides": {
+            "loading": {
+              "variant": "disabled",
+              "content": "Creando..."
+            },
+            "success": {
+              "variant": "disabled",
+              "content": "Creando..."
+            }
+          }
+        },
+        {
+          "name": "pantalla-exito",
+          "type": "empty-state",
+          "category": "feedback",
+          "icon": "check",
+          "content": "Requisito creado",
+          "visible_only_in_states": [
+            "success"
+          ],
+          "annotation": "pantalla de éxito durante 1,8 s y el modal cierra solo"
+        },
+        {
+          "name": "alerta-validacion",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "El título es obligatorio",
+          "visible_only_in_states": [
+            "error de validación"
+          ]
+        },
+        {
+          "name": "nota-sin-error",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "El modal no muestra ningún error: el botón vuelve de \"Creando...\" a \"Crear elemento\" sin mensaje",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "gap relevado — el cliente no sabe si se creó, y la recuperación probable es reintentar, con riesgo de duplicar"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "titulo-modal",
+          "chip-estado",
+          "campo-titulo",
+          "campo-descripcion",
+          "select-proyecto",
+          "select-prioridad",
+          "select-tipo",
+          "selector-suscriptores",
+          "boton-adjuntar",
+          "alerta-validacion",
+          "nota-sin-error",
+          "pantalla-exito",
+          "boton-crear"
+        ],
+        "desktop": [
+          "titulo-modal",
+          "chip-estado",
+          "campo-titulo",
+          "campo-descripcion",
+          {
+            "row": "selects",
+            "cols": [
+              {
+                "w": 4,
+                "stack": [
+                  "select-proyecto"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "select-prioridad"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "select-tipo"
+                ]
+              }
+            ]
+          },
+          {
+            "row": "extras",
+            "cols": [
+              {
+                "w": 8,
+                "stack": [
+                  "selector-suscriptores"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "boton-adjuntar"
+                ]
+              }
+            ]
+          },
+          "alerta-validacion",
+          "nota-sin-error",
+          "pantalla-exito",
+          "boton-crear"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-dropdown-estado",
+      "displayName": "O-03 · Dropdown de estado",
+      "overlay": true,
+      "overlay_type": "popover",
+      "triggered_by": "tablero-requisitos",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "dropdown-estado",
+          "type": "dropdown",
+          "category": "input",
+          "state": "open",
+          "content": "Desarrollo",
+          "options": [
+            "Análisis",
+            "Planificación",
+            "En cola",
+            "Desarrollo",
+            "Revisión",
+            "Resuelto",
+            "Cancelado"
+          ],
+          "annotation": "solo visible para rol interno (user/admin) · para external-user el pill es un <span> estático sin chevron y nada indica que sea de solo lectura"
+        },
+        {
+          "name": "nota-transiciones",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "No valida transiciones: ofrece los siete estados siempre, en cualquier orden. Solo descarta re-seleccionar el valor actual.",
+          "annotation": "un requisito puede pasar de Análisis a Resuelto directamente"
+        },
+        {
+          "name": "nota-aria",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "aria-selected=\"false\" fijo en todas las opciones, incluida la actual.",
+          "annotation": "el trigger sí tiene aria-expanded y aria-haspopup=\"listbox\""
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "dropdown-estado",
+          "nota-transiciones",
+          "nota-aria"
+        ],
+        "desktop": [
+          "dropdown-estado",
+          "nota-transiciones",
+          "nota-aria"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-dropdown-prioridad",
+      "displayName": "O-04 · Dropdown de prioridad",
+      "overlay": true,
+      "overlay_type": "popover",
+      "triggered_by": "tablero-requisitos",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "dropdown-prioridad",
+          "type": "dropdown",
+          "category": "input",
+          "state": "open",
+          "content": "Alta",
+          "options": [
+            "Sin prioridad",
+            "Baja",
+            "Media",
+            "Alta",
+            "Urgente"
+          ],
+          "annotation": "solo rol interno, igual que O-03 · el click hace stopPropagation para no abrir el detalle"
+        },
+        {
+          "name": "nota-color",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Bandera de color por prioridad. El valor de \"Baja\" difiere entre el TypeScript (#1d4ed8) y el SCSS (#3b82f6).",
+          "annotation": "divergencia registrada en la foundation de color: dos azules distintos para el mismo concepto"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "dropdown-prioridad",
+          "nota-color"
+        ],
+        "desktop": [
+          "dropdown-prioridad",
+          "nota-color"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-dropdowns-formulario",
+      "displayName": "O-05 · Dropdowns del formulario",
+      "overlay": true,
+      "overlay_type": "popover",
+      "triggered_by": "overlay-nuevo-requisito",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "dropdown-tipo",
+          "type": "dropdown",
+          "category": "input",
+          "state": "open",
+          "content": "Otro",
+          "options": [
+            "Funcionalidad — nueva función del sistema",
+            "Mejora — optimización de algo existente",
+            "Incidencia — bug, error o comportamiento inesperado",
+            "Otro — tarea operativa, documentación, gestión"
+          ],
+          "annotation": "cada tipo lleva su propia descripción · panel posicionado a mano, no un <select>"
+        },
+        {
+          "name": "nota-posicion",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Panel posicionado a mano dentro del alta: proyecto, prioridad y tipo comparten la misma implementación.",
+          "annotation": "ningún overlay de esta superficie atrapa el foco ni lo devuelve al cerrar"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "dropdown-tipo",
+          "nota-posicion"
+        ],
+        "desktop": [
+          "dropdown-tipo",
+          "nota-posicion"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-selector-suscriptores",
+      "displayName": "O-06 · Selector de suscriptores",
+      "overlay": true,
+      "overlay_type": "popover",
+      "triggered_by": "overlay-nuevo-requisito",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "buscador-usuarios",
+          "type": "search-bar",
+          "category": "input",
+          "content": "Buscar usuario",
+          "icon": "search"
+        },
+        {
+          "name": "lista-usuarios",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "María Núñez",
+              "subtitle": "Seleccionada",
+              "icon": "check"
+            },
+            {
+              "title": "Diego Sosa",
+              "subtitle": "Del proyecto",
+              "icon": "user"
+            },
+            {
+              "title": "Paula Ferrer",
+              "subtitle": "Del proyecto",
+              "icon": "user"
+            }
+          ],
+          "annotation": "selector contra los usuarios del proyecto"
+        },
+        {
+          "name": "nota-suscripcion",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Suscribirse no dispara ninguna notificación: no hay canal en el producto.",
+          "annotation": "desde la UI la acción no tiene consecuencia observable — es FG-2"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "buscador-usuarios",
+          "lista-usuarios",
+          "nota-suscripcion"
+        ],
+        "desktop": [
+          "buscador-usuarios",
+          "lista-usuarios",
+          "nota-suscripcion"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": true
+        }
+      ]
+    },
+    {
+      "name": "overlay-toast",
+      "displayName": "O-07 · Toast",
+      "overlay": true,
+      "overlay_type": "popover",
+      "triggered_by": "tablero-requisitos",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "toast-exito",
+          "type": "toast",
+          "category": "feedback",
+          "kind": "success",
+          "content": "Requisito actualizado correctamente",
+          "visible_only_in_states": [
+            "default",
+            "success"
+          ],
+          "annotation": "efímero, 4 s · role=\"alert\" · disparado por useUpdateRequirement"
+        },
+        {
+          "name": "toast-error",
+          "type": "toast",
+          "category": "feedback",
+          "kind": "error",
+          "content": "Error al actualizar el estado",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "la variante de prioridad dice \"Error al actualizar la prioridad\""
+        },
+        {
+          "name": "nota-optimista",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Sin update optimista: el pill no cambia hasta que vuelve el refetch de las siete queries.",
+          "annotation": "el toast confirma antes de que el tablero refleje el cambio"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "toast-exito",
+          "toast-error",
+          "nota-optimista"
+        ],
+        "desktop": [
+          "toast-exito",
+          "toast-error",
+          "nota-optimista"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "src": "login",
+      "srcBlock": "boton-ingresar",
+      "dst": "login-entrada",
+      "trigger": "click 'Iniciar sesión'",
+      "automatic": false
+    },
+    {
+      "src": "login-entrada",
+      "srcBlock": "sin-interfaz",
+      "dst": "proyectos-redireccion",
+      "trigger": "redirect automático",
+      "automatic": true
+    },
+    {
+      "src": "proyectos-redireccion",
+      "srcBlock": "texto-estado",
+      "dst": "tablero-requisitos",
+      "trigger": "primer proyecto alfabético",
+      "automatic": true
+    },
+    {
+      "src": "proyectos-redireccion",
+      "srcState": "error de sistema",
+      "srcBlock": "boton-reintentar",
+      "dst": "proyectos-redireccion",
+      "trigger": "refetch de proyectos",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "sidebar-navegacion",
+      "dst": "tablero-requisitos",
+      "trigger": "cambiar de proyecto",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "fila-requisito",
+      "dst": "overlay-detalle-requisito",
+      "trigger": "click fila (desktop)",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "card-requisito-mobile",
+      "dst": "detalle-requisito",
+      "trigger": "click card (mobile)",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "toggle-vista",
+      "dst": "tablero-requisitos",
+      "trigger": "?view=list / kanban",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "boton-ver-mas",
+      "dst": "tablero-requisitos",
+      "trigger": "20 requisitos más",
+      "automatic": false
+    },
+    {
+      "src": "overlay-detalle-requisito",
+      "srcBlock": "topbar-modal",
+      "dst": "detalle-requisito",
+      "trigger": "click 'Abrir'",
+      "automatic": false
+    },
+    {
+      "src": "overlay-nuevo-requisito",
+      "srcState": "success",
+      "srcBlock": "pantalla-exito",
+      "dst": "tablero-requisitos",
+      "trigger": "cierra a los 1,8 s",
+      "automatic": true
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "boton-volver",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "breadcrumb",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Requisitos'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "boton-suscripcion",
+      "dst": "overlay-toast",
+      "trigger": "suscribirse / desuscribirse",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcState": "error de sistema",
+      "srcBlock": "boton-volver-listado",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver al listado'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcState": "not found",
+      "srcBlock": "boton-volver-listado",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver al listado'",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "boton-nuevo-requisito",
+      "dst": "overlay-nuevo-requisito",
+      "trigger": "click 'Nuevo requisito'",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "pill-estado",
+      "dst": "overlay-dropdown-estado",
+      "trigger": "click pill (rol interno)",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "pill-prioridad",
+      "dst": "overlay-dropdown-prioridad",
+      "trigger": "click pill (rol interno)",
+      "automatic": false
+    },
+    {
+      "src": "overlay-nuevo-requisito",
+      "srcBlock": "select-prioridad",
+      "dst": "overlay-dropdowns-formulario",
+      "trigger": "abre select del alta",
+      "automatic": false
+    },
+    {
+      "src": "overlay-nuevo-requisito",
+      "srcBlock": "selector-suscriptores",
+      "dst": "overlay-selector-suscriptores",
+      "trigger": "elegir suscriptores",
+      "automatic": false
+    },
+    {
+      "src": "overlay-dropdown-estado",
+      "srcBlock": "dropdown-estado",
+      "dst": "tablero-requisitos",
+      "trigger": "elegir estado → PATCH",
+      "automatic": false
+    },
+    {
+      "src": "overlay-dropdown-prioridad",
+      "srcBlock": "dropdown-prioridad",
+      "dst": "tablero-requisitos",
+      "trigger": "elegir prioridad → PATCH",
+      "automatic": false
+    },
+    {
+      "src": "overlay-dropdowns-formulario",
+      "srcBlock": "dropdown-tipo",
+      "dst": "overlay-nuevo-requisito",
+      "trigger": "elegir opción",
+      "automatic": false
+    },
+    {
+      "src": "overlay-selector-suscriptores",
+      "srcBlock": "lista-usuarios",
+      "dst": "overlay-nuevo-requisito",
+      "trigger": "elegir usuario",
+      "automatic": false
+    }
+  ]
+}

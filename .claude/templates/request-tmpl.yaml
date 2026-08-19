@@ -1,0 +1,629 @@
+template:
+  id: request-template
+  name: Request Document Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/commands/product/new-request.md
+    - .claude/commands/product/design-request.md
+
+  description: |
+    Structure specification for Request documents (REQ-XXX).
+
+    Requests evolve through 2 phases:
+    1. **Phase 1 (Capture)**: Analyst captures functional requirements → status: "captured"
+    2. **Phase 2 (Design)**: Tech Leader designs technical solution → status: "designed"
+
+    This template defines the complete structure for both phases.
+
+# Output specification
+output:
+  path: docs/requests/REQ-{number}.{title-short}.md
+  format: markdown
+  frontmatter:
+    - id: string  # REQ-XXX
+    - title: string
+    - complexity: string  # "baja" | "media" | "alta"
+    - status: string  # "captured" | "designed" | "formalized"
+    - created: date
+    - ux_review: string  # "required" | "not-applicable" | "done" — set during design phase by the technical-leader. Required when the request impacts UI surfaces; blocks /product-create-stories until /product-ux-request runs. Absent during capture phase.
+
+  naming:
+    pattern: "REQ-{number}.{title-short}.md"
+    examples:
+      - "REQ-001.add-user-preferences.md"
+      - "REQ-042.refactor-authentication.md"
+
+# Section definitions
+sections:
+
+  # ============================================================
+  # PHASE 1: CAPTURE (Analyst)
+  # ============================================================
+
+  - id: title
+    title: Request Title
+    phase: capture
+    description: |
+      Main heading with request ID and descriptive title.
+
+    format: |
+      # REQ-{number}: {Descriptive Title}
+
+    example: |
+      # REQ-001: Agregar preferencias de usuario
+
+  - id: original-requirement
+    title: Requerimiento Original
+    phase: capture
+    description: |
+      Verbatim copy of the original client request.
+      NEVER modify or clean up the original text.
+
+    format: |
+      ## Requerimiento Original
+
+      > {texto original del cliente, exactamente como fue recibido}
+
+      **Fuente:** {email | mensaje | reunión | ticket | otro}
+      **Fecha de recepción:** {YYYY-MM-DD}
+
+    example: |
+      ## Requerimiento Original
+
+      > Hola! Necesitamos que los usuarios puedan cambiar el tema de la interfaz
+      > (claro/oscuro) y también el idioma. Algunos clientes están pidiendo esto
+      > porque trabajan de noche y la pantalla clara les molesta.
+      >
+      > También querían poder configurar la zona horaria.
+      >
+      > Saludos,
+      > Juan (Product Manager)
+
+      **Fuente:** Email
+      **Fecha de recepción:** 2024-01-15
+
+  - id: product-context
+    title: Contexto del Producto
+    phase: capture
+    description: |
+      References to existing product documentation that relates to this request.
+      Only include if product documentation exists (PRD, feature groups, stories, services).
+
+    format: |
+      ## Contexto del Producto
+
+      **Feature groups relacionados:**
+      - {title} - {descripción de la relación}
+
+      **Stories relacionadas:**
+      - Story {id}: {title} - {descripción de la relación}
+
+      **Servicios mencionados:**
+      - {service-name}: {rol en este requerimiento}
+
+    example: |
+      ## Contexto del Producto
+
+      **Feature groups relacionados:**
+      - Sistema de Autenticación - Este requerimiento extiende la gestión de usuarios
+
+      **Stories relacionadas:**
+      - Story S-015: Implementar perfil de usuario - Ya existe la vista de perfil donde se pueden agregar estas preferencias
+      - Story S-008: Login con remember me - También guarda preferencias, usar mismo patrón
+
+      **Servicios mencionados:**
+      - user-service: Servicio principal que maneja usuarios y sus datos
+      - frontend-web: Interfaz que debe adaptarse a las preferencias
+
+  - id: clarifications
+    title: Clarificaciones
+    phase: capture
+    description: |
+      Questions asked and answers received during functional clarification.
+      Organized by category: Funcionales, Alcance, Negocio.
+
+    format: |
+      ## Clarificaciones
+
+      ### Funcionales
+      - **P:** {pregunta sobre qué debe hacer}
+      - **R:** {respuesta del cliente}
+
+      ### Alcance
+      - **P:** {pregunta sobre a quién aplica}
+      - **R:** {respuesta del cliente}
+
+      ### Negocio
+      - **P:** {pregunta sobre prioridad/deadline}
+      - **R:** {respuesta del cliente}
+
+    example: |
+      ## Clarificaciones
+
+      ### Funcionales
+      - **P:** ¿Las preferencias deben aplicarse inmediatamente o requieren recargar la app?
+      - **R:** Inmediatamente, sin recargar. El tema debe cambiar al toque.
+
+      - **P:** ¿Qué pasa si un usuario no configura preferencias?
+      - **R:** Usar defaults: tema claro, idioma español (del navegador si se puede), timezone UTC-3.
+
+      - **P:** ¿Las preferencias se sincronizan entre dispositivos?
+      - **R:** Sí, si el usuario se loguea en otro dispositivo, debe ver sus preferencias.
+
+      ### Alcance
+      - **P:** ¿Aplica a todos los usuarios o solo algunos roles?
+      - **R:** Todos los usuarios autenticados. Los usuarios anónimos no tienen preferencias guardadas.
+
+      - **P:** ¿Hay otras preferencias además de tema, idioma y timezone?
+      - **R:** Por ahora esas tres. Más adelante podríamos agregar notificaciones y formato de fecha.
+
+      ### Negocio
+      - **P:** ¿Cuál es la prioridad?
+      - **R:** Alta. Varios clientes grandes lo están pidiendo.
+
+      - **P:** ¿Hay deadline?
+      - **R:** No urgente, pero sería bueno tenerlo en el próximo release (1 mes).
+
+  - id: functional-requirements
+    title: Requerimientos Funcionales
+    phase: capture
+    description: |
+      Numbered list of functional requirements extracted from clarifications.
+
+    format: |
+      ## Requerimientos Funcionales
+
+      1. {requerimiento funcional 1}
+      2. {requerimiento funcional 2}
+      3. {requerimiento funcional 3}
+
+    example: |
+      ## Requerimientos Funcionales
+
+      1. Los usuarios autenticados pueden configurar tres preferencias: tema (claro/oscuro), idioma (es/en), y timezone
+      2. Las preferencias deben aplicarse inmediatamente sin recargar la aplicación
+      3. Las preferencias se sincronizan automáticamente entre dispositivos del mismo usuario
+      4. Si un usuario no configura preferencias, se usan defaults: tema claro, idioma español, timezone UTC-3
+      5. Las preferencias deben ser accesibles desde la vista de perfil de usuario
+      6. Los cambios de preferencias deben persistirse en la base de datos
+
+  - id: acceptance-criteria
+    title: Criterios de Aceptación
+    phase: capture
+    description: |
+      Acceptance criteria using DADO-CUANDO-ENTONCES format.
+      Cover success scenarios and error scenarios.
+
+    format: |
+      ## Criterios de Aceptación
+
+      1. DADO {contexto inicial}
+         CUANDO {acción del usuario}
+         ENTONCES {resultado esperado}
+
+      2. DADO {contexto de error}
+         CUANDO {acción que falla}
+         ENTONCES {manejo del error}
+
+    example: |
+      ## Criterios de Aceptación
+
+      1. DADO un usuario autenticado en su perfil
+         CUANDO cambia el tema de "claro" a "oscuro"
+         ENTONCES la interfaz se actualiza inmediatamente al tema oscuro sin recargar
+
+      2. DADO un usuario con tema oscuro configurado
+         CUANDO se loguea en otro dispositivo
+         ENTONCES ve la interfaz en tema oscuro desde el inicio
+
+      3. DADO un usuario nuevo sin preferencias configuradas
+         CUANDO accede a la aplicación por primera vez
+         ENTONCES ve tema claro, idioma español, y timezone UTC-3 por defecto
+
+      4. DADO un usuario cambiando preferencias
+         CUANDO hay un error de red al guardar
+         ENTONCES ve un mensaje de error y las preferencias no se aplican hasta que se guarden correctamente
+
+      5. DADO un usuario en la vista de perfil
+         CUANDO cambia el idioma de español a inglés
+         ENTONCES toda la interfaz se traduce inmediatamente al inglés
+
+  - id: classification
+    title: Clasificación
+    phase: capture
+    description: |
+      Complexity estimation and priority for the request.
+
+    format: |
+      ## Clasificación
+
+      - **Complejidad:** {baja | media | alta}
+      - **Justificación:** {por qué esta complejidad}
+      - **Prioridad:** {alta | media | baja}
+
+    example: |
+      ## Clasificación
+
+      - **Complejidad:** media
+      - **Justificación:**
+        - Se puede implementar en pocos días
+        - Afecta 1-2 servicios (user-service y frontend)
+        - No requiere decisiones arquitectónicas complejas
+        - Tiene scope bien definido (3 preferencias específicas)
+      - **Prioridad:** alta
+
+  # ============================================================
+  # PHASE 2: DESIGN (Technical Leader)
+  # ============================================================
+
+  - id: technical-design
+    title: Diseño Técnico
+    phase: design
+    description: |
+      Technical solution design based on existing architecture documentation.
+      Always detailed: specific endpoints, fields, validations.
+
+    subsections:
+
+      - id: technical-context
+        title: Contexto Técnico
+        description: |
+          List of technical documents consulted and their relevance.
+
+        format: |
+          ## Diseño Técnico
+
+          ### Contexto Técnico
+
+          Documentos consultados:
+          - [x] {architecture file} - {resumen de información relevante}
+          - [x] {api file} - {resumen de información relevante}
+          - [x] {schema file} - {resumen de información relevante}
+
+        example: |
+          ## Diseño Técnico
+
+          ### Contexto Técnico
+
+          Documentos consultados:
+          - [x] `docs/architectures/user-service/index.md` - Arquitectura del servicio de usuarios, sección de perfil de usuario
+          - [x] `docs/apis/user-service.yaml` - API actual, endpoints `/users/:id` y `/users/:id/profile`
+          - [x] `docs/db-schemas/users-db.md` - Schema de BD users, tabla `users` con campos actuales
+          - [x] `docs/adrs/ADR-003-authentication-strategy.md` - Estrategia de autenticación JWT, tokens almacenan user_id
+
+      - id: affected-services
+        title: Servicios Afectados
+        description: |
+          Table of services impacted by this request.
+
+        format: |
+          ### Servicios Afectados
+
+          | Servicio | Impacto | Referencia | Cambios Necesarios |
+          |----------|---------|------------|-------------------|
+          | {service-a} | {Alto/Medio/Bajo} | {doc reference} | {lista de cambios} |
+
+        example: |
+          ### Servicios Afectados
+
+          | Servicio | Impacto | Referencia | Cambios Necesarios |
+          |----------|---------|------------|-------------------|
+          | user-service | Alto | `docs/architectures/user-service/index.md` | Agregar campo `preferences` en tabla users, nuevo endpoint para actualizar preferencias |
+          | frontend-web | Alto | `docs/architectures/frontend-web/index.md` | Agregar UI en perfil, aplicar tema/idioma dinámicamente, llamar nuevo endpoint |
+
+      - id: api-changes
+        title: Cambios de API
+        description: |
+          Details of API changes needed.
+
+        format: |
+          ### Cambios de API
+
+          #### Endpoints Existentes a Modificar
+
+          **`{METHOD} {path}`** (ref: {api file}:línea {X})
+          - **Cambio:** {descripción del cambio}
+          - **Justificación:** {por qué es necesario}
+
+          #### Nuevos Endpoints Necesarios
+
+          **`{METHOD} {path}`**
+          - **Servicio:** {service-name}
+          - **Descripción:** {qué hace}
+          - **Request:** {estructura básica}
+          - **Response:** {estructura básica}
+          - **Justificación:** {requerimiento funcional que satisface}
+
+        example: |
+          ### Cambios de API
+
+          #### Endpoints Existentes a Modificar
+
+          **`GET /api/users/:id`** (ref: `docs/apis/user-service.yaml`:línea 45)
+          - **Cambio:** Agregar campo `preferences` en response
+          - **Justificación:** El frontend necesita leer las preferencias actuales al cargar el perfil
+
+          #### Nuevos Endpoints Necesarios
+
+          **`PUT /api/users/:id/preferences`**
+          - **Servicio:** user-service
+          - **Descripción:** Actualizar preferencias del usuario
+          - **Request:**
+            ```json
+            {
+              "theme": "dark",
+              "language": "en",
+              "timezone": "America/New_York"
+            }
+            ```
+          - **Response:**
+            ```json
+            {
+              "id": "usr_123",
+              "preferences": {
+                "theme": "dark",
+                "language": "en",
+                "timezone": "America/New_York"
+              }
+            }
+            ```
+          - **Justificación:** Requerimiento funcional #1 y #6 (configurar y persistir preferencias)
+
+      - id: database-changes
+        title: Cambios de Base de Datos
+        description: |
+          Details of database schema changes.
+
+        format: |
+          ### Cambios de Base de Datos
+
+          #### Tablas Existentes a Modificar
+
+          **`{table_name}`** (ref: {schema file}:línea {X})
+          - **Agregar campo:** `{field_name} {type} {constraints}`
+          - **Índice:** {si necesita índice y por qué}
+          - **Migración:** {estrategia de migración}
+
+          #### Nuevas Tablas
+
+          **`{table_name}`**
+          - **Descripción:** {qué almacena}
+          - **Campos clave:** {lista de campos principales}
+          - **Relaciones:** {FKs y relaciones}
+          - **Justificación:** {por qué se necesita}
+
+        example: |
+          ### Cambios de Base de Datos
+
+          #### Tablas Existentes a Modificar
+
+          **`users`** (ref: `docs/db-schemas/users-db.md`:línea 42)
+          - **Agregar campo:** `preferences JSONB DEFAULT '{"theme":"light","language":"es","timezone":"UTC-3"}'`
+          - **Índice:** No necesario (acceso siempre por `id` que ya es PK)
+          - **Migración:**
+            - Agregar columna con default no requiere downtime
+            - Migration: `ALTER TABLE users ADD COLUMN preferences JSONB DEFAULT '{"theme":"light","language":"es","timezone":"UTC-3"}';`
+            - Rollback: `ALTER TABLE users DROP COLUMN preferences;`
+
+          #### Nuevas Tablas
+
+          Ninguna. El campo JSONB en tabla `users` es suficiente para almacenar las preferencias.
+
+      - id: interaction-flow
+        title: Flujo de Interacción
+        description: |
+          End-to-end interaction flow showing how services communicate.
+          Detailed flow with specific endpoints and payloads.
+
+        format: |
+          ### Flujo de Interacción
+
+          #### Escenario: {Nombre del criterio de aceptación}
+
+          **Trigger:** {Acción del usuario o evento que inicia}
+
+          **Flujo:**
+
+          1. **[Service/Component A]**
+             - Acción: `{METHOD} {endpoint}`
+             - Payload: `{data sent}`
+             - → {qué hace con los datos}
+
+          2. **[Service B]**
+             - Endpoint: `{METHOD} {endpoint}`
+             - Acción: {procesamiento}
+             - DB: `{SQL query or operation}`
+             - Publica evento: `{event.name}` (si aplica)
+             - Response: `{status} {response body}`
+             - → {a dónde va}
+
+          3. **[Service C]** (async, si aplica)
+             - Consume: `{event.name}`
+             - Acción: {qué hace}
+             - → Finaliza
+
+          **Outcome:** {Resultado final observable por el usuario}
+
+          **Manejo de errores:**
+          - Si {error condition} → {HTTP status} con {response}
+          - Si {error condition} → {HTTP status} con {response}
+
+          **Notas:**
+          - {Consideración técnica relevante}
+
+        example: |
+          ### Flujo de Interacción
+
+          #### Escenario: Usuario cambia tema de claro a oscuro
+
+          **Trigger:** Usuario hace clic en toggle de tema en la vista de perfil
+
+          **Flujo:**
+
+          1. **[Frontend - Profile Component]**
+             - Acción: `PUT /api/users/{userId}/preferences`
+             - Payload: `{ "theme": "dark" }`
+             - → Envía request a user-service con nuevo tema
+
+          2. **[user-service - PreferencesController]**
+             - Endpoint: `PUT /api/users/:id/preferences`
+             - Acción: Valida payload (theme debe ser "light" o "dark")
+             - DB: `UPDATE users SET preferences = jsonb_set(preferences, '{theme}', '"dark"') WHERE id = $1`
+             - Response: `200 OK { "preferences": { "theme": "dark", "language": "es", "timezone": "UTC-3" } }`
+             - → Devuelve preferencias actualizadas al frontend
+
+          3. **[Frontend - Theme Service]**
+             - Recibe: Preferencias actualizadas
+             - Acción: Aplica clase CSS `theme-dark` al body
+             - → UI se actualiza inmediatamente sin recargar
+
+          **Outcome:** La interfaz cambia a tema oscuro instantáneamente y la preferencia queda guardada para futuras sesiones
+
+          **Manejo de errores:**
+          - Si validación falla (theme inválido) → 400 Bad Request con `{ "error": "INVALID_THEME", "message": "Theme must be 'light' or 'dark'" }`
+          - Si usuario no existe → 404 Not Found
+          - Si BD falla → 500 Internal Server Error, frontend muestra error y revierte UI
+
+          **Notas:**
+          - La actualización es atómica (un solo UPDATE)
+          - No se publican eventos, es una operación sincrónica simple
+          - El frontend optimistically aplica el tema antes de recibir confirmación (mejor UX)
+
+      - id: technical-considerations
+        title: Consideraciones Técnicas
+        description: |
+          Technical risks, dependencies, performance, security, and other considerations.
+
+        format: |
+          ### Consideraciones Técnicas
+
+          #### Riesgos
+          - **Riesgo:** {descripción}
+            - **Mitigación:** {cómo se mitiga}
+
+          #### Dependencias
+          - {Dependencia entre servicios o sistemas}
+
+          #### Performance
+          - {Consideración de rendimiento si aplica}
+
+          #### Seguridad
+          - {Consideración de seguridad si aplica}
+
+        example: |
+          ### Consideraciones Técnicas
+
+          #### Riesgos
+          - **Riesgo:** El campo JSONB `preferences` podría crecer sin límite si se agregan muchas preferencias
+            - **Mitigación:** Validar estructura en backend, limitar a campos conocidos, documentar máximo tamaño esperado
+
+          - **Riesgo:** Cambio de tema podría causar flash visual desagradable
+            - **Mitigación:** Aplicar tema desde el primer render (leer de localStorage mientras se carga API)
+
+          #### Dependencias
+          - Frontend depende de que user-service esté disponible para persistir preferencias
+          - Cambio de idioma requiere que existan traducciones para todos los textos (i18n completo)
+
+          #### Performance
+          - Agregar campo JSONB no impacta performance (índice no necesario)
+          - Consulta de preferencias siempre es por PK (users.id), muy rápida
+          - JSON parsing en frontend es negligible (objeto pequeño)
+
+          #### Seguridad
+          - Endpoint requiere autenticación (JWT)
+          - Usuario solo puede modificar sus propias preferencias (validar userId en token = userId en URL)
+          - Validar input en backend (no permitir campos arbitrarios en JSONB)
+
+      - id: affected-flows
+        title: Flujos Afectados
+        phase: design
+        description: |
+          Existing system flows that are modified by this request,
+          and new flows that need to be created.
+
+          This section connects the technical design to the cross-service
+          flow documentation in docs/flows/.
+
+        format: |
+          ### Flujos Afectados
+
+          #### Flujos Existentes Modificados
+
+          **{flow-name}** (ref: docs/flows/{flow-name}.md)
+          - Paso {N}: {descripción del cambio}
+          - Nuevo paso entre {N} y {M}: {descripción}
+          - Paso {N} eliminado: {razón}
+
+          #### Nuevos Flujos
+
+          **{flow-name}**: {descripción breve del flujo completo}
+          - Trigger: {qué lo dispara}
+          - Servicios: {lista de servicios involucrados}
+
+        example: |
+          ### Flujos Afectados
+
+          #### Flujos Existentes Modificados
+
+          **create-order** (ref: docs/flows/create-order.md)
+          - Paso 1: Agregar campo `couponCode` (string, opcional) en el request body
+          - Nuevo paso entre 2 y 3: Validar cupón contra promotion-service
+          - Paso 3: Modificar cálculo de totalAmount para aplicar descuento
+
+          #### Nuevos Flujos
+
+          **apply-coupon**: Flujo de validación y aplicación de cupón de descuento
+          - Trigger: Usuario ingresa código de cupón en el checkout
+          - Servicios: web-app, api-backend, promotion-service
+
+      - id: story-split
+        title: Story Split Propuesto
+        phase: design
+        description: |
+          Proposed decomposition of the request into one or more stories.
+          Based on complexity analysis and service boundaries.
+
+        format: |
+          ### Story Split Propuesto
+
+          | # | Título | Servicios Afectados | Dependencias |
+          |---|--------|---------------------|--------------|
+          | 1 | {título story 1} | {servicios} | - |
+          | 2 | {título story 2} | {servicios} | Story 1 |
+
+          **Justificación del split:**
+          - {razón 1}
+          - {razón 2}
+
+        example: |
+          ### Story Split Propuesto
+
+          | # | Título | Servicios Afectados | Dependencias |
+          |---|--------|---------------------|--------------|
+          | 1 | Agregar campo preferences en user-service | user-service | - |
+          | 2 | Implementar UI de preferencias en frontend | frontend-web | Story 1 |
+
+          **Justificación del split:**
+          - Separar backend y frontend permite desarrollo paralelo
+          - Story 1 es requisito para que Story 2 funcione
+
+# Complete example
+
+example:
+  path: docs/requests/REQ-001.add-user-preferences.md
+  description: Complete example of a request with detailed design
+  note: See above sections for complete structure
+
+# Status progression
+
+status_lifecycle: |
+  Request documents progress through statuses:
+
+  1. **captured** - Phase 1 complete (Analyst captured functional requirements)
+  2. **designed** - Phase 2 complete (Tech Leader designed technical solution and proposed story split)
+  3. **formalized** - Request was converted to Story documents
+
+  Files remain in requests_folder for traceability even after formalization.

@@ -1,0 +1,429 @@
+template:
+  id: story-template
+  name: Story Document Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/commands/product/create-stories.md
+
+  description: |
+    Structure specification for Story documents (S-XXX).
+
+    Stories are created from designed requests using `/product:create-stories`.
+    A request can produce one or more stories depending on complexity.
+
+    Stories contain detailed requirements and technical specifications.
+    They are later split into implementable tasks with `/service:planify-story`.
+
+# Output specification
+output:
+  path: docs/stories/
+  format: markdown
+  frontmatter:
+    - id: string  # S-XXX
+    - title: string
+    - status: string  # "Draft" | "Ready" | "In Progress" | "Completed"
+    - created: date
+    - source: string  # REQ-XXX or "direct"
+    - affects_ui: boolean  # true if the story touches any frontend service / UI; false for backend-only. Derived from the parent REQ's ux_review flag during /product-create-stories. Used by /service-planify-story to decide whether to load UX (screens, user-flows, product-map nav, cross-surface-flows) and Design System context.
+
+  naming:
+    pattern: "S-{number}.{title-short}.md"
+    id_format: "S-XXX"
+    examples:
+      - "S-001.user-registration.md"
+      - "S-002.password-recovery.md"
+      - "S-003.login-with-email.md"
+
+# Section definitions
+sections:
+
+  - id: header
+    title: Story Header
+    description: |
+      Title and metadata for the story.
+      ID format: S-XXX
+
+    format: |
+      # {story_id}: {Story Title}
+
+      **Status:** {Draft | Ready | In Progress | Completed}
+      **Created:** {YYYY-MM-DD}
+      **Source:** {REQ-XXX | direct}
+
+    example: |
+      # S-001: Registro de Usuario con Email
+
+      **Status:** Ready
+      **Created:** 2024-01-15
+      **Source:** REQ-005
+
+  - id: user-story
+    title: User Story
+    description: |
+      Standard user story format with role, action, and benefit.
+      Focus on WHAT and WHY from user perspective.
+
+    format: |
+      ## Historia de Usuario
+
+      **Como** {rol del usuario},
+      **quiero** {acción que desea realizar},
+      **para** {beneficio que obtiene}.
+
+    example: |
+      ## Historia de Usuario
+
+      **Como** usuario nuevo,
+      **quiero** registrarme con mi email y contraseña,
+      **para** crear mi cuenta y acceder a la aplicación.
+
+  - id: acceptance-criteria
+    title: Acceptance Criteria
+    description: |
+      Detailed, testable criteria using Given-When-Then format.
+      Each criterion must be verifiable and unambiguous.
+
+    format: |
+      ## Criterios de Aceptación
+
+      ### CA-1: {Nombre del criterio}
+
+      **DADO** {contexto inicial}
+      **CUANDO** {acción del usuario}
+      **ENTONCES** {resultado esperado}
+
+      ### CA-2: {Nombre del criterio}
+      ...
+
+    example: |
+      ## Criterios de Aceptación
+
+      ### CA-1: Registro exitoso con datos válidos
+
+      **DADO** que soy un usuario no registrado en la página de registro
+      **CUANDO** ingreso un email válido, una contraseña que cumple los requisitos, y hago clic en "Registrar"
+      **ENTONCES** se crea mi cuenta, recibo un email de bienvenida, y soy redirigido al dashboard
+
+      ### CA-2: Validación de email duplicado
+
+      **DADO** que existe un usuario registrado con el email "test@example.com"
+      **CUANDO** intento registrarme con el mismo email
+      **ENTONCES** veo un mensaje de error indicando que el email ya está registrado
+
+      ### CA-3: Validación de contraseña débil
+
+      **DADO** que estoy en la página de registro
+      **CUANDO** ingreso una contraseña menor a 8 caracteres
+      **ENTONCES** veo un mensaje indicando los requisitos mínimos de contraseña
+
+  - id: technical-design
+    title: Technical Design
+    description: |
+      Detailed technical design from the request.
+      Includes specific endpoints, fields, validations, and implementation details.
+
+      This section is populated from the Request's "Diseño Técnico" section.
+
+    subsections:
+
+      - id: affected-services
+        title: Affected Services
+        format: |
+          ### Servicios Afectados
+
+          | Servicio | Impacto | Cambios Necesarios | Estado |
+          |----------|---------|-------------------|--------|
+          | {service-a} | {Alto/Medio/Bajo} | {descripción de cambios} | Pending |
+
+        example: |
+          ### Servicios Afectados
+
+          | Servicio | Impacto | Cambios Necesarios | Estado |
+          |----------|---------|-------------------|--------|
+          | user-service | Alto | Nuevo endpoint POST /register, validaciones, hash de password | Pending |
+          | notification-service | Bajo | Envío de email de bienvenida | Pending |
+          | frontend-web | Alto | Formulario de registro, validaciones client-side | Pending |
+
+      - id: api-changes
+        title: API Changes
+        format: |
+          ### Cambios de API
+
+          #### Endpoints Existentes a Modificar
+
+          **`{METHOD} {path}`** (ref: {api-file}:línea)
+          - **Cambio:** {descripción del cambio}
+          - **Justificación:** {por qué es necesario}
+
+          #### Nuevos Endpoints
+
+          **`{METHOD} {path}`**
+          - **Servicio:** {service-name}
+          - **Descripción:** {qué hace}
+          - **Request:**
+            ```json
+            {
+              "field": "type - description"
+            }
+            ```
+          - **Response 2XX:**
+            ```json
+            {
+              "field": "type - description"
+            }
+            ```
+          - **Errores:** {códigos y descripciones}
+
+        example: |
+          ### Cambios de API
+
+          #### Endpoints Existentes a Modificar
+
+          Ninguno.
+
+          #### Nuevos Endpoints
+
+          **`POST /api/auth/register`**
+          - **Servicio:** user-service
+          - **Descripción:** Registra un nuevo usuario en el sistema
+          - **Request:**
+            ```json
+            {
+              "email": "string - email válido, único",
+              "password": "string - mínimo 8 caracteres",
+              "name": "string - nombre del usuario"
+            }
+            ```
+          - **Response 201:**
+            ```json
+            {
+              "id": "string - UUID del usuario",
+              "email": "string",
+              "name": "string",
+              "created_at": "datetime"
+            }
+            ```
+          - **Errores:**
+            - 400: Datos inválidos (email mal formado, password débil)
+            - 409: Email ya registrado
+
+      - id: database-changes
+        title: Database Changes
+        format: |
+          ### Cambios de Base de Datos
+
+          #### Tablas Existentes a Modificar
+
+          **`{table_name}`** (ref: {schema-file})
+          - **Agregar campo:** `{field_name} {type} {constraints}`
+          - **Índice:** {si aplica}
+          - **Migración:** {estrategia}
+
+          #### Nuevas Tablas
+
+          **`{table_name}`**
+          - **Campos:**
+            - `{field_name}`: {type} - {description}
+          - **Índices:** {lista}
+          - **Relaciones:** {foreign keys}
+
+        example: |
+          ### Cambios de Base de Datos
+
+          #### Tablas Existentes a Modificar
+
+          Ninguna.
+
+          #### Nuevas Tablas
+
+          **`users`**
+          - **Campos:**
+            - `id`: UUID PRIMARY KEY - Identificador único
+            - `email`: VARCHAR(255) UNIQUE NOT NULL - Email del usuario
+            - `password_hash`: VARCHAR(255) NOT NULL - Hash bcrypt del password
+            - `name`: VARCHAR(100) NOT NULL - Nombre del usuario
+            - `created_at`: TIMESTAMP DEFAULT NOW() - Fecha de creación
+            - `updated_at`: TIMESTAMP - Última actualización
+          - **Índices:**
+            - `idx_users_email` en `email` (para búsqueda en login)
+          - **Relaciones:** Ninguna (tabla base)
+
+      - id: interaction-flow
+        title: Interaction Flow
+        format: |
+          ### Flujo de Interacción
+
+          #### Escenario: {Nombre del criterio de aceptación}
+
+          **Trigger:** {Acción que inicia el flujo}
+
+          **Flujo:**
+
+          1. **[{component}]**
+             - Acción: {qué hace}
+             - Input/Output: {datos}
+
+          2. **[{component}]**
+             - Acción: {qué hace}
+             - Input/Output: {datos}
+
+          **Outcome:** {Resultado final}
+
+          **Manejo de errores:**
+          - {escenario de error} → {respuesta}
+
+        example: |
+          ### Flujo de Interacción
+
+          #### Escenario: Registro exitoso
+
+          **Trigger:** Usuario completa formulario de registro y hace clic en "Registrar"
+
+          **Flujo:**
+
+          1. **[frontend-web]**
+             - Acción: Valida formato de email y requisitos de password client-side
+             - Output: POST /api/auth/register con {email, password, name}
+
+          2. **[api-gateway]**
+             - Acción: Rutea request al user-service
+             - Output: Forward request
+
+          3. **[user-service]**
+             - Acción: Valida email único, hashea password con bcrypt, crea registro en BD
+             - Output: Usuario creado, publica evento `user.registered`
+
+          4. **[notification-service]** (async)
+             - Acción: Consume evento, envía email de bienvenida
+             - Output: Email enviado
+
+          5. **[frontend-web]**
+             - Acción: Recibe respuesta 201, redirige a dashboard
+             - Output: Usuario ve su dashboard
+
+          **Outcome:** Usuario registrado y logueado en su dashboard
+
+          **Manejo de errores:**
+          - Email duplicado → 409 Conflict, frontend muestra "Email ya registrado"
+          - Password débil → 400 Bad Request, frontend muestra requisitos
+          - Error de BD → 500, frontend muestra "Error, intente más tarde"
+
+      - id: affected-flows
+        title: Affected Flows
+        description: |
+          System flows that this story creates or modifies.
+          References flow documents in docs/flows/.
+
+        format: |
+          ### Flujos Afectados
+
+          - **{flow-name}** (ref: docs/flows/{flow-name}.md) — {qué cambia en este flujo por esta story}
+
+        example: |
+          ### Flujos Afectados
+
+          - **create-order** (ref: docs/flows/create-order.md) — Agregar validación de cupón entre paso 2 y 3, modificar cálculo de total en paso 3
+          - **apply-coupon** (ref: docs/flows/apply-coupon.md) — Flujo nuevo creado por esta story
+
+      - id: technical-considerations
+        title: Technical Considerations
+        format: |
+          ### Consideraciones Técnicas
+
+          **Seguridad:**
+          - {consideración de seguridad}
+
+          **Performance:**
+          - {consideración de performance}
+
+          **Dependencias:**
+          - {dependencias entre servicios o stories}
+
+        example: |
+          ### Consideraciones Técnicas
+
+          **Seguridad:**
+          - Passwords hasheados con bcrypt (cost factor 12)
+          - Rate limiting: máximo 5 intentos de registro por IP por minuto
+          - Email de confirmación antes de activar cuenta (opcional para MVP)
+
+          **Performance:**
+          - Índice en email para búsqueda O(log n)
+          - Hash de password es operación costosa (~100ms), no bloquea response
+
+          **Dependencias:**
+          - notification-service debe estar operativo para enviar emails
+          - Si notification-service falla, el registro igual se completa (fire-and-forget)
+
+  - id: dependencies
+    title: Dependencies
+    description: |
+      Dependencies on other stories or external factors.
+
+    format: |
+      ## Dependencias
+
+      **Prerequisitos:**
+      - {Story que debe completarse antes}
+
+      **Habilita:**
+      - {Stories que dependen de esta}
+
+      **Externas:**
+      - {Dependencias externas si aplica}
+
+    example: |
+      ## Dependencias
+
+      **Prerequisitos:**
+      - Ninguno (esta es la primera story del request)
+
+      **Habilita:**
+      - S-002: Login con Email (requiere usuarios registrados)
+      - S-003: Login con Google OAuth (requiere tabla users)
+
+      **Externas:**
+      - Servicio de email configurado (SendGrid/SES)
+
+  - id: source-reference
+    title: Source Reference
+    description: |
+      Reference to the original request.
+
+    format: |
+      ---
+
+      **Origen:** [REQ-{number}](../requests/REQ-{number}.{title-short}.md)
+
+    example: |
+      ---
+
+      **Origen:** [REQ-005](../requests/REQ-005.user-registration.md)
+
+# Status lifecycle
+
+status_lifecycle: |
+  Story status progression:
+
+  1. **Draft** - Story is being defined, information may be incomplete
+  2. **Ready** - All information complete, can be planned with /planify-story
+  3. **In Progress** - Development has started
+  4. **Completed** - All tasks done and story is delivered
+
+# Related documents
+
+related_updates: |
+  When a story is created, also update:
+
+  1. **Request file** (if created from request):
+     - Update status from "designed" to "formalized"
+     - Add field: targets: [S-XXX, ...]
+
+  2. **API definitions** (if story has API changes):
+     - Update relevant API files in docs/apis/
+
+  3. **Database schemas** (if story has DB changes):
+     - Update relevant schema files in docs/db-schemas/

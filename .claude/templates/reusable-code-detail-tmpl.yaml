@@ -1,0 +1,260 @@
+template:
+  id: reusable-code-template
+  name: Reusable Code Documentation
+  version: 1.0
+  execution:
+    require_section_approval: false
+    process_with: .claude/tasks/create-doc.md
+    save_incremental: false
+    sharded: false
+  output:
+    format: markdown
+    filename: docs/reusable-code.md
+    title: "Código Reutilizable - {{service_name}}"
+
+sections:
+  - id: overview
+    title: Overview
+    type: paragraphs
+    instruction: |
+      Brief introduction explaining the purpose of this document.
+
+      Example:
+      This document lists all reusable code available in this service.
+      Keeping it updated facilitates planning and implementation of new features.
+
+  - id: components
+    title: Components
+    type: repeated-section
+    instruction: |
+      For each reusable UI component (Frontend only):
+
+      ### {{ComponentName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it does}}
+
+      **Props/Interface:**
+      ```typescript
+      {{interface or props definition}}
+      ```
+
+      **Usage:**
+      ```tsx
+      {{usage example}}
+      ```
+
+      ---
+
+      If no components exist, write:
+      No reusable components documented yet.
+
+  - id: utils-helpers
+    title: Utils/Helpers
+    type: repeated-section
+    instruction: |
+      For each utility function or helper:
+
+      ### {{functionName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it does}}
+
+      **Signature:**
+      ```typescript
+      {{function signature with types}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example}}
+      ```
+
+      ---
+
+      If no utils exist, write:
+      No reusable utils/helpers documented yet.
+
+  - id: middlewares
+    title: Middlewares
+    type: repeated-section
+    instruction: |
+      For each middleware:
+
+      ### {{middlewareName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it does}}
+
+      **Signature:**
+      ```typescript
+      {{middleware signature}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example - how to apply it}}
+      ```
+
+      ---
+
+      If no middlewares exist, write:
+      No reusable middlewares documented yet.
+
+  - id: services-repositories
+    title: Services/Repositories
+    type: repeated-section
+    instruction: |
+      For each service class or repository:
+
+      ### {{ClassName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it does}}
+
+      **Key Methods:**
+      ```typescript
+      {{list main methods with signatures}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example}}
+      ```
+
+      ---
+
+      If no services/repositories exist, write:
+      No reusable services/repositories documented yet.
+
+  - id: styles
+    title: Styles (Frontend)
+    type: paragraphs
+    instruction: |
+      Document CSS/SCSS variables, mixins, utility classes, theme configuration.
+
+      **Variables:**
+      Location: `{{file_path}}`
+      ```scss
+      // Colors
+      $primary: #...;
+      $secondary: #...;
+
+      // Spacing
+      $spacing-sm: ...;
+      $spacing-md: ...;
+
+      // Breakpoints
+      $breakpoint-mobile: ...;
+      $breakpoint-tablet: ...;
+      ```
+
+      **Mixins:**
+      Location: `{{file_path}}`
+      ```scss
+      @mixin {{mixin-name}}(...) {
+        ...
+      }
+      ```
+
+      **Utility Classes:**
+      - `.class-name`: description
+
+      ---
+
+      If not applicable (Backend service), write:
+      N/A (Backend service)
+
+  - id: hooks
+    title: Hooks (Frontend)
+    type: repeated-section
+    instruction: |
+      For each custom React hook:
+
+      ### {{hookName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it does}}
+
+      **Signature:**
+      ```typescript
+      {{hook signature with return type}}
+      ```
+
+      **Usage:**
+      ```tsx
+      {{usage example}}
+      ```
+
+      ---
+
+      If not applicable (Backend service), write:
+      N/A (Backend service)
+
+  - id: types-interfaces
+    title: Types/Interfaces
+    type: repeated-section
+    instruction: |
+      For each commonly used type, interface, DTO, or enum:
+
+      ### {{TypeName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description}}
+
+      **Definition:**
+      ```typescript
+      {{type/interface/enum definition}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example if helpful}}
+      ```
+
+      ---
+
+      If no common types exist, write:
+      No reusable types/interfaces documented yet.
+
+  - id: validators
+    title: Validators
+    type: repeated-section
+    instruction: |
+      For each validation schema:
+
+      ### {{validatorName}}
+      **Location:** `{{file_path}}`
+      **Description:** {{brief description of what it validates}}
+
+      **Schema:**
+      ```typescript
+      {{validation schema definition}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example}}
+      ```
+
+      ---
+
+      If no validators exist, write:
+      No reusable validators documented yet.
+
+  - id: constants
+    title: Constants
+    type: paragraphs
+    instruction: |
+      Document configuration constants, enums, API routes constants.
+
+      ### {{Category}}
+      **Location:** `{{file_path}}`
+
+      ```typescript
+      {{constants definitions}}
+      ```
+
+      **Usage:**
+      ```typescript
+      {{usage example}}
+      ```
+
+      ---
+
+      If no constants exist, write:
+      No reusable constants documented yet.

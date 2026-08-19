@@ -1,0 +1,331 @@
+template:
+  id: discovery-functional
+  name: Discovery - Functional Analysis
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-discovery-functional/SKILL.md
+
+  description: |
+    Structure specification for the Functional Analysis document, the first
+    artifact of the optional Discovery phase (BEFORE /product-initialize).
+
+    PURPOSE: A decision-complete, exploratory "pre-PRD". It front-loads every
+    functional decision so that /product-initialize becomes transcription, not
+    discovery. Its single most important section is "Decisions Made": every
+    ambiguity resolved during discovery is recorded WITH its rationale.
+
+    DOWNSTREAM CONTRACTS:
+    - /product-initialize reads this to derive goals, scope and the
+      requirements/feature-groups instead of interviewing the user.
+    - /product-discovery-technical reads this to build the requirement coverage
+      table (every functional requirement -> how it is covered).
+
+    AUDIENCE: the team. This is NOT the formal PRD; it is the reasoning behind it.
+
+# Output specification
+output:
+  path: docs/discovery/analisis-funcional.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Análisis en progreso", "Análisis funcional cerrado"
+    - documento_base: string  # path to the base brief, or "ninguno (desde cero)"
+
+# Section definitions
+sections:
+
+  - id: context-and-scope
+    title: Context and Scope
+    description: |
+      What the product is, why it exists, its guiding principles, what is in
+      and out of scope for v1, and any hard constraints (legal, technical).
+      Keep prose tight; the scope table is the load-bearing part.
+
+    subsections:
+      - product: One-paragraph description of what the product is and for whom
+      - strategic-objective: The business goal (e.g., brand awareness vs revenue)
+      - guiding-principles: Bullet list of the non-negotiable principles
+      - scope: In/out table for v1
+      - constraints: Legal/regulatory and hard technical constraints (only if relevant)
+
+    format: |
+      ## Contexto y Alcance
+
+      ### Producto
+      [Qué es el producto y para quién, en un párrafo]
+
+      ### Objetivo Estratégico
+      [El para qué de negocio]
+
+      ### Principios Rectores
+      - **[Principio]** — [qué implica]
+
+      ### Alcance v1
+
+      | Dentro del alcance v1 | Fuera del alcance v1 |
+      |---|---|
+      | [item] | [item] |
+
+      ### Restricciones
+      **Permitido:** [...]
+      **Prohibido:** [...]
+      **Estrategia:** [cómo se navega la restricción]
+
+    example: |
+      ## Contexto y Alcance
+
+      ### Producto
+      "Armá tu 11" es una microexperiencia web donde los usuarios arman su equipo
+      ideal de 11 jugadores. Dos modos: individual rápido y draft en vivo con amigos.
+
+      ### Objetivo Estratégico
+      Brand awareness. **No es un producto orientado a monetización.**
+
+      ### Principios Rectores
+      - **Zero friction** — armar y compartir en menos de 5 minutos sin registro.
+      - **Compartible por naturaleza** — todo output está diseñado para amplificarse.
+
+      ### Alcance v1
+
+      | Dentro del alcance v1 | Fuera del alcance v1 |
+      |---|---|
+      | Modo Solo | Scoring en vivo durante el torneo |
+      | Modo Draft | Monetización |
+
+      ### Restricciones
+      **Permitido:** nombres de jugadores, estadísticas públicas, banderas.
+      **Prohibido:** marcas registradas, logos oficiales, escudos de federaciones.
+      **Estrategia:** referencias genéricas, banderas en lugar de escudos, disclaimer permanente.
+
+  - id: functional-map
+    title: Functional Map
+    description: |
+      A high-level tree of the feature groups + a "Transversales" branch for
+      cross-cutting concerns. This is a DRAFT that /product-initialize will
+      formalize into real feature-groups (FG1 = walking skeleton). Label it as draft.
+
+    format: |
+      ## Mapa Funcional
+
+      ```
+      [Producto]
+      ├── [FG-1] [nombre]
+      ├── [FG-2] [nombre]
+      └── Transversales
+          ├── [concern 1]
+          └── [concern 2]
+      ```
+
+    example: |
+      ## Mapa Funcional
+
+      ```
+      Armá tu 11
+      ├── [FG-1] Modo Solo
+      ├── [FG-2] Modo Draft
+      ├── [FG-3] Card + Código + Página Pública
+      └── Transversales
+          ├── Privacidad (cookie-free)
+          ├── Rate limiting / anti-abuso
+          └── i18n (ES + EN)
+      ```
+
+  - id: feature-group-detail
+    title: Feature Group Detail
+    description: |
+      One subsection per feature group. Go DEEP where logic is complex (flows,
+      edge cases, state); stay brief on simple CRUD. Configurations with their
+      defaults, the step-by-step flow, the rules, and the failure/edge cases are
+      what make this decision-complete.
+
+    per_group_structure:
+      - objective: What this feature group lets the user do
+      - configurations: Table of options with their default and alternatives
+      - flow: Numbered step-by-step
+      - rules: Bullet list of business rules
+      - edge_cases: Table of failure conditions and their result
+      - states: State table (only for stateful flows; states + transitions)
+
+    format: |
+      ## FG-N — [Nombre]
+
+      ### Objetivo
+      [Qué permite hacer]
+
+      ### Configuraciones
+
+      | Configuración | Default | Alternativas |
+      |---|---|---|
+      | [config] | [default] | [alternativas] |
+
+      ### Flujo
+      1. [paso]
+      2. [paso]
+
+      ### Reglas
+      - [regla]
+
+      ### Edge cases / Condiciones de falla
+
+      | Causa | Resultado |
+      |---|---|
+      | [causa] | [resultado] |
+
+    example: |
+      ## FG-1 — Modo Solo
+
+      ### Objetivo
+      Armar y compartir un equipo de 11 jugadores en menos de 5 minutos, sin registro.
+
+      ### Configuraciones
+
+      | Configuración | Default | Alternativas |
+      |---|---|---|
+      | Posiciones | Fijas | Libres |
+      | Presupuesto | Activado | Custom / Desactivado |
+
+      ### Flujo
+      1. Elegir formación (8 predefinidas).
+      2. Seleccionar jugadores (búsqueda + filtros).
+      3. Confirmar (solo con 11 puestos llenos). **Inmutable.**
+      4. Card generada con código único + URL corta.
+
+      ### Reglas
+      - Sin registro, anónimo, ilimitado.
+      - Equipo inmutable post-confirmación.
+      - No se puede repetir jugador en el mismo equipo.
+
+      ### Edge cases / Condiciones de falla
+
+      | Causa | Resultado |
+      |---|---|
+      | Presupuesto insuficiente | Botón confirmar deshabilitado |
+
+  - id: transversal-concerns
+    title: Transversal Concerns / NFRs
+    description: |
+      Cross-cutting concerns that span all feature groups: privacy, moderation,
+      rate-limiting, accessibility, audio, visual identity, i18n hooks, etc.
+      Include ONLY the concerns relevant to this product. These foreshadow the
+      Non-Functional Requirements section of the PRD; capture concrete numbers
+      where the user has them (rate limits, retention windows, WCAG level).
+
+    format: |
+      ## Transversales
+
+      ### [Concern]
+
+      | Pieza | Definición |
+      |---|---|
+      | [aspecto] | [definición concreta] |
+
+    example: |
+      ## Transversales
+
+      ### Rate limiting / anti-abuso
+
+      | Acción | Por minuto | Por hora |
+      |---|---|---|
+      | Crear equipo | 10 | 100 |
+      | Reportar equipo | — | 5 |
+
+      **Comportamiento:** HTTP 429 con mensaje genérico. Sin captcha. Sin baneo permanente.
+
+  - id: i18n
+    title: Internationalization
+    description: Languages for v1, future languages, and the localization rules. Include only if the product is multi-language.
+    format: |
+      ## Internacionalización (i18n)
+
+      **Idiomas v1:** [...]
+      **Reglas:**
+      - [regla de traducción]
+
+    example: |
+      ## Internacionalización (i18n)
+
+      **Idiomas v1:** Español (LATAM) + Inglés.
+      **Reglas:**
+      - Nombres propios no se traducen; categorías sí.
+      - URLs language-agnostic (sin `/es/` ni `/en/`).
+
+  - id: metrics
+    title: Metrics
+    description: What success looks like in measurable terms (reach, engagement, brand). These feed the success criteria of the PRD goals.
+    format: |
+      ## Métricas
+
+      ### [Categoría]
+      - [métrica]
+
+    example: |
+      ## Métricas
+
+      ### Alcance
+      - Equipos creados.
+      - Cards descargadas / compartidas.
+
+      ### Engagement
+      - Tasa de completado (start → confirm).
+
+  - id: dependencies-and-blockers
+    title: Dependencies and Open Blockers
+    description: External dependencies and decisions that block or constrain the build (providers, legal docs, pending design decisions).
+    format: |
+      ## Dependencias y Bloqueos Abiertos
+
+      ### [Dependencia]
+      [Qué falta validar y por qué bloquea]
+
+    example: |
+      ## Dependencias y Bloqueos Abiertos
+
+      ### Provider externo de datos
+      A evaluar entre opciones. Validar: términos de redistribución, costo por volumen,
+      confiabilidad de actualización.
+
+  - id: out-of-scope-open-questions
+    title: Out of Scope / Open Questions
+    description: |
+      Explicitly deferred features and questions that remain open. A deferred
+      decision is still a decision — list it so downstream phases don't re-open it.
+
+    format: |
+      ## Fuera de Alcance — Preguntas Abiertas
+
+      - **[feature diferida]** — [por qué / cuándo]
+      - [pregunta abierta]
+
+    example: |
+      ## Fuera de Alcance — Preguntas Abiertas
+
+      - **Feed público con estadísticas globales** — diferido a fase 2.
+      - **Monetización** — fuera de alcance del producto.
+
+  - id: decisions-made
+    title: Decisions Made
+    description: |
+      THE load-bearing section. Every ambiguity that surfaced during discovery
+      is recorded here with the chosen resolution AND its rationale. This is what
+      lets downstream skills transcribe instead of re-asking. A decision without
+      a "por qué" is incomplete. REQUIRED — never omit this section.
+
+    format: |
+      ## Decisiones Tomadas
+
+      | # | Tema | Decisión y por qué |
+      |---|---|---|
+      | 1 | [tema] | [qué se decidió] — [por qué] |
+
+    example: |
+      ## Decisiones Tomadas
+
+      | # | Tema | Decisión y por qué |
+      |---|---|---|
+      | 1 | Privacidad | Cookie-free, sin banner — el producto no necesita PII y reduce fricción |
+      | 2 | Moderación | Reactiva pura, anonimización a 24-48h — no hay budget para moderación proactiva y el riesgo es aceptable |
+      | 3 | Borrador modo solo | Un slot en localStorage, expira 24h — simple y suficiente para un solo equipo a la vez |

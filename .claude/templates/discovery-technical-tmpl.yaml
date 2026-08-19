@@ -1,0 +1,294 @@
+template:
+  id: discovery-technical
+  name: Discovery - Technical Analysis
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-discovery-technical/SKILL.md
+
+  description: |
+    Structure specification for the Technical Analysis document, the third
+    artifact of the optional Discovery phase. Produced by the Technical Leader
+    from the functional + domain analyses.
+
+    PURPOSE: A decision-complete, scope-limited technical "pre-architecture".
+    It front-loads the technology, service and communication decisions so that
+    /product-initialize-technical becomes transcription, not discovery.
+
+    SCOPE LIMIT (state it in the doc): technologies, services, communication and
+    key flows ONLY. CI/CD, testing, observability, project structure and hosting
+    are deferred to a later iteration.
+
+    KEY RULES:
+    - The service map MUST trace to the domain bounded contexts.
+    - Every technology choice carries a rationale ("Razón" column).
+    - Coverage is validated explicitly: every functional requirement appears in
+      the coverage table mapped to how it is covered, with an "N/M" headline.
+      No silent omissions — a deferred item is a named row.
+
+    DOWNSTREAM CONTRACT: /product-initialize-technical reads this to derive the
+    architecture document, ADRs, API specs and DB schemas instead of interviewing.
+
+# Output specification
+output:
+  path: docs/discovery/analisis-tecnico.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Análisis en progreso", "Análisis técnico cerrado"
+    - analisis_funcional: string
+    - analisis_dominio: string
+    - alcance: string  # explicit scope-limit line
+
+# Section definitions
+sections:
+
+  - id: service-map
+    title: Service Map
+    description: |
+      The set of services, derived from the domain bounded contexts, plus shared
+      infrastructure. Include a diagram, a services table, and an explicit note
+      of services eliminated/merged from naive proposals and why (a valuable
+      decision record).
+
+    format: |
+      ## Mapa de Servicios
+
+      ```
+      [diagrama ASCII de servicios e infraestructura]
+      ```
+
+      ### Servicios
+
+      | # | Servicio | Responsabilidad |
+      |---|---|---|
+      | S1 | [servicio] | [responsabilidad] |
+
+      ### Infraestructura Compartida
+
+      | Componente | Rol |
+      |---|---|
+      | [componente] | [rol] |
+
+      ### Servicios eliminados / fusionados
+      - **[servicio]** — [por qué se eliminó o fusionó]
+
+    example: |
+      ## Mapa de Servicios
+
+      ```
+      Frontend (S1) ──HTTP──> API + Draft Engine (S2) ──> Postgres
+                    └─sub──> NATS <──pub── S2
+                                  Image Worker (S4) ──poll──> Postgres ──> R2
+      ```
+
+      ### Servicios
+
+      | # | Servicio | Responsabilidad |
+      |---|---|---|
+      | S1 | Frontend Web | SSR de páginas públicas, CSR del modo solo, cliente NATS sub-only |
+      | S2 | API + Draft Engine | HTTP/REST, state machine del draft, único publisher a NATS |
+      | S4 | Image Worker | Poll sobre Postgres, render de cards, escribe en R2 |
+
+      ### Infraestructura Compartida
+
+      | Componente | Rol |
+      |---|---|
+      | NATS + JetStream | Pub/sub de eventos de draft + KV (estado, rate limit) |
+      | PostgreSQL 16+ | Base de datos principal |
+
+      ### Servicios eliminados / fusionados
+      - **Real-time Draft Service** — su lógica vive ahora dentro de S2 (evita un servicio extra).
+
+  - id: tech-per-service
+    title: Technology per Service
+    description: |
+      For each service, the stack with a rationale for every choice. Add a
+      shared-components table for cross-service technologies.
+
+    format: |
+      ## Tecnologías por Servicio
+
+      ### [Servicio]
+
+      | Pieza | Tecnología | Razón |
+      |---|---|---|
+      | [pieza] | [tecnología] | [por qué] |
+
+    example: |
+      ## Tecnologías por Servicio
+
+      ### S2 — API + Draft Engine
+
+      | Pieza | Tecnología | Razón |
+      |---|---|---|
+      | Runtime | Node.js 22 LTS | Shared types con el frontend |
+      | Framework | Fastify | Performance, schema-first |
+      | ORM | Drizzle | Type-safe, SQL-first |
+
+  - id: service-communication
+    title: Service Communication
+    description: |
+      How services talk to each other and to external systems. Connections table,
+      narrative of patterns (sync/async/fan-out/job-queue), and messaging subjects
+      + accounts if a bus exists.
+
+    subsections:
+      - connections: De → A table with protocol, direction, nature
+      - communication-patterns: Narrative of the patterns used
+      - messaging-subjects: Subjects/publisher/subscriber/auth (only if a bus exists)
+
+    format: |
+      ## Comunicación entre Servicios
+
+      ### Conexiones
+
+      | De → A | Protocolo | Dirección | Naturaleza |
+      |---|---|---|---|
+      | [a → b] | [protocolo] | [dirección] | [naturaleza] |
+
+      ### Patrones
+      1. **[patrón]** — [descripción]
+
+      ### Subjects de mensajería
+      | Subject | Publica | Subscribe | Auth |
+      |---|---|---|---|
+      | [subject] | [quién] | [quién] | [auth] |
+
+    example: |
+      ## Comunicación entre Servicios
+
+      ### Conexiones
+
+      | De → A | Protocolo | Dirección | Naturaleza |
+      |---|---|---|---|
+      | Frontend → API | HTTPS/REST | unidireccional | Todas las mutaciones |
+      | Frontend → NATS | WebSocket | sub-only | Eventos de draft en tiempo real |
+
+      ### Patrones
+      1. **Síncrono request/response (HTTP)** — toda mutación es HTTP.
+      2. **Read-only fan-out (NATS sub)** — el browser nunca publica.
+
+  - id: tokens-and-auth
+    title: Tokens and Authentication
+    description: Authentication philosophy and per-context token model. Keep it concrete (token format, scope, storage, transport, lifetime).
+    format: |
+      ## Tokens y Autenticación
+
+      ### Filosofía
+      [enfoque general de identidad/auth]
+
+      ### [Token / contexto]
+      | Pieza | Definición |
+      |---|---|
+      | [aspecto] | [definición] |
+
+    example: |
+      ## Tokens y Autenticación
+
+      ### Filosofía
+      Sin sesión general de usuario. Producto anónimo y cookie-free. Las únicas
+      identidades server-side son per-sala y efímeras.
+
+      ### Token per-sala (modo draft)
+      | Pieza | Definición |
+      |---|---|
+      | Formato | ULID opaco (26 chars) |
+      | Storage cliente | localStorage indexado por código de sala |
+      | Duración | Vida de la sala + 10 min de gracia |
+
+  - id: key-flows
+    title: Key Flows
+    description: |
+      End-to-end sequence per major feature/journey, with concrete endpoints,
+      fields and the services involved. Field names must be internally consistent
+      — they become authoritative cross-service contracts (docs/flows/) downstream.
+
+    format: |
+      ## Flujos Clave
+
+      ### [Flujo]
+      ```
+      1. [Origen] → [endpoint] → [Servicio]
+                                 ↓ [qué hace]
+      2. ...
+      ```
+
+    example: |
+      ## Flujos Clave
+
+      ### Modo solo — confirmación
+      ```
+      1. Browser → POST /teams (datos) → API (sin token)
+                                         ↓ valida, genera código, persiste card_status='pending'
+         Browser ← { code, urlCard } ← API
+      2. Image Worker: SELECT ... WHERE card_status='pending' FOR UPDATE SKIP LOCKED
+                       → render → upload R2 → UPDATE card_status='ready'
+      3. Browser → GET /teams/{code} (poll) → API → responde cuando ready
+      ```
+
+  - id: coverage-validation
+    title: Coverage Validation
+    description: |
+      THE validation section. One row per functional requirement/feature from the
+      functional analysis, mapped to how it is covered (which service/mechanism).
+      Compute an explicit "N/M" headline. Any uncovered/deferred item is a row
+      marked as a gap with a reason — NEVER a silent omission. REQUIRED.
+
+    format: |
+      ## Validación de Cobertura
+
+      **Cobertura: N/M requerimientos funcionales.**
+
+      | Categoría | Requerimiento | Cubierto por |
+      |---|---|---|
+      | [categoría] | [requerimiento] | [servicio/mecanismo, o "❌ Diferido — razón"] |
+
+    example: |
+      ## Validación de Cobertura
+
+      **Cobertura: 35/36 requerimientos funcionales.**
+
+      | Categoría | Requerimiento | Cubierto por |
+      |---|---|---|
+      | Modo solo | Código único Crockford | API + UNIQUE constraint + reintento |
+      | Card | Generación <3s | Image Worker + Satori |
+      | Selector | Indicador de titularidad reciente | ❌ Diferido — requiere ingest de datos históricos |
+
+  - id: out-of-scope-operational
+    title: Out of Scope (Operational)
+    description: Operational decisions explicitly deferred to a later iteration (CI/CD, testing, observability, project structure, hosting, secrets).
+    format: |
+      ## Decisiones Operativas Fuera de Alcance
+
+      - [decisión diferida]
+
+    example: |
+      ## Decisiones Operativas Fuera de Alcance
+
+      - Estructura del proyecto (monorepo / multirepo).
+      - CI/CD y ambientes (staging / production / preview).
+      - Observabilidad (logs, métricas, traces, alertas).
+      - Testing strategy.
+
+  - id: technical-decisions-summary
+    title: Technical Decisions Summary
+    description: A compact register of the technical decisions taken, for quick reference (mirrors the functional "Decisions Made" table).
+    format: |
+      ## Resumen de Decisiones Técnicas
+
+      | # | Tema | Decisión |
+      |---|---|---|
+      | Arq-1 | [tema] | [decisión] |
+
+    example: |
+      ## Resumen de Decisiones Técnicas
+
+      | # | Tema | Decisión |
+      |---|---|---|
+      | Arq-1 | Servicios | 3 servicios (Frontend, API+Draft Engine, Image Worker) + NATS + Postgres + R2 |
+      | Arq-2 | Real-time | Browser SUB directo a NATS; API único publisher |
+      | Arq-3 | Cola de cards | Postgres + FOR UPDATE SKIP LOCKED (sin NATS para esto) |

@@ -1,0 +1,434 @@
+template:
+  id: prd-requirements
+  name: PRD - Requirements
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-product-definition.md
+
+  description: |
+    Structure specification for the PRD Requirements document.
+    Generated during /initialize-product Phase 1 (Product Definition).
+
+    DUAL-AUDIENCE DESIGN: This document is written for TWO audiences:
+    1. Human PMs/stakeholders who review and approve requirements
+    2. Downstream agents (Technical Leader, Developer) who consume it to design APIs, schemas, and stories
+
+    Every capability MUST be precise enough that a downstream agent can derive
+    endpoints, fields, types, and business rules WITHOUT interpreting prose.
+
+    This document captures:
+    - Core features with structured capabilities (entity, operation, fields, rules)
+    - User stories and acceptance criteria with concrete examples
+    - Non-functional requirements with measurable targets
+    - Domain entities with key attributes and relationships
+    - Assumptions and open questions
+
+# Output specification
+output:
+  path: docs/prd/requirements.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Draft - In Definition", "Ready", "Approved"
+
+# Section definitions
+sections:
+
+  - id: domain-entities
+    title: Domain Entities
+    description: |
+      Key domain entities with their attributes and relationships.
+      This section gives downstream agents (Technical Leader) a shared vocabulary
+      to design databases and APIs consistently.
+
+      RULES:
+      - List only business entities, not technical infrastructure
+      - Include key attributes with types (not exhaustive schema)
+      - Mark relationships between entities
+      - This is the SINGLE SOURCE OF TRUTH for entity names used across the PRD
+
+    format: |
+      ## Domain Entities
+
+      ### [Entity Name]
+      - **Key attributes:** field (type), field (type), ...
+      - **Relationships:** belongs_to [Entity], has_many [Entity]
+      - **Notes:** [Business rules specific to this entity]
+
+    example: |
+      ## Domain Entities
+
+      ### Proyecto
+      - **Key attributes:** nombre (string, req), descripcion (text, opt), estado (enum: activo/archivado, default: activo)
+      - **Relationships:** belongs_to Usuario (owner), has_many Miembro, has_many Tarea
+      - **Notes:** Un proyecto archivado es read-only. Solo el owner puede archivar.
+
+      ### Tarea
+      - **Key attributes:** titulo (string, req, max: 200), descripcion (text, opt), estado (enum: todo/in_progress/done, default: todo), prioridad (enum: alta/media/baja, default: media), fecha_limite (date, opt)
+      - **Relationships:** belongs_to Proyecto, belongs_to Usuario (asignado, opt), has_many Comentario
+      - **Notes:** Transiciones de estado permitidas: todo→in_progress, in_progress→done, done→todo. Si se asigna, se notifica al asignado.
+
+      ### Miembro
+      - **Key attributes:** rol (enum: owner/member/viewer, default: member)
+      - **Relationships:** belongs_to Proyecto, belongs_to Usuario
+      - **Notes:** Un proyecto siempre tiene exactamente 1 owner. El owner no puede removerse a sí mismo.
+
+      ### Comentario
+      - **Key attributes:** contenido (text, req, max: 5000), menciones (user_id[], extracted from @username)
+      - **Relationships:** belongs_to Tarea, belongs_to Usuario (author)
+      - **Notes:** Los comentarios no se pueden editar después de 15 minutos. Las menciones disparan notificación.
+
+  - id: core-features
+    title: Core Features
+    description: |
+      List of main features with structured capabilities.
+
+      DUAL-AUDIENCE FORMAT: Each feature has two layers:
+      1. Human layer: Description + User Story (context and motivation)
+      2. Agent layer: Capabilities table (precise, parseable contract)
+
+      The capabilities table is the CONTRACT that downstream agents consume.
+      It must be precise enough to derive API endpoints, request/response fields,
+      and business logic WITHOUT interpreting prose.
+
+    per_feature_structure:
+      - feature_id: "F-XXX"
+      - feature_name: string
+      - description: paragraph (human context)
+      - user_story: "Como [role], quiero [action], para [benefit]"
+      - capabilities_table:
+          - id: "C-XX"
+          - capability: short description
+          - actor: who performs it (must match a Target User or entity from goals-and-context.md)
+          - entity: domain entity affected (must match an entity from Domain Entities section)
+          - operation: "CREATE / READ / UPDATE / DELETE / ACTION"
+          - key_fields: "field (type, req/opt), field (enum: val1/val2, default: val1)"
+          - business_rules: constraints, validations, side effects
+      - acceptance_criteria: DADO-CUANDO-ENTONCES with concrete example values
+      - priority: "High / Medium / Low"
+      - dependencies: "F-XXX or None"
+
+    format: |
+      ## Core Features
+
+      ### F-01: [Feature Name]
+
+      **Description:** [Brief description - human context]
+
+      **User Story:**
+      Como [role],
+      quiero [action],
+      para [benefit].
+
+      **Capabilities:**
+
+      | ID | Capability | Actor | Entity | Operation | Key Fields | Business Rules |
+      |----|-----------|-------|--------|-----------|------------|----------------|
+      | C-01 | [what] | [who] | [entity] | [op] | [fields with types] | [rules] |
+      | C-02 | [what] | [who] | [entity] | [op] | [fields with types] | [rules] |
+
+      **Acceptance Criteria:**
+      - DADO [context with concrete values]
+        CUANDO [action with concrete values]
+        ENTONCES [result with concrete values]
+
+      **Priority:** High / Medium / Low
+
+      **Dependencies:** F-XX or None
+
+      ---
+
+    example: |
+      ## Core Features
+
+      ### F-01: Gestión de Tareas
+
+      **Description:** Sistema completo de CRUD para tareas con asignación,
+      estados, descripciones y comentarios. Core del producto.
+
+      **User Story:**
+      Como miembro del equipo,
+      quiero crear, editar y gestionar tareas,
+      para organizar el trabajo del proyecto.
+
+      **Capabilities:**
+
+      | ID | Capability | Actor | Entity | Operation | Key Fields | Business Rules |
+      |----|-----------|-------|--------|-----------|------------|----------------|
+      | C-01 | Crear tarea | Miembro (member+) | Tarea | CREATE | titulo (string, req, max: 200), descripcion (text, opt), prioridad (enum: alta/media/baja, default: media), fecha_limite (date, opt) | Si no se asigna, queda sin asignar. Estado inicial: todo |
+      | C-02 | Asignar tarea | Miembro (member+) | Tarea | UPDATE | asignado_a (user_id, opt) | Solo miembros del mismo proyecto. Notifica al asignado. Reasignar reemplaza asignación anterior |
+      | C-03 | Cambiar estado | Miembro (member+) | Tarea | UPDATE | estado (enum: todo/in_progress/done) | Transiciones: todo→in_progress, in_progress→done, done→todo. Otras transiciones rechazadas |
+      | C-04 | Editar tarea | Miembro (member+) | Tarea | UPDATE | titulo, descripcion, prioridad, fecha_limite | Solo campos enviados se actualizan (patch). Viewer no puede editar |
+      | C-05 | Eliminar tarea | Miembro (owner/member) | Tarea | DELETE | - | Soft delete. Viewer no puede eliminar. Se notifica al asignado si tenía uno |
+      | C-06 | Agregar comentario | Miembro (member+) | Comentario | CREATE | contenido (text, req, max: 5000) | Detecta menciones @username. Notifica mencionados. No editable después de 15min |
+      | C-07 | Ver historial | Miembro (viewer+) | Tarea | READ | - | Muestra cambios de estado, asignación, ediciones. Ordenado por fecha desc |
+
+      **Acceptance Criteria:**
+      - DADO que soy miembro con rol "member" del proyecto "Sprint App"
+        CUANDO creo una tarea con titulo "Revisar diseño" sin asignar
+        ENTONCES la tarea se crea con estado "todo", prioridad "media", sin asignado
+        Y aparece en el tablero del proyecto "Sprint App"
+
+      - DADO que existe la tarea "Revisar diseño" sin asignar
+        CUANDO la asigno al usuario "juan@test.com" (miembro del proyecto)
+        ENTONCES la tarea muestra asignado "juan@test.com"
+        Y juan@test.com recibe notificación de asignación
+
+      - DADO que la tarea "Revisar diseño" tiene estado "todo"
+        CUANDO cambio su estado a "done" (saltando in_progress)
+        ENTONCES el sistema rechaza la transición con error "Transición no permitida"
+
+      **Priority:** High
+
+      **Dependencies:** None (entidad base)
+
+      ---
+
+      ### F-02: Tablero Kanban
+
+      **Description:** Interfaz visual de tablero kanban con columnas configurables
+      y drag & drop para gestión intuitiva de tareas.
+
+      **User Story:**
+      Como líder de equipo,
+      quiero visualizar todas las tareas en un tablero kanban,
+      para entender rápidamente el estado del proyecto.
+
+      **Capabilities:**
+
+      | ID | Capability | Actor | Entity | Operation | Key Fields | Business Rules |
+      |----|-----------|-------|--------|-----------|------------|----------------|
+      | C-08 | Ver tablero | Miembro (viewer+) | Tarea | READ | filtros: asignado (user_id, opt), prioridad (enum, opt), fecha_desde/hasta (date, opt) | Agrupa tareas por estado en columnas. Orden dentro de columna: por prioridad desc, luego fecha_limite asc |
+      | C-09 | Mover tarea (drag & drop) | Miembro (member+) | Tarea | UPDATE | estado (enum: todo/in_progress/done) | Mismas reglas de transición que C-03. Si transición no permitida, la tarjeta vuelve a columna original |
+      | C-10 | Filtrar tablero | Miembro (viewer+) | Tarea | READ | asignado, prioridad, fecha_limite | Filtros combinables (AND). Se persisten por sesión del usuario |
+
+      **Acceptance Criteria:**
+      - DADO que el proyecto tiene 3 tareas: "A" (todo), "B" (in_progress), "C" (done)
+        CUANDO abro el tablero
+        ENTONCES veo 3 columnas con "A" en Todo, "B" en In Progress, "C" en Done
+
+      - DADO que la tarea "A" está en columna "Todo"
+        CUANDO la arrastro a "Done" (saltando In Progress)
+        ENTONCES la tarjeta vuelve a "Todo" y veo error "Transición no permitida"
+
+      - DADO que filtro por asignado "juan@test.com"
+        CUANDO hay 5 tareas y 2 asignadas a Juan
+        ENTONCES el tablero muestra solo las 2 tareas de Juan
+
+      **Priority:** High
+
+      **Dependencies:** F-01
+
+      ---
+
+      ### F-03: Notificaciones
+
+      **Description:** Sistema de notificaciones configurables por email e in-app
+      para mantener al equipo informado sin spam.
+
+      **User Story:**
+      Como miembro del equipo,
+      quiero recibir notificaciones de eventos relevantes,
+      para estar al tanto sin tener que revisar constantemente la app.
+
+      **Capabilities:**
+
+      | ID | Capability | Actor | Entity | Operation | Key Fields | Business Rules |
+      |----|-----------|-------|--------|-----------|------------|----------------|
+      | C-11 | Recibir notificación in-app | Miembro | Notificación | CREATE (auto) | tipo (enum: mencion/asignacion/comentario/estado), leida (bool, default: false) | Se crea automáticamente al dispararse evento. Badge con contador de no leídas |
+      | C-12 | Recibir notificación email | Miembro | Notificación | ACTION (auto) | - | Solo si el usuario tiene habilitado email para ese tipo de evento. Async, no bloquea la acción |
+      | C-13 | Ver centro de notificaciones | Miembro | Notificación | READ | - | Ordenadas por fecha desc. Paginadas (20 por página). Marcar como leída al abrir |
+      | C-14 | Configurar preferencias | Miembro | PreferenciaNotificación | UPDATE | tipo_evento (enum), canal_email (bool), canal_inapp (bool) | Por defecto todo habilitado. Configuración por usuario, no por proyecto |
+
+      **Acceptance Criteria:**
+      - DADO que "maria@test.com" me menciona en un comentario con @miusuario
+        CUANDO tengo email habilitado para menciones
+        ENTONCES recibo notificación in-app Y email
+
+      - DADO que configuré "solo menciones" para email
+        CUANDO "pedro@test.com" me asigna una tarea
+        ENTONCES recibo notificación in-app pero NO email
+
+      - DADO que tengo 5 notificaciones sin leer
+        CUANDO abro el centro de notificaciones
+        ENTONCES veo las 5 notificaciones ordenadas por fecha (más recientes primero)
+        Y el badge cambia a 0
+
+      **Priority:** Medium
+
+      **Dependencies:** F-01
+
+      ---
+
+      ### F-04: Integración con Slack
+
+      **Description:** Integración bidireccional con Slack para recibir notificaciones
+      y crear tareas desde Slack.
+
+      **User Story:**
+      Como equipo que vive en Slack,
+      quiero recibir notificaciones de TaskFlow en mi canal de Slack,
+      para no tener que cambiar de app constantemente.
+
+      **Capabilities:**
+
+      | ID | Capability | Actor | Entity | Operation | Key Fields | Business Rules |
+      |----|-----------|-------|--------|-----------|------------|----------------|
+      | C-15 | Conectar proyecto a canal | Miembro (owner) | IntegracionSlack | CREATE | slack_channel_id (string, req), webhook_url (string, req) | 1 proyecto = 1 canal. Reconectar reemplaza conexión anterior |
+      | C-16 | Notificar en canal | Sistema | IntegracionSlack | ACTION (auto) | - | Envia mensaje al canal cuando: tarea creada, estado cambiado, comentario con mención. Incluye link a la tarea |
+      | C-17 | Crear tarea desde Slack | Miembro | Tarea | CREATE | titulo (string, req, desde comando) | Comando: /taskflow crear [título]. Crea tarea con defaults (prioridad media, sin asignar, estado todo) |
+      | C-18 | Cambiar estado desde Slack | Miembro | Tarea | UPDATE | estado (enum) | Botones interactivos en mensaje de notificación. Mismas reglas de transición que C-03 |
+
+      **Acceptance Criteria:**
+      - DADO que conecté el proyecto "Sprint App" al canal #sprint-app
+        CUANDO "pedro@test.com" crea tarea "Fix login"
+        ENTONCES aparece en #sprint-app: "Nueva tarea: Fix login por Pedro [Ver tarea]"
+
+      - DADO que estoy en Slack en el canal #sprint-app
+        CUANDO escribo /taskflow crear Revisar deploy
+        ENTONCES se crea tarea "Revisar deploy" en proyecto Sprint App con defaults
+        Y recibo confirmación en Slack con link a la tarea
+
+      - DADO que recibo notificación de tarea "Fix login" (estado: todo) en Slack
+        CUANDO hago click en botón "In Progress"
+        ENTONCES la tarea cambia a "in_progress" en TaskFlow
+        Y el mensaje de Slack se actualiza mostrando el nuevo estado
+
+      **Priority:** Medium
+
+      **Dependencies:** F-01, F-03
+
+  - id: non-functional-requirements
+    title: Non-Functional Requirements
+    description: |
+      Quality attributes and constraints: performance, security, usability, scalability.
+      These requirements inform technical architecture decisions.
+
+      RULES:
+      - Every NFR MUST have a measurable target (number, threshold, or verifiable condition)
+      - No subjective adjectives ("rápido", "seguro", "fácil") without a metric
+      - Use table format so downstream agents can parse targets directly
+      - Include only categories relevant to the product (omit empty categories)
+
+    categories:
+      - performance: Response times, throughput, resource usage
+      - security: Authentication, authorization, encryption, compliance
+      - usability: UX standards, accessibility, browser support
+      - scalability: User capacity, data volume, growth expectations
+
+    format: |
+      ## Non-Functional Requirements
+
+      ### Performance
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-P01 | [requirement] | [specific target] | [how to measure] |
+
+      ### Security
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-S01 | [requirement] | [specific target] | [how to measure] |
+
+      ### Usability
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-U01 | [requirement] | [specific target] | [how to measure] |
+
+      ### Scalability
+
+      | ID | Requirement | Target | Phase |
+      |----|------------|--------|-------|
+      | NFR-SC01 | [requirement] | [specific target] | MVP / Post-MVP |
+
+    example: |
+      ## Non-Functional Requirements
+
+      ### Performance
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-P01 | Carga de página | < 2s (P95) en 3G | Lighthouse / Real User Monitoring |
+      | NFR-P02 | Acciones CRUD | < 500ms (P95) | APM (response time del endpoint) |
+      | NFR-P03 | Usuarios concurrentes | 1,000 sin degradación | Load test (k6): P95 < 2x baseline |
+      | NFR-P04 | Búsqueda de tareas | < 300ms para 10,000 tareas | Query time en APM |
+
+      ### Security
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-S01 | Comunicaciones | HTTPS/TLS 1.3 obligatorio | SSL Labs score A+ |
+      | NFR-S02 | Password hashing | bcrypt, cost factor ≥ 12 | Code review / unit test |
+      | NFR-S03 | Tokens JWT | Access: 15min, Refresh: 7 días | Config verificable |
+      | NFR-S04 | Rate limiting | Auth: 100 req/min, Anon: 20 req/min | Load test (verificar 429) |
+      | NFR-S05 | Audit logs | Acciones críticas (delete proyecto, cambiar permisos) | Log query en prod |
+      | NFR-S06 | 2FA | TOTP opcional para usuarios | Feature flag / UI toggle |
+      | NFR-S07 | GDPR | Derecho al olvido + exportación de datos | Manual test / endpoint |
+
+      ### Usability
+
+      | ID | Requirement | Target | Measurement |
+      |----|------------|--------|-------------|
+      | NFR-U01 | Responsive | Desktop (1920x1080), Tablet (768x1024), Mobile (375x667) | Visual test en 3 breakpoints |
+      | NFR-U02 | Browsers | Chrome, Firefox, Safari, Edge (últimas 2 versiones) | Cross-browser test suite |
+      | NFR-U03 | Accesibilidad | WCAG 2.1 AA | axe-core audit score 100% |
+      | NFR-U04 | Onboarding | Usuario productivo en < 5 min sin tutorial | User test (time to first task) |
+      | NFR-U05 | Keyboard shortcuts | Crear tarea: Cmd+K, Buscar: Cmd+/ | Functional test |
+
+      ### Scalability
+
+      | ID | Requirement | Target | Phase |
+      |----|------------|--------|-------|
+      | NFR-SC01 | Capacidad MVP | 100 proyectos, 1,000 usuarios, 50,000 tareas | MVP |
+      | NFR-SC02 | Capacidad v2 | 1,000 proyectos, 10,000 usuarios, 500,000 tareas | Post-MVP (6 meses) |
+      | NFR-SC03 | DB scaling | Sharding horizontal habilitado | Post-MVP |
+      | NFR-SC04 | Static assets | CDN con cache immutable (1 año) | MVP |
+      | NFR-SC05 | Query caching | Redis distribuido | MVP |
+
+  - id: assumptions
+    title: Assumptions
+    description: |
+      Key assumptions made during requirements definition.
+      These should be validated or may change as we learn more.
+
+    format: |
+      ## Assumptions
+      - [Assumption 1]
+      - [Assumption 2]
+      - [Assumption 3]
+
+    example: |
+      ## Assumptions
+      - Los usuarios tienen conexión a internet estable (no offline-first en MVP)
+      - Los equipos tienen máximo 10 personas (no optimizamos para empresas grandes)
+      - Los usuarios prefieren navegador web sobre app móvil nativa (en MVP)
+      - Slack es la plataforma de comunicación predominante en nuestro target
+      - Los usuarios están dispuestos a pagar $5-8/usuario/mes después del trial
+      - El 80% de los equipos usa un solo proyecto; 20% usa 2-3 proyectos
+
+  - id: open-questions
+    title: Open Questions
+    description: |
+      Questions that need answers before or during implementation.
+      These will be resolved through user research, technical spikes, or decisions.
+
+    format: |
+      ## Open Questions
+      - [Question 1]
+      - [Question 2]
+      - [Question 3]
+
+    example: |
+      ## Open Questions
+      - ¿Necesitamos subtareas o basta con una jerarquía plana de tareas?
+      - ¿Qué método de pago prefieren los usuarios? (tarjeta, PayPal, transferencia)
+      - ¿Deberíamos permitir proyectos públicos/privados o solo privados en MVP?
+      - ¿Cuál es el límite razonable de attachments por tarea? (tamaño y cantidad)
+      - ¿Los usuarios necesitan exportar datos? ¿En qué formato? (CSV, JSON, PDF)
+      - ¿Deberíamos tener roles más granulares que Owner/Member/Viewer en MVP?

@@ -1,0 +1,204 @@
+template:
+  id: ds-foundation
+  name: Design System Foundation Template
+  version: 1.0
+
+  # Reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-design-system-update/SKILL.md
+
+  description: |
+    Structure specification for a foundation document in the design system.
+    Foundations are the visual primitives: color, typography, spacing, grid,
+    iconography, motion, elevation, voice & tone.
+
+    Each foundation has its own file under docs/design-system/{surface}/foundations/
+    (the DS is per surface — each surface declares its own foundations).
+    This template is GENERIC — it describes the structure all foundations
+    follow. Specific foundations may add their own sections (e.g., color
+    needs a palette table; typography needs a type scale).
+
+    CRITICAL RULES:
+    - Every foundation must declare its purpose (what designers reference it for).
+    - Every foundation must list how it maps to tokens (semantic + component).
+    - Examples must use REAL values from the product, not placeholder lorem.
+    - Language MUST match the language of the PRD (typically Spanish).
+    - Updates require a changelog entry in docs/design-system/{surface}/CHANGELOG.md.
+
+# Output specification
+output:
+  path: docs/design-system/{{surface}}/foundations/{{foundation-name}}.md
+  format: markdown
+  frontmatter:
+    - foundation: string            # name (color, typography, spacing, ...)
+    - version: string               # DS version this foundation belongs to
+    - last_updated: date
+
+# Content sections (common to all foundations)
+sections:
+
+  - id: purpose
+    title: "Propósito"
+    instruction: |
+      1-2 sentences. Why this foundation exists and what design decisions it
+      encodes. Who consumes it (designers, developers, content writers).
+    fields:
+      - name: "Descripción"
+        format: "Plain text, 1-2 sentences."
+
+  - id: scale-or-palette
+    title: "Escala / Paleta / Inventario"
+    instruction: |
+      The actual values that compose this foundation. Format depends on the
+      foundation type:
+      - color → palette table with hex + role (brand/neutral/semantic)
+      - typography → type scale (h1/h2/h3/body/caption with size, weight, line-height)
+      - spacing → numerical scale (4pt or 8pt baseline)
+      - grid → grid columns, gutters, breakpoints
+      - iconography → icon set source, sizes, naming
+      - motion → durations, easings, principles
+      - elevation → shadows / layers / z-index
+      - voice-tone → tone attributes, do/don't examples
+    fields:
+      - name: "Inventario"
+        format: "Table or list with the actual values. Use real numbers/hex, not placeholders."
+
+  - id: tokens-mapping
+    title: "Tokens"
+    instruction: |
+      How this foundation maps to design tokens. List the semantic tokens
+      (alias) that consume this foundation's primitives, and any
+      component-level tokens that derive from it.
+    fields:
+      - name: "Tokens semánticos"
+        format: |
+          Table:
+          | Token | Valor | Uso |
+          |-------|-------|-----|
+          | `color.bg.primary` | `color.blue.500` | Botón primario, link |
+      - name: "Tokens de componente"
+        format: "List of `component.property.value` tokens that derive from semantic."
+
+  - id: guidelines
+    title: "Guidelines"
+    instruction: |
+      Do's and don'ts. How to apply this foundation correctly. Common mistakes
+      to avoid.
+    fields:
+      - name: "Do"
+        format: "Bullet list of recommended uses."
+      - name: "Don't"
+        format: "Bullet list of misuses to avoid."
+
+  - id: accessibility
+    title: "Accesibilidad"
+    instruction: |
+      Accessibility implications. WCAG requirements. Color contrast ratios,
+      type readability, motion-reduced preference, etc.
+    fields:
+      - name: "Requisitos"
+        format: "List with WCAG levels (AA, AAA) and concrete thresholds."
+
+  - id: examples
+    title: "Ejemplos"
+    instruction: |
+      Concrete usage examples linking to components or screens that
+      illustrate this foundation correctly applied.
+    fields:
+      - name: "Aplicaciones"
+        format: "Markdown links to component specs or screens that use this foundation."
+
+  - id: changelog
+    title: "Historial"
+    instruction: |
+      Per-file changelog. Updates to this foundation. Separate from the
+      DS-level CHANGELOG.md.
+    fields:
+      - name: "Cambios"
+        format: |
+          - YYYY-MM-DD vX.Y.Z — descripción del cambio
+          - YYYY-MM-DD vX.Y.Z — descripción del cambio
+
+# Format example (Spanish)
+format:
+  example: |
+    ---
+    foundation: color
+    version: 0.1.0
+    last_updated: 2026-05-09
+    ---
+
+    # Color
+
+    ## Propósito
+
+    Define la paleta de colores del producto y su rol semántico (brand,
+    neutral, semántico). Consumido por diseñadores al componer pantallas y
+    por desarrolladores al implementar componentes vía tokens.
+
+    ## Paleta
+
+    ### Brand
+    | Token | Hex | Uso |
+    |-------|-----|-----|
+    | `color.brand.primary` | `#2563eb` | Acciones primarias, link |
+    | `color.brand.secondary` | `#1e293b` | Acciones secundarias, header |
+
+    ### Neutral
+    | Token | Hex | Uso |
+    |-------|-----|-----|
+    | `color.neutral.0` | `#ffffff` | Fondo base |
+    | `color.neutral.50` | `#f8fafc` | Fondo cards |
+    | `color.neutral.900` | `#0f172a` | Texto principal |
+
+    ### Semántico
+    | Token | Hex | Uso |
+    |-------|-----|-----|
+    | `color.success` | `#10b981` | Estados de éxito |
+    | `color.warning` | `#f59e0b` | Estados de advertencia |
+    | `color.error` | `#ef4444` | Estados de error / destructivo |
+    | `color.info` | `#3b82f6` | Estados informativos |
+
+    ## Tokens
+
+    ### Semánticos
+    | Token | Valor | Uso |
+    |-------|-------|-----|
+    | `bg.surface` | `color.neutral.0` | Fondo de superficies (cards, modales) |
+    | `bg.action.primary` | `color.brand.primary` | Fondo botón primario |
+    | `text.primary` | `color.neutral.900` | Texto principal |
+    | `text.muted` | `color.neutral.500` | Texto secundario |
+
+    ### De componente
+    - `button.primary.bg` → `bg.action.primary`
+    - `button.primary.text` → `color.neutral.0`
+    - `input.border.focus` → `color.brand.primary`
+
+    ## Guidelines
+
+    **Do:**
+    - Usar tokens semánticos en componentes, NUNCA primitivos directos.
+    - Reservar `color.brand.primary` para acciones críticas (1 por pantalla).
+    - Usar `color.error` solo para errores reales del usuario, no para warnings.
+
+    **Don't:**
+    - No usar más de 2 tonos del brand en una misma pantalla.
+    - No usar colores semánticos para decoración (success en gráfico decorativo).
+    - No declarar hex hardcoded en componentes; siempre vía token.
+
+    ## Accesibilidad
+
+    - Contraste texto sobre fondo: ≥4.5:1 (WCAG AA para body ≥16pt).
+    - Contraste texto grande (≥18pt o ≥14pt bold): ≥3:1.
+    - Bordes interactivos visibles: ≥3:1 contra fondo adyacente.
+    - No comunicar estado solo con color (combinar con icono o texto).
+
+    ## Ejemplos
+
+    - [Button](../components/button.md) — usa `button.primary.bg` para variant primary.
+    - [TextInput](../components/text-input.md) — usa `input.border.focus` en state focused.
+
+    ## Historial
+
+    - 2026-05-09 v0.1.0 — Versión inicial de la paleta.

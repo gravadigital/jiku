@@ -1,0 +1,361 @@
+template:
+  id: ux-survey-screen
+  name: UX Survey Screen Template (brownfield, as-is)
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-analyze-service/SKILL.md
+    - .claude/skills/product-consolidate-services/SKILL.md
+
+  description: |
+    Structure specification for the per-screen AS-IS survey of an existing frontend, produced
+    by /product-analyze-service (frontend only) from the code of a single route.
+
+    Deliberately mirrors the section order of `screen-tmpl.yaml` so that
+    /product-consolidate-services can transcribe it into the real
+    `docs/ux/surfaces/{surface}/screens/{screen}.md` almost mechanically. The differences
+    against that template are the point:
+
+    | screen-tmpl (designed)      | this template (surveyed)                    |
+    |-----------------------------|---------------------------------------------|
+    | Estados aplicables          | Estados PRESENTES + estados AUSENTES        |
+    | Layout por viewport         | Layout OBSERVADO por viewport               |
+    | Decisiones y descartes      | NO EXISTE — no se fabrica rationale         |
+    | trazabilidad a PRD          | trazabilidad a `archivo:línea`              |
+    | Audiencia primaria          | no determinable desde el código             |
+
+    CRITICAL RULES:
+    - Every block cites the file (and line when useful) it was extracted from.
+    - Microcopy is copied VERBATIM from the code, including typos. If it comes from i18n keys,
+      cite the key and the resolved string. Never rewrite or improve text.
+    - Report the states the code IMPLEMENTS. States it does not implement go in "Estados
+      ausentes" — that is a gap, not an omission of the survey.
+    - Map every block to one of the 36 dictionary types. When a component does not map cleanly,
+      use `section` and note the real component name.
+    - Granularity is MOLECULE or ORGANISM, never atom — the same rule the wireframe skill applies.
+      A header with a title, an id and three pills is one block, not five. The atoms go in that
+      block's Contenido entry. Reading a component tree does not license a 1:1 mapping: a screen
+      with 36 blocks renders as 36 stacked boxes and communicates the React tree, not the page.
+    - NO "Decisiones y descartes" section. The code does not carry intent, and inventing it
+      would launder a guess into a spec.
+    - Language: Spanish.
+
+# Output specification
+output:
+  path: docs/analysis/ux/{{service-name}}/screens/{{screen-name}}.md
+  format: markdown
+  frontmatter:
+    - document: string          # "UX Survey Screen"
+    - screen: string            # kebab-case
+    - route: string             # the real route
+    - service: string
+    - source_files: list        # files the survey was extracted from
+    - viewports_detected: list  # viewports this screen actually treats
+    - status: string            # always "as-is-sin-validar"
+    - date: date
+
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    format: |
+      > **Relevamiento as-is** de `{{route}}`, extraído de `{{archivo principal}}`.
+      > Describe lo que el código hace hoy, no lo que debería hacer.
+
+  - id: identidad
+    title: Identidad
+    description: |
+      What the survey can establish about the screen's identity. Audience is explicitly NOT
+      determinable — leave the marker so consolidation knows to ask.
+    format: |
+      ## Identidad
+
+      - **Ruta:** `{{route}}`
+      - **Archivo:** `{{path}}`
+      - **Requiere auth:** {{sí/no}} — {{origen: middleware, guard, layout}}
+      - **Audiencia:** no determinable desde el código
+      - **Propósito observado:** {{1 línea de lo que la pantalla hace, sin interpretar por qué}}
+      - **Viewports con tratamiento:** {{mobile, desktop}} — {{o "sin tratamiento responsive"}}
+
+  - id: entrada-salida
+    title: Entrada y salida
+    description: |
+      Navigation in and out, as found in the code: links, router.push calls, redirects.
+      Cite each one.
+    format: |
+      ## Entrada y salida
+
+      **Entradas** (quién navega acá):
+      - {{desde pantalla / link externo}} · `{{archivo:línea}}`
+
+      **Salidas** (a dónde lleva):
+      - {{destino}} · disparado por {{bloque}} · `{{archivo:línea}}`
+
+      **Redirects automáticos:**
+      - {{destino y condición}} · `{{archivo:línea}}`
+
+  - id: estructura
+    title: Estructura
+    description: |
+      Block inventory extracted from the component tree, in render order. Same shape as
+      screen-tmpl's Estructura plus an Origen column, so consolidation can transcribe it.
+
+      The Viewports column comes from the responsive utilities actually applied to the block
+      (`hidden md:block` → solo desktop; `md:hidden` → solo mobile).
+    format: |
+      ## Estructura
+
+      | # | Nombre | Tipo | Variant/Level/State | Viewports | Componente real | Origen |
+      |---|--------|------|---------------------|-----------|-----------------|--------|
+      | 1 | {{nombre}} | {{tipo del diccionario}} | {{variant}} | {{ambos / solo desktop}} | {{<Button>}} | {{archivo:línea}} |
+
+      {{Si un bloque no mapea al diccionario:}}
+      > `{{nombre}}` se relevó como `section`: el componente `{{<X>}}` no mapea a ningún tipo
+      > del diccionario. Revisar en consolidación.
+
+  - id: layout-observado
+    title: Layout observado por viewport
+    description: |
+      The arrangement the code actually produces, per viewport, expressed in the same notation
+      as screen-tmpl's "Layout por viewport" (bullets and rows with 12-column fractions) so it
+      transcribes directly.
+
+      Derive it from the layout classes: a `grid-cols-3` becomes a row of three 4/12 columns;
+      a `flex` with `w-1/4` + `w-3/4` becomes 3/12 + 9/12. When the code uses a mechanism that
+      does not map to fractions (absolute positioning, CSS grid areas), describe it in prose and
+      say so — do not force a fraction that is not there.
+
+      If the screen has no responsive treatment, declare ONE layout and state it applies at
+      every width.
+    format: |
+      ## Layout observado por viewport
+
+      ### {{viewport}} · {{ancho}}px
+      - {{bloque}}
+      - row `{{id}}`
+        - col {{n}}/12: {{bloque}}
+      **Origen:** `{{archivo:línea}}` — {{clases o mecanismo que lo produce}}
+
+      {{Si no hay tratamiento responsive:}}
+      ### todos los anchos
+      Sin tratamiento responsive: el layout es el mismo a cualquier ancho.
+      - {{bloques en orden}}
+
+  - id: contenido
+    title: Contenido
+    description: |
+      Real microcopy per block, copied verbatim from the code. Typos included — they are part
+      of the current state and fixing them silently hides a decision.
+
+      When text comes from i18n, cite the key and give the resolved string for the default
+      locale. When it comes from the API at runtime, say so instead of inventing a sample.
+    format: |
+      ## Contenido
+
+      ### {{nombre del bloque}}
+      - Texto/label: "{{verbatim}}"
+      - Origen: `{{archivo:línea}}` {{o clave i18n}}
+      - Icono: {{nombre}}
+      - Annotation: {{comportamiento observado — polling, debounce, validación}}
+
+      {{Si el texto es dinámico:}}
+      - Texto/label: dinámico desde `{{campo de la API}}` — no hay copy fijo en el código
+
+  - id: estados-presentes
+    title: Estados presentes
+    description: |
+      The states the code actually implements, with the real user-facing message and how the
+      code branches into them.
+    format: |
+      ## Estados presentes
+
+      ### {{estado}}
+      - Mensaje: "{{verbatim}}"
+      - Disparado por: {{condición en el código}}
+      - Origen: `{{archivo:línea}}`
+      - Cambios: {{qué bloques cambian}}
+
+  - id: estados-ausentes
+    title: Estados ausentes
+    description: |
+      Mandatory section. Which of the 8 fixed UI states the screen does NOT implement, and what
+      happens instead today. This is the highest-signal output of the whole survey: it is what
+      the product will have to fix, stated factually.
+
+      "No aplica" is a valid entry when the state genuinely cannot occur — but justify it from
+      the code, not from intuition.
+    format: |
+      ## Estados ausentes
+
+      | Estado | Qué pasa hoy | Evidencia |
+      |---|---|---|
+      | {{empty}} | {{renderiza una lista vacía sin mensaje}} | `{{archivo:línea}}` |
+      | {{error de sistema}} | {{el fetch no tiene catch: pantalla en blanco}} | `{{archivo:línea}}` |
+
+  - id: interacciones
+    title: Interacciones
+    description: |
+      Events, validations and feedback as implemented. Validation rules must be copied with
+      their real thresholds and messages.
+    format: |
+      ## Interacciones
+
+      **Eventos:**
+      - {{bloque}} · {{evento}} → {{efecto}} · `{{archivo:línea}}`
+
+      **Validaciones:**
+      - {{campo}} · {{regla real}} → mensaje "{{verbatim}}" · `{{archivo:línea}}`
+
+      **Feedback:**
+      - {{qué pasa después de la acción}} · `{{archivo:línea}}`
+
+  - id: accesibilidad
+    title: Accesibilidad observada
+    description: |
+      What the code does for accessibility, and what it misses. Factual: presence or absence
+      of alt text, aria labels, focus management, keyboard handlers.
+    format: |
+      ## Accesibilidad observada
+
+      | Aspecto | Estado | Evidencia |
+      |---|---|---|
+      | Alt en imágenes | {{3 de 5 sin alt}} | `{{archivo:línea}}` |
+      | Labels accesibles | {{botones de icono sin aria-label}} | `{{archivo:línea}}` |
+      | Manejo de foco | {{el drawer no atrapa el foco}} | `{{archivo:línea}}` |
+
+  - id: observaciones
+    title: Observaciones del relevamiento
+    description: |
+      Replaces "Decisiones y descartes" — and is NOT the same thing. Here go facts about the
+      survey itself: what could not be read, what looked ambiguous, what needs confirmation.
+
+      NEVER write why the screen is the way it is. The code does not say why, and a fabricated
+      rationale would be indistinguishable from a real one once transcribed.
+    format: |
+      ## Observaciones del relevamiento
+
+      - {{qué no se pudo determinar y por qué}}
+      - {{ambigüedades: dos componentes que hacen lo mismo, código muerto, feature flags}}
+      - {{a confirmar en consolidación}}
+
+format:
+  example: |
+    ---
+    document: UX Survey Screen
+    screen: listado-pedidos
+    route: /pedidos
+    service: app-operador
+    source_files:
+      - app/pedidos/page.tsx
+      - components/Shell.tsx
+      - components/PedidoCard.tsx
+    viewports_detected:
+      - mobile
+      - desktop
+    status: as-is-sin-validar
+    date: 2026-08-18
+    ---
+
+    # UX Survey: listado-pedidos
+
+    > **Relevamiento as-is** de `/pedidos`, extraído de `app/pedidos/page.tsx`.
+    > Describe lo que el código hace hoy, no lo que debería hacer.
+
+    ## Identidad
+
+    - **Ruta:** `/pedidos`
+    - **Archivo:** `app/pedidos/page.tsx`
+    - **Requiere auth:** sí — `middleware.ts:8` protege `/pedidos/*`
+    - **Audiencia:** no determinable desde el código
+    - **Propósito observado:** lista los pedidos del turno y permite abrir el detalle de cada uno.
+    - **Viewports con tratamiento:** mobile, desktop
+
+    ## Entrada y salida
+
+    **Entradas:**
+    - Desde `/login` tras autenticar · `app/login/page.tsx:34` (`router.push("/pedidos")`)
+
+    **Salidas:**
+    - A `/pedidos/[id]` · disparado por `PedidoCard` · `components/PedidoCard.tsx:12`
+
+    ## Estructura
+
+    | # | Nombre | Tipo | Variant/Level/State | Viewports | Componente real | Origen |
+    |---|--------|------|---------------------|-----------|-----------------|--------|
+    | 1 | header | header | — | ambos | `<Shell>` header | `components/Shell.tsx:14` |
+    | 2 | sidebar-nav | sidebar | — | solo desktop | `<Shell>` aside | `components/Shell.tsx:22` (`hidden md:flex`) |
+    | 3 | nav-inferior | nav-bar | — | solo mobile | `<BottomNav>` | `components/BottomNav.tsx:5` (`md:hidden`) |
+    | 4 | Buscador | search-bar | default | ambos | `<Input>` + icono | `app/pedidos/page.tsx:28` |
+    | 5 | card-pedido | card | — | ambos | `<PedidoCard>` | `app/pedidos/page.tsx:41` |
+
+    ## Layout observado por viewport
+
+    ### mobile · 400px
+    - Buscador
+    - card-pedido (lista vertical)
+    - nav-inferior
+
+    **Origen:** `app/pedidos/page.tsx:38` — `grid grid-cols-1 gap-4`
+
+    ### desktop · 1200px
+    - row `shell`
+      - col 3/12: sidebar-nav
+      - col 9/12:
+        - Buscador
+        - row `grilla`: card-pedido × 3 (4/12 cada una)
+
+    **Origen:** `components/Shell.tsx:22` (`md:w-1/4` + `md:w-3/4`) y
+    `app/pedidos/page.tsx:38` (`md:grid-cols-3`)
+
+    ## Contenido
+
+    ### Buscador
+    - Texto/label: "Buscar pedido..."
+    - Origen: `app/pedidos/page.tsx:29` (hardcodeado, sin i18n)
+    - Icono: search
+    - Annotation: filtra en cliente sobre el array ya cargado, sin debounce
+
+    ### card-pedido
+    - Texto/label: dinámico — `pedido.codigo` y `pedido.mesa` desde la API
+    - Origen: `components/PedidoCard.tsx:8`
+
+    ## Estados presentes
+
+    ### loading
+    - Mensaje: "Cargando..."
+    - Disparado por: `isLoading` de `useQuery`
+    - Origen: `app/pedidos/page.tsx:22`
+    - Cambios: reemplaza la grilla completa por el texto
+
+    ## Estados ausentes
+
+    | Estado | Qué pasa hoy | Evidencia |
+    |---|---|---|
+    | empty | mapea el array sin chequear largo: grilla vacía sin mensaje | `app/pedidos/page.tsx:41` |
+    | error de sistema | `useQuery` no maneja `isError`: queda en loading para siempre | `app/pedidos/page.tsx:22` |
+    | error de validación | no aplica — la pantalla no tiene formulario | — |
+
+    ## Interacciones
+
+    **Eventos:**
+    - card-pedido · on click → navega a `/pedidos/{id}` · `components/PedidoCard.tsx:12`
+    - Buscador · on change → filtra el array en memoria · `app/pedidos/page.tsx:31`
+
+    **Validaciones:**
+    - Ninguna: la pantalla no tiene inputs validados.
+
+    ## Accesibilidad observada
+
+    | Aspecto | Estado | Evidencia |
+    |---|---|---|
+    | Labels accesibles | el botón de hamburguesa no tiene `aria-label` | `components/Shell.tsx:17` |
+    | Manejo de foco | el drawer mobile no atrapa el foco al abrir | `components/Shell.tsx:22` |
+
+    ## Observaciones del relevamiento
+
+    - El filtro del buscador es client-side sobre datos ya cargados: si la lista crece, el
+      comportamiento va a cambiar. A confirmar si es intencional.
+    - `components/PedidoCardOld.tsx` existe y no se importa desde ningún lado (código muerto).
+    - No se pudo determinar si `/pedidos` tiene paginación: la API devuelve todo en una llamada.

@@ -1,0 +1,330 @@
+template:
+  id: prd-goals-context
+  name: PRD - Goals and Context
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-product-definition.md
+
+  description: |
+    Structure specification for the PRD Goals and Context document.
+    Generated during /initialize-product Phase 1 (Product Definition).
+
+    DUAL-AUDIENCE DESIGN: This document is read by humans AND downstream agents.
+    - Target Users use IDs (U-XX) referenced by capabilities in requirements.md
+    - Goals use IDs (G-XX) so requirements can trace back to them
+    - Success Metrics have measurable targets, not vague aspirations
+
+    This document captures:
+    - Product overview (name, problem, users with IDs, value)
+    - Goals with IDs and success criteria with measurable targets
+    - Background context (why now, landscape, learnings)
+    - Scope definition (in/out, constraints)
+
+# Output specification
+output:
+  path: docs/prd/goals-and-context.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Draft - In Definition", "Ready", "Approved"
+
+# Section definitions
+sections:
+
+  - id: product-overview
+    title: Product Overview
+    description: |
+      High-level product information: name, problem solved, target users.
+      This section provides context for anyone reading the PRD.
+
+    subsections:
+      - id: name
+        title: Name
+        description: Product name
+        format: "{{product_name}}"
+
+      - id: problem-statement
+        title: Problem Statement
+        description: Clear description of the problem being solved
+        format: |
+          [2-3 paragraph description of the problem]
+
+      - id: target-users
+        title: Target Users
+        description: |
+          Who will use this product (roles, personas).
+          Each user type has an ID (U-XX) that capabilities in requirements.md
+          reference in the "Actor" column. This ensures traceability.
+        format: |
+          - **U-XX: [User type]**: [Description of needs/characteristics]
+
+    example: |
+      ## Product Overview
+
+      ### Name
+      TaskFlow
+
+      ### Problem Statement
+      Los equipos pequeños (2-10 personas) tienen dificultad para organizar tareas
+      de manera efectiva. Las herramientas existentes son demasiado complejas (Jira,
+      Asana) o demasiado limitadas (Trello). Hay una brecha en el mercado para una
+      solución que sea simple de usar pero suficientemente potente para equipos
+      profesionales.
+
+      TaskFlow es una herramienta de gestión de tareas visual e intuitiva, diseñada
+      específicamente para equipos pequeños que necesitan colaborar sin la complejidad
+      de herramientas empresariales.
+
+      ### Target Users
+      - **U-01: Líderes de equipo**: Necesitan visibilidad del progreso sin micromanagement.
+        Valoran reportes simples y la capacidad de detectar bloqueos rápidamente.
+      - **U-02: Desarrolladores**: Quieren una herramienta ágil que no interrumpa su flujo.
+        Prefieren integraciones con Git y notificaciones inteligentes.
+      - **U-03: Equipos remotos**: Necesitan colaboración asíncrona efectiva. Valoran
+        comentarios, menciones, y historial de cambios.
+
+  - id: goals-success
+    title: Goals and Success Criteria
+    description: |
+      3-5 primary goals the product must achieve and measurable success metrics.
+      Focus on outcomes, not features.
+
+    subsections:
+      - id: primary-goals
+        title: Primary Goals
+        description: |
+          Main objectives (3-5 maximum). Each goal has an ID (G-XX) that
+          requirements can trace back to via capabilities.
+        format: |
+          1. **G-01: [Goal title]**: [Description focusing on outcome]
+          2. **G-02: [Goal title]**: [Description focusing on outcome]
+          3. **G-03: [Goal title]**: [Description focusing on outcome]
+
+      - id: success-metrics
+        title: Success Metrics
+        description: |
+          How we'll measure if goals are being achieved.
+          Each metric MUST have: a measurable target, a timeframe, and reference
+          to which goal it validates.
+        format: |
+          | Metric | Target | Timeframe | Validates |
+          |--------|--------|-----------|-----------|
+          | [metric] | [number/threshold] | [when] | G-XX |
+
+    example: |
+      ## Goals and Success Criteria
+
+      ### Primary Goals
+
+      1. **G-01: Reducir fricción en gestión de tareas**: Los usuarios deben poder crear
+         y asignar tareas en menos de 30 segundos, sin necesidad de capacitación previa.
+
+      2. **G-02: Mejorar visibilidad del progreso**: Los líderes de equipo deben poder
+         entender el estado del proyecto en menos de 1 minuto, sin necesidad de
+         reuniones de status.
+
+      3. **G-03: Facilitar colaboración remota**: Equipos distribuidos deben poder coordinar
+         trabajo asíncrono eficientemente, con contexto completo en cada tarea.
+
+      4. **G-04: Minimizar curva de aprendizaje**: Nuevos miembros del equipo deben ser
+         productivos en su primer día de uso, sin onboarding formal.
+
+      ### Success Metrics
+
+      | Metric | Target | Timeframe | Validates |
+      |--------|--------|-----------|-----------|
+      | Time to first task | < 5 min desde signup | Mes 1 | G-01, G-04 |
+      | Daily active users | 70% de registrados | Después de 1 mes de uso | G-01, G-03 |
+      | Task completion rate | 80% de tareas creadas se completan | Promedio mensual | G-01, G-02 |
+      | Team adoption | 80% del equipo adopta si 1 miembro usa | 2 semanas desde primer uso | G-03 |
+      | Net Promoter Score | > 50 | Después de 1 mes de uso | G-01, G-04 |
+
+  - id: background-context
+    title: Background and Context
+    description: |
+      Why this product, why now. Current landscape, alternatives, learnings.
+      Provides strategic context for decision-making.
+
+    subsections:
+      - id: why-now
+        title: Why Now?
+        description: Market timing, opportunity, motivation
+        format: |
+          [1-2 paragraphs explaining timing and opportunity]
+
+      - id: current-landscape
+        title: Current Landscape
+        description: Existing alternatives, competitors, gaps
+        format: |
+          - **[Alternative 1]**: [Strengths and weaknesses]
+          - **[Alternative 2]**: [Strengths and weaknesses]
+          - **[Alternative 3]**: [Strengths and weaknesses]
+
+      - id: key-learnings
+        title: Key Learnings
+        description: Insights from research, experience, user feedback
+        format: |
+          - [Learning 1]
+          - [Learning 2]
+          - [Learning 3]
+
+    example: |
+      ## Background and Context
+
+      ### Why Now?
+
+      La pandemia de COVID-19 aceleró la adopción de trabajo remoto, y los equipos
+      pequeños están buscando herramientas que faciliten la colaboración distribuida.
+      Durante 2020-2023, nuestro equipo probó más de 10 herramientas de gestión de
+      tareas, y todas tenían deficiencias significativas: demasiado complejas,
+      pricing injusto para equipos pequeños, o falta de features clave.
+
+      Hay una clara oportunidad de mercado para una herramienta "intermedia" que
+      combine la simplicidad de Trello con el poder de Linear, a un precio accesible
+      para equipos pequeños.
+
+      ### Current Landscape
+
+      - **Trello**: Simple e intuitivo, pero extremadamente limitado. No escala bien
+        cuando los proyectos crecen. Falta de features críticas como dependencias,
+        estimaciones, o reportes. Precio: $5-10/usuario/mes.
+
+      - **Jira**: Extremadamente potente pero complejidad abrumadora. Requiere días
+        de capacitación y configuración. Over-engineering para equipos pequeños.
+        Precio: $7.75-15/usuario/mes.
+
+      - **Linear**: Excelente UX y velocidad, pero pricing prohibitivo para equipos
+        pequeños ($8-12/usuario/mes con mínimo de usuarios). Diseñado para startups
+        bien financiadas.
+
+      - **Asana**: Buen balance, pero interfaz confusa y demasiadas opciones.
+        Curva de aprendizaje moderada-alta. Precio: $10.99-24.99/usuario/mes.
+
+      ### Key Learnings
+
+      - Los equipos pequeños valoran **velocidad** sobre customización. Prefieren
+        defaults inteligentes que configuración exhaustiva.
+
+      - El 80% de las tareas necesita solo: título, descripción, asignado, estado,
+        y fecha límite. Features avanzadas se usan en < 20% de casos.
+
+      - Las **notificaciones inteligentes** (no spam) son críticas. Los usuarios
+        odian ser bombardeados con notificaciones irrelevantes.
+
+      - La **integración con Slack** es un must-have. Los equipos viven en Slack
+        y quieren updates ahí, no en otra app.
+
+      - El **onboarding debe ser invisible**. Si requiere tutorial, ya perdiste
+        al usuario.
+
+  - id: context
+    title: Context
+    description: |
+      Relevant context: existing systems to integrate with or replace,
+      key decisions already made by client/team. Only include if applicable.
+      This section replaces "Background and Context" for client-driven products
+      where the problem and landscape are already clear.
+
+    subsections:
+      - id: existing-systems
+        title: Existing Systems
+        description: |
+          Systems the product must integrate with or replace. Skip if greenfield.
+        format: |
+          - **[System name]**: [What it does, how the new product relates to it]
+
+      - id: key-decisions
+        title: Key Decisions
+        description: |
+          Decisions already made that constrain the product: technology choices,
+          mandatory integrations, regulatory requirements, etc.
+        format: |
+          - [Decision]: [Rationale]
+
+    example: |
+      ## Context
+
+      ### Existing Systems
+
+      - **ERP Legacy (SAP)**: Sistema actual del cliente para gestión de inventario.
+        El nuevo producto consume datos de inventario via API REST que SAP expone.
+        No se reemplaza SAP, se complementa.
+      - **Portal web actual (WordPress)**: Se reemplaza completamente. Los usuarios
+        actuales migran al nuevo sistema.
+
+      ### Key Decisions
+
+      - **Stack: Node.js + React**: El equipo del cliente solo tiene experiencia en este stack
+      - **PostgreSQL**: Decisión del cliente, ya tienen licencias y DBA
+      - **Deploy en AWS**: Infraestructura existente del cliente, no negociable
+      - **OAuth con Azure AD**: Autenticación via directorio corporativo del cliente
+
+  - id: scope
+    title: Scope
+    description: |
+      Define what's in scope (MVP), explicitly out of scope, and constraints.
+      Being explicit about boundaries prevents scope creep.
+
+    subsections:
+      - id: in-scope
+        title: In Scope (MVP)
+        description: Features included in first version
+        format: |
+          - [Feature/capability 1]
+          - [Feature/capability 2]
+          - [Feature/capability 3]
+
+      - id: out-of-scope
+        title: Out of Scope (MVP)
+        description: Features explicitly excluded (for now)
+        format: |
+          - [Excluded feature 1] (reason or future version)
+          - [Excluded feature 2] (reason or future version)
+
+      - id: constraints
+        title: Constraints
+        description: Time, budget, technology, regulatory constraints
+        format: |
+          - **Time**: [Timeline constraint]
+          - **Budget**: [Budget constraint]
+          - **Technology**: [Tech stack constraints]
+          - **Compliance**: [Regulatory requirements]
+
+    example: |
+      ## Scope
+
+      ### In Scope (MVP)
+
+      - **Gestión básica de tareas**: Crear, editar, asignar, cambiar estado,
+        eliminar tareas
+      - **Tableros kanban**: Múltiples tableros por proyecto, columnas
+        personalizables, drag & drop
+      - **Colaboración**: Comentarios, menciones (@usuario), attachments, historial
+      - **Notificaciones**: Email + in-app, configurables por usuario
+      - **Integraciones básicas**: Slack (notificaciones), Google OAuth (login)
+      - **Autenticación**: Email/password + Google OAuth
+      - **Responsive web app**: Desktop, tablet, mobile browsers
+
+      ### Out of Scope (MVP)
+
+      - **Time tracking** (planificado para v2 - Q2 2024)
+      - **Reportes avanzados/analytics** (planificado para v2)
+      - **App móvil nativa** (evaluaremos después de PMF)
+      - **Integraciones múltiples** (solo Slack en MVP, otras en v2)
+      - **Workflow automation** (tipo Zapier - v3 o posterior)
+      - **Subtareas/jerarquías complejas** (mantener simple en MVP)
+      - **Roadmap/timeline views** (Gantt charts - posible v2)
+
+      ### Constraints
+
+      - **Time**: MVP en 3 meses (target: launch Q4 2023)
+      - **Budget**: USD $50,000 para desarrollo inicial + $5,000/mes infrastructure
+      - **Technology**: Stack TypeScript full (Next.js frontend, Node.js backend)
+        para maximizar velocidad de desarrollo
+      - **Compliance**: GDPR compliance obligatorio (target: usuarios europeos),
+        SOC 2 en roadmap post-MVP
+      - **Team**: 2 desarrolladores full-time, 1 diseñador part-time

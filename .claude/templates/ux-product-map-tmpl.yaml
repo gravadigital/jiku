@@ -1,0 +1,311 @@
+template:
+  id: ux-product-map
+  name: UX Product Map Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for a Surface Product Map document.
+    Generated PER SURFACE during Phase 2.
+
+    This is the structural inventory of a surface: screens, navigation,
+    information architecture, and global states. NO user flows here — those
+    live in user-flows.md.
+
+    The document captures:
+    - Audiences that use this surface (with reference to research-contexts)
+    - Screen inventory (hierarchical, with audience primary)
+    - Navigation structure (top-level + secondary)
+    - Information Architecture (taxonomy, logical groupings)
+    - Global states (auth, onboarding, special modes)
+    - Visual map (mermaid or ASCII hierarchy)
+
+    CRITICAL RULES:
+    - Default to MINIMUM screens the PRD demands. Resist onboarding/profile/
+      settings/dashboard unless the PRD explicitly requires them.
+    - Every screen must trace to PRD reference (C-XX, U-XX, or requirement)
+      OR be marked "sugerencia fuera de PRD — a validar".
+    - Decisional tone. Banned: "experiencia atractiva", "propuesta de valor",
+      "engagement", "valor agregado".
+    - Brevity: readable in under 5 minutes.
+    - Language MUST match the language of the PRD.
+    - User flows go in user-flows.md, NOT here.
+
+# Output specification
+output:
+  path: docs/ux/surfaces/{{surface-name}}/product-map.md
+  format: markdown
+  frontmatter:
+    - document: string         # "UX Product Map"
+    - surface: string          # the surface name (matches folder)
+    - version: string          # "1.0"
+    - date: date
+    - status: string           # "Draft - Punto de partida para discusión"
+    - audiences: list          # list of audience names that use this surface
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote framing the document as structural draft for team
+      discussion. Must appear immediately after H1.
+    format: |
+      > Inventario estructural de la superficie. Define qué pantallas existen,
+      > cómo se agrupan y cómo se navega entre ellas. **No define flujos** —
+      > eso vive en `user-flows.md`. Si el equipo lee esto y no hay objeciones,
+      > el documento falló: debería generar fricción para provocar decisiones.
+
+  - id: audiences-on-surface
+    title: Audiencias en esta Superficie
+    description: |
+      Reference to which audiences use this surface and for what.
+      Pulled from the audience↔surface matrix in product-overview.md.
+
+      Each audience links to its research-context.md.
+    format: |
+      ## Audiencias en esta Superficie
+
+      - **{{audience-name}}** ([research-context](../../audiences/{{audience-name}}/research-context.md)) — {{purpose, 1 línea}}
+
+    example: |
+      ## Audiencias en esta Superficie
+
+      - **operador-turno** ([research-context](../../audiences/operador-turno/research-context.md)) — Procesa pedidos durante el turno. Audiencia primaria.
+      - **supervisor-turno** ([research-context](../../audiences/supervisor-turno/research-context.md)) — Consulta puntual del estado del piso. Audiencia secundaria.
+
+  - id: screen-inventory
+    title: Inventario de Pantallas
+    description: |
+      Hierarchical list/table. Default to MINIMUM screens.
+      Every row must cite PRD reference OR be marked "sugerencia fuera de PRD".
+
+      Audience primaria column indicates which audience the screen is mainly
+      designed for (a screen can serve multiple audiences but should have a
+      primary one).
+      The **Viewports** column says in which of the surface's viewports each screen exists.
+      Default is all of them (`ambos` when the surface declares two). A screen restricted to
+      one viewport must justify it in the notes — that is a product decision, not a layout
+      detail (e.g. a dense parameter table that is not usable at 400px).
+    format: |
+      ## Inventario de Pantallas
+
+      | # | Pantalla | Propósito | Audiencia primaria | Viewports | Referencia PRD |
+      |---|----------|-----------|---------------------|-----------|----------------|
+      | 1 | {{Nombre}} | {{1 línea}} | {{audience-name}} | {{ambos / solo mobile / solo desktop}} | {{C-XX o "sugerencia fuera de PRD"}} |
+
+    example: |
+      ## Inventario de Pantallas
+
+      | # | Pantalla | Propósito | Audiencia primaria | Viewports | Referencia PRD |
+      |---|----------|-----------|---------------------|-----------|----------------|
+      | 1 | Listado de pedidos | Ver todos los pedidos del turno | operador-turno | ambos | C-01, C-02 |
+      | 2 | Detalle de pedido | Ver y editar un pedido específico | operador-turno | ambos | C-03, C-04 |
+      | 3 | Nuevo pedido | Dar de alta un pedido | operador-turno | solo mobile | C-05 |
+      | 4 | Ajuste de reglas de picking | Editar la matriz de prioridades del turno | supervisor-turno | solo desktop | C-11 |
+
+      > Pantallas con viewport restringido: **Nuevo pedido** es solo mobile — el alta se hace
+      > con el escáner del celular sobre el pallet, no hay flujo de alta desde la estación fija.
+      > **Ajuste de reglas de picking** es solo desktop — la matriz tiene 12 columnas y no es
+      > usable a 400px.
+
+  - id: overlay-inventory
+    title: Inventario de Overlays
+    description: |
+      Drawers, side menus, bottom sheets, and modals that are significant UX
+      elements but are NOT standalone routes. They are triggered by a specific
+      block in a parent screen and render on top of it without replacing the URL.
+
+      Include this section ONLY if the surface has overlays. Skip it if all
+      transitions lead to full screens.
+
+      Each overlay:
+      - Must have a trigger (which screen + which block opens it)
+      - Has its own block structure (what's inside the overlay)
+      - Does NOT appear in the "Inventario de Pantallas" table above
+
+      Overlay types: drawer (side panel), bottom-sheet (slides from bottom),
+      modal (centered dialog), popover (anchored floating panel).
+
+      Overlays are frequently the place where viewports diverge most: what is a bottom-sheet on
+      mobile is often an inline panel or a popover on desktop. Declare the type per viewport when
+      it differs (`bottom-sheet (mobile) / popover (desktop)`), and if the content becomes inline
+      on desktop — that is, it stops being an overlay — say so: the desktop layout of the parent
+      screen has to absorb it.
+    format: |
+      ## Inventario de Overlays
+
+      | # | Overlay | Tipo | Trigger | Propósito |
+      |---|---------|------|---------|-----------|
+      | O-01 | {{Nombre}} | drawer / bottom-sheet / modal / popover | {{Pantalla}} · {{Bloque}} | {{1 línea}} |
+
+    example: |
+      ## Inventario de Overlays
+
+      | # | Overlay | Tipo | Trigger | Propósito |
+      |---|---------|------|---------|-----------|
+      | O-01 | Menú de navegación | drawer | P-03 · btn-hamburguesa, P-04 · btn-hamburguesa | Acceso global a Perfil/Vehículos, Mantenimiento, Notificaciones con badge counter |
+      | O-02 | Selector de vehículo | bottom-sheet | P-07 · btn-asignar-primario, P-07 · btn-asignar-secundario | Lista filtrada de vehículos disponibles; confirmar selección cierra el sheet y actualiza P-07 |
+
+  - id: navigation
+    title: Estructura de Navegación
+    description: |
+      Top-level navigation (primary entry points) and secondary navigation
+      (within sections).
+
+      Keep it tight. If there's only one level, say so.
+    format: |
+      ## Estructura de Navegación
+
+      ### Navegación principal
+
+      - **{{Item 1}}** → {{pantalla destino}}
+      - **{{Item 2}}** → {{pantalla destino}}
+
+      ### Navegación secundaria
+
+      Dentro de **{{sección}}**:
+      - {{sub-item}}
+      - {{sub-item}}
+
+    example: |
+      ## Estructura de Navegación
+
+      ### Navegación principal
+
+      - **Pedidos** → Listado de pedidos (#1)
+      - **Nuevo** → Nuevo pedido (#3)
+
+      ### Navegación secundaria
+
+      Dentro de **Listado de pedidos**:
+      - Filtros laterales (estado, cliente, urgencia)
+      - Vista alternativa: kanban
+
+  - id: information-architecture
+    title: Information Architecture
+    description: |
+      Taxonomy and logical groupings. Why does X go with Y and not with Z?
+
+      Skip the section if the surface is small (1-3 screens) and grouping is
+      trivial.
+    format: |
+      ## Information Architecture
+
+      ### Agrupación: {{nombre del grupo}}
+
+      Pantallas: {{lista de pantallas}}
+
+      **Por qué se agrupan:** {{justificación, 1-2 líneas}}
+
+    example: |
+      ## Information Architecture
+
+      ### Agrupación: Operación de pedidos
+
+      Pantallas: Listado de pedidos (#1), Detalle de pedido (#2), Nuevo pedido (#3)
+
+      **Por qué se agrupan:** Son las pantallas usadas durante el flujo principal del turno. El operador rota entre ellas continuamente.
+
+      ### Agrupación: Configuración personal
+
+      Pantallas: (ninguna en MVP)
+
+      **Por qué se agrupan:** El PRD no requiere configuración personal en MVP. A futuro podría incluir preferencias de notificaciones.
+
+  - id: global-states
+    title: Estados Globales
+    description: |
+      Cross-cutting states that affect the entire surface, not specific screens.
+
+      Examples: authenticated/anonymous, onboarding, readonly mode, admin override,
+      offline.
+
+      Skip the section if no global states apply.
+    format: |
+      ## Estados Globales
+
+      - **{{Estado}}** — {{cuándo aplica, qué cambia en la superficie}}
+
+    example: |
+      ## Estados Globales
+
+      - **Autenticado vs no autenticado** — La superficie completa requiere autenticación. Sin sesión, redirige a login (que vive en otra superficie).
+      - **Modo readonly** — Cuando el turno termina, el operador queda con vista de consulta sin poder editar pedidos del turno cerrado. Marcado visualmente en header.
+      - **Sin conexión** — La superficie tolera pérdida de conexión: muestra banner de aviso y permite consulta sobre datos cacheados, pero bloquea edición.
+
+  - id: visual-map
+    title: Mapa Visual
+    description: |
+      Mermaid or ASCII diagram showing the hierarchy of screens and navigation.
+
+      This is NOT a flow diagram (those live in user-flows.md). It's a structural
+      map: parent-child relationships and navigation entry points.
+    format: |
+      ## Mapa Visual
+
+      ```mermaid
+      flowchart TD
+          Root[{{Surface name}}]
+          Root --> S1[Pantalla 1]
+          Root --> S2[Pantalla 2]
+          S1 --> S1a[Sub-pantalla a]
+          S1 --> S1b[Sub-pantalla b]
+      ```
+
+    example: |
+      ## Mapa Visual
+
+      ```mermaid
+      flowchart TD
+          Root[app-operador]
+          Root --> S1[Listado de pedidos]
+          Root --> S3[Nuevo pedido]
+          S1 --> S2[Detalle de pedido]
+          S3 -.confirmación.-> S2
+      ```
+
+  - id: open-questions
+    title: Preguntas Abiertas
+    description: |
+      Minimum 3, maximum 6 questions. Each must impact the structural map and
+      state what changes depending on the answer.
+
+      Same rules as the old product-map: questions must be substantive, not
+      visual ("what colors?" banned).
+    format: |
+      ## Preguntas Abiertas
+
+      1. **{{Pregunta}}**
+         - Impacto si la respuesta es A: {{qué cambia en el mapa}}
+         - Impacto si la respuesta es B: {{qué cambia en el mapa}}
+
+    example: |
+      ## Preguntas Abiertas
+
+      1. **¿La superficie debe soportar mobile o solo desktop?**
+         - Si solo desktop: el inventario de pantallas se diseña con tablas anchas y filtros laterales.
+         - Si también mobile: cada pantalla necesita variante mobile, lo que multiplica el alcance de diseño.
+
+      2. **¿Hay onboarding obligatorio para usuarios nuevos?**
+         - Si sí: agregar pantalla de onboarding al inicio + estado global "primer ingreso".
+         - Si no: defaults inteligentes pero sin onboarding explícito (preferencia del template).
+
+      3. **¿El supervisor accede a esta superficie o tiene su propia superficie?**
+         - Si accede acá con permisos extendidos: agregar estado global "rol supervisor" y vistas adicionales.
+         - Si tiene superficie propia (`dashboard-supervisor`): mantener esta superficie limitada a operadores.
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line indicating this map feeds the user-flows.md.
+    format: |
+      ---
+
+      **Próximo artefacto:** `user-flows.md` de esta misma superficie define los 3-5 flujos críticos sobre las pantallas inventariadas acá.

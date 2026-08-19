@@ -1,0 +1,360 @@
+import:
+  status: completed
+  last_updated: 2026-08-18
+  completed_at: 2026-08-18
+  architecture_validated_at: 2026-08-18
+  mode: monorepo
+  notes: |
+    El repositorio de producto y el de servicios son el mismo: `jiku` es un monorepo npm con
+    workspaces. Los servicios a analizar son `api`, `core`, `web` y `opus-web`.
+
+  services:
+    - name: web
+      type: frontend
+      responsibility: "Frontend interno del equipo: gestión de actores, proyectos, requisitos, tareas, asignación de tiempo y horas trabajadas sobre la API de Jiku"
+      tech_stack: "Next.js 16 (App Router) + React 19 + TypeScript + TanStack Query + Sass/CSS Modules + NextAuth v5/Zitadel"
+      path: web/
+      status: analyzed
+      analyzed_at: 2026-08-18
+
+      interfaces:
+        exposes:
+          - type: web_ui
+            details: "25 rutas. 21 protegidas bajo el grupo (loggedin), 4 públicas: /, /login, /login/enter, /unauthorized"
+          - type: rest_api
+            details: "7 route handlers propios (BFF), solo para lo que el navegador no puede resolver server-side: POST /api/attachments, GET /api/attachments/[id]/download, GET /api/attachments/[id]/preview, POST /api/clients, PATCH /api/requirements/[reqid], GET /api/userinfo, GET|POST /api/auth/[...nextauth]"
+        consumes:
+          - type: api
+            target: "jiku-api (via API_URL, red interna en producción)"
+            details: "~45 endpoints REST bajo {API_URL}/api. El access token se inyecta en el servidor; nunca llega al navegador"
+          - type: external_service
+            target: "Zitadel (OIDC)"
+            details: "Authorization Code + PKCE para el login, y GET {ZITADEL_ISSUER}/oidc/v1/userinfo desde el BFF. Los roles vienen del claim del proyecto"
+          - type: external_service
+            target: "Google Fonts"
+            details: "Tipografía Archivo vía next/font/google"
+
+      documentation:
+        analysis: docs/analysis/services/web.md
+        architecture: docs/architectures/web/
+        ux_survey: docs/analysis/ux/web/
+        api_spec: null       # no aplica: es un frontend
+        db_schema: null      # no aplica: no tiene base de datos propia
+
+    - name: opus-web
+      type: frontend
+      responsibility: "Portal de clientes: un cliente sigue el avance de sus proyectos, crea requisitos, comenta y se suscribe. Nunca ve horas, comentarios internos ni proyectos de otros clientes"
+      tech_stack: "Next.js 16 (App Router) + React 19 + TypeScript + TanStack Query + Sass/CSS Modules + NextAuth v5/Zitadel"
+      path: opus-web/
+      status: analyzed
+      analyzed_at: 2026-08-18
+
+      interfaces:
+        exposes:
+          - type: web_ui
+            details: "5 páginas. Todas protegidas salvo /login. El guard está en middleware.ts con matcher por exclusión, no en un layout"
+          - type: rest_api
+            details: "4 route handlers. El principal es un proxy catch-all: GET|POST|PATCH|PUT|DELETE /api/opus/[...path], que reenvía TODA la superficie de /api/opus/* con el token de la sesión. Más GET|POST /api/auth/[...nextauth], GET /api/attachments/[id]/preview (con sesión) y GET /attachments/[id]/[fileName] (SIN autenticación)"
+        consumes:
+          - type: api
+            target: "jiku-api (via API_URL, red interna en producción)"
+            details: "10 endpoints REST bajo /api/opus/* más POST /api/auth/present. El access token se inyecta en el route handler; nunca llega al navegador"
+          - type: external_service
+            target: "Zitadel (OIDC)"
+            details: "Authorization Code + PKCE para el login, y GET {ZITADEL_ISSUER}/oidc/v1/userinfo cuando el ID token viene sin name o email. Comparte la app OIDC con `web` (mismo ZITADEL_CLIENT_ID), con secreto de sesión propio"
+
+      documentation:
+        analysis: docs/analysis/services/opus-web.md
+        architecture: docs/architectures/opus-web/
+        ux_survey: docs/analysis/ux/opus-web/
+        api_spec: null       # no aplica: es un frontend
+        db_schema: null      # no aplica: no tiene base de datos propia
+
+      notes: |
+        Mismo stack que `web` con tres decisiones estructurales opuestas, a confirmar en
+        consolidación:
+          - datos: proxy catch-all desde el navegador, no Server Actions
+          - guard: middleware.ts (protección por exclusión), no layout de grupo
+          - rol: sin corte de navegación; `web` redirige external-user a /unauthorized
+        Además usa los nombres de variables de NextAuth v4 (NEXTAUTH_*) donde `web` usa los de
+        v5 (AUTH_*).
+
+    - name: api
+      type: backend
+      responsibility: "Única puerta HTTP del producto: autentica contra Zitadel, autoriza por rol y por entidad, lee la base directamente y convierte toda mutación en un comando NATS que atiende core"
+      tech_stack: "Express 5 + TypeScript 5.9 (Node 24) + Sequelize 6 (solo lectura) + PostgreSQL + NATS + Joi + Winston + Mocha"
+      path: api/
+      status: analyzed
+      analyzed_at: 2026-08-18
+
+      interfaces:
+        exposes:
+          - type: rest_api
+            details: "61 endpoints bajo /api. 49 internos (consumidos por `web`) y 12 en /api/opus/* (consumidos por `opus-web`). Un solo endpoint sin autenticación: GET /api/opus/attachments/:id/public, exento porque valida visibilidad por su cuenta"
+        consumes:
+          - type: database
+            target: "PostgreSQL `jiku`"
+            details: "SOLO LECTURA por credenciales. 28 tablas vía @jiku/models. Tres excepciones que escriben: las migraciones (credenciales propias), la fila de attachments y PUT /api/week-assigned-times — las dos últimas son deuda"
+          - type: message_bus
+            target: "NATS → core"
+            details: "Publica 13 formas de comando. Subject {instance}.{user-id}.gestion.v1.{comando}. Request/reply SIN JetStream: sin reintento ni cola, timeout NATS_REQUEST_TIMEOUT_MS (default 5000ms) → 503"
+          - type: external_service
+            target: "Zitadel (OIDC)"
+            details: "JWKS en {IDENTITY_URL}/oauth/v2/keys, resincronizado con reintentos ante un kid desconocido. Service user con JSON key para autenticarse en el bus, con auto-refresh del token (caduca en ~1h)"
+          - type: external_service
+            target: "Storage S3-compatible"
+            details: "Bucket de adjuntos. Sirve AWS S3, MinIO, DigitalOcean Spaces o Cloudflare R2. Sin defaults para bucket y región a propósito"
+
+      documentation:
+        analysis: docs/analysis/services/api.md
+        architecture: docs/architectures/api/
+        ux_survey: null      # no aplica: es un backend
+        api_spec: docs/apis/api.yaml
+        db_schema: docs/db-schemas/jiku.md
+
+      notes: |
+        La decisión estructural es leer la base y escribir por el bus, y no está en ningún catálogo
+        de convenciones. Condiciona todo: las 14 conventions del servicio son custom.
+
+        Reglas de negocio que viven en la api y no en core, porque core no conoce roles, usuarios
+        finales ni calendario. Son candidatas a requisitos explícitos del PRD:
+          - ventana de carga de horas: día actual + 10 previos
+          - solo `admin` imputa horas a otra persona
+          - no se modifican semanas pasadas de asignación
+          - una incidencia no se resuelve sin tipo y conclusión
+          - visibilidad automática de actividades: estado, título y descripción son `public`,
+            el resto `internal`; solo los comentarios permiten elegir
+          - adjuntos: 10 archivos, 10 MB, 13 extensiones con doble lista blanca
+
+        Vocabulario divergente entre capas, a resolver en consolidación:
+          UI/producto → HTTP/base → bus
+          Actor       → client     → client
+          Tarea       → objective  → task
+          Etapa       → (eliminada de la base, pero la web sigue mandando stageId)
+
+        Limitaciones que afectan al producto:
+          - POST /api/auth/present es un no-op: NO se pueden crear usuarios desde el producto.
+            Quien autentica pero no está en `users` recibe 401 de todas las rutas
+          - las 95 migraciones no construyen el esquema desde cero: una instalación nueva
+            necesita un dump previo
+          - un comando perdido es un comando perdido (sin JetStream, sin idempotencia)
+          - los códigos de error no están catalogados; `daily_limit_exceeded` recupera
+            `remainingMinutes` parseando el mensaje con un regex
+          - los mensajes de error son texto de interfaz y están mezclados entre inglés y español
+
+    - name: core
+      type: backend
+      responsibility: "Único servicio que escribe en la base. Atiende los comandos que publica la api por NATS, valida las reglas de negocio y escribe. No expone HTTP ni conoce roles"
+      tech_stack: "TypeScript 5.9 strict (Node 24) + NATS 2.29 + Sequelize 6 (escritura, usuario dueño) + PostgreSQL + Joi + Winston + Mocha"
+      path: core/
+      status: analyzed
+      analyzed_at: 2026-08-18
+
+      interfaces:
+        exposes:
+          - type: message_bus
+            details: "17 comandos NATS en 5 módulos. Subject {instance}.{user-id}.{svc}.{version}.{comando}; se suscribe a {instance}.*.gestion.v1.> con queue group `gestion` para que varias réplicas se repartan los mensajes. Request/reply SIN JetStream: sin cola, sin reintento, sin idempotencia. NO expone HTTP: ni puerto, ni endpoints, ni framework web"
+        consumes:
+          - type: database
+            target: "PostgreSQL `jiku`"
+            details: "LECTURA Y ESCRITURA con el usuario dueño. Es el único servicio que escribe. 28 tablas vía @jiku/models. NO corre las migraciones: las corre la api"
+          - type: message_bus
+            target: "NATS"
+            details: "Se suscribe; no publica nada. Creds de sentinel + token de service user, que es el que dispara el auth-callout y mintea los permisos"
+          - type: external_service
+            target: "Zitadel (OIDC)"
+            details: "SOLO para su propio token de bus, con auto-refresh (caduca en ~1h). No valida tokens de usuario ni lee roles de personas"
+
+      documentation:
+        analysis: docs/analysis/services/core.md
+        architecture: docs/architectures/core/
+        ux_survey: null      # no aplica: es un backend
+        api_spec: docs/apis/core.yaml
+        db_schema: docs/db-schemas/jiku.md
+
+      notes: |
+        `docs/apis/core.yaml` (AsyncAPI 2.6) ya existía y se VERIFICÓ contra el código en este
+        análisis: los 17 channels coinciden con los 17 comandos registrados, y también los
+        `required`, los defaults, los enums y los 21 códigos de error. No se regeneró.
+        Es AsyncAPI y no OpenAPI porque core no expone HTTP: una spec OpenAPI tendría que
+        inventar rutas que no existen.
+
+        `docs/db-schemas/jiku.md` ya documenta a core como el único escritor. No se regeneró:
+        la base es compartida y ya está descrita desde el análisis de `api`.
+
+        Las 12 conventions son custom. La preocupación central del servicio —consumir comandos
+        del bus— no tiene entrada en el catálogo, y NO declara `http-server`: esa ausencia es la
+        diferencia estructural con `api`.
+
+        Reglas de negocio que viven en core y no en la api, porque no dependen del rol ni del
+        usuario final. Son candidatas a requisitos explícitos del PRD:
+          - tope de 1440 min/día por persona, sumando horas trabajadas Y ausencias
+          - horas contra tarea O requisito, nunca ambos
+          - el requisito tiene que pertenecer al proyecto indicado
+          - el primero de `responsiblePersonIds` queda como líder: el ORDEN es información
+          - una incidencia no se resuelve sin conclusión
+          - visibilidad automática de actividades: estado, título y descripción son `public`,
+            el resto `internal`; solo los comentarios permiten elegir
+          - semántica de edición parcial: ausente = no se toca · valor = reemplaza · null = vacía
+            · null en obligatorio = falla
+
+        Tres bugs de la api que core corrigió a propósito, y cambian lo que ve el usuario:
+          - comentar sobre una tarea inexistente daba 500; ahora responde `objective_not_found`
+          - editar un proyecto sin mandar `endDate` la vaciaba; ahora un campo ausente no se toca
+          - resolver un requisito era parte del PATCH; ahora es un comando propio
+
+        Traducciones contrato <-> base que viven acá (la base no se toca):
+          bus/contrato          -> base de datos
+          task, taskId          -> objectives, objective_id
+          properties [{k,v}]    -> key_value_pairs {k: v}
+          priority 'alta'       -> priority 3 (integer)
+          responsiblePersonIds  -> personIds
+        `priorityValue` es un escape transitorio declarado: desaparece cuando la web hable en
+        nombres de prioridad.
+
+        Limitaciones que afectan al producto:
+          - un comando perdido es un comando perdido: sin JetStream no hay cola, reintento,
+            persistencia ni idempotencia. Si core está caído, la operación NO ocurrió
+          - la política de acceso del bus es la ÚNICA defensa: core confía en el
+            `creator`/`author`/`editor` del cuerpo sin verificar nada
+          - `sequelize.sync()` corre en testing y development: el esquema de desarrollo lo
+            construye Sequelize y el de producción las migraciones de la api. Dos fuentes
+          - los mensajes de error son texto de interfaz, mezclados entre inglés y español, a
+            veces en el mismo archivo
+          - `daily_limit_exceeded` usa el MENSAJE como canal de datos: la api recupera
+            `remainingMinutes` parseándolo con un regex. Cambiar la redacción rompe la api
+          - las variables LOGGER_* no están definidas en deploy/docker-compose.yml: los dos
+            transports de archivo de Winston quedan con `filename: undefined` en producción
+
+        Pregunta abierta para consolidación: la asimetría en el reemplazo de responsables.
+        `tasks` preserva la fila y su `createdAt` de las asignaciones que se mantienen;
+        `requirements` borra todas y recrea. Sin comentario que lo justifique.
+
+        Discrepancia detectada fuera de core: `deploy/docker-compose.yml:129` dice que core
+        corre las migraciones. Las corre la api (`api/db-upgrade/migrations/`, 95 migraciones).
+
+  # ------------------------------------------------------------------
+  # Consolidación (/product-consolidate-services, 2026-08-18)
+  # ------------------------------------------------------------------
+
+  connections:
+    - from: web
+      to: api
+      type: http_rest
+      details: "~45 endpoints bajo {API_URL}/api. Token inyectado en el servidor vía Server Actions; 6 route handlers BFF para streaming, preview/descarga y PATCH optimista"
+    - from: opus-web
+      to: api
+      type: http_rest
+      details: "12 endpoints bajo /api/opus/* vía proxy catch-all /api/opus/[...path], sin allowlist. Más GET /attachments/:id/:fileName SIN autenticación"
+    - from: api
+      to: core
+      type: nats_request_reply
+      details: "13 formas de comando publicadas, 17 servidas. Subject {instance}.{user-id}.gestion.v1.{comando}, queue group `gestion`, SIN JetStream, timeout 5000ms -> 503"
+    - from: api
+      to: postgresql_jiku
+      type: database_read_only
+      details: "Solo lectura por credenciales. 28 tablas via @jiku/models. Excepciones: 95 migraciones, fila de attachments, PUT /api/week-assigned-times"
+    - from: core
+      to: postgresql_jiku
+      type: database_read_write
+      details: "Usuario dueño. Único servicio que escribe. No corre migraciones"
+    - from: auth_callout
+      to: nats
+      type: bus_authorization
+      details: "Valida el token contra Zitadel y mintea permisos por subject e inbox segun rules.yaml. Única defensa de core"
+
+  external_dependencies:
+    - service: web
+      uses: Zitadel
+      purpose: "OIDC Authorization Code + PKCE; roles del claim del proyecto"
+    - service: web
+      uses: Google Fonts
+      purpose: "Tipografía Archivo vía next/font/google"
+    - service: opus-web
+      uses: Zitadel
+      purpose: "OIDC Auth Code + PKCE, misma app OIDC que web con secreto de sesión propio"
+    - service: api
+      uses: Zitadel
+      purpose: "JWKS con resync ante kid desconocido, userinfo, y service user con auto-refresh para el bus"
+    - service: api
+      uses: Storage S3-compatible
+      purpose: "Bucket de adjuntos. Sirve AWS S3, MinIO, DigitalOcean Spaces o Cloudflare R2"
+    - service: core
+      uses: Zitadel
+      purpose: "Solo su propio token de bus, con auto-refresh"
+
+  infrastructure_components:
+    - name: nats
+      image: "nats:2.10-alpine"
+      role: "Bus de comandos, modo operator, sin JetStream"
+    - name: auth-callout
+      image: "${AUTH_CALLOUT_IMAGE}"
+      role: "Componente de seguridad crítico: autoriza la publicación en el bus"
+    - name: database
+      image: "postgres:15.4-alpine3.18"
+      role: "Base compartida, en red propia sin exposición externa"
+
+  prd_generated:
+    goals_and_context: docs/prd/goals-and-context.md
+    requirements: docs/prd/requirements.md
+    feature_groups: docs/prd/feature-groups.md
+    architecture: docs/prd/architecture.md
+
+  adrs_generated:
+    - docs/adrs/ADR-001-separacion-lectura-escritura.md
+    - docs/adrs/ADR-002-comandos-nats-sin-jetstream.md
+    - docs/adrs/ADR-003-transaccion-del-despachador.md
+    - docs/adrs/ADR-004-vocabulario-en-el-contrato.md
+    - docs/adrs/ADR-005-modelos-compartidos.md
+    - docs/adrs/ADR-006-dos-frontends-una-api.md
+    - docs/adrs/ADR-007-identidad-zitadel-auth-callout.md
+    - docs/adrs/ADR-008-autorizacion-deny-by-default.md
+    - docs/adrs/ADR-009-token-confinado-al-servidor.md
+    - docs/adrs/ADR-010-sass-css-modules-sin-libreria.md
+    - docs/adrs/ADR-011-tanstack-query.md
+    - docs/adrs/ADR-012-monorepo-contexto-raiz.md
+    - docs/adrs/ADR-013-tests-contra-base-real.md
+
+  flows_generated:
+    - docs/flows/carga-de-horas.md
+    - docs/flows/alta-requisito-desde-portal.md
+    - docs/flows/autenticacion-y-entrada.md
+    - docs/flows/adjuntos.md
+    - docs/flows/asignacion-semanal.md
+
+  ux_generated:
+    overview: docs/ux/product-overview.md
+    gaps: docs/ux/gaps-as-is.md
+    cross_surface_flows: docs/ux/cross-surface-flows.md
+    audiences:
+      - equipo-interno
+      - cliente
+    surfaces:
+      web:
+        screens: 25
+        viewports: [desktop]
+        accent: "#DA2C6A"
+        wireframes: docs/ux/surfaces/web/wireframes.excalidraw
+        wireframe_stats: "4431 elementos, 115 frames, 51 flechas · 25 pantallas + 9 overlays (O-10 excluido: codigo muerto)"
+      opus-web:
+        screens: 5
+        viewports: [desktop, mobile]
+        accent: "#2563eb"
+        breakpoint: 768
+        wireframes: docs/ux/surfaces/opus-web/wireframes.excalidraw
+        wireframe_stats: "1054 elementos, 46 frames, 13 flechas · 5 pantallas + 4 overlays"
+
+  design_system_seeded:
+    surfaces: [web, opus-web]
+    foundations_seeded: [grid, color, typography, spacing]
+    foundations_placeholder: [elevation, iconography, motion, voice-tone]
+    components_specified:
+      web: [button, loader, input-select]
+      opus-web: [button, spinner, dropdown]
+
+  folders_created:
+    - docs/stories
+    - docs/requests
+    - docs/flows
+    - docs/ux
+    - docs/design-system

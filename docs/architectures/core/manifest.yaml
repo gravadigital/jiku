@@ -1,0 +1,49 @@
+service: core
+type: worker
+language: node
+
+# TODAS las convenciones son CUSTOM (viven en ./conventions/), ninguna del catálogo.
+#
+# El catálogo de Node recomienda Zod, Prisma + repositorios, Pino, Vitest + Testcontainers,
+# @t3-oss/env-core y CI en GitLab. Este servicio usa Joi, Sequelize (con el usuario dueño de la
+# base), Winston, Mocha + should/sinon, dotenv y GitHub Actions.
+#
+# Igual que en `api`: es un servicio existente que se importó al workflow y su stack es anterior
+# al catálogo. Las reglas transversales del catálogo —TypeScript, fechas ISO en los bordes,
+# validar en el borde del sistema, una transacción por unidad de trabajo— SÍ aplican y están
+# recogidas en cada convención custom.
+#
+# Tres convenciones no tienen equivalente en el catálogo y son NUEVAS, no reemplazos:
+#   - bus-consumer: la conexión al bus. El catálogo cubre colas (queue/BullMQ), que es otra
+#     cosa: esto es request/reply sincrónico y sin persistencia
+#   - commands: la unidad de trabajo del servicio —validar y escribir— con el registry, la
+#     interfaz Command y la semántica de edición parcial
+#   - contract-translation: las cuatro traducciones contrato <-> base (task/objective,
+#     properties/keyValuePairs, priority enum/entero, responsiblePersonIds/personIds)
+#
+# NO se declara `http-server`: este servicio no expone HTTP. No hay puerto, ni endpoints, ni
+# verbos, ni framework web. Es la diferencia estructural con `api`.
+#
+# No se declaran tampoco (el servicio no las tiene): cache, observability, security, queue,
+# auth-jwt (no valida tokens de usuario), authorization (no conoce roles).
+# Ver el detalle en index.md.
+conventions:
+  - _base                  # strict: true, un archivo por comando, imports relativos, comentarios del por qué
+  - bus-consumer           # NATS request/reply: queue group, inbox hasheado, drain al cerrar
+  - commands               # la interfaz Command, el registry por segmentos, la edición parcial
+  - contract-translation   # los cuatro nombres que difieren entre el bus y la base
+  - orm                    # Sequelize con el usuario DUEÑO, modelos en paquete compartido
+  - validation             # Joi por comando, un esquema por archivo
+  - error-handling         # Reply de falla, el catálogo de códigos, el despachador nunca lanza
+  - logging                # Winston, transports por entorno, LOG_COMMANDS apagado por defecto
+  - testing                # Mocha + base real, entrando por el despachador
+  - env-config             # dotenv + process.env, sin asserts
+  - dockerfile             # multi-stage con contexto en la raíz del monorepo
+  - ci-github              # CI, imágenes dev y release en GitHub Actions
+
+modules:
+  - clients
+  - projects
+  - tasks
+  - requirements
+  - times

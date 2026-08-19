@@ -1,0 +1,249 @@
+template:
+  id: ux-research-context
+  name: UX Research Context Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for an Audience Research Context document.
+    Generated PER AUDIENCE during Phase 1, AFTER the benchmark for that audience.
+
+    This is the MOST STRICT template of the methodology. Without real interviews,
+    everything here is hypothesis — and hypotheses without traceability propagate
+    silently into design decisions.
+
+    The document captures:
+    - Generic persona (role, context, expertise — NO biographical filler)
+    - Jobs To Be Done (max 3, traced to source)
+    - Pains (max 3, traced to source)
+    - Gains (max 3, traced to source)
+    - Behavioral hypotheses (max 5, with state and strength label)
+    - Context constraints (device, conditions of use)
+    - "Lo que NO sabemos" (mandatory section — research agenda)
+
+    CRITICAL RULES (from the methodology):
+    - Rule 1: One generic persona per audience. NO fictional names.
+    - Rule 2: Audiences split by JTBD, not by person.
+    - Rule 5: Mandatory traceability. Every JTBD/pain/gain/hypothesis cites source.
+      Sources: PRD §X | benchmark | input-cliente. No source = not included.
+    - Rule 6: Functional vocabulary. BANNED: frustrado, ansiedad, abrumado, en
+      control, empoderado, satisfecho. Reformulate with functional object.
+    - Rule 7: Do NOT pad. Maximums are ceilings. If only 1 JTBD has traceable
+      basis, document 1.
+    - Hypotheses get TWO labels: state (hipótesis/validada/refutada) AND strength
+      (inferida-PRD/inferida-benchmark/por-analogía).
+
+# Output specification
+output:
+  path: docs/ux/audiences/{{audience-name}}/research-context.md
+  format: markdown
+  frontmatter:
+    - document: string         # "UX Research Context"
+    - audience: string         # the audience name (matches folder)
+    - version: string          # "1.0"
+    - date: date
+    - status: string           # "hipótesis-preliminar" | "refinado-parcial" | "validado"
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote that frames the document as hypothesis-level work
+      requiring validation with real users. Must appear immediately after H1.
+    format: |
+      > Caracterización de la audiencia. **Todo lo que sigue es hipótesis** hasta
+      > que se valide con usuarios reales. Cada item está trazado a su fuente
+      > (PRD, benchmark, input-cliente). Items sin fuente trazable no se incluyen.
+
+  - id: persona
+    title: Persona Genérica
+    description: |
+      Generic persona. NO fictional name (no "María", no ages). Focus on
+      USAGE CONTEXT, not biography.
+
+      Required fields: rol, contexto de uso, nivel de expertise técnico,
+      frecuencia de uso esperada.
+    format: |
+      ## Persona Genérica
+
+      - **Rol:** {{rol o relación con el producto, extraído del PRD}}
+      - **Contexto de uso:** {{cuándo, dónde, cómo usa el producto}}
+      - **Expertise técnico:** {{nivel — bajo / medio / alto, con descripción concreta}}
+      - **Frecuencia de uso esperada:** {{cuántas veces y por cuánto tiempo}}
+      - **Dispositivo principal:** {{desktop / mobile / mixto, con justificación}}
+
+    example: |
+      ## Persona Genérica
+
+      - **Rol:** Operador de depósito procesando pedidos durante su turno (rol U-02 del PRD).
+      - **Contexto de uso:** En piso de depósito, durante 8 horas, intercalando con tareas físicas (pickeo, empaque). Atención dividida.
+      - **Expertise técnico:** Bajo a medio. Conoce el proceso operativo a fondo pero no maneja jerga técnica ni configuración avanzada.
+      - **Frecuencia de uso esperada:** Continuo durante el turno. Sesiones cortas (1-2 minutos) muy frecuentes (decenas por hora).
+      - **Dispositivo principal:** Desktop fijo en puesto de trabajo. Mobile esporádico para revisar mientras camina.
+
+  - id: jtbd
+    title: Jobs To Be Done (JTBD)
+    description: |
+      Maximum 3 per audience. Format: "Cuando [situación], quiero [acción],
+      para [resultado]".
+
+      MANDATORY: each JTBD cites its source with the tag at the end:
+      [fuente: PRD §X] | [fuente: benchmark] | [fuente: input-cliente]
+
+      If only 1 JTBD has traceable basis, document 1. Do NOT pad.
+
+      Rule: a single audience has a coherent set of JTBDs. If JTBDs diverge
+      strongly, it's two audiences (split and document both).
+    format: |
+      ## Jobs To Be Done
+
+      1. **Cuando** {{situación}}, **quiero** {{acción}}, **para** {{resultado}}.
+         `[fuente: ...]`
+
+    example: |
+      ## Jobs To Be Done
+
+      1. **Cuando** llegan varios pedidos en simultáneo, **quiero** procesarlos sin perder ninguno, **para** evitar reclamos al final del turno.
+         `[fuente: PRD §3.2 - Capability C-01]`
+
+      2. **Cuando** un pedido tiene un problema (falta stock, dato faltante), **quiero** resolverlo o derivarlo rápido, **para** no detener la cola del turno.
+         `[fuente: PRD §3.2 - Capability C-04]`
+
+      3. **Cuando** termina mi turno, **quiero** dejar el estado claro al próximo turno, **para** que no me llamen después con preguntas.
+         `[fuente: input-cliente]`
+
+  - id: pains
+    title: Pains
+    description: |
+      Maximum 3. Current frustrations (without the product or with similar
+      products).
+
+      MANDATORY: each pain cites its source.
+      MANDATORY: functional vocabulary only. Banned words: frustrado, ansiedad,
+      abrumado, en control, empoderado, satisfecho.
+
+      If only 1 pain has traceable basis, document 1.
+    format: |
+      ## Pains
+
+      - {{pain en términos funcionales, sin lenguaje emocional}} `[fuente: ...]`
+
+    example: |
+      ## Pains
+
+      - Pierde tiempo cambiando entre 3 sistemas inconexos (ERP, planilla manual, email) para procesar un pedido completo. `[fuente: PRD §1 - Problem statement]`
+      - No puede saber rápido qué pedidos están bloqueados sin revisarlos uno por uno. `[fuente: benchmark - patrón ausente en competidores actuales del cliente]`
+      - Recibe llamadas del próximo turno preguntando por estado de pedidos que dejó procesando. `[fuente: input-cliente]`
+
+  - id: gains
+    title: Gains
+    description: |
+      Maximum 3. What the audience expects to GAIN with the product.
+
+      MANDATORY: each gain cites its source.
+      MANDATORY: functional vocabulary only.
+
+      If only 1 gain has traceable basis, document 1.
+    format: |
+      ## Gains
+
+      - {{gain en términos funcionales, sin lenguaje emocional}} `[fuente: ...]`
+
+    example: |
+      ## Gains
+
+      - Procesa un pedido completo sin salir del producto. `[fuente: PRD §3.2 - Capability C-01]`
+      - Ve de un vistazo qué pedidos requieren su atención inmediata vs cuáles pueden esperar. `[fuente: benchmark - Linear inbox pattern]`
+      - Pasa el turno con confianza de que el próximo turno tiene contexto claro. `[fuente: input-cliente]`
+
+  - id: behavioral-hypotheses
+    title: Hipótesis de Comportamiento
+    description: |
+      Maximum 5. Key assumptions guiding design.
+
+      MANDATORY: each hypothesis carries TWO labels:
+      - State: hipótesis | validada | refutada (default: hipótesis)
+      - Strength: inferida-PRD | inferida-benchmark | por-analogía
+
+      Strength meanings:
+      - inferida-PRD: concrete textual basis. Validation cheap (confirm with client)
+      - inferida-benchmark: market pattern basis. Validation medium (short interview)
+      - por-analogía: no textual or market basis. Validation EXPENSIVE — real
+        interviews mandatory before acting.
+
+      If only 1 hypothesis has traceable basis, document 1.
+    format: |
+      ## Hipótesis de Comportamiento
+
+      - {{hipótesis}} `[estado: hipótesis | fuerza: inferida-PRD]`
+
+    example: |
+      ## Hipótesis de Comportamiento
+
+      - El operador prefiere notificaciones in-app a notificaciones por email durante el turno. `[estado: hipótesis | fuerza: inferida-PRD]`
+      - El operador usa atajos de teclado solo si los aprende sin esfuerzo (ej: tooltips contextuales), no si requieren leer documentación. `[estado: hipótesis | fuerza: inferida-benchmark]`
+      - El operador abandona un flujo si no recibe feedback en menos de 2 segundos. `[estado: hipótesis | fuerza: por-analogía]`
+
+  - id: context-constraints
+    title: Restricciones de Contexto
+    description: |
+      Constraints that affect how the product can be used by this audience.
+
+      Examples: device limitations, network conditions, physical environment,
+      time constraints, accessibility needs.
+
+      Skip the section entirely if no specific constraints apply.
+    format: |
+      ## Restricciones de Contexto
+
+      - **{{Restricción}}** — {{descripción y por qué importa para diseño}}
+
+    example: |
+      ## Restricciones de Contexto
+
+      - **Atención dividida** — El operador no está sentado mirando la pantalla; intercala con tareas físicas. Las interfaces que requieren atención sostenida no funcionan acá.
+      - **Sesiones muy cortas** — 1-2 minutos por interacción. Cualquier flujo que requiera 3+ minutos seguidos pierde al usuario.
+      - **Conectividad no garantizada** — El depósito puede tener zonas con WiFi débil. El producto debe tolerar latencia variable o trabajar offline en operaciones simples.
+
+  - id: what-we-dont-know
+    title: Lo que NO Sabemos
+    description: |
+      MANDATORY section. Questions that can ONLY be answered by real interviews
+      or observation. This section has standalone value as a research agenda.
+
+      Each item is a concrete question. The skill MUST include this section
+      even if everything else feels well-grounded.
+
+      Minimum 3 questions. No maximum.
+    format: |
+      ## Lo que NO Sabemos
+
+      - {{pregunta concreta que requiere validación con usuarios reales}}
+
+    example: |
+      ## Lo que NO Sabemos
+
+      - ¿Cuál de los 3 JTBDs es el más frecuente en un turno típico? Necesitaríamos observación o entrevistas.
+      - ¿El pain de "cambiar entre sistemas" es realmente el principal o es solo el más visible? Otros pains pueden estar enmascarados.
+      - ¿Qué hace el operador cuando el sistema se cae? Asumimos que vuelve a sistemas manuales pero no lo validamos.
+      - ¿Cuántos operadores usan mobile vs desktop en la práctica? El PRD asume desktop primario pero no hay datos.
+      - ¿Hay diferencias relevantes entre operadores nuevos y experimentados que justifiquen separarlos en dos audiencias?
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line emphasizing that this is hypothesis until validated, and
+      pointing to the surface artifacts where this research is consumed.
+    format: |
+      ---
+
+      **Estado:** Documento en estado `{{status del frontmatter}}`. Para promoverlo a `validado`, ejecutar entrevistas reales y actualizar in-place el estado de cada hipótesis.
+
+      **Consumido por:** Los `product-map.md` y `user-flows.md` de las superficies que esta audiencia usa (ver matriz en `product-overview.md`).

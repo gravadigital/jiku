@@ -1,0 +1,202 @@
+template:
+  id: prd-feature-groups
+  name: PRD - Feature Groups
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/commands/product/initialize.md
+
+  description: |
+    Structure specification for the PRD Feature Groups document.
+    Generated during /initialize-product Phase 1 (Product Definition).
+
+    DUAL-AUDIENCE DESIGN: Each feature group is a CONTRACT between phases.
+    - References specific capability IDs (C-XX) from requirements.md
+    - Defines preconditions (what must exist before starting)
+    - Defines postconditions (what exists after completion)
+    - Downstream agents use this to validate readiness and scope stories
+
+    Feature groups are high-level groupings of related functionality that will
+    be formalized through requests and stories:
+    1. /new-request - Capture and clarify requirements
+    2. /design-request REQ-XXX - Technical design + story split
+    3. /create-stories REQ-XXX - Create story documents
+
+    CRITICAL SEQUENCING RULES:
+    - Feature Group 1 MUST be: Infrastructure setup + initial deployable functionality
+    - Each feature group delivers significant, end-to-end value (not just backend or frontend)
+    - Feature groups are sequential and build upon each other
+    - Prefer fewer, larger groups (5-7) over many small ones (10+)
+
+# Output specification
+output:
+  path: docs/prd/feature-groups.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Pending Formalization", "In Progress", "Completed"
+
+# Section definitions
+sections:
+
+  - id: overview
+    title: Overview
+    description: |
+      Brief introduction explaining what feature groups are and next steps.
+
+    format: |
+      ## Overview
+
+      Este documento contiene los feature groups identificados durante la
+      inicializacion del producto.
+
+      **Feature groups son agrupaciones de funcionalidad relacionada** que deben
+      ser capturadas como requests, disenadas tecnicamente y formalizadas en
+      stories antes de iniciar implementacion.
+
+      **Proceso para formalizar cada feature group:**
+      1. `/new-request` - Capturar requerimiento y clarificar alcance
+      2. `/design-request REQ-XXX` - Disenar solucion tecnica y proponer story split
+      3. `/create-stories REQ-XXX` - Crear stories implementables
+
+    example: |
+      ## Overview
+
+      Este documento contiene los feature groups identificados durante la
+      inicializacion del producto TaskFlow.
+
+      **Feature groups son agrupaciones de funcionalidad relacionada** que deben
+      ser capturadas como requests, disenadas tecnicamente y formalizadas en
+      stories antes de iniciar implementacion.
+
+      **Proceso para formalizar cada feature group:**
+      1. `/new-request` - Capturar requerimiento y clarificar alcance
+      2. `/design-request REQ-XXX` - Disenar solucion tecnica y proponer story split
+      3. `/create-stories REQ-XXX` - Crear stories implementables
+
+      **Status actual:** 4 feature groups pendientes de formalizacion
+
+  - id: feature-group
+    title: Feature Group [N]
+    description: |
+      Structure for each feature group.
+      Repeat this structure for each proposed group.
+
+    per_group_structure:
+      - status: "Pending / In Progress / Formalized"
+      - title: Descriptive title
+      - description: High-level description (2-3 paragraphs)
+      - why_important: Business value and justification
+      - capabilities: List of capability IDs (C-XX) from requirements.md
+      - preconditions: What must exist/be true before starting this group
+      - postconditions: What exists/is true after completing this group
+      - value_delivered: What users can DO after this feature group
+
+    format: |
+      ## Feature Group [N]: [Title]
+
+      **Status:** Pending / In Progress / Formalized
+
+      **Descripcion:**
+      [2-3 paragraph high-level description of what will be built]
+
+      **Por que es importante?:**
+      [Business value, strategic importance, why this group is necessary]
+
+      **Capabilities que implementa:**
+      - C-XX: [capability name] (from F-XX)
+      - C-XX: [capability name] (from F-XX)
+
+      **Precondiciones:**
+      - [What must exist before starting: infrastructure, entities, APIs, etc.]
+
+      **Postcondiciones:**
+      - [What exists after completion: deployed services, available entities, working endpoints, etc.]
+
+      **Valor entregado:**
+      [What users will be able to DO after this feature group is complete.
+       Focus on end-to-end functionality, not just technical completion]
+
+      ---
+
+    example: |
+      ## Feature Group 1: Setup de Infraestructura + Autenticacion Basica
+
+      **Status:** Pending
+
+      **Descripcion:**
+      Configurar toda la infraestructura base necesaria para el producto:
+      repositorios (frontend, backend), CI/CD pipelines, entornos (dev, staging,
+      production), monitoring basico, y logging. Ademas, implementar el sistema
+      completo de autenticacion incluyendo registro, login (email/password + Google
+      OAuth), recuperacion de contrasena, gestion de sesiones con JWT, y perfil
+      de usuario basico.
+
+      Este feature group es foundational: sin infraestructura deployada y sin
+      autenticacion, no podemos construir ningun otro feature.
+
+      **Por que es importante?:**
+      - Es la base tecnica necesaria para todos los demas feature groups
+      - Permite deployar continuamente y obtener feedback temprano
+      - Sin autenticacion, ningun feature multiusuario puede funcionar
+      - Establece patrones de desarrollo que el equipo seguira (CI/CD, testing, etc.)
+
+      **Capabilities que implementa:**
+      - C-XX: Registro con email/password (from F-XX)
+      - C-XX: Login con Google OAuth (from F-XX)
+      - C-XX: Recuperacion de contrasena (from F-XX)
+      - C-XX: Configuracion de perfil (from F-XX)
+      - NFR-S01 a NFR-S04: Security baseline (HTTPS, bcrypt, JWT, rate limiting)
+
+      **Precondiciones:**
+      - Ninguna (es el primer feature group)
+
+      **Postcondiciones:**
+      - Repos creados con CI/CD funcionando (push to main → tests → deploy staging)
+      - Entornos dev, staging y production disponibles
+      - Entidad Usuario persistida en DB con auth completo
+      - Endpoints de registro, login, logout, refresh token, perfil disponibles
+      - JWT middleware aplicado a rutas protegidas
+      - Monitoring y logging baseline configurados
+
+      **Valor entregado:**
+      - Usuarios pueden registrarse en la plataforma con email/password
+      - Usuarios pueden hacer login con Google OAuth
+      - Usuarios pueden recuperar contrasena por email
+      - Sistema deployado en staging y production con dominio funcional
+
+      ---
+
+  - id: sequencing-notes
+    title: Sequencing Notes
+    description: |
+      Optional section explaining the logical sequence and dependencies between feature groups.
+
+    format: |
+      ## Sequencing Notes
+
+      **Feature Group 1** debe completarse primero porque [razon].
+
+      **Feature Group 2** depende de Feature Group 1 porque [razon].
+
+      **Feature Group 3** puede empezar en paralelo con Feature Group 2 si [condicion].
+
+    example: |
+      ## Sequencing Notes
+
+      **Feature Group 1 (Infraestructura + Auth)** debe completarse primero porque
+      sin infraestructura deployada y sin sistema de usuarios, no podemos construir
+      ningun otro feature.
+
+      **Feature Group 2 (Proyectos)** depende de Feature Group 1 (necesita usuarios
+      autenticados) pero es prerequisito para Feature Group 3 (las tareas pertenecen
+      a proyectos).
+
+      **Feature Group 3 (Tareas + Kanban)** es el feature core y debe venir despues
+      de tener proyectos.
+
+      **Feature Group 4 (Notificaciones + Slack)** puede tecnicamente empezar en
+      paralelo con Feature Group 3, pero es mejor hacerlo despues.

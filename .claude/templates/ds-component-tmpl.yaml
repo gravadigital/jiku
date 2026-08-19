@@ -1,0 +1,346 @@
+template:
+  id: ds-component
+  name: Design System Component Template
+  version: 1.0
+
+  # Reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-design-system-update/SKILL.md
+    - .claude/skills/service-implement-story/SKILL.md
+
+  description: |
+    Structure specification for a component spec in the design system.
+    Each component lives at docs/design-system/{surface}/components/{component-name}.md
+    (the DS is per surface — each surface has its own components catalog).
+
+    Based on Nathan Curtis's "Component Specifications" canonical structure
+    and conventions from Carbon, Polaris, and Material.
+
+    A component spec is the contract between designers, developers, and
+    content writers. It describes:
+    - WHAT the component is (purpose, anatomy)
+    - HOW it varies (variants, sizes, states)
+    - HOW it behaves (interaction, accessibility)
+    - WHAT NOT to do (anti-patterns)
+    - WHERE it appears (relationships to other components/patterns)
+
+    CRITICAL RULES:
+    - Every section must be present, even if marked "Pendiente" during draft.
+    - "Do's & don'ts" mandatory — single biggest source of misuse.
+    - All variants must list their states (not just default).
+    - Accessibility section is not optional — declare ARIA, keyboard, focus.
+    - Visual examples reference foundations via tokens, not hardcoded values.
+    - Changes require a CHANGELOG entry + semver bump per the DS update rules.
+    - Language MUST match the language of the PRD (typically Spanish).
+
+# Output specification
+output:
+  path: docs/design-system/{{surface}}/components/{{component-name}}.md
+  format: markdown
+  frontmatter:
+    - component: string             # name (button, text-input, card, ...)
+    - version: string               # DS version this component belongs to
+    - status: string                # active | deprecated | experimental
+    - last_updated: date
+    - related: list                 # related components / patterns
+
+sections:
+
+  - id: purpose
+    title: "Propósito"
+    instruction: |
+      What the component is, when to use it, when NOT to use it. Distinguishes
+      it from similar components (e.g., button vs link).
+    fields:
+      - name: "Descripción"
+        format: "Plain text, 1-2 sentences."
+      - name: "Cuándo usar"
+        format: "Bullet list of use cases."
+      - name: "Cuándo NO usar"
+        format: "Bullet list with alternatives (e.g., 'para navegación, usar link')."
+
+  - id: anatomy
+    title: "Anatomía"
+    instruction: |
+      Named parts of the component. Each part has a role. Use a textual
+      diagram or a labeled image.
+    fields:
+      - name: "Partes"
+        format: |
+          Numbered list. Each part with name + role:
+          1. Container — caja del componente
+          2. Label — texto principal
+          3. Icon (opcional) — refuerzo visual
+
+  - id: variants
+    title: "Variants"
+    instruction: |
+      The semantic variations of the component. NOT visual decorations — each
+      variant must have a clear semantic purpose (primary action vs secondary,
+      destructive vs default, etc.).
+    fields:
+      - name: "Variants disponibles"
+        format: |
+          Table:
+          | Variant | Propósito | Tokens / Foundations | Ejemplo de uso |
+          |---------|-----------|----------------------|----------------|
+          | primary | Acción principal de la pantalla | `button.primary.*` | "Guardar" |
+          | secondary | Acción secundaria | `button.secondary.*` | "Cancelar" |
+
+  - id: sizes
+    title: "Sizes"
+    instruction: |
+      Available sizes (sm, md, lg, xl) with their dimensions and use cases.
+      Reference spacing foundation.
+    fields:
+      - name: "Sizes disponibles"
+        format: |
+          Table:
+          | Size | Alto | Padding | Uso |
+          |------|------|---------|-----|
+          | sm | 32px | 8px | Filas densas |
+          | md | 44px | 12px | Default |
+          | lg | 56px | 16px | Acciones críticas / mobile |
+
+  - id: states
+    title: "States"
+    instruction: |
+      All interaction states for every variant. Default, hover, focus, active,
+      disabled, loading, error (when applicable). Each state describes visual
+      change + interaction effect.
+    fields:
+      - name: "Estados"
+        format: |
+          Table per variant, or unified:
+          | State | Descripción | Tokens afectados |
+          |-------|-------------|------------------|
+          | default | Estado base | `button.primary.bg` |
+          | hover | Pointer encima | `button.primary.bg.hover` |
+          | focus | Foco por teclado | `button.primary.outline` |
+          | active | En proceso de click | `button.primary.bg.active` |
+          | disabled | No interactivo | `button.disabled.*` |
+          | loading | Acción en progreso | spinner inline |
+
+  - id: spacing
+    title: "Spacing & sizing rules"
+    instruction: |
+      Internal padding, external margin, minimum/maximum dimensions.
+      Reference spacing foundation tokens.
+    fields:
+      - name: "Padding interno"
+        format: "Per size, with token references."
+      - name: "Margen externo"
+        format: "Recommended spacing from adjacent elements."
+      - name: "Min/max"
+        format: "Constraints (minimum width, maximum width, etc.)."
+
+  - id: accessibility
+    title: "Accesibilidad"
+    instruction: |
+      Required ARIA attributes, keyboard interaction, focus management,
+      screen reader announcements. NOT optional.
+    fields:
+      - name: "ARIA"
+        format: "Required roles, labels, properties (e.g., `aria-disabled`, `aria-pressed`)."
+      - name: "Teclado"
+        format: "Key bindings: `Enter` activates, `Space` activates, `Tab` advances focus, etc."
+      - name: "Foco"
+        format: "Visible focus indicator (style + contrast)."
+      - name: "Screen reader"
+        format: "How it's announced. What happens on state changes."
+
+  - id: content
+    title: "Guidelines de contenido"
+    instruction: |
+      Microcopy rules. Length, tone, capitalization, internationalization
+      considerations.
+    fields:
+      - name: "Texto"
+        format: "Rules: max chars, sentence case vs title case, verb-first, etc."
+      - name: "Microcopy de ejemplo"
+        format: "Concrete examples (do/don't)."
+
+  - id: dos-donts
+    title: "Do's & don'ts"
+    instruction: |
+      Concrete misuse patterns with visual or textual examples.
+      MANDATORY — single biggest source of misuse.
+    fields:
+      - name: "Do"
+        format: "Bullet list with reasons."
+      - name: "Don't"
+        format: "Bullet list with reasons. Reference alternative components when applicable."
+
+  - id: api
+    title: "API"
+    instruction: |
+      Props, slots, events. Framework-agnostic — declare the contract, not
+      the implementation. Implementation details live in the service repo.
+    fields:
+      - name: "Props"
+        format: |
+          Table:
+          | Prop | Tipo | Default | Descripción |
+          |------|------|---------|-------------|
+          | variant | enum | "primary" | Variant visual |
+          | size | enum | "md" | Tamaño |
+          | disabled | boolean | false | Inactiva el componente |
+          | onClick | function | — | Callback al hacer click |
+      - name: "Slots / Children"
+        format: "Areas of customization: label slot, icon slot, etc."
+      - name: "Eventos"
+        format: "Events emitted (onClick, onChange, etc.)."
+
+  - id: related
+    title: "Componentes y patterns relacionados"
+    instruction: |
+      Cross-references. Link to similar components (link vs button), parent
+      patterns (button is used in forms pattern), and competing alternatives.
+    fields:
+      - name: "Relacionados"
+        format: "Markdown links to other component specs and patterns."
+
+  - id: changelog
+    title: "Historial"
+    instruction: |
+      Per-component changelog. Updates to this component. Separate from the
+      DS-level CHANGELOG.md.
+    fields:
+      - name: "Cambios"
+        format: |
+          - YYYY-MM-DD vX.Y.Z — descripción del cambio (added/changed/removed/deprecated/fixed)
+
+# Format example (Spanish)
+format:
+  example: |
+    ---
+    component: button
+    version: 0.2.0
+    status: active
+    last_updated: 2026-05-09
+    related:
+      - link
+      - icon-button
+      - forms (pattern)
+    ---
+
+    # Button
+
+    ## Propósito
+
+    Disparador de acciones del usuario. Comunica una intención concreta (guardar,
+    enviar, cancelar) y entrega feedback inmediato.
+
+    **Cuándo usar:**
+    - Acciones que cambian estado del sistema (guardar, enviar, eliminar).
+    - CTAs principales de pantallas.
+    - Confirmaciones en modales.
+
+    **Cuándo NO usar:**
+    - Navegación entre pantallas → usar [link](./link.md).
+    - Acciones puramente icónicas sin label → usar [icon-button](./icon-button.md).
+
+    ## Anatomía
+
+    1. **Container** — rectángulo con esquinas redondeadas.
+    2. **Label** — texto centrado describiendo la acción.
+    3. **Icon (opcional)** — refuerzo visual al label (izquierda o derecha).
+    4. **Loading indicator** — spinner inline cuando estado `loading`.
+
+    ## Variants
+
+    | Variant | Propósito | Tokens | Ejemplo |
+    |---------|-----------|--------|---------|
+    | primary | Acción principal de la pantalla | `button.primary.*` | "Guardar pedido" |
+    | secondary | Acción secundaria | `button.secondary.*` | "Cancelar" |
+    | tertiary | Acción terciaria, link-like | `button.tertiary.*` | "Ver más" |
+    | destructive | Acción destructiva (eliminar) | `button.destructive.*` | "Eliminar cuenta" |
+    | disabled | No interactivo | `button.disabled.*` | — |
+
+    ## Sizes
+
+    | Size | Alto | Padding H | Uso |
+    |------|------|-----------|-----|
+    | sm | 32px | `space.sm` (8) | Filas densas, toolbars |
+    | md | 44px | `space.md` (12) | Default |
+    | lg | 56px | `space.lg` (16) | Mobile, acciones críticas |
+
+    ## States
+
+    Aplican a primary/secondary/tertiary/destructive. `disabled` es variant separado.
+
+    | State | Descripción | Token clave |
+    |-------|-------------|-------------|
+    | default | Estado base | `{variant}.bg` |
+    | hover | Pointer encima | `{variant}.bg.hover` |
+    | focus | Foco por teclado | `{variant}.outline` (3:1 contraste) |
+    | active | En medio del click | `{variant}.bg.active` |
+    | loading | Acción en progreso | spinner inline + label opcional |
+
+    ## Spacing & sizing rules
+
+    - **Padding interno:** `space.{size}` horizontal, label centrado vertical.
+    - **Margen externo:** `space.md` entre buttons adyacentes en grupos.
+    - **Min width:** 64px (sm), 80px (md), 96px (lg). Sin max — usa ancho del contenedor.
+
+    ## Accesibilidad
+
+    - **ARIA:**
+      - `role="button"` (implícito si `<button>`)
+      - `aria-disabled="true"` cuando disabled
+      - `aria-busy="true"` cuando loading
+      - `aria-label` si solo tiene icono sin texto visible
+    - **Teclado:**
+      - `Enter` o `Space` → activa onClick
+      - `Tab` / `Shift+Tab` → navega foco
+    - **Foco:** outline visible con contraste ≥3:1 sobre fondo adyacente.
+    - **Screen reader:** anuncia label + variant si es destructive ("Eliminar pedido, botón destructivo").
+
+    ## Guidelines de contenido
+
+    - **Longitud:** 1-3 palabras ideal, máximo 5.
+    - **Tono:** verb-first ("Guardar", no "Guardado").
+    - **Capitalización:** sentence case ("Guardar pedido", no "Guardar Pedido").
+    - **Microcopy:**
+      - ✓ "Guardar cambios"
+      - ✗ "Click aquí" (no informa qué hace)
+      - ✗ "Submit" (técnico, no humano)
+
+    ## Do's & don'ts
+
+    **Do:**
+    - Una sola variant `primary` por pantalla (jerarquía clara).
+    - Variant `destructive` solo para acciones irreversibles.
+    - `loading` cuando la acción demora ≥300ms.
+
+    **Don't:**
+    - Usar primary para acciones secundarias.
+    - Apilar 3+ buttons primary en una misma pantalla.
+    - Usar `destructive` sin confirmación posterior.
+    - Para navegación, NO usar button; usar [link](./link.md).
+
+    ## API
+
+    | Prop | Tipo | Default | Descripción |
+    |------|------|---------|-------------|
+    | variant | `"primary" \| "secondary" \| "tertiary" \| "destructive"` | `"primary"` | Variant visual |
+    | size | `"sm" \| "md" \| "lg"` | `"md"` | Tamaño |
+    | disabled | boolean | false | Inactiva el componente |
+    | loading | boolean | false | Muestra spinner inline |
+    | icon | string | — | Nombre del icono (lado izquierdo) |
+    | iconTrailing | boolean | false | Mueve el icono al lado derecho |
+    | onClick | `(e) => void` | — | Callback al activar |
+
+    **Slots:** `children` (label del button), `icon` (override del icono).
+
+    ## Componentes y patterns relacionados
+
+    - [link](./link.md) — para navegación, no acción.
+    - [icon-button](./icon-button.md) — versión solo-icono.
+    - [forms (pattern)](../patterns/forms.md) — uso típico de buttons en forms.
+
+    ## Historial
+
+    - 2026-05-09 v0.2.0 — Added variant `destructive` (MINOR).
+    - 2026-04-15 v0.1.0 — Versión inicial con primary/secondary/tertiary.

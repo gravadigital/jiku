@@ -1,0 +1,541 @@
+template:
+  id: screen
+  name: Screen Definition Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-wireframes/SKILL.md
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-request/SKILL.md
+
+  description: |
+    Structure specification for a per-screen definition document.
+    Generated PER SCREEN within a surface by the wireframe skills.
+
+    This is the SINGLE screen template. Fidelity is a FIELD of the document, never a
+    separate file: the same .md grows in place. The workflow produces one level, `mid`,
+    which means:
+    - Real microcopy for every block (no "Pendiente")
+    - Block variants (button: primary/secondary/disabled; input: default/focused/error)
+    - Icons assigned to blocks (by name, mapped to Unicode in renders)
+    - Real error/success/loading messages per state
+    - Annotations describing block-level behavior
+    - Heading hierarchy (h1/h2/h3)
+    - Surface-level visual style (accent color, grid baseline) NOT declared here — see below
+    - Responsive: the screen declares its `viewports` and one layout per viewport
+
+    The .md is the SOURCE OF TRUTH and must contain everything needed to regenerate
+    the wireframe. Coordinates and Excalidraw IDs are NOT stored — they are
+    derived deterministically from the structure declared here.
+
+    WHAT `fidelity: mid` MEANS, for whoever implements from this document:
+    - The microcopy in `Contenido` is FINAL. Implement it verbatim; it is not placeholder.
+    - The transitions describe navigation. They are not a clickable prototype.
+    - The visual specification is NOT here: it lives in the surface's design system
+      (`docs/design-system/{{surface}}/`) — foundations for color, typography, spacing and
+      grid, and one spec per component with its anatomy, variants, sizes and states.
+
+    THERE IS NO "HIGH-FI" STAGE IN THIS WORKFLOW, and this template no longer pretends
+    otherwise. In a design-system-driven flow a per-screen visual spec is largely redundant:
+    the design system IS the visual specification and the screen is the composition. Visual
+    design, when a product needs it, happens outside — see the hand-off in
+    `docs/guides/ux-and-design-system.md`.
+
+    SURFACE-LEVEL VS SCREEN-LEVEL:
+    The accent color is a property of the SURFACE, not of a screen, so it is NOT in this
+    frontmatter. Its canonical home is the surface's design system:
+    `docs/design-system/{{surface}}/foundations/color.md` → `color.brand.primary`. The wireframe
+    generator reads it from there.
+
+    It used to live here, duplicated in every screen of a surface — which meant changing the brand
+    color required editing N files, and the value could silently disagree with the design system
+    that the implementor also reads. A screen.md that still carries `accent_color` is ignored (with
+    one warning) rather than honored.
+
+    RESPONSIVE MODEL:
+    One file per screen, covering ALL its viewports. The block inventory, the microcopy,
+    the states and their messages, the interactions and the traceability are declared
+    ONCE — they do not change between mobile and desktop. What changes per viewport is
+    only (a) which blocks are present and (b) how they are arranged. Those two live in
+    the `Viewports` column of Estructura and in the `Layout por viewport` section.
+
+    Never split a screen into one file per viewport: the implementor builds ONE
+    component with breakpoints, not two components, and duplicated microcopy drifts.
+
+    CRITICAL RULES:
+    - Every block MUST have a real `Texto/label` (no placeholders, no "Pendiente").
+    - `viewports` in the frontmatter MUST be a subset of the surface's viewports
+      (declared in product-overview.md).
+    - A screen with `status: as-is-sin-validar` was transcribed from existing code (brownfield).
+      Its "Decisiones y descartes" carries ONE entry stating that origin and nothing else: the code
+      does not record intent, and inventing it would launder a guess into a spec. Those decisions
+      get written when the screen is actually modified. Its absent states are declared
+      "Aplica: No — no implementado", not "no aplica".
+    - Every viewport listed MUST have an entry in `Layout por viewport`.
+    - A layout may only reference block names that exist in the Estructura table.
+    - Every interactive block (button, link) MUST declare its variant.
+    - Every input MUST declare its state in each applicable Estado section.
+    - "Decisiones y descartes" remains obligatory.
+    - Block names match exactly between Estructura (table) and Contenido (sections).
+    - State messages must be the actual user-facing text (e.g., "Email inválido. Probá de nuevo.").
+    - Language MUST match the language of the source UX docs.
+
+# Output specification
+output:
+  path: docs/ux/surfaces/{{surface-name}}/screens/{{screen-name}}.md
+  format: markdown
+  frontmatter:
+    - name: string                  # screen short name (kebab-case, matches filename)
+    - surface: string               # surface name (matches parent folder)
+    - route: string                 # URL route or path identifier (e.g. "/armar")
+    - viewports: list               # subset of the surface's viewports. Values depend on the
+                                    # surface's platform (declared in product-overview.md):
+                                    #   web         → mobile, desktop
+                                    #   mobile-app  → phone, tablet (+ phone-landscape si rota)
+                                    #   desktop-app → desktop
+                                    # a single-viewport screen declares just one, e.g. ["phone"]
+    - device: string                # DEPRECATED — replaced by `viewports`. Documents written
+                                    # before viewports existed still render: `device: mobile`
+                                    # is read as `viewports: ["mobile"]`. Do not use in new docs.
+    - audiences: list               # list of audience names (single or co-primary)
+    - fidelity: string              # "mid" — the level this workflow produces. See the note below.
+    - status: string                # "diseñada" (default) | "as-is-sin-validar" (brownfield:
+                                    # transcripta desde el código, sin diseño validado detrás)
+    - version: string               # "1.0"
+    - date: date
+
+# Content sections
+sections:
+
+  - id: identidad
+    title: "Identidad"
+    instruction: |
+      Required. Captures the screen's identity.
+    fields:
+      - name: "Audiencia primaria"
+        format: "Bullet list with audience name + link to research-context. If co-primary, list both."
+      - name: "JTBD / Propósito"
+        format: "1-2 sentences describing what the user accomplishes."
+      - name: "Viewports"
+        format: |
+          The viewports this screen exists in, and for each one a single line on what it
+          optimizes for. If the screen only exists in one viewport, say why the other is
+          out (e.g. "solo desktop — la tabla de parámetros no es usable a 400px").
+
+          On a `mobile-app` surface a screen normally declares just `phone`, and that is the
+          complete and correct answer — there is one layout. Declare `phone-landscape` only if
+          THIS screen actually rotates, and say why (video, cámara, formulario largo); the
+          surface's orientation policy lives in the Design System's grid foundation.
+
+          On a `web` surface, tablet is not a viewport: if relevant, note "se comporta como
+          {{viewport}}".
+
+  - id: entrada-salida
+    title: "Entrada y salida"
+    instruction: |
+      Required. Document where users come from and go to.
+    fields:
+      - name: "Entradas"
+        format: "List of source screens with the trigger."
+      - name: "Salidas user-driven"
+        format: "List of destinations triggered by user action."
+      - name: "Salidas automáticas"
+        format: "List of destinations triggered automatically."
+
+  - id: estructura
+    title: "Estructura"
+    instruction: |
+      Inventory of internal blocks. At mid-fi, the table includes a `variant` column
+      for blocks that support variants (button, input, alert, heading, paragraph).
+
+      Block-level visibility per state: use `Visibilidad` column to declare restrictions.
+      - `visible_only_in_states`: list of states where the block renders (hidden in all others)
+      - `hidden_in_states`: list of states where the block is NOT rendered
+      - `state_overrides`: field overrides per state (variant, content, icon, etc.)
+
+      DO NOT split a logical screen into two JSON entries to work around visibility.
+      Instead, declare these fields on the block and the script handles filtering.
+    fields:
+      - name: "Bloques"
+        format: |
+          Markdown table with these columns (use "—" when not applicable):
+          | # | Nombre | Tipo | Variant/Level/State | Categoría | Viewports | Visibilidad | Propósito |
+          |---|--------|------|---------------------|-----------|-----------|-------------|-----------|
+          | 1 | header | header | — | layout | ambos | todos los estados | Identidad + nav |
+          | 2 | sidebar-nav | sidebar | — | layout | solo desktop | — | Nav lateral persistente |
+          | 3 | nav-inferior | nav-bar | — | navigation | solo mobile | — | Nav principal en mobile |
+          | 4 | CTA primario | button | primary | input | ambos | state_overrides: loading→disabled | Disparador modo solo |
+          | 5 | Alerta error | alert | error | feedback | ambos | visible_only_in_states: error de validación | Mensaje de error |
+
+          **Viewports column** — which viewports render this block:
+          - `ambos` (or the list of viewports) → no restriction
+          - `solo desktop` / `solo mobile` → maps to `visible_only_in_viewports`
+          - `excepto mobile` → maps to `hidden_in_viewports`
+
+          If a block changes its content, variant or even its TYPE between viewports, note it
+          here as `viewport_overrides: desktop→tabs / mobile→dropdown` and spell out the
+          resulting text in Contenido. Per-viewport overrides are applied BEFORE per-state
+          ones, so a state override always wins on conflict.
+
+  - id: layout
+    title: "Layout por viewport"
+    instruction: |
+      Required. How the blocks from Estructura are ARRANGED in each viewport declared in the
+      frontmatter. This is the only section that differs between viewports — everything else in
+      the document is shared.
+
+      One subsection per viewport. Inside it, describe the arrangement top to bottom using:
+
+      - a plain bullet = a block at full width of its container
+      - `row {{id}}` = blocks side by side, each with its width in columns out of 12
+
+      Rules:
+      - `header` and `footer` are frame chrome: they render at the top and bottom automatically.
+        Do NOT list them in the layout — the layout covers everything BETWEEN them.
+      - Fractions are out of 12 and normalized by the sum of the row, so `3 + 9` and `1 + 3`
+        both split 25/75.
+      - Nesting is capped at 3 levels (a row inside a column inside a row).
+      - Only block names present in Estructura may appear. Blocks not rendered in this viewport
+        are simply absent.
+      - A block name may repeat (a grid of identical cards); each occurrence renders.
+      - If a viewport has no special arrangement, write "stack vertical en el orden de Estructura".
+    fields:
+      - name: "Por viewport"
+        format: |
+          ### {{viewport}} · {{ancho}}px
+          - {{bloque}}
+          - row `{{id}}`
+            - col {{n}}/12: {{bloque}}
+            - col {{n}}/12: {{bloque}}
+
+  - id: contenido
+    title: "Contenido"
+    instruction: |
+      Real microcopy for EVERY block. NO placeholders, NO "Pendiente". This is what
+      will appear in the wireframe rendered.
+
+      Microcopy, NOT sample data. Write the strings the user always sees — button labels,
+      headings, empty states, error messages, placeholders, column headers. These are a
+      contract: the implementor ships them verbatim.
+
+      Do NOT enumerate example rows, feed entries, filter chips or fake names. Those are
+      illustrative, the renderer invents them, and they live in `screens.json` only.
+      Describe the shape instead: "tabla con columnas Actor / Rol / Proyectos", not three
+      invented company names. Nobody maintains fake rows, and a spec full of them is a
+      document people stop reading.
+
+      For each block listed in Estructura, write a `### {Nombre}` subsection with:
+      - **Texto/label**: the actual text rendered
+      - **Icono**: icon name (search, check, arrow-right, menu, etc.) when applicable
+      - **Asset**: image description with aspect ratio when applicable
+      - **Annotation**: inline behavior note (when needed)
+
+      Block names MUST match the Estructura table exactly.
+    fields:
+      - name: "Por bloque"
+        format: |
+          ### {Nombre del bloque}
+          - Texto/label: {real text}
+          - Icono: {icon-name | nada}
+          - Asset: {description + aspect ratio | nada}
+          - Annotation: {behavior note | nada}
+
+  - id: estados
+    title: "Estados"
+    instruction: |
+      Applicable states from the 8 fixed UI states.
+      At mid-fi, each applicable state declares:
+      - Real user-facing message (no "Pendiente")
+      - Which blocks change and HOW (variant, state, content)
+
+      The 8 fixed states:
+      1. default — happy path
+      2. empty — no data yet
+      3. loading — fetching
+      4. error de validación — user input invalid
+      5. error de sistema / sin conexión — network/server failure
+      6. success — confirmation after action
+      7. not found — resource doesn't exist
+      8. estado terminal / readonly — locked, immutable
+
+      Sub-states (e.g., "modal abierto", "dropdown open") can be declared as an
+      additional state with `parent_state: default` field.
+
+      States are SHARED across viewports: the same state applies with the same message in every
+      viewport where the screen exists. What may differ is which blocks the state affects — if a
+      state changes a block that only exists in one viewport, note it as
+      `{{Bloque}} (solo {{viewport}}): {{cambio}}`. Per-state overrides are applied AFTER
+      per-viewport ones, so a state override wins on conflict.
+    fields:
+      - name: "Por estado aplicable"
+        format: |
+          ### {Nombre del estado}
+          - Aplica: {Sí/No - justificación si NO}
+          - Mensaje: {real user-facing message}
+          - Cambios:
+            - {Bloque X}: variant=disabled / state=error / content="…" (state_override)
+            - {Bloque Y}: oculto en este estado (hidden_in_states)
+            - {Bloque Z}: solo visible en este estado (visible_only_in_states)
+
+  - id: interacciones
+    title: "Interacciones"
+    instruction: |
+      Block-level events at mid-fi. Begin to populate (was empty at low-fi).
+    fields:
+      - name: "Eventos"
+        format: |
+          Per block: click/hover/submit/focus events with their effect.
+          Format: `{bloque} · {evento} → {efecto}`
+          Example: `CTA primario · on click → navega a /armar`
+      - name: "Validaciones"
+        format: |
+          Input validation rules + error messages.
+          Format: `{input} · {regla} → mensaje "{texto}"`
+      - name: "Feedback"
+        format: |
+          Brief description of feedback after actions (toast, alert, redirect).
+          (Motion belongs to the design system's `motion` foundation — describe destinations here.)
+
+  - id: accesibilidad
+    title: "Accesibilidad"
+    instruction: |
+      **Composition-level only.** Accessibility lives in three places and each owns a different
+      scope; documenting the same thing in all three is how they end up contradicting each other:
+
+      | Dónde | Qué le corresponde |
+      |---|---|
+      | El componente del DS | Contraste de sus variants, su ARIA, su target táctil |
+      | `guidelines/accessibility.md` del surface | Reglas transversales del producto |
+      | **Este documento** | Lo que solo existe al componer esta pantalla |
+
+      So: focus order ACROSS blocks, landmarks and heading hierarchy of the screen, focus traps
+      introduced by its overlays, and anything specific to this composition. Do NOT restate the
+      contrast of a button or the ARIA of an icon — that belongs to the component spec.
+    fields:
+      - name: "Orden de foco"
+        format: "Logical tab order across the screen's interactive blocks."
+      - name: "Landmarks y jerarquía"
+        format: "Screen regions (header/main/nav) and heading hierarchy — h1 once per screen."
+      - name: "Foco y teclado"
+        format: "Focus traps its overlays introduce, and keyboard shortcuts specific to this screen."
+      - name: "Propio de esta composición"
+        format: "Anything the component specs cannot know, e.g. a live region announcing a list update."
+
+  - id: decisiones
+    title: "Decisiones y descartes"
+    instruction: |
+      Required, transversal. Captures the WHY of layout/structure choices.
+    fields:
+      - name: "Decisiones tomadas"
+        format: "- {Decisión}: {motivo}"
+      - name: "Alternativas descartadas"
+        format: "- {Alternativa}: {por qué se descartó}"
+      - name: "Preguntas abiertas"
+        format: "List open questions."
+
+# Format example (Spanish, since generated docs are in Spanish)
+format:
+  example: |
+    ---
+    name: home
+    surface: web-11
+    route: /
+    viewports:
+      - mobile
+      - desktop
+    audiences:
+      - fan-casual-share
+      - fan-grupo-draft
+    fidelity: mid
+    version: 1.0
+    date: 2026-05-08
+    ---
+
+    # Pantalla: Home
+
+    ## Identidad
+
+    - **Audiencia primaria (co-primary):**
+      - [fan-casual-share](../../../audiences/fan-casual-share/research-context.md) — Aterriza por link, busca CTA principal.
+      - [fan-grupo-draft](../../../audiences/fan-grupo-draft/research-context.md) — Crea o se suma a sala de draft.
+    - **JTBD:** El usuario decide entre armar su 11, crear sala, ingresar código manual, o ver feed.
+    - **Viewports:**
+      - **mobile** — entrada principal (el 80% llega por link compartido en el celular). Hero + CTAs apilados.
+      - **desktop** — hero a dos columnas con la imagen al lado, para no dejar la mitad del ancho vacío.
+      - Tablet: se comporta como desktop.
+
+    ## Entrada y salida
+
+    **Entradas:**
+    - Desde fuera (link compartido, escritura manual)
+    - Desde Resultados post-draft · click "Volver al home"
+
+    **Salidas user-driven:**
+    - A [Armado modo solo] · click CTA "Armá tu 11"
+    - A [Creación de sala draft] · click CTA "Crear sala draft"
+    - A [Página pública] · ingresar código válido + submit
+    - A [Equipo no encontrado] · ingresar código inválido + submit
+    - A [Feed público] · click "Ver feed"
+
+    **Salidas automáticas:**
+    - Ninguna.
+
+    ## Estructura
+
+    | # | Nombre | Tipo | Variant/Level/State | Categoría | Viewports | Visibilidad | Propósito |
+    |---|--------|------|---------------------|-----------|-----------|-------------|-----------|
+    | 1 | header | header | — | layout | ambos | — | Logo + toggle idioma |
+    | 2 | Hero heading | heading | h1 | content | ambos | — | Comunicar producto en 1-2s |
+    | 3 | Hero subtitle | paragraph | caption | content | ambos | — | Refuerzo del valor |
+    | 4 | Hero image | image | — | content | ambos | — | Card de ejemplo |
+    | 5 | CTA primario | button | primary | input | ambos | — | Disparador modo solo |
+    | 6 | CTA secundario | button | secondary | input | ambos | — | Disparador draft |
+    | 7 | Campo código | text-input | default | input | ambos | — | Input manual de código |
+    | 8 | Botón Ir | button | secondary | input | ambos | — | Submit del código |
+    | 9 | Link feed | link | — | navigation | ambos | — | Ir al feed público |
+    | 10 | Nav secundaria | nav-bar | — | navigation | solo desktop | — | Feed / Reglas / Sobre, en la barra superior |
+    | 11 | footer | footer | — | layout | ambos | — | Atribución + legal |
+
+    ## Layout por viewport
+
+    ### mobile · 400px
+    - Hero heading
+    - Hero subtitle
+    - Hero image
+    - CTA primario
+    - CTA secundario
+    - row `codigo`
+      - col 8/12: Campo código
+      - col 4/12: Botón Ir
+    - Link feed
+
+    ### desktop · 1200px
+    - Nav secundaria
+    - row `hero`
+      - col 7/12: Hero heading, Hero subtitle, CTA primario, CTA secundario
+      - col 5/12: Hero image
+    - row `codigo`
+      - col 4/12: Campo código
+      - col 2/12: Botón Ir
+      - col 6/12: Link feed
+
+    ## Contenido
+
+    ### header
+    - Texto/label: "11"
+    - Icono: menu
+
+    ### Hero heading
+    - Texto/label: "Armá tu 11 ideal"
+
+    ### Hero subtitle
+    - Texto/label: "Sin registro · 5 minutos · listo para compartir"
+
+    ### Hero image
+    - Asset: 16:9 · "Card de ejemplo confirmada"
+
+    ### CTA primario
+    - Texto/label: "Armá tu 11"
+    - Icono: arrow-right
+
+    ### CTA secundario
+    - Texto/label: "Crear sala draft"
+
+    ### Campo código
+    - Texto/label: "Tenés un código? ingresalo"
+    - Icono: search
+    - Annotation: "valida 6 chars alfanuméricos al submit"
+
+    ### Botón Ir
+    - Texto/label: "Ir"
+
+    ### Link feed
+    - Texto/label: "Ver feed"
+    - Icono: arrow-right
+
+    ### Nav secundaria
+    - Texto/label: "Feed | Reglas | Sobre"
+    - Annotation: "solo desktop — en mobile estas entradas viven en el drawer"
+
+    ### footer
+    - Texto/label: "© 2026 Grava Digital · grava.digital"
+
+    ## Estados
+
+    ### default
+    - Aplica: Sí
+    - Mensaje: —
+    - Cambios: ninguno (estado base)
+
+    ### empty
+    - Aplica: No — la home no muestra datos del usuario.
+
+    ### loading
+    - Aplica: Sí
+    - Mensaje: "Cargando…"
+    - Cambios: hero, CTAs, campo código reemplazados por skeleton
+
+    ### error de validación
+    - Aplica: Sí
+    - Mensaje: "Código inválido. Probá de nuevo."
+    - Cambios:
+      - Campo código: state=error, error_msg="Código inválido"
+      - Botón Ir: variant=disabled
+
+    ### error de sistema / sin conexión
+    - Aplica: Sí
+    - Mensaje: "Hay un problema, reintentá"
+    - Cambios:
+      - Alerta de sistema (alert kind=error) agregada arriba del hero
+      - Botón Ir: variant=disabled
+
+    ### success
+    - Aplica: No — el éxito se manifiesta como navegación.
+
+    ### not found
+    - Aplica: No — no representa un recurso por ID.
+
+    ### estado terminal / readonly
+    - Aplica: No — la home nunca es readonly.
+
+    ## Interacciones
+
+    **Eventos:**
+    - CTA primario · on click → navega a `/armar`
+    - CTA secundario · on click → navega a `/draft/nuevo`
+    - Botón Ir · on click → submit del campo código
+    - Link feed · on click → navega a `/feed`
+
+    **Validaciones:**
+    - Campo código · si length≠6 o chars no permitidos → mensaje "Código inválido. Probá de nuevo."
+
+    **Feedback:**
+    - Submit válido → redirect a `/t/{codigo}`
+    - Submit inválido → estado `error de validación` inline (no redirect)
+
+    ## Accesibilidad
+
+    - **Orden de foco:** Logo → Toggle idioma → CTA primario → CTA secundario → Campo código → Botón Ir → Link feed.
+    - **Landmarks y jerarquía:** header / main / footer. Un solo h1 (Hero heading).
+    - **Foco y teclado:** el drawer de navegación atrapa el foco mientras está abierto y lo devuelve al botón que lo abrió.
+    - **Propio de esta composición:** el error del campo código se anuncia en una región live, porque el submit no navega.
+
+    ## Decisiones y descartes
+
+    **Decisiones tomadas:**
+    - Header-light con sólo logo y toggle: PRD pide superficie sin nav tradicional (G-04).
+    - Dos CTAs explícitos sobre el hero: dos audiencias primarias entran por caminos distintos.
+    - Campo código en home: PRD lo lista como entrada principal (C-12).
+
+    - Hero a dos columnas en desktop: apilado a 1200px dejaba el hero con media pantalla vacía y empujaba los CTAs abajo del fold.
+    - Nav secundaria solo en desktop: en mobile las mismas entradas ya están en el drawer; duplicarlas competía con los dos CTAs primarios.
+
+    **Alternativas descartadas:**
+    - Onboarding/tutorial: descartado por PRD ("sin tutorial").
+    - Sidebar de navegación en desktop: la home tiene dos CTAs y ninguna jerarquía que navegar; una sidebar sería cromo vacío.
+    - Pantalla separada para ingreso de código: agrega click obligatorio.
+
+    **Preguntas abiertas:**
+    - ¿Hero muestra preview animado o sólo título + CTAs? (decisión de motion: la resuelve el DS, ver `foundations/motion.md`)

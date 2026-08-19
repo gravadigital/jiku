@@ -1,0 +1,43 @@
+service: opus-web
+type: frontend
+language: nextjs
+
+# Todas las convenciones son CUSTOM (viven en ./conventions/), no del catálogo.
+#
+# Mismo motivo que en `web`: el catálogo de Next.js recomienda Tailwind, Zustand + nuqs,
+# `fetch` nativo en Server Components, Server Actions con `useActionState` + Zod y CI en
+# GitLab. Este servicio usa Sass + CSS Modules, TanStack Query, axios de navegador contra un
+# proxy propio, formularios con `useState` y GitHub Actions.
+#
+# No es una desviación a corregir: `opus-web` es un frontend existente que se importó al
+# workflow. Las reglas transversales del catálogo —TypeScript strict, el token nunca en el
+# cliente, tipado explícito de la sesión— SÍ aplican y están recogidas en cada convención.
+#
+# La diferencia con `web` que más importa: `web` habla con la api desde Server Actions;
+# `opus-web` lo hace desde el navegador contra un proxy catch-all propio. Son dos soluciones
+# distintas al mismo problema (que el token no salga del servidor). Ver `api-routes`.
+#
+# `forms` NO se declara como convención propia: no hay una. Los dos formularios del servicio
+# usan `useState` crudo y validación inline; está documentado en `overview.md` como
+# inconsistencia, no como patrón a seguir.
+#
+# `testing-e2e` NO se declara: el servicio no tiene tests end-to-end.
+conventions:
+  - data-fetching       # apiClient de navegador + TanStack Query, con paginación infinita
+  - mutations           # useMutation + invalidación explícita por query key
+  - api-routes          # El proxy catch-all /api/opus/[...path] y los handlers de adjuntos
+  - auth                # NextAuth v5 + Zitadel OIDC, guard en middleware.ts
+  - state-management    # TanStack Query (servidor) + ProjectContext + useState (local)
+  - styling             # Sass + CSS Modules + custom properties, sin librería de componentes
+  - error-handling      # ApiError normalizado, toasts, estados por pantalla
+  - testing-unit        # Vitest + Testing Library, tests en dos ubicaciones, TZ fijada
+  - ci-github           # CI y publicación de imágenes en GitHub Actions
+  - dockerfile          # Multi-stage con contexto en la raíz del monorepo
+
+modules:
+  - auth
+  - projects
+  - requirements
+  - comments
+  - subscriptions
+  - attachments

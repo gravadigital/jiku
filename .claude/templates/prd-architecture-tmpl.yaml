@@ -1,0 +1,324 @@
+template:
+  id: prd-architecture
+  name: PRD - Product Architecture
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-technical-architecture.md
+
+  description: |
+    Structure specification for the Product Architecture document.
+    Generated during /initialize-product Phase 2 (Technical Architecture).
+
+    DUAL-AUDIENCE DESIGN: This document connects technical decisions to requirements.
+    - Services table references which domain entities (from requirements.md) each service owns
+    - Downstream agents use this to know which service to modify for a given capability
+
+    This is a HIGH-LEVEL overview document, not detailed per-service documentation.
+    Focus on: what services exist, how they interact, what databases, what external integrations.
+
+    Detailed per-service architecture will be created later in docs/architectures/{service}/.
+
+# Output specification
+output:
+  path: docs/prd/architecture.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "Draft", "Ready", "Approved"
+
+# Section definitions
+sections:
+
+  - id: services
+    title: Services
+    description: |
+      List of all services in the product with high-level information.
+      For each service: name, technology, responsibilities, database, external APIs.
+
+    format: |
+      ## Services
+
+      | Service | Technology | Responsibilities | Owns Entities | Database | External APIs |
+      |---------|-----------|------------------|---------------|----------|---------------|
+      | [service-1] | [tech stack] | [main responsibilities] | [entities from requirements.md] | [db name or "-"] | [apis or "-"] |
+      | [service-2] | [tech stack] | [main responsibilities] | [entities from requirements.md] | [db name or "-"] | [apis or "-"] |
+
+    example: |
+      ## Services
+
+      | Service | Technology | Responsibilities | Owns Entities | Database | External APIs |
+      |---------|-----------|------------------|---------------|----------|---------------|
+      | api-gateway | Node.js + Express | Entry point, routing, auth middleware, rate limiting | - | - | - |
+      | user-service | Node.js + Express | User management, authentication, sessions, profiles | Usuario, Miembro | users-db | Google OAuth |
+      | project-service | Node.js + Express | Projects, memberships, permissions | Proyecto | projects-db | - |
+      | task-service | Node.js + Express | Tasks, comments, attachments, history | Tarea, Comentario | tasks-db | - |
+      | notification-service | Node.js | Notifications (email, push), templates | Notificación, PreferenciaNotificación | - | SendGrid |
+      | websocket-service | Node.js + Socket.io | Real-time updates, online presence | - | - | Redis (pub/sub) |
+      | frontend | React + TypeScript | SPA, UI components, client state | - | - | API Gateway |
+
+  - id: databases
+    title: Databases
+    description: |
+      List of all databases used by the product.
+      For each: name, type, which services use it, purpose.
+
+    format: |
+      ## Databases
+
+      | Database | Type | Used By | Purpose |
+      |----------|------|---------|---------|
+      | [db-1] | [type] | [service list] | [purpose] |
+      | [db-2] | [type] | [service list] | [purpose] |
+
+    example: |
+      ## Databases
+
+      | Database | Type | Used By | Purpose |
+      |----------|------|---------|---------|
+      | users-db | PostgreSQL 15 | user-service | Users, credentials, profiles, sessions |
+      | projects-db | PostgreSQL 15 | project-service | Projects, memberships, permissions |
+      | tasks-db | PostgreSQL 15 | task-service | Tasks, comments, attachments, change history |
+      | redis-cache | Redis 7 | All services | Session storage, caching, pub/sub for real-time |
+
+  - id: service-interactions
+    title: Service Interactions
+    description: |
+      Document how services communicate with each other and with external systems.
+      Separate internal communications from external integrations.
+
+    subsections:
+      - id: internal-communications
+        title: Internal Communications
+        format: |
+          ### Internal Communications
+
+          - **[service-a] → [service-b]** ([protocol], [sync/async])
+            - [Purpose/description]
+
+      - id: external-integrations
+        title: External Integrations
+        format: |
+          ### External Integrations
+
+          - **[internal-service] → [external-service]** ([protocol], [sync/async])
+            - [Purpose/description]
+
+    example: |
+      ## Service Interactions
+
+      ### Internal Communications
+
+      - **frontend → api-gateway** (HTTPS REST, sync)
+        - All client requests go through the gateway for auth and routing
+
+      - **api-gateway → user-service** (HTTP REST, sync)
+        - JWT validation, user info retrieval
+
+      - **api-gateway → project-service** (HTTP REST, sync)
+        - Project CRUD, membership management
+
+      - **api-gateway → task-service** (HTTP REST, sync)
+        - Task CRUD, comments, attachments
+
+      - **task-service → notification-service** (RabbitMQ, async)
+        - Trigger notifications on task events (mentions, assignments)
+
+      - **All services → websocket-service** (Redis pub/sub, async)
+        - Publish real-time events (task created, status changed, comment added)
+
+      - **All services → redis-cache** (Redis protocol, sync)
+        - Session storage, query caching, rate limiting counters
+
+      ### External Integrations
+
+      - **user-service → Google OAuth** (HTTPS REST, sync)
+        - User authentication with Google accounts
+
+      - **notification-service → SendGrid** (HTTPS REST, async)
+        - Email delivery (welcome, notifications, password reset)
+
+      - **notification-service → Slack** (HTTPS Webhooks, async)
+        - Slack channel notifications, slash commands integration
+
+  - id: technical-requirements
+    title: Technical Requirements
+    description: |
+      Cross-cutting concerns and technical constraints.
+      Infrastructure, security, performance, observability.
+
+    subsections:
+      - id: infrastructure
+        title: Infrastructure
+        description: Deployment strategy, environments, CI/CD
+        format: |
+          ### Infrastructure
+
+          **Deployment:**
+          - [Deployment platform and strategy]
+
+          **Environments:**
+          - **dev:** [description]
+          - **staging:** [description]
+          - **production:** [description]
+
+          **CI/CD:**
+          - [Pipeline description]
+
+      - id: cross-cutting
+        title: Cross-Cutting Concerns
+        description: Logging, monitoring, error tracking
+        format: |
+          ### Cross-Cutting Concerns
+
+          **Logging:**
+          - [Logging strategy]
+
+          **Monitoring:**
+          - [Monitoring and alerting]
+
+          **Error Tracking:**
+          - [Error tracking solution]
+
+      - id: security
+        title: Security
+        description: Authentication, authorization, secrets management
+        format: |
+          ### Security
+
+          **Authentication:**
+          - [Auth strategy]
+
+          **Authorization:**
+          - [Authorization model]
+
+          **Secrets Management:**
+          - [How secrets are managed]
+
+      - id: performance
+        title: Performance
+        description: Caching, rate limiting, CDN
+        format: |
+          ### Performance
+
+          **Caching:**
+          - [Caching strategy]
+
+          **Rate Limiting:**
+          - [Rate limits]
+
+          **CDN:**
+          - [CDN usage if applicable]
+
+    example: |
+      ## Technical Requirements
+
+      ### Infrastructure
+
+      **Deployment:**
+      - Docker containers on DigitalOcean App Platform
+      - PostgreSQL managed databases (3 instances)
+      - Redis managed instance
+      - Object storage (DigitalOcean Spaces) for attachments
+
+      **Environments:**
+      - **dev:** Local with Docker Compose, hot reload, debug mode
+      - **staging:** Auto-deploy on merge to main, production-like config
+      - **production:** Manual deploy with approval, blue-green deployment
+
+      **CI/CD:**
+      - GitHub Actions for tests and builds
+      - Auto-deploy to staging on main branch
+      - Manual approval required for production
+      - Rollback capability in < 5 minutes
+
+      ### Cross-Cutting Concerns
+
+      **Logging:**
+      - Structured JSON logs (Winston for Node.js)
+      - Centralized in Datadog
+      - Retention: 30 days
+      - Log levels: ERROR, WARN, INFO, DEBUG
+
+      **Monitoring:**
+      - Health checks on /health for each service
+      - Business metrics (tasks created, active users) in Datadog
+      - Alerts: downtime, error rate > 1%, latency P95 > 2s
+      - Uptime monitoring (external: UptimeRobot)
+
+      **Error Tracking:**
+      - Sentry for frontend and backend errors
+      - Sourcemaps configured for frontend
+      - Error grouping and deduplication
+      - Slack notifications for critical errors
+
+      ### Security
+
+      **Authentication:**
+      - JWT tokens: access (15min), refresh (7 days)
+      - Cookies HttpOnly for refresh tokens
+      - Google OAuth via Passport.js
+      - Password hashing: bcrypt (cost 12)
+
+      **Authorization:**
+      - RBAC: Owner, Member, Viewer roles per project
+      - Middleware enforces permissions on every protected endpoint
+      - Ownership checks for resource modifications
+
+      **Secrets Management:**
+      - Environment variables in DigitalOcean App Platform
+      - .env.example committed (no real values)
+      - Secrets rotation plan: quarterly for API keys
+
+      ### Performance
+
+      **Caching:**
+      - User sessions in Redis (TTL: 24h)
+      - Project metadata in Redis (TTL: 5min)
+      - API Gateway caches user permissions (TTL: 1min)
+      - Manual cache invalidation on writes
+
+      **Rate Limiting:**
+      - 100 requests/min per authenticated user
+      - 20 requests/min per IP for anonymous
+      - Implemented in API Gateway with Redis counters
+      - 429 Too Many Requests response with Retry-After header
+
+      **CDN:**
+      - Cloudflare CDN for static assets (images, JS, CSS)
+      - Cache-Control headers: immutable assets (1 year), dynamic (no-cache)
+
+  - id: deployment-strategy
+    title: Deployment Strategy
+    description: |
+      How the system will be deployed and scaled.
+
+    format: |
+      ## Deployment Strategy
+
+      **Phase MVP (first 3 months):**
+      - [Deployment approach for MVP]
+
+      **Phase Post-MVP:**
+      - [Evolution of deployment strategy]
+
+    example: |
+      ## Deployment Strategy
+
+      **Phase MVP (first 3 months):**
+      - Monorepo with services in separate folders
+      - All services deployed together (simplifies coordination)
+      - Horizontal scaling: manual adjustment based on load
+      - Single region (US East) to minimize complexity
+      - Database backups: daily automated, 30-day retention
+
+      **Phase Post-MVP (after product-market fit):**
+      - Consider splitting into separate repos if teams grow
+      - Independent deploys per service
+      - Auto-scaling configured based on CPU/memory metrics
+      - Multi-region deployment for global users
+      - Database: read replicas for scaling reads
+      - Implement blue-green deployment for zero-downtime

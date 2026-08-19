@@ -47,7 +47,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # herramientas locales — no son del producto
-.claude/
 .vscode/
 *.bkp
 __pycache__/

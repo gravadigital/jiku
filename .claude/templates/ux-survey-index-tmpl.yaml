@@ -1,0 +1,317 @@
+template:
+  id: ux-survey-index
+  name: UX Survey Index Template (brownfield)
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-analyze-service/SKILL.md
+    - .claude/skills/product-consolidate-services/SKILL.md
+
+  description: |
+    Structure specification for the per-service UX SURVEY index, produced by
+    /product-analyze-service when the analyzed service is a frontend.
+
+    This is a RELEVAMIENTO (survey) of the current state of the code — not UX documentation.
+    It is temporary analysis material, consumed by /product-consolidate-services to build the
+    real UX documentation once audiences are known. It lives under `analysis_folder`, next to
+    the service analyses, for the same reason: it is input to consolidation, not a deliverable.
+
+    WHAT THIS DOCUMENT IS FOR:
+    In a brownfield product the code already holds facts that UX would otherwise invent:
+    the breakpoints, the routes, the components, the palette. Documenting a product that
+    already ships without reading them produces a second, contradictory source of truth.
+    This survey captures those facts so consolidation transcribes instead of inferring.
+
+    THE HONEST LIMIT — what the code CANNOT tell us, and must NOT appear here:
+    - Audiences and JTBD
+    - Pains and gains
+    - The WHY of any decision
+    - Whether the current UI is any good
+    Those come from the interview during consolidation, exactly as in greenfield. A survey
+    that speculates about intent is worse than one that reports only structure.
+
+    CRITICAL RULES:
+    - Every extracted fact cites its origin (`file:line` or file path). A fact without an
+      origin is not a fact — drop it.
+    - Report what IS, never what SHOULD BE. Improvement proposals belong in the Gaps section,
+      labeled as such, never mixed into the inventory.
+    - Do NOT invent rationale. There is no "Decisiones" section in this document by design.
+    - If something cannot be determined from the code, write it explicitly as
+      "no determinable desde el código" — never guess.
+    - Language: Spanish (matches the rest of the generated documentation).
+
+# Output specification
+output:
+  path: docs/analysis/ux/{{service-name}}/index.md
+  format: markdown
+  frontmatter:
+    - document: string          # "UX Survey"
+    - service: string           # analyzed service name
+    - repo_path: string         # path the survey was taken from
+    - date: date
+    - status: string            # always "relevamiento" — this is not UX documentation
+
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote framing the document. Must appear immediately after H1.
+    format: |
+      > **Relevamiento del estado actual** del frontend `{{service}}`, extraído del código.
+      > No es documentación UX: es el insumo que `/product-consolidate-services` transcribe
+      > para armar `docs/ux/`. Cada dato cita su origen. Lo que el código no dice —audiencias,
+      > JTBD, el porqué de cada decisión— no está acá y se releva en la entrevista.
+
+  - id: ui-stack
+    title: Stack de UI
+    description: |
+      Framework, styling approach, and anything that determines how layout is expressed.
+      Needed to know where breakpoints and tokens live.
+    format: |
+      ## Stack de UI
+
+      | Aspecto | Valor | Origen |
+      |---|---|---|
+      | Framework | {{Next.js 14 / React 18 / Vue 3}} | {{package.json}} |
+      | Styling | {{Tailwind / CSS Modules / styled-components / MUI}} | {{archivo}} |
+      | Librería de componentes | {{shadcn / MUI / ninguna}} | {{archivo}} |
+      | i18n | {{next-intl / ninguna}} | {{archivo}} |
+
+  - id: breakpoints
+    title: Breakpoints
+    description: |
+      The literal breakpoint values found in the code. This is the highest-value fact in the
+      whole survey: it becomes `docs/design-system/{surface}/foundations/grid.md`, which is what
+      the responsive spec and the implementor read.
+
+      If the project declares no breakpoints, say so — that means a single-viewport surface.
+    format: |
+      ## Breakpoints
+
+      **Origen:** `{{tailwind.config.ts / theme.ts / _variables.scss}}`
+
+      | Token | Min width | Origen |
+      |---|---|---|
+      | {{sm}} | {{640px}} | {{archivo:línea}} |
+
+      {{Si no hay breakpoints declarados:}}
+      No se encontraron breakpoints declarados. El código no tiene tratamiento responsive
+      explícito → superficie de un solo viewport.
+
+  - id: viewports-in-use
+    title: Viewports en uso
+    description: |
+      Which breakpoints are ACTUALLY used, not just declared. A config can declare five
+      breakpoints while the code only ever uses one — the viewports come from usage, not
+      from the config.
+
+      Count occurrences per prefix/media query so the evidence is visible. Then state the
+      conclusion: which canonical viewports (`mobile`, `desktop`) this surface has.
+    format: |
+      ## Viewports en uso
+
+      | Mecanismo | Ocurrencias | Ejemplos |
+      |---|---|---|
+      | `md:` | {{N}} | {{archivo:línea}} |
+      | `useMediaQuery` | {{N}} | {{archivo:línea}} |
+
+      **Conclusión:** viewports `{{mobile}}`, `{{desktop}}`.
+      {{1 línea de evidencia: por qué esos y no otros}}
+
+      {{Si el uso es nulo o marginal:}}
+      Uso responsive marginal ({{N}} ocurrencias en {{M}} archivos): la superficie se comporta
+      como un solo viewport aunque el config declare varios.
+
+  - id: design-tokens
+    title: Tokens de diseño
+    description: |
+      Palette, typography and spacing as declared in the code. These seed the DS foundations
+      during consolidation, so the DS starts populated instead of as placeholders.
+
+      Report the values verbatim. Do NOT normalize, rename or "improve" them — if the palette
+      has three greys with no semantic name, that is the finding.
+    format: |
+      ## Tokens de diseño
+
+      **Origen:** `{{archivo}}`
+
+      ### Paleta
+      | Nombre en código | Valor | Uso observado |
+      |---|---|---|
+      | {{primary}} | {{#2563eb}} | {{botones primarios, links}} |
+
+      ### Tipografía
+      | Nombre | Tamaño | Peso | Uso |
+      |---|---|---|---|
+
+      ### Espaciado
+      {{escala encontrada, o "usa la escala default del framework"}}
+
+  - id: routes
+    title: Rutas y pantallas
+    description: |
+      The route inventory extracted from the router or the filesystem. This becomes the
+      product-map's screen inventory during consolidation — the real screens, not invented ones.
+
+      One row per route. Mark which are protected/authenticated and which are overlays rather
+      than routes (a drawer or modal is not a route but is a UX surface element).
+    format: |
+      ## Rutas y pantallas
+
+      **Origen:** `{{app/ | pages/ | router.tsx}}`
+
+      | # | Ruta | Pantalla (kebab-case) | Auth | Archivo | Survey |
+      |---|---|---|---|---|---|
+      | 1 | {{/pedidos}} | {{listado-pedidos}} | {{sí/no}} | {{app/pedidos/page.tsx}} | [screens/listado-pedidos.md](./screens/listado-pedidos.md) |
+
+      ### Overlays detectados
+      Drawers, modals y sheets que no son rutas.
+
+      | Overlay | Tipo | Disparado desde | Archivo |
+      |---|---|---|---|
+
+  - id: components
+    title: Inventario de componentes
+    description: |
+      The component catalog found in the code, with usage count. These are the candidates for
+      the DS component catalog during consolidation.
+
+      Usage count matters: a component used once is not yet a design-system component, and a
+      pattern repeated inline in five screens is a missing one. Both are findings.
+    format: |
+      ## Inventario de componentes
+
+      | Componente | Archivo | Usos | Variants observadas | ¿Candidato a DS? |
+      |---|---|---|---|---|
+      | {{Button}} | {{components/Button.tsx}} | {{24}} | {{primary, ghost}} | {{sí}} |
+
+      ### Patrones repetidos sin componente
+      Estructuras que aparecen duplicadas inline y deberían ser un componente.
+
+      | Patrón | Repeticiones | Archivos |
+      |---|---|---|
+
+  - id: gaps
+    title: Gaps detectados
+    description: |
+      The part that makes this survey worth more than documentation. What the code does NOT
+      have, stated factually and per screen.
+
+      This is the ONLY section where a judgement is allowed, and it must stay at the level of
+      "this state is not implemented" — never "this screen is badly designed".
+
+      Categories to check per screen:
+      - Sin tratamiento responsive (no responsive utilities in a surface that has others)
+      - Estados ausentes: loading, empty, error de validación, error de sistema
+      - Sin manejo de error de red
+      - Accesibilidad: imágenes sin alt, botones sin label accesible, foco no manejado
+      - Bloques que usan estilos inline en vez del token/componente correspondiente
+    format: |
+      ## Gaps detectados
+
+      | Pantalla | Gap | Categoría | Evidencia |
+      |---|---|---|---|
+      | {{listado-pedidos}} | {{sin estado empty}} | {{estado ausente}} | {{archivo:línea}} |
+
+      **Resumen:** {{N}} gaps en {{M}} pantallas.
+      {{Los más frecuentes, en 1-2 líneas.}}
+
+  - id: no-determinable
+    title: No determinable desde el código
+    description: |
+      Mandatory section. What the survey could not establish, so consolidation knows what to
+      ask instead of assuming it was checked.
+
+      Always includes at minimum: audiences, JTBD, and the rationale of existing decisions.
+    format: |
+      ## No determinable desde el código
+
+      - **Audiencias y JTBD** — el código no dice para quién es cada pantalla. Se releva en la
+        entrevista de consolidación.
+      - **Por qué** de las decisiones de layout y navegación existentes.
+      - {{Otros: rutas generadas dinámicamente, contenido que viene de un CMS, feature flags
+        que cambian la UI, etc.}}
+
+format:
+  example: |
+    ---
+    document: UX Survey
+    service: app-operador
+    repo_path: ../app-operador
+    date: 2026-08-18
+    status: relevamiento
+    ---
+
+    # UX Survey: app-operador
+
+    > **Relevamiento del estado actual** del frontend `app-operador`, extraído del código.
+    > No es documentación UX: es el insumo que `/product-consolidate-services` transcribe
+    > para armar `docs/ux/`. Cada dato cita su origen.
+
+    ## Stack de UI
+
+    | Aspecto | Valor | Origen |
+    |---|---|---|
+    | Framework | Next.js 14 (App Router) | `package.json` |
+    | Styling | Tailwind 3.4 | `tailwind.config.ts` |
+    | Librería de componentes | shadcn/ui (parcial) | `components/ui/` |
+    | i18n | ninguna — textos hardcodeados en JSX | — |
+
+    ## Breakpoints
+
+    **Origen:** `tailwind.config.ts`
+
+    | Token | Min width | Origen |
+    |---|---|---|
+    | `sm` | 640px | `tailwind.config.ts:12` (default de Tailwind, no override) |
+    | `md` | 768px | `tailwind.config.ts:12` |
+    | `lg` | 1024px | `tailwind.config.ts:12` |
+
+    ## Viewports en uso
+
+    | Mecanismo | Ocurrencias | Ejemplos |
+    |---|---|---|
+    | `md:` | 34 | `app/pedidos/page.tsx:18`, `components/Shell.tsx:9` |
+    | `lg:` | 12 | `components/Shell.tsx:11` |
+    | `sm:` | 0 | — |
+    | `useMediaQuery` | 0 | — |
+
+    **Conclusión:** viewports `mobile`, `desktop`. El corte real está en `md` (768px): el
+    `Shell` monta la sidebar recién desde `md:`, y todas las grillas pasan de 1 a 3 columnas ahí.
+    `sm` está declarado pero no se usa.
+
+    ## Rutas y pantallas
+
+    **Origen:** `app/` (App Router)
+
+    | # | Ruta | Pantalla | Auth | Archivo | Survey |
+    |---|---|---|---|---|---|
+    | 1 | `/pedidos` | listado-pedidos | sí | `app/pedidos/page.tsx` | [screens/listado-pedidos.md](./screens/listado-pedidos.md) |
+    | 2 | `/pedidos/[id]` | detalle-pedido | sí | `app/pedidos/[id]/page.tsx` | [screens/detalle-pedido.md](./screens/detalle-pedido.md) |
+
+    ### Overlays detectados
+
+    | Overlay | Tipo | Disparado desde | Archivo |
+    |---|---|---|---|
+    | Menú de navegación | drawer (mobile) / sidebar fija (desktop) | listado-pedidos, detalle-pedido | `components/Shell.tsx:22` |
+
+    ## Gaps detectados
+
+    | Pantalla | Gap | Categoría | Evidencia |
+    |---|---|---|---|
+    | listado-pedidos | sin estado empty | estado ausente | `app/pedidos/page.tsx:41` — mapea el array sin chequear largo |
+    | detalle-pedido | sin tratamiento responsive | responsive | ninguna utilidad `md:`/`lg:` en el archivo |
+    | detalle-pedido | error de red sin manejar | estado ausente | `app/pedidos/[id]/page.tsx:15` — `fetch` sin catch |
+
+    **Resumen:** 3 gaps en 2 pantallas. El más frecuente es la ausencia de estados no-happy-path:
+    ninguna pantalla relevada implementa `empty`.
+
+    ## No determinable desde el código
+
+    - **Audiencias y JTBD** — el código no dice para quién es cada pantalla.
+    - **Por qué** la sidebar aparece recién en `md` y no en `sm`.
+    - El contenido de `/reportes` se genera desde un endpoint sin tipar: no se pudo determinar
+      qué bloques renderiza.

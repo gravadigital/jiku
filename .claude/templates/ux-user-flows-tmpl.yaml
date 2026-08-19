@@ -1,0 +1,163 @@
+template:
+  id: ux-user-flows
+  name: UX User Flows Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for a Surface User Flows document.
+    Generated PER SURFACE during Phase 2, AFTER product-map.md of the surface.
+
+    Captures 3 to 5 CRITICAL flows internal to the surface — not all flows.
+    These are the flows that define the product's value for this surface.
+
+    The document captures (per flow):
+    - Flow name + JTBD it solves (linked to research-context)
+    - Audience executing it
+    - Trigger
+    - Happy path (step by step)
+    - Alternative paths
+    - Errors and recovery
+    - Final state
+    - Success criteria
+
+    CRITICAL RULES:
+    - Maximum 5 flows. If only 3 critical flows exist, document 3.
+    - Every flow names the JTBD it solves (traceability to audience research).
+    - Mandatory error/recovery section per flow. No happy-path-only flows.
+    - Cross-surface flows DO NOT go here — they live in cross-surface-flows.md.
+    - Language MUST match the language of the PRD.
+
+# Output specification
+output:
+  path: docs/ux/surfaces/{{surface-name}}/user-flows.md
+  format: markdown
+  frontmatter:
+    - document: string         # "UX User Flows"
+    - surface: string          # the surface name (matches folder)
+    - version: string          # "1.0"
+    - date: date
+    - status: string           # "Draft - Punto de partida para discusión"
+    - flows_count: number      # how many flows are documented (3-5)
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote framing the document as a curated set of critical
+      flows, not exhaustive. Must appear immediately after H1.
+    format: |
+      > Flujos críticos internos de la superficie. **No son todos los flujos** —
+      > son los 3-5 que definen el valor del producto en esta superficie. Otros
+      > flujos derivan de estos o son operaciones secundarias. Si un flujo cruza
+      > a otra superficie, vive en `cross-surface-flows.md`, no acá.
+
+  - id: flows-overview
+    title: Flujos Documentados
+    description: |
+      Quick index of the flows in this document, with the JTBD each one solves.
+      Helps the reader scan before diving in.
+    format: |
+      ## Flujos Documentados
+
+      | # | Flujo | JTBD que resuelve | Audiencia |
+      |---|-------|-------------------|-----------|
+      | 1 | {{nombre}} | {{JTBD}} | {{audience-name}} |
+
+    example: |
+      ## Flujos Documentados
+
+      | # | Flujo | JTBD que resuelve | Audiencia |
+      |---|-------|-------------------|-----------|
+      | 1 | Procesar pedido entrante | "Cuando llegan pedidos en simultáneo, quiero procesarlos sin perder ninguno" | operador-turno |
+      | 2 | Resolver pedido bloqueado | "Cuando un pedido tiene un problema, quiero resolverlo rápido" | operador-turno |
+      | 3 | Cierre de turno | "Cuando termina mi turno, quiero dejar el estado claro" | operador-turno |
+
+  - id: flow-entry
+    title: "Flujo N: {{nombre}}"
+    description: |
+      One section per flow. Repeat the structure for each flow (3-5 total).
+
+      Each flow is self-contained: a reader should be able to understand the
+      flow without reading the others.
+    format: |
+      ## Flujo {{N}}: {{nombre}}
+
+      **JTBD que resuelve:** "{{Cuando ..., quiero ..., para ...}}"
+      **Audiencia:** {{audience-name}} ([research-context](../../audiences/{{audience-name}}/research-context.md))
+      **Trigger:** {{qué inicia el flujo}}
+
+      ### Happy path
+
+      1. {{paso 1: pantalla → acción → resultado}}
+      2. {{paso 2: ...}}
+      3. {{...}}
+
+      ### Caminos alternativos
+
+      - **{{Variante}}** — {{cuándo aplica, cómo se desvía del happy path}}
+
+      ### Errores y recuperación
+
+      - **{{Error}}** — {{cuándo ocurre, cómo se recupera el usuario}}
+
+      ### Estado final
+
+      {{Cómo sabe el usuario que terminó. Qué ve, qué cambió en el sistema.}}
+
+      ### Criterios de éxito
+
+      - {{Lo que el usuario debe poder hacer sin fricción}}
+
+    example: |
+      ## Flujo 1: Procesar pedido entrante
+
+      **JTBD que resuelve:** "Cuando llegan pedidos en simultáneo, quiero procesarlos sin perder ninguno, para evitar reclamos al final del turno."
+      **Audiencia:** operador-turno ([research-context](../../audiences/operador-turno/research-context.md))
+      **Trigger:** Notificación in-app de nuevo pedido entrante.
+
+      ### Happy path
+
+      1. Operador ve notificación en el listado de pedidos. Click en la fila → abre detalle.
+      2. Detalle muestra cliente, líneas de ítems, urgencia. Operador click en "Empezar".
+      3. Sistema marca pedido como "en proceso" y muestra checklist de ítems.
+      4. Operador marca cada ítem como pickeado. Al completar todos, click en "Confirmar".
+      5. Sistema actualiza estado a "completo" y vuelve al listado. Pedido sale de la cola.
+
+      ### Caminos alternativos
+
+      - **Pedido con prioridad alta** — Aparece destacado en el listado y bloquea otros pedidos en proceso del operador. Mismo flujo pero con flag visual constante.
+      - **Pedido parcial** — Operador puede marcar pedido como "parcialmente completo" si falta stock; sistema deriva al supervisor automáticamente.
+
+      ### Errores y recuperación
+
+      - **Falta de stock detectada al pickear** — Operador marca el ítem como "sin stock" en el checklist. Sistema sugiere derivar a supervisor o cancelar línea. Recuperación: el operador elige acción explícita, no se queda colgado.
+      - **Pérdida de conexión durante el procesamiento** — Sistema muestra banner offline; el progreso se guarda localmente. Al reconectar, sincroniza. Recuperación automática.
+      - **Pedido se pone en proceso pero el operador se va** — Sistema detecta inactividad de 5 min y libera el pedido para que otro operador lo tome.
+
+      ### Estado final
+
+      Pedido aparece como "completo" en el listado, con timestamp y operador asignado. El operador vuelve al listado con la cola actualizada (un pedido menos).
+
+      ### Criterios de éxito
+
+      - El operador puede iniciar el procesamiento desde el listado en menos de 2 clicks.
+      - El operador no pierde progreso si pierde conexión.
+      - El operador no necesita confirmar acciones intermedias (cada ítem pickeado se guarda automático).
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line linking back to the product-map and forward to cross-surface
+      flows if relevant.
+    format: |
+      ---
+
+      **Relacionados:** Las pantallas usadas en estos flujos están inventariadas en `product-map.md` de esta superficie. Los flujos que cruzan a otras superficies viven en `../cross-surface-flows.md`.

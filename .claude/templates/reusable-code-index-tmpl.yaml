@@ -1,0 +1,251 @@
+template:
+  id: reusable-code-index-template
+  name: Reusable Code Index
+  version: 1.0
+  execution:
+    require_section_approval: false
+    process_with: .claude/tasks/create-doc.md
+    save_incremental: false
+    sharded: false
+  output:
+    format: markdown
+    filename: docs/reusable-code/index.md
+    title: "Código Reutilizable - {{service_name}}"
+
+sections:
+  - id: overview
+    title: Overview
+    type: paragraphs
+    instruction: |
+      Brief introduction.
+
+      Example:
+      This document lists all reusable code available in this service.
+      Each category has its own file with detailed documentation.
+
+      **IMPORTANT:** This index must be COMPLETE - list ALL elements without truncation.
+      The purpose is that by reading this index, you can see all available items.
+
+  - id: components
+    title: Components
+    type: paragraphs
+    instruction: |
+      Complete list of ALL components (Frontend only). One line per component.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single component.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{ComponentName}}** (`{{file_path}}`) - {{one-line description}}
+      - **{{ComponentName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL components, no truncation)
+
+      See full details in [components.md](./components.md)
+
+      ---
+
+      If not applicable (Backend), write:
+      N/A (Backend service)
+
+  - id: utils
+    title: Utils/Helpers
+    type: paragraphs
+    instruction: |
+      Complete list of ALL utils/helpers. One line per function.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single util/helper.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{functionName}}** (`{{file_path}}`) - {{one-line description}}
+      - **{{functionName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL utils, no truncation)
+
+      See full details in [utils.md](./utils.md)
+
+      ---
+
+      If none, write:
+      No utils/helpers documented yet.
+
+  - id: middlewares
+    title: Middlewares
+    type: paragraphs
+    instruction: |
+      Complete list of ALL middlewares. One line per middleware.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single middleware.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{middlewareName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL middlewares, no truncation)
+
+      See full details in [middlewares.md](./middlewares.md)
+
+      ---
+
+      If none, write:
+      No middlewares documented yet.
+
+  - id: services
+    title: Services/Repositories
+    type: paragraphs
+    instruction: |
+      Complete list of ALL services/repositories. One line per service.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single service.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{ClassName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL services, no truncation)
+
+      See full details in [services.md](./services.md)
+
+      ---
+
+      If none, write:
+      No services/repositories documented yet.
+
+  - id: styles
+    title: Styles
+    type: paragraphs
+    instruction: |
+      Compact mention of styles (Frontend only).
+
+      Format:
+      Available variables, mixins, and utility classes.
+
+      See full details in [styles.md](./styles.md)
+
+      ---
+
+      If not applicable (Backend), write:
+      N/A (Backend service)
+
+  - id: hooks
+    title: Hooks
+    type: paragraphs
+    instruction: |
+      Complete list of ALL hooks (Frontend only). One line per hook.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single hook.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{hookName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL hooks, no truncation)
+
+      See full details in [hooks.md](./hooks.md)
+
+      ---
+
+      If not applicable (Backend), write:
+      N/A (Backend service)
+
+  - id: types
+    title: Types/Interfaces
+    type: paragraphs
+    instruction: |
+      Complete list of ALL types/interfaces. One line per type.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single type/interface.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{TypeName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL types, no truncation)
+
+      See full details in [types.md](./types.md)
+
+      ---
+
+      If none, write:
+      No types/interfaces documented yet.
+
+  - id: validators
+    title: Validators
+    type: paragraphs
+    instruction: |
+      Complete list of ALL validators. One line per validator.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single validator.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{validatorName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL validators, no truncation)
+
+      See full details in [validators.md](./validators.md)
+
+      ---
+
+      If none, write:
+      No validators documented yet.
+
+  - id: constants
+    title: Constants
+    type: paragraphs
+    instruction: |
+      Complete list of ALL constants. One line per constant category.
+
+      **CRITICAL: List ALL items. Do NOT truncate or add "Y más..." - list every single constant.**
+
+      Format:
+      **Total: {{count}}**
+
+      - **{{Category}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL constants, no truncation)
+
+      See full details in [constants.md](./constants.md)
+
+      ---
+
+      If none, write:
+      No constants documented yet.
+
+  - id: additional-categories
+    title: Additional Categories
+    type: paragraphs
+    instruction: |
+      **IMPORTANT: This section is DYNAMIC and OPTIONAL.**
+
+      Add additional sections ONLY if stack-specific patterns were detected and have items.
+
+      **For each additional category detected** (Providers, Stores, Guards, Interceptors, Decorators,
+      Composables, Extensions, Mixins), create a new section with:
+
+      ## {{CategoryName}}
+
+      **Total: {{count}}**
+
+      - **{{ItemName}}** (`{{file_path}}`) - {{one-line description}}
+      - ... (ALL items, no truncation)
+
+      See full details in [{{category-name}}.md](./{{category-name}}.md)
+
+      ---
+
+      **Examples:**
+
+      ## Providers (Riverpod)
+      **Total: 28**
+      - **sessionProvider** (`lib/shared/providers/session.dart`) - Session and authentication management
+      - ... (all providers)
+      See full details in [providers.md](./providers.md)
+
+      ## Stores (Redux)
+      **Total: 5**
+      - **authStore** (`src/stores/auth.ts`) - Authentication management
+      - ... (all stores)
+      See full details in [stores.md](./stores.md)
+
+      **If NO additional categories detected, omit this entire section.**

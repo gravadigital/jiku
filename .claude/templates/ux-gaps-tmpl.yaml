@@ -1,0 +1,222 @@
+template:
+  id: ux-gaps
+  name: UX Gaps Report Template (brownfield)
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-consolidate-services/SKILL.md
+
+  description: |
+    Structure specification for the consolidated UX gap report of a brownfield product,
+    produced by /product-consolidate-services from the per-service surveys.
+
+    While the surveys are temporary analysis material under `analysis_folder`, THIS document is
+    a real UX deliverable and lives under `ux_folder`: it is the difference between what the
+    product ships today and what the methodology expects, and it stays useful until closed.
+
+    WHY IT EXISTS:
+    A brownfield product that only gets its current UI documented gains描述 but no direction.
+    The gap report is what turns the survey into work: it names, per screen, the states that
+    are not implemented, the viewports without treatment, the accessibility misses and the
+    components living outside the design system.
+
+    It is also the honest counterweight to marking the surveyed UI as the baseline spec: yes,
+    the as-is is now the documented spec, AND here is the list of everything wrong with it.
+
+    CRITICAL RULES:
+    - Every gap cites evidence (`file:line` from the survey). No evidence, no gap.
+    - Factual register: "no implementa estado empty", never "la UX es pobre".
+    - Do NOT propose solutions in the gap rows. The suggested action is a category
+      (needs a story / needs a DS component / needs a UX decision), not a design.
+    - Gaps are grouped by surface, then ordered by severity.
+    - This document is meant to shrink. Each closed gap is removed (git keeps the history), and
+      the closing REQ/story is noted in the changelog section.
+    - Language: Spanish.
+
+# Output specification
+output:
+  path: docs/ux/gaps-as-is.md
+  format: markdown
+  frontmatter:
+    - document: string          # "UX Gaps (as-is)"
+    - version: string
+    - date: date
+    - status: string            # "abierto" | "parcialmente resuelto"
+    - origin: string            # "relevamiento de código — brownfield"
+
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    format: |
+      > Diferencia entre lo que el producto tiene hoy y lo que la metodología espera, relevada
+      > desde el código. Cada fila cita su evidencia. **No es una crítica de diseño**: es la lista
+      > de lo que falta implementar, para que entre al ciclo de requerimientos en vez de
+      > descubrirse story por story.
+      >
+      > Este documento se encoge: cuando un gap se cierra, se borra la fila y se anota en el
+      > historial.
+
+  - id: resumen
+    title: Resumen
+    description: |
+      Counts by category and by severity, so the reader can size the work before reading the
+      detail. Include the number of screens surveyed as the denominator — 6 gaps over 4 screens
+      reads very differently from 6 over 40.
+    format: |
+      ## Resumen
+
+      **Superficies relevadas:** {{N}} · **Pantallas relevadas:** {{M}}
+
+      | Categoría | Gaps | Severidad dominante |
+      |---|---|---|
+      | Estados no implementados | {{N}} | {{alta}} |
+      | Sin tratamiento responsive | {{N}} | {{media}} |
+      | Accesibilidad | {{N}} | {{media}} |
+      | Fuera del design system | {{N}} | {{baja}} |
+
+      **Los tres más frecuentes:** {{lista corta}}
+
+  - id: severidad
+    title: Criterio de severidad
+    description: |
+      Fixed rubric, so severity is not assigned by feel. Keep it short and mechanical.
+    format: |
+      ## Criterio de severidad
+
+      | Severidad | Criterio |
+      |---|---|
+      | **Alta** | El usuario queda sin salida: error de sistema sin manejar, pantalla en blanco, pérdida de datos |
+      | **Media** | El usuario se confunde o pierde tiempo, pero puede seguir: empty state ausente, viewport sin tratamiento, foco no manejado |
+      | **Baja** | Deuda interna sin impacto directo en el usuario: componente duplicado, estilo inline en vez de token |
+
+  - id: por-superficie
+    title: Gaps por superficie
+    description: |
+      The detail, one subsection per surface. Ordered by severity within each surface.
+
+      The "Acción" column is a CATEGORY, never a design proposal:
+      - `story` — needs implementation work, goes through the request cycle
+      - `decisión UX` — needs someone to decide what the behavior should be first
+      - `componente DS` — needs a design-system component before it can be implemented
+      - `viewport` — needs a layout for a viewport that has none (see the responsive model)
+    format: |
+      ## Gaps por superficie
+
+      ### {{surface}}
+
+      | Pantalla | Gap | Categoría | Severidad | Acción | Evidencia |
+      |---|---|---|---|---|---|
+      | {{pantalla}} | {{qué falta}} | {{estado ausente}} | {{alta}} | {{story}} | {{archivo:línea}} |
+
+  - id: transversales
+    title: Gaps transversales
+    description: |
+      Gaps that are not attributable to one screen: a missing pattern across the product, a
+      token that is not used anywhere, no i18n at all, no error boundary.
+
+      These usually matter more than the per-screen ones because fixing them fixes many screens
+      at once — say so when it applies.
+    format: |
+      ## Gaps transversales
+
+      | Gap | Alcance | Severidad | Acción | Evidencia |
+      |---|---|---|---|---|
+      | {{sin manejo global de error}} | {{todas las pantallas}} | {{alta}} | {{story}} | {{archivo}} |
+
+  - id: siguiente-paso
+    title: Siguiente paso sugerido
+    description: |
+      One short section turning the report into a first move: which gaps are worth grouping into
+      a single request. Group by cause, not by screen — "implementar los estados faltantes en las
+      4 pantallas" is one coherent request; "arreglar la pantalla de pedidos" is not.
+    format: |
+      ## Siguiente paso sugerido
+
+      Agrupaciones candidatas para capturar como requerimiento con `/product-new-request`:
+
+      1. **{{título}}** — {{N}} gaps, severidad {{alta}}. {{1 línea de por qué van juntos}}
+      2. **{{título}}** — {{N}} gaps. {{1 línea}}
+
+  - id: historial
+    title: Historial
+    description: |
+      Closed gaps, with what closed them. Keeps the report auditable as it shrinks.
+    format: |
+      ## Historial
+
+      | Fecha | Gap cerrado | Cerrado por |
+      |---|---|---|
+      | {{YYYY-MM-DD}} | {{gap}} | {{REQ-XXX / S-XXX}} |
+
+format:
+  example: |
+    ---
+    document: UX Gaps (as-is)
+    version: 1.0
+    date: 2026-08-18
+    status: abierto
+    origin: relevamiento de código — brownfield
+    ---
+
+    # UX Gaps (as-is)
+
+    > Diferencia entre lo que el producto tiene hoy y lo que la metodología espera, relevada
+    > desde el código. Cada fila cita su evidencia. **No es una crítica de diseño**: es la lista
+    > de lo que falta implementar.
+
+    ## Resumen
+
+    **Superficies relevadas:** 2 · **Pantallas relevadas:** 7
+
+    | Categoría | Gaps | Severidad dominante |
+    |---|---|---|
+    | Estados no implementados | 9 | alta |
+    | Sin tratamiento responsive | 3 | media |
+    | Accesibilidad | 5 | media |
+    | Fuera del design system | 4 | baja |
+
+    **Los tres más frecuentes:** ninguna pantalla implementa `empty`; 4 de 7 no manejan error de
+    red; los botones de icono no tienen label accesible.
+
+    ## Criterio de severidad
+
+    | Severidad | Criterio |
+    |---|---|
+    | **Alta** | El usuario queda sin salida: error de sistema sin manejar, pantalla en blanco |
+    | **Media** | El usuario se confunde o pierde tiempo, pero puede seguir |
+    | **Baja** | Deuda interna sin impacto directo en el usuario |
+
+    ## Gaps por superficie
+
+    ### app-operador
+
+    | Pantalla | Gap | Categoría | Severidad | Acción | Evidencia |
+    |---|---|---|---|---|---|
+    | listado-pedidos | `useQuery` no maneja `isError`: queda en loading para siempre | estado ausente | alta | story | `app/pedidos/page.tsx:22` |
+    | detalle-pedido | `fetch` sin catch: pantalla en blanco al fallar la red | estado ausente | alta | story | `app/pedidos/[id]/page.tsx:15` |
+    | listado-pedidos | no implementa `empty`: grilla vacía sin mensaje | estado ausente | media | decisión UX | `app/pedidos/page.tsx:41` |
+    | detalle-pedido | sin tratamiento responsive: mismo layout a cualquier ancho | responsive | media | viewport | ninguna utilidad `md:` en el archivo |
+    | listado-pedidos | hamburguesa sin `aria-label` | accesibilidad | media | story | `components/Shell.tsx:17` |
+
+    ## Gaps transversales
+
+    | Gap | Alcance | Severidad | Acción | Evidencia |
+    |---|---|---|---|---|
+    | Sin error boundary global: cualquier excepción de render deja la app en blanco | todas las pantallas | alta | story | no existe `app/error.tsx` |
+    | Textos hardcodeados en JSX, sin i18n | todas las pantallas | baja | decisión UX | `app/pedidos/page.tsx:29` y 23 más |
+
+    ## Siguiente paso sugerido
+
+    1. **Estados no-happy-path en app-operador** — 6 gaps, severidad alta/media. Van juntos porque
+       comparten causa: ninguna pantalla ramifica sobre `isError` ni sobre lista vacía, así que se
+       resuelven con un patrón único aplicado a las 4 pantallas.
+    2. **Layout desktop de detalle-pedido** — 1 gap. Requiere primero declarar el layout del
+       viewport en la screen spec; recién después es implementable.
+
+    ## Historial
+
+    | Fecha | Gap cerrado | Cerrado por |
+    |---|---|---|

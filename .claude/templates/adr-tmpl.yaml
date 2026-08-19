@@ -1,0 +1,363 @@
+template:
+  id: adr-template
+  name: Architectural Decision Record (ADR)
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/_command_steps/initialize-product/init-technical-architecture.md
+    - .claude/commands/change-technical-definition.md
+
+  description: |
+    Structure specification for Architectural Decision Records (ADRs).
+
+    ADRs document significant architectural decisions: why they were made,
+    what alternatives were considered, and what consequences they have.
+
+    Use ADRs for decisions that:
+    - Are hard to reverse (e.g., database choice, programming language)
+    - Have significant impact (e.g., service architecture, auth strategy)
+    - Need to be explained to future team members
+    - Involve trade-offs between competing concerns
+
+# Output specification
+output:
+  path: docs/adrs/ADR-{number}-{title}.md
+  format: markdown
+  naming:
+    pattern: "ADR-{number}-{title}.md"
+    examples:
+      - "ADR-001-tech-stack-selection.md"
+      - "ADR-002-database-choice.md"
+      - "ADR-003-authentication-strategy.md"
+
+# Section definitions
+sections:
+
+  - id: header
+    title: Header
+    description: |
+      Document metadata at the top.
+
+    format: |
+      # ADR-{number}: {Title}
+
+      **Status:** {status}
+      **Date:** {YYYY-MM-DD}
+      **Deciders:** {who made this decision}
+      **Tags:** {comma-separated tags}
+
+    status_options:
+      - "Proposed": Decision proposed, awaiting approval
+      - "Accepted": Decision approved and being implemented
+      - "Superseded by ADR-XXX": Decision replaced by newer ADR
+      - "Deprecated": Decision no longer relevant
+      - "Rejected": Proposal was rejected
+
+    example: |
+      # ADR-001: Technology Stack Selection
+
+      **Status:** Accepted
+      **Date:** 2024-01-15
+      **Deciders:** Tech Lead, CTO, Senior Engineers
+      **Tags:** tech-stack, languages, frameworks
+
+  - id: context
+    title: Context
+    description: |
+      What is the issue we're trying to address?
+      What factors are driving this decision?
+      What constraints do we have?
+
+      Provide enough context so someone reading this in 6 months understands
+      why we needed to make a decision.
+
+    format: |
+      ## Context
+
+      [Describe the context and problem statement]
+
+      [Explain the forces at play (technical, organizational, cost, time)]
+
+      [Mention any constraints or requirements]
+
+    example: |
+      ## Context
+
+      We need to select a technology stack for TaskFlow that balances:
+      - Development velocity (need MVP in 3 months)
+      - Team expertise (2 full-stack developers, both know JavaScript)
+      - Hiring ability (need to hire 2 more developers in next 6 months)
+      - Scalability (start with 1000 users, grow to 10k in year 1)
+      - Cost (limited budget, prefer open source)
+
+      **Constraints:**
+      - Small team (2-4 developers)
+      - Limited budget ($5k/month for infrastructure)
+      - Need to move fast (market window is closing)
+      - Must be production-ready in Q4 2024
+
+      **Key concerns:**
+      - Backend and frontend must share code where possible (reduce duplication)
+      - Type safety is important (prevent bugs, improve DX)
+      - Must support real-time features (websockets)
+      - Easy deployment and operations (small team, no DevOps expert)
+
+  - id: decision
+    title: Decision
+    description: |
+      What is the change we're proposing or implementing?
+      Be specific and concrete.
+
+    format: |
+      ## Decision
+
+      We will [decision statement].
+
+      [Explain the decision in detail]
+
+      [Include specific technologies, patterns, or approaches chosen]
+
+    example: |
+      ## Decision
+
+      We will use **TypeScript full-stack** with the following technologies:
+
+      **Backend:**
+      - **Runtime:** Node.js 20 LTS
+      - **Framework:** Express.js (REST APIs)
+      - **WebSockets:** Socket.io
+      - **ORM:** Prisma
+      - **Databases:** PostgreSQL 15 (relational data), Redis 7 (cache, sessions, pub/sub)
+      - **Testing:** Jest + Supertest
+
+      **Frontend:**
+      - **Framework:** React 18 with TypeScript
+      - **Build tool:** Vite
+      - **State management:** Zustand (lightweight, simple)
+      - **UI library:** Tailwind CSS + shadcn/ui components
+      - **Real-time:** Socket.io client
+      - **Testing:** Vitest + React Testing Library
+
+      **Shared:**
+      - **Language:** TypeScript 5.x (strict mode)
+      - **Package manager:** npm
+      - **Monorepo:** Single repo with backend/ and frontend/ folders
+      - **API contracts:** OpenAPI 3.0 spec (shared types generated)
+
+      **Rationale for key choices:**
+      - **TypeScript everywhere:** Type safety, shared types, better IDE support, reduces bugs
+      - **Node.js:** Team expertise, same language as frontend, large ecosystem, good for I/O-heavy apps
+      - **Express:** Battle-tested, simple, flexible, team knows it well
+      - **React:** Most popular, best hiring pool, mature ecosystem
+      - **Prisma:** Best TypeScript ORM, great DX, type-safe queries, migrations
+      - **PostgreSQL:** Reliable, feature-rich, scales well, strong ACID guarantees
+      - **Monorepo:** Small team, easier coordination, shared types
+
+  - id: implementation-rules
+    title: Implementation Rules
+    description: |
+      Concrete, verifiable rules that developers MUST follow when implementing
+      code related to this decision. These rules are copied verbatim into
+      Story Plans and used to validate implementation correctness.
+
+      Each rule must be:
+      - Specific (exact values, names, formats — not vague guidance)
+      - Verifiable (can be checked in code review or automated tests)
+      - Self-contained (understandable without reading the rest of the ADR)
+
+      Write rules as a bulleted list. Use MUST/MUST NOT for mandatory rules.
+      Include exact values: field names, timeouts, sizes, formats, error codes, etc.
+
+    format: |
+      ## Implementation Rules
+
+      - [Concrete rule 1 with exact values]
+      - [Concrete rule 2 with exact values]
+      - [Concrete rule 3 with exact values]
+
+    example: |
+      ## Implementation Rules
+
+      - Language MUST be TypeScript 5.x with `strict: true` in tsconfig.json
+      - Backend framework MUST be Express.js — do NOT use Fastify, Hapi, or NestJS
+      - ORM MUST be Prisma — all DB access goes through Prisma client, no raw SQL unless for migrations
+      - All API responses MUST follow format: `{ data: T }` for success, `{ error: { code: string, message: string } }` for errors
+      - HTTP error responses MUST use standard codes: 400 (validation), 401 (auth), 403 (forbidden), 404 (not found), 409 (conflict), 500 (server)
+      - All dates MUST be stored and returned as ISO 8601 UTC strings (`2024-01-15T10:30:00Z`)
+      - Environment variables MUST be validated at startup using a schema — fail fast if missing
+      - Package manager MUST be npm — do NOT use yarn, pnpm, or bun
+
+  - id: consequences
+    title: Consequences
+    description: |
+      What are the results of this decision?
+      Include both positive and negative consequences.
+      Be honest about trade-offs and risks.
+
+    subsections:
+      - id: positive
+        title: Positive
+        format: |
+          ### Positive
+          - [Benefit 1]
+          - [Benefit 2]
+          - [Benefit 3]
+
+      - id: negative
+        title: Negative
+        format: |
+          ### Negative
+          - [Drawback 1]
+          - [Drawback 2]
+          - [Drawback 3]
+
+      - id: risks
+        title: Risks
+        format: |
+          ### Risks
+          - [Risk 1 and mitigation]
+          - [Risk 2 and mitigation]
+
+    example: |
+      ## Consequences
+
+      ### Positive
+
+      - **Fast development:** TypeScript full-stack means one language, shared types, no context switching
+      - **Type safety:** Catch errors at compile time, not runtime (especially important for small team)
+      - **Great DX:** Modern tooling (Vite, Prisma, TypeScript) improves productivity
+      - **Easy hiring:** JavaScript/TypeScript has the largest talent pool
+      - **Monorepo benefits:** Shared types, atomic commits across frontend/backend, easier refactoring
+      - **Cost-effective:** All open source, no licensing fees, Node.js is resource-efficient
+      - **Real-time ready:** Socket.io is mature and handles websockets + fallbacks well
+      - **Proven stack:** Many successful products use similar stack (Linear, Vercel Dashboard, etc.)
+
+      ### Negative
+
+      - **JavaScript ecosystem churn:** Tools and frameworks change frequently, may need migrations
+      - **Node.js single-threaded:** CPU-intensive tasks can block event loop (mitigated: we're I/O-heavy)
+      - **Monorepo complexity:** Can grow unwieldy if team scales significantly (mitigated: can split later)
+      - **TypeScript overhead:** Build step adds complexity, slower than plain JS (mitigated: tooling is fast now)
+      - **No static typing at runtime:** TypeScript types are erased, need runtime validation for external data
+
+      ### Risks
+
+      - **Risk:** Team outgrows Node.js performance for specific services
+        - **Mitigation:** Can rewrite individual services in Go/Rust later if needed, keep APIs same
+
+      - **Risk:** Monorepo becomes hard to manage as team grows
+        - **Mitigation:** Monitor repo size, split when we reach 5+ developers or services become too coupled
+
+      - **Risk:** TypeScript strict mode slows down initial development
+        - **Mitigation:** Accept some `any` types in v1, refactor for stricter types in v2
+
+      - **Risk:** Prisma lock-in (ORM abstractions can be limiting)
+        - **Mitigation:** Keep business logic out of ORM layer, easy to swap if needed
+
+  - id: alternatives-considered
+    title: Alternatives Considered
+    description: |
+      What other options did we evaluate?
+      Why were they not chosen?
+
+      This helps future readers understand the decision was deliberate,
+      not arbitrary.
+
+    format: |
+      ## Alternatives Considered
+
+      ### Alternative 1: [Name]
+      **Pros:**
+      - [Pro 1]
+      - [Pro 2]
+
+      **Cons:**
+      - [Con 1]
+      - [Con 2]
+
+      **Why rejected:** [Reason]
+
+      ---
+
+      ### Alternative 2: [Name]
+      [Same structure]
+
+    example: |
+      ## Alternatives Considered
+
+      ### Alternative 1: Go (backend) + React (frontend)
+
+      **Pros:**
+      - Go is fast, compiled, great for concurrent workloads
+      - Simpler deployment (single binary)
+      - Better CPU performance than Node.js
+      - Strong standard library
+
+      **Cons:**
+      - Team doesn't know Go (learning curve = 2-3 months)
+      - No shared types between Go and TypeScript (need codegen or duplication)
+      - Smaller ecosystem for web frameworks compared to Node.js
+      - Harder to hire (fewer Go developers than JavaScript)
+
+      **Why rejected:** Learning curve is too high for 3-month MVP timeline. Team velocity would drop significantly. Go is better for systems programming, but overkill for CRUD web app.
+
+      ---
+
+      ### Alternative 2: Python (Django) + React
+
+      **Pros:**
+      - Django is mature, batteries-included framework
+      - Great for rapid prototyping
+      - Excellent admin panel out of the box
+      - Strong ecosystem for data/ML (if needed later)
+
+      **Cons:**
+      - Team has limited Python experience
+      - No shared types between Python and TypeScript
+      - Slower than Node.js for I/O-heavy workloads
+      - WebSocket support is weaker (Django Channels adds complexity)
+      - Requires separate deployment process for backend/frontend
+
+      **Why rejected:** Team expertise is in JavaScript. Type sharing is valuable. Real-time features are core requirement (Django Channels is complex).
+
+      ---
+
+      ### Alternative 3: Full-stack framework (Next.js or Remix)
+
+      **Pros:**
+      - Single deployment (frontend + backend together)
+      - Great DX for full-stack features
+      - Built-in routing, SSR, API routes
+      - Modern React patterns
+
+      **Cons:**
+      - Couples frontend and backend (harder to scale independently)
+      - API routes are not ideal for complex backend logic
+      - Limited flexibility for service-oriented architecture
+      - WebSocket support is awkward (need separate server)
+
+      **Why rejected:** We anticipate needing service-oriented architecture (user-service, task-service, etc.). Full-stack frameworks work best for monolithic apps. Decoupled backend gives us more flexibility.
+
+  - id: references
+    title: References
+    description: |
+      Links to related resources, documents, or discussions.
+      Optional but helpful.
+
+    format: |
+      ## References
+
+      - [Link to discussion, RFC, or related docs]
+      - [Benchmark or comparison article]
+      - [Official documentation]
+
+    example: |
+      ## References
+
+      - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+      - [Prisma Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization)
+      - [Node.js vs Go Performance Comparison](https://benchmarksgame-team.pages.debian.net/benchmarksgame/)
+      - Internal: Tech Stack Discussion (Slack thread, 2024-01-10)
+      - [Linear's Tech Stack](https://linear.app/blog/how-we-built-linear) - Similar choices, good reference

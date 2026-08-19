@@ -1,0 +1,376 @@
+template:
+  id: story-plan-template
+  name: Story Plan Document
+  version: 1.0
+  execution:
+    require_section_approval: false
+    process_with: .claude/tasks/create-doc.md
+    save_incremental: false
+    sharded: false
+  output:
+    format: markdown
+    # Service-scoped filename: a multi-service story produces one plan per service.
+    # {{story_filename}} = S-{{number}}.{{service_name}}.{{story_title_short}}
+    # The {{service_name}} segment is mandatory (prevents collisions in monorepo, where all
+    # services share one docs/story-plans/). See .claude/utils/index.md — Story Plans pattern.
+    filename: docs/story-plans/{{story_filename}}.md
+    title: "Story Plan: {{story_id}} ({{service_name}}) - {{story_title}}"
+
+sections:
+  - id: status
+    title: Status
+    type: paragraphs
+    instruction: |
+      Current status of the story plan. One of:
+      - **Ready** - Plan is complete and ready for implementation
+      - **In Progress** - Implementation has started
+      - **Done** - All tasks completed
+
+      Format:
+      **Status:** Ready
+
+  - id: story-reference
+    title: Story Reference
+    type: paragraphs
+    instruction: |
+      Include:
+      - **Story:** Link to the story file, relative to this plan's folder (docs/story-plans/):
+        [{{story_id}}](../stories/S-{{number}}.{{story_title_short}}.md)
+        - The path is ALWAYS `../stories/...` — in monorepo (docs/story-plans/ and docs/stories/ share
+          the repo root) and in multirepo (the link points into the product repo, resolved from the
+          service repo's docs/story-plans/). Do NOT compute a deeper relative path.
+        - Use the STORY filename — product layer, NOT service-scoped; do not include the service segment here.
+      - **Service:** Name of the affected service this plan targets (e.g., external-sync, backend-api).
+        This is the {{service_name}} embedded in this plan's filename.
+      - **Summary:** Brief description of what this story achieves (1-2 sentences)
+
+  - id: architectural-context
+    title: Architectural Context
+    type: paragraphs
+    instruction: |
+      Include all relevant architectural information extracted from documentation.
+      This section should be self-contained - copy/paste content, don't reference external files.
+
+      **Tech Stack:**
+      - Language and version (e.g., Node.js 18.x, TypeScript 5.x)
+      - Framework (e.g., Express 4.x, NestJS 10.x)
+      - Database (e.g., PostgreSQL 15, MongoDB 6.x)
+      - Key libraries and versions
+
+      **Service Architecture:**
+      - Folder structure (relevant folders and their purpose)
+      - Key architectural patterns used (e.g., Repository pattern, Service layer, DTOs)
+      - Error handling strategy
+      - Logging conventions
+      - Testing strategy (unit, integration, e2e)
+
+      **Relevant ADRs:**
+      For each ADR that applies to this story, include:
+      - **ADR-XXX: Title**
+        - Decision: Summary of what was decided
+        - Implementation Rules: Copy the COMPLETE list of rules verbatim from the ADR (these are enforceable constraints — do NOT summarize or paraphrase)
+        - Example: Code snippet or pattern to follow if applicable
+
+      **API Context:**
+      Copy relevant parts from API specs:
+      - Existing endpoints structure and patterns
+      - Authentication/Authorization mechanism (how to implement)
+      - Request validation approach
+      - Response format standards
+      - Error response structure
+
+      **Database Context:**
+      Copy relevant schema information:
+      - Tables/Collections structure (DBML or description)
+      - Relationships and foreign keys
+      - Indexes
+      - Migration strategy
+
+      **Flow Context:**
+      Copy relevant system flows from docs/flows/ that this story modifies or interacts with:
+      - Complete flow steps (copied verbatim from the flow document)
+      - Which steps this story modifies, adds, or removes
+      - Exact field names and types from each step
+
+      This ensures the implementor knows exactly how the system works today
+      and what needs to change, with precise cross-service contracts.
+
+      **Integration Points:**
+      - External services/APIs — copy relevant content from reference documents (docs/references/):
+        - Service name and purpose
+        - Base URL / endpoints used by this story
+        - Authentication method (API key, OAuth, headers)
+        - Request/response format with field names
+        - Error codes and handling strategy
+        - Rate limits and retry policy
+        - Webhooks (format, verification) if applicable
+        Include enough detail that the implementor can code against it without consulting external documentation.
+      - Message queues/events (queue names, message format, how to publish/consume)
+      - Other internal services (endpoints, auth)
+
+      **Code Conventions:**
+      - Naming conventions (files, classes, functions, variables)
+      - Code organization patterns
+      - Import/export conventions
+
+      **Reusable Code:**
+      List existing reusable code that can be leveraged for this story:
+
+      - **Components** (Frontend):
+        - UI components (buttons, forms, modals, etc.) with props and usage
+        - Layout components
+        - HOCs or wrappers
+
+      - **Utils/Helpers:**
+        - Utility functions (formatters, validators, transformers, etc.)
+        - Helper classes or modules
+        - Common algorithms
+
+      - **Middlewares:**
+        - Authentication/Authorization middlewares
+        - Error handling middlewares
+        - Validation middlewares
+        - Logging middlewares
+
+      - **Services/Repositories:**
+        - Existing service classes
+        - Repository patterns already implemented
+        - Data access layers
+
+      - **Styles (Frontend):**
+        - CSS/SCSS variables (colors, spacing, breakpoints)
+        - Mixins or utility classes
+        - Theme configuration
+
+      - **Hooks (Frontend):**
+        - Custom React hooks
+        - State management hooks
+
+      - **Types/Interfaces:**
+        - Common types or interfaces
+        - DTOs already defined
+        - Enums or constants
+
+      - **Validators:**
+        - Validation schemas (Joi, Yup, class-validator, etc.)
+        - Custom validators
+
+      - **Constants:**
+        - Configuration constants
+        - Enum values
+        - API routes constants
+
+      For each reusable piece, include:
+      - Location (file path)
+      - Brief description of what it does
+      - How to use it (signature, props, parameters)
+      - Example usage if helpful
+
+      **Wireframes / Screens** (UI stories only):
+      For each screen affected by this story, copy from the product repo's
+      `docs/ux/surfaces/{surface}/screens/{screen}.md`:
+
+      - Pantalla name, route, audience, **viewports**
+      - **The surface's viewports** (from `product-overview.md`) — they bound the UI scope: a surface
+        with `mobile` + `desktop` means every screen has to satisfy two layouts
+      - Block inventory (full Estructura table) — type, variant, level/state, category, **Viewports
+        column** (which blocks exist at which width), purpose
+      - **"Layout por viewport" verbatim** — one subsection per viewport, with its rows and 12-column
+        fractions. The fractions ARE the spec: do not collapse them to the word "responsive". Without
+        this, the implementor invents an arrangement and desktop ends up as stretched mobile
+      - **Breakpoint values** from `docs/design-system/{surface}/foundations/grid.md` — the widths the
+        layouts switch at. Implement against these tokens, never against ad-hoc pixel values
+      - Real microcopy per block (from Contenido section) — what text appears literally
+      - Applicable states with REAL user-facing messages and which blocks change in each state
+      - Interactions (events per block, validations with messages, feedback)
+      - Decisions and discards relevant to the story scope
+      - Annotations describing block-level behavior (polling, validations, sheet vs modal, etc.)
+
+      Copy verbatim — the implementor must NOT need to open the product repo. The Story Plan is self-contained.
+
+      List screens at the top of this subsection (so the implementor knows the surface and screen names).
+
+      **Design System Context** (UI stories only):
+
+      The DS is per surface. For EACH surface affected by this story, generate a subsection labeled with the surface name and copy from `docs/design-system/{surface}/`:
+
+      - **Pinned version**: vX.Y.Z (from `docs/design-system/{surface}/README.md`) — independent per surface
+      - **Foundations relevant to this story** (copy the actual content, not links):
+        - Color palette (full table from `{surface}/foundations/color.md`)
+        - Typography scale (full type scale from `{surface}/foundations/typography.md`)
+        - Spacing scale (from `{surface}/foundations/spacing.md`)
+        - Grid breakpoints (from `{surface}/foundations/grid.md`) if layout work is in scope
+        - Iconography rules (from `{surface}/foundations/iconography.md`) if icons are used
+      - **Semantic tokens** (full table from `{surface}/tokens/semantic.md`) — components MUST consume these
+      - **Component specs** for each component used by the affected screens of this surface. Copy the FULL spec verbatim for each (anatomy, variants, sizes, states, accessibility, content, do/don't, API). The implementor reads these to know how to render each block.
+      - **Patterns relevant** (forms, empty-states, navigation, feedback) if applicable — copy from `{surface}/patterns/{name}.md`
+      - **Accessibility guidelines** — always copy `{surface}/guidelines/accessibility.md` for UI stories
+      - **Content guidelines** — copy `{surface}/guidelines/content.md` if microcopy work is significant
+      - **i18n guidelines** — copy `{surface}/guidelines/i18n.md` if i18n is in scope
+
+      **DS Gaps for {surface}**: block types from the wireframes with no matching DS component spec in
+      this surface's catalog, **split in two groups because they mean different things**:
+
+      - **Aceptados** — the request's UX review resolved them as "Dejar anotado": a conscious decision
+        that the case does not justify a component. Include the recorded reason. The implementor solves
+        these inline, with no need to stop.
+      - **Nuevos** — not covered by any UX review (a story without a REQ, or a block that appeared while
+        planning). These still need a call: improvise, or trigger `/product-design-system-update`.
+
+      Keeping them apart matters: presenting an already-decided gap as a finding makes the implementor
+      distrust a decision that was already made, and re-opens it at the worst moment.
+
+      If the story only affects one surface, this section collapses to a single subsection — still tag it with the surface name so it's explicit.
+
+  - id: ui-preview
+    title: UI Preview
+    type: paragraphs
+    instruction: |
+      **Frontend stories only.** Omit the section entirely for backend-only stories.
+
+      The ASCII previews produced during planning, persisted here verbatim. This section exists
+      because the preview used to live only in the chat: it was reviewed by the user and then lost,
+      so the implementor never saw the layout that had been agreed.
+
+      **One preview per viewport** the screen exists in, each under a `### {viewport} · {ancho}px`
+      heading, with a frame proportional to that width (narrow for mobile, wide for desktop).
+      Annotate column fractions (`4/12`) inside the boxes so the intended grid is explicit and not
+      just implied by the drawing.
+
+      Rules:
+      - The previews must match the screen.md's "Layout por viewport" section. If they disagree, the
+        screen.md wins and the preview is wrong — fix it before saving the plan.
+      - If the story only changes one viewport, still show both and mark the untouched one
+        `sin cambios`.
+      - Mark new elements with double-line boxes (`+===+`) and existing ones with single-line
+        (`+---+`), with `<- NUEVO` / `<- MODIFICADO` arrows.
+      - Include the legend so the notation is readable without the planning conversation.
+    fields:
+      - name: "Por viewport"
+        format: |
+          ### {{viewport}} · {{ancho}}px
+          ```
+          {{ASCII preview}}
+          ```
+          {{Si aplica: nota de qué cambia en este viewport}}
+
+  - id: acceptance-criteria-coverage
+    title: Acceptance Criteria Coverage
+    type: table
+    instruction: |
+      Table mapping story acceptance criteria to tasks.
+
+      Columns:
+      | AC# | Description | Task(s) |
+
+      Only include criteria that apply to this service.
+
+  - id: test-scenarios
+    title: Test Scenarios
+    type: table
+    instruction: |
+      End-to-end test scenarios that validate the complete story implementation.
+      The developer agent will translate these scenarios directly into test code,
+      so precision is critical — ambiguity here becomes bugs in tests.
+
+      Table with the following columns:
+      | ID | Escenario | Input | Output Esperado | AC |
+
+      Where:
+      - ID: Test scenario identifier (TS-1, TS-2, etc.)
+      - Escenario: Brief description of what is being tested
+      - Input: Exact input with concrete values — use exact field names from API/DB Context
+      - Output Esperado: Exact expected result with concrete values — use exact field names from API/DB Context
+      - AC: Related acceptance criteria (e.g., "AC-1", "AC-2, AC-3")
+
+      Precision rules:
+      - NEVER paraphrase field names — copy verbatim from API Context and Database Context
+      - ALWAYS include concrete example values (not "valid data" but `{ name: "Test", email: "t@t.com" }`)
+      - Adapt the Input/Output format based on the service type:
+        - REST API: exact HTTP method + exact endpoint + body with exact field names → exact status code + response body with exact field names
+        - Worker/Job: exact message format with exact field names → exact processing result or side effect
+        - Internal service: exact function call with exact parameter types → exact return value or state change
+
+      Include happy path, error, and edge case scenarios.
+
+      **Responsive coverage (UI stories only).** For each screen the story touches, cover every
+      viewport whose layout differs, with two distinct kinds of scenario:
+      - **Presence**: a block that exists in only one viewport renders there and is absent in the
+        other (sidebar on desktop, bottom nav on mobile). Cheap, and catches the most common regression.
+      - **Arrangement**: the declared grid holds at the target width (cards 3-per-row at 1200px,
+        stacked at 400px). Assert against the breakpoint declared in the Design System's grid
+        foundation, never an arbitrary pixel value.
+
+      Do NOT duplicate viewport-independent scenarios (validations, API calls, error messages): they
+      are declared once in the screen.md and one scenario covers them. Duplicating per viewport
+      doubles the suite for no added coverage. Name the viewport in the Escenario column when a
+      scenario is viewport-specific.
+
+  - id: tasks
+    title: Tasks
+    type: repeated-section
+    instruction: |
+      For each task, include a section with the following format:
+
+      ### Task {{task_num}}: {{task_title}}
+
+      **Status:** Pending
+
+      #### Description
+      Clear and concise description of what this task achieves.
+      - What specific functionality or change will be implemented
+      - Why this task is necessary (connection to story acceptance criteria)
+      - Important context the developer needs to understand
+
+      #### Acceptance Criteria
+      Numbered list of specific and testable criteria:
+      1. Atomic and verifiable criterion
+      2. Technical and specific criterion
+      3. ...
+
+      #### Technical Details
+
+      **Architectural Context References:**
+      Reference specific parts of the "Architectural Context" section above:
+      - Which ADR decisions apply to this task (e.g., "Follow ADR-003 JWT strategy from Architectural Context")
+      - Which patterns/conventions to use (e.g., "Use Repository pattern as described in Architectural Context")
+      - API/DB schema sections relevant to this task (e.g., "Implement endpoint following API Context structure")
+      - Integration points to follow (e.g., "Use RabbitMQ pattern from Integration Points")
+      - **Reusable code to leverage** (e.g., "Use Button component from Reusable Code", "Use formatDate util from Reusable Code", "Use authMiddleware from Reusable Code")
+
+      **Files to Create/Modify:**
+      - List of specific files as paths in `inline code` relative to the SERVICE root
+        (e.g. `components/modo-solo/selector-jugador.tsx`), NOT markdown links with computed relative
+        depth (those are fragile and break easily).
+        - Monorepo: relative to `services/{{service_name}}/` (the service's own root, not the monorepo root).
+        - Multirepo: relative to the service repo root.
+
+      **Implementation Notes:**
+      - Key algorithms or patterns to use
+      - Important architectural decisions specific to this task
+      - Integration points with existing code
+
+      **Dependencies:**
+      - External libraries needed
+      - Internal modules to import
+      - Services to interact with
+
+      #### Testing Requirements
+      **Unit Tests:**
+      - Specific test 1
+      - Specific test 2
+
+      **Integration Tests:**
+      - Integration test if applicable
+
+      **Manual Testing:**
+      - Steps for manual verification
+
+      #### Task Dependencies
+      **Blocked by:** Tasks that must be completed first (or "None")
+      **Blocks:** Tasks that cannot start until this one completes (or "None")
+      **Can run in parallel with:** Tasks that can be worked on simultaneously (or "N/A")
+
+      ---
+
+      Separate each task with a horizontal line (---).

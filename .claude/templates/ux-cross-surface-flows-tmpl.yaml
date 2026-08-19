@@ -1,0 +1,176 @@
+template:
+  id: ux-cross-surface-flows
+  name: UX Cross-Surface Flows Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for the Cross-Surface Flows document.
+    Generated as the LAST artifact during /product-ux-generate, after all
+    surfaces have their product-map and user-flows.
+
+    Captures flows that cross surfaces and don't belong to any one surface.
+    Examples: admin approves on dashboard → user receives notification on app.
+
+    Not every flow that touches two surfaces is cross-surface. Only flows where
+    state, notifications, or actions ACTUALLY cross between surfaces.
+
+    The document captures (per flow):
+    - Flow name
+    - Surfaces involved (with order and role)
+    - Audiences involved (who does what on each surface)
+    - Sequence (steps clearly marking which surface each occurs in)
+    - Synchronization (what's shared, latency: real-time, batch, etc.)
+    - Intermediate states (what each audience sees while flow is in progress)
+
+    CRITICAL RULES:
+    - If the product has only ONE surface, this document is empty (or skipped).
+      Just write a short note saying "No aplica - producto de una sola superficie".
+    - Each flow must clearly show WHERE each step happens.
+    - Synchronization is mandatory: real-time, batch, manual sync, etc.
+    - Language MUST match the language of the PRD.
+
+# Output specification
+output:
+  path: docs/ux/cross-surface-flows.md
+  format: markdown
+  frontmatter:
+    - document: string         # "UX Cross-Surface Flows"
+    - version: string          # "1.0"
+    - date: date
+    - status: string           # "Draft - Punto de partida para discusión"
+    - flows_count: number      # how many cross-surface flows are documented (can be 0)
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote framing the document. Must appear immediately after H1.
+    format: |
+      > Flujos que **cruzan superficies**. No pertenecen a ninguna superficie en
+      > particular: una acción en una superficie dispara un cambio o notificación
+      > en otra. Si el flujo es interno a una sola superficie, vive en
+      > `surfaces/{nombre}/user-flows.md`, no acá.
+
+  - id: empty-case
+    title: Empty Case (no heading, conditional)
+    description: |
+      If the product has only ONE surface, the document body is just this short
+      note. Skip ALL other sections.
+    format: |
+      ## No aplica
+
+      Este producto tiene una sola superficie (**{{nombre-superficie}}**). Los
+      flujos viven en `surfaces/{{nombre-superficie}}/user-flows.md`.
+
+      Si en el futuro se agrega otra superficie, este documento se completará
+      con los flujos que crucen entre superficies.
+
+  - id: flows-overview
+    title: Flujos Cross-Surface Documentados
+    description: |
+      Quick index of cross-surface flows. Helps the reader scan.
+
+      If 0 flows: write "No se identificaron flujos cross-surface en esta etapa."
+    format: |
+      ## Flujos Cross-Surface Documentados
+
+      | # | Flujo | Superficies | Audiencias |
+      |---|-------|-------------|------------|
+      | 1 | {{nombre}} | {{surf-A}} → {{surf-B}} | {{aud-A}}, {{aud-B}} |
+
+    example: |
+      ## Flujos Cross-Surface Documentados
+
+      | # | Flujo | Superficies | Audiencias |
+      |---|-------|-------------|------------|
+      | 1 | Aprobación de pedido bloqueado | app-operador → dashboard-supervisor → app-operador | operador-turno, supervisor-turno |
+      | 2 | Configuración de producto nuevo | panel-admin → app-operador | admin-sistema, operador-turno |
+
+  - id: flow-entry
+    title: "Flujo N: {{nombre}}"
+    description: |
+      One section per cross-surface flow. Each is self-contained.
+
+      Synchronization field is MANDATORY: how does state cross between surfaces?
+      Real-time push, polling, manual refresh, batch sync, etc.
+
+      Intermediate states: what does EACH audience see while the flow is in
+      progress? This is the most-overlooked part of cross-surface flows.
+    format: |
+      ## Flujo {{N}}: {{nombre}}
+
+      **Superficies involucradas:**
+      1. {{surface-1}} — {{rol en el flujo}}
+      2. {{surface-2}} — {{rol en el flujo}}
+
+      **Audiencias involucradas:**
+      - {{audience-1}} en {{surface-1}}: {{qué hace}}
+      - {{audience-2}} en {{surface-2}}: {{qué hace}}
+
+      ### Secuencia
+
+      1. **[{{surface}}]** {{acción}}
+      2. **[{{surface}}]** {{acción}}
+      3. **[{{surface}}]** {{acción}}
+
+      ### Sincronización
+
+      - **Tipo:** {{tiempo real | polling | batch | manual}}
+      - **Latencia esperada:** {{rango de tiempo entre acción y propagación}}
+      - **Qué se comparte:** {{datos / eventos / notificaciones que cruzan}}
+
+      ### Estados intermedios
+
+      Mientras el flujo está en curso:
+
+      - **{{audience-1}} en {{surface-1}} ve:** {{qué información, qué puede o no puede hacer}}
+      - **{{audience-2}} en {{surface-2}} ve:** {{qué información, qué puede o no puede hacer}}
+
+    example: |
+      ## Flujo 1: Aprobación de pedido bloqueado
+
+      **Superficies involucradas:**
+      1. app-operador — origen del bloqueo
+      2. dashboard-supervisor — donde se decide la aprobación
+      3. app-operador — destino de la decisión
+
+      **Audiencias involucradas:**
+      - operador-turno en app-operador: deriva el pedido y queda esperando decisión
+      - supervisor-turno en dashboard-supervisor: ve la cola de pedidos derivados, decide aprobar/rechazar
+
+      ### Secuencia
+
+      1. **[app-operador]** Operador detecta problema en un pedido y click "Derivar a supervisor". Pedido queda en estado "pendiente de supervisión".
+      2. **[dashboard-supervisor]** Pedido aparece en la cola de excepciones del supervisor con notificación.
+      3. **[dashboard-supervisor]** Supervisor revisa, decide aprobar/rechazar/modificar. Click en la acción.
+      4. **[app-operador]** Operador recibe notificación in-app del resultado. Pedido vuelve a su cola con el estado actualizado.
+
+      ### Sincronización
+
+      - **Tipo:** Tiempo real (websockets).
+      - **Latencia esperada:** < 2 segundos entre decisión del supervisor y notificación al operador.
+      - **Qué se comparte:** Estado del pedido + decisión del supervisor + comentario opcional.
+
+      ### Estados intermedios
+
+      Mientras el flujo está en curso:
+
+      - **operador-turno en app-operador ve:** El pedido está en estado "pendiente de supervisión" en su cola, marcado visualmente como derivado. No puede editarlo. Puede seguir trabajando otros pedidos.
+      - **supervisor-turno en dashboard-supervisor ve:** El pedido aparece en la cola de excepciones con timestamp de derivación, datos del operador que derivó y el problema reportado. Tiene acciones disponibles: aprobar / rechazar / pedir más info.
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line linking back to the surface user-flows.
+    format: |
+      ---
+
+      **Relacionados:** Los flujos internos de cada superficie viven en `surfaces/{nombre}/user-flows.md`. Si un flujo cross-surface acá referencia operaciones internas, esas viven en los user-flows de cada superficie.

@@ -1,0 +1,213 @@
+template:
+  id: ux-benchmark
+  name: UX Benchmark Template
+  version: 2.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for an Audience Benchmark document.
+    Generated PER AUDIENCE during Phase 1, BEFORE the research-context for that
+    audience.
+
+    Captures the mental references this audience brings to the product:
+    products they already use and from which they import expectations.
+
+    The document captures:
+    - 2-4 direct competitors (same space)
+    - 1-3 indirect references (other categories with applicable expectations)
+    - Recurring patterns (signal of established convention)
+    - Differentiators (where our product would be different)
+    - Anti-patterns (what competitors do wrong, not to copy)
+
+    CRITICAL RULES:
+    - Use web search actively. Do NOT rely on memory.
+    - Cite sources for every reference.
+    - If a specific aspect cannot be verified, declare it explicitly. Never fabricate.
+    - Language MUST match the language of the PRD.
+    - This document is generated BEFORE research-context.md for the same audience —
+      it feeds the research with concrete material for pains and gains.
+
+# Output specification
+output:
+  path: docs/ux/audiences/{{audience-name}}/benchmark.md
+  format: markdown
+  frontmatter:
+    - document: string         # "UX Benchmark"
+    - audience: string         # the audience name (matches folder)
+    - version: string          # "1.0"
+    - date: date
+    - status: string           # "Hipótesis inicial - Referencias de partida"
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote that frames the document as starting-point references
+      for the audience. Must appear immediately after the H1 title. No heading.
+    format: |
+      > Referentes mentales que esta audiencia trae al producto. Productos que
+      > ya usa o conoce, y de los que importa expectativas. No es auditoría
+      > exhaustiva — es punto de partida para entender qué patrones ya conoce
+      > el usuario y qué espera encontrar.
+
+  - id: direct-competitors
+    title: Competidores Directos
+    description: |
+      2 to 4 products that compete in the same space for this audience.
+      For each: what they solve, how, what to take, what to avoid, source.
+
+      MANDATORY: research each via web search. Cite sources.
+    format: |
+      ## Competidores Directos
+
+      ### {{Producto N}}
+
+      - **Qué resuelve:** {{problema que aborda, 1 línea}}
+      - **Cómo lo resuelve:** {{patrones de interacción principales}}
+      - **A tomar:** {{qué pattern vale la pena considerar}}
+      - **A evitar:** {{fricción conocida o anti-patrón observado}}
+      - **Fuente:** {{URL o descripción de dónde se verificó}}
+
+    example: |
+      ## Competidores Directos
+
+      ### Linear
+
+      - **Qué resuelve:** Gestión de issues y proyectos para equipos de software.
+      - **Cómo lo resuelve:** Keyboard-first, atajos para todo, vistas pre-configuradas por rol.
+      - **A tomar:** Defaults inteligentes por rol en lugar de pantalla vacía genérica. Feedback instantáneo en cada acción.
+      - **A evitar:** Curva de aprendizaje vertical en los primeros minutos sin conocer atajos.
+      - **Fuente:** linear.app (verificado en producto, enero 2026).
+
+      ### Jira
+
+      - **Qué resuelve:** Gestión de tickets para equipos grandes con procesos formales.
+      - **Cómo lo resuelve:** Workflows configurables, jerarquías de issues, dashboards por proyecto.
+      - **A tomar:** La capacidad de adaptarse a workflows distintos por equipo.
+      - **A evitar:** Configuración inicial pesada, UI saturada con opciones rara vez usadas.
+      - **Fuente:** atlassian.com/software/jira (docs públicas, enero 2026).
+
+  - id: indirect-references
+    title: Referentes Indirectos
+    description: |
+      1 to 3 products from other categories that THIS AUDIENCE uses and imports
+      expectations from.
+
+      Examples: "los admins esperan filtros tipo Notion" — Notion no compite
+      pero la audiencia usa Notion y trae expectativas de allí.
+
+      Skip the section entirely if no relevant indirect references apply (rare).
+    format: |
+      ## Referentes Indirectos
+
+      ### {{Producto}} (categoría: {{categoría}})
+
+      - **Qué expectativa trae a este producto:** {{patrón o convención que el usuario ya conoce}}
+      - **Cómo se manifiesta:** {{cómo se ve esa expectativa concretamente}}
+      - **Fuente:** {{URL o descripción}}
+
+    example: |
+      ## Referentes Indirectos
+
+      ### Notion (categoría: productividad/notas)
+
+      - **Qué expectativa trae a este producto:** Filtros componibles tipo "and/or" sobre cualquier columna.
+      - **Cómo se manifiesta:** El usuario espera poder filtrar por múltiples campos a la vez sin abrir un modal de filtros avanzado.
+      - **Fuente:** notion.so (verificado en producto, enero 2026).
+
+      ### Slack (categoría: comunicación)
+
+      - **Qué expectativa trae a este producto:** Búsqueda global con Cmd+K que busca en todo el contenido.
+      - **Cómo se manifiesta:** El usuario espera un atajo de teclado universal para buscar cualquier cosa, no menús de búsqueda separados por sección.
+      - **Fuente:** slack.com (verificado en producto, enero 2026).
+
+  - id: recurring-patterns
+    title: Patrones Recurrentes
+    description: |
+      Patterns that appear in multiple references. Signal of established
+      convention. Breaking these has learning cost.
+
+      If no strong patterns appear, write a single bullet:
+      "No se identificaron patrones dominantes." Do NOT pad.
+    format: |
+      ## Patrones Recurrentes
+
+      - **{{Patrón}}** — {{en qué referentes aparece, por qué los usuarios lo esperan}}
+
+    example: |
+      ## Patrones Recurrentes
+
+      - **Comando con Cmd+K para acción global** — Linear, Notion, Slack, GitHub. Es la convención de productos digitales modernos para power users.
+      - **Drag & drop entre columnas para cambiar estado** — Trello, Linear, Jira. Esperado en cualquier UI tipo kanban.
+      - **Avatar pequeño + iniciales como fallback** — Todos los referentes. Es la forma esperada de representar asignación o autoría.
+
+  - id: differentiators
+    title: Diferenciadores
+    description: |
+      What our product would do DIFFERENTLY (better) than competitors. Formulated
+      as opportunities, not decisions. The human designer decides which to pursue.
+
+      If no clear differentiators emerge, write a single bullet:
+      "No se identificaron diferenciadores claros en esta etapa."
+    format: |
+      ## Diferenciadores
+
+      - **{{Diferenciador}}** — {{qué hacemos distinto, por qué importa para esta audiencia}}
+
+    example: |
+      ## Diferenciadores
+
+      - **Optimización para uso en piso de depósito** — Ningún competidor está pensado para ser usado de pie, en sesiones cortas, con atención dividida. Acá hay espacio para diseñar específicamente para ese contexto.
+      - **Integración nativa con sistemas internos del cliente** — Los competidores requieren integraciones genéricas. El producto puede aprovechar el conocimiento del stack interno del cliente para integraciones más profundas.
+
+  - id: anti-patterns
+    title: Anti-patrones Detectados
+    description: |
+      What competitors DO WRONG that we should not copy. Specific frictions or
+      bad practices observed.
+
+      If no clear anti-patterns emerge, write a single bullet:
+      "No se identificaron anti-patrones claros en esta etapa."
+    format: |
+      ## Anti-patrones Detectados
+
+      - **{{Anti-patrón}}** — {{qué hace mal, en qué referente, por qué evitarlo}}
+
+    example: |
+      ## Anti-patrones Detectados
+
+      - **Configuración previa obligatoria antes del primer uso** — Jira y Asana fuerzan setup de proyectos/workspaces antes de poder hacer la primera acción. Frustración alta en usuarios que solo quieren empezar.
+      - **Notificaciones por defecto en todo** — Slack y Jira notifican demasiado por default. El usuario termina silenciando todo y perdiendo señales reales.
+
+  - id: benchmark-limits
+    title: Limitaciones del Benchmark
+    description: |
+      Honesty about what could not be verified. MANDATORY if any aspect was
+      not verifiable. Skip only if everything was verified (rare).
+    format: |
+      ## Limitaciones del Benchmark
+
+      - {{referencia o aspecto no verificado, qué se necesitaría para cerrar el gap}}
+
+    example: |
+      ## Limitaciones del Benchmark
+
+      - **Linear (flujo mobile):** No se pudo verificar el flujo completo de creación de issue desde la app mobile — requeriría cuenta paga.
+      - **Producto interno previo del cliente:** Mencionado durante la conversación pero sin acceso público ni documentación. A validar directamente con el cliente.
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line indicating that this benchmark feeds the research-context.
+      Must be the last paragraph. No heading.
+    format: |
+      ---
+
+      **Próximo artefacto:** Este benchmark alimenta `research-context.md` de la misma audiencia con material concreto para inferir pains, gains y JTBDs.

@@ -1,0 +1,2600 @@
+openapi: 3.0.3
+
+# Contrato HTTP de `api` — los 61 endpoints que sirve.
+#
+# EXTRAÍDO DEL CÓDIGO
+#   Los paths salen de `api/lib/routes/*.ts`; los request bodies y query params, de los esquemas
+#   Joi de cada archivo; los roles, de las llamadas a `hasAnyRole`; y los códigos de error, de los
+#   `res.status().json()` y del mapa `STATUS_BY_ERROR_CODE` de `lib/utils/bus/protocol.ts`.
+#
+# LO QUE ESTE DOCUMENTO NO PUEDE PRECISAR
+#   Los response schemas se derivan de lo que el handler arma leyendo los modelos Sequelize. Donde
+#   la respuesta es una fila con sus relaciones, se describe la forma observada; no hay DTOs en el
+#   código contra los que validarla. Los `$ref` a entidades reflejan las columnas del modelo
+#   compartido (`@jiku/models`), documentadas en docs/db-schemas/jiku.md.
+#
+# AUTENTICACIÓN: SE APLICA GLOBAL, NO POR RUTA
+#   `api/app.ts:32-35` instala `validateToken` para TODO path excepto las exenciones de
+#   `api/config/public.ts`, armadas como regex de lookahead negativo. Es deny-by-default. Por eso
+#   `security` se declara a nivel raíz y solo se sobreescribe en el único endpoint exento.
+
+info:
+  title: Jiku api — contrato HTTP
+  version: 1.0.0
+  description: |
+    Única puerta HTTP del producto. Autentica contra Zitadel, autoriza por rol y por entidad,
+    **lee la base de datos directamente** y convierte toda mutación en un comando publicado en
+    NATS que atiende `core`.
+
+    **Las escrituras pasan por el bus.** Los endpoints marcados con `x-bus-command` publican un
+    comando y esperan respuesta. Eso agrega dos modos de falla a todos ellos: `503`
+    (`service_unavailable`) si el bus no responde dentro de `NATS_REQUEST_TIMEOUT_MS`, y los
+    códigos de error que devuelve core, traducidos a HTTP por `httpStatusFor`. El contrato del
+    bus está en [core.yaml](./core.yaml).
+
+    **Después de publicar, la api relee la base.** Core solo devuelve el `id`, pero el contrato
+    con los frontends es el recurso completo con sus relaciones.
+
+    **Tres excepciones que escriben sin el bus:** las migraciones (credenciales propias), la fila
+    de `attachments`, y `PUT /api/week-assigned-times`. Las dos últimas son deuda conocida.
+
+    **Los mensajes de error son texto de interfaz:** los frontends los muestran tal cual al
+    usuario. Están mezclados entre inglés y español.
+
+    **No hay catálogo cerrado de códigos de error.** Los documentados acá son los que el código
+    produce hoy.
+  license:
+    name: Apache-2.0
+  contact:
+    name: Grava Digital
+
+servers:
+  - url: http://localhost:3000/api
+    description: Desarrollo local
+  - url: http://api:3000/api
+    description: Red interna del compose (es como lo consumen `web` y `opus-web`)
+
+tags:
+  - name: clients
+    description: Actores. Se llaman "actores" en la UI y `clients` en la base
+  - name: projects
+    description: Proyectos
+  - name: requirements
+    description: Requisitos
+  - name: objectives
+    description: Tareas. `objective` en HTTP y en la base, `task` en el bus
+  - name: worked-times
+    description: Horas trabajadas y sus reportes
+  - name: unworked-times
+    description: Horas no trabajadas (ausencias)
+  - name: week-assigned-times
+    description: Asignación semanal de tiempo
+  - name: attachments
+    description: Adjuntos. Autorizan por entidad, no por rol
+  - name: opus
+    description: Portal de clientes. Superficie de `opus-web`, acotada por permiso de proyecto
+  - name: other
+    description: Personas, settings y el present de auth
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  # ==========================================================================
+  # clients — actores
+  # ==========================================================================
+
+  /clients:
+    get:
+      tags: [clients]
+      summary: Lista todos los actores
+      description: Con sus proyectos, ordenados por nombre. Sin chequeo de rol.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Client'
+                    - type: object
+                      properties:
+                        projects:
+                          type: array
+                          items: { $ref: '#/components/schemas/Project' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [clients]
+      summary: Crea un actor
+      description: |
+        Publica `clients.new` y devuelve el actor leído de la base. Sin chequeo de rol.
+      x-bus-command: clients.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description:
+                  type: string
+                  description: Opcional. Acepta string vacío
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /clients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [clients]
+      summary: Detalle de un actor
+      description: |
+        Responde **400** `client_not_found` cuando no existe, no 404: es el comportamiento
+        heredado del endpoint.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400':
+          description: El actor no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: client_not_found, message: Client not found }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [clients]
+      summary: Edita un actor
+      description: Publica `clients.{id}.edit`. Devuelve un acuse, no el recurso.
+      x-bus-command: clients.{id}.edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+              example: { code: client_updated, message: Client Updated }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /clients/{clientId}/projects:
+    get:
+      tags: [clients]
+      summary: Proyectos de un actor
+      x-roles: [user, admin]
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: status
+          in: query
+          description: |
+            Uno o varios estados separados por coma. Validado con un patrón, no con un enum:
+            `analisis|activo|inactivo|finalizado|cancelado`.
+          schema: { type: string }
+          example: activo,analisis
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404':
+          description: El actor no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: client_not_found, message: Client not found }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # projects
+  # ==========================================================================
+
+  /projects:
+    get:
+      tags: [projects]
+      summary: Lista proyectos
+      description: |
+        Incluye el creador. Los `null` de `keyValuePairs` se devuelven como string vacío, porque
+        es lo que espera la web.
+      parameters:
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: search
+          in: query
+          description: Búsqueda parcial sobre el nombre (`ILIKE`)
+          schema: { type: string }
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [interno, comercial, investigacion, propuesta]
+        - name: state
+          in: query
+          description: Uno o varios estados separados por coma
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Project'
+                    - type: object
+                      properties:
+                        creator: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [projects]
+      summary: Crea un proyecto
+      description: |
+        Publica `projects.new`. `keyValuePairs` (objeto plano) se traduce a `properties` (lista de
+        `{code, value}`) para el bus. Sin chequeo de rol.
+      x-bus-command: projects.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [projects]
+      summary: Detalle de un proyecto
+      description: Responde **400** `project_not_found` cuando no existe, no 404.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400':
+          description: El proyecto no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: project_not_found, message: Project not found }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [projects]
+      summary: Edita un proyecto
+      description: |
+        Publica `projects.{id}.edit`.
+
+        **Detalle heredado:** cuando el cuerpo no trae `endDate`, la api manda `endDate: null`
+        explícito. Core tiene semántica de edición parcial (lo que no llega queda como estaba),
+        pero la api vaciaba el campo, y el comportamiento para la web no cambia.
+
+        El comando **no** lleva `editor`: `projects` no registra actividad.
+
+        Aunque la mayoría de los campos son opcionales en el contrato conceptual, el esquema Joi
+        exige `name`, `code`, `status`, `type`, `description` e `initDate` en cada PATCH.
+      x-bus-command: projects.{id}.edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+              example: { code: project_updated, message: Project Updated }
+        '400':
+          description: Validación fallida, o `project_not_found` desde core
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /projects/{projid}/persons:
+    get:
+      tags: [projects]
+      summary: Personas de un proyecto
+      x-roles: [user, admin]
+      parameters:
+        - $ref: '#/components/parameters/ProjIdPath'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PersonSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /projects/objectives-summary:
+    get:
+      tags: [projects]
+      summary: Resumen de tareas por proyecto
+      description: |
+        Agregación de tareas por proyecto. Devuelve `[]` cuando no hay datos. Sin chequeo de rol.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: |
+                    Fila de resumen por proyecto con sus tareas agregadas. La forma exacta la arma
+                    el handler; ver `lib/routes/projects-objectives-summary-get.ts`.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # requirements
+  # ==========================================================================
+
+  /requirements:
+    get:
+      tags: [requirements]
+      summary: Lista requisitos
+      x-roles: [user, admin]
+      parameters:
+        - name: projectId
+          in: query
+          schema: { type: integer }
+        - name: state
+          in: query
+          schema: { $ref: '#/components/schemas/RequirementState' }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/RequirementType' }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: createdBy
+          in: query
+          description: Id de usuario de Zitadel
+          schema: { type: string }
+        - name: estimatedFinishDate
+          in: query
+          schema: { type: string, format: date }
+        - name: tag
+          in: query
+          description: |
+            Filtro por tag en formato `clave:valor`. Se resuelve con un contains sobre la columna
+            `jsonb`.
+          schema: { type: string }
+          example: modulo:facturacion
+        - name: search
+          in: query
+          description: Búsqueda parcial sobre el título (`ILIKE`)
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort
+          in: query
+          description: Aceptado por el esquema pero **no usado**; el orden es siempre `createdAt DESC`
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RequirementWithRelations' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [requirements]
+      summary: Crea un requisito
+      description: |
+        Publica `requirements.new` y rearma la respuesta con proyecto y responsables.
+
+        El proyecto se valida **en la api** porque esta ruta responde 404, mientras que core
+        devuelve `project_not_found` con 400.
+      x-roles: [user, admin]
+      x-bus-command: requirements.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, projectId]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                projectId: { type: integer }
+                type:
+                  allOf: [{ $ref: '#/components/schemas/RequirementType' }]
+                  nullable: true
+                priority: { $ref: '#/components/schemas/RequirementPriority' }
+                state: { $ref: '#/components/schemas/RequirementState' }
+                visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+                responsiblePersonIds:
+                  type: array
+                  nullable: true
+                  items: { type: integer }
+                estimatedFinishDate: { type: string, format: date, nullable: true }
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+                tags:
+                  type: array
+                  items: { $ref: '#/components/schemas/Tag' }
+                scope: { type: string }
+                technicalSolution: { type: string }
+                acceptanceCriteria: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementWithRelations' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /requirements/report:
+    get:
+      tags: [requirements]
+      summary: Reporte de requisitos
+      x-roles: [user, admin]
+      parameters:
+        - name: search
+          in: query
+          description: |
+            Si es solo dígitos, busca por id exacto; si no, búsqueda parcial sobre el título.
+          schema: { type: string }
+        - name: createdFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: createdTo
+          in: query
+          schema: { type: string, format: date }
+        - name: projectId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: object }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /requirements/tags/suggestions:
+    get:
+      tags: [requirements]
+      summary: Sugerencias de tags de un proyecto
+      description: |
+        Claves y valores distintos usados en los tags de los requisitos del proyecto. Se resuelve
+        con SQL crudo sobre `jsonb_array_elements`.
+      x-roles: [user, admin]
+      parameters:
+        - name: projectId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: keyQuery
+          in: query
+          description: Filtra las sugerencias por clave
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tag' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /requirements/{reqid}:
+    parameters:
+      - $ref: '#/components/parameters/ReqIdPath'
+    get:
+      tags: [requirements]
+      summary: Detalle de un requisito
+      x-roles: [user, admin]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementWithRelations' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [requirements]
+      summary: Edita un requisito
+      description: |
+        Publica `requirements.{id}.edit` y rearma la respuesta.
+
+        **Regla propia de la api:** una incidencia no pasa a `resuelto` sin tipo y conclusión de
+        resolución. La validación combina lo que llega en el cuerpo con lo que ya tiene el
+        requisito, y devuelve `resolution_required` (400) — un código que no está en el protocolo
+        del bus.
+      x-roles: [user, admin]
+      x-bus-command: requirements.{id}.edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                type:
+                  allOf: [{ $ref: '#/components/schemas/RequirementType' }]
+                  nullable: true
+                priority: { $ref: '#/components/schemas/RequirementPriority' }
+                estimatedFinishDate: { type: string, format: date }
+                state: { $ref: '#/components/schemas/RequirementState' }
+                resolutionType:
+                  allOf: [{ $ref: '#/components/schemas/RequirementResolution' }]
+                  nullable: true
+                resolutionConclusion: { type: string, nullable: true }
+                resolutionComment: { type: string, nullable: true }
+                visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+                responsiblePersonIds:
+                  type: array
+                  nullable: true
+                  items: { type: integer }
+                scope: { type: string, nullable: true }
+                technicalSolution: { type: string, nullable: true }
+                acceptanceCriteria: { type: string, nullable: true }
+                tags:
+                  type: array
+                  nullable: true
+                  items: { $ref: '#/components/schemas/Tag' }
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementWithRelations' }
+        '400':
+          description: |
+            Validación fallida, `resolution_required`, o un código de core traducido a 400.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                resolutionRequired:
+                  value:
+                    code: resolution_required
+                    message: Se requiere tipo y conclusión para resolver una incidencia
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /requirements/{reqid}/comments:
+    post:
+      tags: [requirements]
+      summary: Comenta un requisito
+      description: Publica `requirements.{id}.comment`. No notifica.
+      x-roles: [user, admin]
+      x-bus-command: requirements.{id}.comment
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+                visibilityLevel:
+                  allOf: [{ $ref: '#/components/schemas/VisibilityLevel' }]
+                  default: internal
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementActivity' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /requirements/{reqid}/worked-hours:
+    get:
+      tags: [requirements]
+      summary: Horas trabajadas imputadas a un requisito
+      x-roles: [user, admin]
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # objectives — tareas
+  # ==========================================================================
+
+  /objectives:
+    get:
+      tags: [objectives]
+      summary: Lista tareas
+      description: |
+        Cada tarea trae los minutos trabajados en tres formas: `workedMinutes` (total),
+        `workedTime` (agrupado por persona) y `workedTimeDetailed` (cada registro).
+      parameters:
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: search
+          in: query
+          description: Búsqueda parcial sobre el título
+          schema: { type: string }
+        - name: state
+          in: query
+          description: Uno o varios estados separados por coma
+          schema: { type: string }
+        - name: area
+          in: query
+          schema: { $ref: '#/components/schemas/ObjectiveArea' }
+        - name: projectId
+          in: query
+          schema: { type: integer }
+        - name: projectName
+          in: query
+          description: Búsqueda parcial sobre el nombre del proyecto
+          schema: { type: string }
+        - name: personId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ObjectiveWithWorkedTime' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [objectives]
+      summary: Crea una tarea
+      description: |
+        Publica `tasks.new`. Traducciones al bus: `personIds` → `responsiblePersonIds`,
+        `priority` numérica → enum (más `priorityValue` con el número original, escape transitorio
+        porque el enum no cubre los 6 valores).
+
+        `stageId` se sigue aceptando y reenviando: el concepto de etapa se eliminó del producto,
+        pero la web todavía lo manda.
+
+        Sin chequeo de rol.
+      x-bus-command: tasks.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, state, area, priority, projectId, personIds]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                estimatedFinishDate: { type: string, format: date }
+                state: { $ref: '#/components/schemas/ObjectiveState' }
+                area: { $ref: '#/components/schemas/ObjectiveArea' }
+                priority:
+                  type: integer
+                  description: 0-5. El 5 se trata como `urgente`, igual que en core
+                projectId: { type: integer }
+                personIds:
+                  type: array
+                  items: { type: integer }
+                visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+                requirementId: { type: integer, nullable: true }
+                stageId:
+                  type: integer
+                  nullable: true
+                  description: Legado. La tabla `stages` ya no existe
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Objective'
+                  - type: object
+                    properties:
+                      personIds:
+                        type: array
+                        items: { type: integer }
+        '400':
+          description: |
+            Validación fallida, o `project_not_found` / `person_not_found` desde core.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /objectives/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [objectives]
+      summary: Detalle de una tarea
+      description: Con los minutos trabajados agregados. Responde **400** cuando no existe.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ObjectiveWithWorkedTime' }
+        '400':
+          description: La tarea no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: objective_not_found, message: Objective not found }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [objectives]
+      summary: Edita una tarea
+      description: Publica `tasks.{id}.edit`, con las mismas traducciones que el alta.
+      x-bus-command: tasks.{id}.edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, state, area, priority, personIds]
+              properties:
+                title: { type: string, minLength: 1 }
+                description: { type: string }
+                estimatedFinishDate: { type: string, format: date }
+                state: { $ref: '#/components/schemas/ObjectiveState' }
+                area: { $ref: '#/components/schemas/ObjectiveArea' }
+                priority: { type: integer, minimum: 0, maximum: 5 }
+                personIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+                visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+                stageId: { type: integer, nullable: true }
+                requirementId: { type: integer, nullable: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /objectives/{id}/comments:
+    post:
+      tags: [objectives]
+      summary: Comenta una tarea
+      description: Publica `tasks.{id}.comment`.
+      x-bus-command: tasks.{id}.comment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+                visibilityLevel:
+                  allOf: [{ $ref: '#/components/schemas/VisibilityLevel' }]
+                  default: internal
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ObjectiveActivity' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /objectives/{id}/comment/{cid}:
+    patch:
+      tags: [objectives]
+      summary: Edita un comentario de una tarea
+      description: |
+        **No pasa por el bus.** Valida que quien edita sea el autor y responde 403 si no lo es.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: cid
+          in: path
+          required: true
+          description: Id de la actividad (comentario)
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400':
+          description: Validación fallida, o la tarea o el comentario no existen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: No es el autor del comentario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: access_denied, message: Access denied }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # worked-times
+  # ==========================================================================
+
+  /worked-times:
+    get:
+      tags: [worked-times]
+      summary: Horas trabajadas de una persona en un día
+      x-roles: [user, admin]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: personId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [worked-times]
+      summary: Carga horas trabajadas
+      description: |
+        Publica `worked-times.new` (`objectiveId` viaja como `taskId`).
+
+        **Tres reglas que viven en la api**, porque core no conoce roles ni calendario:
+          - la fecha tiene que estar entre hoy y los 10 días previos (`invalid_date_range`)
+          - solo un `admin` puede imputar horas a otra persona (`access_denied`)
+          - si no viene `personId`, se resuelve desde el usuario autenticado (`person_not_found`
+            si no tiene persona vinculada)
+
+        `objectiveId` y `requirementId` son mutuamente excluyentes.
+
+        Core puede rechazar con `daily_limit_exceeded`, que sale 400 y **agrega
+        `remainingMinutes`** al cuerpo — recuperado parseando el mensaje, porque el formato de
+        respuesta del bus no tiene dónde ponerlo.
+      x-roles: [user, admin]
+      x-bus-command: worked-times.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, minutes, projectId]
+              properties:
+                date: { type: string, format: date }
+                minutes: { type: integer, minimum: 1 }
+                projectId: { type: integer }
+                objectiveId: { type: integer, nullable: true }
+                requirementId: { type: integer, nullable: true }
+                personId:
+                  type: integer
+                  description: Default, la persona del usuario autenticado. Solo `admin` puede indicar otra
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
+        '400':
+          description: Validación, ventana de fechas, o un rechazo de core
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidDateRange:
+                  value:
+                    code: invalid_date_range
+                    message: Solo se pueden cargar horas del día actual y los 10 días previos
+                dailyLimitExceeded:
+                  value:
+                    code: daily_limit_exceeded
+                    message: 'Minutos disponibles: 120'
+                    remainingMinutes: 120
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Sin rol, o intento de cargar horas de otra persona sin ser `admin`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: access_denied, message: Solo podés cargar tus propias horas }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /worked-times/{id}:
+    delete:
+      tags: [worked-times]
+      summary: Borra un registro de horas
+      description: |
+        Publica `worked-times.{id}.delete`. Valida la ventana de fechas y que el registro sea del
+        usuario, salvo `admin`.
+      x-roles: [user, admin]
+      x-bus-command: worked-times.{id}.delete
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400':
+          description: Fuera de la ventana de fechas, o el registro no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /worked-times/person-objectives:
+    get:
+      tags: [worked-times]
+      summary: Tareas imputables por una persona
+      description: |
+        Tareas activas, más las que la persona tocó en los últimos 7 días. Es la lista que ofrece
+        el formulario de carga de horas.
+      x-roles: [user, admin]
+      parameters:
+        - name: personId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ObjectiveSummary' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /worked-times/person-requirements:
+    get:
+      tags: [worked-times]
+      summary: Requisitos imputables por una persona
+      x-roles: [user, admin]
+      parameters:
+        - name: personId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RequirementSummary' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /worked-times/report/by-person:
+    get:
+      tags: [worked-times]
+      summary: Reporte de horas agrupado por persona
+      x-roles: [user, admin]
+      parameters:
+        - $ref: '#/components/parameters/DateFromRequired'
+        - $ref: '#/components/parameters/DateToRequired'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /worked-times/report/by-project:
+    get:
+      tags: [worked-times]
+      summary: Reporte de horas agrupado por proyecto
+      x-roles: [user, admin]
+      parameters:
+        - $ref: '#/components/parameters/DateFromRequired'
+        - $ref: '#/components/parameters/DateToRequired'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /worked-times/report/by-project/{projid}:
+    get:
+      tags: [worked-times]
+      summary: Reporte de horas de un proyecto
+      x-roles: [user, admin]
+      parameters:
+        - $ref: '#/components/parameters/ProjIdPath'
+        - $ref: '#/components/parameters/DateFromRequired'
+        - $ref: '#/components/parameters/DateToRequired'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # unworked-times
+  # ==========================================================================
+
+  /unworked-times:
+    get:
+      tags: [unworked-times]
+      summary: Horas no trabajadas de una persona en un día
+      description: Sin chequeo de rol.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: personId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UnworkedTime' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [unworked-times]
+      summary: Registra horas no trabajadas
+      description: Publica `unworked-times.new`. Sin chequeo de rol.
+      x-bus-command: unworked-times.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, minutes, reason]
+              properties:
+                date: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+                minutes: { type: integer, minimum: 1 }
+                reason: { $ref: '#/components/schemas/UnworkedReason' }
+                personId:
+                  type: integer
+                  minimum: 1
+                  description: Default, la persona del usuario autenticado
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnworkedTime' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /unworked-times/{id}:
+    delete:
+      tags: [unworked-times]
+      summary: Borra un registro de horas no trabajadas
+      description: |
+        Publica `unworked-times.{id}.delete`. Valida titularidad y un deadline propio de la api.
+      x-bus-command: unworked-times.{id}.delete
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400':
+          description: Fuera del deadline, o el registro no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /unworked-times/reasons:
+    get:
+      tags: [unworked-times]
+      summary: Motivos de horas no trabajadas
+      description: El enum, para poblar el selector. Sin chequeo de rol.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UnworkedReason' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /unworked-times/report:
+    get:
+      tags: [unworked-times]
+      summary: Reporte de horas no trabajadas de una persona
+      description: Sin chequeo de rol.
+      parameters:
+        - name: dateFrom
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: dateTo
+          in: query
+          required: true
+          schema: { type: string, format: date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: personId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # week-assigned-times
+  # ==========================================================================
+
+  /week-assigned-times:
+    get:
+      tags: [week-assigned-times]
+      summary: Asignación semanal
+      description: |
+        Devuelve las asignaciones de la semana más las personas habilitadas que deben cargar
+        horas y los proyectos activos o en análisis: todo lo que la grilla necesita.
+      x-roles: [admin, user]
+      parameters:
+        - name: weekStart
+          in: query
+          required: true
+          description: Lunes de la semana. `weekEnd` se deriva sumando 4 días
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allocations:
+                    type: array
+                    items: { $ref: '#/components/schemas/WeekAssignedTime' }
+                  persons:
+                    type: array
+                    items: { $ref: '#/components/schemas/PersonSummary' }
+                  projects:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProjectSummary' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      tags: [week-assigned-times]
+      summary: Reemplaza la asignación de una semana
+      description: |
+        **El único `PUT` de la api, y la única ruta que escribe con el ORM.** No publica ningún
+        comando: borra las asignaciones de la semana y las recrea (`destroy` + `bulkCreate`) en
+        una transacción. Es la única ruta que usa los middlewares de transacción.
+
+        Reemplazo total: lo que no venga en `allocations` se pierde. Las asignaciones con
+        `minutes: 0` se descartan, e `internal` se deriva del tipo de proyecto (`interno`).
+
+        Solo `admin`, y `validateWeekNotPast` rechaza semanas anteriores a la actual.
+
+        Su futuro está sin decidir: puede mantenerse, rehacerse o eliminarse.
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weekStart, allocations]
+              properties:
+                weekStart: { type: string, format: date }
+                allocations:
+                  type: array
+                  items:
+                    type: object
+                    required: [personId, projectId, minutes]
+                    properties:
+                      personId: { type: integer }
+                      projectId: { type: integer }
+                      minutes: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  weekStart: { type: string, format: date }
+                  weekEnd: { type: string, format: date }
+                  allocations:
+                    type: array
+                    items: { $ref: '#/components/schemas/WeekAssignedTime' }
+        '400':
+          description: Validación fallida, o semana pasada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: invalid_week, message: No se pueden modificar semanas pasadas }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # attachments
+  # ==========================================================================
+
+  /attachments:
+    get:
+      tags: [attachments]
+      summary: Lista adjuntos de una entidad
+      description: |
+        **Sin `hasAnyRole`.** Autoriza por entidad con `canUserViewEntity`, que restringe a
+        `external-user` por permiso de proyecto.
+      parameters:
+        - name: entityType
+          in: query
+          schema: { $ref: '#/components/schemas/AttachmentEntityType' }
+        - name: entityId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Attachment' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [attachments]
+      summary: Sube adjuntos
+      description: |
+        Hasta **10 archivos de 10 MB** cada uno, en un `multipart/form-data`. Valida extensión
+        **y** MIME type contra listas blancas, calcula un sha256 por archivo y guarda en storage
+        S3-compatible.
+
+        **No pasa por el bus:** crea la fila de `attachments` directamente. Es una de las dos
+        escrituras con ORM que quedan en la api.
+
+        Si un archivo falla a mitad de la tanda, **borra del bucket los ya subidos**.
+
+        `requirement_draft` admite subida sin `entityId`: el requisito todavía no existe y el
+        adjunto se ancla al usuario por `uploaded_by`.
+
+        Sin `hasAnyRole`: autoriza por entidad con `canUserAccessEntity`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files, entityType]
+              properties:
+                files:
+                  type: array
+                  maxItems: 10
+                  items: { type: string, format: binary }
+                entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
+                entityId:
+                  type: integer
+                  description: Obligatorio salvo para `requirement_draft`
+                description: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Attachment' }
+        '400':
+          description: Sin archivos, tipo no permitido, tamaño excedido o campos inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidEntityType:
+                  value: { code: invalid_entity_type, message: '"entityType" must be one of: ...' }
+                noFiles:
+                  value: { code: no_files, message: At least one file is required }
+                uploadFailed:
+                  value: { code: upload_failed, message: File size exceeds maximum of 10MB }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Sin permiso sobre la entidad
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                code: access_denied
+                message: You do not have permission to attach files to this entity
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /attachments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [attachments]
+      summary: Metadatos de un adjunto
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [attachments]
+      summary: Borra un adjunto
+      description: Borra la fila y el objeto del bucket.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /attachments/{id}/download:
+    get:
+      tags: [attachments]
+      summary: Descarga un adjunto
+      description: 'Stream con `Content-Disposition: attachment` y el nombre original.'
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: El archivo
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /attachments/{id}/preview:
+    get:
+      tags: [attachments]
+      summary: Previsualiza un adjunto
+      description: 'Stream con `Content-Disposition: inline`.'
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: El archivo, para mostrar en el navegador
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # opus — portal de clientes
+  # ==========================================================================
+
+  /opus/projects:
+    get:
+      tags: [opus]
+      summary: Proyectos visibles en el portal
+      description: |
+        Solo proyectos con `status: activo`. Un `external-user` ve **únicamente** los concedidos
+        en `user_project_permissions`: la restricción se aplica acotando la query, no con un 403.
+      x-roles: [user, external-user]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    name: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /opus/projects/{projid}/requirements:
+    get:
+      tags: [opus]
+      summary: Requisitos de un proyecto en el portal
+      description: |
+        **Nota sobre el código:** los filtros se validan con `validateBodyFields`, no con
+        `validateQueryParams` (`opus-projects-projid-requirements-get.ts:63`), así que el esquema
+        se aplica al cuerpo de una request GET. Los parámetros que el handler realmente lee son
+        los de query.
+      x-roles: [user, external-user]
+      parameters:
+        - $ref: '#/components/parameters/ProjIdPath'
+        - name: state
+          in: query
+          description: Uno o varios estados
+          schema:
+            oneOf:
+              - { $ref: '#/components/schemas/RequirementState' }
+              - type: array
+                items: { $ref: '#/components/schemas/RequirementState' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [createdAt, title], default: createdAt }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20, default: 20 }
+        - name: skip
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Requirement' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /opus/projects/{projid}/users:
+    get:
+      tags: [opus]
+      summary: Usuarios de un proyecto
+      description: Para elegir a quién suscribir a un requisito.
+      x-roles: [user, external-user]
+      parameters:
+        - $ref: '#/components/parameters/ProjIdPath'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /opus/requirements:
+    post:
+      tags: [opus]
+      summary: Crea un requisito desde el portal
+      description: |
+        Usa el **mismo comando** que la ruta interna (`requirements.new`); lo que cambia es el rol
+        que lo habilita y que acá el creador puede suscribir a otros usuarios de una.
+
+        Las suscripciones son comandos aparte: se publica un
+        `requirements.{id}.subscriptors.new` por cada usuario. **El creador queda suscripto
+        siempre.**
+
+        Los `attachmentIds` van con `attachmentScope: 'project'`.
+
+        No notifica: las notificaciones están fuera del alcance.
+      x-roles: [user, external-user]
+      x-bus-command: requirements.new
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, projectId]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                projectId: { type: integer }
+                priority: { $ref: '#/components/schemas/RequirementPriority' }
+                type: { $ref: '#/components/schemas/RequirementType' }
+                estimatedFinishDate: { type: string, format: date }
+                subscriberUserIds:
+                  type: array
+                  items: { type: string }
+                  description: Ids de usuario de Zitadel
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Requirement' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/ProjectNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /opus/requirements/{reqid}:
+    parameters:
+      - $ref: '#/components/parameters/ReqIdPath'
+    get:
+      tags: [opus]
+      summary: Detalle de un requisito en el portal
+      description: |
+        Filtra las actividades por visibilidad: un `external-user` no ve las `internal`.
+      x-roles: [user, external-user]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementWithRelations' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [opus]
+      summary: Cambia estado o prioridad de un requisito
+      description: |
+        Publica `requirements.{id}.edit` con solo esos dos campos.
+
+        **Declara `hasAnyRole(['user', 'admin'])` — sin `external-user`**, a diferencia del resto
+        de la superficie opus (`opus-requirements-id-patch.ts:30`). Si es intencional o un
+        descuido está sin confirmar.
+      x-roles: [user, admin]
+      x-bus-command: requirements.{id}.edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state: { $ref: '#/components/schemas/RequirementState' }
+                priority: { $ref: '#/components/schemas/RequirementPriority' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /opus/requirements/{reqid}/comments:
+    post:
+      tags: [opus]
+      summary: Comenta un requisito desde el portal
+      description: |
+        Publica `requirements.{id}.comment`. **Sin `visibilityLevel`**: un comentario del portal
+        no puede ser interno.
+      x-roles: [user, external-user]
+      x-bus-command: requirements.{id}.comment
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+                attachmentIds:
+                  type: array
+                  items: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementActivity' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/RequirementNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /opus/requirements/{reqid}/subscriptors:
+    post:
+      tags: [opus]
+      summary: Suscribe un usuario a un requisito
+      description: |
+        Publica `requirements.{id}.subscriptors.new`. Valida que el usuario a suscribir exista y
+        tenga permiso sobre el proyecto.
+      x-roles: [external-user]
+      x-bus-command: requirements.{id}.subscriptors.new
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string, description: Id de usuario de Zitadel }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400':
+          description: Validación fallida, o `already_subscribed` desde core
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404':
+          description: El requisito o el usuario no existen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /opus/requirements/{reqid}/subscriptors/{userId}:
+    delete:
+      tags: [opus]
+      summary: Desuscribe un usuario de un requisito
+      description: |
+        Publica `requirements.{id}.subscriptors.{userId}.delete`. **Un `external-user` solo puede
+        desuscribirse a sí mismo.**
+      x-roles: [external-user]
+      x-bus-command: requirements.{id}.subscriptors.{userId}.delete
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Intento de desuscribir a otro usuario, o sin permiso sobre el proyecto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: El requisito o la suscripción no existen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: subscription_not_found, message: Subscription not found }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /opus/attachments:
+    post:
+      tags: [opus]
+      summary: Sube adjuntos desde el portal
+      description: |
+        Como `POST /api/attachments`, con validación de `entityType` y de permisos propia de la
+        superficie del portal.
+      x-roles: [user, external-user]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files, entityType]
+              properties:
+                files:
+                  type: array
+                  maxItems: 10
+                  items: { type: string, format: binary }
+                entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
+                entityId: { type: integer }
+                description: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Attachment' }
+        '400': { $ref: '#/components/responses/InvalidFields' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /opus/attachments/{id}/preview:
+    get:
+      tags: [opus]
+      summary: Previsualiza un adjunto desde el portal
+      x-roles: [user, external-user]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: El archivo
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /opus/attachments/{id}/public:
+    get:
+      tags: [opus]
+      summary: Sirve un adjunto público (SIN autenticación)
+      description: |
+        **El único endpoint exento de autenticación de toda la api**, declarado en
+        `api/config/public.ts:20`.
+
+        Está exento porque tiene su propio control de acceso: valida
+        `visibilityLevel === 'public'` por cada `entityType` y responde **403** en cualquier otro
+        caso. Manda `X-Content-Type-Options: nosniff` y una CSP de sandbox. Para archivos grandes
+        redirige a una URL pre-firmada del storage.
+
+        **Los ids son secuenciales, así que el endpoint es enumerable.** Es un riesgo aceptado y
+        registrado: la protección es la validación de visibilidad, no la opacidad del id.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: El archivo
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '302':
+          description: Redirección a una URL pre-firmada del storage (archivos grandes)
+        '403':
+          description: El adjunto no es público
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # other
+  # ==========================================================================
+
+  /persons:
+    get:
+      tags: [other]
+      summary: Lista personas
+      description: Sin chequeo de rol.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Person' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /settings/hours-per-day:
+    get:
+      tags: [other]
+      summary: Horas por día configuradas
+      description: Del registro correspondiente de `system_settings`.
+      x-roles: [admin, user]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hoursPerDay: { type: number }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /auth/present:
+    post:
+      tags: [other]
+      summary: Presenta al usuario (PROVISORIO — no-op)
+      description: |
+        **Hoy no hace nada: responde `200 {}` sin tocar la base.**
+
+        Creaba o actualizaba el usuario en `users` con los datos de Zitadel en el primer login.
+        Es la única escritura que quedó sin comando en el protocolo, y con la api conectando con
+        un usuario de solo lectura ya no puede hacerla.
+
+        La web ya trata el error como no fatal ("Failed to present in API, but continuing"), así
+        que el 200 preserva su comportamiento.
+
+        **Consecuencia:** un usuario nuevo de Zitadel **no queda dado de alta**, y si no está en
+        `users` el resto de las rutas responden 401 `user_not_found`. Hoy la única vía es
+        insertarlo directamente.
+
+        Es también el único endpoint donde `validateToken` **no** exige que el usuario exista en
+        `users` (`lib/utils/middlewares/validate-token.ts:115`).
+
+        Pendiente: definir si el alta pasa a ser un comando de core, si la resuelve el
+        auth-callout, o si esta ruta conserva escritura propia.
+      responses:
+        '200':
+          description: OK. Cuerpo vacío
+          content:
+            application/json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+# ============================================================================
+# components
+# ============================================================================
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT RS256 emitido por Zitadel, verificado contra su JWKS
+        (`{IDENTITY_URL}/oauth/v2/keys`), resincronizado con reintentos cuando aparece un `kid`
+        desconocido.
+
+        **Solo por header.** El fallback por query param (`?jwt=`) se eliminó: los query params
+        quedan en logs de acceso, historial y `Referer`.
+
+        Los roles salen del claim `urn:zitadel:iam:org:project:roles`, como las claves del objeto.
+        Roles del producto: `admin`, `user`, `external-user`.
+
+        El `sub` tiene que existir en la tabla `users` o la respuesta es 401 `user_not_found`.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    ProjIdPath:
+      name: projid
+      in: path
+      required: true
+      schema: { type: integer }
+    ReqIdPath:
+      name: reqid
+      in: path
+      required: true
+      schema: { type: integer }
+    Sort:
+      name: sort
+      in: query
+      description: |
+        Campo de ordenamiento. Prefijo `-` para descendente. Default `-createdAt`.
+      schema: { type: string }
+      example: '-createdAt'
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      description: |
+        El esquema Joi lo acota a **30**, pero `parseLimit` usa **200** como fallback cuando el
+        valor no cumple sus condiciones (`lib/utils/parse-query-params.ts:41-43`). En la práctica
+        un valor mayor a 30 se rechaza antes con 400.
+      schema: { type: integer, minimum: 1, maximum: 30, default: 200 }
+    DateFromRequired:
+      name: dateFrom
+      in: query
+      required: true
+      schema: { type: string, format: date }
+    DateToRequired:
+      name: dateTo
+      in: query
+      required: true
+      description: Tiene que ser mayor o igual a `dateFrom`
+      schema: { type: string, format: date }
+
+  responses:
+    Unauthorized:
+      description: Sin token, token inválido, o el `sub` no está en `users`
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            unauthorized:
+              value: { code: unauthorized, message: Unauthorized }
+            userNotFound:
+              value: { code: user_not_found, message: User not found }
+    AccessDenied:
+      description: Autenticado, pero el rol o el permiso de proyecto no alcanzan
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: access_denied, message: Access denied }
+    InvalidFields:
+      description: Validación de Joi fallida. Devuelve **solo el primer** error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: invalid_fields, message: 'Invalid field - "title" is required' }
+    NotFound:
+      description: No existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: Not found }
+    ProjectNotFound:
+      description: El proyecto no existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: project_not_found, message: Project not found }
+    RequirementNotFound:
+      description: El requisito no existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: requirement_not_found, message: Requirement not found }
+    InternalError:
+      description: Error inesperado. El detalle va al log, no a la respuesta
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: internal_error, message: Internal error }
+    BusUnavailable:
+      description: |
+        El bus no respondió dentro de `NATS_REQUEST_TIMEOUT_MS` (default 5000 ms), o no está
+        disponible. **Sin JetStream no hay reintento: la operación no ocurrió.**
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: service_unavailable
+            message: El servicio no está disponible en este momento
+
+  schemas:
+
+    # ---- errores y acuses ----
+
+    Error:
+      type: object
+      description: |
+        La forma de error de toda la api. `message` es **texto de interfaz**: los frontends lo
+        muestran tal cual al usuario. Están mezclados entre inglés y español.
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Código estable. Los frontends hacen `switch` sobre él
+        message: { type: string }
+        remainingMinutes:
+          type: integer
+          description: |
+            Solo en `daily_limit_exceeded`. Se recupera parseando el mensaje con un regex, porque
+            el formato de respuesta del bus no tiene dónde poner datos extra de un error. Es una
+            solución de transición
+
+    Acknowledgement:
+      type: object
+      description: Acuse de una edición que no devuelve el recurso
+      properties:
+        code: { type: string }
+        message: { type: string }
+
+    # ---- enums ----
+
+    VisibilityLevel:
+      type: string
+      enum: [public, internal]
+      description: |
+        Visibilidad de una actividad. Los cambios de estado, título y descripción son `public`;
+        el resto `internal`. Solo los comentarios permiten elegir
+        (`lib/utils/visibility-helper.ts`)
+
+    ObjectiveState:
+      type: string
+      enum: [backlog, activo, finalizado, cancelado, en_revision]
+
+    ObjectiveArea:
+      type: string
+      enum: [diseño, desarrollo, gestion, investigacion]
+
+    ProjectType:
+      type: string
+      enum: [interno, comercial, investigacion, propuesta]
+
+    ProjectStatus:
+      type: string
+      enum: [analisis, activo, inactivo, finalizado, cancelado]
+
+    RequirementState:
+      type: string
+      description: |
+        Los valores salen del enum del modelo compartido
+        (`packages/models/src/requirement.model.ts`). `en_cola` se agregó en la migración
+        `20260707_01`. Default en la base: `analisis`
+      enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+
+    RequirementType:
+      type: string
+      enum: [funcionalidad, mejora, incidencia, otro]
+
+    RequirementPriority:
+      type: string
+      enum: [sin_prioridad, baja, media, alta, urgente]
+
+    RequirementResolution:
+      type: string
+      description: |
+        Tipo de resolución. Obligatorio, junto con la conclusión, para pasar una incidencia a
+        `resuelto`
+      enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro]
+
+    UnworkedReason:
+      type: string
+      enum:
+        - tramite
+        - corte_servicios
+        - vacaciones
+        - dia_no_laborable
+        - personal
+        - medico
+        - estudio
+        - enfermedad
+        - otro
+
+    AttachmentEntityType:
+      type: string
+      description: |
+        Tipo de entidad a la que se ancla un adjunto. `comment` es **legado** (filas no migradas,
+        pendiente S-096) y `stage` quedó huérfano: la tabla ya no existe, así que sus adjuntos
+        históricos **nunca se autorizan**
+      enum:
+        - project
+        - requirement
+        - objective
+        - requirement_comment
+        - objective_comment
+        - comment
+        - comment_draft
+        - requirement_draft
+        - objective_draft
+        - stage
+
+    Tag:
+      type: object
+      description: Par clave/valor. Se guardan como `jsonb` en `requirements.tags`
+      properties:
+        key: { type: string }
+        value: { type: string }
+
+    # ---- entidades ----
+
+    Client:
+      type: object
+      description: Actor. "Actor" en la UI, `clients` en la base
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProjectInput:
+      type: object
+      description: |
+        Cuerpo de alta y edición de proyecto. El esquema Joi exige `name`, `code`, `status`,
+        `type`, `description` e `initDate` **también en el PATCH**
+      required: [name, code, status, type, description, initDate]
+      properties:
+        name: { type: string, minLength: 1 }
+        code: { type: string }
+        clientId: { type: integer }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+        type: { $ref: '#/components/schemas/ProjectType' }
+        description: { type: string }
+        initDate: { type: string, format: date }
+        endDate:
+          type: string
+          format: date
+          description: |
+            Si no viene en el PATCH, la api manda `endDate: null` explícito al bus, preservando
+            el comportamiento heredado de vaciar el campo
+        keyValuePairs:
+          type: object
+          description: |
+            Enlaces del proyecto. Se traduce a `properties` (lista de `{code, value}`) para el
+            bus. Las tres primeras se validan como URI
+          properties:
+            documentacion: { type: string, format: uri, nullable: true }
+            diseño: { type: string, format: uri, nullable: true }
+            board_de_tareas: { type: string, format: uri, nullable: true }
+            mattermost_group_name: { type: string, nullable: true }
+
+    Project:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/ProjectType' }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+        initDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        priority: { type: integer, nullable: true }
+        originId: { type: integer, nullable: true }
+        keyValuePairs:
+          type: object
+          additionalProperties: { type: string, nullable: true }
+          description: Los `null` se devuelven como string vacío en los listados
+        ticketSlug: { type: string, nullable: true }
+        clientId: { type: integer, nullable: true }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProjectSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string }
+
+    User:
+      type: object
+      description: Usuario. El `id` es el `sub` de Zitadel, no un entero
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        username: { type: string }
+
+    Person:
+      type: object
+      description: |
+        Persona del equipo. Distinta de `User`: una persona puede no tener usuario, y es a la
+        persona a la que se imputan horas
+      properties:
+        id: { type: integer }
+        firstName: { type: string }
+        lastName: { type: string }
+        enabled: { type: boolean }
+        mustChargeWorkedTime: { type: boolean }
+        userId: { type: string, nullable: true }
+
+    PersonSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        firstName: { type: string }
+        lastName: { type: string }
+
+    Objective:
+      type: object
+      description: Tarea. `objective` en HTTP y en la base, `task` en el bus
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        estimatedFinishDate: { type: string, nullable: true }
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Lo setea y lo limpia un hook `@BeforeUpdate` del modelo según la transición de estado
+        state: { $ref: '#/components/schemas/ObjectiveState' }
+        area: { $ref: '#/components/schemas/ObjectiveArea' }
+        priority: { type: integer, description: 0-5 }
+        visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+        projectId: { type: integer }
+        requirementId: { type: integer, nullable: true }
+        createdBy: { type: string }
+        externalProjectId: { type: integer, nullable: true }
+        externalIssueId: { type: string, nullable: true }
+        externalIssueKey: { type: string, nullable: true }
+        externalUrl: { type: string, nullable: true }
+        lastSyncedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ObjectiveSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        state: { $ref: '#/components/schemas/ObjectiveState' }
+        projectId: { type: integer }
+        requirementId: { type: integer, nullable: true }
+
+    ObjectiveWithWorkedTime:
+      allOf:
+        - $ref: '#/components/schemas/Objective'
+        - type: object
+          properties:
+            project: { $ref: '#/components/schemas/Project' }
+            persons:
+              type: array
+              items: { $ref: '#/components/schemas/Person' }
+            workedMinutes:
+              type: integer
+              description: Suma de todos los minutos imputados
+            workedTime:
+              type: array
+              description: Agrupado por persona
+              items: { $ref: '#/components/schemas/WorkedTimeSummary' }
+            workedTimeDetailed:
+              type: array
+              description: Cada registro sin agrupar
+              items: { $ref: '#/components/schemas/WorkedTimeSummary' }
+
+    ObjectiveActivity:
+      type: object
+      description: 'Actividad de una tarea: cambio de campo o comentario'
+      properties:
+        id: { type: integer }
+        objectiveId: { type: integer }
+        typeOfActivity: { type: string }
+        visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+        createdAt: { type: string, format: date-time }
+
+    Requirement:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        type:
+          allOf: [{ $ref: '#/components/schemas/RequirementType' }]
+          nullable: true
+        priority: { $ref: '#/components/schemas/RequirementPriority' }
+        state: { $ref: '#/components/schemas/RequirementState' }
+        visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+        estimatedFinishDate: { type: string, format: date, nullable: true }
+        projectId: { type: integer }
+        createdBy: { type: string }
+        resolutionType:
+          allOf: [{ $ref: '#/components/schemas/RequirementResolution' }]
+          nullable: true
+        resolutionConclusion: { type: string, nullable: true }
+        resolutionComment: { type: string, nullable: true }
+        scope: { type: string, nullable: true }
+        technicalSolution: { type: string, nullable: true }
+        acceptanceCriteria: { type: string, nullable: true }
+        tags:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/Tag' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RequirementSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        state: { $ref: '#/components/schemas/RequirementState' }
+        projectId: { type: integer }
+
+    RequirementWithRelations:
+      allOf:
+        - $ref: '#/components/schemas/Requirement'
+        - type: object
+          properties:
+            project: { $ref: '#/components/schemas/ProjectSummary' }
+            creator: { $ref: '#/components/schemas/User' }
+            responsiblePeople:
+              type: array
+              description: |
+                Aplanado por el handler: `isLeader` sale de la tabla intermedia
+                `people_requirements` y queda al mismo nivel que los campos de la persona
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  firstName: { type: string }
+                  lastName: { type: string }
+                  isLeader: { type: boolean, nullable: true }
+
+    RequirementActivity:
+      type: object
+      properties:
+        id: { type: integer }
+        requirementId: { type: integer }
+        typeOfActivity: { type: string }
+        visibilityLevel: { $ref: '#/components/schemas/VisibilityLevel' }
+        createdAt: { type: string, format: date-time }
+
+    WorkedTimeSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        minutes: { type: integer }
+        person: { $ref: '#/components/schemas/PersonSummary' }
+        personId: { type: integer }
+        date: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+
+    WorkedTimeWithRelations:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        minutes: { type: integer }
+        projectId: { type: integer }
+        project:
+          allOf: [{ $ref: '#/components/schemas/ProjectSummary' }]
+          nullable: true
+        objectiveId: { type: integer, nullable: true }
+        objective:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        requirementId: { type: integer, nullable: true }
+        requirement:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        personId: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    UnworkedTime:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        minutes: { type: integer }
+        reason: { $ref: '#/components/schemas/UnworkedReason' }
+        personId: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    WeekAssignedTime:
+      type: object
+      properties:
+        id: { type: integer }
+        personId: { type: integer }
+        projectId: { type: integer }
+        minutes: { type: integer }
+        internal:
+          type: boolean
+          description: Derivado del tipo de proyecto (`interno`), no enviado por el cliente
+        dateFrom: { type: string, format: date }
+        dateTo: { type: string, format: date, description: Lunes + 4 días }
+
+    Attachment:
+      type: object
+      properties:
+        id: { type: integer }
+        entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
+        entityId:
+          type: integer
+          nullable: true
+          description: Nulo en un draft anclado al usuario, donde la titularidad va por `uploadedBy`
+        fileName: { type: string, description: El nombre original. No es la clave en el storage }
+        fileSize: { type: integer, description: Máximo 10 MB }
+        mimeType: { type: string }
+        storageKey:
+          type: string
+          description: |
+            `{STORAGE_S3_KEY_PREFIX}/{entityType}/{entityId ?? draft}/{uuid}{ext}`. Cambiar el
+            prefijo en una instalación con datos deja inaccesibles los adjuntos existentes
+        storageBucket: { type: string }
+        storageRegion: { type: string }
+        uploadedBy: { type: string }
+        description: { type: string, nullable: true }
+        checksum: { type: string, description: sha256 en hexadecimal }
+        createdAt: { type: string, format: date-time }

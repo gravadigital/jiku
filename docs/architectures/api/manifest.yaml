@@ -1,0 +1,49 @@
+service: api
+type: api
+language: node
+
+# TODAS las convenciones son CUSTOM (viven en ./conventions/), ninguna del catálogo.
+#
+# El catálogo de Node recomienda Fastify, Zod, Prisma + repositorios, jose, Pino, Vitest +
+# Testcontainers, @t3-oss/env-core y CI en GitLab. Este servicio usa Express 5, Joi,
+# Sequelize (en solo lectura), jsonwebtoken con JWKS propio, Winston, Mocha + should/sinon,
+# dotenv y GitHub Actions.
+#
+# No es una desviación a corregir: `api` es un servicio existente que se importó al
+# workflow, y su stack es anterior al catálogo. Las reglas transversales del catálogo
+# —TypeScript, fechas ISO en los bordes, deny-by-default en auth, validar en el borde del
+# sistema— SÍ aplican y están recogidas en cada convención custom.
+#
+# Dos convenciones no tienen equivalente en el catálogo y son nuevas, no reemplazos:
+#   - bus-commands: la escritura por NATS, que es LA decisión estructural del servicio
+#   - ci-github: el catálogo solo trae ci-gitlab
+#
+# No se declaran (el servicio no las tiene): cache, observability, security, queue.
+# Ver el detalle en index.md.
+conventions:
+  - _base               # sin src/, ruta por archivo, imports relativos, comentarios en español
+  - http-server         # Express 5, un archivo por endpoint, barrel automático
+  - bus-commands        # escritura por NATS: comando + relectura, traducción de errores a HTTP
+  - orm                 # Sequelize en SOLO LECTURA, modelos en paquete compartido
+  - validation          # Joi inline en el archivo de ruta
+  - error-handling      # res.status().json({code, message}) y el mapa de códigos del bus
+  - auth-jwt            # JWKS de Zitadel con reintentos, roles del claim, bypass opt-in
+  - authorization       # las tres capas: global por método, por rol, por entidad
+  - logging             # Winston + express-winston, transports a archivo en producción
+  - storage             # S3-compatible, uploads en memoria, rollback y checksum
+  - testing             # Mocha + base real + FakeBus que ejecuta core
+  - env-config          # dotenv + process.env, con asserts al arrancar
+  - dockerfile          # multi-stage con contexto en la raíz del monorepo
+  - ci-github           # CI, imágenes dev y release en GitHub Actions
+
+modules:
+  - clients
+  - projects
+  - requirements
+  - objectives
+  - worked-times
+  - unworked-times
+  - week-assigned-times
+  - attachments
+  - opus
+  - auth

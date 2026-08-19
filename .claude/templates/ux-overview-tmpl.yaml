@@ -1,0 +1,218 @@
+template:
+  id: ux-overview
+  name: UX Overview Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/skills/product-ux-generate/SKILL.md
+    - .claude/skills/product-ux-agent/SKILL.md
+
+  description: |
+    Structure specification for the Product Overview document.
+    Generated as the FIRST artifact during /product-ux-generate.
+
+    This is the root document of the UX documentation set. It is the only place
+    where the product is seen as a whole. All audience and surface artifacts
+    reference back to this document.
+
+    The document captures:
+    - Product vision (problem, value proposition)
+    - Inventory of surfaces (1-line each)
+    - Inventory of audiences (1-line each)
+    - Audience ↔ surface matrix (who uses what and for what)
+    - Domain glossary (5-15 key terms)
+
+    CRITICAL RULES:
+    - Audiences are defined by distinct JTBDs, not by physical person
+    - Surface inventory must trace to PRD feature groups or capabilities
+    - Glossary terms come from the PRD (entities, key concepts), not invented
+    - Language MUST match the language of the PRD
+
+# Output specification
+output:
+  path: docs/ux/product-overview.md
+  format: markdown
+  frontmatter:
+    - document: string  # "Product Overview"
+    - version: string   # "1.0"
+    - date: date
+    - status: string    # "Draft - Punto de partida para discusión"
+
+# Section definitions
+sections:
+
+  - id: intro
+    title: Intro (no heading)
+    description: |
+      Opening blockquote that frames the document as the entry point of the UX docs.
+      Must appear immediately after the H1 title. No heading.
+    format: |
+      > Documento raíz del set de UX. Define audiencias, superficies y la relación
+      > entre ellas. Todos los demás artefactos UX referencian acá.
+
+  - id: product-vision
+    title: Visión del Producto
+    description: |
+      Brief description of what the product is and what problem it solves.
+      Maximum 2-3 paragraphs. Extracted from the PRD goals-and-context.md.
+    format: |
+      ## Visión del Producto
+
+      **Problema:** {{problema que resuelve, 1-2 líneas}}
+
+      **Propuesta de valor:** {{cómo lo resuelve y por qué importa, 1-2 líneas}}
+
+    example: |
+      ## Visión del Producto
+
+      **Problema:** Los operadores de depósito procesan pedidos bajo presión de turno y pierden tiempo cambiando entre sistemas inconexos.
+
+      **Propuesta de valor:** Una plataforma única que centraliza pedidos, inventario y comunicación con clientes, optimizada para uso en piso de depósito.
+
+  - id: surfaces-inventory
+    title: Inventario de Superficies
+    description: |
+      List of distinct surfaces that compose the product. Each surface is a
+      coherent area with its own structure and flows.
+
+      One line per surface. The detail lives in `surfaces/{name}/`.
+
+      Each surface MUST declare its **platform** and its **viewports**. This is the single source
+      of truth for both, and the platform decides which viewports even exist:
+
+      | Platform | Viewports posibles | Eje de variación |
+      |---|---|---|
+      | `web` | `mobile` (400×800), `desktop` (1200×800) | el ancho de la ventana |
+      | `mobile-app` | `phone` (390×844), `tablet` (834×1112) | safe areas y escalado de texto; el ancho NO |
+      | `desktop-app` | `desktop` (1200×800) | el ancho de la ventana |
+
+      Primary viewport first — that is where transition arrows get drawn in the wireframes.
+
+      **A `mobile-app` surface cannot declare `desktop`.** No es una decisión de costo/beneficio: una
+      app nativa de teléfono no tiene escritorio, y el generador de wireframes rechaza la combinación.
+      Del mismo modo, una superficie `web` no tiene frames de `phone`/`tablet`: su equivalente
+      angosto es `mobile`.
+
+      **`phone-landscape` no es parte de la oferta canónica.** La mayoría de las apps de teléfono
+      bloquean portrait. Si alguna pantalla puntual rota (video, cámara, un formulario largo), se
+      declara en el set de la superficie y **solo esas pantallas** lo incluyen; el resto se acota a
+      `phone`. La política de orientación se documenta en el `grid.md` del Design System.
+
+      Para `web`, tablet no es viewport: si importa, decir a cuál de los dos se parece.
+
+      Declarar un viewport tiene costo — cada pantalla de la superficie necesita un layout para él —
+      así que declarar el segundo solo cuando hay un caso de uso real.
+
+      Los **valores** (breakpoints en web; safe areas, escalado y clases de tamaño en nativo) viven en
+      el Design System (`docs/design-system/{{surface}}/foundations/grid.md`, que tiene una variante por
+      plataforma); acá solo se nombran plataforma y viewports.
+
+      Cada superficie registra también su **accent color** — el color de sus acciones primarias. Su
+      hogar canónico es `docs/design-system/{{surface}}/foundations/color.md`
+      (`color.brand.primary`), que es de donde lo lee el generador de wireframes; lo que se anota acá
+      es la traza de qué se decidió y por qué (color de marca del cliente, o el default por no haber
+      identidad definida todavía). Si los dos discrepan, **gana el Design System**.
+
+      Cuando el servicio que sirve la superficie ya tiene `manifest.yaml`, la plataforma tiene que ser
+      coherente con su `language` (`flutter` → `mobile-app`, `nextjs` → `web`). Si no coinciden, avisar
+      en vez de elegir en silencio.
+    format: |
+      ## Inventario de Superficies
+
+      - **{{surface-name}}** — {{1-line description: who uses it primarily, what for}}
+        - Platform: `{{web | mobile-app | desktop-app}}`
+        - Viewports: `{{primary}}` (primario){{, `{{secondary}}`}} — {{por qué}}
+        - Accent: `{{#hex}}` — {{origen: color de marca del cliente / default por falta de identidad}}
+
+    example: |
+      ## Inventario de Superficies
+
+      - **app-conductor** — App nativa que usa el conductor durante el viaje
+        - Platform: `mobile-app`
+        - Viewports: `phone` (único) — se usa con el teléfono montado en el tablero, portrait bloqueado. Sin soporte de tablet: no hay caso de uso.
+        - Accent: `#0f766e` — verde de la marca, tomado del manual del cliente.
+      - **app-operador** — Web usada por operadores en piso de depósito para procesar pedidos en tiempo real
+        - Platform: `web`
+        - Viewports: `mobile` (primario), `desktop` — el operador trabaja con el celular en la mano; el desktop se usa en la estación fija de recepción. Tablet: se comporta como desktop.
+      - **dashboard-supervisor** — Dashboard web usado por supervisores para monitorear el turno y resolver bloqueos
+        - Platform: `web`
+        - Viewports: `desktop` (único) — se consulta desde la oficina, con varias tablas en paralelo. No hay caso de uso mobile relevado.
+        - Accent: `#2563eb` — default: el cliente todavía no definió identidad para las superficies internas.
+
+  - id: audiences-inventory
+    title: Inventario de Audiencias
+    description: |
+      List of distinct audiences. CRITICAL: audiences are separated by distinct
+      JTBDs, not by physical person. The same human can belong to multiple
+      audiences if they solve different jobs in each context.
+
+      One line per audience. The detail lives in `audiences/{name}/`.
+    format: |
+      ## Inventario de Audiencias
+
+      - **{{audience-name}}** — {{1-line description: role, primary context, key JTBD focus}}
+
+    example: |
+      ## Inventario de Audiencias
+
+      - **operador-turno** — Empleado de depósito procesando pedidos durante su turno; necesita velocidad y feedback claro
+      - **supervisor-turno** — Responsable de monitoreo del turno; necesita visibilidad agregada y poder actuar sobre excepciones
+      - **admin-sistema** — Configura el sistema (usuarios, productos, reglas); uso esporádico, sesiones largas
+
+  - id: audience-surface-matrix
+    title: Matriz Audiencia ↔ Superficie
+    description: |
+      Table mapping which audience uses which surface and for what purpose.
+
+      Cell content describes the PURPOSE of use, not just "yes/no". If an
+      audience does NOT use a surface, leave cell empty or with "—".
+    format: |
+      ## Matriz Audiencia ↔ Superficie
+
+      | Audiencia \\ Superficie | {{surface-1}} | {{surface-2}} | {{surface-N}} |
+      |-------------------------|---------------|---------------|---------------|
+      | {{audience-1}}          | {{purpose}}   | —             | {{purpose}}   |
+      | {{audience-2}}          | —             | {{purpose}}   | {{purpose}}   |
+
+    example: |
+      ## Matriz Audiencia ↔ Superficie
+
+      | Audiencia \\ Superficie | app-operador | dashboard-supervisor | panel-admin |
+      |-------------------------|--------------|----------------------|-------------|
+      | operador-turno          | Procesa pedidos durante el turno | — | — |
+      | supervisor-turno        | Consulta puntual del estado del piso | Monitoreo continuo del turno | — |
+      | admin-sistema           | — | — | Configuración inicial y mantenimiento |
+
+  - id: domain-glossary
+    title: Glosario de Dominio
+    description: |
+      5 to 15 key domain terms. Extracted from the PRD (entities, capabilities,
+      business rules) and from external references when relevant.
+
+      Each term has a 1-line definition in the language of the product domain.
+      Do NOT invent terms not present in the PRD.
+    format: |
+      ## Glosario de Dominio
+
+      - **{{término}}** — {{definición de 1 línea}}
+
+    example: |
+      ## Glosario de Dominio
+
+      - **Pedido** — Solicitud de productos hecha por un cliente, con líneas de ítems y estado de procesamiento
+      - **Turno** — Período de trabajo continuo de un equipo de operadores (típicamente 8 horas)
+      - **Bloqueo** — Estado de un pedido que no puede avanzar por falta de stock, error de validación o intervención de supervisor pendiente
+      - **Línea de pedido** — Ítem individual dentro de un pedido (producto + cantidad + precio)
+      - **Excepción** — Pedido que requiere intervención humana del supervisor para continuar
+
+  - id: closing
+    title: Closing (no heading)
+    description: |
+      Closing line pointing to the audience and surface artifacts.
+      Must be the last paragraph. No heading.
+    format: |
+      ---
+
+      **Próximos artefactos:** Cada audiencia y superficie listada arriba tiene su documentación detallada en `docs/ux/audiences/{nombre}/` y `docs/ux/surfaces/{nombre}/` respectivamente.

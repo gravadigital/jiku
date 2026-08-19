@@ -1,0 +1,454 @@
+template:
+  id: flow-template
+  name: System Flow Document Template
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/commands/product/design-request.md
+    - .claude/commands/product/create-stories.md
+    - .claude/commands/product/initialize-technical.md
+    - .claude/commands/product/consolidate-services.md
+
+  description: |
+    Structure specification for System Flow documents.
+
+    A flow documents the complete interaction between services for a specific
+    feature or system event. It shows the step-by-step journey of data through
+    the system, including exact endpoint names, field names, and types.
+
+    Flows serve as the cross-service source of truth:
+    - They connect individual API specs into end-to-end journeys
+    - They connect DB schemas to the operations that read/write them
+    - They make implicit cross-service contracts explicit
+
+    There are two types of flows:
+    - **Feature flows**: Document a user-facing feature (e.g., create-order, user-registration)
+    - **Event flows**: Document a system event or user action (e.g., order-status-change, payment-received)
+
+    CRITICAL: Field names and types in flow steps MUST be copied verbatim from
+    the OpenAPI YAML specs (docs/apis/) and DBML schemas (docs/db-schemas/).
+    Never paraphrase or rename fields.
+
+# Output specification
+output:
+  path: docs/flows/{flow-name}.md
+  format: markdown
+  frontmatter:
+    - id: string  # flow identifier (kebab-case)
+    - title: string
+    - type: string  # "feature" | "event"
+    - status: string  # "Draft" | "Active" | "Deprecated"
+    - created: date
+    - last_updated: date
+    - stories: list  # [S-XXX, S-YYY] stories that created or modified this flow
+
+  naming:
+    pattern: "{flow-name}.md"
+    examples:
+      - "create-order.md"
+      - "user-login.md"
+      - "order-status-change.md"
+      - "payment-received.md"
+      - "upload-avatar.md"
+
+# Section definitions
+sections:
+
+  - id: header
+    title: Flow Header
+    description: |
+      Title and metadata for the flow.
+
+    format: |
+      # {Flow Title}
+
+      **Tipo:** {Feature | Evento}
+      **Status:** {Draft | Active | Deprecated}
+      **Creado:** {YYYY-MM-DD}
+      **Última actualización:** {YYYY-MM-DD}
+      **Stories:** {S-XXX, S-YYY}
+
+    example: |
+      # Crear Orden
+
+      **Tipo:** Feature
+      **Status:** Active
+      **Creado:** 2024-01-15
+      **Última actualización:** 2024-02-20
+      **Stories:** S-012, S-025
+
+  - id: description
+    title: Description
+    description: |
+      Brief description of what this flow represents and when it is triggered.
+
+    format: |
+      ## Descripción
+
+      {1-3 sentences describing the flow, its purpose, and when it happens}
+
+    example: |
+      ## Descripción
+
+      Flujo completo de creación de una orden de compra. Se dispara cuando el usuario
+      confirma su carrito de compras. Involucra validación de stock, cálculo de totales,
+      creación del registro en base de datos y notificación al usuario.
+
+  - id: services-involved
+    title: Services Involved
+    description: |
+      Table of all services that participate in this flow and their role.
+
+    format: |
+      ## Servicios Involucrados
+
+      | Servicio | Rol | Tipo de Participación |
+      |----------|-----|-----------------------|
+      | {service-name} | {qué hace en este flujo} | {Iniciador / Procesador / Consumidor / Notificador} |
+
+    example: |
+      ## Servicios Involucrados
+
+      | Servicio | Rol | Tipo de Participación |
+      |----------|-----|-----------------------|
+      | web-app | Envía la solicitud de creación de orden | Iniciador |
+      | api-backend | Valida stock, crea orden, calcula totales | Procesador |
+      | product-service | Provee información de stock y precios | Procesador |
+      | notification-service | Envía email de confirmación | Notificador |
+
+  - id: sequence-diagram
+    title: Sequence Diagram
+    description: |
+      Mermaid sequence diagram showing the complete flow at a glance.
+      Placed at the beginning of the "Pasos del Flujo" section, before the
+      detailed step-by-step documentation.
+
+      The diagram provides a visual overview of the interactions, while the
+      detailed steps below provide the exact field names, types, and references.
+
+    format: |
+      ## Pasos del Flujo
+
+      ```mermaid
+      sequenceDiagram
+          participant {Alias1} as {Service 1}
+          participant {Alias2} as {Service 2}
+          participant {Alias3} as {Service 3}
+
+          {Alias1}->>{Alias2}: {action description}
+          {Alias2}->>{Alias3}: {action description}
+          alt {error condition}
+              {Alias3}-->>{Alias2}: {error response}
+          else {success}
+              {Alias3}-->>{Alias2}: {success response}
+          end
+      ```
+
+    example: |
+      ## Pasos del Flujo
+
+      ```mermaid
+      sequenceDiagram
+          participant WA as web-app
+          participant API as api-backend
+          participant PS as product-service
+          participant DB as orders-db
+          participant NS as notification-service
+
+          WA->>API: POST /api/orders
+          API->>PS: GET /api/products/:id
+          PS-->>API: 200 { id, price, stock }
+          alt stock insuficiente
+              API-->>WA: 409 INSUFFICIENT_STOCK
+          else stock OK
+              API->>DB: INSERT orders + order_items
+              API->>API: publish order.created
+              API-->>WA: 201 { orderId, status }
+              NS->>NS: consume order.created → send email
+          end
+      ```
+
+    guidelines: |
+      - Use short aliases for participants (e.g., WA, API, DB)
+      - Show the happy path as the main flow
+      - Use `alt/else/end` blocks for error paths
+      - Use `loop` blocks for retry/polling patterns
+      - Use `-->>` (dashed) for responses, `->>` (solid) for requests
+      - Include key data in the arrow labels (endpoint, event name)
+      - Keep labels concise — detailed field names go in the step-by-step below
+
+  - id: flow-steps
+    title: Flow Steps (Detailed)
+    description: |
+      Step-by-step sequence of the flow. Each step documents one interaction
+      between two services or one internal operation.
+
+      These detailed steps follow the sequence diagram and provide the exact
+      field names, types, DB operations, and references.
+
+      CRITICAL: All field names and types MUST match exactly what is defined
+      in the OpenAPI YAMLs (docs/apis/) and DBML schemas (docs/db-schemas/).
+      Copy them verbatim, do not paraphrase.
+
+    format: |
+      ### Paso 1: {Descripción breve}
+
+      **Origen:** {service-name}
+      **Destino:** {service-name}
+      **Tipo:** {REST | Evento | Interno}
+
+      **Request:**
+      - **Método:** {GET | POST | PUT | PATCH | DELETE}
+      - **Endpoint:** `{/api/path}`
+      - **Body:**
+        ```json
+        {
+          "field": "type — description"
+        }
+        ```
+
+      **Response (éxito):**
+      - **Status:** {HTTP status code}
+      - **Body:**
+        ```json
+        {
+          "field": "type — description"
+        }
+        ```
+
+      **Operación de BD:** (si aplica)
+      - **Tabla:** `{table_name}`
+      - **Operación:** {INSERT | UPDATE | SELECT | DELETE}
+      - **Campos:** {campos afectados}
+
+      **Evento publicado:** (si aplica)
+      - **Nombre:** `{event.name}`
+      - **Payload:**
+        ```json
+        {
+          "field": "type — description"
+        }
+        ```
+
+      **Ref:** `{docs/apis/service.yaml}` línea {N}, `{docs/db-schemas/db.md}`
+
+      ---
+
+      ### Paso 2: {Descripción breve}
+      ...
+
+    example: |
+      ## Pasos del Flujo
+
+      ### Paso 1: Usuario envía orden
+
+      **Origen:** web-app
+      **Destino:** api-backend
+      **Tipo:** REST
+
+      **Request:**
+      - **Método:** POST
+      - **Endpoint:** `/api/orders`
+      - **Body:**
+        ```json
+        {
+          "userId": "string — ID del usuario autenticado",
+          "items": [
+            {
+              "productId": "string — ID del producto",
+              "quantity": "number — cantidad solicitada"
+            }
+          ]
+        }
+        ```
+
+      **Ref:** `docs/apis/api-backend.yaml` endpoint POST /api/orders
+
+      ---
+
+      ### Paso 2: Validar stock de productos
+
+      **Origen:** api-backend
+      **Destino:** product-service
+      **Tipo:** REST
+
+      **Request:**
+      - **Método:** GET
+      - **Endpoint:** `/api/products/{productId}`
+
+      **Response (éxito):**
+      - **Status:** 200
+      - **Body:**
+        ```json
+        {
+          "id": "string",
+          "name": "string",
+          "price": "number — precio unitario",
+          "stock": "number — stock disponible"
+        }
+        ```
+
+      **Ref:** `docs/apis/product-service.yaml` endpoint GET /api/products/:id
+
+      ---
+
+      ### Paso 3: Crear orden en base de datos
+
+      **Origen:** api-backend
+      **Destino:** (interno)
+      **Tipo:** Interno
+
+      **Operación de BD:**
+      - **Tabla:** `orders`
+      - **Operación:** INSERT
+      - **Campos:** id, user_id, status ("pending"), total_amount, created_at
+
+      **Operación de BD:**
+      - **Tabla:** `order_items`
+      - **Operación:** INSERT (por cada item)
+      - **Campos:** id, order_id, product_id, quantity, unit_price
+
+      **Ref:** `docs/db-schemas/orders-db.md`
+
+      ---
+
+      ### Paso 4: Publicar evento de orden creada
+
+      **Origen:** api-backend
+      **Destino:** (event bus)
+      **Tipo:** Evento
+
+      **Evento publicado:**
+      - **Nombre:** `order.created`
+      - **Payload:**
+        ```json
+        {
+          "orderId": "string",
+          "userId": "string",
+          "totalAmount": "number",
+          "itemCount": "number"
+        }
+        ```
+
+      ---
+
+      ### Paso 5: Enviar notificación
+
+      **Origen:** notification-service
+      **Destino:** (externo — email)
+      **Tipo:** Evento (consumidor)
+
+      **Evento consumido:** `order.created`
+
+      **Acción:** Envía email de confirmación al usuario con detalle de la orden.
+
+      ---
+
+      ### Paso 6: Respuesta al cliente
+
+      **Origen:** api-backend
+      **Destino:** web-app
+      **Tipo:** REST (response del Paso 1)
+
+      **Response (éxito):**
+      - **Status:** 201
+      - **Body:**
+        ```json
+        {
+          "orderId": "string",
+          "status": "string — 'pending'",
+          "totalAmount": "number",
+          "items": [
+            {
+              "productId": "string",
+              "quantity": "number",
+              "unitPrice": "number"
+            }
+          ]
+        }
+        ```
+
+  - id: error-handling
+    title: Error Handling
+    description: |
+      Error scenarios for each step, including error codes, responses,
+      and how the calling service should handle them.
+
+    format: |
+      ## Manejo de Errores
+
+      | Paso | Error | Código | Response | Comportamiento |
+      |------|-------|--------|----------|---------------|
+      | {N} | {descripción del error} | {HTTP status o error code} | {response body} | {qué hace el servicio que llamó} |
+
+    example: |
+      ## Manejo de Errores
+
+      | Paso | Error | Código | Response | Comportamiento |
+      |------|-------|--------|----------|---------------|
+      | 1 | Usuario no autenticado | 401 | `{ "code": "UNAUTHORIZED" }` | web-app redirige a login |
+      | 2 | Producto no encontrado | 404 | `{ "code": "PRODUCT_NOT_FOUND" }` | api-backend retorna 400 al cliente con detalle |
+      | 2 | Stock insuficiente | 409 | `{ "code": "INSUFFICIENT_STOCK", "available": N }` | api-backend retorna 409 al cliente |
+      | 3 | Error de BD | 500 | `{ "code": "INTERNAL_ERROR" }` | api-backend retorna 500, no publica evento |
+      | 5 | Error enviando email | — | — | notification-service reintenta 3 veces, luego loguea error (no afecta al usuario) |
+
+  - id: outcome
+    title: Outcome
+    description: |
+      Final result observable by the user or the system after the flow completes.
+
+    format: |
+      ## Resultado
+
+      **Éxito:** {qué observa el usuario o el sistema cuando el flujo completa exitosamente}
+
+      **Estado final:**
+      - {Entidad}: {estado} (ej: Orden → status: "pending")
+      - {Servicio}: {acción completada}
+
+    example: |
+      ## Resultado
+
+      **Éxito:** El usuario ve una pantalla de confirmación con el número de orden y el detalle de los productos. Recibe un email de confirmación.
+
+      **Estado final:**
+      - Orden: status "pending" en tabla `orders`
+      - Items: registrados en tabla `order_items`
+      - Evento `order.created` publicado y procesado
+      - Email de confirmación enviado
+
+  - id: notes
+    title: Notes
+    description: |
+      Technical notes, considerations, and non-obvious details about this flow.
+      Optional section — only include if there are relevant notes.
+
+    format: |
+      ## Notas
+
+      - {Nota técnica relevante}
+
+    example: |
+      ## Notas
+
+      - La validación de stock no reserva el producto (no hay lock). En caso de compra
+        concurrente, el último INSERT puede fallar por constraint de stock
+      - El cálculo de totalAmount se hace en api-backend usando el precio obtenido de
+        product-service, no el precio que envía el frontend (seguridad)
+      - El evento order.created es fire-and-forget: si notification-service está caído,
+        la orden se crea igual
+
+# Status lifecycle
+status_lifecycle: |
+  Flow documents progress through statuses:
+
+  1. **Draft** - Flow is being defined (during design-request or create-stories)
+  2. **Active** - Flow is implemented and reflects current system behavior
+  3. **Deprecated** - Flow is no longer active (replaced or removed)
+
+  Flows are updated when:
+  - A new story modifies the flow (update steps, add/remove interactions)
+  - implement-story completes and the implementation changed the flow
+  - change-technical-definition modifies related APIs or schemas
