@@ -1,11 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { getPreviewUrl } from '@/features/attachments/services/attachmentsClientApi';
+import {
+  getFilePreviewUrl,
+  getPreviewUrl,
+} from '@/features/attachments/services/attachmentsClientApi';
 import styles from './AttachmentPreview.module.scss';
+import type { AttachmentResource } from '@/features/attachments/types/attachment.types';
 
 interface AttachmentPreviewProps {
   attachmentId: number;
+  /**
+   * Espacio de identificadores de `attachmentId`. `file` resuelve el preview
+   * por `/api/files/{id}/preview`, que es el camino de un archivo todavía sin
+   * vínculo.
+   */
+  resource?: AttachmentResource;
   fileName: string;
   mimeType: string;
   fileSize?: number;
@@ -19,13 +29,15 @@ function formatFileSize(bytes: number): string {
 
 export function AttachmentPreview({
   attachmentId,
+  resource = 'attachment',
   fileName,
   mimeType,
   fileSize,
   onRemove,
 }: AttachmentPreviewProps) {
   const [failed, setFailed] = useState(false);
-  const previewUrl = getPreviewUrl(attachmentId);
+  const previewUrl =
+    resource === 'file' ? getFilePreviewUrl(attachmentId) : getPreviewUrl(attachmentId);
   const isPdf = mimeType === 'application/pdf';
   const displayName = fileName || 'Archivo adjunto';
   const sizeLabel = fileSize !== undefined ? formatFileSize(fileSize) : null;
@@ -45,7 +57,7 @@ export function AttachmentPreview({
       );
     }
     if (failed) {
-      return <span className={styles.fallback}>archivo no disponible</span>;
+      return <span className={styles.fallback}>El archivo no está disponible</span>;
     }
     return (
       // eslint-disable-next-line @next/next/no-img-element

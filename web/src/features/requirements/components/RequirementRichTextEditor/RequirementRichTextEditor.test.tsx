@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { fireEvent, render, screen, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { uploadAttachments } from '@/features/attachments/services/attachmentsClientApi';
+import { uploadFile } from '@/features/attachments/services/attachmentsClientApi';
 import {
   RequirementRichTextEditor,
   type RequirementRichTextEditorHandle,
@@ -15,8 +15,9 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
 }));
 vi.mock('@/features/attachments/services/attachmentsClientApi', () => ({
-  uploadAttachments: vi.fn(),
+  uploadFile: vi.fn(),
   getPreviewUrl: (id: number) => `/api/attachments/${id}/preview`,
+  getFilePreviewUrl: (id: number) => `/api/files/${id}/preview`,
   getDownloadUrl: (id: number) => `/api/attachments/${id}/download`,
 }));
 vi.mock('@/features/attachments/utils/fileValidation', () => ({
@@ -99,58 +100,51 @@ describe('RequirementRichTextEditor', () => {
     expect(btn).toHaveAttribute('type', 'button');
   });
 
-  it('por defecto sube con entityType requirement_draft y entityId null', async () => {
-    vi.mocked(uploadAttachments).mockResolvedValue([
-      {
-        id: 1,
-        entityType: 'requirement_draft',
-        entityId: 0,
-        fileName: 'foto.png',
-        fileSize: 100,
-        mimeType: 'image/png',
-        storageKey: '',
-        uploadedBy: '',
-        description: null,
-        createdAt: '',
-        uploader: { id: '', name: '', email: '' },
-      },
-    ]);
-    renderEditor();
+  it('sube con uploadFile y emite un placeholder [file:N] con el fileId', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(1234);
+    const onChange = vi.fn();
+    render(<Harness onReady={() => {}} onChange={onChange} />);
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(uploadAttachments).toHaveBeenCalledWith('requirement_draft', null, [file]);
+      expect(uploadFile).toHaveBeenCalledTimes(1);
     });
+    expect(vi.mocked(uploadFile).mock.calls[0][0]).toBe(file);
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(expect.stringContaining('![file:1234]'));
+    });
+    // No usa el espacio de ids de vinculos para un archivo sin vincular.
+    expect(onChange).not.toHaveBeenCalledWith(expect.stringContaining('attach:1234'));
   });
 
-  it('con entityType/entityId parametrizados, sube con esos valores', async () => {
-    vi.mocked(uploadAttachments).mockResolvedValue([
-      {
-        id: 1,
-        entityType: 'comment_draft',
-        entityId: 12,
-        fileName: 'foto.png',
-        fileSize: 100,
-        mimeType: 'image/png',
-        storageKey: '',
-        uploadedBy: '',
-        description: null,
-        createdAt: '',
-        uploader: { id: '', name: '', email: '' },
-      },
-    ]);
-    let captured: RequirementRichTextEditorHandle | null = null;
+  it('un archivo que no es imagen emite [file:N] sin el bang', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(99);
+    const onChange = vi.fn();
+    render(<Harness onReady={() => {}} onChange={onChange} />);
+    const file = new File(['contenido'], 'informe.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(expect.stringContaining('[file:99]'));
+    });
+    expect(onChange).not.toHaveBeenCalledWith(expect.stringContaining('![file:99]'));
+  });
+
+  it('avisa que hay una subida en curso y cuando termina', async () => {
+    let resolveUpload: (id: number) => void = () => {};
+    vi.mocked(uploadFile).mockImplementation(
+      () => new Promise<number>((resolve) => {
+        resolveUpload = resolve;
+      })
+    );
+    const onUploadingChange = vi.fn();
     render(
-      <RequirementRichTextEditor
-        ref={(h) => {
-          captured = h;
-        }}
-        entityType="comment_draft"
-        entityId={12}
-      />
+      <RequirementRichTextEditor onUploadingChange={onUploadingChange} />
     );
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -158,8 +152,32 @@ describe('RequirementRichTextEditor', () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(uploadAttachments).toHaveBeenCalledWith('comment_draft', 12, [file]);
+      expect(onUploadingChange).toHaveBeenCalledWith(true);
     });
-    expect(captured).not.toBeNull();
+
+    await act(async () => {
+      resolveUpload(7);
+    });
+
+    await waitFor(() => {
+      expect(onUploadingChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  it('reporta el progreso real del archivo en curso', async () => {
+    vi.mocked(uploadFile).mockImplementation(async (_file, options) => {
+      options?.onProgress?.(42);
+      return 1;
+    });
+    const onUploadProgress = vi.fn();
+    render(<RequirementRichTextEditor onUploadProgress={onUploadProgress} />);
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(onUploadProgress).toHaveBeenCalledWith(42, 'foto.png');
+    });
   });
 });

@@ -64,3 +64,14 @@
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+.itemUnavailable {
+  border-color: var(--color-button-delete);
+}
+
+/* El estado se comunica con TEXTO, no solo con color (WCAG 2.2 AA). */
+.unavailable {
+  margin-top: var(--spacing-xs);
+  color: var(--color-button-delete);
+  font-size: 0.75rem;
+}

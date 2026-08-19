@@ -35,22 +35,29 @@ Dos consecuencias que importan al operar:
 - **`API_URL` es una variable de servidor, no `NEXT_PUBLIC_*`.** Se lee en runtime, así que la
   misma imagen sirve para cualquier entorno sin rebuild. En producción apunta a la red interna
   de Docker (`http://api:3000/`), que el navegador no puede alcanzar — y no necesita.
-- **No hay CORS entre navegador y api.** Todo el tráfico de datos sale del proceso de Next.js.
+- **No hay CORS entre navegador y api.** Todo el tráfico de **datos** sale del proceso de Next.js.
+  La excepción es el **byte de un archivo**, que desde REQ-001 va del navegador directo al storage
+  S3 con una URL prefirmada (y por eso el bucket sí necesita CORS, no la api).
 
 ### Cuándo se rompe la regla, y por qué
 
-Hay cuatro cosas que el navegador sí tiene que iniciar, y para eso existe el **BFF** en
+Hay tres cosas que el navegador sí tiene que iniciar, y para eso existe el **BFF** en
 `src/app/api/`: son operaciones que el servidor no puede hacer *por* el cliente.
 
 | Handler | Por qué no puede ser Server Action |
 |---|---|
-| `POST /api/attachments` | El upload necesita progreso incremental. Se hace con `XMLHttpRequest` desde el cliente y el handler reenvía el body como stream (`duplex: 'half'`) |
-| `GET /api/attachments/[id]/download` | El navegador tiene que recibir el archivo, y no puede mandar el `Authorization` |
-| `GET /api/attachments/[id]/preview` | Igual que download: la URL va en un `src`/`href` |
+| `GET`/`HEAD` `/api/attachments/[id]/download` | El navegador tiene que recibir el archivo, y no puede mandar el `Authorization` |
+| `GET`/`HEAD` `/api/attachments/[id]/preview` | Igual que download: la URL va en un `src`/`href` |
 | `PATCH /api/requirements/[reqid]` | Update optimista de TanStack Query: necesita rollback en el cliente ante error |
 
-Los cuatro repiten el mismo preámbulo: `decodedToken()`, y `401 {"error":"Unauthorized"}` si no
+Los tres repiten el mismo preámbulo: `decodedToken()`, y `401 {"error":"Unauthorized"}` si no
 hay `accessToken`. Detalle en [`conventions/api-routes.md`](./conventions/api-routes.md).
+
+> **`POST /api/attachments` existía y se eliminó (REQ-001, S-006).** Su única justificación era el
+> progreso incremental de la subida (`XMLHttpRequest` + `duplex: 'half'`). Con el byte viajando
+> directo a S3 el navegador tiene ese progreso sin que nada atraviese el BFF, y el handler perdió
+> su razón de ser. **Ningún binario atraviesa el proceso de Next**, ni subiendo ni bajando: los dos
+> handlers de lectura que quedan propagan el **302** de la api en vez de proxear el stream.
 
 ## Responsabilidades
 
@@ -74,7 +81,7 @@ la autoridad está en `api` y `core`. Ver "Reglas replicadas" más abajo.
 
 ```
 web/
-├── next.config.js              standalone, sassOptions, bodySizeLimit 10mb
+├── next.config.js              standalone, sassOptions
 ├── vitest.config.mts           jsdom, TZ=UTC, alias @/ @root/ @public/
 ├── Dockerfile                  multi-stage; contexto = raíz del monorepo
 ├── tests/setup.ts              jest-dom + polyfills (ResizeObserver, HTMLDialogElement)

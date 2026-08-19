@@ -5,6 +5,7 @@ import { AttachmentPlaceholder } from '@/features/attachments/components/Markdow
 import { AttachmentPreview } from '../AttachmentPreview/AttachmentPreview';
 import { AttachmentSkeleton } from '../AttachmentSkeleton/AttachmentSkeleton';
 import styles from './RichTextEditor.module.scss';
+import type { AttachmentResource } from '@/features/attachments/types/attachment.types';
 
 function autoResize(el: HTMLTextAreaElement | null) {
   if (!el) return;
@@ -17,6 +18,11 @@ export interface AttachmentMeta {
   fileName: string;
   mimeType: string;
   fileSize?: number;
+  /**
+   * Espacio de identificadores de `id`. `attachment` (default) es un vínculo
+   * ya guardado; `file` es un archivo recién subido, sin vínculo todavía.
+   */
+  resource?: AttachmentResource;
 }
 
 interface RichTextEditorProps {
@@ -31,12 +37,29 @@ interface RichTextEditorProps {
 
 type EditorSegment =
   | { type: 'text'; value: string }
-  | { type: 'attachment'; id: number; fileName: string; mimeType: string; fileSize?: number };
+  | {
+      type: 'attachment';
+      id: number;
+      resource: AttachmentResource;
+      fileName: string;
+      mimeType: string;
+      fileSize?: number;
+    };
 
-const PLACEHOLDER_REGEX = /(!?\[attach:(\d+)\])/g;
+/**
+ * Dos prefijos, dos espacios de identificadores: `attach:N` es id de vínculo
+ * (markdown ya guardado) y `file:N` es id de `files` (archivo recién subido,
+ * todavía sin vincular). No se pueden mezclar: resolver uno contra la ruta del
+ * otro daría un 404 o el preview de otro adjunto.
+ */
+const PLACEHOLDER_REGEX = /(!?\[(attach|file):(\d+)\])/g;
+
+function metaKey(resource: AttachmentResource, id: number): string {
+  return `${resource}:${id}`;
+}
 
 function parseToSegments(content: string, meta: AttachmentMeta[]): EditorSegment[] {
-  const metaMap = new Map(meta.map((m) => [m.id, m]));
+  const metaMap = new Map(meta.map((m) => [metaKey(m.resource ?? 'attachment', m.id), m]));
   const segments: EditorSegment[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -45,11 +68,13 @@ function parseToSegments(content: string, meta: AttachmentMeta[]): EditorSegment
   while ((match = PLACEHOLDER_REGEX.exec(content)) !== null) {
     segments.push({ type: 'text', value: content.slice(lastIndex, match.index) });
     const isImage = match[1].startsWith('!');
-    const id = parseInt(match[2], 10);
-    const m = metaMap.get(id);
+    const resource: AttachmentResource = match[2] === 'file' ? 'file' : 'attachment';
+    const id = parseInt(match[3], 10);
+    const m = metaMap.get(metaKey(resource, id));
     segments.push({
       type: 'attachment',
       id,
+      resource,
       fileName: m?.fileName ?? '',
       mimeType: m?.mimeType ?? (isImage ? 'image/jpeg' : 'application/octet-stream'),
       fileSize: m?.fileSize,
@@ -64,7 +89,8 @@ function serializeSegments(segments: EditorSegment[]): string {
   return segments
     .map((s) => {
       if (s.type === 'text') return s.value;
-      return s.mimeType.startsWith('image/') ? `![attach:${s.id}]` : `[attach:${s.id}]`;
+      const prefix = s.resource === 'file' ? 'file' : 'attach';
+      return s.mimeType.startsWith('image/') ? `![${prefix}:${s.id}]` : `[${prefix}:${s.id}]`;
     })
     .join('');
 }
@@ -105,8 +131,10 @@ export function RichTextEditor({
   );
 
   const handleRemove = useCallback(
-    (id: number) => {
-      const filtered = segments.filter((s) => !(s.type === 'attachment' && s.id === id));
+    (id: number, resource: AttachmentResource) => {
+      const filtered = segments.filter(
+        (s) => !(s.type === 'attachment' && s.id === id && s.resource === resource)
+      );
       const merged: EditorSegment[] = [];
       for (const seg of filtered) {
         const prev = merged[merged.length - 1];
@@ -150,20 +178,22 @@ export function RichTextEditor({
 
         const isImage = segment.mimeType.startsWith('image/');
         return (
-          <div key={`att-${segment.id}`} className={styles.attachmentNode}>
+          <div key={`att-${segment.resource}-${segment.id}`} className={styles.attachmentNode}>
             {isImage ? (
               <AttachmentPreview
                 attachmentId={segment.id}
+                resource={segment.resource}
                 fileName={segment.fileName}
                 mimeType={segment.mimeType}
                 fileSize={segment.fileSize}
-                onRemove={() => handleRemove(segment.id)}
+                onRemove={() => handleRemove(segment.id, segment.resource)}
               />
             ) : (
               <AttachmentPlaceholder
                 attachmentId={segment.id}
+                resource={segment.resource}
                 fileName={segment.fileName}
-                onRemove={() => handleRemove(segment.id)}
+                onRemove={() => handleRemove(segment.id, segment.resource)}
               />
             )}
           </div>

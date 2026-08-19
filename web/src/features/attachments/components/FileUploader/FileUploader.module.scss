@@ -58,12 +58,6 @@
   font-weight: 500;
 }
 
-.subText {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-text-light);
-}
-
 .progressContainer {
   display: flex;
   flex-direction: column;
@@ -108,4 +102,25 @@
   color: var(--color-button-delete);
   font-size: 0.875rem;
   border: 1px solid var(--color-button-delete);
+}
+
+.errorLine {
+  margin: 0;
+}
+
+.retryButton {
+  margin-top: var(--spacing-xs);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-button-delete);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-button);
+    outline-offset: 2px;
+  }
 }

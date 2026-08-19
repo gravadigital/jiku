@@ -4,7 +4,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { uploadAttachments } from '@/features/attachments/services/attachmentsClientApi';
+import { uploadFile } from '@/features/attachments/services/attachmentsClientApi';
 import * as useAddRequirementActivityModule from '../../hooks/useAddRequirementActivity';
 import { RequirementActivityForm } from './RequirementActivityForm';
 
@@ -29,8 +29,9 @@ vi.mock('../../hooks/useAddRequirementActivity', () => ({
 }));
 
 vi.mock('@/features/attachments/services/attachmentsClientApi', () => ({
-  uploadAttachments: vi.fn(),
+  uploadFile: vi.fn(),
   getPreviewUrl: (id: number) => `/api/attachments/${id}/preview`,
+  getFilePreviewUrl: (id: number) => `/api/files/${id}/preview`,
   getDownloadUrl: (id: number) => `/api/attachments/${id}/download`,
 }));
 
@@ -156,7 +157,8 @@ describe('RequirementActivityForm', () => {
   });
 
   // AC-4/AC-6 — upload de dos fases
-  it('TS-7 (AC-6): archivo de más de 10MB muestra error inline y no sube', () => {
+  it('CA-12: un archivo grande ya no se rechaza en el cliente — la política vive en core', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(99);
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
     const bigFile = new File([new Uint8Array(11 * 1024 * 1024)], 'grande.png', {
       type: 'image/png',
@@ -164,62 +166,39 @@ describe('RequirementActivityForm', () => {
 
     fireEvent.change(getFileInput(), { target: { files: [bigFile] } });
 
-    expect(screen.getByText(/muy grande/i)).toBeInTheDocument();
-    expect(uploadAttachments).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(uploadFile).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText(/muy grande/i)).not.toBeInTheDocument();
   });
 
-  it('TS-8 (AC-6): extensión no permitida muestra error inline y no sube', () => {
+  it('CA-12: el rechazo por tipo lo dice el servidor, no el cliente', async () => {
+    vi.mocked(uploadFile).mockRejectedValue(new Error('Ese tipo de archivo no está permitido'));
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
     const badFile = new File(['contenido'], 'virus.exe', { type: 'application/octet-stream' });
 
     fireEvent.change(getFileInput(), { target: { files: [badFile] } });
 
-    expect(screen.getByText(/no permitido/i)).toBeInTheDocument();
-    expect(uploadAttachments).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Ese tipo de archivo no está permitido');
+    });
   });
 
-  it('S-095/TS-1: archivo válido dispara upload con entityType requirement_comment_draft y entityId=reqid', async () => {
-    vi.mocked(uploadAttachments).mockResolvedValue([
-      {
-        id: 99,
-        entityType: 'requirement_comment_draft',
-        entityId: 5,
-        fileName: 'imagen.png',
-        fileSize: 100,
-        mimeType: 'image/png',
-        storageKey: '',
-        uploadedBy: '',
-        description: null,
-        createdAt: '',
-        uploader: { id: '', name: '', email: '' },
-      },
-    ]);
+  it('CA-1: un archivo válido sube con uploadFile, sin mencionar ninguna entidad', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(99);
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
     const goodFile = new File(['contenido'], 'imagen.png', { type: 'image/png' });
 
     fireEvent.change(getFileInput(), { target: { files: [goodFile] } });
 
     await waitFor(() => {
-      expect(uploadAttachments).toHaveBeenCalledWith('requirement_comment_draft', 5, [goodFile]);
+      expect(uploadFile).toHaveBeenCalledTimes(1);
     });
+    expect(vi.mocked(uploadFile).mock.calls[0][0]).toBe(goodFile);
   });
 
   it('AC-4: tras upload exitoso de imagen, inserta el chip de adjunto en el comentario', async () => {
-    vi.mocked(uploadAttachments).mockResolvedValue([
-      {
-        id: 99,
-        entityType: 'requirement_comment_draft',
-        entityId: 5,
-        fileName: 'imagen.png',
-        fileSize: 100,
-        mimeType: 'image/png',
-        storageKey: '',
-        uploadedBy: '',
-        description: null,
-        createdAt: '',
-        uploader: { id: '', name: '', email: '' },
-      },
-    ]);
+    vi.mocked(uploadFile).mockResolvedValue(99);
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
     const goodFile = new File(['contenido'], 'imagen.png', { type: 'image/png' });
 
@@ -230,23 +209,9 @@ describe('RequirementActivityForm', () => {
     });
   });
 
-  // S-095/TS-2 (también cubre TS-6 (AC-4) de S-061): envío con attachmentIds tras un upload confirmado
-  it('S-095/TS-2 (AC-4): envía el comentario con attachmentIds extraídos de los placeholders', async () => {
-    vi.mocked(uploadAttachments).mockResolvedValue([
-      {
-        id: 100,
-        entityType: 'requirement_comment_draft',
-        entityId: 5,
-        fileName: 'doc.pdf',
-        fileSize: 100,
-        mimeType: 'application/pdf',
-        storageKey: '',
-        uploadedBy: '',
-        description: null,
-        createdAt: '',
-        uploader: { id: '', name: '', email: '' },
-      },
-    ]);
+  // TS-20: el payload lleva fileIds, extraidos de los placeholders [file:N]
+  it('TS-20 (CA-5): envía el comentario con fileIds, sin attachmentIds', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(100);
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
 
     await act(async () => {
@@ -266,16 +231,64 @@ describe('RequirementActivityForm', () => {
     fireEvent.click(screen.getByTestId('submit-button'));
 
     expect(mockAddActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ attachmentIds: [100] }),
+      expect.objectContaining({ fileIds: [100] }),
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
     );
+    const payload = mockAddActivity.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('attachmentIds');
+    expect(payload).not.toHaveProperty('attachmentScope');
   });
 
-  // TS-9 (AC-4): error invalid_attachment_id no limpia el editor
-  it('TS-9 (AC-4): attachmentId inválido muestra toast de error y conserva el texto', async () => {
+  it('TS-24 (CA-9): el error de titularidad se muestra como permisos', async () => {
     const { toast } = await import('react-toastify');
     mockAddActivity.mockImplementation((_vars: any, options: any) => {
-      options?.onError?.({ code: 'invalid_attachment_id', message: 'Adjunto inválido' });
+      options?.onError?.({ code: 'file_not_owned', status: 403, message: 'File not owned' });
+    });
+    render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
+
+    fireEvent.change(getTextarea(), { target: { value: 'Hola' } });
+    fireEvent.click(screen.getByTestId('submit-button'));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'No podés adjuntar un archivo que subió otra persona'
+    );
+    expect(toast.error).not.toHaveBeenCalledWith('File not owned');
+  });
+
+  it('TS-39 (CA-14): enviar está bloqueado mientras el byte viaja', async () => {
+    vi.mocked(uploadFile).mockImplementation((_file, options) => {
+      options?.onProgress?.(40);
+      return new Promise(() => {});
+    });
+    render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
+
+    fireEvent.change(getTextarea(), { target: { value: 'Hola' } });
+    fireEvent.change(getFileInput(), {
+      target: { files: [new File(['x'], 'doc.pdf', { type: 'application/pdf' })] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('submit-button')).toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
+    const bar = screen.getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '40');
+    expect(screen.getByText('Subiendo doc.pdf... 40%')).toBeInTheDocument();
+    expect(screen.getByTestId('submit-button')).toHaveAttribute('aria-describedby');
+  });
+
+  it('TS-41 (CA-1): sin subida no hay barra de progreso ni texto "Subiendo"', () => {
+    render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
+
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByText(/Subiendo/)).not.toBeInTheDocument();
+  });
+
+  // El error de dominio no limpia el editor: el usuario puede reintentar tal cual
+  it('un error del guardado muestra el toast y conserva el texto', async () => {
+    const { toast } = await import('react-toastify');
+    mockAddActivity.mockImplementation((_vars: any, options: any) => {
+      options?.onError?.({ code: 'invalid_fields', message: 'Adjunto inválido' });
     });
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
 

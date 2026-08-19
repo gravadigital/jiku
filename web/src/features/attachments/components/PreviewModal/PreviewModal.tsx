@@ -21,21 +21,56 @@ export function PreviewModal({ attachment, onClose }: PreviewModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const previewType = getPreviewType(attachment.mimeType);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [fetchStatus, setFetchStatus] = useState<'loading' | 'forbidden' | 'error' | 'ready'>(
-    'loading'
-  );
+  const [fetchStatus, setFetchStatus] = useState<
+    'loading' | 'forbidden' | 'unavailable' | 'error' | 'ready'
+  >('loading');
 
   useEffect(() => {
-    if (previewType !== 'image') {
+    if (previewType === 'unsupported') {
       setFetchStatus('ready');
       return;
     }
+
+    // El PDF no se materializa en el cliente: solo se comprueba que el archivo
+    // esté disponible, para mostrar un mensaje entendible en vez de un iframe
+    // roto cuando el byte nunca llegó al storage.
+    if (previewType === 'pdf') {
+      let cancelled = false;
+      setFetchStatus('loading');
+      fetch(getPreviewUrl(attachment.id), { method: 'HEAD' })
+        .then((res) => {
+          if (cancelled) return;
+          if (res.status === 403) {
+            setFetchStatus('forbidden');
+            return;
+          }
+          if (res.status === 404) {
+            setFetchStatus('unavailable');
+            return;
+          }
+          if (!res.ok) throw new Error();
+          setFetchStatus('ready');
+        })
+        .catch(() => {
+          if (!cancelled) setFetchStatus('error');
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     let objectUrl: string;
     setFetchStatus('loading');
     fetch(getPreviewUrl(attachment.id))
       .then((res) => {
         if (res.status === 403) {
           setFetchStatus('forbidden');
+          return null;
+        }
+        // El archivo existe como vínculo pero su byte nunca llegó (D-13): el
+        // usuario tiene que ver un mensaje, no un preview roto.
+        if (res.status === 404) {
+          setFetchStatus('unavailable');
           return null;
         }
         if (!res.ok) throw new Error();
@@ -108,11 +143,27 @@ export function PreviewModal({ attachment, onClose }: PreviewModalProps) {
           {previewType === 'image' && fetchStatus === 'error' && (
             <p className={styles.unsupportedMessage}>Error al cargar la vista previa</p>
           )}
+          {fetchStatus === 'unavailable' && (
+            <p className={styles.unsupportedMessage} role="alert">
+              El archivo no está disponible
+            </p>
+          )}
           {previewType === 'image' && fetchStatus === 'ready' && blobUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={blobUrl} alt={attachment.fileName} className={styles.image} />
           )}
-          {previewType === 'pdf' && (
+          {previewType === 'pdf' && fetchStatus === 'loading' && (
+            <p className={styles.unsupportedMessage}>Cargando vista previa...</p>
+          )}
+          {previewType === 'pdf' && fetchStatus === 'forbidden' && (
+            <p className={styles.unsupportedMessage}>
+              No tenés permisos para visualizar este archivo
+            </p>
+          )}
+          {previewType === 'pdf' && fetchStatus === 'error' && (
+            <p className={styles.unsupportedMessage}>Error al cargar la vista previa</p>
+          )}
+          {previewType === 'pdf' && fetchStatus === 'ready' && (
             <iframe
               src={getPreviewUrl(attachment.id)}
               className={styles.pdfFrame}

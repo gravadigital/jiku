@@ -2,6 +2,7 @@ import React, { forwardRef, useImperativeHandle } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useAttachments } from '@/features/attachments/hooks/useAttachments';
 import * as usePersonsModule from '@/features/auth/hooks/usePersons';
 import * as useRequirementTagSuggestionsModule from '../../hooks/useRequirementTagSuggestions';
 import * as useUpdateRequirementModule from '../../hooks/useUpdateRequirement';
@@ -21,6 +22,15 @@ vi.mock('next-auth/react', () => ({
 }));
 
 vi.mock('../../hooks/useUpdateRequirement');
+vi.mock('@/features/attachments/hooks/useAttachments', () => ({
+  useAttachments: vi.fn(() => ({ data: [] })),
+}));
+vi.mock('@/features/attachments/services/attachmentsApi', () => ({
+  deleteAttachment: vi.fn(),
+  listAttachments: vi.fn(() => Promise.resolve([])),
+  getAttachmentById: vi.fn(),
+  requestUploadTicket: vi.fn(),
+}));
 vi.mock('@/features/auth/hooks/usePersons');
 vi.mock('../../hooks/useRequirementTagSuggestions');
 
@@ -88,6 +98,8 @@ function createWrapper() {
 describe('EditRequirementForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(useAttachments).mockReturnValue({ data: [] } as never);
 
     vi.mocked(useUpdateRequirementModule.useUpdateRequirement).mockReturnValue({
       mutate: mockMutate,
@@ -473,62 +485,117 @@ describe('EditRequirementForm', () => {
     });
   });
 
-  // Fix drafts huérfanos + eliminación explícita: attachmentIds representa el
-  // conjunto COMPLETO de ids vigentes en el texto — el backend deduce el diff
-  // (confirma los nuevos, soft-elimina los que ya no están).
-  it('guardar sin tocar la descripción envía attachmentIds vacío', async () => {
+  // `fileIds` conserva la semántica de conjunto COMPLETO que tenía
+  // `attachmentIds`: son todos los archivos que deben quedar vinculados tras
+  // este guardado, y el backend deduce el diff.
+  it('TS-19 (CA-5): guardar sin tocar la descripción envía fileIds vacío, sin attachmentIds', async () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ payload: expect.objectContaining({ attachmentIds: [] }) }),
+        expect.objectContaining({ payload: expect.objectContaining({ fileIds: [] }) }),
         expect.anything()
       );
     });
+    const { payload } = mockMutate.mock.calls[0][0] as { payload: Record<string, unknown> };
+    expect(payload).not.toHaveProperty('attachmentIds');
+    expect(payload).not.toHaveProperty('attachmentScope');
   });
 
-  it('guardar con un adjunto agregado durante la edición envía todos los ids vigentes (viejo + nuevo)', async () => {
-    const requirementWithAttachment = {
-      ...mockRequirement,
-      description: 'Descripción inicial ![attach:5]',
-    };
-    render(<EditRequirementForm requirement={requirementWithAttachment} />, {
-      wrapper: createWrapper(),
-    });
+  it('TS-19 (CA-5): un archivo recién subido viaja por su fileId, no por el id del vínculo', async () => {
+    render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
 
     fireEvent.change(screen.getByLabelText(/^contexto/i), {
-      target: { value: 'Descripción inicial ![attach:5] y nuevo [attach:9]' },
+      target: { value: 'Descripción con ![file:1234]' },
     });
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ payload: expect.objectContaining({ attachmentIds: [5, 9] }) }),
+        expect.objectContaining({ payload: expect.objectContaining({ fileIds: [1234] }) }),
         expect.anything()
       );
     });
   });
 
-  it('guardar tras eliminar un adjunto del texto ya no incluye su id en attachmentIds', async () => {
-    const requirementWithAttachment = {
-      ...mockRequirement,
-      description: 'Descripción inicial ![attach:5]',
-    };
-    render(<EditRequirementForm requirement={requirementWithAttachment} />, {
-      wrapper: createWrapper(),
-    });
+  it('los adjuntos YA vinculados se traducen a su fileId: no se desvinculan en silencio', async () => {
+    vi.mocked(useAttachments).mockReturnValue({
+      data: [
+        { id: 5, fileId: 500 },
+        { id: 9, fileId: 900 },
+      ],
+    } as never);
+    render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
 
     fireEvent.change(screen.getByLabelText(/^contexto/i), {
-      target: { value: 'Descripción inicial sin el adjunto' },
+      target: { value: 'Viejo ![attach:5] y nuevo ![file:1234]' },
     });
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ payload: expect.objectContaining({ attachmentIds: [] }) }),
+        expect.objectContaining({ payload: expect.objectContaining({ fileIds: [500, 1234] }) }),
         expect.anything()
       );
     });
+    // El id del vínculo (5) NO se manda como si fuera un fileId.
+    const { payload } = mockMutate.mock.calls[0][0] as { payload: { fileIds: number[] } };
+    expect(payload.fileIds).not.toContain(5);
+  });
+
+  it('quitar un adjunto del texto lo saca de fileIds', async () => {
+    vi.mocked(useAttachments).mockReturnValue({
+      data: [{ id: 5, fileId: 500 }],
+    } as never);
+    render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
+
+    fireEvent.change(screen.getByLabelText(/^contexto/i), {
+      target: { value: 'Descripción sin el adjunto' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ fileIds: [] }) }),
+        expect.anything()
+      );
+    });
+  });
+
+  // TS-28 (CA-8): descartar la edición descarta la VINCULACIÓN, no el archivo
+  it('TS-28 (CA-8): "Volver" no dispara ninguna limpieza de archivos ni pide confirmación', async () => {
+    const { deleteAttachment } = await import('@/features/attachments/services/attachmentsApi');
+    render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
+
+    fireEvent.change(screen.getByLabelText(/^contexto/i), {
+      target: { value: 'Con dos archivos ![file:1] y ![file:2]' },
+    });
+
+    const volver = screen.getByRole('link', { name: /volver/i });
+    expect(volver).toHaveAttribute('href', `/requirements/${mockRequirement.id}`);
+    fireEvent.click(volver);
+
+    expect(deleteAttachment).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  // TS-24/TS-25 (CA-9): titularidad como permisos, sin rama por rol
+  it('TS-24/TS-25 (CA-9): un file_not_owned se muestra como permisos, igual para cualquier rol', async () => {
+    const { toast } = await import('react-toastify');
+    mockMutate.mockImplementation((_vars: unknown, options: { onError?: (e: unknown) => void }) => {
+      options?.onError?.({ code: 'file_not_owned', status: 403, message: 'File not owned' });
+    });
+    render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
+
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        'No podés adjuntar un archivo que subió otra persona'
+      );
+    });
+    expect(toast.error).not.toHaveBeenCalledWith('File not owned');
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

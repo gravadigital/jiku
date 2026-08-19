@@ -13,6 +13,11 @@ interface ButtonProps {
   readonly disabled?: boolean;
   readonly size?: 'normal' | 'small';
   readonly variant?: 'primary' | 'secondary';
+  /**
+   * Id del elemento que explica el estado del botón. El DS pide que un control
+   * deshabilitado diga por qué lo está.
+   */
+  readonly ariaDescribedBy?: string;
 }
 
 export function Button(props: ButtonProps) {
@@ -25,6 +30,7 @@ export function Button(props: ButtonProps) {
     disabled = false,
     size = 'normal',
     variant = 'primary',
+    ariaDescribedBy,
   } = props;
 
   const handleClick = (event: MouseEvent) => {
@@ -46,6 +52,7 @@ export function Button(props: ButtonProps) {
         disabled={disabled}
         aria-disabled={disabled || loading}
         aria-busy={loading}
+        aria-describedby={ariaDescribedBy}
         onClick={handleClick}
       >
         {loading ? (

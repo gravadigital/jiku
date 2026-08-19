@@ -16,11 +16,14 @@ stories: [S-002, S-005, S-006, S-007]
 **Última actualización:** 2026-08-19
 **Stories:** S-002, S-005, S-006, S-007
 
-> **Estado de implementación (2026-08-19).** El lado de `core` (S-002) y el de la **`api` (S-005)**
-> están implementados: los cinco caminos de lectura autorizan, publican
-> `files.{fileId}.request-download` y responden 302. El flujo sigue en **Draft** porque los route
-> handlers de `web` (S-006) y `opus-web` (S-007) todavía proxean el binario en lugar de propagar la
-> redirección. Pasa a `Active` cuando esas dos cierren.
+> **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)** y
+> el de **`web` (S-006)** están implementados: los cinco caminos de lectura autorizan, publican
+> `files.{fileId}.request-download` y responden 302, y los dos route handlers de `web`
+> (`/api/attachments/{id}/preview` y `/download`) **propagan esa redirección con
+> `redirect: 'manual'` en lugar de proxear el binario**, sin `Content-Length` en el `GET`. El `HEAD`
+> se mantiene para que `useAttachmentMeta` resuelva nombre, tamaño y mime. El flujo sigue en
+> **Draft** porque los handlers de `opus-web` (S-007) todavía proxean. Pasa a `Active` cuando esa
+> cierre.
 
 ## Descripción
 

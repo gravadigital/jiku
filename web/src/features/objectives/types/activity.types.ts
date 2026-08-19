@@ -23,5 +23,6 @@ export interface ObjectiveActivity {
 export interface CreateCommentPayload {
   comment: string;
   visibilityLevel?: ActivityVisibilityLevel;
-  attachmentIds?: number[];
+  /** Ids de `files` a vincular al comentario. Reemplaza a `attachmentIds`. */
+  fileIds?: number[];
 }

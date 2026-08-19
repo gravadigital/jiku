@@ -13,7 +13,12 @@ interface MarkdownViewerProps {
 }
 
 function urlTransform(url: string): string {
-  if (url.startsWith('placeholder:') || url.startsWith('fileplaceholder:')) {
+  if (
+    url.startsWith('placeholder:') ||
+    url.startsWith('fileplaceholder:') ||
+    url.startsWith('filepreview:') ||
+    url.startsWith('filedownload:')
+  ) {
     return url;
   }
   const safeProtocol = /^(https?|ircs?|mailto|xmpp)$/i;
@@ -95,6 +100,16 @@ export function MarkdownViewer({ content }: MarkdownViewerProps) {
                 <AttachmentImagePreview attachmentId={attachmentId} fileName={alt || undefined} />
               );
             }
+            if (srcStr?.startsWith('filepreview:')) {
+              const fileId = parseInt(srcStr.replace('filepreview:', ''), 10);
+              return (
+                <AttachmentImagePreview
+                  attachmentId={fileId}
+                  resource="file"
+                  fileName={alt || undefined}
+                />
+              );
+            }
             // eslint-disable-next-line @next/next/no-img-element
             return <img src={srcStr} alt={alt ?? ''} />;
           },
@@ -104,6 +119,17 @@ export function MarkdownViewer({ content }: MarkdownViewerProps) {
               const label = childrenToText(children);
               return (
                 <AttachmentPlaceholder attachmentId={attachmentId} fileName={label || undefined} />
+              );
+            }
+            if (typeof href === 'string' && href.startsWith('filedownload:')) {
+              const fileId = parseInt(href.replace('filedownload:', ''), 10);
+              const label = childrenToText(children);
+              return (
+                <AttachmentPlaceholder
+                  attachmentId={fileId}
+                  resource="file"
+                  fileName={label || undefined}
+                />
               );
             }
             return (

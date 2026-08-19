@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { Button, ConfirmDialog } from '@/shared/components/ui';
-import { formatDate } from '@/shared/utils';
+import { cn, formatDate } from '@/shared/utils';
+import { useAttachmentMeta } from '../../hooks/useAttachmentMeta';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
 import { getDownloadUrl } from '../../services/attachmentsClientApi';
 import { getFileIcon } from '../../utils/fileIcons';
@@ -25,6 +26,15 @@ export function AttachmentItem({ attachment, onPreview, canDelete = false }: Att
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const { mutate: deleteAttachment, isPending: isDeleting } = useDeleteAttachment();
+
+  // El estado se descubre cuando el metadato se resuelve, que es lo que la
+  // lista ya hace: no se agrega ninguna verificación proactiva, porque cada
+  // lectura cuesta un comando por el bus.
+  const { error: metaError } = useAttachmentMeta(attachment.id);
+  // Un adjunto cuyo byte nunca llegó al storage. Antes de la subida directa
+  // este caso no era representable: el sistema registra el archivo antes de que
+  // el byte llegue y no verifica que haya llegado (D-13).
+  const isUnavailable = metaError?.status === 404;
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -61,7 +71,7 @@ export function AttachmentItem({ attachment, onPreview, canDelete = false }: Att
   };
 
   return (
-    <div className={styles.item}>
+    <div className={cn(styles.item, { [styles.itemUnavailable]: isUnavailable })}>
       <div className={styles.topRow}>
         <div className={styles.icon} aria-hidden="true">
           {getFileIcon(attachment.mimeType)}
@@ -74,21 +84,34 @@ export function AttachmentItem({ attachment, onPreview, canDelete = false }: Att
             {formatFileSize(attachment.fileSize)} &middot;{' '}
             {formatDate(new Date(attachment.createdAt))} &middot; {attachment.uploader.name}
           </span>
+          {isUnavailable && (
+            <span className={styles.unavailable} role="alert">
+              El archivo no está disponible
+            </span>
+          )}
         </div>
       </div>
 
       <div className={styles.actions}>
         {getPreviewType(attachment.mimeType) !== 'unsupported' && (
-          <Button label="Preview" onClick={onPreview} size="small" variant="secondary" />
+          <Button
+            label="Preview"
+            onClick={onPreview}
+            size="small"
+            variant="secondary"
+            disabled={isUnavailable}
+          />
         )}
         <Button
           label="Download"
           onClick={handleDownload}
           size="small"
           variant="secondary"
-          disabled={isDownloading}
+          disabled={isDownloading || isUnavailable}
           loading={isDownloading}
         />
+        {/* Eliminar sigue habilitado a propósito: es la única salida útil que
+            le queda al usuario con un adjunto sin contenido. */}
         {canDelete && (
           <Button
             label="Eliminar"

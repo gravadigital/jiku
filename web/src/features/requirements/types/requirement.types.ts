@@ -126,7 +126,11 @@ export interface CreateRequirementPayload {
   projectId: number;
   responsiblePersonIds?: number[];
   tags?: RequirementTag[];
-  attachmentIds?: number[];
+  /**
+   * Ids de `files` (no de vínculos). Reemplaza a `attachmentIds`: el requisito
+   * y sus vínculos se crean juntos, o no se crea ninguno.
+   */
+  fileIds?: number[];
 }
 
 export type UpdateRequirementPayload = Partial<{
@@ -145,13 +149,18 @@ export type UpdateRequirementPayload = Partial<{
   scope: string | null;
   technicalSolution: string | null;
   acceptanceCriteria: string | null;
-  attachmentIds: number[];
+  /**
+   * Conjunto COMPLETO de `files` que deben quedar vinculados al requisito: el
+   * backend deduce qué confirmar y qué desvincular a partir de él.
+   */
+  fileIds: number[];
 }>;
 
 export interface AddActivityPayload {
   comment: string;
   visibilityLevel?: VisibilityLevel;
-  attachmentIds?: number[];
+  /** Ids de `files` embebidos en el comentario. */
+  fileIds?: number[];
 }
 
 export interface TagSuggestion {

@@ -6,9 +6,16 @@ import { useAttachmentMeta } from '../../hooks/useAttachmentMeta';
 import { getDownloadUrl } from '../../services/attachmentsClientApi';
 import { getFileIcon } from '../../utils/fileIcons';
 import styles from './AttachmentPlaceholder.module.scss';
+import type { AttachmentResource } from '../../types/attachment.types';
 
 interface AttachmentPlaceholderProps {
   readonly attachmentId: number;
+  /**
+   * Espacio de identificadores de `attachmentId`. `attachment` (default) es un
+   * vínculo ya guardado; `file` es un archivo recién subido y todavía sin
+   * vincular, que se lee por `/api/files/{id}/preview`.
+   */
+  readonly resource?: AttachmentResource;
   readonly fileName?: string;
   /**
    * Cuando se provee, reemplaza los botones Preview/Descargar por un único
@@ -30,10 +37,11 @@ function formatFileSize(bytes?: number): string | null {
 
 export function AttachmentPlaceholder({
   attachmentId,
+  resource = 'attachment',
   fileName,
   onRemove,
 }: AttachmentPlaceholderProps) {
-  const { data, isLoading, isError, error } = useAttachmentMeta(attachmentId);
+  const { data, isLoading, isError, error } = useAttachmentMeta(attachmentId, resource);
   const [isDownloading, setIsDownloading] = useState(false);
 
   if (isLoading) {
@@ -50,12 +58,25 @@ export function AttachmentPlaceholder({
   }
 
   if (isError) {
-    const isForbidden = error?.status === 403;
+    // Tres casos distintos, y hay que decirlos distinto: permisos, byte que
+    // nunca llegó al storage, y error genérico.
+    if (error?.status === 403) {
+      return (
+        <span className={styles.errorCard} role="note">
+          No tenés permisos para acceder a este adjunto
+        </span>
+      );
+    }
+    if (error?.status === 404) {
+      return (
+        <span className={styles.errorCard} role="note">
+          El archivo no está disponible
+        </span>
+      );
+    }
     return (
       <span className={styles.errorCard} role="note">
-        {isForbidden
-          ? 'No tenés permisos para acceder a este adjunto'
-          : `Adjunto no disponible (ID: ${attachmentId})`}
+        {`Adjunto no disponible (ID: ${attachmentId})`}
       </span>
     );
   }

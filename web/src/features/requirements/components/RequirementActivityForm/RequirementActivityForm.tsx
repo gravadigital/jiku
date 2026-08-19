@@ -2,7 +2,8 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
-import { extractAttachmentIds } from '@/features/attachments/utils/extractAttachmentIds';
+import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
+import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
 import { useAddRequirementActivity } from '../../hooks/useAddRequirementActivity';
 import { RequirementRichTextEditor } from '../RequirementRichTextEditor';
 import styles from './RequirementActivityForm.module.scss';
@@ -19,6 +20,8 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
   const [visibility, setVisibility] = useState<VisibilityLevel>('internal');
   const [isEmpty, setIsEmpty] = useState(true);
   const [uploadError, setUploadError] = useState('');
+  const [upload, setUpload] = useState<{ fileName: string; progress: number } | null>(null);
+  const isUploading = upload !== null;
 
   const handleEditorChange = useCallback((value: string) => {
     setIsEmpty(value.trim().length === 0);
@@ -26,6 +29,17 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
 
   const handleAttachClick = useCallback(() => {
     editorRef.current?.openFilePicker();
+  }, []);
+
+  const handleUploadProgress = useCallback((progress: number, fileName: string) => {
+    setUpload({ fileName, progress });
+  }, []);
+
+  const handleUploadingChange = useCallback((uploading: boolean) => {
+    // La espera de la subida es distinta de la del envío: tiene porcentaje.
+    // Fundirlas en un solo spinner tiraría la única información que el
+    // rediseño aporta a esta pantalla.
+    setUpload((current) => (uploading ? (current ?? { fileName: '', progress: 0 }) : null));
   }, []);
 
   const handleSubmit = useCallback(
@@ -38,7 +52,7 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
         {
           comment: comment.trim(),
           visibilityLevel: visibility,
-          attachmentIds: extractAttachmentIds(comment),
+          fileIds: extractFileIds(comment),
         },
         {
           onSuccess: () => {
@@ -46,8 +60,8 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
             editorRef.current?.clear();
             setIsEmpty(true);
           },
-          onError: (error: any) => {
-            toast.error(error?.message ?? 'Error al agregar el comentario');
+          onError: (error: unknown) => {
+            toast.error(fileErrorMessage(error, 'Hubo un error al agregar el comentario'));
           },
         }
       );
@@ -63,12 +77,12 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
           className={styles.commentEditor}
           placeholder="Escribe un comentario..."
           ariaLabel="Comentario"
-          entityType="requirement_comment_draft"
-          entityId={reqid}
           showToolbar={false}
           onChange={handleEditorChange}
           uploadError={uploadError}
           onUploadError={setUploadError}
+          onUploadProgress={handleUploadProgress}
+          onUploadingChange={handleUploadingChange}
         />
       </div>
 
@@ -78,12 +92,32 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
         </div>
       )}
 
+      {upload && (
+        <div className={styles.uploadProgress}>
+          <p className={styles.uploadProgressText}>
+            Subiendo {upload.fileName}... {upload.progress}%
+          </p>
+          <div
+            className={styles.uploadProgressBar}
+            role="progressbar"
+            aria-valuenow={upload.progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className={styles.uploadProgressFill}
+              style={{ width: `${upload.progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className={styles.activityFormFooter}>
         <button
           type="button"
           className={styles.attachIconBtn}
           aria-label="Adjuntar archivo"
-          disabled={isPending}
+          disabled={isPending || isUploading}
           onClick={handleAttachClick}
         >
           <svg
@@ -128,8 +162,9 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
         <button
           type="submit"
           className={styles.sendBtn}
-          disabled={isEmpty || isPending}
+          disabled={isEmpty || isPending || isUploading}
           aria-label="Enviar comentario"
+          aria-describedby={isUploading ? 'activity-upload-in-progress' : undefined}
           data-testid="submit-button"
         >
           <svg
@@ -148,6 +183,11 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
           </svg>
           Enviar
         </button>
+        {isUploading && (
+          <span id="activity-upload-in-progress" className={styles.srOnly}>
+            Hay una subida en curso: esperá a que el archivo termine de subir para enviar
+          </span>
+        )}
       </div>
     </form>
   );
