@@ -344,51 +344,155 @@ NULL). Sin unique compuesto en el modelo: `already_subscribed` lo valida core.
 
 Un `external-user` solo ve los proyectos con una fila acá. La verifican
 `validateProjectPermissions` y las dos funciones de `attachments-access.ts`, que resuelven el
-`project_id` desde cualquiera de los 9 tipos de entidad de adjuntos.
+`project_id` desde cualquiera de los tipos de entidad de adjuntos — **5 desde REQ-001**, que
+retiró los cinco draft y legado.
 
-### Adjuntos
+### Archivos y adjuntos
 
-#### `attachments`
-Vinculación **polimórfica**: no tiene FK hacia las entidades, sino el par
-`(entity_type, entity_id)`.
+> **Rediseñado por REQ-001 (S-001).** El archivo y el vínculo eran una sola fila y ahora son dos
+> tablas: **`files`** es el archivo, que **existe por sí solo**, y **`attachments`** es el vínculo,
+> que ahora es **opcional y múltiple** — un `File` tiene **0..N** `attachments`.
+>
+> Es lo que elimina el patrón *draft*: ya no hace falta declarar a qué entidad se va a colgar un
+> archivo para poder subirlo, así que los cinco `entity_type` con sufijo `_draft` desaparecen.
+
+#### `files`
+
+La identidad del archivo, independiente de a qué se vincule.
 
 | Columna | Tipo | Restricciones |
 |---|---|---|
 | `id` | `INTEGER` | PK, autoincremental |
-| `entity_type` | `VARCHAR` | NOT NULL |
-| `entity_id` | `INTEGER` | **NULL** desde `20260612_03` |
-| `file_name` | `VARCHAR(255)` | NOT NULL. El nombre original |
-| `file_size` | `INTEGER` | NOT NULL. Máximo 10 MB |
+| `file_name` | `VARCHAR(255)` | NOT NULL. El nombre original — **no** es la clave |
+| `file_size` | `INTEGER` | NOT NULL |
 | `mime_type` | `VARCHAR(100)` | NOT NULL |
-| `storage_key` | `VARCHAR(500)` | NOT NULL, **UNIQUE** |
+| `storage_key` | `VARCHAR(500)` | NOT NULL, **UNIQUE**. La construye `core`; no depende de la entidad |
 | `storage_bucket` | `VARCHAR(100)` | NOT NULL |
 | `storage_region` | `VARCHAR(50)` | NOT NULL |
-| `uploaded_by` | `VARCHAR(100)` | NOT NULL → `users.id` |
-| `description` | `TEXT` | NULL |
-| `checksum` | `VARCHAR(64)` | NULL. sha256 hexadecimal |
+| `checksum` | `VARCHAR(64)` | NULL. sha256 declarado por el cliente — **nadie lo verifica** |
+| `byte_status` | `VARCHAR` | NOT NULL, default `pending` — `pending`, `uploaded` |
+| `uploaded_by` | `VARCHAR(100)` | NOT NULL → `users.id`. **Contra esto se valida la titularidad** |
 | `retention_status` | `VARCHAR` | NOT NULL, default `active` — `active`, `scheduled_for_deletion`, `deleted` |
 | `deleted_at` | `TIMESTAMP` | NULL |
 | `deleted_by` | `VARCHAR(100)` | NULL → `users.id` |
 
-Valores de `entity_type` (`20260729_01` los separó): `objective`, `project`, `requirement`,
-`objective_comment`, `requirement_comment`, `comment_draft`, `objective_draft`,
-`requirement_draft`, más dos heredados:
+Índices: `storage_key` UNIQUE, y el compuesto **`(uploaded_by, byte_status)`**.
 
-- **`comment`** — filas sin migrar. Pendiente de confirmar que no quedan en producción (S-096).
-- **`stage`** — la tabla ya no existe, así que sus adjuntos **nunca se autorizan**:
-  `hasProjectPermission` devuelve `false` para este tipo.
+- **`byte_status` es el estado del byte, no del archivo.** El contenido viaja **directo del cliente
+  a S3** con una URL pre-firmada, y **nadie verifica que haya llegado** (D-13): un `headObject`
+  dentro de la transacción del despachador arriesgaría el timeout de 5 s de ADR-002. La falla
+  aparece al descargar, como `file_not_available`, y no como una fila corrupta.
+- **El índice `(uploaded_by, byte_status)` es la mitigación declarada** del riesgo de archivos
+  abandonados: con el barrido fuera del alcance de REQ-001, hace que sean **identificables por
+  consulta** aunque nada los limpie. `uploaded_by` sin índice propio no serviría: cada vinculación
+  lo consulta.
+- **`checksum` no lleva `@DefaultScope` de exclusión.** En `attachments` sí lo tenía; acá no hace
+  falta replicarlo, porque el scope se aplica al armar la respuesta de `Attachment` en la api, no
+  al modelo del archivo.
+- **`retention_status` vive acá y no en el vínculo** (D-04): con 0..N vínculos, marcar el archivo
+  al desvincular rompería los otros. **Desvincular es borrar la fila de `attachments`.**
 
-Dos detalles del modelo:
+**La clave de S3** (`storage_key`) la construye `core` y ya **no depende de la entidad** (D-02):
 
-- **`@DefaultScope` excluye `checksum`** de las consultas por default: no viaja en las respuestas
-  salvo que se pida explícitamente.
-- **`entity_id` nullable** habilita el draft anclado al usuario: el requisito todavía no existe, y
-  la titularidad se valida por `uploaded_by`.
-- `paranoid: false` con `deleted_at` propio: **el borrado lógico lo maneja `retention_status`**, no
-  el soft-delete de Sequelize. Hay un hook `@BeforeDestroy`.
+```
+{STORAGE_S3_KEY_PREFIX}/f/{uuid}{ext}
+```
+
+El `/f/` separa el namespace nuevo del legado, así el backfill **no toca ninguna clave existente**.
+Los archivos migrados conservan la clave vieja
+(`{prefix}/{entityType}/{entityId ?? draft}/{uuid}{ext}`) y **ningún objeto se mueve en el bucket**.
+**No son dos casos: nadie parsea la clave** — `core` la pasa opaca al firmador de S3 y es el único
+que la toca.
 
 > `storage_key` incluye el prefijo de `STORAGE_S3_KEY_PREFIX`. **Cambiar esa variable en una
-> instalación con datos deja inaccesibles todos los adjuntos existentes.**
+> instalación con datos deja inaccesibles todos los archivos existentes.** Desde REQ-001 la
+> variable la lee **un solo servicio** (`core`), así que deja de estar duplicada entre `api` y
+> `core`.
+
+#### `attachments`
+
+El **vínculo** entre una entidad y un archivo. Sigue siendo **polimórfico**: no tiene FK hacia las
+entidades, sino el par `(entity_type, entity_id)`.
+
+| Columna | Tipo | Restricciones |
+|---|---|---|
+| `id` | `INTEGER` | PK, autoincremental. **Preservado a través de la migración** |
+| `entity_type` | `VARCHAR` | NOT NULL |
+| `entity_id` | `INTEGER` | **NOT NULL** desde REQ-001 (era NULL desde `20260612_03`) |
+| `file_id` | `INTEGER` | NOT NULL → `files.id`. **FK real** |
+| `deleted_at` | `TIMESTAMP` | NULL |
+| `deleted_by` | `VARCHAR(100)` | NULL → `users.id` |
+
+Índices: `(entity_type, entity_id)` y `file_id`.
+
+Valores de `entity_type`, **de 10 a 5**: `project`, `requirement`, `objective`,
+`requirement_comment`, `objective_comment`. Los cinco que se van los resuelve el backfill:
+
+- **`comment_draft`, `requirement_draft`, `objective_draft`** — **no hay draft** (D-01). Las filas
+  se borran y su `File` queda **sin vínculo**, que es un estado válido y no una anomalía.
+- **`comment`** — legado que `20260729_01` dejó a medias. Se migra a `requirement_comment` o
+  `objective_comment` según a qué tabla de actividad apunte su `entity_id`; la que no resuelva se
+  borra dejando el `File` sin vínculo. **La migración emite un conteo por rama**, que es la
+  verificación que S-096 dejó pendiente.
+- **`stage`** — la tabla ya no existe y sus adjuntos eran **pérdida de datos silenciosa**
+  (`hasProjectPermission` devolvía `false` y nadie podía acceder). El vínculo se borra y el `File`
+  se **recupera** como archivo sin vínculo, alcanzable por su `uploaded_by`. No se marcan para
+  baja: borrar datos recuperables es irreversible.
+
+Detalles del modelo:
+
+- **La FK polimórfica sigue siendo imposible** (D-05): `(entity_type, entity_id)` apunta a cinco
+  tablas. El `NOT NULL` elimina los huérfanos **por draft**, no los huérfanos por entidad borrada.
+  **No se promete FK hacia la entidad.**
+- **`file_id` sí es FK real**, la primera que esta tabla tiene hacia el contenido.
+- **`description` se eliminó**: columna muerta confirmada, vacía en todas las filas por
+  construcción.
+- Las 9 columnas del archivo (`file_name`, `file_size`, `mime_type`, `storage_key`,
+  `storage_bucket`, `storage_region`, `uploaded_by`, `checksum`, `retention_status`) **migraron a
+  `files`**. La api las sigue devolviendo **aplanadas** en la respuesta, por un `include`, para no
+  romper el contrato con los frontends.
+- `paranoid: false` con `deleted_at` propio se conserva. El borrado del **vínculo** es real; el
+  ciclo de retención del **archivo** vive en `files.retention_status`.
+
+#### Migración y backfill (REQ-001, S-001)
+
+Cinco migraciones en `api/db-upgrade/migrations/`, en orden. **Las cuatro primeras son aditivas y
+reversibles; la quinta es el único punto de no retorno.**
+
+Los cinco archivos viven en `api/db-upgrade/migrations/` (la `api` es la dueña del esquema,
+ADR-001) y llevan el prefijo `20260819_01` .. `20260819_05`.
+
+| # | Migración | Qué hace |
+|---|---|---|
+| 1 | `20260819_01_create_files_table` | Crea `files` vacía y el ENUM nativo `file_byte_status`. Reutiliza el ENUM `retention_status` existente. Sin downtime |
+| 2 | `20260819_02_add_attachments_file_id` | Agrega `attachments.file_id` **nullable, sin FK**, más el índice `idx_attachments_file_id` |
+| 3 | `20260819_03_backfill_files_from_attachments` | Una fila de `files` por cada `attachments`, **1:1**, con `byte_status = 'uploaded'`. El join es por `storage_key`, que es UNIQUE en origen y destino |
+| 4 | `20260819_04_resolve_legacy_and_draft_rows` | Resuelve draft, `stage` y `comment` legado. **Toda rama es contable y logueada** |
+| 5 | `20260819_05_harden_attachments_schema` | `NOT NULL` en `entity_id` y `file_id`, FK `fk_attachments_file`, `DROP` de las 10 columnas, y `system_settings.value` a `TEXT` |
+
+- **El backfill es 1:1 deliberado, sin deduplicar por checksum.** Deduplicar cambiaría la
+  cardinalidad y está fuera de alcance; 1:1 es idempotente y reversible.
+- **`byte_status = 'uploaded'` para todo lo migrado**: son adjuntos que existieron y se sirvieron.
+  Marcarlos `pending` los haría parecer abandonados.
+- **Los `attachments.id` no se tocan** (D-06): las URLs públicas en circulación los usan y tienen
+  que seguir resolviendo.
+- **El paso 5 falla si el 4 quedó incompleto**, y falla **al arrancar la api**. Es el
+  comportamiento correcto: la verificación es previa y con evidencia, y los pasos 1-4 se revierten.
+- **El paso 5 borra `check_attachments_active_status` antes de dropear `retention_status`.** Esa
+  CHECK referencia la columna, y sin borrarla explícitamente el `DROP COLUMN` no es determinista.
+- **`byte_status` y `retention_status` son ENUM nativos en la base** (`file_byte_status` y
+  `retention_status`) aunque el modelo los declare `DataType.STRING`. La divergencia es deliberada:
+  declararlos `ENUM` en el modelo haría que `sync()` cree tipos con la convención de nombre de
+  Sequelize (`enum_files_byte_status`), distintos de los que crea la migración.
+- **Al terminar, la lectura queda sin ramas**: toda fila de `attachments` tiene `file_id NOT NULL`,
+  así que es una sola consulta con `JOIN files` para cualquier archivo, migrado o nuevo.
+
+> **Riesgo declarado: `files` divergente entre `sync()` y la migración.** El producto tiene **dos
+> fuentes para el mismo esquema** — `core/src/models/index.ts:56-62` corre `sync()` en
+> `testing`/`development` mientras producción usa las migraciones. Una tabla nueva es donde ese
+> riesgo se materializa más fácil, y **los tests no lo detectan** (ADR-013 los corre contra el
+> esquema de `sync()`). El modelo de `@jiku/models` y la migración se escriben juntos y se revisan
+> campo por campo: **la revisión es la única barrera.**
 
 ### Integración con sistemas externos (Jira)
 
@@ -456,10 +560,35 @@ la persona en las respuestas de requisitos.
 
 | Tabla | Contenido |
 |---|---|
-| `system_settings` | `key` (UNIQUE) / `value`, ambos `VARCHAR(255)`. De acá sale `hours-per-day` |
+| `system_settings` | `key` (UNIQUE) `VARCHAR(255)` / `value` **`TEXT`** desde REQ-001. De acá salen `hours-per-day` y las 5 claves de archivos |
 | `origins` | `reference` `INTEGER` y `name` `VARCHAR`. Referenciada por `projects.origin_id` sin FK declarada |
 | `resources` | `key` / `value` por proyecto |
 | `project_status_updates` | `status`, `update_date`, `comment` — historial de estado del proyecto |
+
+#### Claves de configuración de archivos (REQ-001, S-001)
+
+Cinco claves nuevas en `system_settings`, **configurables en caliente sin redespliegue** (RF-15):
+
+| `key` | Default | Qué controla |
+|---|---|---|
+| `upload-url-ttl-seconds` | `300` | Duración de la URL de subida |
+| `download-url-ttl-seconds` | `300` | Duración de la URL de descarga y vista previa |
+| `file-max-size-bytes` | `10485760` | Peso máximo por archivo — 10 MB, el valor que estaba hardcodeado |
+| `file-allowed-extensions` | las 13 vigentes | Primera lista blanca |
+| `file-allowed-mime-types` | los 13 vigentes | Segunda lista blanca |
+
+- **`value` pasó de `VARCHAR(255)` a `TEXT`, y era una restricción dura.** Las 13 extensiones
+  entran cómodas (~70 caracteres); **los 13 tipos MIME no** —
+  `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` sola son 65. Se descartó
+  partir la clave en `-1`/`-2` (frágil por SQL, que es la única vía de escritura) y derivar el MIME
+  de una tabla en código (rompe RF-17, que exige agregar un tipo a **las dos** listas).
+- **La doble validación se conserva** (RF-17, D-18): un tipo nuevo tiene que agregarse a la lista de
+  extensiones **y** a la de MIME para ser aceptado.
+- **Los defaults viven en el código de `core`, no solo en el seed.** RF-16 exige que el sistema
+  funcione **sin valor cargado**: el seed es conveniencia, el default es la garantía. Y `core` **no
+  lee `process.env` para negocio**, así que la tabla es el lugar correcto, no una variable.
+- **Se leen por comando, sin caché.** "En caliente" lo exige; cachear con TTL rompería los criterios
+  de configurabilidad. Es una lectura por índice `key` UNIQUE dentro de la transacción ya abierta.
 
 ### Tablas sin uso
 
@@ -674,24 +803,43 @@ Table user_project_permissions {
   note: 'Sostiene el aislamiento del portal de clientes'
 }
 
-Table attachments {
+Table files {
   id integer [pk, increment]
-  entity_type varchar [not null, note: 'polimórfico: sin FK']
-  entity_id integer [note: 'nullable para drafts anclados al usuario']
-  file_name varchar(255) [not null]
+  file_name varchar(255) [not null, note: 'el nombre original; NO es la clave']
   file_size integer [not null]
   mime_type varchar(100) [not null]
-  storage_key varchar(500) [not null, unique]
+  storage_key varchar(500) [not null, unique, note: 'la construye core; no depende de la entidad']
   storage_bucket varchar(100) [not null]
   storage_region varchar(50) [not null]
-  uploaded_by varchar(100) [not null, ref: > users.id]
-  description text
-  checksum varchar(64) [note: 'excluido por DefaultScope']
-  retention_status varchar [not null, default: 'active']
+  checksum varchar(64) [note: 'sha256 declarado por el cliente, NADIE lo verifica']
+  byte_status varchar [not null, default: 'pending', note: 'pending | uploaded']
+  uploaded_by varchar(100) [not null, ref: > users.id, note: 'contra esto se valida titularidad']
+  retention_status varchar [not null, default: 'active', note: 'el archivo se retiene, el vinculo se borra']
   deleted_at timestamp
   deleted_by varchar(100) [ref: > users.id]
   created_at timestamp
   updated_at timestamp
+
+  indexes {
+    storage_key [unique]
+    (uploaded_by, byte_status) [note: 'titularidad al vincular + identificar abandonados sin barrido']
+  }
+}
+
+Table attachments {
+  id integer [pk, increment, note: 'PRESERVADO por el backfill: las URLs publicas lo usan']
+  entity_type varchar [not null, note: 'polimórfico: sin FK. De 10 valores a 5']
+  entity_id integer [not null, note: 'era nullable desde 20260612_03; ya no hay drafts']
+  file_id integer [not null, ref: > files.id, note: 'la primera FK real hacia el contenido']
+  deleted_at timestamp
+  deleted_by varchar(100) [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (entity_type, entity_id)
+    file_id
+  }
 }
 
 Table projects_persons {
@@ -786,7 +934,7 @@ Table resources {
 Table system_settings {
   id integer [pk, increment]
   key varchar(255) [not null, unique]
-  value varchar(255) [not null]
+  value text [not null, note: 'era varchar(255); ampliado por REQ-001 para las listas de MIME']
   created_at timestamp
   updated_at timestamp
 }

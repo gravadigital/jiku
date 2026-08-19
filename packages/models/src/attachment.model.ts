@@ -5,6 +5,8 @@ import {
 } from 'sequelize-typescript';
 import { Transaction } from 'sequelize';
 import User from './user.model';
+import File from './file.model';
+import { RetentionStatus } from './retention-status.enum';
 
 export enum AttachmentEntityType {
   Objective = 'objective',
@@ -21,11 +23,9 @@ export enum AttachmentEntityType {
   RequirementCommentDraft = 'requirement_comment_draft',
 }
 
-export enum RetentionStatus {
-  Active = 'active',
-  ScheduledForDeletion = 'scheduled_for_deletion',
-  Deleted = 'deleted',
-}
+// Se re-exporta para no romper a quien lo importa desde acá. La definición vive fuera del
+// ciclo Attachment <-> File: ver retention-status.enum.ts
+export { RetentionStatus };
 
 @DefaultScope(() => ({
   attributes: { exclude: ['checksum'] }
@@ -140,6 +140,23 @@ export default class Attachment extends Model {
     allowNull: true,
   })
     deletedBy!: string | null;
+
+  /**
+   * El archivo al que este vínculo apunta.
+   *
+   * NULLABLE en esta story a propósito: la migración 20260819_02 la agrega nullable y recién
+   * 20260819_05 la endurece a NOT NULL. Hasta entonces las escrituras vigentes siguen
+   * funcionando sin poblarla.
+   */
+  @ForeignKey(() => File)
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+  })
+    fileId!: number | null;
+
+  @BelongsTo(() => File, { foreignKey: 'fileId', as: 'file' })
+    file!: File | null;
 
   @BelongsTo(() => User, { foreignKey: 'uploadedBy', as: 'uploader' })
     uploader!: User;
