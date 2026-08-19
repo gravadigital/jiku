@@ -24,7 +24,10 @@ const patchSchema = joi.object({
   scope: joi.string().allow(null).optional(),
   technicalSolution: joi.string().allow(null).optional(),
   acceptanceCriteria: joi.string().allow(null).optional(),
-  attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+  // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al
+  // guardar la entidad. El `max(10)` es el `maxItems` que declara el spec — se valida acá para
+  // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
+  fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
 });
 
 /**

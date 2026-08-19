@@ -250,6 +250,7 @@ describe('GET /api/attachments/:id', () => {
   let deletedAttachmentId: number;
   let divergentAttachmentId: number;
   let divergentUploaderAttachmentId: number;
+  let contractAttachmentId: number;
 
   before(function() {
     this.timeout(30000);
@@ -287,7 +288,13 @@ describe('GET /api/attachments/:id', () => {
         { fileName: 'de-otro.pdf', uploadedBy: 'zitadel-sub-04' },
         { uploadedBy: 'zitadel-sub-01' }
       ))
-      .then((a: Attachment) => { divergentUploaderAttachmentId = a.id; });
+      .then((a: Attachment) => { divergentUploaderAttachmentId = a.id; })
+      // Fixture del contrato aplanado (TS-45 / TS-46). Los valores son los del Story Plan,
+      // verbatim: son los que las dos aserciones comparan campo por campo.
+      .then(() => createAttachment({
+        fileName: 'doc.pdf', fileSize: 1024, mimeType: 'application/pdf', byteStatus: 'uploaded',
+      }))
+      .then((a: Attachment) => { contractAttachmentId = a.id; });
   });
 
   after(() => {
@@ -427,6 +434,68 @@ describe('GET /api/attachments/:id', () => {
       .expect(200)
       .then(res => {
         res.body.should.not.have.property('checksum');
+      });
+  });
+  /**
+   * TS-45 (CA-11): ANTI-REGRESIÓN, no implementación. El aplanado lo hizo S-005; esta story
+   * solo lo blinda, porque es exactamente el tipo de criterio que se rompe sin que nadie lo
+   * note: los tipos de `web` y `opus-web` están ESCRITOS A MANO y NO fallan en compilación si
+   * divergen, así que una regresión de forma aparecería en runtime, en el navegador de un
+   * usuario.
+   */
+  it('conserva los campos del archivo aplanados, con fileId y byteStatus y sin checksum', () => {
+    return request(application)
+      .get(`/api/attachments/${contractAttachmentId}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        // Campos propios del VÍNCULO.
+        res.body.should.have.property('id', contractAttachmentId);
+        res.body.should.have.property('entityType', 'objective');
+        res.body.should.have.property('entityId', 1);
+        res.body.should.have.property('createdAt');
+
+        // La FK al archivo, que S-005 agregó al contrato.
+        res.body.should.have.property('fileId').which.is.a.Number();
+
+        // Los campos del archivo, aplanados sobre el vínculo.
+        res.body.should.have.property('fileName', 'doc.pdf');
+        res.body.should.have.property('fileSize', 1024);
+        res.body.should.have.property('mimeType', 'application/pdf');
+        res.body.should.have.property('storageKey');
+        res.body.should.have.property('storageBucket');
+        res.body.should.have.property('storageRegion');
+        res.body.should.have.property('uploadedBy');
+
+        // El estado del byte, que NO existe como columna en `attachments`.
+        res.body.should.have.property('byteStatus', 'uploaded');
+
+        // `checksum` sigue fuera de la respuesta.
+        res.body.should.not.have.property('checksum');
+      });
+  });
+
+  // TS-46 (CA-11): el listado conserva la MISMA forma que el detalle. Sin este caso, una
+  // regresión que aplanara solo en `getAttachmentById` pasaría inadvertida.
+  it('conserva la forma aplanada también en el listado', () => {
+    return request(application)
+      .get('/api/attachments?entityType=objective&entityId=1')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        res.body.should.be.an.Array().and.not.be.empty();
+        res.body.forEach((item: any) => {
+          item.should.have.property('fileId');
+          item.should.have.property('byteStatus');
+          item.should.have.property('fileName');
+          item.should.have.property('fileSize');
+          item.should.have.property('mimeType');
+          item.should.have.property('storageKey');
+          item.should.have.property('storageBucket');
+          item.should.have.property('storageRegion');
+          item.should.have.property('uploadedBy');
+          item.should.not.have.property('checksum');
+        });
       });
   });
 });

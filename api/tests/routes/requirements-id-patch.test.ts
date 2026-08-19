@@ -3,7 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementActivity, RetentionStatus, User } from '@jiku/models';
+import { Attachment, AttachmentEntityType, File, Person, PersonRequirement, Project, Requirement, RequirementActivity, RetentionStatus, User } from '@jiku/models';
 
 describe('PATCH /api/requirements/:reqid', () => {
   let application: Application;
@@ -1333,7 +1333,7 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  describe('Attachments embebidos en descripción (fix drafts huérfanos)', () => {
+  describe('vinculación de archivos existentes (REQ-001, S-003)', () => {
     before(() => {
       return User.create({ id: 'zitadel-sub-patch-other', name: 'Other User', username: 'otherpatchuser', email: 'otherpatchuser@mail.com' });
     });
@@ -1342,158 +1342,191 @@ describe('PATCH /api/requirements/:reqid', () => {
       return User.destroy({ where: { id: 'zitadel-sub-patch-other' } });
     });
 
-    function createDraft(uploadedBy: string = 'zitadel-sub-01') {
-      return Attachment.create({
-        entityType: AttachmentEntityType.RequirementDraft,
-        entityId: null,
+    /**
+     * `fileIds` son ids de `files`: el archivo existe por sí solo y el vínculo se crea contra
+     * el requisito ya existente. `uploadedBy` es lo que decide la titularidad (RF-12).
+     */
+    function createFile(uploadedBy: string = 'zitadel-sub-01'): Promise<File> {
+      return File.create({
         fileName: 'test.png',
         fileSize: 1024,
         mimeType: 'image/png',
-        storageKey: `test-key-patch-${Math.random()}`,
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
         storageBucket: 'test-bucket',
         storageRegion: 'us-east-1',
-        uploadedBy,
+        byteStatus: 'pending',
         retentionStatus: RetentionStatus.Active,
-      });
+        uploadedBy,
+      } as any, { validate: false });
+    }
+
+    /** Un vínculo ya existente sobre el requisito 1, para los casos de conjunto completo. */
+    function linkExisting(file: File) {
+      return Attachment.create({
+        entityType: AttachmentEntityType.Requirement,
+        entityId: 1,
+        fileId: file.id,
+        fileName: file.fileName,
+        fileSize: file.fileSize,
+        mimeType: file.mimeType,
+        storageKey: file.storageKey,
+        storageBucket: file.storageBucket,
+        storageRegion: file.storageRegion,
+        uploadedBy: file.uploadedBy,
+      } as any, { validate: false });
     }
 
     afterEach(() => {
-      return Attachment.destroy({ where: {}, force: true });
+      return Attachment.destroy({ where: {}, force: true })
+        .then(() => File.destroy({ where: {}, force: true }));
     });
 
-    it('should re-link a requirement_draft attachment to the edited requirement', () => {
-      return createDraft().then((draft) =>
+    it('vincula un archivo existente al requisito editado', () => {
+      return createFile().then((file) =>
         request(application)
           .patch('/api/requirements/1')
           .set('Authorization', 'Bearer token_01_user')
-          .send({ description: 'texto con ![attach:' + draft.id + ']', attachmentIds: [draft.id] })
+          .send({ description: 'texto con adjunto', fileIds: [file.id] })
           .expect(200)
-          .then(() =>
-            Attachment.findByPk(draft.id).then((found) => {
-              found!.entityType.should.equal(AttachmentEntityType.Requirement);
-              found!.entityId!.should.equal(1);
-            })
-          )
+          .then(() => Attachment.findOne({ where: { fileId: file.id } }))
+          .then((found) => {
+            found!.entityType.should.equal(AttachmentEntityType.Requirement);
+            found!.entityId!.should.equal(1);
+            return File.findByPk(file.id);
+          })
+          .then((refreshed) => {
+            // Vincular es lo que da por subido el byte: nadie verifica el bucket acá.
+            (refreshed as any).byteStatus.should.equal('uploaded');
+          })
       );
     });
 
-    it('should return 400 invalid_attachment_id when the attachment does not belong to the user', () => {
-      return createDraft('zitadel-sub-patch-other').then((draft) =>
+    // RF-12: la titularidad reemplazó a la vieja validación de pertenencia del draft.
+    it('devuelve 403 file_not_owned cuando el archivo lo subió otro usuario', () => {
+      return createFile('zitadel-sub-patch-other').then((file) =>
         request(application)
           .patch('/api/requirements/1')
           .set('Authorization', 'Bearer token_01_user')
-          .send({ attachmentIds: [draft.id] })
-          .expect(400)
+          .send({ fileIds: [file.id] })
+          .expect(403)
           .then((response) => {
-            response.body.code.should.equal('invalid_attachment_id');
+            response.body.code.should.equal('file_not_owned');
+            // Y no dejó el vínculo a medias: la transacción del comando revirtió todo.
+            return Attachment.count({ where: { fileId: file.id } });
+          })
+          .then((count) => {
+            count.should.equal(0);
           })
       );
     });
 
-    it('should not touch attachments when attachmentIds is not sent', () => {
-      return createDraft().then((draft) =>
-        request(application)
-          .patch('/api/requirements/1')
-          .set('Authorization', 'Bearer token_01_user')
-          .send({ title: 'Sin adjuntos en este patch' })
-          .expect(200)
-          .then(() =>
-            Attachment.findByPk(draft.id).then((found) => {
-              found!.entityType.should.equal(AttachmentEntityType.RequirementDraft);
-            })
-          )
-      );
+    it('devuelve 400 invalid_fields cuando el fileId no existe', () => {
+      return request(application)
+        .patch('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ fileIds: [987654] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
     });
 
-    // attachmentIds representa el conjunto COMPLETO deseado: el backend deduce
-    // qué confirmar (nuevo) y qué soft-eliminar (ya no está en la lista).
-    it('should soft-delete an already-linked attachment when it is removed from attachmentIds', () => {
-      return Attachment.create({
-        entityType: AttachmentEntityType.Requirement,
-        entityId: 1,
-        fileName: 'already-linked.png',
-        fileSize: 1024,
-        mimeType: 'image/png',
-        storageKey: `test-key-patch-remove-${Math.random()}`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'us-east-1',
-        uploadedBy: 'zitadel-sub-01',
-        retentionStatus: RetentionStatus.Active,
-      }).then((linked) =>
-        request(application)
-          .patch('/api/requirements/1')
-          .set('Authorization', 'Bearer token_01_user')
-          .send({ description: 'ya no tiene el adjunto', attachmentIds: [] })
-          .expect(200)
-          .then(() =>
-            Attachment.findByPk(linked.id, { paranoid: false } as any).then((found) => {
-              found!.retentionStatus.should.equal('scheduled_for_deletion');
-              (found!.deletedAt !== null).should.be.true();
-              found!.deletedBy!.should.equal('zitadel-sub-01');
-            })
-          )
-      );
+    it('devuelve 400 invalid_fields con más de 10 fileIds', () => {
+      return request(application)
+        .patch('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
     });
 
-    it('should keep an already-linked attachment when it is still present in attachmentIds', () => {
-      return Attachment.create({
-        entityType: AttachmentEntityType.Requirement,
-        entityId: 1,
-        fileName: 'still-linked.png',
-        fileSize: 1024,
-        mimeType: 'image/png',
-        storageKey: `test-key-patch-keep-${Math.random()}`,
-        storageBucket: 'test-bucket',
-        storageRegion: 'us-east-1',
-        uploadedBy: 'zitadel-sub-01',
-        retentionStatus: RetentionStatus.Active,
-      }).then((linked) =>
-        request(application)
-          .patch('/api/requirements/1')
-          .set('Authorization', 'Bearer token_01_user')
-          .send({ description: 'sigue con el adjunto ![attach:' + linked.id + ']', attachmentIds: [linked.id] })
-          .expect(200)
-          .then(() =>
-            Attachment.findByPk(linked.id).then((found) => {
-              found!.retentionStatus.should.equal('active');
-              found!.entityType.should.equal(AttachmentEntityType.Requirement);
+    it('no toca los vínculos cuando el patch no manda fileIds', () => {
+      return createFile()
+        .then((file) => linkExisting(file))
+        .then((link) =>
+          request(application)
+            .patch('/api/requirements/1')
+            .set('Authorization', 'Bearer token_01_user')
+            .send({ title: 'Sin adjuntos en este patch' })
+            .expect(200)
+            .then(() => Attachment.findByPk(link.id))
+            .then((found) => {
+              (found !== null).should.be.true();
             })
-          )
-      );
+        );
     });
 
-    it('should confirm new drafts and soft-delete removed ones in the same request', () => {
-      return Promise.all([
-        createDraft(),
-        Attachment.create({
-          entityType: AttachmentEntityType.Requirement,
-          entityId: 1,
-          fileName: 'to-be-removed.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: `test-key-patch-mixed-${Math.random()}`,
-          storageBucket: 'test-bucket',
-          storageRegion: 'us-east-1',
-          uploadedBy: 'zitadel-sub-01',
-          retentionStatus: RetentionStatus.Active,
-        }),
-      ]).then(([newDraft, toRemove]) =>
-        request(application)
-          .patch('/api/requirements/1')
-          .set('Authorization', 'Bearer token_01_user')
-          .send({ description: 'nuevo ![attach:' + newDraft.id + ']', attachmentIds: [newDraft.id] })
-          .expect(200)
-          .then(() =>
-            Promise.all([
-              Attachment.findByPk(newDraft.id),
-              Attachment.findByPk(toRemove.id, { paranoid: false } as any),
-            ])
-          )
-          .then(([foundNew, foundRemoved]) => {
-            foundNew!.entityType.should.equal(AttachmentEntityType.Requirement);
-            foundRemoved!.retentionStatus.should.equal('scheduled_for_deletion');
-          })
-      );
+    // `fileIds` es el conjunto COMPLETO deseado: lo que ya no viene pierde el vínculo.
+    // Se borra el VÍNCULO, nunca el archivo (D-04): un `File` puede tener 0..N vínculos.
+    it('desvincula un archivo que ya no viene en fileIds, sin borrar el archivo', () => {
+      let file: File;
+      return createFile()
+        .then((created) => { file = created; return linkExisting(created); })
+        .then((link) =>
+          request(application)
+            .patch('/api/requirements/1')
+            .set('Authorization', 'Bearer token_01_user')
+            .send({ description: 'ya no tiene el adjunto', fileIds: [] })
+            .expect(200)
+            .then(() => Attachment.findByPk(link.id, { paranoid: false } as any))
+        )
+        .then((found) => {
+          (found === null).should.be.true();
+          return File.findByPk(file.id);
+        })
+        .then((stillThere) => {
+          (stillThere !== null).should.be.true();
+        });
+    });
+
+    // La fila del vínculo que sobrevive conserva su id: preservarla no cuesta nada y es
+    // información que un delete+insert perdería.
+    it('conserva el vínculo que sigue presente en fileIds', () => {
+      let file: File;
+      return createFile()
+        .then((created) => { file = created; return linkExisting(created); })
+        .then((link) =>
+          request(application)
+            .patch('/api/requirements/1')
+            .set('Authorization', 'Bearer token_01_user')
+            .send({ description: 'sigue con el adjunto', fileIds: [file.id] })
+            .expect(200)
+            .then(() => Attachment.findByPk(link.id))
+        )
+        .then((found) => {
+          (found !== null).should.be.true();
+          found!.entityType.should.equal(AttachmentEntityType.Requirement);
+          found!.entityId!.should.equal(1);
+        });
+    });
+
+    it('vincula los nuevos y desvincula los removidos en el mismo request', () => {
+      let newFile: File;
+      let removedLinkId: number;
+      return Promise.all([createFile(), createFile()])
+        .then(([nuevo, viejo]) => {
+          newFile = nuevo;
+          return linkExisting(viejo);
+        })
+        .then((toRemove) => {
+          removedLinkId = toRemove.id;
+          return request(application)
+            .patch('/api/requirements/1')
+            .set('Authorization', 'Bearer token_01_user')
+            .send({ description: 'nuevo adjunto', fileIds: [newFile.id] })
+            .expect(200);
+        })
+        .then(() => Promise.all([
+          Attachment.findOne({ where: { fileId: newFile.id } }),
+          Attachment.findByPk(removedLinkId, { paranoid: false } as any),
+        ]))
+        .then(([foundNew, foundRemoved]) => {
+          foundNew!.entityType.should.equal(AttachmentEntityType.Requirement);
+          foundNew!.entityId!.should.equal(1);
+          (foundRemoved === null).should.be.true();
+        });
     });
   });
 });

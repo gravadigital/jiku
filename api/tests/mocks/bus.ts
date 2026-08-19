@@ -10,6 +10,9 @@ export interface SentCommand {
  * User id del service user en los tests. Es un `sub` de Zitadel de mentira: nada lo
  * valida acá, porque el callout no participa. Solo tiene que ser un token válido de
  * subject NATS.
+ *
+ * TIENE QUE COINCIDIR CON `CORE_TRUSTED_PUBLISHER_ID` (ver abajo): es el `caller` que core
+ * lee del subject para decidir si el comando llegó por el canal de la api.
  */
 const TEST_USER_ID = '000000000000000001';
 
@@ -100,7 +103,22 @@ export class FakeBus implements Bus {
       /* eslint-disable @typescript-eslint/no-var-requires */
       const { Dispatcher } = require('../../../core/src/bus/dispatcher');
       const { registry } = require('../../../core/src/commands');
+      const { loadConfig } = require('../../../core/src/config');
       /* eslint-enable @typescript-eslint/no-var-requires */
+
+      // MISMO ASSERT DE ARRANQUE QUE `core/src/index.ts`, y no es opcional: `resolveActor`
+      // compara el `caller` del subject contra `CORE_TRUSTED_PUBLISHER_ID` para decidir si el
+      // comando llegó por el canal de la api —donde el actor es el que declara el cuerpo— o
+      // por el del bus directo. Sin la llamada, `getTrustedPublisherId()` LANZA y todo comando
+      // que resuelva actor (`files.request-upload` y los seis de vinculación) sale
+      // `internal_error`, con la causa muy lejos del síntoma.
+      //
+      // El valor se fija acá y no en `.env.test` porque tiene que ser EXACTAMENTE el
+      // `TEST_USER_ID` con el que este doble arma el subject: son las dos mitades de la misma
+      // convención y separarlas las deja divergir en silencio.
+      process.env.CORE_TRUSTED_PUBLISHER_ID = TEST_USER_ID;
+      loadConfig();
+
       const instance = new Dispatcher(registry);
       this.dispatcher = (subject: string, payload: unknown) =>
         instance.dispatch(subject, payload);

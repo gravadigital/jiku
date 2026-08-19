@@ -1,154 +1,81 @@
-import { Request, Response, Router, NextFunction } from 'express';
-import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto';
-import path from 'path';
-import { Attachment, AttachmentEntityType } from '@jiku/models';
-import { canUserAccessEntity } from '../utils/attachments-access';
-import storageService, { STORAGE_KEY_PREFIX } from '../utils/storage-service';
-import logger from '../logger';
-import upload from '../utils/multer-config';
+import { Request, Response, Router } from 'express';
+import joi from 'joi';
+import validateBodyFields from '../utils/validate-body-fields';
+import { sendCommand, actor } from '../utils/bus/send-command';
+import { UploadTicketReply, toUploadTicket } from '../utils/bus/upload-ticket';
 
 const router: Router = Router();
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/plain', 'text/csv'
-];
+/**
+ * El cuerpo de la solicitud de permiso de subida. SIN `.unknown(true)` a propósito: Joi
+ * rechaza claves desconocidas por default, y eso es lo que hace que un cuerpo con
+ * `entityType` / `entityId` / `description` / `files` —los cuatro campos que el contrato
+ * eliminó— salga 400 en vez de aceptarse en silencio (D-12).
+ *
+ * LO QUE ESTE ESQUEMA NO VALIDA, Y NO ES UN OLVIDO: ni la extensión, ni el MIME, ni el tamaño
+ * máximo. La política vive en `system_settings` y la aplica `core` EN CALIENTE (D-08). Un
+ * duplicado acá se desactualizaría en cuanto un operador ajuste una fila por SQL, y la api
+ * empezaría a rechazar archivos que la política ya permite.
+ */
+const uploadTicketSchema = joi.object({
+  fileName: joi.string().max(255).required(),
+  mimeType: joi.string().max(100).required(),
+  fileSize: joi.number().integer().min(1).required(),
+  // `null` explícito y ausente son DOS COSAS DISTINTAS acá: ver el spread condicional abajo.
+  checksum: joi.string().allow(null).optional(),
+})
+  // `.required()` SOBRE EL OBJETO, y es lo que hace que un `multipart/form-data` salga 400 y no
+  // 500: `express.json()` no parsea multipart, así que `req.body` llega `undefined`, y un
+  // esquema de objeto sin `.required()` da POR VÁLIDO el `undefined` —Joi valida la forma de un
+  // valor que no existe—. Sin esto la cadena seguiría hasta el handler y el destructuring
+  // reventaría con un TypeError. Es CA-3 verificado desde afuera (TS-11).
+  .required();
 
-export const ALLOWED_EXTENSIONS = [
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv'
-];
+/**
+ * Pide permiso de subida. NO RECIBE EL BINARIO Y NO ESCRIBE LA BASE (REQ-001, S-004).
+ *
+ * Con este handler desaparece `Attachment.create()` del módulo de adjuntos y SE CIERRA LA
+ * EXCEPCIÓN 2 DE ADR-001: la api vuelve a ser solo lectura sobre la base.
+ *
+ * TAMBIÉN DESAPARECE `multer`. El proceso dejaba de tener un pico de 10 MB × 10 archivos en
+ * memoria por subida: el byte ahora va del navegador directo al storage con la prefirmada que
+ * firma core, sin pasar por la api ni por el bus (D-09).
+ *
+ * AUTORIZACIÓN: SOLO EL JWT, y es deliberado. `canUserAccessEntity` no tiene sobre qué operar
+ * —el cuerpo ya no declara entidad (D-12)— y el control por entidad se corre al momento de
+ * vincular, donde la entidad sí existe. Lo que un usuario gana con esto es poder crear un
+ * `File` sin vínculo, que es exactamente RF-1; su costo es acumulación de basura, no acceso
+ * indebido.
+ *
+ * UN ARCHIVO POR REQUEST (D-07). Tres archivos son tres requests independientes: el fallo de
+ * uno no arrastra a los otros dos, que es justo lo que el lote multipart no podía dar.
+ */
+async function requestUpload(req: Request, res: Response) {
+  const { fileName, mimeType, fileSize, checksum } = req.body;
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const data = await sendCommand<UploadTicketReply>(res, 'files.request-upload', {
+    // `uploader` SALE DEL TOKEN, NUNCA DEL CUERPO. Si se omitiera, `resolveActor` de core
+    // caería en la rama del canal externo, `uploaded_by` quedaría siendo el service user de la
+    // api y NINGÚN usuario podría vincular después lo que subió — con `file_not_owned` como
+    // único síntoma, muy lejos de su causa.
+    uploader: actor(req),
+    fileName,
+    mimeType,
+    fileSize,
+    // Spread condicional: ausente en el cuerpo ⇒ ausente en el payload. Poner la clave con
+    // `undefined` la haría viajar como `null` al serializar, que es un valor distinto.
+    ...(checksum !== undefined ? { checksum } : {}),
+  });
+  if (!data) return;
 
-async function uploadAttachments(req: Request, res: Response) {
-  const { entityType, entityId, description } = req.body;
-  const files = req.files as Express.Multer.File[];
-
-  if (!entityType) {
-    return res.status(400).json({ code: 'invalid_fields', message: '"entityType" is required' });
-  }
-
-  if (!Object.values(AttachmentEntityType).includes(entityType as AttachmentEntityType)) {
-    return res.status(400).json({ code: 'invalid_entity_type', message: `"entityType" must be one of: ${Object.values(AttachmentEntityType).join(', ')}` });
-  }
-
-  // requirement_draft puede subirse sin entidad: el requisito aún no existe y el
-  // draft se ancla al usuario autenticado (uploaded_by). Para el resto de tipos
-  // entityId sigue siendo obligatorio.
-  const isUserAnchoredDraft = entityType === AttachmentEntityType.RequirementDraft;
-
-  if (!entityId && !isUserAnchoredDraft) {
-    return res.status(400).json({ code: 'invalid_fields', message: '"entityId" is required' });
-  }
-
-  if (!files || files.length === 0) {
-    return res.status(400).json({ code: 'no_files', message: 'At least one file is required' });
-  }
-
-  const parsedEntityId = entityId ? parseInt(entityId, 10) : null;
-
-  // El acceso por entidad sólo aplica cuando hay una entidad concreta. Para un
-  // draft anclado al usuario, el JWT ya garantiza la pertenencia.
-  if (parsedEntityId !== null) {
-    const hasAccess = await canUserAccessEntity(req.user.id, req.decodedTokenRoles, entityType, parsedEntityId);
-    if (!hasAccess) {
-      return res.status(403).json({
-        code: 'access_denied',
-        message: 'You do not have permission to attach files to this entity'
-      });
-    }
-  }
-
-  const createdAttachments: Attachment[] = [];
-  const uploadedKeys: string[] = [];
-
-  try {
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        throw { code: 'upload_failed', message: `File ${file.originalname} exceeds maximum size of 10MB` };
-      }
-
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        throw { code: 'upload_failed', message: `File type "${ext}" is not allowed. Allowed extensions: ${ALLOWED_EXTENSIONS.join(', ')}` };
-      }
-
-      if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-        throw { code: 'upload_failed', message: `MIME type "${file.mimetype}" is not allowed` };
-      }
-
-      const uuid = uuidv4();
-      const storageKey = `${STORAGE_KEY_PREFIX}/${entityType}/${parsedEntityId ?? 'draft'}/${uuid}${ext}`;
-
-      const checksum = crypto.createHash('sha256').update(file.buffer).digest('hex');
-
-      const uploadResult = await storageService.uploadFromBuffer(storageKey, file.buffer, file.mimetype);
-      uploadedKeys.push(storageKey);
-
-      const attachment = await Attachment.create({
-        entityType,
-        entityId: parsedEntityId,
-        fileName: file.originalname,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-        storageKey,
-        storageBucket: uploadResult.bucket,
-        storageRegion: uploadResult.region,
-        uploadedBy: req.user.id,
-        description: description || null,
-        checksum
-      });
-
-      createdAttachments.push(attachment);
-
-    }
-
-    return res.status(201).json(createdAttachments);
-
-  } catch (error: any) {
-    for (const key of uploadedKeys) {
-      try {
-        await storageService.deleteFile(key);
-        logger.warn(`Rolled back uploaded file: ${key}`);
-      } catch (rollbackError: any) {
-        logger.error(`Failed to rollback file ${key}: ${rollbackError.message}`);
-      }
-    }
-
-    logger.error(`Upload attachments failed: ${error.message}`, { userId: req.user?.id, entityType, entityId });
-
-    const errorCodes = ['upload_failed', 'no_files', 'invalid_fields', 'invalid_entity_type'];
-    const statusCode = errorCodes.includes(error.code) ? 400 : 500;
-
-    return res.status(statusCode).json({
-      code: error.code || 'internal_error',
-      message: error.message || 'Internal error'
-    });
-  }
+  // NO SE RELEE LA BASE, y es una EXCEPCIÓN DECLARADA a la regla de ADR-001, no un descuido.
+  // La regla existe porque core devuelve solo `{ id }` y el contrato con los frontends es el
+  // recurso completo; acá el dato que falta es la URL prefirmada, que NO ESTÁ EN LA BASE y no
+  // es reconstruible desde afuera de core. Releer no la produciría: solo sumaría una query.
+  // Está registrada en `docs/apis/core.yaml` (`ReplyWithUploadTicket`).
+  return res.status(201).json(toUploadTicket(data));
 }
 
-function multerErrorHandler(err: any, _req: Request, res: Response, next: NextFunction) {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ code: 'upload_failed', message: 'File size exceeds maximum of 10MB' });
-    }
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ code: 'upload_failed', message: 'Too many files. Maximum is 10 files per request' });
-    }
-    return res.status(400).json({ code: 'upload_failed', message: err.message });
-  }
-  return next(err);
-}
-
-router.post('/attachments', upload.array('files', 10), uploadAttachments);
-router.use(multerErrorHandler);
+router.post('/attachments', validateBodyFields(uploadTicketSchema), requestUpload);
 
 export default router;

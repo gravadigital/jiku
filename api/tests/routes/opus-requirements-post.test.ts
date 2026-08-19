@@ -2,12 +2,10 @@ import 'mocha';
 import 'should';
 import sinon from 'sinon';
 import nock from 'nock';
-import { Readable } from 'stream';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, AttachmentEntityType, Project, Requirement, RequirementActivity, RequirementMailThread, RequirementSubscriptor, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
-import storageService from '../../lib/utils/storage-service';
+import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RequirementMailThread, RequirementSubscriptor, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -202,96 +200,79 @@ describe('POST /api/opus/requirements', () => {
     });
   });
 
-  describe('Attachments (S-094)', () => {
-    const otherProjectId = 7002;
-    let getFileStreamStub: sinon.SinonStub;
-
-    function createDraft(uploadedBy: string, entityId: number = projectId) {
-      return Attachment.create({
-        entityType: AttachmentEntityType.RequirementDraft,
-        entityId,
+  describe('archivos vinculados (REQ-001, S-003)', () => {
+    /**
+     * `fileIds` son ids de `files`: el archivo ya existe y el vínculo se crea contra el
+     * requisito recién creado. `uploadedBy` es lo que decide la titularidad (RF-12), y acá
+     * importa doble porque el portal lo usa tanto el externo como el interno.
+     */
+    function createFile(uploadedBy: string): Promise<File> {
+      return File.create({
         fileName: 'test.png',
-        fileSize: 'fake-file-content'.length,
+        fileSize: 1024,
         mimeType: 'image/png',
-        storageKey: `test-key-${Math.random()}`,
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
         storageBucket: 'test-bucket',
         storageRegion: 'us-east-1',
-        uploadedBy,
+        byteStatus: 'pending',
         retentionStatus: RetentionStatus.Active,
-      });
+        uploadedBy,
+      } as any, { validate: false });
     }
 
-    before(function () {
-      this.timeout(30000);
-      getFileStreamStub = sinon.stub(storageService, 'getFileStream').callsFake(() =>
-        Promise.resolve(Readable.from(Buffer.from('fake-file-content')))
-      );
-      return Project.create({
-        id: otherProjectId, code: 'OR3', name: 'Opus Requirements Project 3', type: 'comercial',
-        status: 'activo', priority: 1, initDate: new Date(), createdBy: 'zitadel-sub-01',
-      });
-    });
-
-    after(() => {
-      getFileStreamStub.restore();
+    afterEach(() => {
       return Attachment.destroy({ where: {}, force: true })
-        .then(() => Project.destroy({ where: { id: otherProjectId } }));
+        .then(() => File.destroy({ where: {}, force: true }));
     });
 
-    it('TS-1: should link attachments with entityType requirement for external user with permission', () => {
-      return createDraft('zitadel-sub-04').then((draft) =>
-        request(application)
+    it('TS-1: vincula el archivo con entityType requirement para el externo con permiso', () => {
+      let file: File;
+      return createFile('zitadel-sub-04')
+        .then((created) => { file = created; })
+        .then(() => request(application)
           .post('/api/opus/requirements')
           .set('Authorization', 'Bearer token_04_external_user')
-          .send({ title: 'Req con adjunto', description: 'Descripcion', projectId, attachmentIds: [draft.id] })
-          .expect(201)
-          .then((response) =>
-            Attachment.findByPk(draft.id).then((updated) => {
-              updated!.entityType.should.equal(AttachmentEntityType.Requirement);
-              updated!.entityId!.should.equal(response.body.id);
-            })
-          )
-      );
+          .send({ title: 'Req con adjunto', description: 'Descripcion', projectId, fileIds: [file.id] })
+          .expect(201))
+        .then((response) => Attachment.findOne({ where: { fileId: file.id } })
+          .then((link) => {
+            link!.entityType.should.equal(AttachmentEntityType.Requirement);
+            link!.entityId!.should.equal(response.body.id);
+            return File.findByPk(file.id);
+          }))
+        .then((refreshed) => {
+          (refreshed as any).byteStatus.should.equal('uploaded');
+        });
     });
 
-    it('TS-2: should link attachments with entityType requirement for internal user too', () => {
-      return createDraft('zitadel-sub-01').then((draft) =>
-        request(application)
+    it('TS-2: vincula el archivo también para el usuario interno', () => {
+      let file: File;
+      return createFile('zitadel-sub-01')
+        .then((created) => { file = created; })
+        .then(() => request(application)
           .post('/api/opus/requirements')
           .set('Authorization', 'Bearer token_01_user')
-          .send({ title: 'Req interno con adjunto', description: 'Descripcion', projectId, attachmentIds: [draft.id] })
-          .expect(201)
-          .then(() =>
-            Attachment.findByPk(draft.id).then((updated) => {
-              updated!.entityType.should.equal(AttachmentEntityType.Requirement);
-            })
-          )
-      );
+          .send({ title: 'Req interno con adjunto', description: 'Descripcion', projectId, fileIds: [file.id] })
+          .expect(201))
+        .then(() => Attachment.findOne({ where: { fileId: file.id } }))
+        .then((link) => {
+          link!.entityType.should.equal(AttachmentEntityType.Requirement);
+        });
     });
 
-    it('TS-3: should allow preview of the linked attachment after confirmation', async () => {
-      const draft = await createDraft('zitadel-sub-04');
+    // ELIMINADO (REQ-001, S-005): "TS-3: preview del adjunto vinculado". La preview ya no
+    // sirve el byte —autoriza y redirige a una URL prefirmada que pide por el bus—, así que
+    // ejercitarla acá exigiría fijar la respuesta del bus y solo duplicaría lo que ya cubre
+    // tests/routes/attachments-preview.test.ts.
 
-      await request(application)
-        .post('/api/opus/requirements')
-        .set('Authorization', 'Bearer token_04_external_user')
-        .send({ title: 'Req con adjunto preview', description: 'Descripcion', projectId, attachmentIds: [draft.id] })
-        .expect(201);
-
-      await request(application)
-        .get(`/api/attachments/${draft.id}/preview`)
-        .set('Authorization', 'Bearer token_04_external_user')
-        .expect(200);
-    });
-
-    it('TS-4: should return 400 invalid_attachment_id and not create the requirement when attachmentId is invalid', () => {
+    it('TS-4: devuelve 400 invalid_fields y no crea el requisito cuando el fileId no existe', () => {
       return request(application)
         .post('/api/opus/requirements')
         .set('Authorization', 'Bearer token_04_external_user')
-        .send({ title: 'Req con adjunto invalido', description: 'Descripcion', projectId, attachmentIds: [99999999] })
+        .send({ title: 'Req con adjunto invalido', description: 'Descripcion', projectId, fileIds: [99999999] })
         .expect(400)
         .then((response) => {
-          response.body.code.should.equal('invalid_attachment_id');
+          response.body.code.should.equal('invalid_fields');
           return Requirement.findOne({ where: { title: 'Req con adjunto invalido' } });
         })
         .then((found) => {
@@ -299,7 +280,7 @@ describe('POST /api/opus/requirements', () => {
         });
     });
 
-    it('TS-5: should create the requirement normally without attachmentIds', () => {
+    it('TS-5: crea el requisito normalmente sin fileIds', () => {
       return request(application)
         .post('/api/opus/requirements')
         .set('Authorization', 'Bearer token_04_external_user')
@@ -307,17 +288,41 @@ describe('POST /api/opus/requirements', () => {
         .expect(201);
     });
 
-    it('TS-6: should not link an attachment whose requirement_draft belongs to another project', () => {
-      return createDraft('zitadel-sub-04', otherProjectId).then((draft) =>
-        request(application)
+    // TS-6 (RF-12): antes esto probaba "el draft es de otro proyecto". El proyecto ya no
+    // ata al archivo: lo que lo ata es quién lo subió. Un externo no puede vincular lo que
+    // subió otro, ni siquiera dentro de un proyecto donde sí tiene permiso.
+    it('TS-6: devuelve 403 file_not_owned y no crea el requisito cuando el archivo es ajeno', () => {
+      let file: File;
+      return createFile('zitadel-sub-01')
+        .then((created) => { file = created; })
+        .then(() => request(application)
           .post('/api/opus/requirements')
           .set('Authorization', 'Bearer token_04_external_user')
-          .send({ title: 'Req cruzado', description: 'Descripcion', projectId, attachmentIds: [draft.id] })
-          .expect(400)
-          .then((response) => {
-            response.body.code.should.equal('invalid_attachment_id');
-          })
-      );
+          .send({ title: 'Req cruzado', description: 'Descripcion', projectId, fileIds: [file.id] })
+          .expect(403))
+        .then((response) => {
+          response.body.code.should.equal('file_not_owned');
+          return Requirement.findOne({ where: { title: 'Req cruzado' } });
+        })
+        .then((found) => {
+          (found === null).should.be.true();
+        });
+    });
+
+    it('TS-7: devuelve 400 invalid_fields con más de 10 fileIds', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({
+          title: 'Demasiados',
+          description: 'Descripcion',
+          projectId,
+          fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
     });
   });
 });

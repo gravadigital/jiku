@@ -36,7 +36,7 @@ function validateProject(req: Request, res: Response, next: NextFunction) {
 async function createRequirement(req: Request, res: Response) {
   const {
     title, description, priority, projectId, type, estimatedFinishDate,
-    subscriberUserIds, attachmentIds,
+    subscriberUserIds, fileIds,
   } = req.body;
 
   const data = await sendCommand<{ id: number }>(res, 'requirements.new', {
@@ -47,7 +47,7 @@ async function createRequirement(req: Request, res: Response) {
     ...(priority !== undefined ? { priority } : {}),
     ...(type !== undefined ? { type } : {}),
     ...(estimatedFinishDate !== undefined ? { estimatedFinishDate } : {}),
-    ...(attachmentIds !== undefined ? { attachmentIds, attachmentScope: 'project' } : {}),
+    ...(fileIds !== undefined ? { fileIds } : {}),
   });
   if (!data) {
     return;
@@ -76,7 +76,10 @@ router.post('/opus/requirements',
     type: joi.string().valid(...Object.values(RequirementType)).optional(),
     estimatedFinishDate: joi.date().optional(),
     subscriberUserIds: joi.array().items(joi.string()).optional(),
-    attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+    // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al
+    // guardar la entidad. El `max(10)` es el `maxItems` que declara el spec — se valida acá para
+    // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
+    fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
   })),
   validateProject,
   validateProjectPermissions,

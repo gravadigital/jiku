@@ -16,13 +16,16 @@ stories: [S-003, S-004]
 **Última actualización:** 2026-08-19
 **Stories:** S-003, S-004
 
-> **Estado de implementación (al cerrar S-003):** los pasos **4 y 5** —`resolveActor`, la validación
-> de titularidad y el commit conjunto de entidad + vínculos— están **implementados en `core`** y
-> cubiertos por tests, para los seis comandos de dominio. El **paso 6 (desvinculación vía
-> `attachments.{id}.delete`) todavía NO existe**: es de **S-004**, igual que el mapa de
-> `file_not_owned` → 403 en la api.
+> **Estado de implementación (al cerrar el lado `core` de S-004):** los pasos **4 y 5**
+> —`resolveActor`, la validación de titularidad y el commit conjunto de entidad + vínculos— están
+> **implementados en `core`** y cubiertos por tests, para los seis comandos de dominio. El **paso 6
+> (desvinculación vía `attachments.{id}.delete`) ya existe en `core`**, con sus 15 escenarios de
+> test: borra la fila del vínculo y no toca `files` ni el bucket.
 >
-> Por eso el flujo sigue en **`Draft`** y no pasa a `Active`: marcarlo Active con un paso sin
+> Lo que **falta** es el lado `api` de S-004: el contrato HTTP de subida, la autorización sobre la
+> entidad antes de publicar el `DELETE`, y el mapa de `file_not_owned` → 403.
+>
+> Por eso el flujo sigue en **`Draft`** y no pasa a `Active`: marcarlo Active con el lado `api` sin
 > implementar diría que el recorrido completo funciona, y no es así todavía.
 
 ## Descripción
@@ -122,7 +125,7 @@ sequenceDiagram
     A->>N: publica attachments.{id}.delete
     N->>C: entrega el comando
     C->>DB: DELETE de la fila de attachments (NO toca files ni el bucket)
-    C-->>N: success { id }
+    C-->>N: success (vacío)
     N-->>A: reply
     A-->>B: respuesta
 ```
@@ -278,15 +281,15 @@ VALUES ('requirement', 412, 1234);
 
 ---
 
-### Paso 6: Desvinculación — PENDIENTE (S-004)
+### Paso 6: Desvinculación — lado `core` IMPLEMENTADO (S-004), lado `api` PENDIENTE
 
-> **Todavía no implementado.** El comando `attachments.{id}.delete` **no existe** al cerrar S-003:
-> lo crea **S-004**, que es la story a la que la tabla "Servicios Afectados" se lo asigna. Lo que
-> sigue es el diseño acordado, no una descripción de lo que ya corre.
+> **El comando `attachments.{id}.delete` ya existe en `core`** desde S-004
+> (`core/src/commands/attachments/attachments-delete.ts`): borra la fila de `attachments` y no
+> toca `files` ni el bucket. Los pasos **1, 2, 3 y 5** —el contrato HTTP, la autorización sobre la
+> entidad y la traducción del reply— son de `S-004.api` y **todavía no están implementados**.
 >
-> Hasta que S-004 lo implemente, la única forma de desvincular es mandando el conjunto completo
-> por `requirements.{id}.edit` o `tasks.{id}.edit` sin el `fileId` que se quiere sacar — eso sí
-> funciona hoy, y borra la fila de `attachments` sin tocar el `File`.
+> Hasta que ese lado cierre, la desvinculación desde el navegador sigue pasando por el conjunto
+> completo en `requirements.{id}.edit` o `tasks.{id}.edit` sin el `fileId` que se quiere sacar.
 
 **Origen:** navegador → `api` → `core`
 **Tipo:** REST + Evento
@@ -299,8 +302,11 @@ VALUES ('requirement', 412, 1234);
      parámetro es el id del vínculo, **al revés que el comando de descarga**
    - **Request:** sin payload propio más allá de los campos de auditoría del comando
 4. **[`core`]** Borra la fila de `attachments`. **No toca `files` ni el bucket**
-   - **Reply:** `success({ id })`
-   - **Errores:** `invalid_fields` (vínculo inexistente), `internal_error`
+   - **Reply:** `success()` — **vacío, sin `data`**. Lo declara el contrato
+     (`docs/apis/core.yaml`, `x-reply: ReplyEmpty`) y es lo que hacen los otros tres borrados del
+     servicio: las creaciones devuelven `{ id }`, las ediciones y los borrados no devuelven nada.
+     La `api` no necesita el id de vuelta — ya lo tiene, es el de su propia URL
+   - **Errores:** `invalid_fields` (vínculo inexistente o id mal formado), `internal_error`
 5. **[`api`]** Traduce el reply y responde
 
 > **Es un cambio de comportamiento observable.** Hoy `DELETE /api/attachments/{id}` *"borra la fila y

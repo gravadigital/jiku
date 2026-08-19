@@ -3,7 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, Project, Requirement, RequirementActivity, User } from '@jiku/models';
+import { Attachment, File, Project, Requirement, RequirementActivity, User } from '@jiku/models';
 
 
 describe('POST /api/requirements/:reqid/comments', () => {
@@ -45,6 +45,7 @@ describe('POST /api/requirements/:reqid/comments', () => {
   after(() => {
     return RequirementActivity.destroy({ where: {} })
       .then(() => Attachment.destroy({ where: {}, force: true }))
+      .then(() => File.destroy({ where: {}, force: true }))
       .then(() => Requirement.destroy({ where: {} }))
       .then(() => Project.destroy({ where: {} }))
       .then(() => User.destroy({ where: {} }));
@@ -108,102 +109,59 @@ describe('POST /api/requirements/:reqid/comments', () => {
       });
   });
 
-  describe('comentarios con adjuntos (S-060)', () => {
-    beforeEach(() => {
-      return Promise.all([
-        Attachment.create({
-          id: 500,
-          entityType: 'comment_draft',
-          entityId: 1,
-          fileName: 'file500.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: 'key-500',
-          storageBucket: 'test-bucket',
-          storageRegion: 'sfo2',
-          uploadedBy: 'zitadel-sub-01',
-          retentionStatus: 'active',
-        }),
-        Attachment.create({
-          id: 501,
-          entityType: 'comment_draft',
-          entityId: 1,
-          fileName: 'file501.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: 'key-501',
-          storageBucket: 'test-bucket',
-          storageRegion: 'sfo2',
-          uploadedBy: 'zitadel-sub-02',
-          retentionStatus: 'active',
-        }),
-        Attachment.create({
-          id: 502,
-          entityType: 'comment_draft',
-          entityId: 6,
-          fileName: 'file502.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: 'key-502',
-          storageBucket: 'test-bucket',
-          storageRegion: 'sfo2',
-          uploadedBy: 'zitadel-sub-01',
-          retentionStatus: 'active',
-        }),
-        Attachment.create({
-          id: 503,
-          entityType: 'comment_draft',
-          entityId: 1,
-          fileName: 'file503.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: 'key-503',
-          storageBucket: 'test-bucket',
-          storageRegion: 'sfo2',
-          uploadedBy: 'zitadel-sub-01',
-          retentionStatus: 'scheduled_for_deletion',
-        }),
-        Attachment.create({
-          id: 504,
-          entityType: 'requirement_draft',
-          entityId: 1,
-          fileName: 'file504.png',
-          fileSize: 1024,
-          mimeType: 'image/png',
-          storageKey: 'key-504',
-          storageBucket: 'test-bucket',
-          storageRegion: 'sfo2',
-          uploadedBy: 'zitadel-sub-01',
-          retentionStatus: 'active',
-        }),
-      ]);
-    });
+  describe('comentarios con archivos vinculados (REQ-001, S-003)', () => {
+    /**
+     * `fileIds` son ids de `files`: el archivo existe por sí solo y el vínculo se crea contra
+     * el comentario recién creado. `uploadedBy` decide la titularidad (RF-12).
+     */
+    function createFile(uploadedBy: string = 'zitadel-sub-01', overrides: Record<string, any> = {}): Promise<File> {
+      return File.create({
+        fileName: 'file.png',
+        fileSize: 1024,
+        mimeType: 'image/png',
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
+        storageBucket: 'test-bucket',
+        storageRegion: 'sfo2',
+        byteStatus: 'pending',
+        retentionStatus: 'active',
+        uploadedBy,
+        ...overrides,
+      } as any, { validate: false });
+    }
 
     afterEach(() => {
-      return Attachment.destroy({ where: { id: [500, 501, 502, 503, 504] }, force: true });
+      return Attachment.destroy({ where: {}, force: true })
+        .then(() => File.destroy({ where: {}, force: true }));
     });
 
-    // TS-19: comentario con adjunto valido
-    it('TS-19: should create comment and re-link attachment to the new activity', () => {
-      return request(application)
-        .post('/api/requirements/1/comments')
-        .set('Authorization', 'Bearer token_01_user')
-        .send({ comment: 'texto ![attach:500]', visibilityLevel: 'internal', attachmentIds: [500] })
-        .expect(201)
+    // TS-19: comentario con archivo válido → el vínculo apunta a la actividad creada.
+    it('TS-19: crea el comentario y vincula el archivo a la actividad nueva', () => {
+      let file: File;
+      return createFile()
+        .then((created) => { file = created; })
+        .then(() => request(application)
+          .post('/api/requirements/1/comments')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ comment: 'texto con adjunto', visibilityLevel: 'internal', fileIds: [file.id] })
+          .expect(201))
         .then(() => RequirementActivity.findOne({
-          where: { requirementId: 1, typeOfActivity: 'comment', newValue: 'texto ![attach:500]' },
+          where: { requirementId: 1, typeOfActivity: 'comment', newValue: 'texto con adjunto' },
         }))
         .then((activity) => {
           activity!.should.not.be.null();
-          return Attachment.findByPk(500).then((att) => {
+          return Attachment.findOne({ where: { fileId: file.id } }).then((att) => {
             att!.entityType.should.equal('requirement_comment');
             att!.entityId!.should.equal(activity!.id);
+            return File.findByPk(file.id);
           });
+        })
+        .then((refreshed) => {
+          (refreshed as any).byteStatus.should.equal('uploaded');
         });
     });
 
-    // TS-20: comentario sin adjuntos
-    it('TS-20: should create comment without touching attachments when attachmentIds is not sent', () => {
+    // TS-20: comentario sin archivos
+    it('TS-20: crea el comentario sin tocar vínculos cuando no se mandan fileIds', () => {
       return request(application)
         .post('/api/requirements/1/comments')
         .set('Authorization', 'Bearer token_01_user')
@@ -218,18 +176,19 @@ describe('POST /api/requirements/:reqid/comments', () => {
         });
     });
 
-    // TS-21: adjunto de otro usuario
-    it('TS-21: should return 400 invalid_attachment_id when attachment belongs to another user', () => {
+    // TS-21 (RF-12): archivo de otro usuario → 403 y, sobre todo, NO queda el comentario.
+    it('TS-21: devuelve 403 file_not_owned y no crea el comentario cuando el archivo es ajeno', () => {
       let countBefore: number;
       return RequirementActivity.count()
         .then((c) => { countBefore = c; })
-        .then(() => request(application)
+        .then(() => createFile('zitadel-sub-02'))
+        .then((file) => request(application)
           .post('/api/requirements/1/comments')
           .set('Authorization', 'Bearer token_01_user')
-          .send({ comment: 'texto', attachmentIds: [501] })
-          .expect(400))
+          .send({ comment: 'texto', fileIds: [file.id] })
+          .expect(403))
         .then((response) => {
-          response.body.code.should.equal('invalid_attachment_id');
+          response.body.code.should.equal('file_not_owned');
           return RequirementActivity.count();
         })
         .then((countAfter) => {
@@ -237,71 +196,47 @@ describe('POST /api/requirements/:reqid/comments', () => {
         });
     });
 
-    // TS-22: adjunto de otro requisito
-    it('TS-22: should return 400 invalid_attachment_id when attachment belongs to another requirement', () => {
+    // TS-22: `fileId` inexistente → `invalid_fields`, que es distinto de "no es tuyo".
+    it('TS-22: devuelve 400 invalid_fields cuando el fileId no existe', () => {
       return request(application)
         .post('/api/requirements/1/comments')
         .set('Authorization', 'Bearer token_01_user')
-        .send({ comment: 'texto', attachmentIds: [502] })
+        .send({ comment: 'texto', fileIds: [987654] })
         .expect(400)
         .then((response) => {
-          response.body.code.should.equal('invalid_attachment_id');
+          response.body.code.should.equal('invalid_fields');
         });
     });
 
-    // TS-23: adjunto inactivo
-    it('TS-23: should return 400 invalid_attachment_id when attachment is not active', () => {
-      return request(application)
-        .post('/api/requirements/1/comments')
-        .set('Authorization', 'Bearer token_01_user')
-        .send({ comment: 'texto', attachmentIds: [503] })
-        .expect(400)
-        .then((response) => {
-          response.body.code.should.equal('invalid_attachment_id');
-        });
-    });
-
-    // TS-24: adjunto de tipo incorrecto
-    it('TS-24: should return 400 invalid_attachment_id when attachment entityType is not comment_draft', () => {
-      return request(application)
-        .post('/api/requirements/1/comments')
-        .set('Authorization', 'Bearer token_01_user')
-        .send({ comment: 'texto', attachmentIds: [504] })
-        .expect(400)
-        .then((response) => {
-          response.body.code.should.equal('invalid_attachment_id');
-        });
-    });
-
-    // TS-16 (S-095): comentario con adjunto requirement_comment_draft persiste como requirement_comment
-    it('TS-16 (S-095): should create comment and re-link a requirement_comment_draft attachment as requirement_comment', () => {
-      return Attachment.create({
-        id: 505,
-        entityType: 'requirement_comment_draft',
-        entityId: 1,
-        fileName: 'file505.png',
-        fileSize: 1024,
-        mimeType: 'image/png',
-        storageKey: 'key-505',
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01',
-        retentionStatus: 'active',
-      })
-        .then(() => request(application)
+    // TS-23: archivo retirado. Sigue existiendo, así que no es "no existe" pero tampoco es
+    // vinculable: la vida del archivo se valida antes que la titularidad.
+    it('TS-23: devuelve 400 invalid_fields cuando el archivo ya no está activo', () => {
+      return createFile('zitadel-sub-01', { retentionStatus: 'scheduled_for_deletion' })
+        .then((file) => request(application)
           .post('/api/requirements/1/comments')
           .set('Authorization', 'Bearer token_01_user')
-          .send({ comment: 'texto ![attach:500]', visibilityLevel: 'internal', attachmentIds: [505] })
-          .expect(201))
-        .then(() => RequirementActivity.findOne({
-          where: { requirementId: 1, typeOfActivity: 'comment', newValue: 'texto ![attach:500]' },
-          order: [['id', 'DESC']],
-        }))
-        .then((activity) => Attachment.findByPk(505).then((att) => {
-          att!.entityType.should.equal('requirement_comment');
-          att!.entityId!.should.equal(activity!.id);
-          return Attachment.destroy({ where: { id: 505 }, force: true });
-        }));
+          .send({ comment: 'texto', fileIds: [file.id] })
+          .expect(400))
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
     });
+
+    // TS-24: el tope de 10 lo corta Joi antes del bus.
+    it('TS-24: devuelve 400 invalid_fields con más de 10 fileIds', () => {
+      return request(application)
+        .post('/api/requirements/1/comments')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ comment: 'texto', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    // ELIMINADO (REQ-001, S-003): "TS-24 viejo: entityType distinto de comment_draft" y
+    // "TS-16 (S-095): re-anclar un requirement_comment_draft". Probaban el re-anclaje de
+    // drafts, que ya no existe: el archivo vive solo en `files` y el vínculo se crea contra
+    // el comentario ya creado, así que no hay `entityType` de draft que validar.
   });
 });
