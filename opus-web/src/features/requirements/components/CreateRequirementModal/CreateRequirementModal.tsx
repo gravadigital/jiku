@@ -10,6 +10,7 @@ import { UserSelector } from '@/features/subscriptions/components/UserSelector';
 import { useProjectUsers } from '@/features/subscriptions/hooks/useProjectUsers';
 import { attachmentsApi } from '@/features/attachments/services/attachmentsApi';
 import { RichTextEditor } from '@/shared/components/ui/RichTextEditor/RichTextEditor';
+import type { ApiError } from '@/lib/axios';
 import type { RequirementPriority } from '../../types/requirement.types';
 import styles from './CreateRequirementModal.module.scss';
 import {
@@ -19,6 +20,13 @@ import {
   type RequirementType,
 } from './CreateRequirementModal.types';
 
+/**
+ * Validación de CONVENIENCIA, para fallar rápido sin ida y vuelta.
+ *
+ * NO es la fuente de verdad: el límite de tamaño y las listas de extensiones y MIME viven
+ * en `system_settings` de `core` y son configurables en caliente. Por eso los mensajes no
+ * nombran ningún número ni ninguna extensión. El rechazo autoritativo llega del servidor.
+ */
 const ALLOWED_EXTENSIONS = [
   'jpg',
   'jpeg',
@@ -36,10 +44,32 @@ const ALLOWED_EXTENSIONS = [
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 interface PendingAttachment {
-  id: number;
+  /** Id de `files`: el archivo existe solo, sin vínculo. NO es un id de `attachments`. */
+  fileId: number;
   fileName: string;
   mimeType: string;
   fileSize?: number;
+}
+
+function getErrorMessage(error: unknown): string {
+  const apiError = error as ApiError | null;
+  if (!apiError) return '';
+
+  switch (apiError.code) {
+    case 'file_not_owned':
+      return 'No podés adjuntar un archivo que subió otra persona';
+    case 'file_not_available':
+      return 'El archivo no está disponible';
+    case 'file_too_large':
+      return 'El archivo supera el tamaño máximo permitido';
+    case 'file_type_not_allowed':
+      return 'Ese tipo de archivo no está permitido';
+  }
+
+  if (apiError.status === 403 || apiError.code === 'access_denied') {
+    return 'Sin permiso para crear el requisito';
+  }
+  return apiError.message || 'Error al crear el requisito';
 }
 
 function getExtension(fileName: string): string {
@@ -54,7 +84,7 @@ interface DropdownCoords {
 
 export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementModalProps) {
   const { activeProject } = useActiveProject();
-  const { mutate, isPending } = useCreateRequirement();
+  const { mutate, isPending, isError, error } = useCreateRequirement();
   const { data: projects } = useProjects();
 
   const [title, setTitle] = useState('');
@@ -72,7 +102,8 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [attachError, setAttachError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [uploadingMimeType, setUploadingMimeType] = useState('');
+  const [uploadingFileName, setUploadingFileName] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const descFileInputRef = useRef<HTMLInputElement>(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -107,55 +138,67 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
     setShowSuccess(false);
     setPendingAttachments([]);
     setAttachError('');
+    setUploading(false);
+    setUploadingFileName('');
+    setUploadProgress(0);
   }
 
   function handleDescriptionChange(newValue: string) {
     setDescription(newValue);
-    setPendingAttachments((prev) => prev.filter((att) => newValue.includes(`attach:${att.id}`)));
+    setPendingAttachments((prev) =>
+      prev.filter((att) => newValue.includes(`attach:${att.fileId}`))
+    );
   }
 
   async function handleDescFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (descFileInputRef.current) descFileInputRef.current.value = '';
     if (!file) return;
+    // Se sube de a uno: mientras hay una subida en curso el botón está deshabilitado.
+    if (uploading) return;
     setAttachError('');
 
+    // Validación de conveniencia — ver la nota de ALLOWED_EXTENSIONS. Los mensajes son
+    // los MISMOS que los del servidor, así que el usuario no distingue el origen.
     if (file.size > MAX_SIZE_BYTES) {
-      setAttachError('El archivo supera el límite de 10MB');
+      setAttachError('El archivo supera el tamaño máximo permitido');
       return;
     }
     const ext = getExtension(file.name);
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setAttachError('Tipo de archivo no permitido');
+      setAttachError('Ese tipo de archivo no está permitido');
       return;
     }
 
     try {
       setUploading(true);
-      setUploadingMimeType(file.type);
-      const [attachment] = await attachmentsApi.uploadFile(
-        'requirement_draft',
-        selectedProjectId,
-        file
-      );
-      const isImage = attachment.mimeType.startsWith('image/');
-      const placeholder = isImage ? `![attach:${attachment.id}]` : `[attach:${attachment.id}]`;
+      setUploadingFileName(file.name);
+      setUploadProgress(0);
+      // El archivo existe por sí solo: no se sube contra ninguna entidad y el vínculo se
+      // crea recién al publicar el requisito. Si el usuario abandona el modal, el archivo
+      // queda sin vínculo, que es un estado válido — no hay nada que limpiar.
+      const uploaded = await attachmentsApi.uploadFile(file, setUploadProgress);
+      const isImage = uploaded.mimeType.startsWith('image/');
+      const placeholder = isImage ? `![attach:${uploaded.fileId}]` : `[attach:${uploaded.fileId}]`;
 
       setDescription((prev) => prev + placeholder);
       setPendingAttachments((prev) => [
         ...prev,
         {
-          id: attachment.id,
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-          fileSize: attachment.fileSize,
+          fileId: uploaded.fileId,
+          fileName: uploaded.fileName,
+          mimeType: uploaded.mimeType,
+          fileSize: uploaded.fileSize,
         },
       ]);
-    } catch {
-      setAttachError('Error al subir el archivo');
+    } catch (error) {
+      setAttachError(getErrorMessage(error) || 'Error al subir el archivo');
     } finally {
+      // Los tres caminos limpian el estado de subida, o el editor queda con una barra
+      // congelada para siempre.
       setUploading(false);
-      setUploadingMimeType('');
+      setUploadingFileName('');
+      setUploadProgress(0);
     }
   }
 
@@ -228,7 +271,7 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
         priority,
         projectId: selectedProjectId,
         subscriberUserIds: selectedSubscriberIds,
-        attachmentIds: pendingAttachments.map((a) => a.id),
+        fileIds: pendingAttachments.map((a) => a.fileId),
       },
       {
         onSuccess: () => {
@@ -263,6 +306,10 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
   const selectedPriority =
     PRIORITY_OPTIONS.find((p) => p.value === priority) ?? PRIORITY_OPTIONS[0];
   const selectedTypeOption = TYPE_OPTIONS.find((t) => t.value === selectedType);
+
+  // El error de creación se muestra pegado al formulario, no en un toast: el modal está
+  // encima de todo y una notificación de 4 s detrás del overlay es peor que nada.
+  const displayError = attachError || (isError ? getErrorMessage(error) : '');
 
   const panelStyle: React.CSSProperties | undefined = dropdownCoords
     ? { top: dropdownCoords.top, left: dropdownCoords.left, width: dropdownCoords.width }
@@ -338,10 +385,16 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
                   <RichTextEditor
                     value={description}
                     onChange={handleDescriptionChange}
-                    attachmentMeta={pendingAttachments}
+                    attachmentMeta={pendingAttachments.map((a) => ({
+                      id: a.fileId,
+                      fileName: a.fileName,
+                      mimeType: a.mimeType,
+                      fileSize: a.fileSize,
+                    }))}
                     placeholder="Agregar descripción..."
                     uploading={uploading}
-                    uploadingMimeType={uploadingMimeType}
+                    uploadingFileName={uploadingFileName}
+                    uploadProgress={uploadProgress}
                   />
                 </div>
                 <div className={styles.descToolbar}>
@@ -359,15 +412,16 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
                     className={styles.descAttachBtn}
                     onClick={() => descFileInputRef.current?.click()}
                     aria-label="Adjuntar archivo a descripción"
+                    disabled={uploading}
                   >
                     <Paperclip size={14} aria-hidden="true" />
                     Adjuntar
                   </button>
                 </div>
               </div>
-              {attachError && (
+              {displayError && (
                 <p className={styles.attachError} role="alert">
-                  {attachError}
+                  {displayError}
                 </p>
               )}
             </div>
@@ -568,7 +622,9 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
                 type="button"
                 className={styles.createButton}
                 onClick={handleSubmit}
-                disabled={isPending}
+                // Publicar mientras el byte viaja vincularía un archivo incompleto, y el
+                // sistema no verifica que haya llegado.
+                disabled={isPending || uploading}
               >
                 {isPending ? 'Creando...' : 'Crear elemento'}
               </button>

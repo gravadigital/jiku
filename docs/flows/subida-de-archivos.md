@@ -2,7 +2,7 @@
 id: subida-de-archivos
 title: Subida de archivos
 type: feature
-status: Draft
+status: Active
 created: 2026-08-19
 last_updated: 2026-08-19
 stories: [S-002, S-004, S-006, S-007]
@@ -11,17 +11,27 @@ stories: [S-002, S-004, S-006, S-007]
 # Subida de Archivos
 
 **Tipo:** Feature
-**Status:** Draft
+**Status:** Active
 **Creado:** 2026-08-19
 **Última actualización:** 2026-08-19
 **Stories:** S-002, S-004, S-006, S-007
 
-> **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-004)** y
-> el de **`web` (S-006)** están implementados: `web` pide el ticket por Server Action, hace el `PUT`
-> **directo a la URL prefirmada de S3 con `XMLHttpRequest`** y progreso real, de a un archivo por
-> vez, y su route handler `POST /api/attachments` **quedó eliminado** junto con `bodySizeLimit`.
-> El flujo sigue en **Draft** porque `opus-web` (S-007) todavía sube por la api. Pasa a `Active`
-> cuando esa cierre.
+> **Estado de implementación (2026-08-19).** **El flujo está completo y pasa a `Active`.** El lado
+> de `core` (S-002), el de la **`api` (S-004)**, el de **`web` (S-006)** y el de **`opus-web`
+> (S-007)** están implementados.
+>
+> `web` pide el ticket por Server Action, hace el `PUT` **directo a la URL prefirmada de S3 con
+> `XMLHttpRequest`** y progreso real, de a un archivo por vez, y su route handler
+> `POST /api/attachments` **quedó eliminado** junto con `bodySizeLimit`.
+>
+> `opus-web` hace lo mismo desde el navegador: `attachmentsApi.requestUploadTicket` pide el ticket
+> por el proxy catch-all —**sin route handler nuevo**— y `putFileToStorage` hace el `PUT` con
+> `XMLHttpRequest`, `withCredentials` en `false` y progreso real en el bloque
+> `progreso-subida-adjunto` de los dos formularios. **Los dos formularios mandan `fileIds`** y el
+> `entityType: 'requirement_draft'` que usaba el alta de requisito **desapareció**.
+>
+> **Precondición de prueba vigente:** sin CORS en el bucket (S-008) el `PUT` del navegador falla con
+> `status: 0`, un error opaco que no señala la causa.
 
 ## Descripción
 

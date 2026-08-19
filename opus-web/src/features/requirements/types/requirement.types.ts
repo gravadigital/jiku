@@ -58,7 +58,8 @@ export interface CreateRequirementPayload {
   priority?: RequirementPriority;
   tags?: string[];
   subscriberUserIds?: string[];
-  attachmentIds?: number[];
+  /** Ids de `files` ya subidos por quien publica. Reemplaza a `attachmentIds` (REQ-001). */
+  fileIds?: number[];
 }
 
 export interface CreateRequirementResponse {

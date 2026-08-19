@@ -8,7 +8,7 @@ export const commentsApi = {
   ): Promise<CreateCommentResponse> => {
     const { data } = await apiClient.post<CreateCommentResponse>(
       `/api/opus/requirements/${requirementId}/comments`,
-      { comment: payload.comment, attachmentIds: payload.attachmentIds }
+      { comment: payload.comment, fileIds: payload.fileIds }
     );
     return data;
   },

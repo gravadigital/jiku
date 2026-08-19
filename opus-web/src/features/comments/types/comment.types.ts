@@ -11,7 +11,8 @@ export interface Comment {
 
 export interface CreateCommentPayload {
   comment: string;
-  attachmentIds?: number[];
+  /** Ids de `files` ya subidos por quien comenta. Reemplaza a `attachmentIds` (REQ-001). */
+  fileIds?: number[];
 }
 
 export interface CreateCommentResponse {

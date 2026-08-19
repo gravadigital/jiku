@@ -79,4 +79,55 @@ describe('AttachmentPreview', () => {
       expect(link).toHaveAttribute('target', '_blank');
     });
   });
+
+  describe('archivo no disponible (TS-39)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('un 404 con code file_not_available muestra el mensaje entendible con role=alert', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ code: 'file_not_available' }),
+        })
+      );
+
+      render(<AttachmentPreview {...baseProps} />);
+      fireEvent.error(screen.getByRole('img', { name: 'foto.png' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('El archivo no está disponible');
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('cualquier otro fallo conserva el comportamiento actual', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ code: 'internal_error' }),
+        })
+      );
+
+      render(<AttachmentPreview {...baseProps} />);
+      fireEvent.error(screen.getByRole('img', { name: 'foto.png' }));
+
+      expect(await screen.findByText('archivo no disponible')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('si el fetch de diagnóstico falla, no inventa un mensaje de error nuevo', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')));
+
+      render(<AttachmentPreview {...baseProps} />);
+      fireEvent.error(screen.getByRole('img', { name: 'foto.png' }));
+
+      expect(await screen.findByText('archivo no disponible')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
 });
