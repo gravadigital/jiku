@@ -88,6 +88,20 @@ services:
       - NATS_INSTANCE=${NATS_INSTANCE}
       - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      # El `sub` del service user de la api: core lo compara con el `caller` del subject
+      # para distinguir el canal de la api del de un publicador externo. Es el campo `userId`
+      # del JSON key de la api. SIN ELLA CORE NO ARRANCA, a propósito.
+      - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID}
+      # Storage: core es el único dueño del bucket desde REQ-001. Firma las prefirmadas de PUT
+      # y de GET, así que estas credenciales necesitan permiso de lectura Y de escritura.
+      # Se leen perezosamente, al primer comando de files: el servicio arranca sin ellas.
+      - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
+      - STORAGE_S3_CREDENTIALS_ACCESSKEY=${STORAGE_S3_CREDENTIALS_ACCESSKEY}
+      - STORAGE_S3_CREDENTIALS_SECRETKEY=${STORAGE_S3_CREDENTIALS_SECRETKEY}
+      - STORAGE_S3_BUCKETNAME=${STORAGE_S3_BUCKETNAME}
+      - STORAGE_S3_REGION=${STORAGE_S3_REGION}
+      - STORAGE_S3_FORCEPATHSTYLE=${STORAGE_S3_FORCEPATHSTYLE}
+      - STORAGE_S3_KEY_PREFIX=${STORAGE_S3_KEY_PREFIX}
       # Traza de diagnóstico: imprime cada comando y su respuesta. Ver bus-inspect.sh
       - LOG_COMMANDS=${LOG_COMMANDS:-false}
       # En NODE_ENV=production el logger escribe a archivo y exige estas rutas.
