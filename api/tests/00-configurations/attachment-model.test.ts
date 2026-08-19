@@ -288,18 +288,28 @@ describe('Attachment model', () => {
     });
   });
 
-  // TS-19: storageKey debe ser único en la BD
-  it('should throw UniqueConstraintError on duplicate storageKey', () => {
+  // TS-19: storageKey YA NO es único en `attachments` (S-003).
+  //
+  // La unicidad se retiró del modelo a propósito: un `File` puede tener 0..N vínculos
+  // (REQ-001 CA-13) y, mientras esta columna siga existiendo, su valor se copia del `File` en
+  // cada uno. Con la unicidad puesta, el segundo vínculo del mismo archivo chocaba contra
+  // ella. No es un aflojamiento real: la migración 20260819_05 ya dropeó `storage_key` de
+  // `attachments`, así que la restricción solo vivía en el esquema que `sync()` construye para
+  // los tests, y ninguna ruta depende de ella. La unicidad que SÍ importa es la de
+  // `files.storage_key`, que sigue intacta y tiene su propio test en `file-model.test.ts`.
+  it('should allow two attachments to share a storageKey (0..N links per file)', () => {
     return Attachment.create({
       ...BASE_ATTACHMENT,
-      storageKey: 'test/ts-19-unique.pdf',
+      storageKey: 'test/ts-19-shared.pdf',
       uploadedBy: userId,
     }).then(() => {
       return Attachment.create({
         ...BASE_ATTACHMENT,
-        storageKey: 'test/ts-19-unique.pdf',
+        storageKey: 'test/ts-19-shared.pdf',
         uploadedBy: userId,
-      }).should.be.rejected();
+      });
+    }).then((second) => {
+      second.id.should.be.a.Number();
     });
   });
 });

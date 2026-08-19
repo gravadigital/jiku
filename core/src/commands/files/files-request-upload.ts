@@ -5,7 +5,7 @@ import { Reply, success, failure, ErrorCode } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { readFileSettings } from './settings';
-import { resolveActor } from './resolve-actor';
+import { resolveActor } from '../resolve-actor';
 import { buildStorageKey, getStorageSigner } from './storage';
 
 const COMPONENT = 'files.request-upload';

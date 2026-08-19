@@ -1,20 +1,55 @@
 ---
 id: adjuntos
-title: Subida y acceso a adjuntos
+title: Subida y acceso a adjuntos (DEPRECADO)
 type: feature
-status: Active
+status: Deprecated
 created: 2026-08-18
-last_updated: 2026-08-18
-stories: []
+last_updated: 2026-08-19
+stories: [S-002, S-003, S-004, S-005, S-006, S-007]
 ---
 
 # Subida y Acceso a Adjuntos
 
 **Tipo:** Feature
-**Status:** Active (implementado en el código existente)
+**Status:** **Deprecated** — reemplazado por completo a partir de REQ-001
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-18
-**Stories:** —
+**Última actualización:** 2026-08-19
+**Stories:** S-002, S-003, S-004, S-005, S-006, S-007
+
+> # ⚠️ FLUJO REEMPLAZADO POR COMPLETO
+>
+> **Este documento ya no describe el comportamiento del sistema.** El rediseño de
+> [`REQ-001`](../requests/REQ-001.rediseno-archivos-y-adjuntos.md) lo **reemplaza por completo** —
+> no es una edición de pasos: **seis de sus siete pasos** desaparecen o cambian de servicio, y el
+> único que sobrevive (el 7, el renderizado) cambia de mecanismo por debajo.
+>
+> **Los tres flujos que lo reemplazan:**
+>
+> | Flujo nuevo | Qué cubre |
+> |---|---|
+> | [`subida-de-archivos`](subida-de-archivos.md) | El plano del permiso (`files.request-upload`) y el del byte (`PUT` directo del navegador a S3) |
+> | [`vinculacion-de-archivos`](vinculacion-de-archivos.md) | El plano del vínculo: `resolveActor`, titularidad, `INSERT INTO attachments` y la desvinculación (`attachments.{id}.delete`) |
+> | [`lectura-de-archivos`](lectura-de-archivos.md) | Los cuatro caminos de lectura más el de archivo sin vínculo, y el **302** como único mecanismo |
+>
+> **Qué le pasó a cada uno de los 7 pasos de este documento:**
+>
+> | Paso de este flujo | Destino |
+> |---|---|
+> | **1** — Validación en el cliente | **Se mantiene como conveniencia**, pero la autoritativa **se muda de `api` a `core`** (`system_settings`, en caliente). Ver `subida-de-archivos` paso 1 |
+> | **2** — Subida con streaming multipart a la api | **ELIMINADO.** Lo reemplaza el pedido de permiso (`files.request-upload`) + el **`PUT` directo a S3** |
+> | **3** — La api valida, sube y hace rollback | **ELIMINADO.** La validación va a `core`; **el rollback de S3 desaparece y no se reemplaza** (quien escribe el objeto es el navegador) |
+> | **4** — *"La fila se escribe SIN pasar por core"* | **ELIMINADO.** Es el objetivo declarado del rediseño: cierra la excepción 2 de ADR-001 |
+> | **5** — Vinculación del borrador | **ELIMINADO.** **No hay draft.** El vínculo se crea contra la entidad existente. Ver `vinculacion-de-archivos` |
+> | **6** — Acceso, tres caminos | **Cambia de mecanismo.** Los tres siguen existiendo y entrando por id de vínculo, pero **ninguno sirve el byte**: autorizan, piden la URL a `core` con `files.{fileId}.request-download` y responden **302**. La rama *"alt archivo grande / 302 a URL pre-firmada"* **deja de ser una rama**. El **camino C queda deprecado** |
+> | **7** — Renderizado embebido en markdown | **Los placeholders no cambian.** El `HEAD` al preview **sigue funcionando pero por otro mecanismo**: los metadatos vienen del reply del comando en lugar de leerse del stream |
+>
+> **Pasos nuevos que este documento no tenía:** pedir permiso de subida (`files.request-upload`) y el
+> `PUT` directo del navegador a S3.
+>
+> **El contenido histórico queda debajo sin borrar**, porque documenta lo que había antes del
+> rediseño. No lo tomes como referencia de implementación.
+
+---
 
 ## Descripción
 
@@ -149,18 +184,29 @@ variable en una instalación con datos deja inaccesibles todos los adjuntos exis
 
 ---
 
-### Paso 5: Vinculación a la entidad (si era borrador)
+### Paso 5: Vinculación a la entidad (si era borrador) — ELIMINADO POR S-003
 
-**Origen:** `core`
-**Tipo:** Interno
+> ## ⚠️ ESTE PASO YA NO EXISTE
+>
+> **S-003 lo eliminó.** El patrón de borrador que describía —subir el adjunto con `entity_id: NULL`
+> y "confirmarlo" después reanclándolo con un `UPDATE`— **no tiene sustituto porque no hace falta**:
+> desde S-001 el archivo existe por su cuenta como fila de `files`, así que no necesita colgar de
+> nada para existir mientras el usuario todavía no guardó.
+>
+> **Lo que hace core ahora:** los seis comandos de dominio reciben `fileIds` (no `attachmentIds`),
+> y crean el vínculo con un **`INSERT INTO attachments`** contra una entidad que **ya existe**. No
+> hay reanclaje, no hay `entityType` de draft y no hay `attachmentScope`.
+>
+> **La validación también cambió de premisa:** ya no es "es un draft propio, del tipo correcto y
+> vivo", sino "el archivo existe, está vivo, y **lo subió el actor de este comando**"
+> (`File.uploaded_by == resolveActor(ctx, payload)`), con `invalid_fields` (400) y
+> `file_not_owned` (403) como códigos distinguibles.
+>
+> Ver [`vinculacion-de-archivos.md`](vinculacion-de-archivos.md), que es el flujo que lo reemplaza,
+> y [`alta-requisito-desde-portal.md`](alta-requisito-desde-portal.md) paso 6 para el caso concreto.
 
-Si el adjunto se subió como borrador (`entity_id: NULL`), el vínculo lo completa **core**, dentro
-de la transacción del comando que crea la entidad.
-
-Core valida que cada adjunto sea **draft propio, del tipo correcto y vivo** (`retentionStatus`
-activo). **Si uno falla, se descarta toda la escritura.**
-
-Ver [`alta-requisito-desde-portal.md`](alta-requisito-desde-portal.md) paso 6.
+**Este documento NO se borra:** las stories S-004 y S-005 todavía lo referencian como descripción
+del estado del que parten. Se reemplaza por completo entre las stories 2, 3, 4 y 5.
 
 ---
 

@@ -35,6 +35,45 @@ info:
 
     **The transaction belongs to the dispatcher**: commit if the reply is `success`, rollback
     in any other case.
+
+    ## REQ-001 — files, ownership and the storage
+
+    **Core is the single owner of the storage.** With the `files` module it stops consuming only
+    "PostgreSQL, NATS, Zitadel" and gains an S3 client that signs PUT and GET. **The api keeps no
+    S3 credentials**, so it cannot reach an object core did not sign for it — a guarantee of
+    infrastructure, not of discipline, the same kind ADR-001 achieved for database writes.
+
+    **Ownership of a file is resolved per channel (`resolveActor`).** `CommandContext.caller` is
+    the SERVICE that published, taken from the subject; for the api it is a single service user
+    shared by every person. So neither comparison works on its own: `uploaded_by == caller`
+    breaks the web, and `uploaded_by == payload.author` does not satisfy RF-14. The resolution is:
+
+    ```
+    resolveActor(ctx, payload):
+      if ctx.caller == CORE_TRUSTED_PUBLISHER_ID   (the api's service user, from config)
+         -> the actor is payload.author / creator / editor / uploader
+            (the api ALREADY authenticated that person against Zitadel by JWT)
+      else
+         -> the actor is ctx.caller
+            (an external publisher has no person behind it: its identity IS the subject's,
+             vouched by the auth-callout and unforgeable. Whatever it declares is IGNORED)
+    ```
+
+    And then, uniform across both channels:
+    `if File.uploaded_by != resolveActor(ctx, payload) -> failure(file_not_owned)`.
+
+    - **`files.request-upload` and the six domain commands MUST use the same function.** If
+      uploading and linking resolved identity differently, nobody could link what they uploaded.
+    - **No exception by role** (RF-13): core knows nothing about roles, so the rule is uniform by
+      construction — there is nowhere to put the exception even if one wanted to.
+    - **What is still not covered:** inside the api's channel, core keeps trusting the `author` in
+      the body (D-24). Someone holding the api's service user could link files as anybody. This
+      design does not close that hole — it **narrows it to the api's channel**; the external
+      publisher, which is the new actor, is fully covered.
+    - **`CORE_TRUSTED_PUBLISHER_ID` is configuration, not a literal**, and **core MUST fail to
+      start without it**: an empty default would send every `caller` down the external branch and
+      break the web silently. The external branch should log at `warn`, since today it is the rare
+      case.
   license:
     name: Apache-2.0
   contact:
@@ -219,9 +258,14 @@ channels:
     description: |
       Requirement creation.
 
-      Attachments are confirmed from their draft. The draft's anchor depends on
-      `attachmentScope`: the internal route anchors it to the user (`entityId` may be null), the
-      Opus one anchors it to the project.
+      **Files are linked, not confirmed from a draft** (REQ-001, S-003). `fileIds` carries ids of
+      `files` that already exist on their own; the command creates the requirement and then, in
+      the same transaction, validates ownership and inserts one `attachments` row per file. The
+      requirement and its links commit together or not at all.
+
+      Validation is deliberately **late** (after creating the entity) and that is safe: the
+      dispatcher's rollback discards everything, which is the pattern
+      `requirements-new.ts:116-121` already uses.
     publish:
       operationId: requirementsNew
       summary: Create a requirement
@@ -239,8 +283,9 @@ channels:
       `inProgressAt`, ...). The command persists what the hook left behind. **This is a different
       mechanism from `tasks.{id}.edit`**, which computes it in the command.
 
-      `attachmentIds` is the COMPLETE set that must end up linked: the ones that were not there
-      are confirmed from draft, and the ones no longer present are soft-deleted.
+      `fileIds` is the COMPLETE set that must end up linked: the ones that were not there get a
+      new `attachments` row, and the ones no longer present have their **link** deleted — the
+      file itself is always retained (REQ-001 D-04, S-003).
 
       `responsiblePersonIds` is a full replacement.
     parameters:
@@ -346,6 +391,109 @@ channels:
   # -------------------------------------------------------------------------
   # times
   # -------------------------------------------------------------------------
+
+  # -------------------------------------------------------------------------
+  # files  (REQ-001 — S-002)
+  #
+  # The sixth module of core, and the first one that talks to an external system.
+  # `core` becomes the SINGLE OWNER of the storage: the api keeps no S3 credentials.
+  # -------------------------------------------------------------------------
+
+  files.request-upload:
+    description: |
+      Upload permission. Validates the upload policy, builds the S3 key, creates the `files` row
+      with the byte **unverified**, and signs a `PutObject` presigned URL.
+
+      **The byte never travels over the bus** (`max_payload` is 1 MB and attachments reach 10 MB,
+      ADR-002) **nor through the api**: the client PUTs it straight to S3 with the returned URL.
+
+      **The uploader does not choose where the file is stored** (D-08): core builds the key as
+      `{STORAGE_S3_KEY_PREFIX}/f/{uuid}{ext}`, with no `entityType` and no `entityId`.
+
+      **The double allowlist is validated here, not in the api**: extension AND MIME type, both
+      read live from `system_settings`. A new type has to be added to **both** lists (RF-17).
+
+      **The byte is NOT verified.** No `headObject`, because a network call inside the
+      dispatcher's transaction would risk the 5 s timeout of ADR-002. The failure surfaces on
+      download as `file_not_available`, never as a corrupted row.
+    publish:
+      operationId: filesRequestUpload
+      summary: Request permission to upload a file
+      tags:
+        - name: files
+      message:
+        $ref: '#/components/messages/FilesRequestUpload'
+
+  files.{fileId}.request-download:
+    description: |
+      Read permission. Validates that the file exists, is alive and has a byte, and signs a
+      `GetObject` presigned URL over its `storage_key`.
+
+      **`fileId` is the id of `files`** — the file, not the link. The parameter name is explicit
+      on purpose so it is not confused with the `attachments` id that travels in the HTTP
+      contract. The api holds the `file_id` already, because it read the `attachments` row to
+      authorize.
+
+      **It carries no `requester`: ownership does NOT apply to reading.** A file is read through
+      the permission over the linked entity, not through who uploaded it. RF-12 is about
+      *linking*, not *reading* — a requirement can hold attachments from several people and the
+      whole project team has to be able to see them.
+
+      **What core does NOT validate here is the permission over the entity.** That stays with the
+      api (`canUserViewEntity` / `canUserAccessEntity`), because core knows nothing about roles or
+      end users. The api authorizes first and only then publishes.
+
+      > **Consequence to keep on the record (ADR-007 revision).** The command takes a `fileId`, so
+      > anyone able to publish on the bus can ask for the URL of **any file in the catalog**,
+      > bypassing the api's authorization. It is the same trust model ADR-007 already declares for
+      > every write — the auth-callout is the only defence — but it now covers **reading**, and the
+      > surface is the whole file catalog rather than the set of authorizable links. An optional
+      > `attachmentId` for core to validate was evaluated and **discarded**, to keep this command
+      > symmetric with `request-upload`; it stays available as an additive defence-in-depth.
+    parameters:
+      fileId:
+        description: File id (`files.id`) — **not** the link id (`attachments.id`).
+        schema:
+          type: string
+    publish:
+      operationId: filesRequestDownload
+      summary: Request permission to download a file
+      tags:
+        - name: files
+      message:
+        $ref: '#/components/messages/FilesRequestDownload'
+
+  # -------------------------------------------------------------------------
+  # attachments  (REQ-001 — S-004)
+  # -------------------------------------------------------------------------
+
+  attachments.{id}.delete:
+    description: |
+      Unlinks a file from an entity. **Deletes only the `attachments` row: the file is retained**
+      (D-04), and so is the object in the bucket.
+
+      With 0..N links per file, deleting the object would break the other links. Unlinking **is**
+      deleting the `Attachment`.
+
+      **Why it is a command and not a direct write.** It was the third implicit write of the api
+      (row + object). If the link becomes a domain row, deleting it MUST go through core, or it
+      would reopen through another door the ADR-001 exception this redesign closes.
+
+      **The parameter is the id of `attachments`** — the link — which is the opposite of
+      `files.{fileId}.request-download`. The name says so on purpose: `attachments.{id}.delete`
+      is more honest than `files.{id}.unlink`.
+    parameters:
+      id:
+        description: Link id (`attachments.id`).
+        schema:
+          type: string
+    publish:
+      operationId: attachmentsDelete
+      summary: Unlink a file from an entity
+      tags:
+        - name: attachments
+      message:
+        $ref: '#/components/messages/AttachmentsDelete'
 
   worked-times.new:
     description: |
@@ -474,6 +622,10 @@ components:
         - project_not_found
         - person_not_found
         - requirement_project_mismatch
+        # S-003: el comando ahora vincula archivos. `invalid_attachment_id` NO figura acá: un
+        # `fileId` inexistente o retirado cae en `invalid_fields` (400), y uno ajeno en
+        # `file_not_owned` (403). La distinción es la regla nueva del REQ-001.
+        - file_not_owned
         - internal_error
 
     TasksEdit:
@@ -489,6 +641,7 @@ components:
         - objective_not_found
         - person_not_found
         - requirement_project_mismatch
+        - file_not_owned
         - internal_error
 
     TasksComment:
@@ -499,7 +652,7 @@ components:
         $ref: '#/components/schemas/TasksCommentPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, objective_not_found, invalid_attachment_id, internal_error]
+      x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error]
 
     RequirementsNew:
       name: RequirementsNew
@@ -513,7 +666,7 @@ components:
         - invalid_fields
         - project_not_found
         - invalid_responsible_person
-        - invalid_attachment_id
+        - file_not_owned
         - internal_error
 
     RequirementsEdit:
@@ -528,7 +681,7 @@ components:
         - invalid_fields
         - requirement_not_found
         - invalid_responsible_person
-        - invalid_attachment_id
+        - file_not_owned
         - internal_error
 
     RequirementsResolve:
@@ -549,7 +702,7 @@ components:
         $ref: '#/components/schemas/RequirementsCommentPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, requirement_not_found, invalid_attachment_id, internal_error]
+      x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error]
 
     RequirementsSubscriptorsNew:
       name: RequirementsSubscriptorsNew
@@ -565,6 +718,36 @@ components:
         - user_not_found
         - already_subscribed
         - internal_error
+
+    FilesRequestUpload:
+      name: FilesRequestUpload
+      title: files.request-upload
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/FilesRequestUploadPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithUploadTicket'
+      x-error-codes: [invalid_fields, file_type_not_allowed, file_too_large, internal_error]
+
+    FilesRequestDownload:
+      name: FilesRequestDownload
+      title: files.{fileId}.request-download
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/FilesRequestDownloadPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithDownloadTicket'
+      x-error-codes: [file_not_found, file_not_available, internal_error]
+
+    AttachmentsDelete:
+      name: AttachmentsDelete
+      title: attachments.{id}.delete
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EmptyPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, internal_error]
 
     WorkedTimesNew:
       name: WorkedTimesNew
@@ -675,6 +858,95 @@ components:
           example:
             status: success
 
+    ReplyWithUploadTicket:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of `files.request-upload`.
+
+            > **Declared exception to `conventions/commands.md`** ("creations return only the
+            > `id`"). There is no alternative here: the presigned URL is generated by core, is
+            > single-use and short-lived, and the api cannot rebuild it by re-reading the database
+            > without duplicating the key policy and standing up its own write signer — which is
+            > exactly what D-08 centralizes in core. Documented as an exception, not as a pattern.
+
+            > **The field is `id` on the bus and `fileId` over HTTP.** On the bus `id` is the
+            > convention of every creation; over HTTP `fileId` says which id it is, which matters
+            > because the HTTP attachment contract handles **two** id spaces (the link's and the
+            > file's). The api translates, as it already does in its five documented contract
+            > translations.
+          properties:
+            data:
+              type: object
+              required: [id, uploadUrl, expiresIn]
+              properties:
+                id:
+                  type: integer
+                  description: '`files.id`. Travels as `fileIds` when saving the entity.'
+                uploadUrl:
+                  type: string
+                  description: |
+                    **PutObject** presigned URL, single object and short TTL (D-10). The client
+                    uses it straight against the storage: it goes through neither the api nor the
+                    bus. It grants no listing, no reading and no deleting.
+                expiresIn:
+                  type: integer
+                  description: 'Seconds of validity. Read from `system_settings`.'
+          example:
+            status: success
+            data:
+              id: 1234
+              uploadUrl: 'https://bucket.example/grava-gestion/f/9c1e.../abcd.pdf?X-Amz-...'
+              expiresIn: 300
+
+    ReplyWithDownloadTicket:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of `files.{fileId}.request-download`. Same declared exception as
+            `ReplyWithUploadTicket`.
+
+            The three metadata fields travel in the reply **on purpose**: the api needs them to
+            build the headers of its response (or of the 302) without querying the database again,
+            and the `HEAD` to the preview the frontends already use to resolve name and size keeps
+            working unchanged.
+          properties:
+            data:
+              type: object
+              required: [downloadUrl, expiresIn, fileName, mimeType, fileSize]
+              properties:
+                downloadUrl:
+                  type: string
+                  description: |
+                    **GetObject** presigned URL over `files.storage_key`, carrying
+                    `response-content-disposition` so the original file name travels signed and S3
+                    returns it without anybody proxying the byte.
+                expiresIn:
+                  type: integer
+                  description: |
+                    Seconds of validity, from `download-url-ttl-seconds`.
+
+                    > **Security note.** A leaked read URL grants access to the content with no
+                    > credential at all, and with the 302 that URL reaches the browser on **every**
+                    > preview: it lands in history, in proxy logs and in the `Referer`. The default
+                    > should be the shortest the UI tolerates.
+                fileName:
+                  type: string
+                mimeType:
+                  type: string
+                fileSize:
+                  type: integer
+          example:
+            status: success
+            data:
+              downloadUrl: 'https://bucket.example/grava-gestion/f/9c1e....pdf?X-Amz-...'
+              expiresIn: 300
+              fileName: informe.pdf
+              mimeType: application/pdf
+              fileSize: 4194304
+
     ErrorCode:
       type: string
       description: |
@@ -687,6 +959,15 @@ components:
         Three codes are emitted today as a string literal instead of the constant
         (`resolution_required`, `worked_time_not_found`, `unworked_time_not_found`). The value is
         correct, but it is duplicated by hand.
+
+        > **REQ-001 adds five codes** for the `files` module. All five MUST be mapped in
+        > `api/lib/utils/bus/protocol.ts` (ADR-002) or they fall through to a generic 500:
+        > `file_type_not_allowed` → 400, `file_too_large` → 400, `file_not_owned` → **403**,
+        > `file_not_found` → 404, `file_not_available` → 404.
+        >
+        > `file_not_owned` has to be **403, not 400**. Reusing `invalid_attachment_id` (mapped to
+        > 400) would make "the file does not exist" indistinguishable from "the file is not
+        > yours", and the second one is the new rule.
       enum:
         - invalid_fields
         - internal_error
@@ -698,7 +979,17 @@ components:
         - user_not_found
         - person_not_found
         - invalid_responsible_person
+        # CÓDIGO SIN EMISOR desde S-003: ningún comando lo devuelve ya. Los seis comandos de
+        # dominio dejaron de emitirlo al pasar de `attachmentIds` a `fileIds` —un `fileId`
+        # inválido cae en `invalid_fields` y uno ajeno en `file_not_owned`—. SE CONSERVA a
+        # propósito: el catálogo no está cerrado, `@jiku/nats-protocol` es compartido (ADR-005)
+        # y ningún criterio de aceptación pide retirarlo.
         - invalid_attachment_id
+        - file_type_not_allowed
+        - file_too_large
+        - file_not_owned
+        - file_not_found
+        - file_not_available
         - requirement_project_mismatch
         - daily_limit_exceeded
         - invalid_date_range
@@ -759,12 +1050,75 @@ components:
         value:
           type: string
 
-    AttachmentIds:
+    FilesRequestUploadPayload:
+      type: object
+      required: [uploader, fileName, mimeType, fileSize]
+      properties:
+        uploader:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Who uploads. For the api it is the end user authenticated by JWT.
+
+            **An external publisher omits it: core resolves it from the subject's `caller`.** And
+            if it sends one, it is **ignored**. See `x-resolve-actor`.
+
+            It is optional on purpose: it is the lever of D-26.
+        fileName:
+          type: string
+          maxLength: 255
+          description: 'The original name. It is **not** the key — core builds the key.'
+        mimeType:
+          type: string
+          maxLength: 100
+          description: |
+            Declared by the client. Validated against `file-allowed-mime-types`, **and the
+            extension of `fileName` is validated against `file-allowed-extensions` as well**: a
+            new type has to be added to both lists (RF-17, D-18).
+        fileSize:
+          type: integer
+          minimum: 1
+          description: 'Declared by the client. Validated against `file-max-size-bytes`.'
+        checksum:
+          type: [string, 'null']
+          description: |
+            Hexadecimal sha256 declared by the client. **NOBODY verifies it** (D-25), the same way
+            nobody verifies `mimeType` or `fileSize` against the actual byte. The double allowlist
+            validates **what is declared**, which was never a guarantee about the byte; the
+            standing defence is the one on serving (`nosniff` + sandbox CSP), not the one on
+            uploading.
+
+    FilesRequestDownloadPayload:
+      type: object
+      properties:
+        disposition:
+          type: string
+          enum: [inline, attachment]
+          default: inline
+          description: |
+            `inline` for preview, `attachment` for download with a name. It determines the
+            presigned URL's `response-content-disposition`, so the original name travels in the
+            signed URL and S3 returns it without anybody proxying the byte.
+
+    FileIds:
       type: array
+      maxItems: 10
       description: |
-        Ids of the attachments to confirm. They have to be the user's own live drafts, anchored to
-        the corresponding entity; if any of them is not, the command replies
-        `invalid_attachment_id` and **the whole write is discarded**.
+        Ids from `files` to link. Each one has to exist, be alive (`retention_status: 'active'`)
+        and have been uploaded by the actor of this command (REQ-001 RF-12). If any of them does
+        not comply, the reply is `file_not_owned` or `invalid_fields` and **the whole write is
+        discarded**.
+
+        **Replaces `AttachmentIds`** (REQ-001, S-003). There are no drafts any more: the file
+        already exists on its own and the link is created against the entity, which by then
+        exists too.
+
+        **Ownership is resolved per channel** — see `x-resolve-actor` below. It has **no
+        exception by role**: an administrator cannot link a file they did not upload either
+        (RF-13). Core knows nothing about roles, so the rule is uniform by construction.
+
+        `maxItems: 10` moves the 10-file cap from `multer` to **the bus contract** (D-20): it
+        stops being a transport limit and becomes a domain rule, validated by Joi.
       items:
         type: integer
         minimum: 1
@@ -940,6 +1294,17 @@ components:
         requirementId:
           type: [integer, 'null']
           description: If present, it has to belong to the given project.
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            Files to link to the task being created.
+
+            > **Discrepancy resolved by REQ-001 (S-003).** This payload did not declare
+            > `attachmentIds`, yet the message declared `invalid_attachment_id` among its
+            > `x-error-codes`. RF-9 requires linking files to tasks, so in the new model this
+            > command carries `fileIds`. **Verify against `core/src/commands/tasks/` when
+            > implementing** and keep spec and code consistent.
 
     TasksEditPayload:
       type: object
@@ -983,6 +1348,14 @@ components:
           enum: [public, internal]
         requirementId:
           type: [integer, 'null']
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            The **COMPLETE set** that must end up linked to the task, same semantics as
+            `RequirementsEditPayload.fileIds`.
+
+            > Same discrepancy as `TasksNewPayload.fileIds`, resolved the same way by REQ-001.
 
     TasksCommentPayload:
       type: object
@@ -999,13 +1372,14 @@ components:
           description: |
             The comment is the only activity type whose visibility the user chooses; in the rest it
             is automatic, per field.
-        attachmentIds:
+        fileIds:
           allOf:
-            - $ref: '#/components/schemas/AttachmentIds'
+            - $ref: '#/components/schemas/FileIds'
           description: |
-            Drafts anchored to the task. Two `entityType` values are accepted:
-            `objective_comment_draft` and `comment_draft` (the old name, with attachments still
-            stored that way). The web always sends this field, even when the array is empty.
+            Files to link to the comment. **No draft `entityType` is involved any more**: the
+            files already exist on their own and the link is created against the comment once it
+            exists (REQ-001, S-003). The web always sends this field, even when the array is
+            empty.
 
     # -----------------------------------------------------------------------
     # requirements
@@ -1050,15 +1424,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Tag'
-        attachmentIds:
-          $ref: '#/components/schemas/AttachmentIds'
-        attachmentScope:
-          type: string
-          enum: [user, project]
-          default: user
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
           description: |
-            The draft's anchor. The internal route anchors it to the user (`entityId` may be null);
-            the Opus one anchors it to the project.
+            Files to link to the requirement being created. The requirement and its links are
+            written in **a single transaction**: if anything fails, neither the requirement nor a
+            single link survives — but the `files` rows do, unlinked, which is a valid state
+            (REQ-001 RF-1).
+        # attachmentScope - REMOVED by REQ-001 (S-003). It existed only to choose the draft's
+        # anchor, and there are no drafts any more.
         scope:
           type: [string, 'null']
         technicalSolution:
@@ -1105,13 +1480,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Tag'
-        attachmentIds:
+        fileIds:
           allOf:
-            - $ref: '#/components/schemas/AttachmentIds'
+            - $ref: '#/components/schemas/FileIds'
           description: |
-            The **COMPLETE set** that must end up linked: the ones that were not there are
-            confirmed from draft and the ones no longer present are soft-deleted. This differs from
-            creation, where it is only the list to confirm.
+            The **COMPLETE set** that must end up linked: the ones that were not there get a new
+            `attachments` row and the ones no longer present have their link deleted. This differs
+            from creation, where it is only the list to link.
+
+            **It operates on the link, not on the file** (REQ-001, S-003): deleting a link never
+            deletes the file, because a file can have 0..N links and removing the object would
+            break the others.
         resolutionType:
           type: [string, 'null']
           enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro, null]
@@ -1163,12 +1542,12 @@ components:
           type: string
           enum: [public, internal]
           default: internal
-        attachmentIds:
+        fileIds:
           allOf:
-            - $ref: '#/components/schemas/AttachmentIds'
+            - $ref: '#/components/schemas/FileIds'
           description: |
-            Drafts anchored to the requirement. `requirement_comment_draft` and `comment_draft`
-            (the old name) are accepted.
+            Files to link to the comment. **No draft `entityType` is involved any more**: the link
+            is created against the already existing comment (REQ-001, S-003).
 
     SubscriptorNewPayload:
       type: object

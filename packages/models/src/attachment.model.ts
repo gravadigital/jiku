@@ -83,10 +83,19 @@ export default class Attachment extends Model {
   })
     mimeType!: string;
 
+  /**
+   * SIN `unique: true` desde S-003, a propósito.
+   *
+   * Un `File` puede tener 0..N vínculos (CA-13), y mientras esta columna siga existiendo en el
+   * modelo su valor se copia del `File` en cada vínculo. Con la unicidad puesta, el segundo
+   * vínculo del mismo archivo chocaría contra ella. No es un aflojamiento real: la migración
+   * 20260819_05 YA DROPEÓ `storage_key` de `attachments`, así que la restricción solo existía
+   * en el esquema que `sequelize.sync()` construye para los tests (ADR-013). Ninguna ruta de la
+   * api depende de esa unicidad. La columna entera desaparece del modelo en S-004/S-005.
+   */
   @Column({
     type: DataType.STRING(500),
     allowNull: false,
-    unique: true,
   })
     storageKey!: string;
 

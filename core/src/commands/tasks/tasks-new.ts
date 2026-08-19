@@ -1,9 +1,10 @@
 import joi from 'joi';
 import { Op } from 'sequelize';
-import { Objective, Person, PersonObjective, Project, Requirement } from '@jiku/models';
+import { AttachmentEntityType, Objective, Person, PersonObjective, Project, Requirement } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { linkFiles } from '../link-files';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 
 export interface TasksNewPayload {
@@ -20,6 +21,7 @@ export interface TasksNewPayload {
   responsiblePersonIds: number[];
   visibilityLevel?: string;
   requirementId?: number | null;
+  fileIds?: number[];
 }
 
 /**
@@ -49,6 +51,10 @@ const schema = joi.object({
   visibilityLevel: joi.string().valid('public', 'internal').default('public'),
   requirementId: joi.number().integer().allow(null).optional(),
   priorityValue: joi.number().integer().min(0).max(5).optional(),
+  // Campo NUEVO en S-003: hasta ahora este comando no vinculaba archivos, pese a que sus
+  // `x-error-codes` declaraban `invalid_attachment_id`. RF-9 exige poder adjuntar archivos a
+  // una tarea, así que el comando lo gana de verdad. El tope de 10 es regla de dominio (D-20).
+  fileIds: joi.array().max(10).items(joi.number().integer().positive()).optional(),
 });
 
 export const tasksNew: Command<TasksNewPayload, { id: number }> = {
@@ -102,6 +108,27 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
       },
       { transaction: ctx.transaction }
     );
+
+    // Vincular DESPUÉS de crear el `Objective`: hace falta su id como `entityId`. Igual que en
+    // `requirements-new.ts`, la validación tardía es segura por ADR-003 — si la titularidad de
+    // un archivo falla, el rollback del despachador descarta la tarea Y sus asignaciones.
+    //
+    // La tabla es `objectives` y el `entity_type` del vínculo es `objective`: el vocabulario
+    // del bus dice `task`, la base dice `objective` (convención `contract-translation`).
+    // `fileIds` NO se traduce: la columna es `file_id` y el nombre coincide.
+    if (payload.fileIds && payload.fileIds.length > 0) {
+      const linkError = await linkFiles({
+        fileIds: payload.fileIds,
+        declaredActor: payload.creator,
+        entityType: AttachmentEntityType.Objective,
+        entityId: task.id,
+        component: 'tasks.new',
+        ctx,
+      });
+      if (linkError) {
+        return linkError;
+      }
+    }
 
     // El primero de la lista queda como líder.
     await Promise.all(

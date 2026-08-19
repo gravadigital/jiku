@@ -1,8 +1,9 @@
 import joi from 'joi';
-import { Attachment, AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementPriority, RequirementState, RequirementType, RequirementVisibilityLevel, RetentionStatus } from '@jiku/models';
+import { AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementPriority, RequirementState, RequirementType, RequirementVisibilityLevel } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { linkFiles } from '../link-files';
 
 export interface RequirementsNewPayload {
   creator: string;
@@ -16,9 +17,7 @@ export interface RequirementsNewPayload {
   estimatedFinishDate?: string | null;
   tags?: Array<{ key: string; value: string }>;
   state?: RequirementState;
-  attachmentIds?: number[];
-  /** Ancla del draft: en Opus los adjuntos se suben contra el proyecto. */
-  attachmentScope?: 'user' | 'project';
+  fileIds?: number[];
   scope?: string | null;
   technicalSolution?: string | null;
   acceptanceCriteria?: string | null;
@@ -39,9 +38,11 @@ const schema = joi.object({
   responsiblePersonIds: joi.array().items(joi.number().integer()).allow(null).optional(),
   // El protocolo no declara `state` al crear, pero la api lo aceptaba y la web lo usa.
   state: joi.string().valid(...Object.values(RequirementState)).optional(),
-  // Los adjuntos siguen vivos mientras las rutas de attachments no se den de baja.
-  attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
-  attachmentScope: joi.string().valid('user', 'project').default('user'),
+  // Los archivos ya existen por su cuenta: `fileIds` son ids de `files`, no de drafts.
+  // El tope de 10 es REGLA DE DOMINIO, no un límite de transporte (D-20): vive acá, en el
+  // contrato del bus, y no en el `multer` de la api. Al correr Joi antes de que el
+  // despachador abra la transacción, un array de 11 se rechaza SIN LLEGAR A LA BASE (CA-12).
+  fileIds: joi.array().max(10).items(joi.number().integer().positive()).optional(),
   estimatedFinishDate: joi.date().allow(null).optional(),
   tags: joi.array().items(joi.object({ key: joi.string(), value: joi.string() })).optional(),
   scope: joi.string().allow('', null).optional(),
@@ -95,36 +96,27 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
       { transaction: ctx.transaction }
     );
 
-    // Los adjuntos tienen que ser drafts del propio usuario. Se confirman pasándolos a
-    // `requirement`.
-    if (payload.attachmentIds && payload.attachmentIds.length > 0) {
-      for (const id of payload.attachmentIds) {
-        const attachment = await Attachment.scope('active').findOne({
-          where: {
-            id,
-            entityType: AttachmentEntityType.RequirementDraft,
-            // La ruta interna ancla el draft al usuario (entityId puede ser null); la de
-            // Opus lo ancla al proyecto. Ver docs/apis/core.yaml.
-            ...(payload.attachmentScope === 'project'
-              ? { entityId: payload.projectId }
-              : {}),
-            uploadedBy: payload.creator,
-            retentionStatus: RetentionStatus.Active,
-          },
-          transaction: ctx.transaction,
-        });
-        if (!attachment) {
-          return failure(
-            ErrorCode.INVALID_ATTACHMENT_ID,
-            `Attachment ID ${id} is invalid or does not belong to this project draft`
-          );
-        }
+    // Los archivos YA EXISTEN por su cuenta (los creó `files.request-upload`) y el vínculo se
+    // crea contra el requisito, que para este punto TAMBIÉN existe. No hay draft, no hay
+    // anclaje que elegir —por eso el campo de scope del draft desapareció (CA-2)— ni reanclaje:
+    // es un INSERT, no un UPDATE.
+    //
+    // VALIDAR DESPUÉS DE CREAR ES SEGURO por ADR-003: la transacción es del despachador, que
+    // hace rollback ante cualquier reply que no sea `success`. Si la titularidad de un solo
+    // archivo falla, no queda ni el requisito, ni las asignaciones, ni un solo vínculo (CA-4).
+    // Lo que sí queda son los `File`, sin vincular, que es un estado válido (CA-5).
+    if (payload.fileIds && payload.fileIds.length > 0) {
+      const linkError = await linkFiles({
+        fileIds: payload.fileIds,
+        declaredActor: payload.creator,
+        entityType: AttachmentEntityType.Requirement,
+        entityId: requirement.id,
+        component: 'requirements.new',
+        ctx,
+      });
+      if (linkError) {
+        return linkError;
       }
-
-      await Attachment.update(
-        { entityType: AttachmentEntityType.Requirement, entityId: requirement.id },
-        { where: { id: payload.attachmentIds }, transaction: ctx.transaction }
-      );
     }
 
     // El primero de la lista queda como líder.

@@ -1,15 +1,15 @@
 import joi from 'joi';
-import { Op } from 'sequelize';
-import { Attachment, AttachmentEntityType, Objective, ObjectiveActivity, RetentionStatus, activityVisibilityLevel } from '@jiku/models';
+import { AttachmentEntityType, Objective, ObjectiveActivity, activityVisibilityLevel } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { linkFiles } from '../link-files';
 
 export interface TasksCommentPayload {
   author: string;
   comment: string;
   visibilityLevel?: activityVisibilityLevel;
-  attachmentIds?: number[];
+  fileIds?: number[];
 }
 
 const schema = joi.object({
@@ -18,8 +18,10 @@ const schema = joi.object({
   visibilityLevel: joi.string()
     .valid('public', 'internal')
     .default(activityVisibilityLevel.Internal),
-  // La web siempre manda este campo, aunque el array esté vacío.
-  attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+  // La web siempre manda este campo, aunque el array esté vacío: por eso acepta `[]` y no
+  // solo la ausencia. El tope de 10 es regla de dominio (D-20), aplicado por Joi antes de que
+  // el despachador abra la transacción.
+  fileIds: joi.array().max(10).items(joi.number().integer().positive()).optional(),
 });
 
 export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
@@ -50,39 +52,21 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
       { transaction: ctx.transaction }
     );
 
-    // Los adjuntos se suben como draft anclado a la task y se confirman acá.
-    if (payload.attachmentIds && payload.attachmentIds.length > 0) {
-      for (const id of payload.attachmentIds) {
-        const attachment = await Attachment.scope('active').findOne({
-          where: {
-            id,
-            entityType: {
-              [Op.in]: [
-                AttachmentEntityType.ObjectiveCommentDraft,
-                AttachmentEntityType.CommentDraft,
-              ],
-            },
-            entityId: task.id,
-            uploadedBy: payload.author,
-            retentionStatus: RetentionStatus.Active,
-          },
-          transaction: ctx.transaction,
-        });
-        if (!attachment) {
-          return failure(
-            ErrorCode.INVALID_ATTACHMENT_ID,
-            `Attachment ID ${id} is invalid or does not belong to this comment draft`
-          );
-        }
+    // El vínculo se crea contra el comentario recién creado, sin ningún draft de por medio.
+    // La rama que aceptaba el `comment_draft` viejo desapareció: el backfill de S-001 ya
+    // resolvió esas filas.
+    if (payload.fileIds && payload.fileIds.length > 0) {
+      const linkError = await linkFiles({
+        fileIds: payload.fileIds,
+        declaredActor: payload.author,
+        entityType: AttachmentEntityType.ObjectiveComment,
+        entityId: comment.id,
+        component: 'tasks.comment',
+        ctx,
+      });
+      if (linkError) {
+        return linkError;
       }
-
-      await Attachment.update(
-        {
-          entityType: AttachmentEntityType.ObjectiveComment,
-          entityId: comment.id,
-        },
-        { where: { id: payload.attachmentIds }, transaction: ctx.transaction }
-      );
     }
 
     return success({ id: comment.id });

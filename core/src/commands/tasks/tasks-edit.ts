@@ -1,9 +1,10 @@
 import joi from 'joi';
 import { Op } from 'sequelize';
-import { Objective, ObjectiveActivity, Person, PersonObjective, Requirement } from '@jiku/models';
+import { AttachmentEntityType, Objective, ObjectiveActivity, Person, PersonObjective, Requirement } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
+import { syncFileLinks } from '../link-files';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 import { activityVisibility } from './activity';
 
@@ -20,6 +21,7 @@ export interface TasksEditPayload {
   responsiblePersonIds?: number[];
   visibilityLevel?: string;
   requirementId?: number | null;
+  fileIds?: number[];
 }
 
 /**
@@ -48,6 +50,9 @@ const schema = joi.object({
   visibilityLevel: joi.string().valid('public', 'internal').optional(),
   requirementId: joi.number().integer().allow(null).optional(),
   priorityValue: joi.number().integer().min(0).max(5).optional(),
+  // Campo NUEVO en S-003, igual que en `tasks-new`. Conjunto COMPLETO: ausente = no se toca,
+  // `[]` = desvincular todo.
+  fileIds: joi.array().max(10).items(joi.number().integer().positive()).optional(),
 });
 
 /** Campos que dejan rastro en `objective_activities`. */
@@ -163,6 +168,23 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
           )
         )
       );
+    }
+
+    // Conjunto COMPLETO de vínculos, misma semántica que `requirements.{id}.edit`. NO genera
+    // entrada de historial: ningún criterio de aceptación lo pide y `TRACKED` no lo incluye a
+    // propósito —agregarlo sería alcance inventado—.
+    if (payload.fileIds !== undefined) {
+      const linkError = await syncFileLinks({
+        fileIds: payload.fileIds,
+        declaredActor: payload.editor,
+        entityType: AttachmentEntityType.Objective,
+        entityId: task.id,
+        component: 'tasks.edit',
+        ctx,
+      });
+      if (linkError) {
+        return linkError;
+      }
     }
 
     await Promise.all(
