@@ -14,6 +14,7 @@ import {
   requirementsSubscriptorsNew,
   requirementsSubscriptorsDelete,
 } from './requirements/requirements-subscriptors';
+import attachmentsDelete from './attachments/attachments-delete';
 import filesRequestUpload from './files/files-request-upload';
 import filesRequestDownload from './files/files-request-download';
 import { workedTimesNew, workedTimesDelete } from './times/worked-times';
@@ -38,6 +39,7 @@ export const registry = new CommandRegistry().registerAll([
   requirementsComment,
   requirementsSubscriptorsNew,
   requirementsSubscriptorsDelete,
+  attachmentsDelete,
   filesRequestUpload,
   filesRequestDownload,
   workedTimesNew,
