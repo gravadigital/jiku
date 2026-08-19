@@ -143,9 +143,10 @@ react-select's computed styles through a node jsdom does not accept. `web` decla
 
 ## Operational notes
 
-- **Attachment storage keys** carry a prefix stored in `attachments.storage_key`. Changing
-  `STORAGE_S3_KEY_PREFIX` on an installation with data makes existing attachments
-  unreachable.
+- **File storage keys** carry a prefix, persisted in `files.storage_key`. Changing
+  `STORAGE_S3_KEY_PREFIX` on an installation that already has data makes existing files
+  unreachable. Documented in full — with what to do about it — in
+  [deploy/.env.dist](../deploy/.env.dist).
 - **Three unused tables remain**: `objective_mail_threads`, `requirement_mail_threads` and
   `inbound_mail_threads`, left over from the removed email notifications. No migration drops
   them, because removing a model does not remove its table and a destructive migration would

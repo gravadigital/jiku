@@ -1,0 +1,92 @@
+# SERVICE USER de un PUBLICADOR EXTERNO.
+#
+# QUÉ ES
+#   Un servicio de afuera del producto que sube archivos y los vincula a entidades del
+#   dominio por el bus, con el mismo flujo que un usuario de la web y sin trato especial:
+#   pide una prefirmada con `files.request-upload`, hace el PUT contra el bucket, y manda
+#   los `fileIds` en el comando de dominio que corresponda.
+#
+#   NO es la api. La api tiene su propia plantilla (templates/api.yaml) y su propio rol
+#   (`internal-app`), y este archivo NO la reemplaza ni la modifica.
+#
+# POR QUÉ EXISTE
+#   rules.yaml no tiene catch-all: un token válido de Zitadel cuyo rol no esté declarado
+#   NO CONECTA. Sin esta plantilla y su regla, un servicio externo no tiene por dónde
+#   entrar. Es su única puerta.
+#
+# GRAMÁTICA
+#   {instance}.{user-id}.{svc}.{version}.{comando}
+#     instance  despliegue (dev / prod)
+#     user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo
+#     svc       A QUIÉN le habla: `gestion` (core)
+#     version   versión del protocolo: v1
+#     comando   files.request-upload, requirements.new, ...
+#
+#   Ejemplo: dev.323332022539911171.gestion.v1.files.request-upload
+#
+# PLACEHOLDERS
+#   {{instance}}      la instancia de deploy
+#   {{user_id}}       el `sub` del token, crudo (guion BAJO, no `{{user-id}}`)
+#   {{user_id_hash}}  hash estable del user id — solo para el prefijo de inbox
+#   {{service}}       el nombre del endpoint que atiende; un publicador no atiende ninguno
+#
+# IDENTIDAD vs ENDPOINT
+#   Su identidad es su `sub` de Zitadel, igual que la de la api o la de una persona. No
+#   atiende ningún endpoint: no tiene `sub.allow` de servicio, solo publica y escucha su
+#   propio inbox.
+#
+# QUIÉN QUEDA COMO AUTOR
+#   core compara el `caller` del subject contra CORE_TRUSTED_PUBLISHER_ID. Como el de un
+#   publicador externo NO coincide, el actor del comando es el `caller` mismo: los archivos
+#   quedan con `files.uploaded_by` = este service user, no una persona. Es el
+#   comportamiento buscado — el publicador externo es el autor.
+#
+# EL PERMISO ES ACOTADO, A DIFERENCIA DEL DE LA API
+#   api.yaml usa `gestion.v1.>` y justifica ese `>` diciendo que "acotarlo uno por uno
+#   tendría sentido si hubiera roles distintos publicando". Con este rol ya los hay, así
+#   que acá se enumeran los comandos, según ADR-008 (deny by default).
+#
+#   Agregar un comando nuevo a esta lista es una decisión deliberada, que es exactamente
+#   lo que se busca: un publicador externo no debería ganar acceso a un comando nuevo del
+#   protocolo solo porque se agregó al protocolo.
+
+pub:
+  allow:
+    # Pedir la prefirmada de subida. El PUT del binario NO pasa por el bus: va directo
+    # al bucket por HTTP con la URL que devuelve este comando.
+    - "{{instance}}.{{user_id}}.gestion.v1.files.request-upload"
+
+    # Pedir la prefirmada de descarga de un archivo propio. core verifica la titularidad:
+    # un archivo de otro publicador da `file_not_owned`.
+    - "{{instance}}.{{user_id}}.gestion.v1.files.*.request-download"
+
+    # Comandos de dominio que aceptan `fileIds`, que es cómo un archivo ya subido queda
+    # vinculado a una entidad. Son los únicos que lo aceptan; verificado contra
+    # core/src/commands/.
+    - "{{instance}}.{{user_id}}.gestion.v1.requirements.new"
+    - "{{instance}}.{{user_id}}.gestion.v1.requirements.*.edit"
+    - "{{instance}}.{{user_id}}.gestion.v1.requirements.*.comment"
+    - "{{instance}}.{{user_id}}.gestion.v1.tasks.new"
+    - "{{instance}}.{{user_id}}.gestion.v1.tasks.*.edit"
+    - "{{instance}}.{{user_id}}.gestion.v1.tasks.*.comment"
+
+    # Desvincular un adjunto que subió. No borra el archivo del bucket: rompe el vínculo.
+    - "{{instance}}.{{user_id}}.gestion.v1.attachments.*.delete"
+
+sub:
+  allow:
+    # Inbox propio: por acá llegan las respuestas de core. Va bajo el HASH del user id,
+    # no el user id crudo.
+    #
+    # EL CLIENTE DEBE FIJAR ESTE PREFIJO AL CONECTAR (`inboxPrefix` en nats.js). Si no lo
+    # hace, la librería genera un _INBOX.<aleatorio> que ningún permiso autoriza y las
+    # respuestas NUNCA LLEGAN. El síntoma es un TIMEOUT, no un error de permisos, y es el
+    # error más caro de diagnosticar de esta plantilla.
+    #
+    # Para saber qué hash le toca a un usuario: `go run ./cmd/session <sub>` en el repo
+    # de auth-callout.
+    - "_INBOX.{{user_id_hash}}.>"
+
+response:
+  max: 1
+  ttl: 45s

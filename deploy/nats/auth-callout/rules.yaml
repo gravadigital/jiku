@@ -18,10 +18,12 @@
 #   Gramática completa: <instance>.<user-id>.<svc>.<version>.<method>
 #
 # ROLES DEL PRODUCTO
-#   user           usuario de la web       -> NO accede a NATS
-#   external-user  usuario de opus         -> NO accede a NATS
-#   internal-app   la api                  -> accede a NATS y consulta a core
-#   core           el servicio core        -> atiende los comandos
+#   user                usuario de la web  -> NO accede a NATS
+#   external-user       usuario de opus    -> NO accede a NATS
+#   internal-app        la api             -> accede a NATS y consulta a core
+#   core                el servicio core   -> atiende los comandos
+#   external-publisher  servicio de afuera -> sube archivos y los vincula, con permiso
+#                                             acotado a esos comandos
 #
 #   Las personas no conectan al bus: hablan HTTP con la api, y es la api la que publica
 #   los comandos con su propio service_user. Por eso `user` y `external-user` NO tienen
@@ -31,6 +33,20 @@
 version: 1
 
 rules:
+  # Publicador externo: un servicio de afuera que sube archivos y los vincula.
+  #
+  # VA ARRIBA DE `internal-app` A PROPÓSITO. Gana la primera regla que coincida, y esta es
+  # la más restrictiva de las dos: su plantilla enumera los comandos en vez de abrir
+  # `gestion.v1.>`. Si un token llegara con los dos roles, queremos que caiga en esta.
+  #
+  # Para habilitar uno: crear un machine user en Zitadel con Access Token Type = JWT y
+  # asignarle el rol `external-publisher` en GESTION_ZITADEL_PROJECT_ID. No hace falta
+  # tocar nada más de este archivo.
+  - match: external-publisher
+    type: service
+    service: external-publisher
+    template: templates/external-publisher.yaml
+
   # La api. Único emisor de comandos hacia core.
   #
   # `service: api` reserva el nombre del endpoint, pero la api HOY NO ATIENDE NINGUNO:

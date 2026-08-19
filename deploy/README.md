@@ -25,7 +25,9 @@ in `deploy/nats/creds/`, neither of them versioned.
 
 ## Getting started
 
-Four steps. The first three are one-time.
+Six steps, all one-time except bringing the stack up. **Steps 5 and 6 configure the bucket**, and
+they are the two that are easiest to skip and hardest to diagnose: get either wrong and uploading
+a file fails with an error that points nowhere near the cause.
 
 ### 1. Variables
 
@@ -107,6 +109,281 @@ Without `nats/creds/nats-resolver.conf` the server does not start.
 `./local.sh down` takes everything down and deletes the data. `./local.sh logs api` follows
 one service's logs.
 
+### 5. Bucket CORS
+
+**Do this before anyone tries to upload.** The browser uploads the file straight to the bucket
+with a presigned `PUT`, and reads it back from the `Location` of a `302`. Neither goes through
+the api, so **the bucket itself has to allow the frontends' origins**. Without that policy the
+`PUT` dies with an opaque network error — no status code, no body, nothing in the api's logs —
+and it looks like a frontend bug when it is not one.
+
+The four supported providers **each take a different format**, so there is no single file to
+copy. What has to be true in all of them is the same:
+
+| Setting          | Value                                                                 | Why                                                                          |
+| ---------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Allowed origins  | `https://<DOMAIN>` and `https://<OPUS_DOMAIN>` — never `*`             | Two frontends, two different hostnames. A presigned URL plus a wide-open bucket is a wider permission than the design assumes |
+| Allowed methods  | `PUT`, `GET`, `HEAD`                                                   | `PUT` uploads, `GET`/`HEAD` is the read after the `302`. **The `OPTIONS` preflight is answered by the provider from these** — it is not a value you list |
+| Allowed headers  | `Content-Type` (at minimum), `Content-Length`                          | The presigned `PUT` carries a signed `Content-Type`, and a non-simple `Content-Type` on a cross-origin request **triggers a preflight** |
+| Exposed headers  | `ETag` (and `Content-Length` where the provider allows it)             | Without exposing them the browser's JS cannot read them, and the upload progress and preview `HEAD` lose information |
+| Max age          | `3600`                                                                 | Otherwise every file in a batch pays for its own preflight                     |
+
+**Why two origins and not one.** `web` and `opus-web` are served from different hostnames —
+`DOMAIN` and `OPUS_DOMAIN` in `.env`. Both upload, so **both** have to be in the policy. If the
+installation is also used from a development machine, add `http://localhost:3000` (web) and
+`http://localhost:3001` (opus-web); leave them out of a production bucket.
+
+**The preflight matters even though you never configure it directly.** The presigned `PUT` carries
+a signed `Content-Type`, and a cross-origin request with a non-simple `Content-Type` makes the
+browser send an `OPTIONS` preflight first. None of the four providers takes `OPTIONS` as an
+allowed *method* — each answers the preflight from the methods and headers you declared. What
+this means in practice: **if `Content-Type` is missing from the allowed headers, the preflight is
+refused and the upload never starts, even with `PUT` allowed.** That is the single most common
+way to get this wrong.
+
+#### AWS S3
+
+JSON, applied with the CLI. The top-level key is `CORSRules` — note this differs from the XML
+form, whose root is `CORSConfiguration`.
+
+```json
+{
+  "CORSRules": [
+    {
+      "ID": "jiku-frontends",
+      "AllowedOrigins": ["https://<DOMAIN>", "https://<OPUS_DOMAIN>"],
+      "AllowedMethods": ["PUT", "GET", "HEAD"],
+      "AllowedHeaders": ["Content-Type", "Content-Length"],
+      "ExposeHeaders": ["ETag", "Content-Length"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}
+```
+
+```sh
+aws s3api put-bucket-cors --bucket <STORAGE_S3_BUCKETNAME> --cors-configuration file://cors.json
+```
+
+`AllowedMethods` only accepts `GET`, `PUT`, `HEAD`, `POST`, `DELETE` — **`OPTIONS` is not a valid
+value here**, and it does not need to be: S3 answers the preflight from the methods listed.
+Pass the policy with `file://` rather than inline; that is the documented form and it avoids
+shell quoting problems. _(verified against docs.aws.amazon.com: the `s3api put-bucket-cors` CLI reference
+and "Enabling CORS" in the S3 user guide, 2026-08-19)_
+
+#### MinIO
+
+**Read this before reaching for `mc cors set`.** Per-bucket CORS is **not available in community
+MinIO** — it is a paid-tier (AIStor) feature. Against a community server the command fails with
+`A header you provided implies functionality that is not implemented`. The MinIO docs do not
+state the split; it is confirmed by maintainers in `minio/minio` discussions #20841 and #20555.
+_(unverified against official docs — see those discussions, 2026-08-19)_
+
+**On community MinIO — which is what a self-hosted install almost always runs — the only CORS
+mechanism is a server-level environment variable:**
+
+```sh
+MINIO_API_CORS_ALLOW_ORIGIN="https://<DOMAIN>,https://<OPUS_DOMAIN>"
+```
+
+A comma-separated list of origins. It defaults to `*`; **set it explicitly**, or the bucket is
+open to every origin and CA-2's scoping is lost.
+
+Its limits, which are worth knowing before choosing MinIO for a production install:
+
+- It is **deployment-wide**, not per bucket.
+- It controls **origins only**. Methods, allowed headers, exposed headers and max-age cannot be
+  expressed through it — MinIO answers those on its own.
+- Because `ETag` cannot be added to an expose-headers list, JS that needs to read `ETag` off the
+  upload response may not get it. The upload itself still works.
+- **The preflight is answered by MinIO itself.** There is no place to list `OPTIONS`, `PUT` or
+  `Content-Type` here: once the origin is allowed, MinIO responds to the `OPTIONS` preflight and
+  permits the signed `Content-Type`. That is why getting the origin list right is the whole job
+  on this mechanism — and why there is nothing to check but the origin when it fails.
+
+_(verified against docs.min.io settings reference, 2026-08-19)_
+
+On **AIStor**, per-bucket CORS is available and takes **XML**, not JSON:
+
+```xml
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://<DOMAIN></AllowedOrigin>
+    <AllowedOrigin>https://<OPUS_DOMAIN></AllowedOrigin>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>Content-Type</AllowedHeader>
+    <AllowedHeader>Content-Length</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>
+```
+
+```sh
+mc cors set <ALIAS>/<BUCKET> cors.xml
+```
+
+`<AllowedMethod>` takes the S3 verbs, so `OPTIONS` does not go in the list — the preflight is
+answered from the methods declared. `Content-Type` **does** have to be listed, or the preflight
+is refused even though `PUT` is allowed.
+
+A per-bucket policy takes precedence over `MINIO_API_CORS_ALLOW_ORIGIN`.
+_(verified against docs.min.io/aistor `mc cors set`, 2026-08-19)_
+
+#### DigitalOcean Spaces
+
+Console: **Spaces Object Storage → the bucket → Settings → CORS Configurations → Add**. The
+fields are Origin, Allowed Methods, Allowed Headers and Access Control Max Age.
+
+**`ExposeHeaders` is supported by the service but not offered in the console** — to set it you
+need the XML route:
+
+```xml
+<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CORSRule>
+    <AllowedOrigin>https://<DOMAIN></AllowedOrigin>
+    <AllowedOrigin>https://<OPUS_DOMAIN></AllowedOrigin>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>Content-Type</AllowedHeader>
+    <AllowedHeader>Content-Length</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>
+```
+
+```sh
+s3cmd setcors cors.xml s3://<STORAGE_S3_BUCKETNAME>
+```
+
+As with S3, `OPTIONS` is not one of the `<AllowedMethod>` values — Spaces answers the preflight
+from the methods listed, provided `Content-Type` is among the allowed headers.
+
+`s3cmd` is the CLI DigitalOcean documents for this. The `aws` CLI pointed at the Spaces endpoint
+is plausible — Spaces is S3-compatible — but **DigitalOcean does not document it**, so prefer
+`s3cmd` or the console. _(verified against docs.digitalocean.com "Configure CORS", 2026-08-19;
+the `aws` CLI path is unverified)_
+
+**If the Spaces CDN is enabled, purge the CDN cache after changing the policy** — cached
+responses still carry the old headers, and the symptom is a CORS failure that "should already be
+fixed".
+
+#### Cloudflare R2
+
+Dashboard: **R2 → the bucket → Settings → CORS Policy → Add CORS policy → JSON**.
+
+The JSON is a **bare array**, not wrapped in a top-level key — the main shape difference from
+AWS:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://<DOMAIN>", "https://<OPUS_DOMAIN>"],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": ["Content-Type", "Content-Length"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+```sh
+wrangler r2 bucket cors set <BUCKET> --file cors.json
+wrangler r2 bucket cors list <BUCKET>
+```
+
+R2 also implements `PutBucketCors` over the S3 API, so `aws s3api put-bucket-cors
+--endpoint-url <r2-endpoint>` works as well.
+
+`OPTIONS` is not listed in `AllowedMethods` here either; R2 answers the preflight from the
+declared methods and headers.
+
+**List the allowed headers explicitly.** Cloudflare's troubleshooting page calls out
+`AllowedHeaders` missing `Content-Type` as a common failure, and its guidance for custom headers
+is to enumerate them. Whether a `"*"` wildcard is ignored outright is not stated either way in
+their docs, so do not rely on it. _(verified against developers.cloudflare.com/r2 CORS and
+wrangler command reference, 2026-08-19; the wildcard behaviour is unverified)_
+
+#### Checking the policy without a browser
+
+The preflight is one `curl` away, and it answers the question the browser's opaque error does
+not:
+
+```sh
+curl -i -X OPTIONS '<uploadUrl>' \
+  -H 'Origin: https://<DOMAIN>' \
+  -H 'Access-Control-Request-Method: PUT' \
+  -H 'Access-Control-Request-Headers: content-type'
+```
+
+`200` or `204` with `Access-Control-Allow-Origin` echoing back your origin means the policy is
+in place. A `403`, or a response with no `Access-Control-*` headers, means it is not — and that
+is exactly the state that produces the opaque failure in the browser.
+
+### 6. The bucket URL the browser will see
+
+`STORAGE_S3_ENDPOINT` is **the URL core signs with, and the signature ends up in the browser**.
+The presigned `PUT` and the `Location` of the read `302` are absolute URLs with that host inside
+them, so the value has to be an address **the browser can resolve** — not one that only exists
+inside the Docker network.
+
+`http://minio:9000` is the classic wrong answer. It works for core, which shares the network, and
+fails in the browser, which does not know that name. There is no separate "public endpoint"
+variable to set: **the one value has to be the public one.**
+
+Three ways out when the internal and the public address differ:
+
+| Way                              | How                                                                                                                        | When                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **One public host for everyone** | `STORAGE_S3_ENDPOINT=https://storage.example.com`, and core's container reaches that same host — through public DNS or an `extra_hosts` entry | **Recommended.** One URL, so what is signed and what is served cannot drift apart |
+| **Split-horizon DNS**            | The same name resolves to the internal IP inside the network and to the public one from outside                              | When leaving the network just to come back in is expensive                  |
+| **Bucket published on the host** | `STORAGE_S3_ENDPOINT=http://localhost:9000` with the port published                                                          | **Local development only**                                                  |
+
+#### Do not rewrite the host after signing
+
+The tempting shortcut — keep `http://minio:9000` and swap the host on the already-signed URL, in
+the api or in the frontend — **does not work, and fails in a way that misdirects.**
+
+The host travels inside `SignedHeaders` in SigV4. Change it and the signature no longer matches
+what the bucket recomputes, so the bucket answers **`403 SignatureDoesNotMatch`**. The upload got
+all the way to the bucket and was rejected, so it reads as a **credentials** problem — wrong access
+key, wrong secret, clock skew — and it is none of those. It is the host.
+
+The same `403` does have one other cause worth ruling out: **a container clock more than 15 minutes
+off**, which invalidates the signature independently of the host.
+
+#### The bucket URL reaches the browser, and that is on purpose
+
+The browser ends up knowing the bucket's address — on every upload and on every read, since the
+`302` sends it there directly. That is a deliberate exception, recorded as D-23 in
+[ADR-009](../docs/adrs/ADR-009-token-confinado-al-servidor.md).
+
+What keeps it narrow is **how** it gets there:
+
+- It arrives **inside the `uploadUrl` and the `Location` of the `302`** — both already absolute
+  URLs, produced by core's signature and returned in the api's responses.
+- It is **never** a `NEXT_PUBLIC_*` variable. Nothing about the bucket is baked into the frontend
+  images: one image still serves every environment, which is the part of ADR-009 that matters most.
+- The access token still never reaches the browser.
+
+**Do not add a `NEXT_PUBLIC_*` for the bucket** to "make it easier" for the frontend. The frontend
+does not need one — it already receives absolute URLs — and adding one would tie an image to an
+environment.
+
+#### `core` starting up does not mean the storage is configured
+
+The `STORAGE_S3_*` variables are read **lazily, on the first file command** — not at startup. A
+container that came up clean proves nothing about the bucket; the symptom of a bad credential is
+an upload or a download that fails later.
+
+`CORE_TRUSTED_PUBLISHER_ID` is the opposite and the only one of its kind: it is asserted **at
+startup**, deliberately, so core refuses to start without it. One variable fails loudly and early,
+the other six fail quietly and late.
+
 ---
 
 ## On a server
@@ -166,7 +443,77 @@ use `POSTGRESQL_MIGRATION_USER` (the database owner).
 
 ---
 
+## Letting an external service publish
+
+A service outside the product can upload files and link them to domain entities over the bus,
+with the same flow as a web user and no special treatment: it asks for a presigned URL with
+`files.request-upload`, `PUT`s the bytes at the bucket, and sends the resulting `fileIds` in
+whichever domain command it is attaching them to.
+
+It needs a role of its own. `rules.yaml` has **no catch-all**, so a perfectly valid Zitadel token
+whose role is not declared there simply does not connect — that is the intended behaviour, and it
+is why this is the only way in.
+
+To enable one:
+
+1. In Zitadel, create a **machine user** with **Access Token Type = JWT** (the default `Bearer`
+   issues opaque tokens the callout rejects).
+2. Grant it the **`external-publisher`** role on the `GESTION_ZITADEL_PROJECT_ID` project.
+3. Give it a JSON key and hand that to the service.
+
+Nothing in `deploy/` needs changing: the rule and the template
+([nats/auth-callout/templates/external-publisher.yaml](nats/auth-callout/templates/external-publisher.yaml))
+are already versioned.
+
+**Its permissions are narrower than the api's, on purpose.** The api publishes under
+`gestion.v1.>` — everything. An external publisher gets an explicit list: the two `files.*`
+commands, the domain commands that accept `fileIds`, and `attachments.*.delete`. Adding a new
+command to that list is a deliberate decision, which is the point: an outside service should not
+gain access to a new command just because the protocol grew one.
+
+**The client must set `inboxPrefix` when it connects.** Replies come back on
+`_INBOX.<hash-of-user-id>.>`, and that is the only inbox the template authorises. A client that
+lets the library pick a random `_INBOX.<random>` gets **no replies at all**, and the symptom is a
+**timeout** rather than a permissions error — which sends you looking in the wrong place. In
+`nats.js` this is the `inboxPrefix` connection option.
+
+**Files it uploads are attributed to it, not to a person.** Core compares the subject's `caller`
+against `CORE_TRUSTED_PUBLISHER_ID`; an external publisher's does not match, so `files.uploaded_by`
+records the external service itself. That is intended — it is the author.
+
+---
+
 ## Diagnosis
+
+### A file upload fails with an opaque network error
+
+The browser `PUT` to the bucket fails with **no status code, no body**, and the request shows
+as failed or cancelled in devtools. Nothing appears in the api's or core's logs, because the
+request never reached them.
+
+**CORS is not configured on the bucket.** This is the failure mode with no useful signal: it
+looks like a frontend or network bug and it is neither. Check the bucket's CORS policy first —
+see [step 5](#5-bucket-cors) — before looking anywhere else.
+
+Confirm it without a browser:
+
+```sh
+curl -i -X OPTIONS '<uploadUrl>' \
+  -H 'Origin: https://<DOMAIN>' \
+  -H 'Access-Control-Request-Method: PUT' \
+  -H 'Access-Control-Request-Headers: content-type'
+```
+
+A `403`, or a `200` with no `Access-Control-Allow-Origin` in the response, is the confirmation.
+
+Two neighbouring causes, if the preflight does pass:
+
+- **The response's `Access-Control-Allow-Origin` does not match the frontend's origin** — the
+  policy is there but scoped to the wrong hostname. `web` and `opus-web` are different origins;
+  both have to be listed.
+- **The browser cannot resolve the host of `uploadUrl`** — that is not CORS, it is
+  `STORAGE_S3_ENDPOINT` pointing at an address that only exists inside the Docker network. See
+  [step 6](#6-the-bucket-url-the-browser-will-see).
 
 ### `Errors.App.NotFound` when logging into a frontend
 
