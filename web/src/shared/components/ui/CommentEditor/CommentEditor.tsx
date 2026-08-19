@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { AttachmentPlaceholder } from '@/features/attachments/components/MarkdownViewer/AttachmentPlaceholder';
-import { useUploadAttachment } from '@/features/attachments/hooks/useUploadAttachment';
+import { uploadFile } from '@/features/attachments/services/attachmentsClientApi';
+import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
 import { createComment } from '@/features/objectives';
 import { AttachFileButton } from '@/shared/components/ui/AttachFileButton';
 import { Button } from '@/shared/components/ui/Button';
@@ -13,10 +14,20 @@ import {
 } from '@/shared/components/ui/InlineCommentEditor';
 import styles from './CommentEditor.module.scss';
 
-interface AttachmentEntry {
+/**
+ * Un archivo ya subido al storage y todavía SIN vincular al comentario. `id` es
+ * un `fileId` (id de `files`), no un id de vínculo: el vínculo se crea recién
+ * al guardar, mandando estos ids en `fileIds`.
+ */
+interface PendingAttachment {
   readonly id: number;
   readonly kind: 'image' | 'file';
   readonly fileName: string;
+}
+
+interface UploadState {
+  readonly fileName: string;
+  readonly progress: number;
 }
 
 interface CommentEditorProps {
@@ -28,41 +39,49 @@ export function CommentEditor(props: CommentEditorProps) {
   const [loading, setLoading] = useState(false);
   const [isEmpty, setIsEmpty] = useState(true);
   const [isPublic, setIsPublic] = useState(false);
-  const [attachments, setAttachments] = useState<AttachmentEntry[]>([]);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  // La subida es una espera DISTINTA de la del guardado: tiene porcentaje. Por
+  // eso no se colapsa con `loading` en un mismo spinner.
+  const [upload, setUpload] = useState<UploadState | null>(null);
+  const isUploading = upload !== null;
   const editorRef = useRef<InlineCommentEditorHandle>(null);
   const { push } = useRouter();
-
-  const { mutate: upload, isPending: isUploading } = useUploadAttachment({
-    onError: (err) => {
-      const msg = err.message.toLowerCase().includes('permission')
-        ? 'No tenés permisos para subir archivos a esta tarea'
-        : err.message;
-      toast.error(msg);
-    },
-  });
 
   const handleChange = (markdown: string) => {
     setIsEmpty(markdown.trim().length === 0 && attachments.length === 0);
   };
 
-  const handleFileReady = (file: File) => {
-    upload(
-      { entityType: 'objective_comment_draft', entityId: objectiveId, files: [file] },
-      {
-        onSuccess: (uploaded) => {
-          const attachment = uploaded[0];
-          if (!attachment) return;
-          const kind = attachment.mimeType.startsWith('image/') ? 'image' : 'file';
-          setAttachments((prev) => [
-            ...prev,
-            { id: attachment.id, kind, fileName: attachment.fileName },
-          ]);
-          setIsEmpty(false);
+  const handleFileReady = async (file: File) => {
+    setUpload({ fileName: file.name, progress: 0 });
+    try {
+      const fileId = await uploadFile(file, {
+        onProgress: (progress) => setUpload({ fileName: file.name, progress }),
+      });
+      setAttachments((prev) => [
+        ...prev,
+        {
+          id: fileId,
+          kind: file.type.startsWith('image/') ? 'image' : 'file',
+          fileName: file.name,
         },
-      }
-    );
+      ]);
+      setIsEmpty(false);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.toLowerCase().includes('permission')
+          ? 'No tenés permisos para subir archivos a esta tarea'
+          : fileErrorMessage(error, 'Hubo un error al subir el archivo');
+      toast.error(message);
+    } finally {
+      setUpload(null);
+    }
   };
 
+  /**
+   * Quitar saca el archivo del comentario en curso. NO borra nada: el archivo
+   * sigue existiendo sin vínculo, que es un estado válido. Por eso la acción no
+   * pide confirmación.
+   */
   const handleRemoveAttachment = (id: number) => {
     setAttachments((prev) => {
       const next = prev.filter((a) => a.id !== id);
@@ -75,11 +94,13 @@ export function CommentEditor(props: CommentEditorProps) {
 
   const buildComment = () => {
     const text = editorRef.current?.getValue() ?? '';
+    // La URL embebida apunta a la ruta de ARCHIVOS, no a la de vínculos: en
+    // este punto el vínculo todavía no existe y su id no se conoce.
     const attachmentMarkdown = attachments
       .map((a) =>
         a.kind === 'image'
-          ? `![${a.fileName}](/api/attachments/${a.id}/preview)`
-          : `[${a.fileName}](/api/attachments/${a.id}/preview)`
+          ? `![${a.fileName}](/api/files/${a.id}/preview)`
+          : `[${a.fileName}](/api/files/${a.id}/preview)`
       )
       .join('\n');
     return attachmentMarkdown ? `${text}\n${attachmentMarkdown}` : text;
@@ -95,7 +116,7 @@ export function CommentEditor(props: CommentEditorProps) {
     createComment(objectiveId, {
       comment,
       visibilityLevel: isPublic ? 'public' : 'internal',
-      attachmentIds: attachments.map((a) => a.id),
+      fileIds: attachments.map((a) => a.id),
     })
       .then(() => {
         toast.success('Comentario agregado exitosamente');
@@ -106,8 +127,8 @@ export function CommentEditor(props: CommentEditorProps) {
         setLoading(false);
         push(`/objectives/${objectiveId}`);
       })
-      .catch(() => {
-        toast.error('Hubo un error al agregar el comentario');
+      .catch((error: unknown) => {
+        toast.error(fileErrorMessage(error, 'Hubo un error al agregar el comentario'));
         setLoading(false);
       });
   };
@@ -123,10 +144,10 @@ export function CommentEditor(props: CommentEditorProps) {
           disabled={loading}
         />
         {attachments.length > 0 && (
-          <div className={styles.attachmentList}>
+          <div className={styles.pendingAttachmentList}>
             {attachments.map((a) => (
               <div key={a.id} className={styles.attachmentRow}>
-                <AttachmentPlaceholder attachmentId={a.id} fileName={a.fileName} />
+                <AttachmentPlaceholder attachmentId={a.id} resource="file" fileName={a.fileName} />
                 <button
                   type="button"
                   className={styles.removeAttachment}
@@ -140,6 +161,24 @@ export function CommentEditor(props: CommentEditorProps) {
           </div>
         )}
       </div>
+
+      {upload && (
+        <div className={styles.uploadProgress}>
+          <p className={styles.uploadProgressText}>
+            Subiendo {upload.fileName}... {upload.progress}%
+          </p>
+          <div
+            className={styles.uploadProgressBar}
+            role="progressbar"
+            aria-valuenow={upload.progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className={styles.uploadProgressFill} style={{ width: `${upload.progress}%` }} />
+          </div>
+        </div>
+      )}
+
       <div className={styles.bottom}>
         <label className={styles.visibilityCheckbox}>
           <input
@@ -154,9 +193,15 @@ export function CommentEditor(props: CommentEditorProps) {
           key="save-comment"
           label="Guardar"
           onClick={handleSubmit}
-          loading={loading || isUploading}
-          disabled={isEmpty}
+          loading={loading}
+          disabled={isEmpty || isUploading}
+          ariaDescribedBy={isUploading ? 'comment-upload-in-progress' : undefined}
         />
+        {isUploading && (
+          <span id="comment-upload-in-progress" className={styles.srOnly}>
+            Hay una subida en curso: esperá a que el archivo termine de subir para guardar
+          </span>
+        )}
       </div>
     </div>
   );

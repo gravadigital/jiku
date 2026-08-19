@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
-import { extractAttachmentIds } from '@/features/attachments/utils/extractAttachmentIds';
+import { useAttachments } from '@/features/attachments/hooks/useAttachments';
+import {
+  extractAttachmentIds,
+  extractFileIds,
+} from '@/features/attachments/utils/extractFileIds';
+import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
 import { usePersons } from '@/features/auth';
 import { transformYupErrors } from '@/shared/utils/transform-yup-errors';
 import { useRequirementTagSuggestions } from '../../hooks/useRequirementTagSuggestions';
@@ -207,7 +212,22 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
   const router = useRouter();
   const { mutate: updateRequirement, isPending } = useUpdateRequirement();
   const { data: persons = [] } = usePersons();
+  const { data: linkedAttachments = [] } = useAttachments('requirement', requirement.id);
   const editorRef = useRef<RequirementRichTextEditorHandle>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  /**
+   * Traduce el texto del editor al conjunto completo de `fileIds`:
+   * los `[attach:N]` ya vinculados se resuelven a su `fileId`, y los
+   * `[file:N]` recién subidos ya son `fileId`.
+   */
+  function buildFileIds(description: string): number[] {
+    const fileIdByAttachmentId = new Map(linkedAttachments.map((a) => [a.id, a.fileId]));
+    const linked = extractAttachmentIds(description)
+      .map((attachmentId) => fileIdByAttachmentId.get(attachmentId))
+      .filter((fileId): fileId is number => fileId !== undefined);
+    return [...new Set([...linked, ...extractFileIds(description)])];
+  }
   const panelLeftRef = useRef<HTMLDivElement>(null);
   const panelRightRef = useRef<HTMLElement>(null);
 
@@ -284,9 +304,13 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
       }
     }
 
-    // attachmentIds representa el conjunto COMPLETO de adjuntos que deben quedar
-    // vinculados al requisito tras este guardado — el backend deduce qué confirmar
-    // (drafts nuevos) y qué soft-eliminar (ya vinculados que el usuario quitó del texto).
+    // `fileIds` conserva la semántica de conjunto COMPLETO que tenía
+    // `attachmentIds`: son todos los archivos que deben quedar vinculados al
+    // requisito tras este guardado, y el backend deduce qué vincular y qué
+    // desvincular. Por eso hay que incluir también los ya vinculados, que en el
+    // texto aparecen como `[attach:N]` con id de VÍNCULO: se traducen a su
+    // `fileId` con la lista de adjuntos del requisito. Omitirlos desvincularía
+    // en silencio todo lo que ya estaba.
     const payload: UpdateRequirementPayload = {
       title: form.title,
       description: form.description,
@@ -297,7 +321,7 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
       tags,
       responsiblePersonIds: form.responsiblePersonIds.map(Number),
       ...(form.estimatedFinishDate && { estimatedFinishDate: form.estimatedFinishDate }),
-      attachmentIds: extractAttachmentIds(form.description),
+      fileIds: buildFileIds(form.description),
     };
 
     updateRequirement(
@@ -308,12 +332,7 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
           router.push(`/requirements/${requirement.id}`);
         },
         onError: (error: unknown) => {
-          const msg =
-            (error instanceof Error ? error.message : null) ??
-            (error != null && typeof error === 'object' && 'message' in error
-              ? String((error as { message: unknown }).message)
-              : 'Error al actualizar el requisito');
-          toast.error(msg);
+          toast.error(fileErrorMessage(error, 'Hubo un error al actualizar el requisito'));
         },
       }
     );
@@ -349,11 +368,17 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
           <button
             type="submit"
             className={styles.submitButton}
-            disabled={isPending}
+            disabled={isPending || isUploading}
             aria-busy={isPending}
+            aria-describedby={isUploading ? 'edit-upload-in-progress' : undefined}
           >
             {isPending ? 'Guardando...' : 'Guardar'}
           </button>
+          {isUploading && (
+            <span id="edit-upload-in-progress" className={styles.srOnly}>
+              Hay una subida en curso: esperá a que el archivo termine de subir para guardar
+            </span>
+          )}
         </div>
       </header>
 
@@ -391,6 +416,7 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
                 placeholder="Describe el requisito..."
                 onChange={(value) => setForm((f) => ({ ...f, description: value }))}
                 onUploadError={setUploadError}
+                onUploadingChange={setIsUploading}
               />
             </div>
           </div>

@@ -3,9 +3,12 @@ import React from 'react';
 import { AttachmentPreview } from '@/shared/components/ui/AttachmentPreview/AttachmentPreview';
 import { useAttachmentMeta } from '../../hooks/useAttachmentMeta';
 import styles from './AttachmentPlaceholder.module.scss';
+import type { AttachmentResource } from '../../types/attachment.types';
 
 interface AttachmentImagePreviewProps {
   readonly attachmentId: number;
+  /** Espacio de identificadores. Ver `AttachmentResource`. */
+  readonly resource?: AttachmentResource;
   readonly fileName?: string;
 }
 
@@ -15,8 +18,12 @@ interface AttachmentImagePreviewProps {
  * comentario/descripción para imágenes — para que Actividad se vea igual
  * que el input en vez de usar un componente propio.
  */
-export function AttachmentImagePreview({ attachmentId, fileName }: AttachmentImagePreviewProps) {
-  const { data, isLoading, isError, error } = useAttachmentMeta(attachmentId);
+export function AttachmentImagePreview({
+  attachmentId,
+  resource = 'attachment',
+  fileName,
+}: AttachmentImagePreviewProps) {
+  const { data, isLoading, isError, error } = useAttachmentMeta(attachmentId, resource);
 
   if (isLoading) {
     return (
@@ -32,12 +39,23 @@ export function AttachmentImagePreview({ attachmentId, fileName }: AttachmentIma
   }
 
   if (isError) {
-    const isForbidden = error?.status === 403;
+    if (error?.status === 403) {
+      return (
+        <span className={styles.errorCard} role="note">
+          No tenés permisos para acceder a este adjunto
+        </span>
+      );
+    }
+    if (error?.status === 404) {
+      return (
+        <span className={styles.errorCard} role="note">
+          El archivo no está disponible
+        </span>
+      );
+    }
     return (
       <span className={styles.errorCard} role="note">
-        {isForbidden
-          ? 'No tenés permisos para acceder a este adjunto'
-          : `Adjunto no disponible (ID: ${attachmentId})`}
+        {`Adjunto no disponible (ID: ${attachmentId})`}
       </span>
     );
   }
@@ -49,6 +67,7 @@ export function AttachmentImagePreview({ attachmentId, fileName }: AttachmentIma
   return (
     <AttachmentPreview
       attachmentId={attachmentId}
+      resource={resource}
       fileName={fileName || data.fileName}
       mimeType={data.mimeType}
       fileSize={data.fileSize}

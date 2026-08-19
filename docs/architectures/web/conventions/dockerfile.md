@@ -114,15 +114,17 @@ output: 'standalone',
 Sin eso la etapa `runner` no tiene qué copiar. También está configurado:
 
 ```js
-experimental: { serverActions: { bodySizeLimit: '10mb' } },
 sassOptions: { includePaths: [path.join(__dirname, 'styles')] },
 compiler: { styledComponents: true },
 ```
 
 **Notas:**
 
-- `bodySizeLimit: '10mb'` es el techo de las Server Actions. **El upload de adjuntos no pasa por
-  ahí** — va por el route handler `/api/attachments`, que no tiene ese límite.
+- **`experimental.serverActions.bodySizeLimit` se retiró (REQ-001, S-006).** Existía como techo de
+  las Server Actions cuando el binario todavía podía atravesar el proceso de Next. Desde el
+  rediseño de archivos **ningún binario lo atraviesa**: el byte va del navegador directo a S3 con
+  una URL prefirmada. Retirarlo no es solo limpieza — hace que un intento accidental de
+  reintroducir el proxy falle rápido en lugar de funcionar en silencio.
 - `compiler.styledComponents: true` está activo pero **`styled-components` no es dependencia del
   proyecto** ni se importa en ningún archivo. Configuración sin uso.
 

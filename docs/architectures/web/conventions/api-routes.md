@@ -17,18 +17,24 @@ package: next
 ## El criterio
 
 Un route handler se justifica solo si el navegador tiene que iniciar la llamada **y** una Server
-Action no sirve. Hoy hay exactamente cuatro motivos válidos, y los siete handlers que existen
+Action no sirve. Hoy hay exactamente tres motivos válidos, y los seis handlers que existen
 caen en ellos o son infraestructura de Auth.js.
 
 | Handler | Método | Motivo |
 |---|---|---|
-| `/api/attachments` | POST | Progreso de subida: se hace con `XMLHttpRequest` desde el cliente, que expone `upload.onprogress`. El handler reenvía el body como stream |
-| `/api/attachments/[id]/download` | GET | El navegador tiene que recibir el archivo y no puede mandar `Authorization` |
-| `/api/attachments/[id]/preview` | GET | Igual: la URL va en el `src` de un `<img>` o el de un `<iframe>` |
+| `/api/attachments/[id]/download` | GET, HEAD | El navegador tiene que recibir el archivo y no puede mandar `Authorization` |
+| `/api/attachments/[id]/preview` | GET, HEAD | Igual: la URL va en el `src` de un `<img>` o el de un `<iframe>` |
 | `/api/requirements/[reqid]` | PATCH | Update optimista con rollback en el cliente |
 | `/api/clients` | POST | Alta desde un componente cliente |
 | `/api/userinfo` | GET | Proxy al `userinfo` del proveedor de identidad |
 | `/api/auth/[...nextauth]` | GET, POST | Handlers de Auth.js. No se escribe a mano |
+
+> **El progreso de subida dejó de ser un motivo válido (REQ-001, S-006).**
+> Existía un `POST /api/attachments` cuya única justificación era el progreso incremental
+> (`XMLHttpRequest` + `duplex: 'half'` reenviando el body como stream). Con el byte yendo
+> **directo del navegador a la URL prefirmada de S3**, el navegador tiene el progreso sin que
+> nada atraviese el BFF, y el handler **se eliminó**. No volver a agregarlo: si aparece la
+> necesidad de un progreso de subida, la respuesta es una URL prefirmada, no un proxy de bytes.
 
 > **`/api/clients` y `/api/userinfo` no cumplen el criterio.**
 > El alta de actor no necesita nada del transporte: `createClient` ya existe como Server Action
@@ -64,15 +70,12 @@ export const POST = async (request: NextRequest) => {
 ## Reenvío a la api
 
 ```ts
-const response = await fetch(`${process.env.API_URL}api/attachments`, {
-  method: 'POST',
+const response = await fetch(`${process.env.API_URL}api/attachments/${id}/preview`, {
+  method: 'GET',
+  redirect: 'manual',
   headers: {
     Authorization: `Bearer ${token.accessToken}`,
-    'Content-Type': request.headers.get('Content-Type') ?? '',
   },
-  body: request.body,
-  // @ts-expect-error -- Node.js fetch supports duplex for streaming request bodies
-  duplex: 'half',
 });
 ```
 
@@ -161,11 +164,16 @@ Cuando el handler se llama desde el navegador, la llamada vive en
 ```
 features/attachments/services/
 ├── attachmentsApi.ts         'use server'  → apiClient → api
-└── attachmentsClientApi.ts   navegador     → /api/attachments
+└── attachmentsClientApi.ts   navegador     → rutas relativas /api/... y S3 directo
 ```
 
-**Regla:** el `ClientApi` **no** lleva `'use server'` y no importa `apiClient`. Usa `fetch` o
-`XMLHttpRequest` contra rutas relativas (`/api/...`).
+**Regla:** el `ClientApi` **no** lleva `'use server'` y no importa `apiClient` en su grafo
+estático. Usa `fetch` o `XMLHttpRequest` contra rutas relativas (`/api/...`) o, en el caso de la
+subida, contra la **URL prefirmada de S3** que la api devolvió en el `UploadTicket`.
+
+> Cuando el `ClientApi` necesita una Server Action (por ejemplo, pedir el ticket de subida), la
+> importa **dinámicamente** (`await import('./attachmentsApi')`): un `import` estático arrastraría
+> `apiClient` —y con él `auth()`— al grafo de un módulo que corre en el navegador.
 
 ## Qué NO hacer
 
@@ -173,5 +181,7 @@ features/attachments/services/
   simetría con una API REST que este frontend no expone.
 - No poner lógica de negocio en un handler. Es transporte: token, reenvío, propagación de status.
 - No devolver el `accessToken` ni ninguna parte del token en la respuesta.
+- **No reintroducir un handler que transporte binarios.** Ni de subida ni de bajada: el byte va
+  del navegador a S3 y de S3 al navegador, siempre por URL prefirmada.
 - No omitir el preámbulo de auth "porque la api ya valida": un handler sin él permite usar el
   frontend como proxy anónimo hacia la red interna.

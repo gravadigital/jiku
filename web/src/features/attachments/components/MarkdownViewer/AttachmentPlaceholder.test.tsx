@@ -128,6 +128,37 @@ describe('AttachmentPlaceholder', () => {
     expect(screen.getByText(/99/)).toBeInTheDocument();
   });
 
+  it('TS-31/CA-10: un 404 dice "archivo no disponible", distinto del error genérico', () => {
+    const notAvailable = new Error('not available') as Error & { status?: number };
+    notAvailable.status = 404;
+    vi.mocked(useAttachmentMeta).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: notAvailable,
+    } as never);
+
+    render(<AttachmentPlaceholder attachmentId={99} />);
+    expect(screen.getByText('El archivo no está disponible')).toBeInTheDocument();
+    // El mensaje genérico incluye el id; el de no disponible no.
+    expect(screen.queryByText(/Adjunto no disponible/)).not.toBeInTheDocument();
+  });
+
+  it('TS-27 (CA-7): un archivo sin vínculo se resuelve por su fileId', () => {
+    vi.mocked(useAttachmentMeta).mockReturnValue({
+      data: { id: 1234, fileName: 'informe.pdf', fileSize: 100, mimeType: 'application/pdf' },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    render(<AttachmentPlaceholder attachmentId={1234} resource="file" />);
+
+    expect(useAttachmentMeta).toHaveBeenCalledWith(1234, 'file');
+    expect(screen.getByText('informe.pdf')).toBeInTheDocument();
+    expect(screen.queryByText(/no disponible/i)).not.toBeInTheDocument();
+  });
+
   it('con onRemove, muestra solo el botón Eliminar (sin Descargar)', () => {
     vi.mocked(useAttachmentMeta).mockReturnValue({
       data: { id: 42, fileName: 'reporte.pdf', fileSize: 204800, mimeType: 'application/pdf' },

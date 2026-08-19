@@ -7,11 +7,6 @@ const nextConfig = {
     styledComponents: true,
   },
   output: 'standalone',
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '10mb',
-    },
-  },
   sassOptions: {
     includePaths: [
       path.join(

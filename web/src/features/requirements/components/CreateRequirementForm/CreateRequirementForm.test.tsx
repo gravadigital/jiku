@@ -55,12 +55,12 @@ vi.mock('../RequirementRichTextEditor', () => ({
       clear: () => props.onChange?.(''),
     }));
 
+    // El cliente ya no valida tamaño ni extensión: la política es de `core` y
+    // el rechazo llega como error del ticket (CA-12).
     function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (file.size > 10 * 1024 * 1024) {
-        props.onUploadError?.(`El archivo "${file.name}" es muy grande (máx. 10MB)`);
-      }
+      props.onChange?.(`![file:1234]`);
     }
 
     return (
@@ -412,20 +412,19 @@ describe('CreateRequirementForm', () => {
         expect.any(Object)
       );
     });
-    // Sin adjuntos: attachmentIds se envía como array vacío.
+    // Sin adjuntos: fileIds se envía como array vacío.
     const payload = mockMutate.mock.calls[0][0];
-    expect(payload.attachmentIds).toEqual([]);
+    expect(payload.fileIds).toEqual([]);
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/requirements'));
   });
 
   // ===== S-046: adjuntos inline =====
   //
-  // El upload de adjuntos vive dentro de RequirementRichTextEditor (XHR propio
-  // a uploadAttachments), y los adjuntos se referencian embebidos en el markdown
-  // de `description` (placeholders `![attach:N]` / `[attach:N]`). Al confirmar la
-  // creación, esos ids se extraen del texto (extractAttachmentIds) y se envían en
-  // `attachmentIds` para que el backend revincule los drafts al requirement nuevo
-  // (linkAttachments en requirements-post.ts) — sin esto, el draft queda huérfano.
+  // El upload vive dentro de RequirementRichTextEditor (PUT directo a S3), y los
+  // archivos se referencian embebidos en el markdown de `description` con
+  // placeholders `![file:N]` / `[file:N]`, donde N es un `fileId`. Al confirmar
+  // la creación, esos ids se extraen del texto (extractFileIds) y se envían en
+  // `fileIds`: el requisito y sus vínculos se crean juntos, o no se crea ninguno.
 
   // TS-1: render inicial — editor accesible, Adjuntar presente y contador 0/2000
   it('TS-1: render inicial con editor accesible, Adjuntar y contador 0/2000', async () => {
@@ -434,8 +433,8 @@ describe('CreateRequirementForm', () => {
     expect(screen.getByRole('button', { name: 'Adjuntar' })).toBeInTheDocument();
   });
 
-  // TS-3 + TS-4: archivos inválidos no se suben
-  it('TS-3/TS-4: archivos inválidos (tamaño/extensión) no disparan upload y muestran error', async () => {
+  // CA-12: el cliente ya no rechaza por tamaño; la política vive en `core`
+  it('CA-12: un archivo grande no se rechaza en el cliente', async () => {
     render(<CreateRequirementForm />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /crear requisito/i })).toBeInTheDocument()
@@ -451,8 +450,8 @@ describe('CreateRequirementForm', () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  // TS-13: crear sin adjuntos envía attachmentIds vacío y llama una sola vez
-  it('TS-13: crear sin adjuntos envía attachmentIds vacío y crea una sola vez', async () => {
+  // TS-22: crear sin adjuntos envía fileIds vacío y llama UNA sola vez
+  it('TS-22 (CA-6): crear sin adjuntos envía fileIds vacío y crea una sola vez', async () => {
     mockMutate.mockImplementation((_payload: any, options: any) => {
       options?.onSuccess?.({ id: 1 });
     });
@@ -461,11 +460,11 @@ describe('CreateRequirementForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /crear requisito/i }));
     await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
     const payload = mockMutate.mock.calls[0][0];
-    expect(payload.attachmentIds).toEqual([]);
+    expect(payload.fileIds).toEqual([]);
   });
 
-  // TS-19: crear con adjuntos embebidos en la descripción envía sus ids en attachmentIds
-  it('TS-19: crear con adjuntos embebidos en la descripción envía attachmentIds con los ids extraídos', async () => {
+  // TS-18: crear con archivos embebidos en la descripción envía sus ids en fileIds
+  it('TS-18 (CA-5/CA-6): crear con archivos embebidos envía fileIds y ningún attachmentIds', async () => {
     render(<CreateRequirementForm />, { wrapper: createWrapper() });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /crear requisito/i })).toBeInTheDocument()
@@ -473,7 +472,7 @@ describe('CreateRequirementForm', () => {
 
     fireEvent.change(screen.getByLabelText(/^título$/i), { target: { value: 'Con adjuntos' } });
     fireEvent.change(screen.getByLabelText(/^contexto$/i), {
-      target: { value: 'texto ![attach:10] y [attach:11]' },
+      target: { value: 'texto ![file:1234] y [file:1235]' },
     });
     await selectReactSelectOption(/^proyecto$/i, 'Proyecto Alpha');
 
@@ -481,8 +480,44 @@ describe('CreateRequirementForm', () => {
 
     await waitFor(() => {
       const payload = mockMutate.mock.calls[0][0];
-      expect(payload.attachmentIds).toEqual([10, 11]);
+      expect(payload.fileIds).toEqual([1234, 1235]);
     });
+    const payload = mockMutate.mock.calls[0][0];
+    expect(payload).not.toHaveProperty('attachmentIds');
+    expect(payload).not.toHaveProperty('attachmentScope');
+    // Una sola operación: el requisito y sus vínculos van juntos.
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
+  // TS-23 / TS-24: el fallo de titularidad no borra ni limpia nada
+  it('TS-23/TS-24 (CA-6/CA-9): un file_not_owned muestra permisos y conserva los fileIds', async () => {
+    mockMutate.mockImplementation((_payload: any, options: any) => {
+      options?.onError?.({ code: 'file_not_owned', status: 403, message: 'File not owned' });
+    });
+    render(<CreateRequirementForm />, { wrapper: createWrapper() });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /crear requisito/i })).toBeInTheDocument()
+    );
+
+    fireEvent.change(screen.getByLabelText(/^título$/i), { target: { value: 'Con adjuntos' } });
+    fireEvent.change(screen.getByLabelText(/^contexto$/i), {
+      target: { value: 'texto ![file:1234]' },
+    });
+    await selectReactSelectOption(/^proyecto$/i, 'Proyecto Alpha');
+
+    fireEvent.click(screen.getByRole('button', { name: /crear requisito/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        'No podés adjuntar un archivo que subió otra persona'
+      );
+    });
+    expect(toast.error).not.toHaveBeenCalledWith('File not owned');
+    // El texto conserva el placeholder: nada se borró ni se limpió.
+    expect((screen.getByLabelText(/^contexto$/i) as HTMLTextAreaElement).value).toContain(
+      '![file:1234]'
+    );
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   // ===== S-053: rediseño visual =====

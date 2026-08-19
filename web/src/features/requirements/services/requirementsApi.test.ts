@@ -31,18 +31,18 @@ describe('addRequirementActivity', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: undefined });
   });
 
-  // AC-4 / TS-5: POST /requirements/{reqid}/comments con comment, visibilityLevel, attachmentIds
-  it('TS-5 (AC-4): envía POST a /requirements/{reqid}/comments con attachmentIds', async () => {
+  // AC-4 / TS-5: POST /requirements/{reqid}/comments con comment, visibilityLevel, fileIds
+  it('TS-5 (AC-4): envía POST a /requirements/{reqid}/comments con fileIds', async () => {
     await addRequirementActivity(12, {
       comment: 'Mirá esto\n![attach:99]',
       visibilityLevel: 'internal',
-      attachmentIds: [99],
+      fileIds: [99],
     });
 
     expect(apiClient.post).toHaveBeenCalledWith('/requirements/12/comments', {
       comment: 'Mirá esto\n![attach:99]',
       visibilityLevel: 'internal',
-      attachmentIds: [99],
+      fileIds: [99],
     });
   });
 

@@ -1,3 +1,5 @@
+@use '@/styles' as *;
+
 .form {
   display: flex;
   flex-direction: column;
@@ -431,4 +433,8 @@
   .tagInputRow {
     grid-template-columns: 1fr;
   }
+}
+
+.srOnly {
+  @include sr-only;
 }

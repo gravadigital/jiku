@@ -1,14 +1,13 @@
 'use client';
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { uploadAttachments } from '@/features/attachments/services/attachmentsClientApi';
+import { uploadFile } from '@/features/attachments/services/attachmentsClientApi';
 import { validateFile } from '@/features/attachments/utils/fileValidation';
 import {
   RichTextEditor,
   type AttachmentMeta,
 } from '@/shared/components/ui/RichTextEditor/RichTextEditor';
 import styles from './RequirementRichTextEditor.module.scss';
-import type { EntityType } from '@/features/attachments/types/attachment.types';
 
 interface RequirementRichTextEditorProps {
   readonly initialValue?: string;
@@ -19,10 +18,10 @@ interface RequirementRichTextEditorProps {
   readonly onChange?: (value: string) => void;
   readonly uploadError?: string;
   readonly onUploadError?: (error: string) => void;
-  /** Entidad a la que se ancla el adjunto subido. Default: 'requirement_draft' (descripción, sin entidad aún creada). */
-  readonly entityType?: EntityType;
-  /** ID de la entidad, o null si aún no existe (ej. requirement_draft antes de crear el requisito). Default: null. */
-  readonly entityId?: number | null;
+  /** Notifica el progreso real del PUT del archivo en curso, 0-100. */
+  readonly onUploadProgress?: (progress: number, fileName: string) => void;
+  /** Avisa si hay una subida en curso, para que el consumidor bloquee el envío. */
+  readonly onUploadingChange?: (uploading: boolean) => void;
   /** Clase CSS adicional aplicada al contenedor raíz, para ajustar layout/alto según el contexto de uso. */
   readonly className?: string;
   /**
@@ -51,8 +50,8 @@ export const RequirementRichTextEditor = forwardRef<
     ariaLabel,
     onChange,
     onUploadError,
-    entityType = 'requirement_draft',
-    entityId = null,
+    onUploadProgress,
+    onUploadingChange,
     className,
     showToolbar = true,
   },
@@ -87,7 +86,9 @@ export const RequirementRichTextEditor = forwardRef<
 
   function handleChange(newValue: string) {
     setValue(newValue);
-    setPendingAttachments((prev) => prev.filter((a) => newValue.includes(`attach:${a.id}`)));
+    setPendingAttachments((prev) =>
+      prev.filter((a) => newValue.includes(`${a.resource === 'file' ? 'file' : 'attach'}:${a.id}`))
+    );
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -104,25 +105,35 @@ export const RequirementRichTextEditor = forwardRef<
 
     try {
       setUploading(true);
+      onUploadingChange?.(true);
       setUploadingMimeType(file.type);
-      const [attachment] = await uploadAttachments(entityType, entityId, [file]);
-      const isImage = attachment.mimeType.startsWith('image/');
-      const placeholder = isImage ? `![attach:${attachment.id}]` : `[attach:${attachment.id}]`;
+      // El archivo existe por sí solo: no se ancla a ninguna entidad. El
+      // vínculo se crea al guardar, mandando su `fileId` en `fileIds`.
+      const fileId = await uploadFile(file, {
+        onProgress: (progress) => onUploadProgress?.(progress, file.name),
+      });
+      const isImage = file.type.startsWith('image/');
+      // Prefijo `file:` porque N es un `fileId`, no un id de vínculo.
+      const placeholder = isImage ? `![file:${fileId}]` : `[file:${fileId}]`;
 
       setValue((prev) => prev + placeholder);
       setPendingAttachments((prev) => [
         ...prev,
         {
-          id: attachment.id,
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-          fileSize: attachment.fileSize,
+          id: fileId,
+          resource: 'file',
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
         },
       ]);
-    } catch {
-      onUploadError?.('Error al subir el archivo');
+    } catch (error) {
+      onUploadError?.(
+        error instanceof Error && error.message ? error.message : 'Error al subir el archivo'
+      );
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
       setUploadingMimeType('');
     }
   }

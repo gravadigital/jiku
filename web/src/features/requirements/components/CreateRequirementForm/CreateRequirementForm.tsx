@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
-import { extractAttachmentIds } from '@/features/attachments/utils/extractAttachmentIds';
+import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
+import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
 import { usePersons } from '@/features/auth';
 import { useProjects } from '@/features/projects/hooks/useProjects';
 import { transformYupErrors } from '@/shared/utils/transform-yup-errors';
@@ -240,6 +241,7 @@ export function CreateRequirementForm() {
   const [uploadError, setUploadError] = useState('');
 
   const editorRef = useRef<RequirementRichTextEditorHandle>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const panelLeftRef = useRef<HTMLDivElement>(null);
   const panelRightRef = useRef<HTMLElement>(null);
 
@@ -336,7 +338,7 @@ export function CreateRequirementForm() {
         responsiblePersonIds: form.responsiblePersonIds.map(Number),
       }),
       ...(tags.length > 0 && { tags }),
-      attachmentIds: extractAttachmentIds(form.description),
+      fileIds: extractFileIds(form.description),
     };
 
     createRequirement(payload, {
@@ -345,12 +347,9 @@ export function CreateRequirementForm() {
         router.push('/requirements');
       },
       onError: (error: unknown) => {
-        const msg =
-          (error instanceof Error ? error.message : null) ??
-          (error != null && typeof error === 'object' && 'message' in error
-            ? String((error as { message: unknown }).message)
-            : 'Error al crear el requisito');
-        toast.error(msg);
+        // Los fileIds se conservan en `form.description`: el fallo no borra ni
+        // desvincula nada, así que el usuario puede reintentar tal cual.
+        toast.error(fileErrorMessage(error, 'Hubo un error al crear el requisito'));
       },
     });
   }
@@ -385,11 +384,17 @@ export function CreateRequirementForm() {
           <button
             type="submit"
             className={styles.submitButton}
-            disabled={isPending}
+            disabled={isPending || isUploading}
             aria-busy={isPending}
+            aria-describedby={isUploading ? 'create-upload-in-progress' : undefined}
           >
             {isPending ? 'Creando...' : 'Crear Requisito'}
           </button>
+          {isUploading && (
+            <span id="create-upload-in-progress" className={styles.srOnly}>
+              Hay una subida en curso: esperá a que el archivo termine de subir para guardar
+            </span>
+          )}
         </div>
       </header>
 
@@ -427,6 +432,7 @@ export function CreateRequirementForm() {
                 placeholder="Describe el requisito..."
                 onChange={handleDescriptionChange}
                 onUploadError={setUploadError}
+                onUploadingChange={setIsUploading}
               />
             </div>
           </div>
