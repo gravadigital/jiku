@@ -31,7 +31,7 @@ origin: relevamiento de código — brownfield
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
 | 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético | cliente | ambos | C-59 |
 | 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto | cliente | ambos | C-60, C-61, C-66 |
-| 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65 |
+| 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001 |
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
 
@@ -54,7 +54,7 @@ origin: relevamiento de código — brownfield
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
 | O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas |
-| O-02 | Nuevo requisito | modal | Sidebar · botón "Nuevo requisito"; tablero-requisitos | Crear un requisito |
+| O-02 | Nuevo requisito | modal | Sidebar · botón "Nuevo requisito"; tablero-requisitos | Crear un requisito. **REQ-001:** los adjuntos dejan de ser borrador y la subida muestra progreso real (RF-1, RF-8) |
 | O-03 | Dropdown de estado | dropdown en portal | fila de lista, card de kanban | Cambiar estado inline — **solo visible para rol interno** |
 | O-04 | Dropdown de prioridad | dropdown en portal | fila de lista, card de kanban | Cambiar prioridad inline — **solo rol interno** |
 | O-05 | Dropdowns del formulario (proyecto, prioridad, tipo) | panel posicionado a mano | Nuevo requisito | Selección dentro del alta |

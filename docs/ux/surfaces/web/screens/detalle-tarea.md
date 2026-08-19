@@ -67,13 +67,14 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 18 | badge-visibilidad-comentario | badge | public / internal | content | desktop | — | Marca si el comentario es visible para externos |
 | 19 | boton-editar-comentario | button | — | input | desktop | — | Entra en modo edición del comentario |
 | 20 | editor-comentario-nuevo | text-input | default · disabled | input | desktop | state_overrides: loading→disabled | Redacción del comentario nuevo |
-| 21 | lista-adjuntos-borrador | list | — | content | desktop | visible_only_in_states: default (con adjuntos subidos) | Adjuntos del comentario en borrador |
-| 22 | boton-quitar-adjunto | button | — | input | desktop | — | Quita un adjunto del borrador |
+| 21 | lista-adjuntos-pendientes | list | — | content | desktop | visible_only_in_states: default (con archivos ya subidos) | Archivos subidos, todavía sin vincular al comentario |
+| 22 | boton-quitar-adjunto | button | — | input | desktop | — | Saca un archivo del comentario en curso |
 | 23 | checkbox-comentario-publico | checkbox | unchecked (default) / checked | input | desktop | — | Marca el comentario como público |
-| 24 | boton-adjuntar-comentario | button | — | input | desktop | — | Sube un adjunto al borrador |
+| 24 | boton-adjuntar-comentario | button | — | input | desktop | — | Sube un archivo, de a uno por vez |
 | 25 | boton-guardar-comentario | button | primary · loading / disabled | input | desktop | state_overrides: sin contenido→disabled; loading→spinner | Guarda el comentario nuevo |
 | 26 | vacio-historial | empty-state | — | feedback | desktop | visible_only_in_states: empty del historial | Mensaje de historial vacío |
 | 27 | vacio-comentarios | empty-state | — | feedback | desktop | visible_only_in_states: empty de comentarios | Mensaje de comentarios vacíos |
+| 28 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 
 **Origen:** `src/app/(loggedin)/objectives/[id]/page.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.module.scss`, `src/features/objectives/components/ObjectiveHistoryList/ObjectiveHistoryList.tsx`, `src/features/objectives/components/ObjectiveComment/ObjectiveComment.tsx`, `src/shared/components/ui/CommentEditor/CommentEditor.tsx`.
 
@@ -98,8 +99,9 @@ Notas de transcripción [fuente: código-existente]:
 - lista-comentarios
   - comentario × N (con badge-visibilidad-comentario y boton-editar-comentario)
 - editor-comentario-nuevo
-- lista-adjuntos-borrador
-  - boton-quitar-adjunto por adjunto
+- lista-adjuntos-pendientes
+  - boton-quitar-adjunto por archivo
+- progreso-subida-adjunto *(solo mientras sube)*
 - checkbox-comentario-publico
 - boton-adjuntar-comentario
 - boton-guardar-comentario
@@ -236,17 +238,23 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Asset: nada
 - Annotation: tuteo peninsular (`"Escribe"`), a diferencia del voseo del resto del producto. Se deshabilita durante el guardado (`disabled={loading}`, `:123`)
 
-### lista-adjuntos-borrador
-- Texto/label: los nombres de los adjuntos ya subidos al borrador
+### lista-adjuntos-pendientes
+- Texto/label: los nombres de los archivos ya subidos, todavía sin vincular
 - Icono: nada
 - Asset: nada
-- Annotation: los adjuntos se suben con `entityType: 'objective_comment_draft'` y el `objectiveId` como `entityId` (`CommentEditor.tsx:50`), antes de que el comentario exista
+- Annotation: **cambia de fondo con REQ-001.** Antes los adjuntos se subían como borrador, con `entityType: 'objective_comment_draft'` y el `objectiveId` como `entityId` (`CommentEditor.tsx:50`) — o sea que había que declarar a qué se iban a colgar antes de subirlos. Ahora **el archivo existe por sí solo** y el vínculo con el comentario se crea recién al guardar (RF-1, RF-3, RF-4). Para el usuario el gesto es el mismo; lo que cambia es que un archivo subido y no guardado **deja de ser un borrador huérfano** y pasa a ser un archivo suyo, que es un estado válido del sistema
+
+### progreso-subida-adjunto
+- Texto/label: `"Subiendo {nombre del archivo}... {progress}%"`
+- Icono: nada
+- Asset: nada
+- Annotation: **bloque nuevo con REQ-001** (RF-8). El byte va del navegador directo al storage, así que hay progreso real de la transferencia. Antes el único feedback era el `loading` del botón de guardar, que no distinguía subir de enviar. La subida es de a un archivo por vez (RF-7)
 
 ### boton-quitar-adjunto
 - Texto/label: `"×"` como texto; `aria-label="Quitar adjunto"` (`CommentEditor.tsx:134`, `:136`)
 - Icono: nada
 - Asset: nada
-- Annotation: el `aria-label` no dice cuál adjunto; con varios, todos tienen el mismo nombre accesible
+- Annotation: el `aria-label` no dice cuál adjunto; con varios, todos tienen el mismo nombre accesible. **Con REQ-001 quitar deja de borrar nada**: saca el archivo del comentario en curso, y el archivo sigue existiendo sin vínculo (RF-1). No hay que avisarlo en la interfaz —el usuario no distingue los dos casos ni le importa— pero sí explica por qué la acción no pide confirmación
 
 ### checkbox-comentario-publico
 - Texto/label: `"Comentario público (visible para usuarios externos)"` (`CommentEditor.tsx:150`)
@@ -258,7 +266,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Texto/label: el de `<AttachFileButton>` (`CommentEditor.tsx:152`)
 - Icono: nada
 - Asset: nada
-- Annotation: error de permisos al subir: toast `"No tenés permisos para subir archivos a esta tarea"` (`:38`)
+- Annotation: error de permisos al subir: toast `"No tenés permisos para subir archivos a esta tarea"` (`:38`). **Con REQ-001 el tipo y el tamaño los valida el servidor** (RF-6, RF-15): son configurables en caliente, así que el cliente no puede anticipar el rechazo y muestra el mensaje que vuelve — `"El archivo supera el tamaño máximo permitido"` o `"Ese tipo de archivo no está permitido"`
 
 ### boton-guardar-comentario
 - Texto/label: `"Guardar"` (`CommentEditor.tsx:155`)
@@ -302,14 +310,24 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
   - boton-guardar-comentario: spinner (state_override)
 - Nota: **no hay loading inicial.** No existe `objectives/[id]/loading.tsx`, así que la navegación hacia esta pantalla no tiene feedback mientras el Server Component espera la respuesta: la pantalla anterior queda congelada [fuente: código-existente]
 
+### subiendo adjunto (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-001** (RF-8)
+- Mensaje: `"Subiendo {nombre del archivo}... {progress}%"`
+- Cambios:
+  - progreso-subida-adjunto: solo visible en este estado (visible_only_in_states)
+  - boton-adjuntar-comentario: variant=disabled mientras hay una subida en curso (la subida es de a uno, RF-7)
+  - boton-guardar-comentario: variant=disabled — guardar mientras el byte viaja crearía el vínculo contra un archivo incompleto
+- **Por qué se separa del `loading` existente:** hoy `loading={loading || isUploading}` mezcla subir un archivo con enviar el comentario en un mismo spinner (`CommentEditor.tsx:157`). Con progreso real son dos esperas distintas —una tiene porcentaje y la otra no— y colapsarlas desperdicia la única información nueva que el rediseño aporta
+
 ### error de validación
 - Aplica: Sí (parcialmente)
-- Mensaje: toast `"El comentario no puede estar vacío"` (`ObjectiveComment.tsx:51`)
-- Cambios: solo el toast. **El mensaje no aparece junto al campo**, y es la única validación de la pantalla [fuente: código-existente]
+- Mensaje: toast `"El comentario no puede estar vacío"` (`ObjectiveComment.tsx:51`) · toast del rechazo del servidor: `"El archivo supera el tamaño máximo permitido"` · `"Ese tipo de archivo no está permitido"`
+- Cambios: solo el toast. **El mensaje no aparece junto al campo**, y era la única validación de la pantalla [fuente: código-existente]
+- **Cambia con REQ-001:** el rechazo del archivo pasa a venir del servidor en lugar del cliente (RF-6, RF-15). El síntoma para el usuario es el mismo mensaje en el mismo lugar; lo que cambia es que llega **después** de intentar subir, no antes
 
 ### error de sistema / sin conexión
 - Aplica: Sí (parcialmente)
-- Mensaje: `"Requisito no disponible"` en la fila del requisito (`ObjectiveDetails.tsx:116`); toast `"Hubo un error al editar el comentario"` (`ObjectiveComment.tsx:66`) o `"Hubo un error al agregar el comentario"` (`CommentEditor.tsx:110`)
+- Mensaje: `"Requisito no disponible"` en la fila del requisito (`ObjectiveDetails.tsx:116`); toast `"Hubo un error al editar el comentario"` (`ObjectiveComment.tsx:66`) o `"Hubo un error al agregar el comentario"` (`CommentEditor.tsx:110`); **con REQ-001** toast `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10)
 - Cambios:
   - link-requisito: content=`"Requisito no disponible"` cuando `hasRequirementError` de `useRequirement` (state_override, `ObjectiveDetails.tsx:19-23`)
   - El resto: solo toasts
@@ -360,3 +378,11 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **`lista-adjuntos-borrador` se renombra a `lista-adjuntos-pendientes`.** El borrador desaparece del modelo (RF-3): ya no hay un adjunto en estado provisorio esperando una entidad, hay un archivo que existe y todavía no se vinculó. Mantener el nombre viejo dejaría el vocabulario de la documentación describiendo un mecanismo que se eliminó, que es justamente lo que este rediseño vino a limpiar.
+- **La subida gana estado propio en vez de reutilizar `loading`.** Hoy el mismo spinner cubre subir y enviar. Con progreso real son dos esperas con forma distinta, y fundirlas tiraría el porcentaje —el único aporte visible del rediseño en esta pantalla.
+- **Guardar queda deshabilitado mientras un archivo sube.** Se descartó permitirlo y encolar el guardado: el vínculo se crea contra un archivo cuyo contenido todavía viaja, y el sistema no verifica que haya llegado (D-13), así que el comentario podría quedar con un adjunto vacío y sin síntoma hasta que alguien lo abra.
+- **El error de titularidad se comunica en lenguaje de personas, no de sistema.** `file_not_owned` se muestra como *"No podés adjuntar un archivo que subió otra persona"* (RF-12). Se descartó *"No sos el propietario del archivo"*: nombra un concepto —propiedad de archivo— que el usuario nunca vio en la interfaz y que no necesita aprender para entender qué hacer.
+- **No se agregó componente al Design System.** `progress-bar` no tiene spec en `web` v0.1.0. Queda anotado como gap conocido en la `## Revisión UX` de REQ-001; el catálogo completo lo resuelve `/product-design-system-update`.

@@ -127,22 +127,43 @@ status: Draft - Importado desde código existente
   `external-user` solo ve los proyectos con una fila acá. **No se administra desde ninguna
   interfaz del producto:** se inserta a mano.
 
-### Adjunto (`attachments`)
-- **Atributos clave:** `entityType` (string, req), `entityId` (int, **opt**), `fileName`
-  (string 255, req), `fileSize` (int, req, max 10 MB), `mimeType` (string, req), `storageKey`
-  (string, req, UNIQUE), `storageBucket`, `storageRegion`, `checksum` (sha256, opt),
-  `retentionStatus` (enum: active/scheduled_for_deletion/deleted, req, default active),
-  `description` (text, opt)
-- **Relaciones:** vinculación **polimórfica** por `(entityType, entityId)` — sin FK.
+### Archivo (`files`)
+- **Atributos clave:** `fileName` (string 255, req — el nombre original, **no** es la clave),
+  `fileSize` (int, req), `mimeType` (string 100, req), `storageKey` (string 500, req, UNIQUE — la
+  construye `core`, **no** depende de la entidad), `storageBucket` (string 100, req),
+  `storageRegion` (string 50, req), `checksum` (sha256, opt — declarado por el cliente y **no
+  verificado**), `byteStatus` (enum: pending/uploaded, req, default pending), `uploadedBy`
+  (string 100, req), `retentionStatus` (enum: active/scheduled_for_deletion/deleted, req,
+  default active)
+- **Relaciones:** has_many Adjunto (**0..N** — un archivo puede no estar vinculado a nada).
   belongs_to Usuario (`uploadedBy`)
-- **Notas:** `entityId` nullable habilita el **borrador anclado al usuario**: se adjunta antes de
-  que la entidad exista y la titularidad se valida por `uploadedBy`. El borrado es lógico vía
-  `retentionStatus`, no soft-delete de Sequelize. `checksum` está excluido del scope por default.
+- **Notas:** **La identidad del archivo, independiente de a qué se vincule.** Un archivo sin
+  vínculo es un estado válido, no una anomalía. Es la entidad contra la cual se valida la
+  **titularidad**: solo quien subió un archivo puede vincularlo, sin excepción por rol.
+  `byteStatus` registra si el byte llegó al storage; **nadie lo verifica** — el error aparece al
+  descargar, no al vincular. Los archivos con `byteStatus: pending` abandonados son
+  **identificables pero no se limpian**: el barrido quedó fuera de alcance (REQ-001).
+
+### Adjunto (`attachments`)
+- **Atributos clave:** `entityType` (string, req), `entityId` (int, **req**), `fileId` (int, req)
+- **Relaciones:** vinculación **polimórfica** por `(entityType, entityId)` — sin FK.
+  belongs_to Archivo (`fileId`, **FK real**)
+- **Notas:** **Es solo el vínculo archivo ↔ entidad.** Los atributos del archivo viven en
+  Archivo. `entityId` es NOT NULL: el vínculo se crea cuando la entidad ya existe, y por eso
+  **no hay tipos de entidad borrador** (`*_draft` desaparecieron). Desvincular es **borrar el
+  Adjunto**; el archivo se retiene, porque con 0..N vínculos marcarlo rompería los otros. Los
+  `id` se **preservan** desde antes del rediseño: las URLs públicas que circulan fuera del
+  sistema los usan. La FK polimórfica hacia la entidad **sigue siendo imposible**: apunta a
+  cinco tablas distintas.
 
 ### AjusteDelSistema (`system_settings`)
-- **Atributos clave:** `key` (string, UNIQUE), `value` (string)
-- **Notas:** Hoy tiene un solo uso real: `hours-per-day`, que alimenta el semáforo de carga de
-  horas. **Se lee pero no se escribe** desde ninguna interfaz.
+- **Atributos clave:** `key` (string 255, UNIQUE), `value` (**text**)
+- **Notas:** Se lee en caliente y **se cambia por SQL**: no hay interfaz de escritura. Usos:
+  `hours-per-day` (semáforo de carga de horas) y los cinco parámetros de subida de archivos —
+  `upload-url-ttl-seconds`, `download-url-ttl-seconds`, `file-max-size-bytes`,
+  `file-allowed-extensions`, `file-allowed-mime-types`. **Cada clave tiene un default en el
+  código**, así que el sistema funciona sin valor cargado. `value` es `TEXT` y no
+  `VARCHAR(255)` porque la lista de tipos MIME permitidos no entra en 255 caracteres.
 
 ---
 

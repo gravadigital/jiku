@@ -880,7 +880,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "220px fijos en desktop · en mobile pasa a ancho completo con borde inferior · ausencias: \"Sin tipo\", \"Sin prioridad\", \"Sin suscriptores\", \"Sin fecha\"; la fecha de finalización no se renderiza si no hay"
         },
@@ -893,7 +894,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "28px acá y 26px en el overlay, mismo componente · la jerarquía arranca en h2: no hay h1 en la pantalla"
         },
@@ -906,7 +908,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "RichContentRenderer: parsea adjuntos en dos formatos y el resto por markdown · si el HEAD del adjunto falla hay un catch vacío y se muestra sin nombre ni tamaño"
         },
@@ -919,7 +922,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "un requisito de otro tipo con resolución cargada no la muestra"
         },
@@ -932,7 +936,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "dice \"Elemento\", no \"Requisito\" · creador ausente → \"—\""
         },
@@ -945,7 +950,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "en mayúsculas en el código; en el overlay el literal es \"Actividad\" y las dos hojas aplican uppercase"
         },
@@ -970,7 +976,8 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "orden ascendente: lo último queda al fondo, junto al editor · sin auto-scroll · vacío: \"No hay actividad registrada\" · no es una lista semántica (<div> anidados)"
         },
@@ -983,13 +990,14 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
-          "annotation": "usa \"tú\", no voseo · el <textarea> no tiene etiqueta, solo placeholder · se parte en un textarea por segmento de texto al insertar un adjunto",
+          "annotation": "usa \"tú\", no voseo · el <textarea> no tiene etiqueta, solo placeholder · se parte en un textarea por segmento de texto al insertar un adjunto · con REQ-001 el mensaje de rechazo deja de nombrar el límite: \"10MB\" es configurable en caliente (RF-15) y quedaría mintiendo",
           "state_overrides": {
             "error de validación": {
               "state": "error",
-              "error_msg": "El archivo supera el límite de 10MB"
+              "error_msg": "El archivo supera el tamaño máximo permitido"
             },
             "success": {
               "content": "Escribe un comentario...",
@@ -1007,9 +1015,26 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
-          "annotation": "input file oculto con las 12 extensiones permitidas"
+          "annotation": "input file oculto. Con REQ-001 el tamaño y las extensiones son configurables en caliente y los valida el servidor (RF-6, RF-15), así que el cliente no puede anticipar el rechazo. La subida es de a un archivo por vez (RF-7)",
+          "state_overrides": {
+            "subiendo adjunto": {
+              "variant": "disabled"
+            }
+          }
+        },
+        {
+          "name": "progreso-subida-adjunto",
+          "type": "progress-bar",
+          "category": "feedback",
+          "content": "Subiendo captura-pantalla.png... 58%",
+          "visible_only_in_states": [
+            "subiendo adjunto"
+          ],
+          "annotation": "Subiendo captura-pantalla.png… 58% · bloque nuevo con REQ-001 (RF-8). Reemplaza al AttachmentSkeleton indeterminado que aparecía al final del editor: el byte va directo al storage y el porcentaje es real. Mismo bloque en los dos viewports, siempre dentro del editor",
+          "fill": 0.58
         },
         {
           "name": "boton-enviar",
@@ -1021,12 +1046,17 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success"
+            "success",
+            "subiendo adjunto"
           ],
           "annotation": "deshabilitado si no hay contenido o si la mutación está en curso · el comentario vacío no da mensaje: el submit hace return en silencio",
           "state_overrides": {
             "error de validación": {
               "variant": "disabled"
+            },
+            "subiendo adjunto": {
+              "variant": "disabled",
+              "annotation": "enviar mientras el byte viaja vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13)"
             }
           }
         },
@@ -1105,6 +1135,7 @@
           "titulo-actividad",
           "feed-actividad",
           "editor-comentario",
+          "progreso-subida-adjunto",
           {
             "row": "acciones-comentario",
             "cols": [
@@ -1232,6 +1263,7 @@
                           "titulo-actividad",
                           "feed-actividad",
                           "editor-comentario",
+                          "progreso-subida-adjunto",
                           {
                             "row": "acciones-comentario",
                             "cols": [
@@ -1283,6 +1315,11 @@
         {
           "name": "not found",
           "applies": true
+        },
+        {
+          "name": "subiendo adjunto",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },

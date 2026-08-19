@@ -70,7 +70,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 18 | item-comentario | card | — | content | ambos | visible_only_in_states: default | Un comentario del feed |
 | 19 | item-cambio | list | timeline | content | ambos | visible_only_in_states: default | Un cambio de campo en el feed |
 | 20 | editor-comentario | text-input | multilínea con adjuntos | input | ambos | visible_only_in_states: default | Escribir un comentario |
-| 21 | boton-adjuntar | button | secondary | input | ambos | visible_only_in_states: default | Adjuntar un archivo al comentario |
+| 21 | boton-adjuntar | button | secondary | input | ambos | visible_only_in_states: default | Adjuntar un archivo al comentario, de a uno por vez |
 | 22 | boton-enviar | button | primary · disabled | input | ambos | visible_only_in_states: default | Enviar el comentario |
 | 23 | indicador-carga | loader | lg | feedback | ambos | visible_only_in_states: loading | Señal de carga de la pantalla entera |
 | 24 | sidebar-navegacion | sidebar | — | layout | solo desktop | — | Chrome de `(dashboard)`: proyectos, alta y cerrar sesión. Bajo 768px no se renderiza |
@@ -78,6 +78,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 26 | alerta-not-found | alert | error | feedback | ambos | visible_only_in_states: not found | Texto de requisito inexistente |
 | 27 | boton-volver-listado | button | secondary | input | ambos | visible_only_in_states: error de sistema / sin conexión, not found | Salida del estado de excepción |
 | 28 | boton-reintentar | button | primary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Reintentar la carga. **No existe en not found** |
+| 29 | progreso-subida-adjunto | progress-bar | — | feedback | ambos | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]/page.tsx`, `RequirementDetailView/RequirementDetailView.tsx`, `RequirementDetailView/RequirementDetailView.module.scss`, `BoardHeader/BoardHeader.tsx`, `RequirementDetailModal/components/RequirementInfoPanel/RequirementInfoPanel.tsx`, `RequirementDetailModal/components/ActivityPanel/ActivityPanel.tsx`, `RequirementDetailModal/components/CommentInput/CommentInput.tsx`, `subscriptions/components/SubscribersList/SubscribersList.tsx` [fuente: código-existente].
 
@@ -96,7 +97,7 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
 - pie-autoria
 - titulo-actividad
 - feed-actividad
-- editor-comentario
+- editor-comentario — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
 
 **Origen:** `RequirementDetailView.module.scss:91-99` — `@include mobile { .body { flex-direction: column } .rightPanel { width: 100%; flex-shrink: 1 } }` y `RequirementInfoPanel.module.scss:20-40` — `.layout { @include mobile { flex-direction: column; overflow: visible } }`, `.sidebar { @include mobile { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb } }` [fuente: código-existente].
 
@@ -117,7 +118,7 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
   - col 5/12: panel derecho *(559px fijos)*
     - titulo-actividad
     - feed-actividad *(scroll)* — item-comentario, item-cambio
-    - editor-comentario *(anclado abajo)* — boton-adjuntar, boton-enviar
+    - editor-comentario *(anclado abajo)* — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
 
 **Origen:** `RequirementDetailView.module.scss:11-49` — `.body { display:flex }` con `.leftPanel { flex: 1 1 0 }` y `.rightPanel { width: 559px; flex-shrink: 0 }`; el panel de propiedades en `RequirementInfoPanel.module.scss:15-40` — `.layout { display:flex }` con `.sidebar { width: 220px; flex-shrink: 0 }` [fuente: código-existente].
 
@@ -258,6 +259,12 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Asset: nada
 - Annotation: `CommentInput.tsx:149` — **usa "tú" ("Escribe"), no voseo**; queda registrado como hallazgo de microcopy, no se corrige acá. `RichTextEditor` parte el valor en segmentos de texto y adjuntos y renderiza un `<textarea>` por segmento de texto (`RichTextEditor.tsx:123-135`): al insertar un adjunto en el medio, el texto se parte en dos textareas independientes
 
+### progreso-subida-adjunto
+- Texto/label: `"Subiendo {nombre del archivo}... {progress}%"`
+- Icono: nada
+- Asset: nada
+- Annotation: **bloque nuevo con REQ-001** (RF-8). **Reemplaza al `AttachmentSkeleton`** que hoy aparece al final del editor: ese skeleton indica que algo está pasando pero no cuánto falta, porque el byte viajaba a la api y el navegador no veía la transferencia. Ahora el byte va directo al storage y el porcentaje es real. **Mismo bloque en los dos viewports**, dentro del editor: en mobile el editor está en el stack y en desktop anclado abajo del panel de actividad, pero el progreso vive adentro en los dos casos y no cambia de forma
+
 ### boton-adjuntar
 - Texto/label: "Adjuntar"
 - Icono: `Paperclip` de lucide-react, 16px
@@ -316,7 +323,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
   - **empty (actividad)** — Mensaje: "No hay actividad registrada" · feed-actividad reemplazado por el texto (`ActivityPanel.tsx:136-142`)
   - **empty (suscriptores)** — Mensaje: "Sin suscriptores" (`SubscribersList.tsx:11-13`)
   - **empty (descripción)** — Mensaje: "Sin descripción" (`RequirementInfoPanel.tsx:150`)
-  - **loading (subida de adjunto)** — aparece un `AttachmentSkeleton` al final del editor, con forma de imagen o de archivo según el mime, disparado por `uploading === true` (`CommentInput.tsx:151-152` → `RichTextEditor.tsx:161-165`)
+  - **subiendo adjunto** — **cambia con REQ-001** (RF-8): el `AttachmentSkeleton` indeterminado que aparecía al final del editor (`CommentInput.tsx:151-152` → `RichTextEditor.tsx:161-165`) se reemplaza por `progreso-subida-adjunto` con porcentaje real. `boton-adjuntar` queda deshabilitado mientras hay una subida en curso (de a uno, RF-7) y `boton-enviar` también, porque enviar mientras el byte viaja vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13)
   - **loading (envío de comentario)** — el editor, boton-adjuntar y boton-enviar se deshabilitan, disparado por `isPending` de `useCreateComment`. **Sin texto de "enviando"** (`CommentInput.tsx:133`, `:151`, `:169`)
 
 ### empty
@@ -332,10 +339,10 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 
 ### error de validación
 - Aplica: Sí — solo en el editor de comentarios (adjuntos)
-- Mensaje: "El archivo supera el límite de 10MB" · "Tipo de archivo no permitido" · "Error al subir el archivo"
+- Mensaje: "El archivo supera el tamaño máximo permitido" · "Ese tipo de archivo no está permitido" · "Error al subir el archivo"
 - Cambios:
   - editor-comentario: `<p role="alert">` agregado sobre el editor con el mensaje (`CommentInput.tsx:138-142`)
-- Annotation: disparado por tamaño > 10 MB, extensión fuera de las 12 permitidas, o fallo de la subida (`CommentInput.tsx:75`, `:81`, `:108`). **El comentario vacío no tiene mensaje:** el botón queda deshabilitado y el submit hace `return` en silencio (`:117-118`, `:133`)
+- Annotation: **cambia con REQ-001** (RF-6, RF-15). Antes lo disparaba el cliente: tamaño > 10 MB o extensión fuera de las 12 permitidas, con los dos límites escritos en el código del portal (`CommentInput.tsx:75`, `:81`, `:108`). Ahora **el límite y las listas son configurables en caliente y los valida el servidor**, así que el mensaje deja de nombrar un número —`"10MB"` puede quedar desactualizado sin que nadie lo note— y el rechazo llega después de intentar subir. **El comentario vacío sigue sin mensaje:** el botón queda deshabilitado y el submit hace `return` en silencio (`:117-118`, `:133`)
 
 ### error de sistema / sin conexión
 - Aplica: Sí
@@ -343,7 +350,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Cambios:
   - texto de error + **dos botones**: "Volver al listado" (secondary) y "Reintentar" (primary)
   - todos los bloques de contenido: ocultos en este estado (hidden_in_states) · `[requirementId]/page.tsx:32-47`
-- Annotation: disparado por `error` de `useRequirement`. Hay además un error de sistema propio del comentario, dentro del default: "Sin permiso para comentar" (403), o el `message` del `ApiError`, o "Error al enviar el comentario", en el mismo `<p role="alert">` (`CommentInput.tsx:38-45`). El **error de la suscripción no está implementado como estado**: el botón muestra "Error" y el motivo va en un `title`, invisible en touch, sin toast ni mensaje persistente (`BoardHeader.tsx:114-131`)
+- Annotation: disparado por `error` de `useRequirement`. Hay además un error de sistema propio del comentario, dentro del default: "Sin permiso para comentar" (403), o el `message` del `ApiError`, o "Error al enviar el comentario", en el mismo `<p role="alert">` (`CommentInput.tsx:38-45`). **Con REQ-001 se suman dos mensajes ahí mismo:** "No podés adjuntar un archivo que subió otra persona" cuando el vínculo se rechaza por titularidad (RF-12, CA-11) y "El archivo no está disponible" al abrir un adjunto cuyo contenido nunca llegó al storage (RF-21, CA-15). El **error de la suscripción no está implementado como estado**: el botón muestra "Error" y el motivo va en un `title`, invisible en touch, sin toast ni mensaje persistente (`BoardHeader.tsx:114-131`)
 
 ### success
 - Aplica: Sí — solo para el envío de comentario
@@ -373,13 +380,13 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - breadcrumb "Requisitos" · on click → `router.push` al tablero · `:81`
 - boton-adjuntar · on click → abre el selector de archivos · `CommentInput.tsx:167`
 - input de archivo · on change → valida y sube; inserta el placeholder en el texto · `:66-113`
-- editor-comentario · on change → actualiza el texto y **descarta los adjuntos cuyo placeholder ya no está** · `:61-64`
+- editor-comentario · on change → actualiza el texto y **saca del comentario los adjuntos cuyo placeholder ya no está** · `:61-64`. **Con REQ-001 sacarlo no borra el archivo**: el archivo sigue existiendo sin vínculo, que es un estado válido (RF-1)
 - adjunto en el editor · on click en quitar → lo saca del texto y fusiona los segmentos vecinos · `RichTextEditor.tsx:101-119`
-- boton-enviar / submit · → crea el comentario con los `attachmentIds` pendientes · `CommentInput.tsx:115-130`
+- boton-enviar / submit · → crea el comentario con los archivos pendientes. **Con REQ-001 el vínculo se crea contra archivos que ya existen** (RF-4), y el comentario y sus vínculos se guardan juntos o no se guarda ninguno · `CommentInput.tsx:115-130`
 
 **Validaciones:**
-- Adjunto · tamaño ≤ 10 MB → mensaje "El archivo supera el límite de 10MB" · `CommentInput.tsx:74-77`
-- Adjunto · extensión en `jpg, jpeg, png, gif, webp, pdf, doc, docx, xls, xlsx, ppt, pptx` → mensaje "Tipo de archivo no permitido" · `:11-24`, `:79-83`
+- Adjunto · tamaño dentro del máximo configurado → mensaje "El archivo supera el tamaño máximo permitido". **Con REQ-001 la regla es del servidor y configurable en caliente** (RF-6, RF-15); el chequeo del cliente en `CommentInput.tsx:74-77` deja de ser autoritativo
+- Adjunto · extensión y tipo MIME dentro de las listas configuradas → mensaje "Ese tipo de archivo no está permitido". **Con REQ-001 las dos listas son del servidor y configurables** (RF-15, RF-17); las 12 extensiones escritas en `:11-24`, `:79-83` dejan de ser autoritativas
 - Comentario · no vacío tras `trim()` → **sin mensaje**; el submit hace `return` en silencio · `:117-118`
 
 **Feedback:**
@@ -401,3 +408,11 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **El skeleton indeterminado se reemplaza por progreso real, no se suma al lado.** El `AttachmentSkeleton` existía porque no había nada mejor que mostrar: el byte iba a la api y el navegador no veía la transferencia. Con el envío directo al storage el porcentaje existe (RF-8), y mantener las dos formas dejaría dos indicadores para la misma espera.
+- **El mismo bloque en los dos viewports.** El editor está en el stack en mobile y anclado abajo del panel de actividad en desktop, pero el progreso vive adentro del editor en los dos casos y no cambia de forma. No hay override de viewport que declarar: la diferencia es de dónde está el editor, y eso ya estaba resuelto.
+- **Los mensajes de rechazo dejan de nombrar el límite.** "El archivo supera el límite de 10MB" pasa a "El archivo supera el tamaño máximo permitido" porque el número es configurable en caliente (RF-15) y un valor escrito en la interfaz queda mintiendo sin que nadie lo note. Se descartó pedir la configuración para mostrarla: agrega una llamada a una pantalla que no la necesita, para prevenir un error que el servidor ya explica.
+- **La titularidad importa más acá que en `web`.** Un cliente del portal y un servicio externo son actores distintos con archivos distintos (CA-11, CA-12), así que el rechazo por titularidad es alcanzable de verdad en esta superficie, no solo teórico. Se le da mensaje propio en lugar de caer en "Error al enviar el comentario".
+- **No se agregó componente al Design System.** `progress-bar` no tiene spec en `opus-web` v0.1.0 — el catálogo es un scaffold de tres componentes, y `AttachmentSkeleton` ya figura como candidato pendiente de especificar en su README. Gap anotado en la `## Revisión UX` de REQ-001.

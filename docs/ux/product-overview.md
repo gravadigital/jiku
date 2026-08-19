@@ -110,8 +110,12 @@ llaman a las cosas distinto**, y las tres capas no coinciden.
   canal de notificación en el producto.**
 - **Permiso de proyecto** — Fila en `user_project_permissions`. Es lo que sostiene todo el
   aislamiento del portal: un cliente solo ve los proyectos que tienen una.
-- **Adjunto** — Archivo vinculado a cualquier entidad, incluidas las que todavía no existen: se
-  puede adjuntar a un **borrador** y el vínculo se resuelve al guardar.
+- **Archivo** — Contenido subido al sistema. **Existe por sí solo**, sin depender de ninguna
+  entidad, y solo lo puede adjuntar quien lo subió [REQ-001 RF-1, RF-12].
+- **Adjunto** — El **vínculo** entre un archivo y una entidad. Un archivo puede tener cero, uno o
+  varios; el vínculo se crea cuando la entidad ya existe, en la misma operación que la crea o la
+  edita. El concepto de **borrador de adjunto** se eliminó con REQ-001: subir ya no obliga a
+  declarar a qué se va a colgar.
 - **Etapa** — Concepto **eliminado** del modelo de datos. Quedan restos en el código y en los
   tokens de color.
 

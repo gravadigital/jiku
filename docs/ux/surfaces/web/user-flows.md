@@ -109,6 +109,10 @@ lo ve en Opus sin que nadie se lo comunique.
   de resolución. Para una incidencia, se exigen tipo y conclusión.
 - **Comentar** — El feed acepta comentarios con **visibilidad elegible** (interno / público) y
   adjuntos embebidos. Es el único punto donde el usuario decide la visibilidad.
+- **Adjuntar un archivo al comentario** — Se sube **de a uno por vez, con progreso real**, y el
+  vínculo con el comentario se crea al enviarlo: si el envío falla, no queda ni el comentario ni
+  el vínculo, pero **el archivo sí queda** y se puede volver a usar (REQ-001 RF-1, RF-7, RF-8).
+  Un archivo **solo lo puede adjuntar quien lo subió**, sin excepción por rol (RF-12, RF-13).
 
 ### Errores y recuperación
 
@@ -117,6 +121,11 @@ lo ve en Opus sin que nadie se lo comunique.
 - **Salto de estado inválido** — **El stepper lo previene, pero la api no lo valida**
   [fuente: código-existente]: la regla vive solo en `web` (NFR-S07). Otro cliente HTTP podría
   saltar a cualquier estado.
+- **Adjunto de otra persona** — Falla con *"No podés adjuntar un archivo que subió otra persona"*
+  (REQ-001 RF-12). No hay recuperación posible más que subirlo de nuevo, y es deliberado.
+- **Adjunto cuyo contenido nunca llegó** — Al abrirlo dice *"El archivo no está disponible"*, no un
+  error genérico (RF-21, CA-15). El sistema registra el archivo antes de recibir su contenido y no
+  verifica que haya llegado, así que este caso es alcanzable si la subida se corta a mitad.
 
 ### Estado final
 

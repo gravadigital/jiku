@@ -34,16 +34,16 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
 | 7 | edicion-actor | Editar un actor | equipo-interno | solo desktop | C-04 |
 | 8 | listado-proyectos | Ver y filtrar los proyectos | equipo-interno | solo desktop | C-06 |
-| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12 |
+| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos | equipo-interno | solo desktop | C-13 |
-| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20 |
-| 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18 |
-| 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18 |
+| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001 |
+| 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
+| 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28 |
-| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33 |
+| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
@@ -65,7 +65,7 @@ Ninguno es ruta. **Origen:** `docs/analysis/ux/web/screens/_overlays.md` [fuente
 
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
-| O-01 | Vista previa de adjunto | modal (`role="dialog"`, `aria-modal`) | detalle-proyecto · botón "Preview" de un adjunto | Ver imagen o PDF sin salir de la pantalla |
+| O-01 | Vista previa de adjunto | modal (`role="dialog"`, `aria-modal`) | detalle-proyecto · botón "Preview" de un adjunto | Ver imagen o PDF sin salir de la pantalla. **REQ-001:** suma el caso "el archivo no está disponible" (RF-21, CA-15) |
 | O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) | Confirmar una acción destructiva |
 | O-03 | Dropdown de estado de tarea | dropdown | listado-tareas · tag de estado; cards de tarea | Cambiar estado inline sin abrir el detalle |
 | O-04 | Pills-dropdown de estado/tipo/prioridad | dropdown (`role="listbox"`) | detalle-requisito · header | Editar los tres campos de clasificación inline |

@@ -156,7 +156,7 @@ El módulo declara además dos cortes propios (`@media (max-width: 1024px)` que 
 - Texto/label: label visible `"Contexto"` con `id="description-label"`, `ariaLabel="Contexto"` (`:419-423`, `:426`). Placeholder: `"Describe el requisito..."` (`:427`)
 - Icono: nada
 - Asset: nada
-- Annotation: editor markdown con soporte de adjuntos embebidos (`entityType="requirement_draft"`), que se pueden subir antes de que el requisito exista — el backend los ancla al usuario. El placeholder usa tuteo peninsular (`"Describe"`), a diferencia del voseo del resto del producto
+- Annotation: editor markdown con soporte de adjuntos embebidos, que se pueden subir **antes de que el requisito exista**. **Con REQ-001 el mecanismo cambia** (RF-1, RF-3): dejan de subirse como borrador anclado al usuario (`entityType="requirement_draft"`) y pasan a ser archivos que existen por sí solos; el vínculo con el requisito se crea al guardar. El placeholder usa tuteo peninsular (`"Describe"`), a diferencia del voseo del resto del producto
 
 ### seccion-etiquetas
 - Texto/label: label `"Etiquetas"` (`:436`)
@@ -328,3 +328,10 @@ El módulo declara además dos cortes propios (`@media (max-width: 1024px)` que 
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **Los adjuntos embebidos del editor dejan de subirse como borrador.** El archivo pasa a existir por sí solo y el vínculo con el requisito se crea al guardar, en la misma operación (RF-1, RF-3, RF-4). **Para el usuario el gesto no cambia** —sigue pudiendo adjuntar antes de que el requisito exista, que es lo que RF-1 preserva a propósito— así que no se modificó la estructura ni el layout de la pantalla: se corrigió la anotación de mecanismo, que describía un patrón eliminado.
+- **El límite de tamaño y las extensiones dejan de decidirse en el cliente.** Son configurables en caliente y los valida `core` (RF-6, RF-15). El mensaje de rechazo llega del servidor.
+- **Se agrega un modo de fallo que antes no existía:** intentar adjuntar un archivo subido por otra persona falla con *"No podés adjuntar un archivo que subió otra persona"* (RF-12, CA-10). En esta pantalla es improbable —el usuario adjunta lo que acaba de subir— pero es alcanzable si se recupera un formulario de otra sesión.
+

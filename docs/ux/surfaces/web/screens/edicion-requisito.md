@@ -125,7 +125,7 @@ El módulo declara un corte propio en 1024px (`@media (max-width: 1024px) { grid
 - Texto/label: `"Volver"` (`:347`)
 - Icono: nada
 - Asset: nada
-- Annotation: `<Link href="/requirements/{id}">`; descarta lo editado sin confirmar, incluidos los adjuntos ya subidos
+- Annotation: `<Link href="/requirements/{id}">`; descarta lo editado sin confirmar. **Con REQ-001 lo que se descarta es la vinculación, no el archivo**: los archivos ya subidos siguen existiendo sin vínculo, que es un estado válido (RF-1)
 
 ### boton-guardar
 - Texto/label: `"Guardar"`; en loading `"Guardando..."` (`:356`)
@@ -155,7 +155,7 @@ El módulo declara un corte propio en 1024px (`@media (max-width: 1024px) { grid
 - Texto/label: label visible `"Contexto"` con `id="edit-description-label"`, `ariaLabel="Contexto"` (`:390`). Placeholder: `"Describe el requisito..."` (`:391`)
 - Icono: nada
 - Asset: nada
-- Annotation: mismo editor markdown con adjuntos que el alta. Tuteo peninsular (`"Describe"`), a diferencia del voseo del resto del producto
+- Annotation: mismo editor markdown con adjuntos que el alta, y **mismo cambio de mecanismo con REQ-001**: el adjunto deja de ser un borrador anclado al usuario y pasa a ser un archivo que existe solo, vinculado al guardar (RF-1, RF-3). Tuteo peninsular (`"Describe"`), a diferencia del voseo del resto del producto
 
 ### seccion-etiquetas
 - Texto/label: contenedor de los controles de etiqueta
@@ -320,3 +320,11 @@ El módulo declara un corte propio en 1024px (`@media (max-width: 1024px) { grid
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **Los adjuntos embebidos del editor dejan de subirse como borrador.** El archivo pasa a existir por sí solo y el vínculo con el requisito se crea al guardar, en la misma operación (RF-1, RF-3, RF-4). **Para el usuario el gesto no cambia** —sigue pudiendo adjuntar antes de que el requisito exista, que es lo que RF-1 preserva a propósito— así que no se modificó la estructura ni el layout de la pantalla: se corrigió la anotación de mecanismo, que describía un patrón eliminado.
+- **El límite de tamaño y las extensiones dejan de decidirse en el cliente.** Son configurables en caliente y los valida `core` (RF-6, RF-15). El mensaje de rechazo llega del servidor.
+- **Se agrega un modo de fallo que antes no existía:** intentar adjuntar un archivo subido por otra persona falla con *"No podés adjuntar un archivo que subió otra persona"* (RF-12, CA-10). En esta pantalla es improbable —el usuario adjunta lo que acaba de subir— pero es alcanzable si se recupera un formulario de otra sesión.
+- **Descartar la edición deja de descartar los archivos.** La anotación de `boton-volver` decía que se pierden "los adjuntos ya subidos": con el modelo nuevo los archivos siguen existiendo sin vínculo (RF-1). Lo que se pierde es la vinculación, no el archivo. No cambia lo que el usuario ve, pero sí lo que la documentación afirma.
+

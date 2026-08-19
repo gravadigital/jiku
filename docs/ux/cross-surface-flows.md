@@ -140,6 +140,21 @@ placeholder** —el suyo (`[attach:N]`) y el del gestor interno
 (`[nombre](/api/attachments/N/preview)`)— lo que confirma que el contenido creado en una superficie
 se lee en la otra.
 
+**Pero el archivo cruza para leerse, no para reusarse** [REQ-001 RF-12, RF-13, CA-11, CA-12]. Un
+archivo **solo lo puede adjuntar quien lo subió**, y la regla **no tiene excepción por rol**: un
+administrador tampoco puede adjuntar un archivo ajeno. Esto corta tres cruces que el modelo de
+datos permitiría:
+
+| Quién subió | Quién intenta adjuntar | Resultado |
+|---|---|---|
+| Cliente en `opus-web` | Miembro del equipo en `web` | Rechazado |
+| Miembro del equipo en `web` | Cliente en `opus-web` | Rechazado |
+| Un servicio externo | Cualquier persona, y viceversa | Rechazado |
+
+La asimetría es deliberada y vale nombrarla: **el contenido de una superficie se ve en la otra, y
+el archivo también se ve en la otra —lo que no cruza es el permiso de volver a usarlo.** Ver un
+adjunto del cliente y adjuntarlo a otra cosa son dos cosas distintas, y solo la primera cruza.
+
 ### La discontinuidad
 
 🔴 **Ninguna de las dos partes se entera de que la otra escribió.** Un comentario del cliente no le

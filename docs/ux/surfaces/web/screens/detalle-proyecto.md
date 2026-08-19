@@ -63,10 +63,10 @@ date: 2026-08-18
 | 16 | card-informacion-general | card | — | content | desktop | hidden_in_states: loading | Metadatos del proyecto |
 | 17 | card-propiedades | card | — | content | desktop | hidden_in_states: loading | Pares clave/valor del proyecto |
 | 18 | card-adjuntos | card | — | content | desktop | hidden_in_states: loading | Archivos adjuntos |
-| 19 | zona-subida-archivos | section | default / uploading / error | input | desktop | state_overrides: subiendo archivo→barra de progreso | Drag & drop de archivos |
-| 20 | barra-progreso-subida | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo archivo | Progreso de la subida |
+| 19 | zona-subida-archivos | section | default / uploading / error | input | desktop | state_overrides: subiendo archivo→barra de progreso | Selección de archivos, **de a uno por vez** |
+| 20 | barra-progreso-subida | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo archivo | Progreso **real** de la subida del archivo en curso |
 | 21 | lista-adjuntos | list | — | content | desktop | hidden_in_states: loading | Adjuntos ya subidos |
-| 22 | item-adjunto | card | — | content | desktop | hidden_in_states: loading | Un adjunto con sus acciones |
+| 22 | item-adjunto | card | disponible / no disponible | content | desktop | hidden_in_states: loading | Un adjunto con sus acciones |
 | 23 | boton-ver-mas-adjuntos | button | tertiary | input | desktop | hidden_in_states: loading | Suma un lote de adjuntos visibles |
 
 **Origen:** `projects/[id]/page.tsx:26`, `projects/[id]/page.tsx:31`, `projects/[id]/page.tsx:32`, `projects/[id]/page.tsx:34-36`, `projects/[id]/page.tsx:37-39`, `projects/[id]/page.tsx:46-49`, `projects/[id]/page.tsx:51`, `projects/[id]/page.tsx:54`, `projects/[id]/page.tsx:58`, `projects/[id]/page.tsx:64-67`, `projects/[id]/page.tsx:69-72`, `projects/[id]/page.tsx:74`, `ProjectRequirementsSection.tsx:98-113`, `ProjectRequirementsSection.tsx:117-160`, `ProjectRequirementsSection.tsx:164-210`, `ProjectObjectivesSection.tsx:87-102`, `ProjectObjectivesSection.tsx:105-157`, `ProjectObjectivesSection.tsx:159-205`, `FileUploader.tsx:94-158`, `FileUploader.tsx:126-133`, `AttachmentsList.tsx:57`, `AttachmentsList.tsx:59`, `AttachmentsList.tsx:69`
@@ -207,16 +207,16 @@ date: 2026-08-18
 - Annotation: **`"Download"` está en inglés** entre dos botones en español. Copiado verbatim (`ProjectAttachmentsSection.tsx:16`, `AttachmentsList.tsx:35`, `:41`, `:45`, `AttachmentItem.tsx:82,85,94`) [fuente: código-existente]
 
 ### zona-subida-archivos
-- Texto/label: `"Arrastrá archivos aquí o hacé click para seleccionar"`. Subiendo: `"Subiendo archivos..."`. Error de archivo inválido: `validation.error` o `"Archivo inválido"`
+- Texto/label: `"Arrastrá un archivo acá o hacé click para seleccionarlo"`. Subiendo: `"Subiendo {nombre del archivo}..."`. Error de archivo rechazado por el servidor: el mensaje del error de dominio — `"El archivo supera el tamaño máximo permitido"` (`file_too_large`) · `"Ese tipo de archivo no está permitido"` (`file_type_not_allowed`)
 - Icono: nada
 - Asset: nada
-- Annotation: `<div role="button">` con drag & drop y handlers de `Enter`/`Space` (`FileUploader.tsx:146`, `:124`, `:78`, `:94-158`)
+- Annotation: `<div role="button">` con drag & drop y handlers de `Enter`/`Space` (`FileUploader.tsx:146`, `:124`, `:78`, `:94-158`). **La subida es de a un archivo por vez** (REQ-001 RF-7): soltar varios los encola, no los sube en lote. **El límite de tamaño y las extensiones ya no se deciden acá**: son configurables en caliente y los valida `core` (REQ-001 RF-6, RF-15), así que el cliente no puede anticipar el mensaje — lo muestra tal como vuelve
 
 ### barra-progreso-subida
 - Texto/label: `"{progress}%"`
 - Icono: nada
 - Asset: nada
-- Annotation: `<div role="progressbar">` con `aria-valuenow`/`min`/`max` (`FileUploader.tsx:126-133`)
+- Annotation: `<div role="progressbar">` con `aria-valuenow`/`min`/`max` (`FileUploader.tsx:126-133`). **El porcentaje pasa a ser real** (REQ-001 RF-8): el byte va del navegador directo al storage y el progreso es el de esa transferencia, no el de una request a la api que solo se sabe terminada. Con varios archivos encolados, la barra reporta **el archivo en curso**, no el conjunto
 
 ### lista-adjuntos
 - Texto/label: sin texto propio — es el contenedor de los adjuntos
@@ -228,7 +228,7 @@ date: 2026-08-18
 - Texto/label: dinámico — nombre del archivo, más los botones `"Preview"` · `"Download"` · `"Eliminar"`
 - Icono: nada
 - Asset: nada
-- Annotation: `"Preview"` abre `PreviewModal`; `"Eliminar"` abre `ConfirmDialog` con title `"Eliminar archivo"`, confirmLabel `"Eliminar"`, cancelLabel `"Cancelar"` (`AttachmentsList.tsx:59`, `AttachmentItem.tsx:82-108`)
+- Annotation: `"Preview"` abre `PreviewModal`; `"Eliminar"` abre `ConfirmDialog` con title `"Eliminar archivo"`, confirmLabel `"Eliminar"`, cancelLabel `"Cancelar"` (`AttachmentsList.tsx:59`, `AttachmentItem.tsx:82-108`). **Variante `no disponible`** (REQ-001 RF-21, CA-15): el adjunto figura en la lista pero su contenido nunca llegó al storage. El nombre se muestra igual, con la leyenda `"El archivo no está disponible"` y `"Preview"` / `"Download"` deshabilitados; `"Eliminar"` sigue habilitado, que es la única salida útil
 
 ### boton-ver-mas-adjuntos
 - Texto/label: `"Ver más"`
@@ -289,11 +289,20 @@ date: 2026-08-18
 
 ### subiendo archivo (parent_state: default)
 - Aplica: Sí
-- Mensaje: `"Subiendo archivos..."` + porcentaje
+- Mensaje: `"Subiendo {nombre del archivo}..."` + porcentaje
 - Cambios:
   - zona-subida-archivos: la zona de arrastre se reemplaza por la barra de progreso (state_override)
   - barra-progreso-subida: solo visible en este estado (visible_only_in_states)
 - Disparado por `isPending` de `useUploadAttachment` (`FileUploader.tsx:122-135`) [fuente: código-existente]
+- **Cambia con REQ-001:** el progreso pasa a ser el de la transferencia real del byte al storage, y el estado es **por archivo**, no por lote (RF-7, RF-8). El mensaje nombra el archivo en curso porque con una cola de tres archivos, `"Subiendo archivos..."` no dice cuál va ni cuánto falta
+
+### archivo no disponible (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-001** (RF-21, CA-15)
+- Mensaje: `"El archivo no está disponible"`
+- Cambios:
+  - item-adjunto: variant=`no disponible` (state_override) — `"Preview"` y `"Download"` deshabilitados, `"Eliminar"` habilitado
+- **Por qué existe:** con la subida directa al storage, el sistema registra el archivo antes de que el byte llegue y **no verifica que haya llegado** (REQ-001 D-13). Si el navegador se cierra o la red corta a mitad del envío, queda un adjunto con nombre y sin contenido. Antes este caso no era representable —la fila se escribía después de que la api recibiera el archivo entero—, así que es un modo de fallo nuevo, no una variante de uno viejo
+- **Por qué no es un error genérico:** el sistema distingue "el archivo no está disponible" de "algo falló" (RF-21). Al usuario le importa la diferencia: en un caso el adjunto no sirve y conviene volver a subirlo, en el otro conviene reintentar
 
 ## Interacciones
 
@@ -334,3 +343,11 @@ date: 2026-08-18
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **La subida pasa a ser de a un archivo por vez, y se dice en el microcopy.** Es requisito del rediseño (RF-7), no una simplificación de interfaz. Se descartó mantener el plural `"Subiendo archivos..."` con una barra agregada: esconde cuál archivo está en curso justo cuando el progreso empieza a ser real y por lo tanto informativo.
+- **El progreso se mantiene como bloque `progress-bar` y no se convierte en una lista de archivos con progreso individual.** Con una cola de a uno, la barra del archivo en curso más el nombre alcanzan. Una lista de progresos paralelos representaría una concurrencia que el flujo no tiene.
+- **`archivo no disponible` se resuelve dentro de `item-adjunto` y no como un overlay o una pantalla de error.** El adjunto sigue existiendo y sigue siendo borrable; sacarlo de la lista lo volvería invisible y no habría forma de limpiarlo. Se descartó ocultarlo por eso.
+- **Los límites de tamaño y tipo dejan de estar en el microcopy de la pantalla.** Pasan a ser configurables en caliente (RF-15), así que cualquier número escrito en la interfaz puede quedar desactualizado sin que nadie lo note. El mensaje de rechazo viene del servidor. Se descartó leer la configuración para mostrarla: agrega un pedido de datos a una pantalla que hoy no lo necesita, para prevenir un error que el servidor ya explica bien.
+- **No se agregó componente al Design System.** `progress-bar` y el mensaje de error inline no tienen spec en `web` v0.1.0, pero ese catálogo es un scaffold placeholder con tres componentes; crear uno suelto acá lo desbalancea. Queda anotado como gap conocido en la `## Revisión UX` de REQ-001.

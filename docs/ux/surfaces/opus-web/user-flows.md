@@ -99,8 +99,11 @@ los dos miremos, para que no se pierda en un chat."
 
 ### Caminos alternativos
 
-- **Adjuntar archivos** — Se suben como **borrador** antes de que el requisito exista, y el vínculo
-  se resuelve al guardar. Límite de 10 MB y 12 extensiones, validado en el cliente.
+- **Adjuntar archivos** — Se suben **antes de que el requisito exista**, de a uno por vez y con
+  progreso real, y el vínculo se crea al guardar (REQ-001 RF-1, RF-4, RF-7, RF-8). El archivo ya no
+  es un borrador esperando una entidad: **existe por sí solo**, así que si el cliente abandona el
+  modal el archivo no queda huérfano ni se pierde. El tamaño máximo y los tipos permitidos los
+  decide el servidor y son **configurables** (RF-6, RF-15): la interfaz no los anticipa.
 - **Elegir suscriptores** — Selector contra los usuarios del proyecto.
 - **Elegir tipo** — 4 valores con descripción propia: funcionalidad ("nueva función del sistema"),
   mejora ("optimización de algo existente"), incidencia ("bug, error o comportamiento
@@ -111,8 +114,13 @@ los dos miremos, para que no se pierda en un chat."
 - 🔴 **Fallo de creación** — **El modal no muestra ningún error.** El botón vuelve de "Creando..."
   a "Crear elemento" **sin mensaje** [fuente: código-existente]. El cliente no sabe si se creó, y
   la recuperación probable es reintentar — con riesgo de duplicar.
-- **Adjunto inválido** — Se valida en el cliente antes de subir.
-- **Un adjunto falló del lado del servidor** — Se descarta **toda** la creación del requisito.
+- **Adjunto inválido** — Lo rechaza el servidor con *"El archivo supera el tamaño máximo
+  permitido"* o *"Ese tipo de archivo no está permitido"* (REQ-001 RF-6, RF-15). El mensaje llega
+  **después** de intentar subir, no antes.
+- **Un adjunto falló del lado del servidor** — Se descarta **toda** la creación del requisito. Los
+  archivos ya subidos **no se pierden**: siguen existiendo y se pueden volver a usar (RF-1).
+- **Adjunto de otro actor** — Un archivo subido por otra persona o por otro servicio **no se puede
+  adjuntar**, sin excepción por rol (REQ-001 RF-12, RF-13, CA-11, CA-12).
 
 ### Estado final
 
@@ -137,7 +145,7 @@ dejarlo escrito junto al pedido, no en un mail aparte."
 
 1. **detalle-requisito** → el feed muestra comentarios y cambios de campo mezclados en orden
    **cronológico ascendente**, con fechas relativas en español [fuente: código-existente]
-2. Escribe un comentario, opcionalmente con adjuntos embebidos
+2. Escribe un comentario, opcionalmente con adjuntos embebidos — se suben de a uno, con progreso real (REQ-001 RF-7, RF-8)
 3. Envía → el comentario aparece en el feed
 4. Los comentarios del cliente **se crean siempre como `public`**
 
@@ -147,7 +155,9 @@ dejarlo escrito junto al pedido, no en un mail aparte."
   ninguna notificación**: no hay canal en el producto. Desde la interfaz, la acción **no tiene
   consecuencia observable**.
 - **Ver un cambio de campo** — Se renderiza como *"{Autor} cambió {Campo} de {X} a {Y}"*.
-- **Abrir un adjunto** — Preview embebido para imágenes, descarga para el resto.
+- **Abrir un adjunto** — Preview embebido para imágenes, descarga para el resto. Si el contenido
+  del archivo nunca llegó al sistema, dice *"El archivo no está disponible"* en lugar de fallar de
+  forma opaca (REQ-001 RF-21, CA-15).
 
 ### Errores y recuperación
 

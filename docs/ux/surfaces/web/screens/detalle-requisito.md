@@ -66,7 +66,7 @@ date: 2026-08-18
 | 21 | feed-actividad | list | — | content | desktop | todos los estados | Historial de actividad |
 | 22 | formulario-comentario | section | — | input | desktop | todos los estados | Alta de comentario |
 | 23 | editor-comentario | text-input | default | input | desktop | todos los estados | Cuerpo del comentario |
-| 24 | boton-adjuntar | button | — | input | desktop | todos los estados | Adjunta un archivo al comentario |
+| 24 | boton-adjuntar | button | — | input | desktop | todos los estados | Adjunta un archivo al comentario, de a uno por vez |
 | 25 | toggle-visibilidad | toggle | internal / public | input | desktop | todos los estados | Visibilidad del comentario |
 | 26 | boton-enviar-comentario | button | primary · disabled | input | desktop | state_overrides: editor vacío→disabled | Envía el comentario |
 | 27 | card-informacion-general | card | — | content | desktop | todos los estados | Metadatos del requisito |
@@ -79,6 +79,7 @@ date: 2026-08-18
 | 34 | boton-cancelar-requisito | button | error | input | desktop | hidden_in_states: estado terminal / readonly | Cancela el requisito |
 | 35 | boton-resolver-requisito | button | primary | input | desktop | hidden_in_states: estado terminal / readonly | Resuelve el requisito |
 | 36 | badge-resultado | badge | cancelado | content | desktop | visible_only_in_states: estado terminal / readonly | Muestra el resultado final |
+| 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-287`, `:159-180`, `:185-225`, `:227-280`, `:289-295`, `:301-367`, `:370-392`, `:376-390`, `:394-398`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
@@ -97,7 +98,7 @@ date: 2026-08-18
     - card-contexto
     - card-estado (stepper-workflow con paso-workflow × 5, 4 acordeon-campo, boton-guardar-campos, boton-transicion)
     - seccion-tareas (tabs-estado-tarea, tabla-tareas, paginacion-tareas)
-    - card-actividad (feed-actividad, formulario-comentario con editor-comentario, boton-adjuntar, toggle-visibilidad, boton-enviar-comentario)
+    - card-actividad (feed-actividad, formulario-comentario con editor-comentario, boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, toggle-visibilidad, boton-enviar-comentario)
   - col ~5/12 (420px fijos): columna derecha
     - card-informacion-general
     - card-etiquetas (chip-etiqueta × N)
@@ -263,7 +264,13 @@ date: 2026-08-18
 - Texto/label: sin texto visible · `aria-label="Adjuntar archivo"`
 - Icono: clip (SVG con `aria-hidden="true"`)
 - Asset: nada
-- Annotation: `RequirementActivityForm.tsx:82-103`, `:85`, `:98`
+- Annotation: `RequirementActivityForm.tsx:82-103`, `:85`, `:98`. **Con REQ-001** el tipo y el tamaño los valida el servidor y son configurables en caliente (RF-6, RF-15), así que el rechazo llega después de intentar subir: `"El archivo supera el tamaño máximo permitido"` o `"Ese tipo de archivo no está permitido"`. La subida es de a un archivo por vez (RF-7)
+
+### progreso-subida-adjunto
+- Texto/label: `"Subiendo {nombre del archivo}... {progress}%"`
+- Icono: nada
+- Asset: nada
+- Annotation: **bloque nuevo con REQ-001** (RF-8). El byte va del navegador directo al storage, así que el porcentaje es el de la transferencia real. Antes esta pantalla no daba ningún feedback de subida: el adjunto aparecía o no aparecía
 
 ### toggle-visibilidad
 - Texto/label: sin texto visible · `aria-label="Comentario interno"` y `"Comentario público"`
@@ -362,12 +369,21 @@ date: 2026-08-18
 - Disparado por `isPending` de `useUpdateRequirement`, propagado a `RequirementHeader`, `RequirementStatusCard` y `RequirementResolutionCard` (`RequirementDetail.tsx:79`, `RequirementStatusCard.tsx:376-391`, `RequirementResolutionCard.tsx:160-175`) [fuente: código-existente]
 - **No hay loading inicial:** el Server Component espera el dato antes de renderizar y no hay `loading.tsx` en la ruta, así que la navegación se siente como una espera sin feedback [fuente: código-existente]
 
+### subiendo adjunto (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-001** (RF-8)
+- Mensaje: `"Subiendo {nombre del archivo}... {progress}%"`
+- Cambios:
+  - progreso-subida-adjunto: solo visible en este estado (visible_only_in_states)
+  - boton-adjuntar: variant=disabled mientras hay una subida en curso (de a uno, RF-7)
+  - boton-enviar-comentario: variant=disabled — enviar mientras el byte viaja vincularía un archivo incompleto, y el sistema no verifica que haya llegado (D-13)
+- **Por qué es nuevo:** hasta ahora la subida no tenía ninguna representación en esta pantalla. El byte pasaba por la api y el usuario esperaba sin saber cuánto faltaba
+
 ### error de validación
 - Aplica: No — no implementado (ver gaps-as-is.md). No hay validación en esta pantalla: los campos del acordeón y de resolución se guardan sin reglas, `"Guardar"` persiste lo que haya, y la transición no exige que el campo del paso esté completo. El `"!"` del acordeón es informativo, no bloqueante (`RequirementStatusCard.tsx:302-307`). La única regla es que el comentario no puede estar vacío, y se expresa deshabilitando el botón sin mensaje (`RequirementActivityForm.tsx:24`, `:131`) [fuente: código-existente].
 
 ### error de sistema / sin conexión
 - Aplica: Sí (solo como toast de las acciones)
-- Mensajes: `error.message` o `"Error al actualizar el requisito"` (actualización); `error.message` o `"Error al agregar el comentario"` (comentario)
+- Mensajes: `error.message` o `"Error al actualizar el requisito"` (actualización); `error.message` o `"Error al agregar el comentario"` (comentario); **con REQ-001** `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10) y `"El archivo no está disponible"` al abrir un adjunto cuyo contenido nunca llegó (RF-21, CA-15)
 - Cambios: ninguno en la pantalla; el toast aparece en el contenedor del shell (`RequirementDetail.tsx:108`, `RequirementActivityForm.tsx:50`) [fuente: código-existente]
 - **El error al refrescar el requisito no se maneja:** `RequirementDetailContainer` hace `requirement ?? initialRequirement`, así que si el refetch falla **se sigue mostrando el dato del render inicial sin ningún aviso** — la pantalla se ve normal con datos potencialmente viejos (`RequirementDetailContainer.tsx:19`). El error al cargar las tareas vinculadas tampoco: `linkedObjectives` viene en el mismo payload del requisito y, si falta, la tabla queda vacía sin distinguir de "no hay tareas" (`RequirementDetail.tsx:33`) [fuente: código-existente]
 
@@ -460,3 +476,11 @@ date: 2026-08-18
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
+
+- **La subida gana representación visible donde antes no tenía ninguna.** El progreso real es lo único que el rediseño le aporta al usuario de esta pantalla (RF-8), y sin un bloque propio se perdería: el botón de adjuntar no tiene estado de carga.
+- **Enviar el comentario queda deshabilitado mientras un archivo sube.** El sistema no verifica que el byte llegue (D-13), así que enviar antes de tiempo produciría un comentario con un adjunto vacío y sin síntoma hasta que alguien lo abra. Se descartó encolar el envío por eso.
+- **`file_not_available` se comunica al abrir, no al listar.** El adjunto embebido en el markdown se sigue mostrando; el mensaje aparece cuando el usuario intenta verlo (RF-21, CA-15). Se descartó marcar los adjuntos rotos en el feed: exigiría verificar cada uno al renderizar, y el propio REQ registra que cada lectura cuesta un comando por el bus.
+- **El error de titularidad se dice en lenguaje de personas.** *"No podés adjuntar un archivo que subió otra persona"* en lugar de nombrar propiedad de archivos, un concepto que la interfaz nunca expuso.
+- **No se agregó componente al Design System.** `progress-bar` no tiene spec en `web` v0.1.0 — el catálogo es un scaffold de tres componentes. Gap anotado en la `## Revisión UX` de REQ-001.

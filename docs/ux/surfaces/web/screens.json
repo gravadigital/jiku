@@ -1327,18 +1327,21 @@
           "name": "zona-subida-archivos",
           "type": "section",
           "category": "input",
-          "content": "Arrastrá archivos aquí o hacé click para seleccionar",
+          "content": "Arrastrá un archivo acá o hacé click para seleccionarlo",
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "<div role=button> con drag & drop y handlers de Enter/Space",
+          "annotation": "<div role=button> con drag & drop y handlers de Enter/Space. La subida es de a un archivo por vez (RF-7): soltar varios los encola. El límite de tamaño y las extensiones los valida core y son configurables en caliente (RF-6, RF-15)",
           "state_overrides": {
             "subiendo archivo": {
-              "content": "Subiendo archivos..."
+              "content": "Subiendo propuesta-tecnica.pdf..."
             },
             "error de validación": {
-              "content": "Archivo inválido",
-              "annotation": "aparece un <div role=alert> con el mensaje debajo de la zona de arrastre"
+              "content": "El archivo supera el tamaño máximo permitido",
+              "annotation": "aparece un <div role=alert> con el mensaje del error de dominio que devuelve core (file_too_large / file_type_not_allowed)"
+            },
+            "archivo no disponible": {
+              "content": "Arrastrá un archivo acá o hacé click para seleccionarlo"
             }
           }
         },
@@ -1346,11 +1349,12 @@
           "name": "barra-progreso-subida",
           "type": "progress-bar",
           "category": "feedback",
-          "content": "64%",
+          "content": "Subiendo propuesta-tecnica.pdf... 64%",
           "visible_only_in_states": [
             "subiendo archivo"
           ],
-          "annotation": "<div role=progressbar> con aria-valuenow/min/max"
+          "annotation": "Subiendo propuesta-tecnica.pdf… 64% · <div role=progressbar> con aria-valuenow/min/max. El porcentaje pasa a ser real (RF-8): el byte va del navegador directo al storage. Con varios archivos encolados reporta el archivo en curso, no el conjunto",
+          "fill": 0.64
         },
         {
           "name": "item-adjunto",
@@ -1360,7 +1364,13 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "\"Download\" está en inglés entre dos botones en español. \"Preview\" abre PreviewModal; \"Eliminar\" abre ConfirmDialog"
+          "annotation": "\"Download\" está en inglés entre dos botones en español. \"Preview\" abre PreviewModal; \"Eliminar\" abre ConfirmDialog. Variante \"no disponible\" (RF-21, CA-15): el adjunto figura en la lista pero su contenido nunca llegó al storage",
+          "state_overrides": {
+            "archivo no disponible": {
+              "content": "propuesta-tecnica.pdf · El archivo no está disponible · Preview · Download · Eliminar",
+              "annotation": "\"Preview\" y \"Download\" deshabilitados; \"Eliminar\" sigue habilitado, que es la única salida útil"
+            }
+          }
         },
         {
           "name": "boton-ver-mas-adjuntos",
@@ -1461,6 +1471,11 @@
         },
         {
           "name": "subiendo archivo",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "archivo no disponible",
           "applies": true,
           "parent_state": "default"
         }
@@ -2910,7 +2925,23 @@
           "variant": "tertiary",
           "content": "",
           "icon": "link",
-          "annotation": "sin texto visible · aria-label \"Adjuntar archivo\" · SVG con aria-hidden"
+          "annotation": "sin texto visible · aria-label \"Adjuntar archivo\" · SVG con aria-hidden · Con REQ-001 el tipo y el tamaño los valida el servidor y son configurables en caliente (RF-6, RF-15). La subida es de a un archivo por vez (RF-7)",
+          "state_overrides": {
+            "subiendo adjunto": {
+              "variant": "disabled"
+            }
+          }
+        },
+        {
+          "name": "progreso-subida-adjunto",
+          "type": "progress-bar",
+          "category": "feedback",
+          "content": "Subiendo captura-error.png... 72%",
+          "visible_only_in_states": [
+            "subiendo adjunto"
+          ],
+          "annotation": "Subiendo captura-error.png… 72% · bloque nuevo con REQ-001 (RF-8). El porcentaje es el de la transferencia real al storage. Antes esta pantalla no daba ningún feedback de subida: el adjunto aparecía o no aparecía",
+          "fill": 0.72
         },
         {
           "name": "toggle-visibilidad",
@@ -2930,6 +2961,10 @@
           "state_overrides": {
             "default": {
               "variant": "primary"
+            },
+            "subiendo adjunto": {
+              "variant": "disabled",
+              "annotation": "enviar mientras el byte viaja vincularía un archivo incompleto, y el sistema no verifica que haya llegado (D-13)"
             }
           }
         },
@@ -3056,11 +3091,11 @@
           "type": "toast",
           "category": "feedback",
           "kind": "error",
-          "content": "Error al actualizar el requisito",
+          "content": "No podés adjuntar un archivo que subió otra persona",
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "el error al refrescar el requisito no se maneja: se sigue mostrando el dato del render inicial sin aviso, así que la pantalla se ve normal con datos potencialmente viejos"
+          "annotation": "con REQ-001 se suman el rechazo por titularidad (RF-12, CA-10) y \"El archivo no está disponible\" al abrir un adjunto cuyo contenido nunca llegó (RF-21, CA-15). Los otros siguen: \"Error al actualizar el requisito\", \"Error al agregar el comentario\""
         }
       ],
       "layouts": {
@@ -3155,6 +3190,7 @@
                   "card-actividad",
                   "feed-actividad",
                   "editor-comentario",
+                  "progreso-subida-adjunto",
                   {
                     "row": "acciones-comentario",
                     "cols": [
@@ -3247,6 +3283,11 @@
         },
         {
           "name": "requisito de tipo incidencia",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "subiendo adjunto",
           "applies": true,
           "parent_state": "default"
         }
@@ -4647,19 +4688,31 @@
           }
         },
         {
-          "name": "lista-adjuntos-borrador",
+          "name": "lista-adjuntos-pendientes",
           "type": "list",
           "category": "content",
-          "content": "Adjuntos del borrador",
+          "content": "Archivos subidos, todavía sin vincular",
           "visible_only_in_states": [
-            "default"
+            "default",
+            "subiendo adjunto"
           ],
           "items": [
             {
               "title": "especificacion.pdf ×"
             }
           ],
-          "annotation": "se suben con entityType objective_comment_draft antes de que el comentario exista. El aria-label del botón de quitar no dice cuál adjunto: con varios, todos tienen el mismo nombre accesible"
+          "annotation": "cambia de fondo con REQ-001: el archivo existe por sí solo y el vínculo con el comentario se crea recién al guardar (RF-1, RF-3, RF-4). Quitar no borra nada: saca el archivo del comentario en curso. El aria-label del botón de quitar no dice cuál adjunto"
+        },
+        {
+          "name": "progreso-subida-adjunto",
+          "type": "progress-bar",
+          "category": "feedback",
+          "content": "Subiendo especificacion.pdf... 47%",
+          "visible_only_in_states": [
+            "subiendo adjunto"
+          ],
+          "annotation": "Subiendo especificacion.pdf… 47% · bloque nuevo con REQ-001 (RF-8). El byte va del navegador directo al storage, así que hay progreso real de la transferencia. Antes el único feedback era el loading del botón de guardar, que no distinguía subir de enviar",
+          "fill": 0.47
         },
         {
           "name": "checkbox-comentario-publico",
@@ -4675,7 +4728,12 @@
           "variant": "tertiary",
           "content": "Adjuntar archivo",
           "icon": "link",
-          "annotation": "error de permisos al subir: toast \"No tenés permisos para subir archivos a esta tarea\""
+          "annotation": "error de permisos al subir: toast \"No tenés permisos para subir archivos a esta tarea\". Con REQ-001 el tipo y el tamaño los valida el servidor y son configurables en caliente (RF-6, RF-15)",
+          "state_overrides": {
+            "subiendo adjunto": {
+              "variant": "disabled"
+            }
+          }
         },
         {
           "name": "boton-guardar-comentario",
@@ -4691,6 +4749,10 @@
             "loading": {
               "content": "⟳ Guardar",
               "variant": "disabled"
+            },
+            "subiendo adjunto": {
+              "variant": "disabled",
+              "annotation": "guardar mientras el byte viaja crearía el vínculo contra un archivo incompleto (D-13)"
             }
           }
         },
@@ -4709,22 +4771,22 @@
           "type": "toast",
           "category": "feedback",
           "kind": "error",
-          "content": "Hubo un error al agregar el comentario",
+          "content": "No podés adjuntar un archivo que subió otra persona",
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "la pantalla no tiene boundary propio: hereda el error.tsx de /objectives, que descarta el error real y muestra \"Error inesperado\""
+          "annotation": "con REQ-001 el rechazo por titularidad (RF-12, CA-10) se dice en lenguaje de personas. Los otros errores siguen: \"Hubo un error al agregar el comentario\". La pantalla no tiene boundary propio"
         },
         {
           "name": "toast-validacion",
           "type": "toast",
           "category": "feedback",
           "kind": "error",
-          "content": "El comentario no puede estar vacío",
+          "content": "El archivo supera el tamaño máximo permitido",
           "visible_only_in_states": [
             "error de validación"
           ],
-          "annotation": "el mensaje no aparece junto al campo, y es la única validación de la pantalla"
+          "annotation": "el mensaje no aparece junto al campo. Con REQ-001 el rechazo del archivo viene del servidor (RF-6, RF-15); el toast de comentario vacío sigue siendo \"El comentario no puede estar vacío\""
         }
       ],
       "layouts": {
@@ -4777,7 +4839,8 @@
           "comentario",
           "vacio-comentarios",
           "editor-comentario-nuevo",
-          "lista-adjuntos-borrador",
+          "lista-adjuntos-pendientes",
+          "progreso-subida-adjunto",
           {
             "row": "acciones-comentario",
             "cols": [
@@ -4830,6 +4893,11 @@
         {
           "name": "success",
           "applies": true
+        },
+        {
+          "name": "subiendo adjunto",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
