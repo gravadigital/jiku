@@ -3,13 +3,15 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-19 (S-002)
+**Last updated:** 2026-08-19 (S-003)
 
 ## Utils
 
-Total: 4
+Total: 6
 
-- **resolveActor** (`core/src/commands/files/resolve-actor.ts`) - Resolves who the actor of a command is depending on whether the api or an external publisher published it.
+- **resolveActor** (`core/src/commands/resolve-actor.ts`) - Resolves who the actor of a command is depending on whether the api or an external publisher published it. Shared by seven commands; moved up from `commands/files/` in S-003.
+- **linkFiles** (`core/src/commands/link-files.ts`) - Links `fileIds` to an already existing entity: resolves the actor, validates existence, liveness and ownership, marks the bytes uploaded and inserts one `attachments` row per file. Additive mode, for creation commands.
+- **syncFileLinks** (`core/src/commands/link-files.ts`) - Same validation as `linkFiles` but with complete-set semantics for edit commands: preserves the rows of the links that stay and hard-deletes the ones no longer declared.
 - **readFileSettings** (`core/src/commands/files/settings.ts`) - Reads the five file-policy keys from `system_settings` with code-level defaults, inside the command's transaction.
 - **buildStorageKey** (`core/src/commands/files/storage.ts`) - Builds the storage object key `{prefix}/f/{uuid}{ext}`; the uploader never chooses where the file is stored.
 - **contentDisposition** (`core/src/commands/files/storage.ts`) - Builds an escaped `Content-Disposition` header value safe to carry a user-supplied file name.

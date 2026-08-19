@@ -1,6 +1,6 @@
-import logger from '../../logger';
-import { CommandContext } from '../types';
-import { getTrustedPublisherId } from '../../config';
+import logger from '../logger';
+import { CommandContext } from './types';
+import { getTrustedPublisherId } from '../config';
 
 /**
  * Resuelve QUIÉN es el actor de un comando, según por qué canal llegó.
@@ -15,14 +15,16 @@ import { getTrustedPublisherId } from '../../config';
  * externo no hay persona detrás: su identidad ES la del subject, avalada por el auth-callout
  * e infalsificable, y lo que declare en el cuerpo se IGNORA.
  *
- * S-003 COMPARTE ESTA FUNCIÓN para los seis comandos de dominio (`author` / `creator` /
- * `editor`). NO la dupliques ni la bifurques: si subir y vincular resolvieran la identidad
- * distinto, nadie podría vincular lo que subió. Por eso recibe el valor declarado en vez de
- * leer un campo con nombre fijo del payload.
+ * LA COMPARTEN SIETE COMANDOS: `files.request-upload` (que la trajo al mundo en S-002) y los
+ * seis de dominio que vinculan archivos —`requirements.new`, `requirements.{id}.edit`,
+ * `requirements.{id}.comment`, `tasks.new`, `tasks.{id}.edit`, `tasks.{id}.comment`— a través
+ * de `link-files.ts`. NO la dupliques ni la bifurques: si subir y vincular resolvieran la
+ * identidad distinto, nadie podría vincular lo que subió. Por eso recibe el valor declarado en
+ * vez de leer un campo con nombre fijo del payload.
  *
- * VIVE EN `commands/files/` PORQUE ES DONDE NACE. Cuando llegue S-003 y la compartan seis
- * comandos de otros módulos, conviene subirla a `commands/`; es un rename de una línea y no
- * hay motivo para anticiparlo.
+ * VIVE EN `commands/` —y ya no en `commands/files/`— justamente porque la comparten módulos
+ * distintos: dejarla en `files/` obligaría a `requirements/` y `tasks/` a importar del módulo
+ * de archivos, que es el acoplamiento que este movimiento (S-003) evita.
  *
  * @param ctx          contexto del comando, con el `caller` ya resuelto del subject
  * @param declaredActor el actor que declara el cuerpo (`uploader`, `author`, `creator`, ...)

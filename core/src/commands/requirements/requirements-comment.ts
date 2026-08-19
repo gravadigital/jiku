@@ -1,15 +1,15 @@
 import joi from 'joi';
-import { Op } from 'sequelize';
-import { Attachment, AttachmentEntityType, Requirement, RequirementActivity, RequirementActivityType, RetentionStatus, VisibilityLevel } from '@jiku/models';
+import { AttachmentEntityType, Requirement, RequirementActivity, RequirementActivityType, VisibilityLevel } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { linkFiles } from '../link-files';
 
 export interface RequirementsCommentPayload {
   author: string;
   comment: string;
   visibilityLevel?: VisibilityLevel;
-  attachmentIds?: number[];
+  fileIds?: number[];
 }
 
 const schema = joi.object({
@@ -18,8 +18,9 @@ const schema = joi.object({
   visibilityLevel: joi.string()
     .valid(...Object.values(VisibilityLevel))
     .default(VisibilityLevel.Internal),
-  // Los adjuntos siguen vivos mientras las rutas de attachments no se den de baja.
-  attachmentIds: joi.array().items(joi.number().integer().positive()).optional(),
+  // Archivos a vincular al comentario. El tope de 10 es regla de dominio (D-20) y lo aplica
+  // Joi, antes de que el despachador abra la transacción.
+  fileIds: joi.array().max(10).items(joi.number().integer().positive()).optional(),
 });
 
 export const requirementsComment: Command<RequirementsCommentPayload, { id: number }> = {
@@ -50,42 +51,24 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
       { transaction: ctx.transaction }
     );
 
-    // Los adjuntos del comentario se confirman desde su draft.
-    if (payload.attachmentIds && payload.attachmentIds.length > 0) {
-      for (const id of payload.attachmentIds) {
-        const attachment = await Attachment.scope('active').findOne({
-          where: {
-            id,
-            // La api aceptaba los dos: `comment_draft` es el nombre viejo y todavía hay
-            // adjuntos guardados así.
-            entityType: {
-              [Op.in]: [
-                AttachmentEntityType.RequirementCommentDraft,
-                AttachmentEntityType.CommentDraft,
-              ],
-            },
-            // El draft se ancla al requisito: un adjunto de otro no sirve.
-            entityId: requirement.id,
-            uploadedBy: payload.author,
-            retentionStatus: RetentionStatus.Active,
-          },
-          transaction: ctx.transaction,
-        });
-        if (!attachment) {
-          return failure(
-            ErrorCode.INVALID_ATTACHMENT_ID,
-            `Attachment ID ${id} is invalid or does not belong to this comment draft`
-          );
-        }
+    // El vínculo se crea contra el comentario que ACABA DE CREARSE. Ya no interviene ningún
+    // `entityType` de draft —desapareció también la rama que aceptaba el `comment_draft`
+    // viejo, porque el backfill de S-001 ya resolvió esas filas y no le queda a quién servir—.
+    //
+    // El test que importa acá no es que devuelva `file_not_owned`: es que NO QUEDE EL
+    // COMENTARIO. Lo garantiza el rollback del despachador (ADR-003).
+    if (payload.fileIds && payload.fileIds.length > 0) {
+      const linkError = await linkFiles({
+        fileIds: payload.fileIds,
+        declaredActor: payload.author,
+        entityType: AttachmentEntityType.RequirementComment,
+        entityId: activity.id,
+        component: 'requirements.comment',
+        ctx,
+      });
+      if (linkError) {
+        return linkError;
       }
-
-      await Attachment.update(
-        {
-          entityType: AttachmentEntityType.RequirementComment,
-          entityId: activity.id,
-        },
-        { where: { id: payload.attachmentIds }, transaction: ctx.transaction }
-      );
     }
 
     return success({ id: activity.id });
