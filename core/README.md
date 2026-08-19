@@ -77,7 +77,7 @@ verifies a command stores exactly what the API used to store.
 | `STORAGE_S3_BUCKETNAME`                    | bucket. No default.                                                                                                                                                                                                                     |
 | `STORAGE_S3_REGION`                        | region. No default.                                                                                                                                                                                                                     |
 | `STORAGE_S3_FORCEPATHSTYLE`                | `'true'` for MinIO and compatibles                                                                                                                                                                                                      |
-| `STORAGE_S3_KEY_PREFIX`                    | key prefix, default `grava-gestion`. **Changing it on an installation with data makes every existing file unreachable**: the keys already persisted in `files.storage_key` still point at the old prefix.                                 |
+| `STORAGE_S3_KEY_PREFIX`                    | key prefix, default `grava-gestion`. **Do not change it on an installation that already has data** — see the warning in [deploy/.env.dist](../deploy/.env.dist), which is where this is documented in full.                               |
 
 Full reference in [documentation/configuration.md](../documentation/configuration.md).
 

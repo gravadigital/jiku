@@ -38,8 +38,28 @@ Agent / PKCE, no client secret); `api` and `core` each use a machine user to rea
 identity provider and the NATS credentials. `NATS_REQUEST_TIMEOUT_MS` is how long the api waits
 for core.
 
-**Storage** — any S3-compatible service. Bucket and region are required with no default, on
-purpose: a wrong default would write objects somewhere unintended.
+**Storage** — any S3-compatible service, and **only `core` receives the credentials**: the api
+has no access to the bucket, so it cannot touch an object core did not sign for it. Bucket and
+region are required with no default, on purpose: a wrong default would write objects somewhere
+unintended.
+
+Two things about storage are **installation preconditions, not application configuration**, and
+both fail in ways that do not name their cause:
+
+- **The bucket needs a CORS policy.** The browser uploads straight to it, so without one the
+  `PUT` dies with an opaque network error. Configured differently on each provider —
+  [deploy/README.md, step 5](../deploy/README.md#5-bucket-cors).
+- **`STORAGE_S3_ENDPOINT` has to be reachable from the browser**, because it is the host that
+  ends up inside the signed URL. An internal Docker name works for core and not for the browser,
+  and rewriting the host after signing gives `403 SignatureDoesNotMatch` —
+  [deploy/README.md, step 6](../deploy/README.md#6-the-bucket-url-the-browser-will-see).
+
+The bucket's URL does reach the browser, inside the `uploadUrl` and the `Location` of the read
+`302`. It never arrives through a `NEXT_PUBLIC_*`: nothing about the bucket is baked into the
+frontend images, so one image still serves every environment.
+
+Note that the `STORAGE_S3_*` variables are read **lazily, on the first file command**. A core
+container that started cleanly proves nothing about the storage being configured correctly.
 
 ## Two that change behaviour
 
