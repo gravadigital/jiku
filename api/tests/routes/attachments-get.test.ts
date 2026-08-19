@@ -3,24 +3,52 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, Objective, Project, User, UserProjectPermission } from '@jiku/models';
+import { Attachment, File, Objective, Project, User, UserProjectPermission } from '@jiku/models';
 
 // Tokens del mock:
 // token_01_user          → sub: zitadel-sub-01, rol: user
 // token_04_external_user → sub: zitadel-sub-04, rol: external-user
 
-const makeAttachment = (overrides: object = {}) => ({
-  entityType: 'objective' as const,
-  entityId: 1,
-  fileName: 'file.pdf',
-  fileSize: 1024,
-  mimeType: 'application/pdf',
-  storageKey: `grava-gestion/objective/1/${Math.random()}.pdf`,
-  storageBucket: 'test-bucket',
-  storageRegion: 'sfo2',
-  uploadedBy: 'zitadel-sub-01',
-  ...overrides
-});
+/**
+ * El fixture cambió de forma con S-005: los campos del archivo viven en `files` y el vínculo
+ * los referencia por `file_id`. Las columnas homónimas de `attachments` siguen siendo
+ * `allowNull: false` en el modelo compartido, así que se pueblan igual — y esa duplicación
+ * es justo lo que permite probar que la lectura sale del `include` y no de la columna vieja.
+ */
+async function createFile(overrides: Record<string, any> = {}): Promise<File> {
+  return File.create({
+    fileName: 'file.pdf',
+    fileSize: 1024,
+    mimeType: 'application/pdf',
+    storageKey: `grava-gestion/f/${Math.random()}.pdf`,
+    storageBucket: 'test-bucket',
+    storageRegion: 'sfo2',
+    byteStatus: 'uploaded',
+    retentionStatus: 'active',
+    uploadedBy: 'zitadel-sub-01',
+    ...overrides,
+  } as any, { validate: false });
+}
+
+async function createAttachment(
+  fileOverrides: Record<string, any> = {},
+  attachmentOverrides: Record<string, any> = {}
+): Promise<Attachment> {
+  const file = await createFile(fileOverrides);
+  return Attachment.create({
+    entityType: 'objective',
+    entityId: 1,
+    fileId: file.id,
+    fileName: file.fileName,
+    fileSize: file.fileSize,
+    mimeType: file.mimeType,
+    storageKey: file.storageKey,
+    storageBucket: file.storageBucket,
+    storageRegion: file.storageRegion,
+    uploadedBy: file.uploadedBy,
+    ...attachmentOverrides,
+  } as any, { validate: false });
+}
 
 describe('GET /api/attachments', () => {
   let application: Application;
@@ -44,16 +72,17 @@ describe('GET /api/attachments', () => {
         priority: 1, projectId: 1, createdBy: 'zitadel-sub-01'
       }))
       // 3 attachments activos con fechas distintas
-      .then(() => Attachment.create(makeAttachment({ fileName: 'oldest.pdf', createdAt: new Date('2026-01-01') })))
-      .then(() => Attachment.create(makeAttachment({ fileName: 'middle.pdf', createdAt: new Date('2026-01-15') })))
-      .then(() => Attachment.create(makeAttachment({ fileName: 'newest.pdf', createdAt: new Date('2026-02-01') })))
+      .then(() => createAttachment({ fileName: 'oldest.pdf' }, { createdAt: new Date('2026-01-01') }))
+      .then(() => createAttachment({ fileName: 'middle.pdf' }, { createdAt: new Date('2026-01-15') }))
+      .then(() => createAttachment({ fileName: 'newest.pdf' }, { createdAt: new Date('2026-02-01') }))
       // 2 attachments soft-deleted
-      .then(() => Attachment.create(makeAttachment({ fileName: 'deleted1.pdf', deletedAt: new Date(), deletedBy: 'zitadel-sub-01' })))
-      .then(() => Attachment.create(makeAttachment({ fileName: 'deleted2.pdf', deletedAt: new Date(), deletedBy: 'zitadel-sub-01' })));
+      .then(() => createAttachment({ fileName: 'deleted1.pdf' }, { deletedAt: new Date(), deletedBy: 'zitadel-sub-01' }))
+      .then(() => createAttachment({ fileName: 'deleted2.pdf' }, { deletedAt: new Date(), deletedBy: 'zitadel-sub-01' }));
   });
 
   after(() => {
     return Attachment.destroy({ where: {}, force: true })
+      .then(() => File.destroy({ where: {}, force: true }))
       .then(() => UserProjectPermission.destroy({ where: {} }))
       .then(() => Objective.destroy({ where: {} }))
       .then(() => Project.destroy({ where: {} }))
@@ -151,11 +180,10 @@ describe('GET /api/attachments', () => {
       .set('Authorization', 'Bearer token_01_user')
       .expect(200)
       .then(res => {
-        // 5 attachments created: 3 active + 2 soft-deleted → only 3 returned
+        // 5 attachments created: 3 active + 2 soft-deleted → only 3 returned. Que el scope
+        // filtre los borrados se prueba por la cantidad: la respuesta aplanada no expone
+        // `deletedAt`, y nunca lo declaró el contrato.
         res.body.should.be.an.Array().with.length(3);
-        res.body.forEach((a: any) => {
-          (a.deletedAt === null).should.be.true();
-        });
       });
   });
 
@@ -183,6 +211,27 @@ describe('GET /api/attachments', () => {
       .expect(200);
   });
 
+  // TS-26: los campos del archivo salen del `include` a `files`, aplanados.
+  it('arma los campos del archivo desde el include, con la respuesta aplanada', () => {
+    return request(application)
+      .get('/api/attachments?entityType=objective&entityId=1')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        const item = res.body[0];
+        item.should.have.properties([
+          'id', 'entityType', 'entityId', 'fileId', 'fileName', 'fileSize', 'mimeType',
+          'storageKey', 'storageBucket', 'storageRegion', 'uploadedBy', 'byteStatus',
+          'createdAt', 'uploader'
+        ]);
+        item.byteStatus.should.equal('uploaded');
+        item.uploadedBy.should.equal('zitadel-sub-01');
+        item.fileId.should.be.a.Number();
+        // Aplanada: NO hay objeto `file` anidado. El contrato con los frontends no cambia.
+        item.should.not.have.property('file');
+      });
+  });
+
   // TS-11: Entidad sin attachments (usando objetivo existente del que el usuario es creador)
   it('should return empty array for entity without attachments', () => {
     return request(application)
@@ -199,6 +248,8 @@ describe('GET /api/attachments/:id', () => {
   let application: Application;
   let activeAttachmentId: number;
   let deletedAttachmentId: number;
+  let divergentAttachmentId: number;
+  let divergentUploaderAttachmentId: number;
 
   before(function() {
     this.timeout(30000);
@@ -214,36 +265,34 @@ describe('GET /api/attachments/:id', () => {
         id: 1, title: 'Objective 1', state: 'activo', area: 'desarrollo',
         priority: 1, projectId: 1, createdBy: 'zitadel-sub-01'
       }))
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 1,
-        fileName: 'active-file.pdf',
-        fileSize: 2048,
-        mimeType: 'application/pdf',
-        storageKey: 'grava-gestion/objective/1/active-uuid.pdf',
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01'
-      }))
+      .then(() => createAttachment({ fileName: 'active-file.pdf', fileSize: 2048 }))
       .then((a: Attachment) => { activeAttachmentId = a.id; })
-      .then(() => Attachment.create({
-        entityType: 'objective',
-        entityId: 1,
-        fileName: 'deleted-file.pdf',
-        fileSize: 1024,
-        mimeType: 'application/pdf',
-        storageKey: 'grava-gestion/objective/1/deleted-uuid.pdf',
-        storageBucket: 'test-bucket',
-        storageRegion: 'sfo2',
-        uploadedBy: 'zitadel-sub-01',
-        deletedAt: new Date(),
-        deletedBy: 'zitadel-sub-01'
-      }))
-      .then((a: Attachment) => { deletedAttachmentId = a.id; });
+      .then(() => createAttachment(
+        { fileName: 'deleted-file.pdf' },
+        { deletedAt: new Date(), deletedBy: 'zitadel-sub-01' }
+      ))
+      .then((a: Attachment) => { deletedAttachmentId = a.id; })
+      // TS-28: divergencia deliberada entre la columna vieja del vínculo y la fila de `files`.
+      // Es lo ÚNICO que distingue "lee del include" de "lee de la columna vieja y casualmente
+      // coinciden".
+      .then(() => createAttachment(
+        { fileName: 'informe.pdf', mimeType: 'application/pdf', fileSize: 4194304 },
+        { fileName: 'VIEJO.txt', mimeType: 'text/plain', fileSize: 1 }
+      ))
+      .then((a: Attachment) => { divergentAttachmentId = a.id; })
+      // El vínculo dice `zitadel-sub-01` y el archivo `zitadel-sub-04`: si `uploader` se
+      // resolviera desde `attachments.uploaded_by`, `uploadedBy` y `uploader` describirían a
+      // dos personas distintas.
+      .then(() => createAttachment(
+        { fileName: 'de-otro.pdf', uploadedBy: 'zitadel-sub-04' },
+        { uploadedBy: 'zitadel-sub-01' }
+      ))
+      .then((a: Attachment) => { divergentUploaderAttachmentId = a.id; });
   });
 
   after(() => {
     return Attachment.destroy({ where: {}, force: true })
+      .then(() => File.destroy({ where: {}, force: true }))
       .then(() => UserProjectPermission.destroy({ where: {} }))
       .then(() => Objective.destroy({ where: {} }))
       .then(() => Project.destroy({ where: {} }))
@@ -322,6 +371,51 @@ describe('GET /api/attachments/:id', () => {
         res.body.fileName.should.equal('active-file.pdf');
         res.body.uploader.should.have.properties(['id', 'name', 'email']);
         res.body.uploader.id.should.equal('zitadel-sub-01');
+      });
+  });
+
+  // TS-27: el detalle arma los campos del archivo igual, con `id` = id del VÍNCULO.
+  it('arma el detalle desde el include, conservando el id del vínculo', () => {
+    return request(application)
+      .get(`/api/attachments/${activeAttachmentId}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        res.body.id.should.equal(activeAttachmentId);
+        res.body.fileId.should.be.a.Number();
+        res.body.fileSize.should.equal(2048);
+        res.body.byteStatus.should.equal('uploaded');
+        res.body.should.not.have.property('file');
+      });
+  });
+
+  // TS-28: LA PRUEBA QUE IMPORTA. Con `attachments.file_name = 'VIEJO.txt'` y
+  // `files.file_name = 'informe.pdf'`, la respuesta trae el valor de `files`.
+  it('lee los metadatos de files, no de las columnas viejas de attachments', () => {
+    return request(application)
+      .get(`/api/attachments/${divergentAttachmentId}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        res.body.fileName.should.equal('informe.pdf');
+        res.body.mimeType.should.equal('application/pdf');
+        res.body.fileSize.should.equal(4194304);
+      });
+  });
+
+  // `uploader` sale del ARCHIVO, no del vínculo (Task 6, AC-6). Sin este test la
+  // divergencia pasa inadvertida: los demás fixtures ponen el mismo `uploaded_by` en las dos
+  // tablas y los dos orígenes coinciden por casualidad.
+  it('resuelve el uploader desde files, no desde la columna del vínculo', () => {
+    return request(application)
+      .get(`/api/attachments/${divergentUploaderAttachmentId}`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then(res => {
+        res.body.uploadedBy.should.equal('zitadel-sub-04');
+        res.body.uploader.id.should.equal('zitadel-sub-04');
+        // Los dos campos describen SIEMPRE a la misma persona.
+        res.body.uploader.id.should.equal(res.body.uploadedBy);
       });
   });
 

@@ -44,7 +44,7 @@ Fill in, in `.env`:
 | `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live                                       |
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                              |
 | `CORE_TRUSTED_PUBLISHER_ID`                   | the `userId` from the api's service user JSON key — **core will not start without it** |
-| `STORAGE_S3_*`                                | S3-compatible storage. **core** signs both uploads and downloads, so the credentials need read **and** write permission. Any value works locally until something actually uploads a file. |
+| `STORAGE_S3_*`                                | S3-compatible storage. **core** signs both uploads and downloads, so the credentials need read **and** write permission. **Only `core` receives them** — the api has no access to the bucket, so it cannot touch an object core did not sign for it. Any value works locally until something actually uploads a file. |
 | `DUMP_FILE`                                   | optional: a `.sql` to preload the database                             |
 
 ### 2. Zitadel service users

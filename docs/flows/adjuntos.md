@@ -228,11 +228,22 @@ del estado del que parten. Se reemplaza por completo entre las stories 2, 3, 4 y
 
 El `fileName` de la URL **se ignora**: es cosmético, para que la descarga tenga nombre.
 
-**Autorización por entidad (caminos A y B):** `canUserAccessEntity` resuelve el proyecto desde
+**Autorización por entidad (caminos A y B):** `canUserViewEntity` resuelve el proyecto desde
 **9 tipos de entidad distintos** —objetivo, requisito, comentario de cada uno, borradores,
 proyecto, y un `comment` legado— y verifica `user_project_permissions`.
 
-**Archivos grandes:** en lugar de hacer streaming, la api **redirige a una URL pre-firmada** de S3.
+> **REEMPLAZADO POR `lectura-de-archivos` EN CUANTO AL MECANISMO (S-005, 2026-08-19).**
+>
+> Los tres caminos **siguen entrando por el id del vínculo** y su autorización no cambia, pero
+> **ninguno sirve el byte**: los tres autorizan, resuelven el `file_id`, publican
+> `files.{fileId}.request-download` y responden **302** a la prefirmada que firmó `core`.
+>
+> **La rama "archivos grandes → 302 a URL pre-firmada" DEJA DE SER UNA RAMA.** El 302 es el único
+> mecanismo, para todos los tamaños y todos los caminos. La `api` ya no tiene cliente de S3.
+>
+> Hay además un **cuarto camino** que este flujo no contempla porque no entra por un vínculo:
+> `GET /api/files/{id}/preview`, para el archivo sin vincular. Ver
+> [`lectura-de-archivos.md`](lectura-de-archivos.md), que es la fuente de verdad del mecanismo.
 
 ---
 
@@ -253,6 +264,15 @@ creado en un frontend se lee en el otro.
 
 Los metadatos (nombre, tamaño) se resuelven con un `HEAD` al preview, leyendo
 `Content-Disposition` y `Content-Length`.
+
+> **El `HEAD` sigue funcionando, POR OTRO MECANISMO (S-005).** Los placeholders no cambian, pero
+> los metadatos ya no salen del stream: vienen en el **reply del comando**
+> (`fileName`, `mimeType`, `fileSize`) y la `api` los pone en los headers de su **302**, sin volver
+> a consultar la base.
+>
+> El `Content-Length` con el tamaño del archivo **se manda solo en `HEAD`**: en un `GET` prometería
+> bytes que una redirección no tiene y la conexión quedaría colgada. El `HEAD` no lleva body, así
+> que ahí el header describe el recurso y es correcto.
 
 ## Manejo de Errores
 

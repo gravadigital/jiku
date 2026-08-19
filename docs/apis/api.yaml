@@ -35,8 +35,18 @@ info:
     **Después de publicar, la api relee la base.** Core solo devuelve el `id`, pero el contrato
     con los frontends es el recurso completo con sus relaciones.
 
-    **Tres excepciones que escriben sin el bus:** las migraciones (credenciales propias), la fila
-    de `attachments`, y `PUT /api/week-assigned-times`. Las dos últimas son deuda conocida.
+    **Dos excepciones que escriben sin el bus:** las migraciones (credenciales propias) y
+    `PUT /api/week-assigned-times`, que queda como la única deuda conocida.
+
+    > **REQ-001 cerró la tercera.** La fila de `attachments` ya no se escribe desde acá: subir,
+    > vincular y desvincular pasan por comandos de `core`. Y el alcance de ADR-001 se amplía del
+    > "solo core escribe la base" al **"solo core accede al storage"**: la api **pierde sus
+    > credenciales de S3** y las lecturas de adjuntos pasan a ser un 302 a una URL que firmó
+    > `core`. Es una garantía de infraestructura, no de disciplina.
+    >
+    > **El precio, y hay que decirlo:** la consecuencia positiva de ADR-001 "si core está caído el
+    > producto sigue siendo consultable" **deja de valer para los adjuntos**. Los cuatro caminos de
+    > lectura publican un comando y sin JetStream no hay reintento.
 
     **Los mensajes de error son texto de interfaz:** los frontends los muestran tal cual al
     usuario. Están mezclados entre inglés y español.
@@ -480,9 +490,8 @@ paths:
                   nullable: true
                   items: { type: integer }
                 estimatedFinishDate: { type: string, format: date, nullable: true }
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
                 tags:
                   type: array
                   items: { $ref: '#/components/schemas/Tag' }
@@ -626,9 +635,8 @@ paths:
                   type: array
                   nullable: true
                   items: { $ref: '#/components/schemas/Tag' }
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '200':
           description: OK
@@ -673,9 +681,8 @@ paths:
                 visibilityLevel:
                   allOf: [{ $ref: '#/components/schemas/VisibilityLevel' }]
                   default: internal
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '201':
           description: Created
@@ -893,9 +900,8 @@ paths:
                 visibilityLevel:
                   allOf: [{ $ref: '#/components/schemas/VisibilityLevel' }]
                   default: internal
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '201':
           description: Created
@@ -1415,6 +1421,10 @@ paths:
       description: |
         **Sin `hasAnyRole`.** Autoriza por entidad con `canUserViewEntity`, que restringe a
         `external-user` por permiso de proyecto.
+
+        **El contrato no cambia con REQ-001; sí la implementación** (S-005): el
+        `WHERE entity_type/entity_id` sigue sobre `attachments` y los campos del archivo salen de
+        un `include` a `files`. La respuesta sigue aplanada para no romper a los frontends.
       parameters:
         - name: entityType
           in: query
@@ -1436,68 +1446,66 @@ paths:
         '500': { $ref: '#/components/responses/InternalError' }
     post:
       tags: [attachments]
-      summary: Sube adjuntos
+      summary: Pide permiso para subir un archivo
       description: |
-        Hasta **10 archivos de 10 MB** cada uno, en un `multipart/form-data`. Valida extensión
-        **y** MIME type contra listas blancas, calcula un sha256 por archivo y guarda en storage
-        S3-compatible.
+        **Pide permiso de subida. NO recibe el binario** (REQ-001, S-004).
 
-        **No pasa por el bus:** crea la fila de `attachments` directamente. Es una de las dos
-        escrituras con ORM que quedan en la api.
+        Publica `files.request-upload` y devuelve un `UploadTicket`: el `fileId` y una URL
+        pre-firmada de **PUT**. El navegador sube el byte **directo al storage** con esa URL — no
+        pasa por la api ni por el bus.
 
-        Si un archivo falla a mitad de la tanda, **borra del bucket los ya subidos**.
+        **Un archivo por request** (D-07). Tres archivos son tres requests independientes, y el
+        fallo de uno no afecta a los otros.
 
-        `requirement_draft` admite subida sin `entityId`: el requisito todavía no existe y el
-        adjunto se ancla al usuario por `uploaded_by`.
+        **Ya no escribe la base.** Se elimina `Attachment.create()`, y con eso la **excepción 2 de
+        ADR-001** queda cerrada. También se elimina `multer`: el proceso deja de bufferizar hasta
+        10 MB × 10 archivos en memoria.
 
-        Sin `hasAnyRole`: autoriza por entidad con `canUserAccessEntity`.
+        **No valida tipo ni tamaño**: eso es de `core` ahora (D-08), que lee las listas y el
+        máximo de `system_settings` en caliente. La validación del cliente queda como conveniencia,
+        no como fuente de verdad.
+
+        **Autorización: solo el JWT.** `canUserAccessEntity` deja de aplicar porque ya no hay
+        entidad declarada; el control de entidad se corre al momento de vincular, donde la entidad
+        existe.
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
-              required: [files, entityType]
+              required: [fileName, mimeType, fileSize]
               properties:
-                files:
-                  type: array
-                  maxItems: 10
-                  items: { type: string, format: binary }
-                entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
-                entityId:
-                  type: integer
-                  description: Obligatorio salvo para `requirement_draft`
-                description: { type: string }
+                fileName: { type: string, maxLength: 255 }
+                mimeType: { type: string, maxLength: 100 }
+                fileSize: { type: integer, minimum: 1 }
+                checksum:
+                  type: string
+                  nullable: true
+                  description: 'sha256 declarado por el cliente. **Nadie lo verifica** (D-25).'
+                # files       - ELIMINADO: el byte no pasa por acá (D-09)
+                # entityType  - ELIMINADO: subir no menciona la entidad (D-12)
+                # entityId    - ELIMINADO: idem
+                # description - ELIMINADO: columna muerta confirmada
       responses:
         '201':
-          description: Created
+          description: Ticket de subida
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Attachment' }
+              schema: { $ref: '#/components/schemas/UploadTicket' }
         '400':
-          description: Sin archivos, tipo no permitido, tamaño excedido o campos inválidos
+          description: Tipo no permitido, tamaño excedido o campos inválidos
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               examples:
-                invalidEntityType:
-                  value: { code: invalid_entity_type, message: '"entityType" must be one of: ...' }
-                noFiles:
-                  value: { code: no_files, message: At least one file is required }
-                uploadFailed:
-                  value: { code: upload_failed, message: File size exceeds maximum of 10MB }
+                fileTypeNotAllowed:
+                  value: { code: file_type_not_allowed, message: File type is not allowed }
+                fileTooLarge:
+                  value: { code: file_too_large, message: File exceeds the configured maximum size }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403':
-          description: Sin permiso sobre la entidad
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example:
-                code: access_denied
-                message: You do not have permission to attach files to this entity
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   /attachments/{id}:
     parameters:
@@ -1505,6 +1513,11 @@ paths:
     get:
       tags: [attachments]
       summary: Metadatos de un adjunto
+      description: |
+        Recibe el id **del vínculo** (D-16), que se preserva a través de la migración de REQ-001
+        (D-06), así que los ids que ya circulan siguen resolviendo.
+
+        Los campos del archivo salen de un `include` a `files` (S-005).
       responses:
         '200':
           description: OK
@@ -1517,8 +1530,17 @@ paths:
         '500': { $ref: '#/components/responses/InternalError' }
     delete:
       tags: [attachments]
-      summary: Borra un adjunto
-      description: Borra la fila y el objeto del bucket.
+      summary: Desvincula un archivo de una entidad
+      description: |
+        **Borra solo el vínculo; el archivo se retiene** (REQ-001 D-04, S-004). Es un cambio de
+        comportamiento observable: antes borraba la fila **y el objeto del bucket**.
+
+        Con 0..N vínculos por archivo, borrar el objeto rompería los otros vínculos. Desvincular
+        **es** borrar el `Attachment`.
+
+        **Pasa por el bus:** la api autoriza sobre la entidad del vínculo y publica
+        `attachments.{id}.delete`. Era la tercera escritura implícita de la api y dejarla afuera
+        habría reabierto por otra puerta la excepción de ADR-001 que este rediseño cierra.
       responses:
         '200':
           description: OK
@@ -1529,42 +1551,142 @@ paths:
         '403': { $ref: '#/components/responses/AccessDenied' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   /attachments/{id}/download:
     get:
       tags: [attachments]
       summary: Descarga un adjunto
-      description: 'Stream con `Content-Disposition: attachment` y el nombre original.'
+      description: |
+        **Responde 302, no el binario** (REQ-001, S-005).
+
+        La api **autoriza** (`canUserAccessEntity` sobre la entidad del vínculo), **resuelve el
+        `file_id`** de la fila que ya leyó para autorizar, publica
+        `files.{fileId}.request-download` con `disposition: attachment`, y **redirige** a la URL
+        pre-firmada que firmó `core`. El navegador baja de S3 directo.
+
+        **La api deja de leer del storage y pierde sus credenciales de S3.** Es lo que hace que la
+        garantía sea de infraestructura y no de disciplina.
+
+        El `Content-Disposition` con el nombre original viaja **firmado en la URL**, así que el
+        nombre se respeta sin que nadie arme el header ni toque el byte.
       parameters:
         - $ref: '#/components/parameters/IdPath'
       responses:
-        '200':
-          description: El archivo
-          content:
-            application/octet-stream:
-              schema: { type: string, format: binary }
+        '302':
+          description: |
+            Redirección a la URL pre-firmada que firmó `core`. **Es el camino normal**, no una
+            rama para archivos grandes. Los metadatos (`fileName`, `mimeType`, `fileSize`) viajan
+            en los headers de esta respuesta, así que el `HEAD` que los frontends usan para
+            resolver nombre y tamaño sigue funcionando.
+
+            `Content-Type` y `Content-Disposition` van en el `GET` y en el `HEAD`.
+            **`Content-Length` va SOLO en el `HEAD`**: describe el archivo que está del otro lado
+            de la redirección, y en un `GET` prometería un cuerpo que un 302 no tiene —el cliente
+            se quedaría esperando bytes que no llegan—. En el `HEAD`, que por definición no lleva
+            body, el header describe el recurso y es correcto.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
+        # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   /attachments/{id}/preview:
     get:
       tags: [attachments]
       summary: Previsualiza un adjunto
-      description: 'Stream con `Content-Disposition: inline`.'
+      description: |
+        **Responde 302, no el binario** (REQ-001, S-005). Idéntico a `/download` salvo que publica
+        el comando con `disposition: inline`.
+
+        Autoriza con `canUserViewEntity`, resuelve el `file_id` y redirige a la pre-firmada de
+        `core`.
       parameters:
         - $ref: '#/components/parameters/IdPath'
       responses:
-        '200':
-          description: El archivo, para mostrar en el navegador
-          content:
-            application/octet-stream:
-              schema: { type: string, format: binary }
+        '302':
+          description: |
+            Redirección a la URL pre-firmada que firmó `core`. **Es el camino normal**, no una
+            rama para archivos grandes. Los metadatos (`fileName`, `mimeType`, `fileSize`) viajan
+            en los headers de esta respuesta, así que el `HEAD` que los frontends usan para
+            resolver nombre y tamaño sigue funcionando.
+
+            `Content-Type` y `Content-Disposition` van en el `GET` y en el `HEAD`.
+            **`Content-Length` va SOLO en el `HEAD`**: describe el archivo que está del otro lado
+            de la redirección, y en un `GET` prometería un cuerpo que un 302 no tiene —el cliente
+            se quedaría esperando bytes que no llegan—. En el `HEAD`, que por definición no lleva
+            body, el header describe el recurso y es correcto.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
+        # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+
+  /files/{id}/preview:
+    get:
+      tags: [attachments]
+      summary: Previsualiza un archivo SIN vínculo
+      description: |
+        **Camino nuevo de REQ-001 (S-005), y es lo que hace coherente al modelo consigo mismo.**
+
+        Un archivo **sin ningún vínculo es un estado válido** (RF-1, CA-7): el usuario que subió
+        tres archivos y todavía no guardó el requisito tiene que poder previsualizar lo que acaba
+        de subir, y los dos frontends ya muestran preview antes de guardar. Sin vínculo no hay id
+        de `attachments` con el que pedirlo, así que este camino recibe el **`fileId`**.
+
+        **Autorización: solo el JWT.** Sin vínculo no hay entidad contra la que validar permiso de
+        proyecto, igual que en la subida.
+
+        > **DECIDIDO E IMPLEMENTADO (S-005): ruta propia**, no un parámetro sobre la ruta
+        > existente. `GET /api/attachments/{id}/preview` entra por `attachments.id`, y
+        > sobrecargar ese path con un segundo espacio de ids —el de `files`— sobre el mismo
+        > parámetro es exactamente la confusión que D-16 evita. Dos espacios de identificadores
+        > distintos merecen dos rutas distintas.
+        >
+        > El handler **no consulta la base**: la existencia, la retención y el `byte_status` los
+        > valida `core`, que es el dueño del storage. Traducir esas reglas también en la `api`
+        > sería duplicarlas en dos servicios y dejarlas divergir.
+        >
+        > **No hay `/files/{id}/download`.** CA-12 pide previsualizar lo recién subido; la descarga
+        > siempre ocurre sobre un adjunto ya vinculado. Cada endpoint de lectura es superficie que
+        > después hay que justificar.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: '`files.id` — el id del **archivo**, no el del vínculo.'
+          schema: { type: integer }
+      responses:
+        '302':
+          description: |
+            Redirección a la URL pre-firmada que firmó `core`. **Es el camino normal**, no una
+            rama para archivos grandes. Los metadatos (`fileName`, `mimeType`, `fileSize`) viajan
+            en los headers de esta respuesta, así que el `HEAD` que los frontends usan para
+            resolver nombre y tamaño sigue funcionando.
+
+            `Content-Type` y `Content-Disposition` van en el `GET` y en el `HEAD`.
+            **`Content-Length` va SOLO en el `HEAD`**: describe el archivo que está del otro lado
+            de la redirección, y en un `GET` prometería un cuerpo que un 302 no tiene —el cliente
+            se quedaría esperando bytes que no llegan—. En el `HEAD`, que por definición no lleva
+            body, el header describe el recurso y es correcto.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   # ==========================================================================
   # opus — portal de clientes
@@ -1670,7 +1792,9 @@ paths:
         `requirements.{id}.subscriptors.new` por cada usuario. **El creador queda suscripto
         siempre.**
 
-        Los `attachmentIds` van con `attachmentScope: 'project'`.
+        Los `fileIds` son ids de `files`, ya subidos por quien publica el requisito.
+        `attachmentScope` **desaparece** (REQ-001, S-003): existía solo para elegir el anclaje del
+        draft, y no hay draft.
 
         No notifica: las notificaciones están fuera del alcance.
       x-roles: [user, external-user]
@@ -1693,9 +1817,8 @@ paths:
                   type: array
                   items: { type: string }
                   description: Ids de usuario de Zitadel
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '201':
           description: Created
@@ -1781,9 +1904,8 @@ paths:
               required: [comment]
               properties:
                 comment: { type: string }
-                attachmentIds:
-                  type: array
-                  items: { type: integer, minimum: 1 }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '201':
           description: Created
@@ -1877,90 +1999,125 @@ paths:
   /opus/attachments:
     post:
       tags: [opus]
-      summary: Sube adjuntos desde el portal
+      summary: Pide permiso para subir un archivo desde el portal
       description: |
-        Como `POST /api/attachments`, con validación de `entityType` y de permisos propia de la
-        superficie del portal.
+        Como `POST /api/attachments`, con el mismo cambio de REQ-001 (S-004): **JSON, un archivo
+        por request, y devuelve un `UploadTicket`**.
+
+        **Pierde su validación propia de `entityType`**, porque ya no recibe `entityType`.
       x-roles: [user, external-user]
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
-              required: [files, entityType]
+              required: [fileName, mimeType, fileSize]
               properties:
-                files:
-                  type: array
-                  maxItems: 10
-                  items: { type: string, format: binary }
-                entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
-                entityId: { type: integer }
-                description: { type: string }
+                fileName: { type: string, maxLength: 255 }
+                mimeType: { type: string, maxLength: 100 }
+                fileSize: { type: integer, minimum: 1 }
+                checksum: { type: string, nullable: true }
       responses:
         '201':
-          description: Created
+          description: Ticket de subida
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Attachment' }
+              schema: { $ref: '#/components/schemas/UploadTicket' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   /opus/attachments/{id}/preview:
     get:
       tags: [opus]
       summary: Previsualiza un adjunto desde el portal
+      description: |
+        **Responde 302, no el binario** (REQ-001, S-005). Autoriza, resuelve el `file_id` y
+        publica `files.{fileId}.request-download` con `disposition: inline`.
+
+        El portal **solo previsualiza**: no tiene camino de descarga propio.
       x-roles: [user, external-user]
       parameters:
         - $ref: '#/components/parameters/IdPath'
       responses:
-        '200':
-          description: El archivo
-          content:
-            application/octet-stream:
-              schema: { type: string, format: binary }
+        '302':
+          description: |
+            Redirección a la URL pre-firmada que firmó `core`. **Es el camino normal**, no una
+            rama para archivos grandes.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
+        # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   /opus/attachments/{id}/public:
     get:
       tags: [opus]
-      summary: Sirve un adjunto público (SIN autenticación)
+      summary: Sirve un adjunto público (SIN autenticación) — DEPRECADO
+      deprecated: true
       description: |
         **El único endpoint exento de autenticación de toda la api**, declarado en
         `api/config/public.ts:20`.
 
         Está exento porque tiene su propio control de acceso: valida
         `visibilityLevel === 'public'` por cada `entityType` y responde **403** en cualquier otro
-        caso. Manda `X-Content-Type-Options: nosniff` y una CSP de sandbox. Para archivos grandes
-        redirige a una URL pre-firmada del storage.
+        caso. Manda `X-Content-Type-Options: nosniff` y una CSP de sandbox.
 
         **Los ids son secuenciales, así que el endpoint es enumerable.** Es un riesgo aceptado y
         registrado: la protección es la validación de visibilidad, no la opacidad del id.
+
+        ## REQ-001
+
+        **Queda DEPRECADO.** Sobrevive **solo para los ids ya emitidos**, porque RF-18 y CA-14
+        exigen que los links en circulación sigan funcionando y D-06 preserva los ids justamente
+        por eso. **No es una vía de acceso válida para nada nuevo**, y **no se le agregan
+        `entityType` nuevos**.
+
+        **El 302 pasa a ser el único mecanismo** (S-005), no una rama para archivos grandes: la
+        api autoriza, resuelve el `file_id` y publica `files.{fileId}.request-download` con
+        `disposition: attachment`. **Ninguna excepción al control del storage**: este endpoint
+        también pide la URL a `core`; la api no firma nada por su cuenta en ningún camino.
+
+        **Un archivo sin ningún vínculo es inalcanzable por esta vía, y es estructural** (CA-30):
+        la vía pública entra por `attachments.id` y un archivo sin vínculo no tiene fila.
+
+        > **Precio nuevo, y hay que decirlo: con `core` caído, un link en el correo de un cliente
+        > no abre.** ADR-001 declara como ventaja que "si core está caído, el producto sigue
+        > siendo consultable"; esta decisión **renuncia a esa ventaja para los adjuntos**, en los
+        > cuatro caminos. Sin JetStream (ADR-002) no hay reintento, y del otro lado hay un correo,
+        > no una aplicación que pueda reintentar.
+
+        > **Su eliminación va al REQ siguiente**, junto con el mecanismo de compartir hacia afuera
+        > — que tiene que decidir explícitamente qué pasa con los links ya emitidos.
       security: []
       parameters:
         - $ref: '#/components/parameters/IdPath'
       responses:
-        '200':
-          description: El archivo
-          content:
-            application/octet-stream:
-              schema: { type: string, format: binary }
         '302':
-          description: Redirección a una URL pre-firmada del storage (archivos grandes)
+          description: |
+            Redirección a la URL pre-firmada que firmó `core`. **Es el camino normal**, no una
+            rama para archivos grandes.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
+        # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '403':
           description: El adjunto no es público
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '404': { $ref: '#/components/responses/NotFound' }
+        '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
 
   # ==========================================================================
   # other
@@ -2132,6 +2289,31 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: not_found, message: Not found }
+    AttachmentNotAvailable:
+      description: |
+        No existe o no está disponible (REQ-001, S-005). Tres causas distinguibles por el `code`:
+
+        - **el vínculo no existe** o fue eliminado — lo resuelve la api, **sin publicar** ningún
+          comando (CA-29, CA-30)
+        - `file_not_found` — el archivo fue borrado (`retention_status` distinto de `active`)
+        - `file_not_available` — **el byte nunca llegó al storage** (`byte_status: 'pending'`).
+          `core` lo resuelve por la fila, **sin tocar S3**
+
+        > **`file_not_available` es un código propio a propósito** (RF-21, CA-15, D-15). Con el
+        > byte sin verificar (D-13), el caso probable no es un link viejo: es el usuario que acaba
+        > de subir y adjuntar un archivo cuyo PUT falló en silencio. Se detecta **antes** de
+        > redirigir, así que ve un mensaje entendible en lugar de un error opaco de S3 al final de
+        > una redirección.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            notFound:
+              value: { code: not_found, message: Not found }
+            fileNotFound:
+              value: { code: file_not_found, message: File not found }
+            fileNotAvailable:
+              value: { code: file_not_available, message: El archivo no está disponible }
     ProjectNotFound:
       description: El proyecto no existe
       content:
@@ -2252,23 +2434,51 @@ components:
         - enfermedad
         - otro
 
+    FileIds:
+      type: array
+      maxItems: 10
+      description: |
+        Ids de `files` a vincular (REQ-001, S-003). **Reemplaza a `attachmentIds`.**
+
+        Cada uno tiene que existir, estar vivo, y **haber sido subido por el actor de este
+        comando** (RF-12): si alguno no cumple, la respuesta es **403 `file_not_owned`** y se
+        descarta toda la escritura — ni la entidad ni un solo vínculo. Los `files` sí sobreviven,
+        sin vínculo, que es un estado válido.
+
+        **La titularidad no tiene excepción por rol** (RF-13): un administrador tampoco puede
+        vincular un archivo que no subió.
+
+        El tope de **10 es regla fija, no configurable** (D-20). Dejó de ser un límite de
+        transporte de `multer` y pasó a ser contrato del bus, validable por Joi.
+      items: { type: integer, minimum: 1 }
+
     AttachmentEntityType:
       type: string
       description: |
-        Tipo de entidad a la que se ancla un adjunto. `comment` es **legado** (filas no migradas,
-        pendiente S-096) y `stage` quedó huérfano: la tabla ya no existe, así que sus adjuntos
-        históricos **nunca se autorizan**
+        Tipo de entidad a la que se vincula un archivo.
+
+        **De 10 valores a 5 con REQ-001 (S-001, S-004).** Los cinco que se van los resuelve el
+        backfill de la migración `resolve_legacy_and_draft_rows`:
+
+        - `comment_draft`, `requirement_draft`, `objective_draft` — **no hay draft** (D-01). El
+          archivo existe por sí solo y el vínculo se crea contra la entidad ya existente. Las
+          filas draft se borran y su `File` queda **sin vínculo**, que es un estado válido
+        - `comment` — legado que `20260729_01` dejó a medias. Se migra a `requirement_comment` o
+          `objective_comment` según a qué tabla de actividad apunte su `entity_id`
+        - `stage` — huérfano: la tabla ya no existe y sus adjuntos eran **pérdida de datos
+          silenciosa**. El vínculo se borra y el `File` se recupera como archivo sin vínculo,
+          alcanzable por su `uploaded_by`
       enum:
         - project
         - requirement
         - objective
         - requirement_comment
         - objective_comment
-        - comment
-        - comment_draft
-        - requirement_draft
-        - objective_draft
-        - stage
+        # - comment            - ELIMINADO (legado, resuelto en el backfill)
+        # - comment_draft      - ELIMINADO (D-01: no hay draft)
+        # - requirement_draft  - ELIMINADO (D-01)
+        # - objective_draft    - ELIMINADO (D-01)
+        # - stage              - ELIMINADO (resuelto en el backfill)
 
     Tag:
       type: object
@@ -2575,26 +2785,104 @@ components:
         dateFrom: { type: string, format: date }
         dateTo: { type: string, format: date, description: Lunes + 4 días }
 
+    UploadTicket:
+      type: object
+      description: |
+        Respuesta de `POST /api/attachments` y `POST /api/opus/attachments` con REQ-001 (S-004).
+        Reemplaza al `array<Attachment>` que devolvían.
+
+        **Los frontends no pierden nada.** Hoy leen `fileName`, `fileSize` y `mimeType` de la
+        respuesta para el preview embebido; ahora **los tienen antes de llamar** — salen del `File`
+        del input del navegador, no de la api. Lo único que necesitan de vuelta es el `fileId` y la
+        URL. Lo que se pierde es el `Attachment` completo, que en ese punto del flujo ya no existe.
+      required: [fileId, uploadUrl, expiresIn]
+      properties:
+        fileId:
+          type: integer
+          description: |
+            Id de `files`. **Es lo que viaja en `fileIds`** al guardar la entidad.
+
+            En el bus el campo se llama `id` y acá `fileId`: en el bus `id` es la convención de
+            todas las creaciones, y en HTTP `fileId` dice de qué id se trata, que importa porque
+            este contrato maneja **dos** espacios de ids (el del vínculo y el del archivo).
+        uploadUrl:
+          type: string
+          description: |
+            URL pre-firmada de **PUT**, de un solo objeto y TTL corto (D-10). El navegador la usa
+            directo contra el storage: **no pasa por la api ni por el bus**. No autoriza listar,
+            leer ni borrar.
+        expiresIn:
+          type: integer
+          description: |
+            Segundos de validez. Sale de `system_settings` (`upload-url-ttl-seconds`, default
+            300), configurable en caliente.
+
     Attachment:
       type: object
+      description: |
+        **El vínculo entre una entidad y un archivo.** Con REQ-001 (S-001) el archivo pasa a vivir
+        en la tabla `files` y esta fila queda con el vínculo y su `file_id`.
+
+        **Los 9 campos del archivo se mantienen aplanados en la respuesta a propósito** (S-004):
+        se leen de `files` por un `include`, pero conservar la forma deja intacto el contrato con
+        los dos frontends, cuyos tipos están escritos a mano y **no fallan en compilación si
+        divergen**. Anidar el archivo obligaría a tocar todos los consumidores por un beneficio de
+        forma.
       properties:
-        id: { type: integer }
+        id:
+          type: integer
+          description: |
+            Id del **vínculo**, no del archivo. **Se preserva a través de la migración** (D-06,
+            CA-14): las URLs públicas en circulación lo usan y tienen que seguir resolviendo.
         entityType: { $ref: '#/components/schemas/AttachmentEntityType' }
         entityId:
           type: integer
-          nullable: true
-          description: Nulo en un draft anclado al usuario, donde la titularidad va por `uploadedBy`
+          description: |
+            **Ya no es nullable** (D-01, S-001). Era nullable desde `20260612_03` para sostener el
+            patrón *draft*, que este rediseño elimina: un vínculo siempre apunta a una entidad que
+            existe.
+        fileId:
+          type: integer
+          description: 'FK a `files`. La primera FK real que esta tabla tiene hacia el contenido.'
         fileName: { type: string, description: El nombre original. No es la clave en el storage }
-        fileSize: { type: integer, description: Máximo 10 MB }
+        fileSize:
+          type: integer
+          description: |
+            El máximo lo fija `file-max-size-bytes` de `system_settings` (default 10485760),
+            configurable en caliente. **Ya no está hardcodeado.**
         mimeType: { type: string }
         storageKey:
           type: string
           description: |
-            `{STORAGE_S3_KEY_PREFIX}/{entityType}/{entityId ?? draft}/{uuid}{ext}`. Cambiar el
-            prefijo en una instalación con datos deja inaccesibles los adjuntos existentes
+            La construye `core` y **ya no depende de la entidad** (D-02):
+            `{STORAGE_S3_KEY_PREFIX}/f/{uuid}{ext}`.
+
+            **Los archivos migrados conservan su clave vieja**
+            (`{prefix}/{entityType}/{entityId ?? draft}/{uuid}{ext}`) y ningún objeto se mueve en
+            el bucket. **No son dos casos: nadie parsea la clave** — `core` la pasa opaca al
+            firmador de S3 y es el único que la toca. El namespace `/f/` existe solo para que el
+            backfill no colisione con una clave existente.
+
+            Cambiar el prefijo en una instalación con datos sigue dejando inaccesibles los
+            adjuntos existentes.
         storageBucket: { type: string }
         storageRegion: { type: string }
-        uploadedBy: { type: string }
-        description: { type: string, nullable: true }
-        checksum: { type: string, description: sha256 en hexadecimal }
+        uploadedBy:
+          type: string
+          description: |
+            Quién subió el **archivo**. **Contra esto se valida la titularidad al vincular**
+            (RF-12): solo quien lo subió puede vincularlo, **sin excepción por rol** (RF-13).
+        byteStatus:
+          type: string
+          enum: [pending, uploaded]
+          description: |
+            Estado del byte (D-03). `pending` significa que el PUT nunca se confirmó, y la lectura
+            responde `file_not_available` en lugar de redirigir a un objeto que no está.
+
+            El byte **no se verifica** contra el storage (D-13): el cliente reporta el PUT y se le
+            cree. El índice `(uploaded_by, byte_status)` hace que los abandonados sean
+            identificables por consulta, aunque el barrido esté fuera del alcance de REQ-001.
+        checksum: { type: string, description: sha256 en hexadecimal declarado por el cliente. Nadie lo verifica (D-25) }
+        # description - ELIMINADO por REQ-001 (S-001): columna muerta confirmada, vacía en todas
+        #               las filas por construcción
         createdAt: { type: string, format: date-time }

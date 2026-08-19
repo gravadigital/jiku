@@ -53,6 +53,16 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   user_not_found: 404,
   subscription_not_found: 404,
 
+  // Los dos códigos de `files.{fileId}.request-download` son 404 y NO 400 porque describen
+  // el ESTADO DEL RECURSO PEDIDO, no un problema con la entrada: el id llegó bien formado y
+  // la api ya autorizó. `file_not_found` es el archivo borrado (retention_status != active);
+  // `file_not_available`, el byte que nunca llegó al storage (byte_status = 'pending'), que
+  // es el caso probable del PUT que falló en silencio. Sin estas dos entradas caerían en el
+  // `|| 500` de abajo y el usuario vería un error genérico donde el contrato promete un 404
+  // entendible (REQ-001, S-005).
+  file_not_found: 404,
+  file_not_available: 404,
+
   unknown_command: 500,
   internal_error: 500,
 };

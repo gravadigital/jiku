@@ -61,6 +61,9 @@ por core.
   respuesta: core devuelve solo `{ id }` y el contrato con los frontends es el recurso completo
   con sus relaciones.
 - Un endpoint que lee **NO DEBE** pasar por el bus: la lectura va directo a PostgreSQL desde la api.
+  **Excepción declarada desde REQ-001 (S-005): la lectura de archivos.** Los cinco caminos de
+  lectura de adjuntos publican `files.{fileId}.request-download` para obtener la URL prefirmada,
+  porque el storage tiene un solo dueño y es `core`. Ver "Revisión: la lectura de archivos".
 
 ## Consecuencias
 
@@ -71,7 +74,8 @@ por core.
 - **Un único lugar donde auditar las reglas de escritura.** Los 17 comandos de core son la lista
   completa de formas en que los datos pueden cambiar.
 - **Las lecturas escalan independientemente del bus.** Si core está caído, el producto sigue
-  siendo consultable: solo se pierde la escritura.
+  siendo consultable: solo se pierde la escritura. **Desde REQ-001 esto ya NO vale para los
+  adjuntos** — ver "Revisión: la lectura de archivos".
 - **Las réplicas de core se reparten la carga** por queue group sin coordinación adicional.
 
 ### Negativas
@@ -96,6 +100,51 @@ por core.
   desaparece en silencio.
   - **Mitigación:** ninguna hoy. Un test de arranque que verifique que la api **no puede**
     escribir sería la verificación correcta.
+
+## Revisión: la lectura de archivos (REQ-001 / S-005, 2026-08-19)
+
+**La decisión de este ADR no cambia.** Lo que cambia es el alcance de dos de sus afirmaciones, y
+conviene dejarlo escrito antes que dejarlo implícito: la próxima persona que lea este documento
+tiene que encontrar acá lo que el código ya hace.
+
+### La regla "un endpoint que lee no pasa por el bus" tiene una excepción
+
+Con REQ-001 el storage pasa a tener **un solo dueño**: `core`. La `api` pierde el cliente de S3 y
+sus credenciales, así que ya no puede leer un objeto del bucket por su cuenta. En consecuencia, los
+**cinco caminos de lectura de archivos** publican un comando:
+
+| Camino | Endpoint |
+|---|---|
+| A | `GET /api/attachments/{id}/preview` |
+| B | `GET /api/attachments/{id}/download` |
+| C | `GET /api/opus/attachments/{id}/preview` |
+| D | `GET /api/opus/attachments/{id}/public` (deprecado) |
+| E | `GET /api/files/{id}/preview` (archivo sin vínculo) |
+
+Los cinco autorizan primero —la autorización sigue siendo de la `api`—, resuelven el `file_id` y
+recién entonces publican `files.{fileId}.request-download`. `core` firma la URL prefirmada y la
+`api` responde **302**. **La `api` no mueve un solo byte.**
+
+Es la misma garantía que este ADR logró para la escritura, aplicada al storage: **por
+credenciales, no por convención**. Una superficie entera de acceso desaparece del servicio expuesto
+a internet.
+
+### "Si core está caído el producto sigue siendo consultable" deja de valer para los adjuntos
+
+Esta es la consecuencia negativa real y **está aceptada, no pasada por alto**. Con `core` o el bus
+caídos, los cinco caminos responden **503** al vencer el timeout de 5000 ms (ADR-002), y sin
+JetStream no hay reintento. El caso más visible es un link público en el correo de un cliente: no
+abre, y del otro lado no hay diagnóstico posible.
+
+**Mitigación: ninguna dentro de este diseño.** Es el precio aceptado de que el único control del
+storage sea `core`.
+
+> **Si más adelante molesta, la salida NO es devolverle credenciales de S3 a la `api`** —eso
+> deshace la garantía completa— **sino subir la disponibilidad de `core`**, que ya se reparte por
+> queue group sin coordinación adicional.
+
+El resto del producto (proyectos, requisitos, horas, reportes) **sigue siendo consultable con
+`core` caído**: la excepción es exclusivamente la lectura de archivos.
 
 ## Alternativas Consideradas
 

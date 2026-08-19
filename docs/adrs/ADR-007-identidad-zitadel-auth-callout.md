@@ -119,6 +119,40 @@ contra Zitadel y **mintea los permisos** de publicación y de inbox según `rule
     comentario del código registra que la versión anterior se activaba por ausencia de variable,
     dejando la api abierta con rol `admin` en silencio.
 
+## Revisión: el comando de descarga recibe un `fileId` (REQ-001 / S-005, 2026-08-19)
+
+**La decisión de este ADR no cambia**, y el modelo de confianza tampoco. Lo que cambia es su
+**superficie**, y es una consecuencia que tiene que quedar registrada.
+
+Con REQ-001 el storage pasa a tener un solo dueño. El comando que entrega la URL prefirmada es
+`files.{fileId}.request-download`, y **recibe el id del archivo**. `core` firma sobre ese archivo y
+**no sabe por qué se autorizó la descarga**: la autorización es de la `api`, que valida el permiso
+sobre la entidad del vínculo antes de publicar.
+
+**La consecuencia:** quien pueda publicar en el bus puede pedir la URL de **cualquier archivo del
+catálogo por su id**, salteando la autorización de la `api`.
+
+Es **el mismo modelo de confianza que este ADR ya declara para toda la escritura** —quien tiene
+credenciales de service user puede publicar cualquier comando—, con dos diferencias que vale
+nombrar:
+
+1. **Ahora cubre también la lectura**, no solo la mutación.
+2. **La superficie es el catálogo de archivos**, no el de vínculos autorizables. Un archivo con dos
+   vínculos —uno a una entidad `public` y otro a una `internal`— tiene **un solo objeto y una sola
+   clave**: quien obtenga la URL por el vínculo público accede al mismo byte que el vínculo interno
+   protege. Ya era así, pero hasta ahora nadie podía pedir "el archivo" sin pasar por un vínculo.
+
+### Mitigación evaluada y descartada
+
+Se evaluó agregar un **`attachmentId` opcional** al payload, que `core` validaría contra el
+`file_id` del vínculo. **Se descartó por simetría con `files.request-upload`**, que tampoco lo
+lleva: hacer que un comando del módulo de archivos conozca el modelo de vínculos rompería el corte
+de responsabilidades que REQ-001 establece (`core` es dueño del storage, la `api` de la
+autorización).
+
+**Queda disponible como mitigación aditiva** si el modelo de confianza del bus se endurece más
+adelante. No se implementó en S-005.
+
 ## Alternativas Consideradas
 
 ### Alternativa 1: Autenticación propia en la api (usuarios y contraseñas)

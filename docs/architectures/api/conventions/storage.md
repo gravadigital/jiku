@@ -13,6 +13,21 @@ package: "@aws-sdk/client-s3"
 > **Convención nueva**, sin equivalente en el catálogo. Cubre la subida, el servido y el borrado
 > de archivos: la única superficie del servicio que toca un sistema externo con estado.
 
+> ## ⚠ PARCIALMENTE OBSOLETA (REQ-001 / S-005, 2026-08-19)
+>
+> Con REQ-001 el storage pasa a tener **un solo dueño: `core`**. La `api` pierde el cliente de S3 y
+> sus credenciales.
+>
+> - **La sección "Servido de archivos" YA NO DESCRIBE EL SERVICIO.** S-005 la reemplazó: los cinco
+>   caminos de lectura autorizan, publican `files.{fileId}.request-download` y responden **302** a
+>   la prefirmada que firmó `core`. La `api` no sirve bytes. La fuente de verdad es
+>   [`docs/flows/lectura-de-archivos.md`](../../../flows/lectura-de-archivos.md).
+> - **La subida sigue vigente hasta S-004**, que es la que apaga los dos últimos consumidores de
+>   `storageService` (`attachments-post.ts` y `opus-attachments-post.ts`). Cuando esa story cierre,
+>   esta convención **se elimina entera**.
+>
+> No agregues consumidores nuevos de `storageService` en la `api`.
+
 ## Cuándo aplica
 
 Las rutas de adjuntos: `attachments-*` (superficie interna) y `opus-attachments-*` (portal de
@@ -146,6 +161,15 @@ adjunto se ancla al usuario por `uploaded_by`. En ese caso no hay entidad contra
 permisos, y el JWT ya garantiza la pertenencia.
 
 ## Servido de archivos
+
+> **OBSOLETO desde S-005.** Lo que sigue describe cómo servía la `api` **antes** de REQ-001, y se
+> conserva solo como registro. Hoy ninguno de estos endpoints sirve el byte: todos responden **302**
+> a una prefirmada de `core`, y la rama por tamaño de archivo dejó de existir. El mecanismo vigente
+> está en [`docs/flows/lectura-de-archivos.md`](../../../flows/lectura-de-archivos.md).
+>
+> Lo único de esta sección que **sigue vigente** es la nota sobre el endpoint público: su validación
+> de visibilidad por `entityType` con 403 por default, el `nosniff` y la CSP de sandbox se
+> mantienen intactos, y la advertencia sobre ids enumerables sigue aplicando.
 
 Tres endpoints, con criterios distintos:
 
