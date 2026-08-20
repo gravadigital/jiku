@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The 61 endpoints the API serves, generated from the route definitions. For the bus contract
+The 60 endpoints the API serves, generated from the route definitions. For the bus contract
 behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
@@ -10,7 +10,15 @@ behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 built as a negative-lookahead regex. It is deny-by-default, which is the right shape, but it
 means a route file can look unprotected while being covered.
 
-So: **every endpoint below requires a bearer token** unless the Roles column says otherwise.
+**That exemption list is empty**, so `validateToken` currently covers every path: **every
+endpoint below requires a bearer token**, with no exception. The mechanism stays in place
+because declaring something public has to remain a one-line change in a file whose only
+purpose is to enumerate what is public — a change that shows up in review. Adding an entry
+there makes an endpoint reachable without credentials, so only something with its own
+documented access control belongs on it.
+
+The exemption interface covers `GET`, `PATCH`, `POST` and `DELETE`. A new `PUT` is **not**
+covered by the global installation and has to declare `validateToken` in its own chain.
 
 The token must be a JWT from the configured identity provider, sent as
 `Authorization: Bearer <token>`. There is no query-parameter fallback.
@@ -144,12 +152,6 @@ permission: an `external-user` only sees the projects they were granted.
 | DELETE  | `/api/opus/requirements/:reqid/subscriptors/:userId` | external-user              | ●   |
 | POST    | `/api/opus/attachments`                              | user, external-user        |     |
 | GET     | `/api/opus/attachments/:id/preview`                  | user, external-user        |     |
-| **GET** | **`/api/opus/attachments/:id/public`**               | **none — unauthenticated** |     |
-
-> `/api/opus/attachments/:id/public` is the one endpoint exempt from authentication, by
-> design: it serves only attachments explicitly marked public and returns 403 for anything
-> else, with `X-Content-Type-Options: nosniff` and a sandboxing CSP. Because ids are
-> sequential it is enumerable, and for large files it redirects to a pre-signed storage URL.
 
 ## Errors
 

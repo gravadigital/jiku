@@ -5,7 +5,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import {
   Attachment, File, Objective, ObjectiveActivity, Project, Requirement,
-  RequirementActivity, User, UserProjectPermission
+  User, UserProjectPermission
 } from '@jiku/models';
 import { fakeBus } from '../mocks/bus';
 
@@ -200,35 +200,40 @@ describe('GET /api/opus/attachments/:id/preview', () => {
 });
 
 /**
- * El endpoint público es el único exento de autenticación de todo el producto, y su bloque
- * de validación de `visibilityLevel` por `entityType` es lo único que lo protege: los ids
- * son secuenciales y el endpoint es enumerable. Cada rama se prueba en su caso `public` y
- * en su caso `internal`, más el `else` final que deniega por default.
+ * `GET /api/opus/attachments/:id/public` — ELIMINADO por REQ-002 / S-009.
+ *
+ * Este bloque reemplaza al que probaba que el endpoint servía el archivo sin sesión. Los
+ * mismos casos, invertidos: ahora prueban que la vía anónima NO existe. Es lo que convierte
+ * el borrado en algo verificable e impide que alguien reponga el endpoint sin que nada falle.
+ *
+ * Las dos razones por las que la respuesta cambia, y que son distintas entre sí:
+ *  - SIN TOKEN es 401 y ocurre ANTES DEL ROUTER: `config/public.ts` quedó con las cuatro
+ *    listas vacías, así que `publicPaths('get')` matchea todo path y `validateToken` —que
+ *    `app.ts:29-32` instala arriba del montaje de rutas— corta sin tocar la base. De ahí que
+ *    un id inexistente dé 401 y no 404: el endpoint deja de ser un oráculo de qué ids existen.
+ *  - CON TOKEN VÁLIDO es 404 porque la ruta ya no está montada.
+ *
+ * En ninguno de los siete casos se publica un comando en el bus: RF-5 —"ninguna petición sin
+ * autenticar puede originar un `files.{fileId}.request-download`"— se afirma caso por caso.
  */
-describe('GET /api/opus/attachments/:id/public (S-095, S-005)', () => {
+describe('GET /api/opus/attachments/:id/public — ELIMINADO (S-009)', () => {
   let application: Application;
 
   const publicProjectId = 6400;
-  const collisionId = 9600;
 
-  let filePub: File;
-  let attReqCommentPublic: Attachment;
-  let attReqCommentInternal: Attachment;
-  let attObjCommentPublic: Attachment;
-  let attObjCommentInternal: Attachment;
-  let attLegacyCommentPublic: Attachment;
-  let attLegacyCommentInternal: Attachment;
-  let attObjectivePublic: Attachment;
-  let attObjectiveInternal: Attachment;
-  let attRequirementPublic: Attachment;
-  let attRequirementInternal: Attachment;
-  let attUncoveredType: Attachment;
+  let attPub: Attachment;      // vínculo a un requisito `public`: el ÚNICO caso que el endpoint autorizaba
+  let attInt: Attachment;      // vínculo a un requisito `internal`: el caso que antes daba 403
+  let fileOrphan: File;        // archivo SIN vínculo en `attachments`
 
   before(async function () {
     this.timeout(30000);
     application = start();
 
+    // Los dos usuarios del token tienen que existir en `users`: un token válido cuyo `sub` no
+    // está en la tabla recibe 401 `user_not_found` y nunca llegaría al 404 que TS-6/TS-7 afirman.
     await User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'user01pub', email: 'user01pub@mail.com' } as any);
+    await User.create({ id: 'zitadel-sub-04', name: 'External User', username: 'ext04pub', email: 'ext04pub@mail.com' } as any);
+
     await Project.create({
       id: publicProjectId, code: 'PUB1', name: 'Public Preview Project', type: 'comercial',
       status: 'activo', priority: 1, initDate: new Date(), createdBy: 'zitadel-sub-01',
@@ -244,177 +249,115 @@ describe('GET /api/opus/attachments/:id/public (S-095, S-005)', () => {
       priority: 'sin_prioridad', state: 'analisis', projectId: publicProjectId,
       createdBy: 'zitadel-sub-01', visibilityLevel: 'internal',
     } as any);
-    const objPublic = await Objective.create({
-      id: publicProjectId, title: 'Objetivo publico', state: 'activo', area: 'desarrollo',
-      priority: 1, projectId: publicProjectId, createdBy: 'zitadel-sub-01', visibilityLevel: 'public',
-    } as any);
-    const objInternal = await Objective.create({
-      id: publicProjectId + 1, title: 'Objetivo interno', state: 'activo', area: 'desarrollo',
-      priority: 1, projectId: publicProjectId, createdBy: 'zitadel-sub-01', visibilityLevel: 'internal',
-    } as any);
 
-    // Colisión deliberada de id entre RequirementActivity y ObjectiveActivity, con
-    // visibilidades distintas: es lo que prueba que cada rama consulta la tabla correcta.
-    const reqActPublic = await RequirementActivity.create({
-      id: collisionId, typeOfActivity: 'comment', previousValue: '', newValue: 'Comentario publico de requisito',
-      visibilityLevel: 'public', requirementId: reqPublic.id, changedBy: 'zitadel-sub-01',
-    } as any);
-    const objActInternal = await ObjectiveActivity.create({
-      id: collisionId, typeOfActivity: 'comment', previousValue: '', newValue: 'Comentario interno de objetivo',
-      visibilityLevel: 'internal', objectiveId: objPublic.id, changedBy: 'zitadel-sub-01',
-    } as any);
-    const reqActInternal = await RequirementActivity.create({
-      id: collisionId + 1, typeOfActivity: 'comment', previousValue: '', newValue: 'Comentario interno de requisito',
-      visibilityLevel: 'internal', requirementId: reqPublic.id, changedBy: 'zitadel-sub-01',
-    } as any);
-    const objActPublic = await ObjectiveActivity.create({
-      id: collisionId + 2, typeOfActivity: 'comment', previousValue: '', newValue: 'Comentario publico de objetivo',
-      visibilityLevel: 'public', objectiveId: objPublic.id, changedBy: 'zitadel-sub-01',
-    } as any);
+    attPub = await createAttachment(await createFile(), { entityType: 'requirement', entityId: reqPublic.id });
+    attInt = await createAttachment(await createFile(), { entityType: 'requirement', entityId: reqInternal.id });
+    fileOrphan = await createFile();
 
-    filePub = await createFile();
-
-    attReqCommentPublic = await createAttachment(filePub, { entityType: 'requirement_comment', entityId: reqActPublic.id });
-    attReqCommentInternal = await createAttachment(await createFile(), { entityType: 'requirement_comment', entityId: reqActInternal.id });
-    attObjCommentPublic = await createAttachment(await createFile(), { entityType: 'objective_comment', entityId: objActPublic.id });
-    attObjCommentInternal = await createAttachment(await createFile(), { entityType: 'objective_comment', entityId: objActInternal.id });
-    // Legado `comment`: resuelve primero contra ObjectiveActivity y cae a RequirementActivity.
-    attLegacyCommentPublic = await createAttachment(await createFile(), { entityType: 'comment', entityId: objActPublic.id });
-    attLegacyCommentInternal = await createAttachment(await createFile(), { entityType: 'comment', entityId: objActInternal.id });
-    attObjectivePublic = await createAttachment(await createFile(), { entityType: 'objective', entityId: objPublic.id });
-    attObjectiveInternal = await createAttachment(await createFile(), { entityType: 'objective', entityId: objInternal.id });
-    attRequirementPublic = await createAttachment(await createFile(), { entityType: 'requirement', entityId: reqPublic.id });
-    attRequirementInternal = await createAttachment(await createFile(), { entityType: 'requirement', entityId: reqInternal.id });
-    // `project` no está entre los tipos contemplados → cae en el else final.
-    attUncoveredType = await createAttachment(await createFile(), { entityType: 'project', entityId: publicProjectId });
+    // Las fixtures son muchas menos que las del bloque que este reemplaza: no hace falta
+    // reponer la colisión de ids entre RequirementActivity y ObjectiveActivity, porque probaba
+    // la resolución de visibilidad por `entityType` y esa lógica se fue con el handler.
   });
 
   after(async () => {
     await Attachment.destroy({ where: {}, force: true });
     await File.destroy({ where: {}, force: true });
-    await RequirementActivity.destroy({ where: {} });
-    await ObjectiveActivity.destroy({ where: {} });
     await Requirement.destroy({ where: { projectId: publicProjectId } });
-    await Objective.destroy({ where: { projectId: publicProjectId } });
     await Project.destroy({ where: { id: publicProjectId } });
-    await User.destroy({ where: { id: 'zitadel-sub-01' } });
+    await User.destroy({ where: { id: ['zitadel-sub-01', 'zitadel-sub-04'] } });
   });
 
-  // TS-15: entidad public → 302 SIN sesión, con nosniff y la CSP de sandbox.
-  it('responde 302 sin sesión, con nosniff y CSP de sandbox, publicando disposition attachment', () => {
-    fakeBus.reply(`files.${filePub.id}.request-download`, downloadTicket());
-
+  // TS-1: el caso que el endpoint autorizaba —entidad `public`, vínculo existente— ahora es 401.
+  // La visibilidad de la entidad dejó de habilitar acceso anónimo a un archivo (CA-8).
+  it('responde 401 sin publicar cuando no hay token y la entidad es public', () => {
     return request(application)
-      .get(`/api/opus/attachments/${attReqCommentPublic.id}/public`)
-      .redirects(0)
-      .expect(302)
+      .get(`/api/opus/attachments/${attPub.id}/public`)
+      .expect(401)
       .then(res => {
-        res.headers['location'].should.equal(DOWNLOAD_URL);
-        res.headers['x-content-type-options'].should.equal('nosniff');
-        res.headers['content-security-policy'].should.containEql('sandbox');
-        (fakeBus.last as any).command.should.equal(`files.${filePub.id}.request-download`);
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'attachment' });
-      });
-  });
-
-  // TS-4 (S-095): la colisión de ids no confunde las ramas.
-  it('resuelve requirement_comment contra RequirementActivity, no contra la ObjectiveActivity que colisiona', () => {
-    fakeBus.replyDefault(downloadTicket());
-
-    return request(application)
-      .get(`/api/opus/attachments/${attReqCommentPublic.id}/public`)
-      .redirects(0)
-      .expect(302);
-  });
-
-  // Una rama por entityType, en su caso `public`. Son las que sostienen la seguridad del
-  // único endpoint sin auth: no se pierden al reescribir.
-  const publicCases: Array<[string, () => Attachment]> = [
-    ['requirement_comment', () => attReqCommentPublic],
-    ['objective_comment', () => attObjCommentPublic],
-    ['comment (legado)', () => attLegacyCommentPublic],
-    ['objective', () => attObjectivePublic],
-    ['requirement', () => attRequirementPublic],
-  ];
-
-  publicCases.forEach(([label, get]) => {
-    it(`responde 302 para un ${label} de entidad public`, () => {
-      fakeBus.replyDefault(downloadTicket());
-
-      return request(application)
-        .get(`/api/opus/attachments/${get().id}/public`)
-        .redirects(0)
-        .expect(302);
-    });
-  });
-
-  // TS-16: cada rama en su caso `internal` → 403 sin publicar.
-  const internalCases: Array<[string, () => Attachment]> = [
-    ['requirement_comment', () => attReqCommentInternal],
-    ['objective_comment', () => attObjCommentInternal],
-    ['comment (legado)', () => attLegacyCommentInternal],
-    ['objective', () => attObjectiveInternal],
-    ['requirement', () => attRequirementInternal],
-  ];
-
-  internalCases.forEach(([label, get]) => {
-    it(`responde 403 sin publicar para un ${label} de entidad internal`, () => {
-      return request(application)
-        .get(`/api/opus/attachments/${get().id}/public`)
-        .expect(403)
-        .then(res => {
-          res.body.code.should.equal('access_denied');
-          res.body.message.should.equal('Attachment is not publicly accessible');
-          fakeBus.sent.length.should.equal(0);
-        });
-    });
-  });
-
-  // TS-17: un entityType no contemplado cae en el else final → 403 por default (ADR-008).
-  it('responde 403 por default para un entityType no contemplado', () => {
-    return request(application)
-      .get(`/api/opus/attachments/${attUncoveredType.id}/public`)
-      .expect(403)
-      .then(res => {
-        res.body.code.should.equal('access_denied');
+        res.body.code.should.equal('unauthorized');
+        res.body.message.should.equal('Unauthorized');
         fakeBus.sent.length.should.equal(0);
       });
   });
 
-  // TS-18: un archivo sin vínculo es inalcanzable por esta vía. Es ESTRUCTURAL: la vía
-  // pública entra por `attachments.id` y un archivo sin vínculo no tiene fila (CA-14).
-  it('responde 404 sin publicar para un id sin vínculo', () => {
+  // TS-2: un id de vínculo inexistente da 401 y NO 404. Es el cierre de la enumerabilidad
+  // (D-19): sin token la petición no llega a la base, así que la respuesta no revela nada.
+  it('responde 401 y no 404 cuando el id de vínculo no existe', () => {
     return request(application)
       .get('/api/opus/attachments/999999/public')
-      .expect(404)
+      .expect(401)
       .then(res => {
-        res.body.code.should.equal('not_found');
+        res.body.code.should.equal('unauthorized');
         fakeBus.sent.length.should.equal(0);
       });
   });
 
-  // La exención de autenticación de `config/public.ts` cubre solo `.../\d+/public`, así que
-  // un id no numérico ni siquiera llega al handler: lo corta la autenticación global con un
-  // 401. Es el deny-by-default de ADR-008 sobre la única puerta sin auth del producto, y
-  // S-005 lo deja exactamente como estaba.
-  it('responde 401 sin publicar cuando el id no es entero (no matchea la exención)', () => {
+  // TS-3: el caso que antes daba 403 ahora da 401, y no queda rastro del mensaje de
+  // visibilidad: ya no hay validación de visibilidad porque no hay endpoint que la haga.
+  // La fixture `internal` existe justamente para que este escenario sea distinguible de TS-2.
+  it('responde 401 y no 403 cuando la entidad es internal', () => {
+    return request(application)
+      .get(`/api/opus/attachments/${attInt.id}/public`)
+      .expect(401)
+      .then(res => {
+        res.body.code.should.equal('unauthorized');
+        JSON.stringify(res.body).should.not.containEql('Attachment is not publicly accessible');
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-4: un archivo sin ningún vínculo sigue inalcanzable, ahora por dos razones y no una:
+  // no tiene fila en `attachments` Y no hay vía anónima. El 401 sale antes de consultar, así
+  // que acá lo que importa es que ni siquiera se llega a comprobar la ausencia del vínculo.
+  it('responde 401 cuando el id corresponde a un archivo sin vínculo', () => {
+    return request(application)
+      .get(`/api/opus/attachments/${fileOrphan.id}/public`)
+      .expect(401)
+      .then(res => {
+        res.body.code.should.equal('unauthorized');
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-5: un id no entero también da 401. Sin cambio observable respecto de antes, pero por
+  // otra razón: antes lo rechazaba el `parseInt` del handler con 400, ahora corta el token.
+  it('responde 401 cuando el id no es un entero', () => {
     return request(application)
       .get('/api/opus/attachments/abc/public')
       .expect(401)
+      .then(res => {
+        res.body.code.should.equal('unauthorized');
+        fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // TS-6 y TS-7: con token válido la ruta no existe → 404.
+  //
+  // SE AFIRMA SOLO EL STATUS, A PROPÓSITO: el body de este 404 es HTML del `finalhandler` de
+  // Express, no el JSON `{ code, message }` de los handlers. El segundo middleware final de
+  // `app.ts:44` declara UN SOLO parámetro, así que Express no lo trata como error handler y lo
+  // saltea cuando le llega el error del middleware anterior. Agregar
+  // `res.body.code.should.equal('not_found')` rompe el test, y por una razón ajena a S-009:
+  // arreglar esos dos handlers cambia los 404 de TODA la api y no es alcance de esta story.
+  it('responde 404 con token válido de rol user: la ruta ya no está montada', () => {
+    return request(application)
+      .get(`/api/opus/attachments/${attPub.id}/public`)
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(404)
       .then(() => {
         fakeBus.sent.length.should.equal(0);
       });
   });
 
-  // CA-15: con core caído el link público no abre.
-  it('responde 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
-
+  // El rol es irrelevante: no hay ruta que pueda autorizar, así que `external-user` —el rol
+  // del portal, que sí puede usar el camino autenticado— recibe el mismo 404.
+  it('responde 404 con token válido de rol external-user', () => {
     return request(application)
-      .get(`/api/opus/attachments/${attReqCommentPublic.id}/public`)
-      .expect(503)
-      .then(res => {
-        res.body.code.should.equal('service_unavailable');
+      .get(`/api/opus/attachments/${attPub.id}/public`)
+      .set('Authorization', 'Bearer token_04_external_user')
+      .expect(404)
+      .then(() => {
+        fakeBus.sent.length.should.equal(0);
       });
   });
 });

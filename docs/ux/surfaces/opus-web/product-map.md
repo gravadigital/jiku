@@ -35,6 +35,13 @@ origin: relevamiento de código — brownfield
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
 
+> **La superficie tenía además una ruta sin pantalla y sin sesión, y REQ-002 la eliminó.**
+> `GET /attachments/{id}/{fileName}` era un route handler que servía un adjunto a cualquiera que
+> tuviera el link, sin pasar por el guard. No estaba en este inventario porque **no tenía UI**: no
+> renderizaba nada, redirigía a una URL prefirmada. Se borró el segmento `attachments/` completo y
+> `attachments` salió del matcher del middleware [REQ-002 RF-1, RF-2]. El inventario de pantallas
+> no cambia; lo que cambia es que **ya no queda ninguna ruta de esta superficie fuera del guard**.
+
 **Origen:** `opus-web/src/app/` [fuente: código-existente].
 
 > **`/projects` no muestra un listado.** Es una pantalla de redirección que navega al primer
@@ -119,6 +126,12 @@ Pantallas: login (#1), login-entrada (#2)
 - **Autenticado vs no autenticado** — Todo está protegido salvo `/login`, por `middleware.ts` con
   matcher **por exclusión**: una ruta nueva queda protegida sola [fuente: código-existente]. El
   guard además rechaza sesiones con el access token vencido, no solo la ausencia de cookie.
+  **Con REQ-002 la afirmación pasa a ser literal.** Antes el matcher excluía `attachments` además
+  de `api` y los estáticos, así que había **una** ruta de pantalla fuera del guard; hoy las únicas
+  exclusiones son `api`, `_next/static`, `_next/image` y `favicon.ico`, que no son navegación
+  [REQ-002 RF-2, CA-1]. Consecuencia observable: **cualquier `GET /attachments/...` sin sesión
+  redirige a `/login`**, y esa pantalla pasa a recibir gente que no venía a entrar al portal sino
+  a abrir un archivo (ver [`screens/login.md`](screens/login.md)).
 - **Rol interno vs `external-user`** — **No cambia la navegación.** Cambia qué controles se
   renderizan: un rol interno ve dropdowns de estado y prioridad donde el cliente ve pills fijos.
 - **Sin proyectos asignados** — Si el cliente no tiene ninguna fila en `user_project_permissions`,
@@ -128,6 +141,13 @@ Pantallas: login (#1), login-entrada (#2)
   de proyecto ni cerrar sesión.
 - **Sin conexión** — **No hay tratamiento.** Tampoco hay `error.tsx` ni `not-found.tsx` en ninguna
   ruta de la superficie.
+- **Ruta inexistente, con sesión** — Devuelve el 404 por defecto de Next, sin chrome del portal ni
+  forma de volver. **REQ-002 le agrega un vector de llegada nuevo:** un cliente logueado que pegue
+  la URL vieja de un adjunto (`/attachments/123/informe.pdf`) pasa el guard y cae en ese 404,
+  porque el segmento ya no existe [REQ-002 CA-2]. El REQ exige explícitamente que sea **404 y no
+  500**, y por eso se borra el árbol entero y no solo el cuerpo del handler. No se agrega
+  `not-found.tsx` en este REQ: sigue siendo el gap de severidad Alta de
+  [`gaps-as-is.md`](../../gaps-as-is.md), ahora más alcanzable.
 
 ## Mapa Visual
 
@@ -140,6 +160,9 @@ flowchart TD
 
     Auth --> L1["login"]
     L1 --> L2["login-entrada"]
+
+    LINK["link viejo de adjunto<br/>/attachments/{id}/{fileName}<br/>en un correo, sin sesión"]
+    LINK -->|"REQ-002: la ruta no existe<br/>y el guard la alcanza"| L1
 
     Dash --> RD["proyectos-redireccion"]
     RD -->|"primer proyecto<br/>por orden alfabético"| TB["tablero-requisitos"]
@@ -156,9 +179,16 @@ flowchart TD
 
     classDef vista fill:#dbeafe,stroke:#2563eb,color:#1e3a5f
     classDef overlay fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef externo fill:#f1f5f9,stroke:#64748b,color:#334155,stroke-dasharray: 4 3
     class V1,V2,V3 vista
     class MOD,NEW overlay
+    class LINK externo
 ```
+
+> **El nodo punteado no es una pantalla:** es la entrada desde afuera del producto que REQ-002
+> convirtió en un redirect a `/login`. Se dibuja porque **es el único camino por el que alguien sin
+> cuenta llega a esta superficie**, y porque explica por qué `login` es la pantalla que más cambia
+> de público sin cambiar una línea de su composición.
 
 ## Preguntas Abiertas
 

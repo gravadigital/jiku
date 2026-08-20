@@ -30,6 +30,7 @@ date: 2026-08-18
 
 **Entradas:**
 - Desde cualquier ruta protegida sin sesión válida · `middleware.ts:38-40` [fuente: código-existente]
+- **Desde un link viejo de adjunto público** (`/attachments/{id}/{fileName}`) abierto sin sesión — la ruta ya no existe y `attachments` salió del matcher, así que el guard la alcanza y redirige acá [REQ-002 RF-1, RF-2, CA-1]. Es la única entrada donde el usuario **no venía a entrar al portal**: venía a abrir un archivo
 - Tras un 401 en cualquier llamada de datos · `lib/axios.ts:31-36` (`window.location.href = '/login'`)
 - Tras el logout · `useLogout.ts:4` (`signOut({callbackUrl:'/login'})`)
 
@@ -184,3 +185,10 @@ Misma composición: **sin media queries, el layout es el mismo a cualquier ancho
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-002 — Eliminar el endpoint público de adjuntos (2026-08-20)
+
+- **Esta pantalla pasa a ser el destino de los links de adjunto que rompen, y eso es el diseño, no un efecto secundario.** Al borrar `GET /attachments/{id}/{fileName}` y sacar `attachments` del matcher, cualquiera que abra un link viejo sin sesión cae acá (RF-1, RF-2, CA-1). El REQ lo elige explícitamente sobre un error: *"el usuario no ve un error, ve la pantalla de login del portal"*. Si tiene cuenta entra y encuentra el adjunto por el camino autenticado; si no la tiene, el resultado es el correcto.
+- **No se agrega mensaje contextual del tipo "iniciá sesión para ver este archivo", y es un descarte deliberado.** Mostrarlo exige que el guard propague el destino original (un `?next=` o equivalente) y que la pantalla lea `searchParams`, y **ninguna de las dos cosas está en el alcance del REQ**: el diseño técnico es un borrado de dos rutas, sin parámetros nuevos ni cambios en `middleware.ts` más allá del matcher. Agregarlo acá sería scope nuevo sin requerimiento que lo pida. Queda como candidato para el REQ que defina compartir hacia afuera, que es quien tendría el caso de uso completo.
+- **La pantalla no cambia estructuralmente: mismos siete bloques, mismo layout en los dos viewports.** El cambio es de entradas, no de composición, así que no hay override de viewport que declarar. El microcopy tampoco se toca: *"¡Bienvenido a OPUS!"* le habla a quien viene a entrar, y sigue siendo el único texto disponible para quien viene de un link roto — anotado como limitación conocida, no como bloque nuevo.
+- **El gap de loading irreversible sigue abierto y ahora pesa más.** `signIn` sin `.catch()` deja el botón en "Cargando..." para siempre (gap severidad Alta en `gaps-as-is.md`). Este REQ multiplica quién llega a esta pantalla sin haberla buscado, así que el gap se vuelve más alcanzable. **No se cierra acá** —es una story propia— pero queda registrada la relación.

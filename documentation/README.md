@@ -12,7 +12,7 @@ and is written in Spanish for the team that builds it.
 | [features.md](features.md) | what the product does |
 | [installation.md](installation.md) | how to run it |
 | [configuration.md](configuration.md) | what to configure |
-| [api-reference.md](api-reference.md) | the 61 HTTP endpoints |
+| [api-reference.md](api-reference.md) | the 60 HTTP endpoints |
 | [known-limitations.md](known-limitations.md) | **read before adopting** |
 
 ## How the parts fit together

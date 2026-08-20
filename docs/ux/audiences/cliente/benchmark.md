@@ -225,10 +225,16 @@ Formulados como oportunidades, no como decisiones.
   pero desconectan el pedido de la ejecución; los de agencia conectan pero con el equipo adentro de
   la herramienta del cliente. Jiku puede ofrecer que **el comentario del cliente aparezca en el
   mismo feed cronológico donde el equipo ve los cambios de estado**, sin exportar ni sincronizar.
-- **Adjunto público por link, sin sesión** — Jiku tiene el único endpoint no autenticado del
-  producto para servir un adjunto marcado como público. Ningún referente del set ofrece compartir
-  un entregable con alguien que no tiene cuenta. Para un cliente que necesita mostrarle algo a un
-  tercero de su organización que nunca va a entrar a Opus, es una salida que los demás no tienen.
+- **Compartir un entregable con alguien que no tiene cuenta** — ~~Jiku tiene el único endpoint no
+  autenticado del producto para servir un adjunto marcado como público~~ **REQ-002 eliminó ese
+  endpoint (2026-08-20): hoy Jiku no lo tiene.** La oportunidad **sigue en pie y sigue siendo
+  diferencial** —ningún referente del set ofrece compartir un entregable con alguien sin cuenta, y
+  el cliente que necesita mostrarle algo a un tercero de su organización que nunca va a entrar a
+  Opus no tiene salida en ninguna herramienta del set— pero **ya no es una capacidad existente que
+  el producto pueda capitalizar**: es una capacidad a construir. La razón del borrado no fue
+  desinterés en el caso de uso sino que la implementación era una superficie HTTP sin autenticación
+  con ids secuenciales enumerables. El criterio acordado para retomarla está registrado en REQ-002:
+  una URL prefirmada emitida por `core`, con vencimiento. **No está capturada ni planificada.**
 
 ## Anti-patrones Detectados
 
@@ -250,9 +256,11 @@ Formulados como oportunidades, no como decisiones.
   vista del cliente significa que hay controles de edición en el portal cuya existencia no fue
   diseñada para él.
 - **Compartir de más al compartir por link** — reportado en el foro de Height: compartir una lista
-  públicamente expone el detalle completo de las tareas y toda la conversación. Aplicable directo
-  al adjunto público de Jiku: hay que verificar que el link exponga el archivo y **nada de su
-  contexto**.
+  públicamente expone el detalle completo de las tareas y toda la conversación. **Ya no aplica al
+  producto vivo: REQ-002 eliminó el adjunto público (2026-08-20)** y no queda ninguna vía de
+  compartir hacia afuera. Se conserva porque es el riesgo que hay que resolver **antes** de volver a
+  ofrecer compartir: el link tiene que exponer el archivo y **nada de su contexto**, y con
+  vencimiento. Es el anti-patrón que el REQ que retome la feature va a tener que atacar de frente.
 - **Dejar al usuario esporádico sin punto de partida** — la lista de tickets de Zendesk y Freshdesk
   no dice si el proyecto avanza, solo qué items hay. Para el cliente de una consultora, que entra
   una vez cada varias semanas, la primera pregunta no es "qué requisitos existen" sino "¿esto va

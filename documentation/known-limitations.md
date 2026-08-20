@@ -106,14 +106,17 @@ That is safe **only because the access policy lets nothing but the API publish t
 commands**. If you add a second publisher, this assumption stops holding and core would need
 to verify identity itself.
 
-## Attachment identifiers are sequential
+## A pre-signed download URL outlives the request that produced it
 
-`GET /api/opus/attachments/:id/public` needs no authentication by design: it serves
-attachments explicitly marked public and refuses everything else. Because ids are sequential
-integers, they can be enumerated to discover which attachments are public.
+Every read path answers with a redirect to a pre-signed storage URL. Once issued, that URL
+grants access to the file **without any credential** until it expires, wherever it ends up
+being copied or forwarded. The only control is its lifetime, `download-url-ttl-seconds`.
 
-For large files it redirects to a pre-signed storage URL, which is then outside the
-application's control until it expires.
+Attachment ids are still sequential integers, but enumerating them no longer reveals
+anything: every endpoint requires a bearer token, so an unauthenticated caller gets `401`
+before any id reaches the database. The list of authentication exemptions in
+`api/config/public.ts` is empty — visibility level now only governs what an **authenticated**
+user can see, not whether a file can be fetched anonymously.
 
 ## The `bus-observer` role reads everything
 

@@ -4,8 +4,8 @@ title: Lectura de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-19
-stories: [S-002, S-005, S-006, S-007]
+last_updated: 2026-08-20
+stories: [S-002, S-005, S-006, S-007, S-009]
 ---
 
 # Lectura de Archivos
@@ -13,11 +13,11 @@ stories: [S-002, S-005, S-006, S-007]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-19
-**Stories:** S-002, S-005, S-006, S-007
+**Última actualización:** 2026-08-20
+**Stories:** S-002, S-005, S-006, S-007, S-009
 
 > **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)**,
-> el de **`web` (S-006)** y el de **`opus-web` (S-007)** están implementados: los cinco caminos de lectura autorizan, publican
+> el de **`web` (S-006)** y el de **`opus-web` (S-007)** están implementados: los caminos de lectura autorizan, publican
 > `files.{fileId}.request-download` y responden 302, y los dos route handlers de `web`
 > (`/api/attachments/{id}/preview` y `/download`) **propagan esa redirección con
 > `redirect: 'manual'` en lugar de proxear el binario**, sin `Content-Length` en el `GET`. El `HEAD`
@@ -60,11 +60,20 @@ stories: [S-002, S-005, S-006, S-007]
 > usan con id de vínculo legítimo (verificado: ninguno quedó huérfano), así que no hay migración
 > de datos. Lo que cambió es que **se escribe siempre `file:`**, que es el id que existe al
 > adjuntar.
+>
+> **De cinco caminos a cuatro (2026-08-20, REQ-002 / S-009).** El **camino D** —el link público sin
+> sesión, `GET /attachments/{id}/{fileName}` de `opus-web` → `GET /api/opus/attachments/{id}/public`—
+> **fue eliminado**, junto con la excepción `attachments` del matcher del middleware y la lista de
+> rutas exentas de `validateToken` de la `api`. **El acceso a un archivo exige sesión en todos los
+> casos:** un link viejo abierto sin sesión recibe un **307 a `/login`**, y una llamada sin token a la
+> `api` recibe **401 antes de tocar la base**. `visibilityLevel: 'public'` sobre la entidad **ya no
+> habilita acceso anónimo**: gobierna solo qué ve un usuario **autenticado**. RF-18, CA-14 y D-06 de
+> REQ-001 quedaron **derogados** — los `attachments.id` dejaron de ser un contrato externo.
 
 ## Descripción
 
 El **plano de la lectura**, que en el diseño anterior no era un flujo propio porque no cruzaba
-servicios. Se dispara con un preview embebido, una descarga, o la apertura de un link público.
+servicios. Se dispara con un preview embebido o una descarga, **siempre desde una sesión válida**.
 
 **El byte no pasa por la `api`.** Es simétrico con la subida: igual que el `PUT` va directo del
 navegador a S3, el `GET` también. La `api` **autoriza** y responde un **302**; el navegador baja de
@@ -84,7 +93,7 @@ Junto con [`subida-de-archivos`](subida-de-archivos.md) y
 
 | Servicio | Rol | Tipo de Participación |
 |---|---|---|
-| `web` / `opus-web` | Route handlers que agregan el Bearer y **siguen o devuelven el 302**. Ya no proxean el binario | Iniciador |
+| `web` / `opus-web` | Route handlers que agregan el Bearer y **siguen o devuelven el 302** — **todos exigen sesión** (REQ-002: no queda ningún handler sin sesión). Ya no proxean el binario | Iniciador |
 | Servicio externo | Publica `files.{fileId}.request-download` **directo al bus** | Iniciador (canal bus) |
 | `api` | **Autoriza** y resuelve el `file_id` del vínculo. Publica el comando y **redirige**. **Sin credenciales de S3** | Procesador |
 | NATS | Transporta el comando request/reply | Transporte |
@@ -92,17 +101,20 @@ Junto con [`subida-de-archivos`](subida-de-archivos.md) y
 | Storage S3-compatible | Sirve el binario **directo al navegador** | Almacenamiento externo |
 | PostgreSQL `jiku` | Provee `attachments` + `files` y `system_settings` | Almacenamiento |
 
-## Los cinco caminos de lectura
+## Los cuatro caminos de lectura
 
 | # | Camino | Sesión | Id que recibe | Autorización de la `api` |
 |---|---|---|---|---|
 | A | `web` → `GET /api/attachments/{id}/preview` | **Sí** | Vínculo | `canUserViewEntity` sobre la entidad del vínculo |
 | B | `web` → `GET /api/attachments/{id}/download` | **Sí** | Vínculo | `canUserViewEntity` sobre la entidad del vínculo |
 | C | `opus-web` → `GET /api/opus/attachments/{id}/preview` | **Sí** | Vínculo | Igual, más permiso de proyecto |
-| D | `opus-web` → `GET /api/opus/attachments/{id}/public` | **NO** | Vínculo | Solo `visibilityLevel === 'public'` de la entidad. **DEPRECADO** |
 | E | **Archivo sin vínculo, por `fileId`** | **Sí** | **Archivo** | **Solo el JWT** — sin vínculo no hay entidad contra la que validar permiso |
 
-Los cuatro primeros entran por **id de `attachments`** (D-16, contrato HTTP intacto). El quinto entra
+**Los cuatro exigen sesión.** El camino **D** —el link público sin sesión— **ya no existe**: lo
+eliminó REQ-002 / S-009. Las letras de los tres primeros y del cuarto **no se renumeran**, para que
+las referencias cruzadas de ADR-001 y de las stories sigan resolviendo.
+
+Los tres primeros entran por **id de `attachments`** (D-16, contrato HTTP intacto). El cuarto entra
 por **id de `files`**, y es lo único que hace coherente a RF-1 y CA-7.
 
 **Todos terminan igual:** publican `files.{fileId}.request-download` y responden **302**.
@@ -337,33 +349,23 @@ así que el nombre original se respeta sin que nadie arme el header.
 
 ---
 
-### Camino D: link público sin sesión (compatibilidad, DEPRECADO)
+### Camino D: ELIMINADO — el link público sin sesión
 
-**Origen:** navegador → `opus-web` → `api`
-**Tipo:** REST
-
-> **Este endpoint queda DEPRECADO.** Sobrevive **solo** para los ids ya emitidos, porque RF-18 y
-> CA-14 exigen que los links en circulación sigan funcionando y D-06 preserva los ids justamente por
-> eso. **No es una vía de acceso válida para nada nuevo.**
-
-1. **[navegador → `opus-web`]** `GET /attachments/{id}/{fileName}` — **sin sesión**, fuera del matcher
-   del middleware. El `fileName` **se ignora**: es cosmético, para que la descarga tenga nombre
-2. **[`opus-web` → `api`]** `GET /api/opus/attachments/{id}/public`. El único endpoint exento de
-   autenticación del producto
-3. **[`api`]**
-   - Busca el `Attachment` con `include` a `files` **para autorizar y resolver el `file_id`**
-   - Valida `visibilityLevel === 'public'` **sobre la entidad** del vínculo, por `entityType`, y
-     responde **403 por default** en cualquier otro caso
-   - Publica `files.{file_id}.request-download` con `{ "disposition": "attachment" }` — **igual que
-     todos los demás caminos, sin firma propia**
-4. **[`core`]** Idéntico al Paso 5: firma sobre el archivo y **no sabe que vino de la vía pública**
-5. **[`api`]** Responde **302** a la prefirmada, con `nosniff` y la **CSP de sandbox**
-
-**Ninguna excepción al control del storage.** El endpoint público **también** pide la URL a `core`:
-la `api` no firma nada por su cuenta en ningún camino.
-
-**Sus dos limitaciones conocidas se mantienen por decisión explícita** (D-19): ids enumerables y
-`fileName` sin validar. **No se le agregan `entityType` nuevos** — está deprecado.
+> **Eliminado por REQ-002 / S-009 (2026-08-20).** Existió `GET /attachments/{id}/{fileName}` en
+> `opus-web` —fuera del matcher del middleware, a propósito— que llamaba a
+> `GET /api/opus/attachments/{id}/public`, el único endpoint exento de `validateToken`. La `api`
+> validaba `visibilityLevel === 'public'` sobre la entidad del vínculo y redirigía a la prefirmada
+> que firmaba `core`.
+>
+> **Hoy no existe ninguno de los dos.** Un `GET /attachments/123/informe.pdf` sin sesión recibe un
+> **307 a `/login`** del middleware, sin ejecutar ningún route handler y **sin publicar nada en el
+> bus**; con sesión válida recibe el **404** de Next. Una llamada a
+> `GET /api/opus/attachments/123/public` recibe **401** sin token —`validateToken` corre antes del
+> router, así que no toca la base ni revela si el id existe— y **404** con token válido.
+>
+> **Se deja registrado en lugar de borrarse en silencio** porque las letras de los caminos son
+> referencia cruzada de ADR-001, de REQ-001 y de las stories S-005 y S-009, y porque un lector que
+> venga del historial del código necesita encontrar acá la razón de la ausencia.
 
 ---
 
@@ -396,12 +398,11 @@ de vínculos para descargar lo que subió.
 | 3 | Sin permiso sobre el proyecto de la entidad | *(la `api` corta antes de publicar)* | 403 | CA-26 |
 | 3 | Entidad `visibilityLevel: 'internal'` y usuario `external-user` | *(idem)* | 403 | CA-27 |
 | 3 | Vínculo inexistente o borrado | *(idem)* | 404 | CA-29, CA-30 |
-| D3 | La entidad del vínculo no es `public` | *(idem)* | 403 | Comportamiento actual, sin cambios |
-| D3 | Archivo **sin ningún vínculo** por la vía pública | *(idem)* | 404 — inalcanzable por esa vía | CA-30 |
+| — | **Petición sin sesión a `opus-web`** (link público viejo) | *(nada: el middleware corta)* | **307** a `/login` | S-009 CA-1 |
+| — | **Petición sin token a la `api`**, cualquier método y cualquier path | *(nada: `validateToken` corta antes del router)* | **401** | S-009 CA-3, CA-7, CA-9, CA-10 |
 | 5 | Archivo borrado (`retention_status` no `active`) | `file_not_found` | 404 | — |
 | 5 | ~~`byte_status: 'pending'`~~ — **ya no se verifica** (2026-08-20) | *(se firma igual)* | **302** | Ver la nota de estado |
 | 4 | Timeout del bus | — | **503** | ADR-002 |
-| 4 | **`core` caído, camino público** | — | **503** — el link del correo no abre | Ver Notas |
 | 7 | Objeto borrado del bucket por fuera del producto | *(el 302 lleva a un `NoSuchKey` de S3)* | 403/404 de S3 | Caso residual |
 | 7 | `downloadUrl` vencida antes de seguirse | — | 403 de S3 | El front vuelve a pedir |
 
@@ -452,11 +453,13 @@ un solo byte.**
   reply del comando en lugar de leerse del stream, y **hay que verificar que la `api` los ponga en los
   headers del 302**: un `HEAD` que devuelve 302 sin `Content-Disposition` rompería el renderer, y eso
   se descubre en runtime porque los tipos de los fronts están escritos a mano.
-- **Precio nuevo, y hay que decirlo: con `core` caído, un link en el correo de un cliente no abre.**
+- **Con `core` caído no se puede leer ningún adjunto, y sigue siendo el precio de la uniformidad.**
   [ADR-001](../adrs/ADR-001-separacion-lectura-escritura.md) declara como ventaja que *"si core está
   caído, el producto sigue siendo consultable"*; esta decisión **renuncia a esa ventaja para los
-  adjuntos**, en los cinco caminos. Sin JetStream (ADR-002) no hay reintento, y del otro lado hay un
-  correo, no una aplicación que pueda reintentar. Es consecuencia asumida de la uniformidad.
+  adjuntos**, en los cuatro caminos. Sin JetStream (ADR-002) no hay reintento. **Lo que sí desapareció
+  con REQ-002 es el caso que más dolía:** un correo de un cliente que recibía un 503 y no tenía forma
+  de reintentar. Ya no hay link en un correo — del otro lado hay siempre una sesión abierta en la
+  aplicación, que puede volver a pedirlo.
 - **La `api` pierde las credenciales de S3, y eso es una garantía de infraestructura.** No puede
   acceder a un objeto que `core` no le firmó, ni por error ni por un endpoint nuevo que se olvide de
   autorizar. Es el mismo tipo de garantía que ADR-001 logró para la escritura en base —por
@@ -470,13 +473,29 @@ un solo byte.**
   `core` validara y **se descartó** por simetría con `files.request-upload`; queda como mitigación
   aditiva disponible.
 - **Un archivo con dos vínculos tiene un solo objeto y una sola clave.** Si uno apunta a una entidad
-  `public` y otro a una `internal`, quien acceda por el público obtiene el mismo byte que el interno
-  protege. **Ya es así hoy** —un archivo, una clave— pero hoy nadie puede pedir "el archivo" sin pasar
-  por un vínculo. Con `fileId` sí, y con 0..N vínculos (RF-2) el caso deja de ser hipotético.
+  `public` y otro a una `internal`, el byte es el mismo y quien pueda leer por uno lee el contenido que
+  el otro protege. **Ya es así** —un archivo, una clave—, pero por HTTP nadie puede pedir "el archivo"
+  sin pasar por un vínculo autorizado. **Por `fileId` en el bus sí**, y con 0..N vínculos (RF-2) el
+  caso deja de ser hipotético. La mitad pública de este riesgo **desapareció con REQ-002**: sin vía
+  anónima, la asimetría solo se explota desde el bus, no desde internet.
 - **Una URL de lectura filtrada da acceso al contenido sin ninguna credencial**, y con el 302 esa URL
   **llega al navegador en cada preview**: queda en el historial, en los logs de proxy y en el
   `Referer`. El default de `download-url-ttl-seconds` debería ser **el más corto que la UI tolere**.
-- **El futuro del endpoint público está fuera de alcance.** Una prefirmada que expira **no reemplaza**
-  un link permanente: el link actual es resoluble y su autorización se evalúa en cada apertura, así
-  que funciona un año después; una prefirmada es un permiso congelado con vencimiento y del otro lado
-  hay un correo que no puede renovarla. Eliminarlo ahora rompería RF-18, CA-14 y D-06.
+- **El endpoint público se eliminó, y con él RF-18, CA-14 y D-06** (REQ-002 / S-009). REQ-001 lo había
+  dejado deprecado pero vivo con este argumento: *una prefirmada que expira no reemplaza un link
+  permanente, porque el link es resoluble y su autorización se evalúa en cada apertura, mientras que
+  una prefirmada es un permiso congelado con vencimiento y del otro lado hay un correo que no puede
+  renovarla*. **El argumento sigue siendo cierto; lo que cambió es la decisión:** el solicitante eligió
+  el corte limpio —los links en circulación dejaron de abrir el día del deploy, sin transición, sin
+  aviso y sin instrumentación para medirlo— antes que conservar la única superficie sin autenticación
+  del producto. Quien tenga cuenta entra por `/login` y encuentra el adjunto por el camino autenticado;
+  quien no la tenga obtiene el resultado correcto.
+- **No existe ninguna forma de compartir un adjunto hacia afuera, y es deliberado** (REQ-002, RF-8).
+  Ni una prefirmada emitida desde una pantalla, ni un TTL de compartición, ni un endpoint de share. Si
+  alguna vez hace falta, el criterio acordado es que lo que circule sea una **prefirmada con
+  vencimiento emitida por `core`** — pero **no está capturado ni planificado**.
+- **El acceso a un archivo exige sesión en todos los casos.** No queda ninguna vía HTTP anónima:
+  `visibilityLevel: 'public'` sobre la entidad gobierna únicamente **qué ve un usuario autenticado**, y
+  el permiso de proyecto pasó a ser la **única** puerta a un adjunto, sin alternativa. Lo que **no**
+  cambió es el modelo de confianza del bus: quien pueda publicar sigue pudiendo pedir la URL de
+  cualquier archivo por su `fileId` (ADR-007, ADR-009). REQ-002 cerró una puerta HTTP, no esa.

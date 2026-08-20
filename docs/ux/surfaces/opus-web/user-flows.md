@@ -53,6 +53,14 @@ secundario.
   colapsados al abrir**. Es otro árbol de componentes, no un reflow.
 - **Ver más de un estado** — Cada estado pagina **independientemente**, de a 20, con su propio
   "Ver más".
+- **Entrar desde un link viejo de adjunto** — Camino de entrada **nuevo desde REQ-002**. Alguien
+  abre `/attachments/123/informe.pdf` desde un correo de hace meses: la ruta ya no existe y
+  `attachments` salió del matcher, así que el guard lo alcanza y lo manda a **login** (RF-1, RF-2,
+  CA-1). Si tiene cuenta, entra y sigue el happy path hasta el requisito que tiene el adjunto y lo
+  abre por el camino autenticado. **Es el único camino del flujo que empieza sin intención de
+  entrar al portal:** el usuario venía a abrir un archivo. La pantalla de login no se lo dice —no
+  hay mensaje contextual, es un descarte explícito del REQ— así que la orientación depende de que
+  reconozca el portal.
 
 ### Errores y recuperación
 
@@ -62,6 +70,16 @@ secundario.
 - **Fallan las 7 queries del tablero** — **Se ve un tablero vacío, indistinguible de un proyecto
   sin requisitos** [fuente: código-existente]. No hay estado de error.
 - **`projectId` inexistente** — **No da 404**: no hay `not-found.tsx` en ninguna ruta.
+- **Link viejo de adjunto, ya con sesión** — Un cliente logueado que pegue
+  `/attachments/123/informe.pdf` pasa el guard y cae en el **404 por defecto de Next**, sin chrome
+  ni forma de volver [REQ-002 CA-2]. **No hay recuperación guiada:** tiene que volver atrás en el
+  navegador o reescribir la URL del portal. El adjunto sigue estando —dentro del requisito que lo
+  tiene— pero nada en esa página lo lleva ahí.
+- **Sin cuenta en el portal** — Quien abra un link viejo y **no tenga usuario** queda en login sin
+  poder pasar. **Es el resultado buscado, no una falla:** el REQ decide que el acceso a un archivo
+  exige sesión sin excepciones (RF-8) y acepta que los links en circulación rompan sin transición
+  ni aviso (RF-7). Lo que el flujo no ofrece es una salida: no hay texto que explique por qué no
+  puede entrar ni a quién pedirle acceso.
 - **En mobile** — 🔴 **No hay navegación.** El sidebar desaparece y no se monta reemplazo: el
   cliente **no puede cambiar de proyecto ni cerrar sesión**. Si entró desde un link a un proyecto,
   queda encerrado en él.
@@ -157,7 +175,17 @@ dejarlo escrito junto al pedido, no en un mail aparte."
 - **Ver un cambio de campo** — Se renderiza como *"{Autor} cambió {Campo} de {X} a {Y}"*.
 - **Abrir un adjunto** — Preview embebido para imágenes, descarga para el resto. Si el contenido
   del archivo nunca llegó al sistema, dice *"El archivo no está disponible"* en lugar de fallar de
-  forma opaca (REQ-001 RF-21, CA-15).
+  forma opaca (REQ-001 RF-21, CA-15). **Desde REQ-002 este es el único camino a un archivo:** abrir
+  un adjunto **exige sesión en todos los casos** y `visibilityLevel: 'public'` sobre el requisito
+  ya no habilita acceso anónimo — pasa a significar solo *"visible para usuarios externos
+  autenticados"*, que es lo que ya significaba en el resto del producto (RF-8, CA-8).
+- **Compartir un adjunto hacia afuera** — **No existe, y su ausencia es deliberada.** Hasta REQ-002
+  el cliente podía copiar la URL de un adjunto y mandársela a alguien de su organización que no
+  tuviera cuenta; ese camino se eliminó y **no se reemplazó por nada** (RF-8). No hay botón de
+  compartir, ni link con vencimiento, ni copia de URL: para que un tercero vea el archivo hay que
+  darle acceso al proyecto. El REQ deja anotado el criterio para el día que se retome —lo que
+  circule afuera debería ser una prefirmada emitida por `core`, con vencimiento— pero **no lo
+  captura ni lo planifica**.
 
 ### Errores y recuperación
 
