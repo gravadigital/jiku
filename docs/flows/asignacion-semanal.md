@@ -4,8 +4,8 @@ title: Asignación semanal de capacidad
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-18
-stories: []
+last_updated: 2026-08-19
+stories: [S-004]
 ---
 
 # Asignación Semanal de Capacidad
@@ -13,8 +13,8 @@ stories: []
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-18
-**Stories:** —
+**Última actualización:** 2026-08-19
+**Stories:** S-004
 
 ## Descripción
 
@@ -160,9 +160,10 @@ Reglas aplicadas al escribir:
 - `date_to` se calcula como `date_from + 4 días` (lunes a viernes)
 
 > **Esta escritura viola [ADR-001](../adrs/ADR-001-separacion-lectura-escritura.md).** Usa las
-> credenciales de solo lectura y funciona porque el rol de la instalación se lo permite. Es una de
-> las dos excepciones vivas del producto, junto con la fila de `attachments`, y es deuda
-> registrada (NFR-S09, pregunta abierta 15, FG-6).
+> credenciales de solo lectura y funciona porque el rol de la instalación se lo permite. Al cerrarse
+> la excepción 2 de ADR-001 con REQ-001 —la `api` deja de escribir la fila de `attachments`—, esta
+> queda como **la única excepción viva** del producto, y es deuda registrada (NFR-S09, pregunta
+> abierta 15, FG-6).
 
 **Ref:** `api/lib/routes/week-assigned-times-put.ts:39-78` · `docs/db-schemas/jiku.md` —
 `week_assigned_times`

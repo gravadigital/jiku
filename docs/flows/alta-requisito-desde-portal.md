@@ -4,8 +4,8 @@ title: Alta de requisito desde el portal de clientes
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-18
-stories: []
+last_updated: 2026-08-19
+stories: [S-003, S-004, S-007]
 ---
 
 # Alta de Requisito desde el Portal de Clientes
@@ -13,15 +13,15 @@ stories: []
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-18
-**Stories:** —
+**Última actualización:** 2026-08-19
+**Stories:** S-003, S-004, S-007
 
 ## Descripción
 
 Flujo por el cual un **cliente externo** crea un requisito desde el portal Opus. Se dispara al
 confirmar el modal de creación. Es el flujo que atraviesa **todas las capas de aislamiento** del
-producto: proxy del portal, autorización por rol, permiso de proyecto, y adjuntos de borrador que
-se vinculan recién al guardar.
+producto: proxy del portal, autorización por rol, permiso de proyecto, y archivos ya subidos que se
+vinculan al guardar.
 
 Es también el único flujo en el que un actor externo a la organización **escribe** en el sistema.
 
@@ -31,8 +31,8 @@ Es también el único flujo en el que un actor externo a la organización **escr
 |---|---|---|
 | `opus-web` | Modal de creación y **proxy catch-all** que agrega el Bearer | Iniciador |
 | `api` | Valida rol y permiso de proyecto; publica el comando; relee para la respuesta | Procesador |
-| `core` | Valida el proyecto, los adjuntos de borrador y los responsables; escribe | Procesador |
-| PostgreSQL `jiku` | Persiste `requirements`, `people_requirements`, `requirement_subscriptors` y actualiza `attachments` | Almacenamiento |
+| `core` | Valida el proyecto, la titularidad de los archivos y los responsables; escribe | Procesador |
+| PostgreSQL `jiku` | Persiste `requirements`, `people_requirements`, `requirement_subscriptors` y las filas nuevas de `attachments` | Almacenamiento |
 
 ## Pasos del Flujo
 
@@ -45,7 +45,7 @@ sequenceDiagram
     participant C as core
     participant DB as PostgreSQL
 
-    Note over B,O: (previo) subida de adjuntos como requirement_draft
+    Note over B,O: (previo) subida de archivos: UploadTicket + PUT directo a S3, sin entityType
     B->>O: POST /api/opus/requirements
     O->>O: middleware: sesión válida y token no vencido
     O->>A: reenvía con Bearer (proxy catch-all)
@@ -57,14 +57,15 @@ sequenceDiagram
         A->>N: publica requirements.new
         N->>C: entrega el comando
         C->>C: abre transacción
-        C->>DB: valida proyecto y adjuntos de borrador
-        alt un adjunto no es draft propio y vivo
-            C-->>N: failure
+        C->>DB: valida proyecto; resolveActor y titularidad de los fileIds
+        alt un archivo no existe, está borrado, o no lo subió el actor
+            C-->>N: failure invalid_fields / file_not_owned
             Note over C: rollback: se descarta TODA la escritura
         else todo válido
             C->>DB: INSERT requirements (state: analisis)
             C->>DB: INSERT people_requirements (el 1º es líder)
-            C->>DB: UPDATE attachments (entityId del draft)
+            C->>DB: UPDATE files SET byte_status='uploaded'
+            C->>DB: INSERT attachments (entity_type, entity_id, file_id)
             C-->>N: success { id }
             Note over C: commit
         end
@@ -75,25 +76,28 @@ sequenceDiagram
     end
 ```
 
-### Paso 1: Adjuntos de borrador (previo, opcional)
+### Paso 1: Subida de archivos (previo, opcional)
 
-**Origen:** navegador → `opus-web` → `api`
-**Tipo:** REST (multipart)
+**Origen:** navegador → `opus-web` → `api` → `core`, y navegador → S3
+**Tipo:** REST (JSON) + PUT directo a S3
 
-Antes de que el requisito exista, el usuario puede adjuntar archivos. Se suben con
-`entityType: "requirement_draft"` y **`entityId: null`**: la titularidad se resuelve por
-`uploadedBy`.
+Antes de que el requisito exista, el usuario puede subir archivos. **La subida no menciona la
+entidad** (D-12): no hay `entityType` ni `entityId`, y **no hay borrador**. El `File` existe sin
+vínculo, que es un estado válido (RF-1, CA-7), y su titularidad queda en `uploaded_by`.
 
 ```
-POST /api/opus/attachments   (multipart/form-data)
-entityType: requirement_draft
-entityId:   (ausente)
+POST /api/opus/attachments   (application/json)
+{ "fileName": "informe.pdf", "mimeType": "application/pdf", "fileSize": 4194304, "checksum": "9c1e..." }
+
+→ 201 UploadTicket { "fileId": 1234, "uploadUrl": "https://...", "expiresIn": 300 }
 ```
 
-**Validación en la api:** máximo 10 archivos, 10 MB cada uno, doble lista blanca de extensión
-**y** MIME type. Si un archivo del lote falla, **se borra del bucket lo ya subido**.
+**Un archivo por request** (D-07). Después el navegador hace el **`PUT` directo a `uploadUrl`**: el
+byte no pasa ni por `opus-web` ni por la `api` ni por el bus.
 
-**Ref:** `docs/db-schemas/jiku.md` — `attachments.entity_id` nullable desde `20260612_03`
+**La validación autoritativa es de `core`**, con la política de `system_settings` leída en caliente.
+
+**Ref:** [`subida-de-archivos`](subida-de-archivos.md) · `docs/apis/api.yaml` — `UploadTicket`
 
 ---
 
@@ -114,7 +118,7 @@ POST /api/opus/requirements        ← al propio origen de opus-web
   "type": "incidencia",
   "priority": "alta",
   "subscriptorIds": ["3233...", "3234..."],
-  "attachmentIds": [88, 89]
+  "fileIds": [1234, 1235]
 }
 ```
 
@@ -181,7 +185,7 @@ requisitos en el proyecto de otro.
   "state": "analisis",
   "visibilityLevel": "public",
   "responsiblePersonIds": [],
-  "attachmentIds": [88, 89]
+  "fileIds": [1234, 1235]
 }
 ```
 
@@ -189,7 +193,11 @@ requisitos en el proyecto de otro.
 `projectId` (integer, req) · `type` (enum|null) · `priority` (enum, default `sin_prioridad`) ·
 `state` (enum, default `analisis`) · `visibilityLevel` (enum, default `public`) ·
 `responsiblePersonIds` (integer[]) · `estimatedFinishDate` (date-time|null) · `tags` (Tag[]) ·
-`attachmentIds` (integer[])
+`fileIds` (`FileIds`, integer[], `maxItems: 10`)
+
+> **`attachmentIds` pasó a `fileIds`, y `attachmentScope` desapareció del payload:** existía solo
+> para elegir el anclaje del draft, y no hay draft. El tope de 10 archivos deja de ser un límite de
+> transporte (`multer`) y pasa a ser **regla de dominio** en el contrato del bus (D-20).
 
 > **`creator` viaja en el cuerpo, no en el subject.** El subject identifica al **service user de
 > la api**, no a la persona. Core confía en este campo sin verificarlo: la única defensa es la
@@ -208,8 +216,9 @@ requisitos en el proyecto de otro.
 El despachador abre la transacción. Validaciones:
 
 1. **El proyecto existe** → `project_not_found`
-2. **Los adjuntos son drafts propios y vivos:** cada `attachmentId` tiene que ser del propio
-   `uploadedBy`, estar anclado al tipo de entidad correcto, y tener `retentionStatus` activo.
+2. **Los archivos existen, están vivos, y los subió el actor de este comando:** cada `fileId` tiene
+   que existir con `retention_status: 'active'` → si no, `invalid_fields`; y cumplir
+   `File.uploaded_by == resolveActor(ctx, payload)` → si no, **`file_not_owned`** (RF-12).
    **Si uno solo falla, se descarta toda la escritura.**
 3. **Las personas responsables existen** → `person_not_found`
 
@@ -222,8 +231,12 @@ VALUES (..., 'analisis', 'public', '323332022539911171');
 -- el PRIMERO de responsiblePersonIds queda como líder: el ORDEN es información
 INSERT INTO people_requirements (requirement_id, person_id, is_leader) VALUES (...);
 
--- los adjuntos de borrador se vinculan a la entidad recién creada
-UPDATE attachments SET entity_type = 'requirement', entity_id = {nuevoId} WHERE id IN (88, 89);
+-- el navegador reportó el PUT y se le cree (D-13)
+UPDATE files SET byte_status = 'uploaded' WHERE id IN (1234, 1235);
+
+-- el vínculo, una fila por archivo, contra la entidad recién creada
+INSERT INTO attachments (entity_type, entity_id, file_id)
+VALUES ('requirement', {nuevoId}, 1234), ('requirement', {nuevoId}, 1235);
 
 -- si vinieron suscriptores
 INSERT INTO requirement_subscriptors (requirement_id, user_id) VALUES (...);
@@ -251,7 +264,8 @@ durante 1,8 segundos** y cierra el modal, invalidando las queries del tablero.
 | 4 | Rol no autorizado | 403 | `{ code: access_denied }` | La api rechaza sin publicar |
 | 4 | **Sin permiso sobre el proyecto** | 403 | `{ code: access_denied }` | **La capa que aísla un cliente de otro.** Rechaza sin publicar |
 | 6 | Proyecto inexistente | 400 | `{ code: project_not_found }` | Rollback |
-| 6 | Un adjunto no es draft propio, o está borrado | 400 | `{ code: invalid_fields }` | **Rollback: se descarta el requisito entero**, no solo el adjunto |
+| 6 | Un `fileId` no existe o está borrado | 400 | `{ code: invalid_fields }` | **Rollback: se descarta el requisito entero**, no solo el vínculo |
+| 6 | **`File.uploaded_by` ≠ el actor resuelto** | **403** | `{ code: file_not_owned }` | **Rollback total igual.** Es error de permisos, no de forma (CA-10 a CA-13) |
 | 6 | Persona responsable inexistente | 400 | `{ code: person_not_found }` | Rollback |
 | 5 | Timeout del bus | **503** | `{ code: bus_unavailable }` | La operación no ocurrió |
 | 2 | **Fallo de creación en el portal** | cualquiera | — | **El modal no muestra el error.** El botón vuelve de "Creando..." a "Crear elemento" sin mensaje (NFR-U06, gap conocido) |
@@ -265,17 +279,18 @@ del tablero. El equipo interno lo ve en `web` con el mismo estado.
 - `requirements`: fila nueva con `state: 'analisis'`, `visibility_level: 'public'`,
   `created_by` = el usuario del cliente
 - `people_requirements`: filas de responsables, con `is_leader` en la primera
-- `attachments`: los drafts pasan de `entity_type: 'requirement_draft'`, `entity_id: NULL` a
-  `entity_type: 'requirement'`, `entity_id: {nuevoId}`
+- `attachments`: se crean **N filas nuevas** apuntando a los `files` ya existentes, con
+  `entity_type: 'requirement'`, `entity_id: {nuevoId}` y `file_id`
+- `files`: los archivos vinculados pasan a `byte_status: 'uploaded'`
 - `requirement_subscriptors`: filas de los suscriptores elegidos
 - **Ninguna notificación se envía a nadie** (ver Notas)
 
 ## Notas
 
-- **Los adjuntos de borrador son el mecanismo más sutil del flujo.** `entity_id` es nullable
-  precisamente para que se puedan subir antes de que la entidad exista; la titularidad se valida
-  por `uploadedBy`. El vínculo se completa **dentro de la misma transacción** que crea el
-  requisito, así que no puede quedar un adjunto huérfano de un requisito que falló.
+- **El vínculo se crea dentro de la misma transacción** que crea el requisito, así que no puede
+  quedar un vínculo huérfano de un requisito que falló. Lo que **sí queda** son los `File` sin
+  vínculo, que es un estado válido (RF-1, CA-7) y no un huérfano. Ver
+  [`vinculacion-de-archivos`](vinculacion-de-archivos.md).
 - **El requisito nace siempre en `analisis`.** El portal lo muestra como chip fijo y core lo
   valida por default, pero **la secuencia posterior del workflow solo se valida en `web`**
   (NFR-S07): por esta misma superficie se puede llevar un requisito a cualquier estado.
