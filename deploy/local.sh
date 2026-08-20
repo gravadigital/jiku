@@ -13,6 +13,9 @@
 #   2. ./service-user-key.sh api <key.json>   (and the same for core)
 #   3. generate the NATS identity in nats/creds/   (see nats/creds/README.md)
 #
+# The S3 storage is local and needs nothing prepared: `up` brings MinIO up and creates
+# the bucket. STORAGE_S3_ENDPOINT already comes pointed at it in .env.dist.
+#
 # The services request their own token from Zitadel with those keys and renew it
 # themselves: there is nothing to refresh by hand.
 #
@@ -70,6 +73,18 @@ GRANT USAGE ON SCHEMA public TO $DATABASE_READONLY_USER;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO $DATABASE_READONLY_USER;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO $DATABASE_READONLY_USER;
 SQL
+
+    # El bucket se crea acá y no en el compose: es bootstrap del entorno, igual que el
+    # usuario de solo lectura de arriba. MinIO arranca con el bucket vacío y `core` NO lo
+    # crea —firma contra un bucket que da por existente—, así que sin este paso la primera
+    # subida falla con NoSuchBucket.
+    echo "==> storage"
+    $COMPOSE up -d storage
+    until docker exec jiku-local-storage mc --version >/dev/null 2>&1; do sleep 1; done
+    docker exec jiku-local-storage sh -c "
+      until mc alias set local http://127.0.0.1:9000 '$STORAGE_S3_CREDENTIALS_ACCESSKEY' '$STORAGE_S3_CREDENTIALS_SECRETKEY' >/dev/null 2>&1; do sleep 1; done
+      mc mb --ignore-existing local/'$STORAGE_S3_BUCKETNAME' >/dev/null
+    "
 
     echo "==> the rest of the stack"
     $COMPOSE up -d --build

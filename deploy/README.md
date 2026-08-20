@@ -9,7 +9,7 @@ deploy/
 ├── zitadel-token.sh          diagnoses a key against Zitadel
 ├── bus-inspect.sh            look at what is happening on the bus
 ├── .env.dist                 variable template — copy to .env
-├── docker-compose.local.yml  development: builds from the repo
+├── docker-compose.local.yml  development: builds from the repo (includes the S3 storage)
 ├── docker-compose.yml        production: pulls images from the registry
 ├── docker-compose.dev.yml    no external dependencies (mock IdP)
 └── nats/
@@ -25,9 +25,14 @@ in `deploy/nats/creds/`, neither of them versioned.
 
 ## Getting started
 
-Six steps, all one-time except bringing the stack up. **Steps 5 and 6 configure the bucket**, and
-they are the two that are easiest to skip and hardest to diagnose: get either wrong and uploading
-a file fails with an error that points nowhere near the cause.
+Six steps, all one-time except bringing the stack up.
+
+**On a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
+a MinIO of its own, `local.sh` creates the bucket, and `.env.dist` already comes pointed at it with
+CORS configured — there is nothing to fill in and nothing to configure in a provider's console.
+Read those two steps when the installation uses a real bucket (a server, or a local stack pointed
+at AWS/Spaces/R2): **they are the two that are easiest to skip and hardest to diagnose**, and
+getting either wrong makes uploading a file fail with an error that points nowhere near the cause.
 
 ### 1. Variables
 
@@ -46,7 +51,7 @@ Fill in, in `.env`:
 | `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live                                       |
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                              |
 | `CORE_TRUSTED_PUBLISHER_ID`                   | the `userId` from the api's service user JSON key — **core will not start without it** |
-| `STORAGE_S3_*`                                | S3-compatible storage. **core** signs both uploads and downloads, so the credentials need read **and** write permission. **Only `core` receives them** — the api has no access to the bucket, so it cannot touch an object core did not sign for it. Any value works locally until something actually uploads a file. |
+| `STORAGE_S3_*`                                | **Locally: leave them as they come.** `.env.dist` already points them at the MinIO the stack brings up. They only get filled in to use a real provider. **core** signs both uploads and downloads, so the credentials need read **and** write permission. **Only `core` receives them** — the api has no access to the bucket, so it cannot touch an object core did not sign for it. |
 | `DUMP_FILE`                                   | optional: a `.sql` to preload the database                             |
 
 ### 2. Zitadel service users
@@ -99,12 +104,18 @@ Without `nats/creds/nats-resolver.conf` the server does not start.
 ./local.sh up
 ```
 
-| Service          | URL                   |
-| ---------------- | --------------------- |
-| web              | http://localhost:3000 |
-| opus-web         | http://localhost:3001 |
-| api              | http://localhost:3100 |
-| NATS (monitoring)| http://localhost:8222 |
+| Service           | URL                   |
+| ----------------- | --------------------- |
+| web               | http://localhost:3000 |
+| opus-web          | http://localhost:3001 |
+| api               | http://localhost:3100 |
+| NATS (monitoring) | http://localhost:8222 |
+| storage (S3 API)  | http://localhost:9000 |
+| storage (console) | http://localhost:9001 |
+
+`up` also brings up the S3 storage and creates the bucket in it, so **uploading a file works
+without configuring anything else**. The console on 9001 takes the same credentials as the
+`STORAGE_S3_CREDENTIALS_*`, and is the quickest way to see whether an object actually landed.
 
 `./local.sh down` takes everything down and deletes the data. `./local.sh logs api` follows
 one service's logs.
@@ -341,7 +352,30 @@ Three ways out when the internal and the public address differ:
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | **One public host for everyone** | `STORAGE_S3_ENDPOINT=https://storage.example.com`, and core's container reaches that same host — through public DNS or an `extra_hosts` entry | **Recommended.** One URL, so what is signed and what is served cannot drift apart |
 | **Split-horizon DNS**            | The same name resolves to the internal IP inside the network and to the public one from outside                              | When leaving the network just to come back in is expensive                  |
-| **Bucket published on the host** | `STORAGE_S3_ENDPOINT=http://localhost:9000` with the port published                                                          | **Local development only**                                                  |
+| **Bucket published on the host** | `STORAGE_S3_ENDPOINT=http://172.28.0.1:9000` — the network's gateway IP — with the port published | **Local development only.** This is what the local stack does |
+
+#### Why the local endpoint is an IP and not `localhost`
+
+`172.28.0.1` is the gateway of the `jiku` network: the host's address **as seen from inside the
+network**. It is the one value that resolves to the same place from both sides — `core`, which
+signs from inside the network, and the browser, which uploads from outside. The compose file fixes
+the subnet on purpose so that the address is the same on every machine.
+
+**`localhost` cannot be made to work here, and it is worth knowing why before trying to "fix" it.**
+Inside a container `localhost` is the container itself, so core would be signing a URL pointing at
+core. Neither of the two obvious workarounds helps:
+
+- **`extra_hosts: localhost:host-gateway`** adds a line to `/etc/hosts` but does not remove the
+  `127.0.0.1 localhost` that Docker always writes, and that one wins.
+- **A network alias** named `localhost` (or `minio.localhost`) is resolved correctly by Docker's
+  DNS — and then ignored: `localhost` and everything under `.localhost` are resolved to loopback
+  **by the HTTP client itself**, per RFC 6761, without a DNS query ever being made.
+
+Both fail the same way: the connection is refused, with the DNS looking perfectly correct.
+
+`network_mode: host` on core does work for the bucket, and costs more than it saves: core loses
+the network's DNS, so `nats` and `database` stop resolving and have to be rewritten as
+`localhost` too — which then collides with any Postgres already running on the machine.
 
 #### Do not rewrite the host after signing
 
