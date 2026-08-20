@@ -69,7 +69,9 @@ status: Draft - Importado desde código existente
   (con `isLeader`), has_many ActividadDeRequisito, has_many Suscriptor, has_many HoraTrabajada
 - **Notas:** Cuatro marcas temporales (`scheduledAt`, `inProgressAt`, `inReviewAt`, `finishedAt`)
   las mantiene un hook `@BeforeUpdate` del modelo. Los tags se consultan con contains de `jsonb`.
-  Es la **única entidad que un cliente externo puede crear**.
+  Es la **única entidad que un cliente externo puede crear**. `visibilityLevel: 'public'` significa
+  **"visible para usuarios externos autenticados"** y nada más: desde REQ-002 no habilita acceso
+  anónimo a los adjuntos de la entidad.
 
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
@@ -82,7 +84,9 @@ status: Draft - Importado desde código existente
 - **Notas:** `finishedAt` lo mantiene un hook al entrar y salir de `finalizado`. `priority` es
   entero en la base y enum de nombres en el bus: la api traduce en ambos sentidos y core usa un
   escape transitorio (`priorityValue`) para no perder el valor 5. Lleva además siete columnas
-  `external_*` de la integración con Jira (ver Supuestos).
+  `external_*` de la integración con Jira (ver Supuestos). `visibilityLevel: 'public'` significa
+  **"visible para usuarios externos autenticados"**: desde REQ-002 no habilita acceso anónimo a
+  los adjuntos de la tarea.
 
 ### HoraTrabajada (`worked_times`)
 - **Atributos clave:** `date` (timestamp), `minutes` (int)
@@ -113,6 +117,8 @@ status: Draft - Importado desde código existente
 - **Notas:** Un mismo registro sirve para **cambios de campo y comentarios**: un comentario es
   una actividad con `typeOfActivity: 'comment'`. Es lo que permite el feed cronológico unificado.
   La visibilidad de los cambios de campo **la decide el sistema, no el usuario**.
+  `visibilityLevel: 'public'` significa **"visible para usuarios externos autenticados"**: desde
+  REQ-002 no habilita acceso anónimo a los adjuntos del comentario.
 
 ### Suscriptor (`requirement_subscriptors` / `objectives_subscriptors`)
 - **Atributos clave:** `userId` (string, req)
@@ -143,6 +149,9 @@ status: Draft - Importado desde código existente
   `byteStatus` registra si el byte llegó al storage; **nadie lo verifica** — el error aparece al
   descargar, no al vincular. Los archivos con `byteStatus: pending` abandonados son
   **identificables pero no se limpian**: el barrido quedó fuera de alcance (REQ-001).
+  **El acceso a un archivo exige sesión en todos los casos** (REQ-002): eliminado el endpoint
+  público, no queda ninguna vía anónima y la visibilidad de la entidad vinculada ya no habilita
+  acceso sin autenticar.
 
 ### Adjunto (`attachments`)
 - **Atributos clave:** `entityType` (string, req), `entityId` (int, **req**), `fileId` (int, req)
@@ -152,9 +161,10 @@ status: Draft - Importado desde código existente
   Archivo. `entityId` es NOT NULL: el vínculo se crea cuando la entidad ya existe, y por eso
   **no hay tipos de entidad borrador** (`*_draft` desaparecieron). Desvincular es **borrar el
   Adjunto**; el archivo se retiene, porque con 0..N vínculos marcarlo rompería los otros. Los
-  `id` se **preservan** desde antes del rediseño: las URLs públicas que circulan fuera del
-  sistema los usan. La FK polimórfica hacia la entidad **sigue siendo imposible**: apunta a
-  cinco tablas distintas.
+  `id` **ya no son contrato externo** (REQ-002): al eliminarse el endpoint público desapareció la
+  única razón por la que D-06 los preservaba, y esa restricción **queda derogada**. No se
+  renumeran ni cambia la PK, pero dejan de condicionar el saneamiento del modelo (FG-6). La FK
+  polimórfica hacia la entidad **sigue siendo imposible**: apunta a cinco tablas distintas.
 
 ### AjusteDelSistema (`system_settings`)
 - **Atributos clave:** `key` (string 255, UNIQUE), `value` (**text**)

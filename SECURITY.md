@@ -55,10 +55,28 @@ It exists for local debugging and can read the contents of every message on the 
 including business data. The access policy file marks it as local-only. Do not grant it in
 a production deployment.
 
-### Attachment identifiers are sequential
+### A pre-signed download URL outlives the request that produced it
 
-`GET /api/opus/attachments/:id/public` requires no authentication by design: it serves
-attachments explicitly marked public, and refuses anything else. Because identifiers are
-sequential integers, someone can enumerate them to discover which attachments are public.
-For large files it redirects to a pre-signed storage URL, which is then outside the
-application's control until it expires.
+Every read path answers with a redirect to a pre-signed storage URL. Once issued, that URL
+grants access to the file **without any credential** until it expires, wherever it is copied
+or forwarded. The only control is its lifetime, `download-url-ttl-seconds`. Keep it short.
+
+Attachment identifiers are still sequential integers, but they are no longer enumerable
+without credentials: every endpoint requires a bearer token, so an unauthenticated caller
+gets `401` before any identifier is looked up and the response reveals nothing about which
+ids exist. The list of authentication exemptions is empty — see *Authentication is
+deny-by-default* below.
+
+### Authentication is deny-by-default
+
+`validateToken` is installed globally for every path, and exemptions are declared as an
+explicit list in `api/config/public.ts`. **That list is empty**: no route of the API is
+exempt, so a new endpoint is protected without its author doing anything.
+
+Adding an entry there makes an endpoint reachable **without credentials**. It is a security
+change and must be reviewed as one: only something that implements — and documents — its own
+access control belongs on that list.
+
+One asymmetry to know about: the exemption interface covers `GET`, `PATCH`, `POST` and
+`DELETE`. A new `PUT` is **not** covered by the global installation and must declare
+`validateToken` in its own middleware chain.

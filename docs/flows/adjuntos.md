@@ -4,8 +4,8 @@ title: Subida y acceso a adjuntos (DEPRECADO)
 type: feature
 status: Deprecated
 created: 2026-08-18
-last_updated: 2026-08-19
-stories: [S-002, S-003, S-004, S-005, S-006, S-007]
+last_updated: 2026-08-20
+stories: [S-002, S-003, S-004, S-005, S-006, S-007, S-009]
 ---
 
 # Subida y Acceso a Adjuntos
@@ -13,8 +13,8 @@ stories: [S-002, S-003, S-004, S-005, S-006, S-007]
 **Tipo:** Feature
 **Status:** **Deprecated** — reemplazado por completo a partir de REQ-001
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-19
-**Stories:** S-002, S-003, S-004, S-005, S-006, S-007
+**Última actualización:** 2026-08-20
+**Stories:** S-002, S-003, S-004, S-005, S-006, S-007, S-009
 
 > # ⚠️ FLUJO REEMPLAZADO POR COMPLETO
 >
@@ -40,8 +40,18 @@ stories: [S-002, S-003, S-004, S-005, S-006, S-007]
 > | **3** — La api valida, sube y hace rollback | **ELIMINADO.** La validación va a `core`; **el rollback de S3 desaparece y no se reemplaza** (quien escribe el objeto es el navegador) |
 > | **4** — *"La fila se escribe SIN pasar por core"* | **ELIMINADO.** Es el objetivo declarado del rediseño: cierra la excepción 2 de ADR-001 |
 > | **5** — Vinculación del borrador | **ELIMINADO.** **No hay draft.** El vínculo se crea contra la entidad existente. Ver `vinculacion-de-archivos` |
-> | **6** — Acceso, tres caminos | **Cambia de mecanismo.** Los tres siguen existiendo y entrando por id de vínculo, pero **ninguno sirve el byte**: autorizan, piden la URL a `core` con `files.{fileId}.request-download` y responden **302**. La rama *"alt archivo grande / 302 a URL pre-firmada"* **deja de ser una rama**. El **camino C queda deprecado** |
+> | **6** — Acceso, tres caminos | **Cambia de mecanismo.** Los tres siguen existiendo y entrando por id de vínculo, pero **ninguno sirve el byte**: autorizan, piden la URL a `core` con `files.{fileId}.request-download` y responden **302**. La rama *"alt archivo grande / 302 a URL pre-firmada"* **deja de ser una rama**. El **camino C quedó deprecado por REQ-001 y ELIMINADO por REQ-002 / S-009**: hoy son **dos** caminos, los dos con sesión |
 > | **7** — Renderizado embebido en markdown | **Los placeholders no cambian.** El `HEAD` al preview **sigue funcionando pero por otro mecanismo**: los metadatos vienen del reply del comando en lugar de leerse del stream |
+>
+> **Actualización (2026-08-20, REQ-002 / S-009): el camino C del paso 6 no solo fue reemplazado — fue
+> ELIMINADO.** `GET /attachments/{id}/{fileName}` de `opus-web` y
+> `GET /api/opus/attachments/{id}/public` de la `api` **ya no existen**, junto con la excepción
+> `attachments` del matcher del middleware y la lista de rutas exentas de `validateToken`. Todo lo que
+> este documento dice sobre *"el único endpoint sin autenticación de todo el producto"* describe algo
+> que **ya no está**: el acceso a un archivo exige sesión en todos los casos, y
+> `visibilityLevel: 'public'` gobierna solo qué ve un usuario **autenticado**. Se anota acá en lugar de
+> reescribir los pasos: el documento está `Deprecated` y reescribir un flujo deprecado es trabajo que
+> nadie va a leer.
 >
 > **Pasos nuevos que este documento no tenía:** pedir permiso de subida (`files.request-upload`) y el
 > `PUT` directo del navegador a S3.

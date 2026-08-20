@@ -474,8 +474,11 @@ ADR-001) y llevan el prefijo `20260819_01` .. `20260819_05`.
   cardinalidad y está fuera de alcance; 1:1 es idempotente y reversible.
 - **`byte_status = 'uploaded'` para todo lo migrado**: son adjuntos que existieron y se sirvieron.
   Marcarlos `pending` los haría parecer abandonados.
-- **Los `attachments.id` no se tocan** (D-06): las URLs públicas en circulación los usan y tienen
-  que seguir resolviendo.
+- **Los `attachments.id` no se tocan**: el backfill los preservó. La razón original (D-06) era que
+  las URLs públicas en circulación los usaban y tenían que seguir resolviendo; **REQ-002 eliminó el
+  endpoint público y derogó D-06**, así que los ids dejaron de ser un contrato externo. Siguen sin
+  renumerarse —no hay motivo para tocarlos— pero ya no son una restricción que condicione el
+  saneamiento del modelo.
 - **El paso 5 falla si el 4 quedó incompleto**, y falla **al arrancar la api**. Es el
   comportamiento correcto: la verificación es previa y con evidencia, y los pasos 1-4 se revierten.
 - **El paso 5 borra `check_attachments_active_status` antes de dropear `retention_status`.** Esa
@@ -827,7 +830,7 @@ Table files {
 }
 
 Table attachments {
-  id integer [pk, increment, note: 'PRESERVADO por el backfill: las URLs publicas lo usan']
+  id integer [pk, increment, note: 'PRESERVADO por el backfill. Ya no es contrato externo: REQ-002 derogo D-06']
   entity_type varchar [not null, note: 'polimórfico: sin FK. De 10 valores a 5']
   entity_id integer [not null, note: 'era nullable desde 20260612_03; ya no hay drafts']
   file_id integer [not null, ref: > files.id, note: 'la primera FK real hacia el contenido']

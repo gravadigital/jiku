@@ -155,6 +155,24 @@ La asimetría es deliberada y vale nombrarla: **el contenido de una superficie s
 el archivo también se ve en la otra —lo que no cruza es el permiso de volver a usarlo.** Ver un
 adjunto del cliente y adjuntarlo a otra cosa son dos cosas distintas, y solo la primera cruza.
 
+**Y desde REQ-002 el archivo cruza entre las dos superficies, pero no sale del producto**
+[REQ-002 RF-8, CA-8]. Había un tercer cruce, y era el único que salía hacia afuera: un link
+`/attachments/{id}/{fileName}` servía el adjunto **sin sesión**, así que un tercero sin cuenta —el
+gerente del cliente, un proveedor suyo— podía abrir el archivo con solo tener la URL. Ese camino se
+eliminó y **no se reemplazó**: cualquier acceso a un archivo exige sesión, y la visibilidad de la
+entidad vinculada gobierna qué ve un usuario **autenticado**, no si un anónimo puede entrar.
+
+| Cruce | Antes | Ahora |
+|---|---|---|
+| `opus-web` ↔ `web`, ver un adjunto | Con sesión y permiso | **Sin cambios** |
+| `opus-web` ↔ `web`, reusar un adjunto ajeno | Rechazado (REQ-001) | **Sin cambios** |
+| Hacia afuera del producto, sin cuenta | Link público, sin sesión | **No existe** |
+
+Los links que ya circulan en correos y documentos **dejan de abrir el día del deploy**, sin
+transición ni aviso: quien los abra cae en el login de `opus-web`. No es un flujo que se degrada,
+es un flujo que se cierra, y el reemplazo —compartir con una prefirmada con vencimiento— queda
+fuera de alcance de forma explícita.
+
 ### La discontinuidad
 
 🔴 **Ninguna de las dos partes se entera de que la otra escribió.** Un comentario del cliente no le

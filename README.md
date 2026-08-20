@@ -69,7 +69,7 @@ Start with its README: it maps how the parts fit together.
 |---|---|
 | [features.md](documentation/features.md) | what the product does |
 | [installation.md](documentation/installation.md) · [configuration.md](documentation/configuration.md) | how to run and configure it |
-| [api-reference.md](documentation/api-reference.md) | the 61 HTTP endpoints |
+| [api-reference.md](documentation/api-reference.md) | the 60 HTTP endpoints |
 | [docs/apis/core.yaml](docs/apis/core.yaml) | the bus contract (AsyncAPI) — source of truth for anything crossing the bus |
 | [known-limitations.md](documentation/known-limitations.md) | **read before adopting** |
 

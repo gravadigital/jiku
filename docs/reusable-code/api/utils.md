@@ -9,7 +9,8 @@
 **Description:** Ends a file-read request with a `302` to the presigned URL that `core` signed,
 putting the reply metadata into the response headers. Since REQ-001 the `api` never serves bytes:
 every read path authorizes, publishes `files.{fileId}.request-download` and delegates the redirect
-to this helper, so the five paths cannot drift apart in how they answer.
+to this helper, so the four paths cannot drift apart in how they answer. (There were five until
+S-009 removed the unauthenticated one.)
 
 Two behaviours it centralizes are easy to get wrong and are load-bearing:
 
@@ -44,7 +45,8 @@ return redirectToPresigned(req, res, data, 'inline');
 ```
 
 **Used by:** `attachments-preview.ts`, `attachments-download.ts`, `opus-attachments-preview.ts`
-(both handlers) and `files-preview.ts`.
+and `files-preview.ts`. Four consumers: `opus-attachments-preview.ts` used it twice until S-009
+deleted its public handler.
 
 ## toUploadTicket
 

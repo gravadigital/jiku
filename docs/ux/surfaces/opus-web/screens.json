@@ -44,7 +44,7 @@
           "category": "content",
           "level": "h1",
           "content": "¡Bienvenido a OPUS!",
-          "annotation": "única vez en toda la aplicación que la marca se escribe en mayúsculas"
+          "annotation": "única vez en toda la aplicación que la marca se escribe en mayúsculas · desde REQ-002 también recibe a quien abre un link viejo de adjunto sin sesión (/attachments/{id}/{fileName}): la ruta se borró y attachments salió del matcher, así que el guard redirige acá (RF-1, RF-2, CA-1). No hay mensaje contextual —descarte explícito del REQ— y este título es todo el texto disponible para quien no venía a entrar al portal"
         },
         {
           "name": "descripcion",
@@ -911,7 +911,7 @@
             "success",
             "subiendo adjunto"
           ],
-          "annotation": "RichContentRenderer: parsea adjuntos en dos formatos y el resto por markdown · si el HEAD del adjunto falla hay un catch vacío y se muestra sin nombre ni tamaño"
+          "annotation": "RichContentRenderer: parsea adjuntos en dos formatos y el resto por markdown · si el HEAD del adjunto falla hay un catch vacío y se muestra sin nombre ni tamaño · desde REQ-002 es el único acceso a un archivo que queda en el producto: el preview y el HEAD entran por /api/attachments/{N}/preview y siguen byte por byte igual (RF-6, CA-5, CA-6), pero abrir un adjunto exige sesión en todos los casos y no hay ningún control de compartir hacia afuera (RF-8, CA-8)"
         },
         {
           "name": "bloque-resolucion",
