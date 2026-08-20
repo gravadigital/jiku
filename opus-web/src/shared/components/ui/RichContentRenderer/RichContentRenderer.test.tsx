@@ -3,14 +3,38 @@ import { RichContentRenderer } from './RichContentRenderer';
 import { vi } from 'vitest';
 
 vi.mock('../AttachmentPreview/AttachmentPreview', () => ({
-  AttachmentPreview: ({ attachmentId, fileName }: { attachmentId: number; fileName: string }) => (
-    <div data-testid={`attachment-preview-${attachmentId}`} data-filename={fileName} />
+  AttachmentPreview: ({
+    attachmentId,
+    fileName,
+    previewUrl,
+  }: {
+    attachmentId: number;
+    fileName: string;
+    previewUrl?: string;
+  }) => (
+    <div
+      data-testid={`attachment-preview-${attachmentId}`}
+      data-filename={fileName}
+      data-preview-url={previewUrl}
+    />
   ),
 }));
 
 vi.mock('../AttachmentDownload/AttachmentDownload', () => ({
-  AttachmentDownload: ({ attachmentId, fileName }: { attachmentId: number; fileName: string }) => (
-    <div data-testid={`attachment-download-${attachmentId}`} data-filename={fileName} />
+  AttachmentDownload: ({
+    attachmentId,
+    fileName,
+    resource,
+  }: {
+    attachmentId: number;
+    fileName: string;
+    resource?: string;
+  }) => (
+    <div
+      data-testid={`attachment-download-${attachmentId}`}
+      data-filename={fileName}
+      data-resource={resource ?? 'attachment'}
+    />
   ),
 }));
 
@@ -80,5 +104,62 @@ describe('RichContentRenderer', () => {
       const el = screen.getByTestId('attachment-download-8');
       expect(el).toHaveAttribute('data-filename', 'informe.pdf');
     });
+  });
+
+  /**
+   * EL BUG: `web` guarda los adjuntos como `file:N` (id de `files`) y este renderer solo
+   * conocía `attach:N`, así que el comentario se mostraba con el placeholder CRUDO como texto
+   * —"Prueba público![file:257]"— y el archivo nunca cargaba.
+   *
+   * Los dos prefijos tienen que coexistir: son dos espacios de ids distintos y los dos
+   * frontends leen los mismos comentarios.
+   */
+  it('![file:257] renderiza la imagen por la ruta de FILES, no como texto crudo', async () => {
+    mockHeadResponse('captura.png');
+    render(<RichContentRenderer content="Prueba público![file:257]" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-preview-257')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('attachment-preview-257')).toHaveAttribute(
+      'data-preview-url',
+      '/api/files/257/preview'
+    );
+    // El placeholder no puede quedar visible en ningún segmento de texto.
+    screen.queryAllByTestId('markdown-content').forEach((el) => {
+      expect(el.textContent).not.toContain('[file:257]');
+    });
+  });
+
+  it('[file:258] renderiza la descarga marcada como recurso de archivo', async () => {
+    mockHeadResponse('manual.pdf');
+    render(<RichContentRenderer content="Ahora con pdf[file:258]" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-download-258')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('attachment-download-258')).toHaveAttribute('data-resource', 'file');
+  });
+
+  it('resuelve los metadatos de un `file:` contra la ruta de files', async () => {
+    mockHeadResponse('captura.png');
+    render(<RichContentRenderer content="![file:257]" />);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/files/257/preview', { method: 'HEAD' });
+    });
+  });
+
+  it('sigue soportando `attach:` — los dos espacios coexisten', async () => {
+    mockHeadResponse('foto.png');
+    render(<RichContentRenderer content="![attach:3]" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-preview-3')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('attachment-preview-3')).toHaveAttribute(
+      'data-preview-url',
+      '/api/attachments/3/preview'
+    );
   });
 });

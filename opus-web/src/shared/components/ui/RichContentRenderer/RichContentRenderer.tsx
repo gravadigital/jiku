@@ -11,15 +11,30 @@ interface RichContentRendererProps {
   content: string;
 }
 
+/**
+ * Espacio de identificadores del adjunto. `attachment` es un id de VÍNCULO
+ * (`attachments.id`); `file` es un id de ARCHIVO (`files.id`), que es lo que guarda `web` al
+ * adjuntar. NO SON INTERCAMBIABLES: los dos espacios se solapan, así que resolver uno contra
+ * la ruta del otro no da 404 — sirve OTRO archivo, en silencio.
+ */
+type AttachmentResource = 'attachment' | 'file';
+
 type Segment =
   | { type: 'text'; value: string }
-  | { type: 'image'; id: number }
-  | { type: 'file'; id: number }
+  | { type: 'image'; id: number; resource: AttachmentResource }
+  | { type: 'file'; id: number; resource: AttachmentResource }
   | { type: 'image-named'; id: number; fileName: string }
   | { type: 'file-named'; id: number; fileName: string };
 
-// Matches ![attach:N] and [attach:N] (opus-web format)
-const PLACEHOLDER_REGEX = /(!?\[attach:(\d+)\])/g;
+/** La ruta de preview del espacio de ids que corresponda. Único lugar donde se decide. */
+function previewPath(id: number, resource: AttachmentResource): string {
+  return resource === 'file' ? `/api/files/${id}/preview` : `/api/attachments/${id}/preview`;
+}
+
+// Matches ![attach:N] / [attach:N] (id de vínculo) y ![file:N] / [file:N] (id de `files`).
+// `web` escribe `file:`; opus-web escribió `attach:` históricamente. Los dos frontends leen
+// los mismos comentarios, así que el renderer tiene que entender los dos.
+const PLACEHOLDER_REGEX = /(!?\[(attach|file):(\d+)\])/g;
 // Matches !?[fileName](/api/attachments/N/preview) (gestor interno format, ! prefix = image)
 const GESTOR_LINK_REGEX = /(!?)\[([^\]]+)\]\(\/api\/attachments\/(\d+)\/preview\)/g;
 
@@ -31,11 +46,12 @@ function parseContent(content: string): Segment[] {
   let match: RegExpExecArray | null;
   while ((match = PLACEHOLDER_REGEX.exec(content)) !== null) {
     const isImage = match[1].startsWith('!');
-    const id = parseInt(match[2], 10);
+    const resource: AttachmentResource = match[2] === 'file' ? 'file' : 'attachment';
+    const id = parseInt(match[3], 10);
     matches.push({
       index: match.index,
       length: match[0].length,
-      segment: isImage ? { type: 'image', id } : { type: 'file', id },
+      segment: isImage ? { type: 'image', id, resource } : { type: 'file', id, resource },
     });
   }
 
@@ -91,12 +107,12 @@ interface AttachmentInfo {
   loading: boolean;
 }
 
-function useAttachmentInfo(id: number): AttachmentInfo {
+function useAttachmentInfo(id: number, resource: AttachmentResource): AttachmentInfo {
   const [info, setInfo] = useState<AttachmentInfo>({ fileName: '', loading: true });
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/attachments/${id}/preview`, { method: 'HEAD' })
+    fetch(previewPath(id, resource), { method: 'HEAD' })
       .then((res) => {
         if (cancelled) return;
         const fileName = extractFileName(res.headers.get('Content-Disposition'));
@@ -110,15 +126,22 @@ function useAttachmentInfo(id: number): AttachmentInfo {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, resource]);
 
   return info;
 }
 
-function FileSegment({ id }: { id: number }) {
-  const { fileName, fileSize, loading } = useAttachmentInfo(id);
+function FileSegment({ id, resource }: { id: number; resource: AttachmentResource }) {
+  const { fileName, fileSize, loading } = useAttachmentInfo(id, resource);
   if (loading) return <AttachmentSkeleton isImage={false} />;
-  return <AttachmentDownload attachmentId={id} fileName={fileName} fileSize={fileSize} />;
+  return (
+    <AttachmentDownload
+      attachmentId={id}
+      resource={resource}
+      fileName={fileName}
+      fileSize={fileSize}
+    />
+  );
 }
 
 function useFileSize(id: number): number | undefined {
@@ -126,6 +149,8 @@ function useFileSize(id: number): number | undefined {
 
   useEffect(() => {
     let cancelled = false;
+    // Los segmentos `*-named` vienen del formato de link del gestor
+    // (`[nombre](/api/attachments/N/preview)`), que SIEMPRE lleva id de vínculo.
     fetch(`/api/attachments/${id}/preview`, { method: 'HEAD' })
       .then((res) => {
         if (cancelled) return;
@@ -160,9 +185,9 @@ function ImageNamedSegment({ id, fileName }: { id: number; fileName: string }) {
   );
 }
 
-function ImageSegment({ id }: { id: number }) {
-  const { fileName, fileSize, loading } = useAttachmentInfo(id);
-  const previewUrl = `/api/attachments/${id}/preview`;
+function ImageSegment({ id, resource }: { id: number; resource: AttachmentResource }) {
+  const { fileName, fileSize, loading } = useAttachmentInfo(id, resource);
+  const previewUrl = previewPath(id, resource);
   if (loading) return <AttachmentSkeleton isImage />;
   return (
     <AttachmentPreview
@@ -195,7 +220,13 @@ export function RichContentRenderer({ content }: RichContentRendererProps) {
           return <MarkdownRenderer key={i} content={segment.value} />;
         }
         if (segment.type === 'image') {
-          return <ImageSegment key={`${segment.id}-${i}`} id={segment.id} />;
+          return (
+            <ImageSegment
+              key={`${segment.resource}-${segment.id}-${i}`}
+              id={segment.id}
+              resource={segment.resource}
+            />
+          );
         }
         if (segment.type === 'image-named') {
           return (
@@ -215,7 +246,13 @@ export function RichContentRenderer({ content }: RichContentRendererProps) {
             />
           );
         }
-        return <FileSegment key={`${segment.id}-${i}`} id={segment.id} />;
+        return (
+          <FileSegment
+            key={`${segment.resource}-${segment.id}-${i}`}
+            id={segment.id}
+            resource={segment.resource}
+          />
+        );
       })}
     </div>
   );

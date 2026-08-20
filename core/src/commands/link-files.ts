@@ -236,32 +236,16 @@ async function markUploadedAndLink(
     { where: { id: files.map((file) => file.id) }, transaction: ctx.transaction }
   );
 
+  // El vínculo guarda SOLO el par polimórfico y el `file_id`. Los metadatos del archivo
+  // (nombre, tamaño, mime, clave de storage, quién lo subió) viven en `files` y se leen por el
+  // `include`: la 20260819_05 dropeó esas columnas de `attachments` justamente para que no
+  // hubiera dos copias que pudieran divergir.
   for (const file of files) {
     await Attachment.create(
       {
         entityType,
         entityId,
         fileId: file.id,
-        // TRANSITORIO HASTA S-004/S-005 — ESTE BLOQUE SE BORRA ENTERO CUANDO LLEGUEN.
-        //
-        // El modelo `Attachment` todavía declara estas siete columnas NOT NULL porque las
-        // rutas de adjuntos de la api (`attachments-preview`, `-download`, `-delete`,
-        // `opus-attachments-*`) las leen y escriben hasta S-004/S-005. La migración
-        // 20260819_05 YA LAS DROPEÓ en producción, pero el esquema de los tests lo construye
-        // `sequelize.sync()` desde el modelo (ADR-013), así que acá siguen siendo
-        // obligatorias: un `create` sin ellas falla con `notNull Violation`, el despachador
-        // lo traduce a `internal_error` y el síntoma no apunta a la causa.
-        //
-        // Se copian del `File`, que es la fuente de verdad. No se afloja el modelo:
-        // `@jiku/models` es compartido (ADR-005) y las rutas de la api dependen de estos
-        // campos; aflojarlos rompería `api` en una story que no declara tocarla.
-        fileName: file.fileName,
-        fileSize: file.fileSize,
-        mimeType: file.mimeType,
-        storageKey: file.storageKey,
-        storageBucket: file.storageBucket,
-        storageRegion: file.storageRegion,
-        uploadedBy: file.uploadedBy,
       },
       { transaction: ctx.transaction }
     );

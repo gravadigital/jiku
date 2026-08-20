@@ -145,9 +145,7 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
 
   function handleDescriptionChange(newValue: string) {
     setDescription(newValue);
-    setPendingAttachments((prev) =>
-      prev.filter((att) => newValue.includes(`attach:${att.fileId}`))
-    );
+    setPendingAttachments((prev) => prev.filter((att) => newValue.includes(`file:${att.fileId}`)));
   }
 
   async function handleDescFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -179,7 +177,10 @@ export function CreateRequirementModal({ isOpen, onClose }: CreateRequirementMod
       // queda sin vínculo, que es un estado válido — no hay nada que limpiar.
       const uploaded = await attachmentsApi.uploadFile(file, setUploadProgress);
       const isImage = uploaded.mimeType.startsWith('image/');
-      const placeholder = isImage ? `![attach:${uploaded.fileId}]` : `[attach:${uploaded.fileId}]`;
+      // PREFIJO `file:`, NO `attach:`: lo que se sube es un id de `files`, y `attach:` es el
+      // prefijo del espacio de VÍNCULOS. Como los dos espacios se solapan, guardar un fileId
+      // bajo `attach:` hace que el comentario muestre OTRO archivo, en silencio.
+      const placeholder = isImage ? `![file:${uploaded.fileId}]` : `[file:${uploaded.fileId}]`;
 
       setDescription((prev) => prev + placeholder);
       setPendingAttachments((prev) => [

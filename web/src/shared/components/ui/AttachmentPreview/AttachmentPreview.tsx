@@ -35,9 +35,14 @@ export function AttachmentPreview({
   fileSize,
   onRemove,
 }: AttachmentPreviewProps) {
-  const [failed, setFailed] = useState(false);
   const previewUrl =
     resource === 'file' ? getFilePreviewUrl(attachmentId) : getPreviewUrl(attachmentId);
+  // El fallo se recuerda POR URL, no de forma indefinida: `failed` a secas sobrevivía al
+  // cambio de adjunto, así que un id nuevo en el mismo nodo del editor seguía mostrando el
+  // "no está disponible" del anterior. Guardar la url que falló hace que el reset sea
+  // automático y sin `useEffect`.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = failedUrl === previewUrl;
   const isPdf = mimeType === 'application/pdf';
   const displayName = fileName || 'Archivo adjunto';
   const sizeLabel = fileSize !== undefined ? formatFileSize(fileSize) : null;
@@ -66,7 +71,7 @@ export function AttachmentPreview({
         alt={displayName}
         loading="lazy"
         className={styles.image}
-        onError={() => setFailed(true)}
+        onError={() => setFailedUrl(previewUrl)}
       />
     );
   }

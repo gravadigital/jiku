@@ -82,9 +82,7 @@ export function CommentInput({ requirementId }: CommentInputProps) {
 
   function handleCommentChange(newValue: string) {
     setComment(newValue);
-    setPendingAttachments((prev) =>
-      prev.filter((att) => newValue.includes(`attach:${att.fileId}`))
-    );
+    setPendingAttachments((prev) => prev.filter((att) => newValue.includes(`file:${att.fileId}`)));
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -116,7 +114,10 @@ export function CommentInput({ requirementId }: CommentInputProps) {
       setUploadProgress(0);
       const uploaded = await attachmentsApi.uploadFile(file, setUploadProgress);
       const isImage = uploaded.mimeType.startsWith('image/');
-      const placeholder = isImage ? `![attach:${uploaded.fileId}]` : `[attach:${uploaded.fileId}]`;
+      // PREFIJO `file:`, NO `attach:`: lo que se sube es un id de `files`, y `attach:` es el
+      // prefijo del espacio de VÍNCULOS. Como los dos espacios se solapan, guardar un fileId
+      // bajo `attach:` hace que el comentario muestre OTRO archivo, en silencio.
+      const placeholder = isImage ? `![file:${uploaded.fileId}]` : `[file:${uploaded.fileId}]`;
 
       setComment((prev) => prev + placeholder);
       setPendingAttachments((prev) => [

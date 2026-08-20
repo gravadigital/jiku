@@ -30,6 +30,36 @@ stories: [S-002, S-005, S-006, S-007]
 > sobreviva y la interfaz pueda distinguirlos. Se sumó `GET`/`HEAD /api/files/[id]/preview`, el
 > camino de lectura **por `fileId`** que permite previsualizar lo recién subido antes de que exista
 > el vínculo.
+>
+> **Corrección (2026-08-20).** El camino E le faltaba a `web`: `getFilePreviewUrl()` apuntaba a
+> `/api/files/{id}/preview` y el endpoint de la `api` existía, pero **`web` nunca tuvo el route
+> handler** —solo lo tenía `opus-web`—. Next respondía un 404 sin cuerpo y `useAttachmentMeta`
+> traduce un 404 sin `code` a `file_not_available`, así que un `[file:N]` recién subido y
+> correctamente vinculado se mostraba como **"El archivo no está disponible"**. Ni la `api` ni
+> `core` registraban la request, porque nunca salía de Next. Ya está agregado, con sus tests.
+>
+> **Cambio de comportamiento (2026-08-20): `byte_status: 'pending'` ya NO bloquea la lectura.**
+> El diseño pedía responder `file_not_available` (CA-15, RF-21, D-15), y era incompatible con
+> RF-1 / CA-7: `pending` significaba a la vez "el byte nunca llegó" y "todavía no se vinculó"
+> —el `uploaded` lo escriben los comandos de vinculación, al guardar la entidad—, así que un
+> archivo recién subido era **imprevisualizable por construcción**. Es el caso que el camino E
+> existe para cubrir. **Se resigna el 404 entendible:** un PUT que falló en silencio ahora llega
+> al navegador como un `NoSuchKey` opaco de S3. Decisión explícita del solicitante.
+>
+> **Corrección (2026-08-20): el prefijo del placeholder decide el espacio de ids.** Tres bugs de
+> la misma familia, todos silenciosos porque **los dos espacios de ids se solapan** — resolver un
+> `fileId` contra la ruta de vínculos no da 404, sirve **otro archivo**:
+>
+> | Dónde | Qué pasaba |
+> |---|---|
+> | `web` — `AttachmentPlaceholder` | La descarga usaba `/api/attachments/{id}/download` incluso con `resource: 'file'`: bajaba el archivo equivocado |
+> | `opus-web` — `RichContentRenderer` | Solo reconocía `attach:`, así que un `![file:N]` de `web` se mostraba como **texto crudo** y no cargaba |
+> | `opus-web` — los dos formularios | Guardaban `attach:{fileId}` — un id de `files` bajo el prefijo de vínculos |
+>
+> **`attach:` se sigue leyendo** en los dos frontends: los comentarios anteriores a REQ-001 lo
+> usan con id de vínculo legítimo (verificado: ninguno quedó huérfano), así que no hay migración
+> de datos. Lo que cambió es que **se escribe siempre `file:`**, que es el id que existe al
+> adjuntar.
 
 ## Descripción
 
@@ -369,7 +399,7 @@ de vínculos para descargar lo que subió.
 | D3 | La entidad del vínculo no es `public` | *(idem)* | 403 | Comportamiento actual, sin cambios |
 | D3 | Archivo **sin ningún vínculo** por la vía pública | *(idem)* | 404 — inalcanzable por esa vía | CA-30 |
 | 5 | Archivo borrado (`retention_status` no `active`) | `file_not_found` | 404 | — |
-| 5 | **`byte_status: 'pending'` — el byte nunca llegó** | `file_not_available` | **404** con mensaje entendible | RF-21, CA-15, D-15 |
+| 5 | ~~`byte_status: 'pending'`~~ — **ya no se verifica** (2026-08-20) | *(se firma igual)* | **302** | Ver la nota de estado |
 | 4 | Timeout del bus | — | **503** | ADR-002 |
 | 4 | **`core` caído, camino público** | — | **503** — el link del correo no abre | Ver Notas |
 | 7 | Objeto borrado del bucket por fuera del producto | *(el 302 lleva a un `NoSuchKey` de S3)* | 403/404 de S3 | Caso residual |

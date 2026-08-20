@@ -2,6 +2,12 @@ import styles from './AttachmentDownload.module.scss';
 
 interface AttachmentDownloadProps {
   attachmentId: number;
+  /**
+   * Espacio de identificadores de `attachmentId`. `attachment` (default) es un id de VÍNCULO;
+   * `file` es un id de `files`, que es lo que guarda `web` al adjuntar. Los dos espacios se
+   * solapan, así que resolver uno contra la ruta del otro no da 404: sirve OTRO archivo.
+   */
+  resource?: 'attachment' | 'file';
   fileName: string;
   fileSize?: number;
   onRemove?: () => void;
@@ -14,12 +20,16 @@ function formatFileSize(bytes: number): string {
 
 export function AttachmentDownload({
   attachmentId,
+  resource = 'attachment',
   fileName,
   fileSize,
   onRemove,
 }: AttachmentDownloadProps) {
   const displayName = fileName || 'Archivo adjunto';
-  const href = `/api/attachments/${attachmentId}/preview`;
+  const href =
+    resource === 'file'
+      ? `/api/files/${attachmentId}/preview`
+      : `/api/attachments/${attachmentId}/preview`;
   const isPdf = fileName.toLowerCase().endsWith('.pdf');
 
   return (

@@ -175,15 +175,21 @@ describe('GET /api/files/:id/preview', () => {
       });
   });
 
-  // TS-22: byte pendiente → 404 file_not_available, ejecutando core.
-  it('responde 404 file_not_available cuando el byte nunca llegó', () => {
+  // TS-22 INVERTIDO (2026-08-20): un byte pendiente se sirve igual, ejecutando core.
+  //
+  // `byte_status: 'pending'` significaba a la vez "el byte nunca llegó" y "todavía no se
+  // vinculó" —el `uploaded` lo escribe el comando de vinculación, al guardar la entidad—, así
+  // que bloquearlo hacía imprevisualizable POR CONSTRUCCIÓN a todo archivo recién subido. Es
+  // justo el caso que este endpoint existe para cubrir (RF-1, CA-7). Se resigna el 404
+  // entendible de CA-15 / RF-21 / D-15: decisión explícita del solicitante.
+  it('responde 302 aunque el byte esté pendiente: el archivo sin vínculo se previsualiza', () => {
     return request(application)
       .get(`/api/files/${filePending.id}/preview`)
       .set('Authorization', 'Bearer token_01_user')
-      .expect(404)
+      .expect(302)
       .then(res => {
-        res.body.code.should.equal('file_not_available');
-        res.body.message.should.equal('El archivo no está disponible');
+        res.headers.location.should.be.a.String();
+        (fakeBus.last as any).command.should.equal(`files.${filePending.id}.request-download`);
       });
   });
 

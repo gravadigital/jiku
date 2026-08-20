@@ -232,6 +232,57 @@ describe('CommentInput', () => {
     });
   });
 
+  describe('prefijo del placeholder', () => {
+    /**
+     * EL BUG: se insertaba `attach:{fileId}` — un id de `files` bajo el prefijo de VÍNCULOS.
+     * El renderer resuelve `attach:` contra `/api/attachments/{id}/preview`, y como los dos
+     * espacios de ids se solapan, el comentario guardado terminaba mostrando OTRO archivo en
+     * silencio (o nada). El id que se sube es de `files`, así que el prefijo es `file:`.
+     */
+    it('inserta `file:` para un fileId, nunca `attach:`', async () => {
+      mockUploadFile.mockResolvedValue(uploaded);
+      render(<CommentInput requirementId={10} />);
+
+      fireEvent.change(fileInput(), { target: { files: [IMAGE] } });
+      await waitFor(() => expect(mockUploadFile).toHaveBeenCalled());
+
+      const editor = screen.getByTestId('rich-text-editor');
+      await waitFor(() => expect(editor).toHaveValue('![file:1234]'));
+      expect((editor as HTMLTextAreaElement).value).not.toContain('attach:');
+    });
+
+    it('mantiene el adjunto pendiente mientras su placeholder `file:` siga en el texto', async () => {
+      mockUploadFile.mockResolvedValue(uploaded);
+      render(<CommentInput requirementId={10} />);
+
+      fireEvent.change(fileInput(), { target: { files: [IMAGE] } });
+      await waitFor(() => expect(mockUploadFile).toHaveBeenCalled());
+
+      // Se reescribe el texto CONSERVANDO el placeholder: el adjunto tiene que sobrevivir.
+      fireEvent.change(screen.getByTestId('rich-text-editor'), {
+        target: { value: 'hola ![file:1234] chau' },
+      });
+      fireEvent.click(sendBtn());
+
+      expect(mockMutate.mock.calls[0][0].fileIds).toEqual([1234]);
+    });
+
+    it('descarta el adjunto cuando su placeholder se borra del texto', async () => {
+      mockUploadFile.mockResolvedValue(uploaded);
+      render(<CommentInput requirementId={10} />);
+
+      fireEvent.change(fileInput(), { target: { files: [IMAGE] } });
+      await waitFor(() => expect(mockUploadFile).toHaveBeenCalled());
+
+      fireEvent.change(screen.getByTestId('rich-text-editor'), {
+        target: { value: 'sin adjunto' },
+      });
+      fireEvent.click(sendBtn());
+
+      expect(mockMutate.mock.calls[0][0].fileIds).toEqual([]);
+    });
+  });
+
   describe('fileIds en el envío', () => {
     it('TS-27: el envío manda fileIds, no attachmentIds', async () => {
       mockUploadFile.mockResolvedValue(uploaded);
@@ -241,7 +292,7 @@ describe('CommentInput', () => {
       await waitFor(() => expect(mockUploadFile).toHaveBeenCalled());
 
       fireEvent.change(screen.getByTestId('rich-text-editor'), {
-        target: { value: 'ver esto ![attach:1234]' },
+        target: { value: 'ver esto ![file:1234]' },
       });
       fireEvent.click(sendBtn());
 

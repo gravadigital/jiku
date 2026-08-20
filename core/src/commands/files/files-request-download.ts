@@ -1,5 +1,5 @@
 import joi from 'joi';
-import { File, ByteStatus, RetentionStatus } from '@jiku/models';
+import { File, RetentionStatus } from '@jiku/models';
 import { Reply, success, failure, ErrorCode } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
@@ -51,13 +51,23 @@ export const filesRequestDownload: Command<FilesRequestDownloadPayload, Download
       return failure(ErrorCode.FILE_NOT_FOUND, 'Archivo no encontrado');
     }
 
-    // SE RESUELVE POR LA FILA, SIN TOCAR S3 (CA-14). Es la ventaja del diseño y hay que
-    // preservarla: no se llama al firmador antes de esta verificación, ni siquiera para
-    // "tenerlo listo". Una llamada de red acá viviría dentro de la transacción del despachador
-    // y arriesgaría el timeout de 5 s de ADR-002.
-    if (file.byteStatus === ByteStatus.Pending) {
-      return failure(ErrorCode.FILE_NOT_AVAILABLE, 'El archivo no está disponible');
-    }
+    // NO SE VERIFICA `byte_status`, Y ES UNA DECISIÓN TOMADA (2026-08-20), no un olvido.
+    //
+    // El REQ-001 pedía responder `file_not_available` cuando el byte estuviera `pending`
+    // (CA-15, RF-21, D-15). Era irrealizable junto con RF-1 / CA-7: `pending` significaba dos
+    // cosas a la vez —"el byte nunca llegó" y "todavía no se vinculó"— porque el `uploaded` lo
+    // escribe `link-files.ts` AL GUARDAR la entidad. Un archivo recién subido y aún sin
+    // vincular quedaba imprevisualizable POR CONSTRUCCIÓN, y previsualizar antes de guardar es
+    // exactamente lo que RF-1 / CA-7 declaran válido y los dos frontends ejercen.
+    //
+    // LO QUE SE RESIGNA: un archivo cuyo PUT falló en silencio ya no da un 404 entendible. Se
+    // firma la URL, el navegador sigue la redirección y S3 responde un `NoSuchKey` opaco. El
+    // byte sigue sin verificarse al subir (D-13), así que ese caso existe; simplemente vuelve a
+    // manifestarse como antes del REQ, al final de la redirección.
+    //
+    // Si algún día se quiere recuperar el 404, la vía NO es reponer este `if` —volvería a
+    // romper el preview— sino distinguir los dos significados de `pending`: confirmar el PUT al
+    // subir, o firmar igual cuando el actor resuelto sea el `uploaded_by` del archivo.
 
     // ESTE COMANDO NO VALIDA TITULARIDAD, y es correcto: un archivo se lee por el permiso
     // sobre la entidad del vínculo, no por quién lo subió. RF-12 habla de VINCULAR, no de

@@ -268,15 +268,18 @@ describe('GET /api/attachments/:id/preview', () => {
       });
   });
 
-  // TS-8: byte ausente → 404 file_not_available, EJECUTANDO CORE de verdad (ADR-013).
-  it('responde 404 file_not_available cuando el byte nunca llegó', () => {
+  // TS-8 INVERTIDO (2026-08-20): un byte pendiente se sirve igual, EJECUTANDO CORE (ADR-013).
+  //
+  // Mismo motivo que en `files-preview.test.ts`: `pending` no distinguía "el byte nunca llegó"
+  // de "todavía no se vinculó", y bloquearlo rompía el preview de lo recién subido (RF-1,
+  // CA-7). Se resigna CA-15 / RF-21 / D-15 por decisión explícita.
+  it('responde 302 aunque el byte esté pendiente', () => {
     return request(application)
       .get(`/api/attachments/${attPending.id}/preview`)
       .set('Authorization', 'Bearer token_01_user')
-      .expect(404)
+      .expect(302)
       .then(res => {
-        res.body.code.should.equal('file_not_available');
-        res.body.message.should.equal('El archivo no está disponible');
+        res.headers.location.should.be.a.String();
         (fakeBus.last as any).command.should.equal(`files.${filePending.id}.request-download`);
       });
   });

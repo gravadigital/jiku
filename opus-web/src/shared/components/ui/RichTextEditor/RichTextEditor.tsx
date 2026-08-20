@@ -30,7 +30,13 @@ type EditorSegment =
   | { type: 'text'; value: string }
   | { type: 'attachment'; id: number; fileName: string; mimeType: string; fileSize?: number };
 
-const PLACEHOLDER_REGEX = /(!?\[attach:(\d+)\])/g;
+/**
+ * Acepta los dos prefijos AL LEER —`file:` es el que se escribe hoy, `attach:` quedó en los
+ * comentarios que se guardaron antes— pero en este editor el id es SIEMPRE de `files`: el
+ * vínculo todavía no existe. Por eso el preview va por `getFilePreviewUrl` y la serialización
+ * de abajo emite `file:` en los dos casos.
+ */
+const PLACEHOLDER_REGEX = /(!?\[(?:attach|file):(\d+)\])/g;
 
 function parseToSegments(content: string, meta: AttachmentMeta[]): EditorSegment[] {
   const metaMap = new Map(meta.map((m) => [m.id, m]));
@@ -67,7 +73,9 @@ function serializeSegments(segments: EditorSegment[]): string {
   return segments
     .map((s) => {
       if (s.type === 'text') return s.value;
-      return s.mimeType.startsWith('image/') ? `![attach:${s.id}]` : `[attach:${s.id}]`;
+      // Se emite `file:` siempre: el id de este editor es de `files`. Un `attach:` acá haría
+      // que el comentario guardado apuntara al espacio de ids equivocado.
+      return s.mimeType.startsWith('image/') ? `![file:${s.id}]` : `[file:${s.id}]`;
     })
     .join('');
 }
@@ -157,6 +165,7 @@ export function RichTextEditor({
             ) : (
               <AttachmentDownload
                 attachmentId={segment.id}
+                resource="file"
                 fileName={segment.fileName}
                 fileSize={segment.fileSize}
                 onRemove={() => handleRemove(segment.id)}

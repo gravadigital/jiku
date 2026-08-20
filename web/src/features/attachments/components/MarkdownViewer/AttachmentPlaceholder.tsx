@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { Button } from '@/shared/components/ui/Button';
 import { useAttachmentMeta } from '../../hooks/useAttachmentMeta';
-import { getDownloadUrl } from '../../services/attachmentsClientApi';
+import { getDownloadUrl, getFilePreviewUrl } from '../../services/attachmentsClientApi';
 import { getFileIcon } from '../../utils/fileIcons';
 import styles from './AttachmentPlaceholder.module.scss';
 import type { AttachmentResource } from '../../types/attachment.types';
@@ -91,7 +91,16 @@ export function AttachmentPlaceholder({
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const response = await fetch(getDownloadUrl(attachmentId));
+      // LA RUTA DEPENDE DEL ESPACIO DE IDS, y no es opcional: con `resource: 'file'` el id es
+      // de `files`, no de vínculo. Pegarle a `/api/attachments/{id}/download` con un id de
+      // archivo NO da 404 — los dos espacios se solapan, así que un id que existe en las dos
+      // tablas descarga **el archivo equivocado, en silencio**.
+      //
+      // Para un archivo sin vínculo se usa el preview: es el único camino por `fileId` que la
+      // api expone, y alcanza porque el `link.download` de abajo pone el nombre — el binario
+      // llega igual y el usuario lo guarda con su nombre real.
+      const url = resource === 'file' ? getFilePreviewUrl(attachmentId) : getDownloadUrl(attachmentId);
+      const response = await fetch(url);
       if (response.status === 403) {
         toast.error('No tenés permisos para descargar este archivo');
         return;

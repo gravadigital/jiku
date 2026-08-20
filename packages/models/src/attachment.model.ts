@@ -1,9 +1,8 @@
 import {
   Table, Model, Column, DataType,
   ForeignKey, BelongsTo, BeforeDestroy,
-  DefaultScope, Scopes
+  Scopes
 } from 'sequelize-typescript';
-import { Transaction } from 'sequelize';
 import User from './user.model';
 import File from './file.model';
 import { RetentionStatus } from './retention-status.enum';
@@ -27,9 +26,6 @@ export enum AttachmentEntityType {
 // ciclo Attachment <-> File: ver retention-status.enum.ts
 export { RetentionStatus };
 
-@DefaultScope(() => ({
-  attributes: { exclude: ['checksum'] }
-}))
 @Scopes(() => ({
   active: {
     where: { deletedAt: null }
@@ -62,82 +58,6 @@ export default class Attachment extends Model {
     entityId!: number | null;
 
   @Column({
-    type: DataType.STRING(255),
-    allowNull: false,
-  })
-    fileName!: string;
-
-  @Column({
-    type: DataType.INTEGER,
-    allowNull: false,
-    validate: {
-      min: 1,
-      max: 10 * 1024 * 1024,  // 10MB
-    },
-  })
-    fileSize!: number;
-
-  @Column({
-    type: DataType.STRING(100),
-    allowNull: false,
-  })
-    mimeType!: string;
-
-  /**
-   * SIN `unique: true` desde S-003, a propósito.
-   *
-   * Un `File` puede tener 0..N vínculos (CA-13), y mientras esta columna siga existiendo en el
-   * modelo su valor se copia del `File` en cada vínculo. Con la unicidad puesta, el segundo
-   * vínculo del mismo archivo chocaría contra ella. No es un aflojamiento real: la migración
-   * 20260819_05 YA DROPEÓ `storage_key` de `attachments`, así que la restricción solo existía
-   * en el esquema que `sequelize.sync()` construye para los tests (ADR-013). Ninguna ruta de la
-   * api depende de esa unicidad. La columna entera desaparece del modelo en S-004/S-005.
-   */
-  @Column({
-    type: DataType.STRING(500),
-    allowNull: false,
-  })
-    storageKey!: string;
-
-  @Column({
-    type: DataType.STRING(100),
-    allowNull: false,
-  })
-    storageBucket!: string;
-
-  @Column({
-    type: DataType.STRING(50),
-    allowNull: false,
-  })
-    storageRegion!: string;
-
-  @ForeignKey(() => User)
-  @Column({
-    type: DataType.STRING(100),
-    allowNull: false,
-  })
-    uploadedBy!: string;
-
-  @Column({
-    type: DataType.TEXT,
-    allowNull: true,
-  })
-    description!: string | null;
-
-  @Column({
-    type: DataType.STRING(64),
-    allowNull: true,
-  })
-    checksum!: string | null;
-
-  @Column({
-    type: DataType.STRING,
-    allowNull: false,
-    defaultValue: RetentionStatus.Active,
-  })
-    retentionStatus!: RetentionStatus;
-
-  @Column({
     type: DataType.DATE,
     allowNull: true,
   })
@@ -153,9 +73,10 @@ export default class Attachment extends Model {
   /**
    * El archivo al que este vínculo apunta.
    *
-   * NULLABLE en esta story a propósito: la migración 20260819_02 la agrega nullable y recién
-   * 20260819_05 la endurece a NOT NULL. Hasta entonces las escrituras vigentes siguen
-   * funcionando sin poblarla.
+   * EN LA BASE ES `NOT NULL` desde la 20260819_05, pero acá sigue declarada nullable: la
+   * columna nació nullable en la 20260819_02 y `link-files.ts` todavía tiene ramas explícitas
+   * para el caso, comentadas como inalcanzables en producción. Endurecerla es correcto y está
+   * pendiente; hacerlo obliga a retirar esas ramas en el mismo cambio.
    */
   @ForeignKey(() => File)
   @Column({
@@ -167,38 +88,28 @@ export default class Attachment extends Model {
   @BelongsTo(() => File, { foreignKey: 'fileId', as: 'file' })
     file!: File | null;
 
-  @BelongsTo(() => User, { foreignKey: 'uploadedBy', as: 'uploader' })
-    uploader!: User;
-
   @BelongsTo(() => User, { foreignKey: 'deletedBy', as: 'deleter' })
     deleter!: User | null;
 
+  /**
+   * DESVINCULAR ES BORRAR LA FILA, y por eso este hook ya no bloquea el `destroy`.
+   *
+   * Hasta la 20260819_05 el borrado de un adjunto era lógico: `softDelete()` escribía
+   * `retention_status` y `deleted_at` sobre `attachments`. Esa migración dropeó
+   * `retention_status` de esta tabla —el ciclo de retención vive ahora en
+   * `files.retention_status` (D-04)— así que `softDelete()` ya no tenía dónde escribir y se
+   * eliminó junto con la columna.
+   *
+   * Se conserva el `force: true` como requisito explícito: un `destroy` sin él es casi
+   * siempre un descuido, y pedirlo obliga a escribir "sí, borrá la fila" en el call site.
+   * `core/src/commands/link-files.ts` y `attachments/attachments-delete.ts` ya lo pasan.
+   */
   @BeforeDestroy
-  static softDeleteHook(_attachment: Attachment, options: any) {
+  static requireForce(_attachment: Attachment, options: any) {
     if (!options.force) {
       throw new Error(
-        'Physical deletion is not allowed. Use attachment.softDelete() instead.'
+        'Desvincular borra la fila: pasá `force: true` explícitamente.'
       );
     }
-  }
-
-  async softDelete(deletedByUserId?: string, options?: { transaction?: Transaction }): Promise<void> {
-    await this.update({
-      retentionStatus: RetentionStatus.ScheduledForDeletion,
-      deletedAt: new Date(),
-      deletedBy: deletedByUserId || null,
-    }, options);
-  }
-
-  isImage(): boolean {
-    return this.mimeType.startsWith('image/');
-  }
-
-  isPdf(): boolean {
-    return this.mimeType === 'application/pdf';
-  }
-
-  canPreview(): boolean {
-    return this.isImage() || this.isPdf();
   }
 }

@@ -18,6 +18,7 @@ vi.mock('../../hooks/useAttachmentMeta', () => ({
 
 vi.mock('../../services/attachmentsClientApi', () => ({
   getDownloadUrl: (id: number) => `/api/attachments/${id}/download`,
+  getFilePreviewUrl: (id: number) => `/api/files/${id}/preview`,
 }));
 
 vi.mock('react-toastify', () => ({
@@ -97,6 +98,39 @@ describe('AttachmentPlaceholder', () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/attachments/3/download');
     });
+  });
+
+  /**
+   * EL BUG QUE ESTE TEST FIJA: con `resource="file"` el id es de `files`, no de vínculo, y la
+   * descarga pegaba igual a `/api/attachments/{id}/download`. Como los dos espacios de ids se
+   * solapan, un id que existe en las dos tablas **descargaba el archivo equivocado, en
+   * silencio** — sin 404 ni error, simplemente otro archivo.
+   */
+  it('con resource=file descarga por la ruta de FILES, no por la de vínculos', async () => {
+    vi.mocked(useAttachmentMeta).mockReturnValue({
+      data: { id: 254, fileName: 'manual.pdf', fileSize: 100, mimeType: 'application/pdf' },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      blob: () => Promise.resolve(new Blob(['bytes'])),
+    } as unknown as Response);
+
+    global.URL.createObjectURL = vi.fn(() => 'blob:mock');
+    global.URL.revokeObjectURL = vi.fn();
+
+    render(<AttachmentPlaceholder attachmentId={254} resource="file" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /descargar/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/files/254/preview');
+    });
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/attachments/254/download');
   });
 
   it('muestra mensaje cuando el hook reporta 403', () => {

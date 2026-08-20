@@ -786,13 +786,28 @@ describe('files', () => {
       unescapedQuotes.should.equal(2);
     });
 
-    it('TS-36: byte ausente da file_not_available, sin tocar S3', async () => {
-      const reply = await dispatch(`files.${pendingId}.request-download`, {}, TRUSTED);
+    /**
+     * TS-36 INVERTIDO (2026-08-20). Antes exigía `file_not_available` para un `byte_status:
+     * 'pending'`; ahora exige que se firme igual.
+     *
+     * POR QUÉ: `pending` significaba dos cosas a la vez —"el byte nunca llegó" y "todavía no se
+     * vinculó"— porque el `uploaded` lo pone `link-files.ts` AL GUARDAR la entidad. Con la
+     * verificación puesta, un archivo recién subido y todavía sin vincular era
+     * IMPREVISUALIZABLE POR CONSTRUCCIÓN, y eso contradice RF-1 / CA-7, que declaran ese estado
+     * válido y exigen justamente poder previsualizarlo (REQ-001, escenario C).
+     *
+     * COSTO ACEPTADO: se resigna CA-15 / RF-21 / D-15. Un archivo cuyo PUT falló en silencio ya
+     * no da un 404 entendible: la firma sale, el navegador sigue la redirección y S3 responde un
+     * `NoSuchKey` opaco. Es una decisión explícita del solicitante, no un descuido.
+     */
+    it('TS-36: un byte pendiente se firma igual — el archivo sin vínculo es previsualizable', async () => {
+      const reply = await dispatch<{ downloadUrl: string }>(
+        `files.${pendingId}.request-download`, {}, TRUSTED
+      );
 
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('file_not_available');
-      s3.calls.should.have.length(0);
-      s3.sendCount.should.equal(0);
+      reply.status.should.equal('success');
+      reply.data!.downloadUrl.should.be.a.String();
+      s3.calls.should.have.length(1);
     });
 
     it('TS-37: un fileId inexistente da file_not_found', async () => {

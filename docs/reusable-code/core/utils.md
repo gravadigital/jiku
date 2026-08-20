@@ -42,7 +42,8 @@ if uploading and linking resolved identity differently, nobody could link what t
 actor with `resolveActor`, reads the files in a single query, and validates them **in this order:
 existence → liveness → ownership**. The order is mandatory: it is what makes a missing file answer
 `invalid_fields` (400) instead of `file_not_owned` (403). On success it marks the bytes as uploaded
-with one `UPDATE` and inserts one `attachments` row per file. Repeated ids are deduplicated
+with one `UPDATE` and inserts one `attachments` row per file — carrying **only** the polymorphic
+pair and `file_id`: the file metadata lives in `files` and is read back through the `include`. Repeated ids are deduplicated
 silently. Additive mode — it never touches pre-existing links, so it suits creation commands.
 
 It **never opens or closes a transaction** and never throws to signal an expected failure (ADR-003):
@@ -87,9 +88,11 @@ entity too. The `File` rows survive, unlinked, which is a valid state.
 them, and validates ownership **only on the new ids** — the ones already linked passed the same
 check when they were linked, and `uploaded_by` does not change.
 
-Unlinking is a **hard delete** (`destroy({ force: true })`), never `softDelete()`: the latter writes
-`retention_status` and `deleted_at` on `attachments`, columns migration `20260819_05` already
-dropped. It operates on the **link**, never on the file.
+Unlinking is a **hard delete** (`destroy({ force: true })`). `softDelete()` no longer exists on
+`Attachment`: it wrote `retention_status` and `deleted_at`, columns migration `20260819_05` dropped,
+so it was removed from the model along with them. `force: true` is still required — the
+`@BeforeDestroy` guard keeps it mandatory so deleting a link is always explicit at the call site.
+It operates on the **link**, never on the file.
 
 **Signature:** identical to `linkFiles`.
 

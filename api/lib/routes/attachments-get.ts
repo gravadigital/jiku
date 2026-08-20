@@ -1,5 +1,5 @@
 import { Request, Response, Router } from 'express';
-import { Attachment, AttachmentEntityType, File, User } from '@jiku/models';
+import { Attachment, AttachmentEntityType, File, RetentionStatus, User } from '@jiku/models';
 import { canUserViewEntity } from '../utils/attachments-access';
 import logger from '../logger';
 import validateToken from '../utils/middlewares/validate-token';
@@ -9,9 +9,9 @@ const router: Router = Router();
 /**
  * El `include` que resuelve los campos del archivo (REQ-001, S-005).
  *
- * Las columnas homónimas de `attachments` siguen existiendo por compatibilidad, pero después
- * del backfill son un espejo que puede divergir del `File` real —y `byte_status` ni siquiera
- * existe en `attachments`, aunque el contrato lo declare—. La verdad está en `files`.
+ * Ya NO es una preferencia entre dos copias: la 20260819_05 dropeó las columnas homónimas de
+ * `attachments`, así que `files` es la única fuente. El `include` es obligatorio — sin él la
+ * respuesta no tiene nombre, tamaño ni mime.
  */
 const FILE_INCLUDE = [
   {
@@ -54,14 +54,20 @@ function flattenAttachment(attachment: any) {
     uploadedBy: file?.uploadedBy,
     byteStatus: file?.byteStatus,
     uploader: file?.uploader,
-    // Campos PROPIOS DEL VÍNCULO que ya salían en la respuesta y se conservan tal cual. No
-    // son del archivo: `retentionStatus` acá es el del vínculo, no el de `files` —el estado
-    // de retención del archivo NO se expone, el spec no lo declara—. Se mantienen porque los
-    // tipos de web (`description`) y opus-web (`retentionStatus`, `updatedAt`) los declaran
-    // NO opcionales, y esos tipos están escritos a mano: sacarlos no rompería la compilación
-    // de nadie y aparecería en runtime, que es el modo de fallo específico de este servicio.
-    description: attachment.description,
-    retentionStatus: attachment.retentionStatus,
+    // `description` y `retentionStatus` se emiten como CONSTANTES, no leídas del vínculo: la
+    // 20260819_05 dropeó las dos columnas de `attachments` y el modelo ya no las declara, así
+    // que leerlas daba `undefined` y desaparecían del JSON.
+    //
+    // Se emiten igual porque los tipos de web (`description`) y opus-web (`retentionStatus`)
+    // las declaran NO opcionales y están escritos a mano: quitarlas del contrato no rompería
+    // ninguna compilación y el fallo aparecería en runtime. El valor es el único que puede
+    // tener sentido hoy: `description` murió como columna (estaba vacía en todas las filas por
+    // construcción) y un vínculo que se está listando está, por definición, activo — el ciclo
+    // de retención del ARCHIVO vive en `files.retention_status` y no se expone acá.
+    //
+    // Los dos campos salen del contrato cuando los frontends dejen de declararlos.
+    description: null,
+    retentionStatus: RetentionStatus.Active,
     createdAt: attachment.createdAt,
     updatedAt: attachment.updatedAt,
   };

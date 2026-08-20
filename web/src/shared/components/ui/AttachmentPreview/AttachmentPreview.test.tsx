@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { AttachmentPreview } from './AttachmentPreview';
 
@@ -43,5 +43,48 @@ describe('AttachmentPreview', () => {
       />
     );
     expect(screen.getByText('foto.png')).toBeInTheDocument();
+  });
+
+  it('usa la ruta de files cuando el recurso es un archivo sin vínculo', () => {
+    render(
+      <AttachmentPreview
+        attachmentId={252}
+        resource="file"
+        fileName="messi.png"
+        mimeType="image/png"
+      />
+    );
+    expect(screen.getByAltText('messi.png')).toHaveAttribute(
+      'src',
+      '/api/files/252/preview'
+    );
+  });
+
+  it('muestra el mensaje de no disponible cuando la imagen falla', () => {
+    render(
+      <AttachmentPreview attachmentId={5} fileName="roto.png" mimeType="image/png" />
+    );
+    fireEvent.error(screen.getByAltText('roto.png'));
+    expect(screen.getByText('El archivo no está disponible')).toBeInTheDocument();
+  });
+
+  /**
+   * El fallo se recordaba PARA SIEMPRE: `failed` es estado local y nada lo reseteaba, así que
+   * al cambiar de adjunto —un id nuevo en el mismo nodo del editor— el componente seguía
+   * mostrando "El archivo no está disponible" del anterior, aunque el nuevo estuviera bien.
+   */
+  it('olvida el fallo anterior cuando cambia el adjunto', () => {
+    const { rerender } = render(
+      <AttachmentPreview attachmentId={5} fileName="roto.png" mimeType="image/png" />
+    );
+    fireEvent.error(screen.getByAltText('roto.png'));
+    expect(screen.getByText('El archivo no está disponible')).toBeInTheDocument();
+
+    rerender(
+      <AttachmentPreview attachmentId={6} fileName="buena.png" mimeType="image/png" />
+    );
+
+    expect(screen.queryByText('El archivo no está disponible')).not.toBeInTheDocument();
+    expect(screen.getByAltText('buena.png')).toBeInTheDocument();
   });
 });

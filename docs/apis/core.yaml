@@ -415,7 +415,11 @@ channels:
 
       **The byte is NOT verified.** No `headObject`, because a network call inside the
       dispatcher's transaction would risk the 5 s timeout of ADR-002. The failure surfaces on
-      download as `file_not_available`, never as a corrupted row.
+      download, never as a corrupted row.
+
+      > **Revised 2026-08-20.** It no longer surfaces as `file_not_available`: see
+      > `files.{fileId}.request-download`, which stopped checking `byte_status`. A byte that
+      > never arrived now reaches the browser as an opaque `NoSuchKey` from S3.
     publish:
       operationId: filesRequestUpload
       summary: Request permission to upload a file
@@ -426,8 +430,22 @@ channels:
 
   files.{fileId}.request-download:
     description: |
-      Read permission. Validates that the file exists, is alive and has a byte, and signs a
-      `GetObject` presigned URL over its `storage_key`.
+      Read permission. Validates that the file exists and is alive, and signs a `GetObject`
+      presigned URL over its `storage_key`.
+
+      > **`byte_status` is NOT checked (revised 2026-08-20).** The original design answered
+      > `file_not_available` for a `pending` byte (CA-15, RF-21, D-15). That was unachievable
+      > together with RF-1 / CA-7: `pending` meant two things at once — "the byte never arrived"
+      > and "not linked yet" — because `uploaded` is written by the LINKING commands, when the
+      > entity is saved. Blocking it made every just-uploaded file unpreviewable **by
+      > construction**, which is exactly the case this command exists to serve.
+      >
+      > **What is given up:** a file whose PUT failed silently no longer answers a readable 404.
+      > The URL is signed, the browser follows the redirect and S3 answers an opaque `NoSuchKey`.
+      >
+      > To recover the 404 later, the way is NOT to restore the check — it would break the
+      > preview again — but to separate the two meanings of `pending`: confirm the PUT on upload,
+      > or sign anyway when the resolved actor is the file's `uploaded_by`.
 
       **`fileId` is the id of `files`** — the file, not the link. The parameter name is explicit
       on purpose so it is not confused with the `attachments` id that travels in the HTTP
@@ -737,7 +755,10 @@ components:
         $ref: '#/components/schemas/FilesRequestDownloadPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithDownloadTicket'
-      x-error-codes: [file_not_found, file_not_available, internal_error]
+      # `file_not_available` YA NO SE EMITE (revisado 2026-08-20): el comando dejó de verificar
+      # `byte_status`. Se conserva en el catálogo de `ErrorCode` —no está cerrado y el paquete es
+      # compartido (ADR-005)— y la api lo sigue mapeando a 404, pero ningún comando lo devuelve.
+      x-error-codes: [file_not_found, internal_error]
 
     AttachmentsDelete:
       name: AttachmentsDelete
