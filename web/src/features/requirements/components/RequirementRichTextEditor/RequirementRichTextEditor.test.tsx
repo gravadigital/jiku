@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { fireEvent, render, screen, act, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render as rtlRender, screen, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { uploadFile } from '@/features/attachments/services/attachmentsClientApi';
 import {
@@ -45,6 +46,18 @@ function Harness({ onChange, onUploadError, onReady }: HarnessProps) {
       onUploadError={onUploadError}
     />
   );
+}
+
+/**
+ * El editor renderiza `AttachmentPlaceholder` para todo adjunto que no sea imagen, y ese
+ * componente resuelve su metadata con `useAttachmentMeta` — un `useQuery`. Sin provider el hook
+ * lanza, y como lo hace durante el render de React el error queda fuera del `it`: Vitest lo
+ * reporta como unhandled y los `expect` del caso pasan sin que el placeholder haya renderizado.
+ * Por eso el provider va en TODOS los render, no solo en los que lo necesitan hoy.
+ */
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
 function renderEditor(
@@ -133,6 +146,32 @@ describe('RequirementRichTextEditor', () => {
       expect(onChange).toHaveBeenCalledWith(expect.stringContaining('[file:99]'));
     });
     expect(onChange).not.toHaveBeenCalledWith(expect.stringContaining('![file:99]'));
+  });
+
+  it('monta el adjunto no-imagen en el editor', async () => {
+    vi.mocked(uploadFile).mockResolvedValue(99);
+    // `AttachmentPlaceholder` resuelve la metadata con un HEAD via `useAttachmentMeta`, asi que
+    // sin este mock la query queda pendiente para siempre y el placeholder no pasa del skeleton.
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': 'inline; filename="informe.pdf"',
+          'Content-Length': '9',
+        }),
+      })
+    ) as unknown as typeof fetch;
+    render(<Harness onReady={() => {}} />);
+    const file = new File(['contenido'], 'informe.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Es lo que confirma que el placeholder monto de verdad: sin el provider este render
+    // explotaba durante el render de React y el caso de arriba pasaba igual, en falso.
+    expect(await screen.findByRole('button', { name: 'Eliminar' })).toBeInTheDocument();
   });
 
   it('avisa que hay una subida en curso y cuando termina', async () => {
