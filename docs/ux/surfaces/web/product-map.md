@@ -43,7 +43,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28 |
-| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001 |
+| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |

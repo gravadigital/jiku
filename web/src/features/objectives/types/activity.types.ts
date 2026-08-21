@@ -14,9 +14,6 @@ export interface ObjectiveActivity {
   updatedAt: Date;
   projectId: number;
   user: User;
-  externalReferenceUrl?: string | null;
-  externalUserName?: string | null;
-  externalUserId?: string | null;
   visibilityLevel: ActivityVisibilityLevel;
 }
 

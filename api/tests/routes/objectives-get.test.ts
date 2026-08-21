@@ -723,5 +723,40 @@ describe('GET /api/objectives', () => {
         });
     });
   });
-});
 
+  /**
+   * S-010: el listado deja de traer las 6 claves de la integración por cada elemento.
+   * Aserción sobre `Object.keys(...)`: una clave presente con valor `undefined` también
+   * incumpliría el criterio, y `res.body[i].externalUrl === undefined` no lo detectaría.
+   */
+  describe('S-010: la integración con sistemas externos no viaja en el listado', () => {
+    const OBJECTIVE_INTEGRATION_KEYS = [
+      'externalProjectId',
+      'externalIssueId',
+      'externalIssueKey',
+      'externalUrl',
+      'externalRawData',
+      'lastSyncedAt',
+    ];
+
+    it('TS-9: ningún elemento del listado expone las 6 claves de la integración', () => {
+      return request(application)
+        .get('/api/objectives')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.be.above(0);
+          response.body.forEach((objective: any) => {
+            const keys = Object.keys(objective);
+            OBJECTIVE_INTEGRATION_KEYS.forEach((key) => {
+              keys.should.not.containEql(key);
+            });
+            keys.should.containEql('id');
+            keys.should.containEql('title');
+          });
+        });
+    });
+  });
+});

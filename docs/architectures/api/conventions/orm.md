@@ -27,7 +27,7 @@ sequelize              # 6.37
 sequelize-typescript   # 2.1, decoradores
 pg                     # driver
 sequelize-cli          # migraciones
-@jiku/models           # los 28 modelos, compartidos con core
+@jiku/models           # los 26 modelos, compartidos con core
 ```
 
 ## La conexión es de solo lectura
@@ -62,7 +62,7 @@ Esa es la garantía; no la trates como una convención de estilo.
 
 ## Los modelos viven en un paquete compartido
 
-`@jiku/models` exporta las 28 clases pero **no abre la conexión**, a propósito: api y core usan
+`@jiku/models` exporta las 26 clases pero **no abre la conexión**, a propósito: api y core usan
 la misma definición con credenciales distintas. Es lo que hace posible la separación.
 
 ```ts
@@ -196,7 +196,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 - Se esperan **aditivas**: el esquema no está versionado aparte del producto.
 - Tabla de control: `sequelize_meta`.
 
-> **Las 95 migraciones actuales no construyen el esquema desde cero**: todas asumen uno
+> **Las 101 migraciones actuales no construyen el esquema desde cero**: todas asumen uno
 > existente y ninguna crea `objectives`. Una instalación nueva necesita un dump previo. No
 > asumas que `upgrade-db` sobre una base vacía funciona.
 

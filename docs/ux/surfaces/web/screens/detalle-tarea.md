@@ -36,7 +36,6 @@ date: 2026-08-18
 - A `/objectives/edit/{id}` · click en boton-editar (`objectives/[id]/page.tsx:23`)
 - A `/requirements/{requirementId}` · click en link-requisito (`ObjectiveDetails.tsx:118-120`)
 - A `/projects/{projectId}` · click en link-proyecto (`ObjectiveDetails.tsx:79`)
-- A una URL externa en pestaña nueva · click en link-url-externa (`ObjectiveDetails.tsx:88`)
 
 **Salidas automáticas:**
 - A `/objectives/{id}` · tras guardar un comentario nuevo, la pantalla navega a sí misma (`CommentEditor.tsx:107`)
@@ -56,25 +55,24 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 7 | badge-estado | badge | por `data-state` | content | desktop | — | Estado de la tarea |
 | 8 | link-proyecto | link | — | navigation | desktop | — | Navega al proyecto |
 | 9 | link-requisito | link | — | navigation | desktop | — | Navega al requisito vinculado |
-| 10 | link-url-externa | link | — | navigation | desktop | hidden_in_states: sin url definida | Abre la url externa en pestaña nueva |
-| 11 | lista-equipo | list | — | content | desktop | — | Personas asignadas |
-| 12 | descripcion-tarea | paragraph | body | content | desktop | — | Descripción en markdown |
-| 13 | titulo-historial | heading | h2 | content | desktop | — | Encabeza el historial |
-| 14 | lista-historial | list | — | content | desktop | hidden_in_states: empty del historial | Entradas de actividad |
-| 15 | titulo-comentarios | heading | h2 | content | desktop | — | Encabeza los comentarios |
-| 16 | lista-comentarios | list | — | content | desktop | hidden_in_states: empty de comentarios | Comentarios de la tarea |
-| 17 | comentario | card | lectura / edición | content | desktop | — | Un comentario, editable in-place |
-| 18 | badge-visibilidad-comentario | badge | public / internal | content | desktop | — | Marca si el comentario es visible para externos |
-| 19 | boton-editar-comentario | button | — | input | desktop | — | Entra en modo edición del comentario |
-| 20 | editor-comentario-nuevo | text-input | default · disabled | input | desktop | state_overrides: loading→disabled | Redacción del comentario nuevo |
-| 21 | lista-adjuntos-pendientes | list | — | content | desktop | visible_only_in_states: default (con archivos ya subidos) | Archivos subidos, todavía sin vincular al comentario |
-| 22 | boton-quitar-adjunto | button | — | input | desktop | — | Saca un archivo del comentario en curso |
-| 23 | checkbox-comentario-publico | checkbox | unchecked (default) / checked | input | desktop | — | Marca el comentario como público |
-| 24 | boton-adjuntar-comentario | button | — | input | desktop | — | Sube un archivo, de a uno por vez |
-| 25 | boton-guardar-comentario | button | primary · loading / disabled | input | desktop | state_overrides: sin contenido→disabled; loading→spinner | Guarda el comentario nuevo |
-| 26 | vacio-historial | empty-state | — | feedback | desktop | visible_only_in_states: empty del historial | Mensaje de historial vacío |
-| 27 | vacio-comentarios | empty-state | — | feedback | desktop | visible_only_in_states: empty de comentarios | Mensaje de comentarios vacíos |
-| 28 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
+| 10 | lista-equipo | list | — | content | desktop | — | Personas asignadas |
+| 11 | descripcion-tarea | paragraph | body | content | desktop | — | Descripción en markdown |
+| 12 | titulo-historial | heading | h2 | content | desktop | — | Encabeza el historial |
+| 13 | lista-historial | list | — | content | desktop | hidden_in_states: empty del historial | Entradas de actividad |
+| 14 | titulo-comentarios | heading | h2 | content | desktop | — | Encabeza los comentarios |
+| 15 | lista-comentarios | list | — | content | desktop | hidden_in_states: empty de comentarios | Comentarios de la tarea |
+| 16 | comentario | card | lectura / edición | content | desktop | — | Un comentario, editable in-place |
+| 17 | badge-visibilidad-comentario | badge | public / internal | content | desktop | — | Marca si el comentario es visible para externos |
+| 18 | boton-editar-comentario | button | — | input | desktop | — | Entra en modo edición del comentario |
+| 19 | editor-comentario-nuevo | text-input | default · disabled | input | desktop | state_overrides: loading→disabled | Redacción del comentario nuevo |
+| 20 | lista-adjuntos-pendientes | list | — | content | desktop | visible_only_in_states: default (con archivos ya subidos) | Archivos subidos, todavía sin vincular al comentario |
+| 21 | boton-quitar-adjunto | button | — | input | desktop | — | Saca un archivo del comentario en curso |
+| 22 | checkbox-comentario-publico | checkbox | unchecked (default) / checked | input | desktop | — | Marca el comentario como público |
+| 23 | boton-adjuntar-comentario | button | — | input | desktop | — | Sube un archivo, de a uno por vez |
+| 24 | boton-guardar-comentario | button | primary · loading / disabled | input | desktop | state_overrides: sin contenido→disabled; loading→spinner | Guarda el comentario nuevo |
+| 25 | vacio-historial | empty-state | — | feedback | desktop | visible_only_in_states: empty del historial | Mensaje de historial vacío |
+| 26 | vacio-comentarios | empty-state | — | feedback | desktop | visible_only_in_states: empty de comentarios | Mensaje de comentarios vacíos |
+| 27 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 
 **Origen:** `src/app/(loggedin)/objectives/[id]/page.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.module.scss`, `src/features/objectives/components/ObjectiveHistoryList/ObjectiveHistoryList.tsx`, `src/features/objectives/components/ObjectiveComment/ObjectiveComment.tsx`, `src/shared/components/ui/CommentEditor/CommentEditor.tsx`.
 
@@ -90,7 +88,7 @@ Notas de transcripción [fuente: código-existente]:
 - tarjeta-detalle
   - tag-prioridad
   - row `metadatos`
-    - col 6/12: badge-estado (Estado), link-proyecto (Proyecto), link-url-externa (Url Externa), Área, Visibilidad, Creado por, link-requisito (Requisito)
+    - col 6/12: badge-estado (Estado), link-proyecto (Proyecto), Área, Visibilidad, Creado por, link-requisito (Requisito)
     - col 6/12: Fecha de inicio, Fecha de finalización estimada, Fecha de cierre, Última actualización, Horas trabajadas, lista-equipo (Equipo)
   - descripcion-tarea
 - titulo-historial
@@ -149,7 +147,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Annotation: `<div className={styles.metadataGrid}>` (`ObjectiveDetails.tsx:66`)
 
 ### fila-metadato
-- Texto/label: etiquetas verbatim, en el orden del DOM (`ObjectiveDetails.tsx:68-166`): `"Estado"` · `"Proyecto"` (vacío: `"No definido"`) · `"Url Externa"` (vacío: la fila no se renderiza) · `"Área"` · `"Visibilidad"` · `"Creado por"` · `"Requisito"` (si la query falla: `"Requisito no disponible"`) · `"Fecha de inicio"` · `"Fecha de finalización estimada"` (vacío: `"No definida"`) · `"Fecha de cierre"` (la fila solo aparece si existe) · `"Última actualización"` · `"Horas trabajadas"` (la fila solo aparece si existe) · `"Equipo"` (vacío: `"No hay personas asignadas"`)
+- Texto/label: etiquetas verbatim, en el orden del DOM (`ObjectiveDetails.tsx:68-166`): `"Estado"` · `"Proyecto"` (vacío: `"No definido"`) · `"Área"` · `"Visibilidad"` · `"Creado por"` · `"Requisito"` (si la query falla: `"Requisito no disponible"`) · `"Fecha de inicio"` · `"Fecha de finalización estimada"` (vacío: `"No definida"`) · `"Fecha de cierre"` (la fila solo aparece si existe) · `"Última actualización"` · `"Horas trabajadas"` (la fila solo aparece si existe) · `"Equipo"` (vacío: `"No hay personas asignadas"`)
 - Icono: nada
 - Asset: nada
 - Annotation: markup `<p><span>Etiqueta</span> valor</p>`. Formato de la fecha de cierre: `toLocaleDateString('es-ES', { month: 'short', year: 'numeric', … })` (`:145-149`)
@@ -171,12 +169,6 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Icono: nada
 - Asset: nada
 - Annotation: `<Link href="/requirements/{id}">` (`ObjectiveDetails.tsx:118-120`)
-
-### link-url-externa
-- Texto/label: la url externa
-- Icono: nada
-- Asset: nada
-- Annotation: `<a target="_blank" rel="noopener noreferrer">` sin aviso de que abre en pestaña nueva (`ObjectiveDetails.tsx:88`)
 
 ### lista-equipo
 - Texto/label: un `<li>` por persona; `"No hay personas asignadas"` si no hay ninguna
@@ -215,10 +207,10 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Annotation: `<ul className={styles.connectedComments}>` (`ObjectiveHistoryList.tsx:75`)
 
 ### comentario
-- Texto/label: autor dinámico (`ObjectiveComment.tsx:79`); marca `"(editado)"` con `Tooltip` en los modificados (`:94`); fecha en un `Tooltip` con `` `Creación: ${fecha}` `` (`:98`); contenido en markdown vía `<MarkdownViewer>` (`:116`). En edición, botones `"Cancelar"` y `"Guardar"` (`:124`, `:130`)
+- Texto/label: autor: el nombre del usuario de Jiku que escribió el comentario (`ObjectiveComment.tsx:79`, alimentado por `ObjectiveHistoryList.tsx:80`); marca `"(editado)"` con `Tooltip` en los modificados (`:94`); fecha en un `Tooltip` con `` `Creación: ${fecha}` `` (`:98`); contenido en markdown vía `<MarkdownViewer>` (`:116`). En edición, botones `"Cancelar"` y `"Guardar"` (`:124`, `:130`)
 - Icono: nada
 - Asset: nada
-- Annotation: toast de éxito `"Comentario editado exitosamente"` (`:60`); toasts de error `"El comentario no puede estar vacío"` (`:51`) y `"Hubo un error al editar el comentario"` (`:66`)
+- Annotation: toast de éxito `"Comentario editado exitosamente"` (`:60`); toasts de error `"El comentario no puede estar vacío"` (`:51`) y `"Hubo un error al editar el comentario"` (`:66`). **El autor no tiene variantes**: con REQ-003 desaparece la rama que sufijaba `"(En sistema externo)"` al nombre cuando la actividad venía de un sistema externo — nunca se renderizó, porque nada escribía esos campos
 
 ### badge-visibilidad-comentario
 - Texto/label: `"👁"` (público) o `"🔒"` (interno), con `Tooltip` `"Visible para externos"` / `"Solo interno"` (`ObjectiveComment.tsx:81`, `:84`)
@@ -351,7 +343,6 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - boton-editar · click → navega a `/objectives/edit/{id}` (`objectives/[id]/page.tsx:23`)
 - link-proyecto · click → `handleClick` navega al proyecto (`ObjectiveDetails.tsx:79`)
 - link-requisito · click → navega al requisito (`ObjectiveDetails.tsx:118`)
-- link-url-externa · click → abre en pestaña nueva (`ObjectiveDetails.tsx:88`)
 - boton-editar-comentario · click → entra en modo edición (`ObjectiveComment.tsx:138`)
 - `"Guardar"` del comentario en edición · click → valida no vacío y muta (`ObjectiveComment.tsx:49-67`)
 - `"Cancelar"` del comentario en edición · click → `handleCancel` descarta lo editado sin aviso (`ObjectiveComment.tsx:124`)
@@ -370,7 +361,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 
 ## Accesibilidad
 
-- **Orden de foco:** boton-editar → boton-volver (el `row-reverse` de `PageLayout` invierte el orden visual pero no el del DOM, `PageLayout.module.scss:33`) → link-requisito → link-url-externa → boton-editar-comentario de cada comentario → editor-comentario-nuevo → boton-quitar-adjunto de cada adjunto → checkbox-comentario-publico → boton-adjuntar-comentario → boton-guardar-comentario. **`link-proyecto` no está en el orden de foco:** es un `<a onClick>` sin `href`, así que no es enfocable por teclado ni se anuncia como enlace (`ObjectiveDetails.tsx:79`) [fuente: código-existente].
+- **Orden de foco:** boton-editar → boton-volver (el `row-reverse` de `PageLayout` invierte el orden visual pero no el del DOM, `PageLayout.module.scss:33`) → link-requisito → boton-editar-comentario de cada comentario → editor-comentario-nuevo → boton-quitar-adjunto de cada adjunto → checkbox-comentario-publico → boton-adjuntar-comentario → boton-guardar-comentario. **`link-proyecto` no está en el orden de foco:** es un `<a onClick>` sin `href`, así que no es enfocable por teclado ni se anuncia como enlace (`ObjectiveDetails.tsx:79`) [fuente: código-existente].
 - **Landmarks y jerarquía:** los landmarks son los del shell. Un solo `<h1>`, el del `PageLayout` (el título de la tarea, `objectives/[id]/page.tsx:16`), y dos `<h2>`: `"Historial de cambios"` y `"Comentarios"` (`ObjectiveHistoryList.tsx:101`, `:104`). Correcto. **La estructura de metadatos no es semántica:** `<p><span>Etiqueta</span> valor</p>` en vez de `<dl>`/`<dt>`/`<dd>`, así que la relación etiqueta-valor no se anuncia (`ObjectiveDetails.tsx:68-166`).
 - **Foco y teclado:** la pantalla no abre modales ni dropdowns propios, así que no introduce focus traps. Los `Tooltip` del historial y de los comentarios son de `:hover` puro. No hay atajos de teclado propios.
 - **Propio de esta composición:** **HTML inválido en las dos listas de actividad:** el empty de historial y el de comentarios devuelven un `<div>` que se renderiza dentro de un `<ul>` (`<ul>{renderActivityContent(...)}</ul>`, `ObjectiveHistoryList.tsx:33`, `:102`). **La visibilidad de cada comentario se comunica solo por emoji** (`👁` / `🔒`), con el significado en un `Tooltip` de `:hover`: los emoji los leen los lectores de pantalla, pero como `"ojo"` / `"candado"`, no como `"público"` / `"interno"` (`ObjectiveComment.tsx:84`). **Las fechas completas viven solo en tooltips de `:hover`** y son inalcanzables por teclado (`ObjectiveHistoryList.tsx:56`, `ObjectiveComment.tsx:98`). `boton-guardar-comentario` está `disabled` sin `aria-describedby` que explique por qué (`CommentEditor.tsx:158`), y `boton-quitar-adjunto` no identifica cuál adjunto quita (`CommentEditor.tsx:134`). El tag de prioridad muestra el número crudo sin leyenda de la escala (`ObjectiveDetails.tsx:63`) [fuente: código-existente].
@@ -386,3 +377,11 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Guardar queda deshabilitado mientras un archivo sube.** Se descartó permitirlo y encolar el guardado: el vínculo se crea contra un archivo cuyo contenido todavía viaja, y el sistema no verifica que haya llegado (D-13), así que el comentario podría quedar con un adjunto vacío y sin síntoma hasta que alguien lo abra.
 - **El error de titularidad se comunica en lenguaje de personas, no de sistema.** `file_not_owned` se muestra como *"No podés adjuntar un archivo que subió otra persona"* (RF-12). Se descartó *"No sos el propietario del archivo"*: nombra un concepto —propiedad de archivo— que el usuario nunca vio en la interfaz y que no necesita aprender para entender qué hacer.
 - **No se agregó componente al Design System.** `progress-bar` no tiene spec en `web` v0.1.0. Queda anotado como gap conocido en la `## Revisión UX` de REQ-001; el catálogo completo lo resuelve `/product-design-system-update`.
+
+### REQ-003 — Baja de la integración con sistemas externos (2026-08-20)
+
+- **`link-url-externa` se elimina, no se oculta.** La fila `"Url Externa"` de la grilla de metadatos era la única superficie visible de la integración con Jira en todo el producto, y su condición de visibilidad (`objective.externalProjectId ?`) **siempre tomaba la rama vacía**: ninguna escritura del producto poblaba ese campo. Al darse de baja el esquema (RF-2, RF-3), el bloque deja de ser un bloque oculto y pasa a no existir. Se descartó dejarlo declarado como `hidden_in_states` permanente: un bloque que nunca puede aparecer documenta una capacidad que el producto ya no tiene.
+- **La atribución de autor de un comentario pierde su variante.** Se elimina el sufijo `"(En sistema externo)"` sobre el nombre del autor (`ObjectiveHistoryList.tsx:80-84`). El autor de un comentario es siempre un usuario de Jiku, y ahora eso es una regla y no una rama. La contracara es que el microcopy de esta pantalla queda **sin ninguna forma de representar autoría ajena al producto**: si alguna vez vuelve a hacer falta, hay que diseñarla de cero, y es deliberado (RF-1: la integración se descarta como capacidad, no se posterga).
+- **Ningún cambio visual.** Las dos ramas que se eliminan son las que ya se tomaban en toda fila que el producto haya escrito. La pantalla renderiza **exactamente lo mismo** antes y después; lo que cambia es que deja de declarar dos caminos que nunca se recorrían. Por eso no se toca ningún estado, ninguna transición ni el `user-flows.md` de la superficie.
+- **La grilla de metadatos no se rebalancea.** La columna izquierda pasa de 7 a 6 filas y la derecha se queda en 6, así que las dos columnas quedan parejas sin mover nada. Se descartó reordenar filas entre columnas para aprovechar el hueco: el orden actual es el del DOM y cualquier reordenamiento sería un cambio de diseño que este REQ no pidió.
+- **Sin cambios en el Design System.** El delta solo **quita** un bloque `link` y simplifica microcopy: no introduce ningún tipo de bloque nuevo, así que no hay nada que verificar contra el catálogo de `web` v0.1.0.

@@ -222,5 +222,87 @@ describe('GET /api/objectives/:id', () => {
         });
     });
   });
-});
 
+  /**
+   * S-010: la respuesta deja de traer las 9 claves de la integración con sistemas externos.
+   *
+   * La aserción es sobre `Object.keys(...)` y no sobre `res.body.externalUrl === undefined`:
+   * lo segundo pasa igual si la clave existe con valor `undefined`, y lo que hay que verificar
+   * es que la clave NO ESTÁ en el JSON.
+   */
+  describe('S-010: la integración con sistemas externos no viaja en la respuesta', () => {
+    const OBJECTIVE_INTEGRATION_KEYS = [
+      'externalProjectId',
+      'externalIssueId',
+      'externalIssueKey',
+      'externalUrl',
+      'externalRawData',
+      'lastSyncedAt',
+    ];
+    const ACTIVITY_INTEGRATION_KEYS = [
+      'externalReferenceUrl',
+      'externalUserName',
+      'externalUserId',
+    ];
+
+    let commentId: number;
+
+    // Fixture propia: TS-10 necesita una actividad de tipo `comment`, y las que arma el
+    // `before` del archivo son de tipo state / priority / area.
+    before(() => {
+      return ObjectiveActivity.create({
+        changedBy: 'zitadel-sub-01',
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'un comentario',
+        objectiveId: 1,
+      }).then((activity) => {
+        commentId = activity.id;
+      });
+    });
+
+    after(() => {
+      return ObjectiveActivity.destroy({ where: { id: commentId } });
+    });
+
+    it('TS-9: el objetivo no expone ninguna de las 6 claves de la integración', () => {
+      return request(application)
+        .get('/api/objectives/1')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const keys = Object.keys(response.body);
+          OBJECTIVE_INTEGRATION_KEYS.forEach((key) => {
+            keys.should.not.containEql(key);
+          });
+          ['id', 'title', 'state', 'area', 'priority', 'visibilityLevel', 'projectId', 'createdBy', 'workedMinutes'].forEach((key) => {
+            keys.should.containEql(key);
+          });
+        });
+    });
+
+    it('TS-10: las actividades no exponen ninguna de las 3 claves de la integración', () => {
+      return request(application)
+        .get('/api/objectives/1')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const activities = response.body.ObjectiveActivity;
+          activities.should.be.an.Array();
+          activities.length.should.be.above(0);
+          activities.some((a: any) => a.typeOfActivity === 'comment').should.be.true();
+          activities.forEach((activity: any) => {
+            const keys = Object.keys(activity);
+            ACTIVITY_INTEGRATION_KEYS.forEach((key) => {
+              keys.should.not.containEql(key);
+            });
+            ['typeOfActivity', 'previousValue', 'newValue', 'visibilityLevel', 'user'].forEach((key) => {
+              keys.should.containEql(key);
+            });
+          });
+        });
+    });
+  });
+});

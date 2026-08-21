@@ -32,7 +32,7 @@ requests, diseñadas técnicamente y formalizadas en stories antes de iniciar im
 2. `/product-design-request REQ-XXX` — Diseñar solución técnica y proponer story split
 3. `/product-create-stories REQ-XXX` — Crear stories implementables
 
-**Status actual:** 7 feature groups pendientes de formalización.
+**Status actual:** 6 feature groups pendientes de formalización.
 
 **Estado del producto base:** las capacidades C-01 a C-81 de `requirements.md` están
 implementadas y en producción, salvo las excepciones que cada grupo detalla.
@@ -333,7 +333,7 @@ nombres, las inconsistencias de tipo del esquema (`estimated_finish_date` es `VA
 y `DATE` en requisitos; `worked_times.date` es `TIMESTAMP` y `unworked_times.date` es `DATE`), la
 asimetría sin justificar en el reemplazo de responsables, y las tres tablas de mail muertas.
 
-Incluye además el problema de instalación: **las 95 migraciones no construyen el esquema desde
+Incluye además el problema de instalación: **las 101 migraciones no construyen el esquema desde
 cero** —ninguna crea `objectives`— así que una instalación nueva necesita un dump previo, y el
 esquema de desarrollo lo construye `sequelize.sync()` mientras el de producción lo construyen las
 migraciones: **dos fuentes para la misma cosa**.
@@ -372,57 +372,6 @@ o adjuntos no requiere entender qué restos hay que esquivar.
 
 ---
 
-## Feature Group 7: Integración con Sistemas Externos (Jira)
-
-**Status:** Pending
-
-**Prioridad sugerida:** Baja · **Esfuerzo estimado:** Alto
-
-**Descripción:**
-
-El esquema tiene **cuatro tablas preparadas** para sincronizar con sistemas externos
-(`external_integration_config`, `external_project`, `external_sync_event`) y siete columnas
-`external_*` en `objectives` que enlazan cada tarea con su issue remoto, incluidos el índice
-único que evita importar dos veces el mismo comentario externo y los campos de auditoría de cada
-corrida de sincronización.
-
-**No hay una sola línea de código que las use** en ninguno de los cuatro servicios —verificado
-por búsqueda en `api`, `core`, `web` y `opus-web`. El diseño se hizo, el esquema se migró y la
-implementación no empezó.
-
-Este grupo es la decisión de retomarlo o darlo de baja. Si se retoma: configuración de la
-integración por actor, mapeo de proyecto local ↔ proyecto remoto, sincronización de issues y
-comentarios, y registro de cada corrida con sus contadores de creados, actualizados y fallidos.
-
-**Por qué es importante:**
-
-Es el único grupo **enteramente opcional** de la lista, y está último a propósito. Su valor
-depende de si los clientes trabajan con Jira, algo que el código no puede responder. Se incluye
-porque el esquema preparado es una decisión de producto ya tomada que quedó sin resolver, y
-dejarla sin registrar haría que alguien redescubra esas tablas dentro de un año sin saber qué
-eran.
-
-**Capabilities que implementa:**
-- **Ninguna existente.** Sería enteramente nuevo
-- Resuelve la pregunta abierta **14**
-
-**Precondiciones:**
-- **Confirmar que la integración se retoma.** Si no, el grupo se cierra dando de baja las cuatro
-  tablas y las siete columnas, que es un resultado igualmente válido
-- FG-3 resuelto: una sincronización con sistema externo necesita durabilidad y reintento, que hoy
-  el bus no da
-- Definir el manejo del token de autenticación remoto: la columna `auth_token_encrypted` declara
-  cifrado y no hay implementación de cifrado en el producto
-
-**Postcondiciones:**
-- O bien existe sincronización operativa con registro de corridas, o bien el esquema preparado
-  está eliminado y la decisión documentada en un ADR
-
-**Valor entregado:**
-Una tarea creada en Jira aparece en Jiku con su tiempo imputable, sin doble carga. O, si se da de
-baja, el esquema deja de sugerir una capacidad que no existe.
-
----
 
 ## Resumen
 
@@ -434,7 +383,6 @@ baja, el esquema deja de sugerir una capacidad que no existe.
 | FG-4 | Endurecimiento de Reglas en el Servidor | Media-Alta | Medio | Riesgo de integridad de datos |
 | FG-5 | Consolidación de la Experiencia de Uso | Media | Alto | Impacto diario en el uso |
 | FG-6 | Saneamiento del Modelo de Datos | Media | Medio | Costo de cambio futuro |
-| FG-7 | Integración con Sistemas Externos (Jira) | Baja | Alto | Decisión pendiente: retomar o dar de baja |
 
 ### Dependencias entre grupos
 
@@ -446,10 +394,8 @@ graph LR
     FG4["FG-4<br/>Reglas en servidor"]
     FG5["FG-5<br/>Experiencia de uso"]
     FG6["FG-6<br/>Modelo de datos"]
-    FG7["FG-7<br/>Jira"]
 
     FG3 -.->|"conviene antes:<br/>define la garantía<br/>que FG-2 hereda"| FG2
-    FG3 -->|"requiere durabilidad<br/>y reintento"| FG7
     FG1 -.->|"habilita operar<br/>el portal sin tocar la base"| FG5
 
     classDef alta fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
@@ -458,12 +404,11 @@ graph LR
 
     class FG1,FG2,FG3 alta
     class FG4,FG5,FG6 media
-    class FG7 baja
 ```
 
-**Solo hay una dependencia dura** (FG-3 → FG-7) y dos recomendaciones de orden. Los demás grupos
-son independientes entre sí y pueden encararse en cualquier orden: el sistema ya está construido,
-así que ninguno necesita que otro exista primero.
+**Ya no hay ninguna dependencia dura**: quedan solo dos recomendaciones de orden. Los grupos son
+independientes entre sí y pueden encararse en cualquier orden: el sistema ya está construido, así
+que ninguno necesita que otro exista primero.
 
 ### Orden sugerido
 
@@ -471,5 +416,4 @@ así que ninguno necesita que otro exista primero.
 **FG-3**, porque define la garantía de escritura que FG-2 va a heredar; encarar las notificaciones
 antes significa construirlas sobre una entrega que puede perderse en silencio. **FG-4 y FG-5** son
 los mejores candidatos a paralelizar: tocan capas distintas (servidor y presentación) y no
-compiten. **FG-6** conviene antes de cualquier trabajo grande sobre tareas o adjuntos. **FG-7**
-requiere primero una decisión de producto, no de ingeniería.
+compiten. **FG-6** conviene antes de cualquier trabajo grande sobre tareas o adjuntos.

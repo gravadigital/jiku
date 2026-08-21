@@ -7,7 +7,6 @@ import ObjectiveActivity from './objective-activity.model';
 import User from './user.model';
 import WorkedTime from './worked-time.model';
 import ObjectiveSubscriptor from './objective-subscriptor.model';
-import ExternalProject from './external-project.model';
 import Requirement from './requirement.model';
 
 export enum statusObjective {
@@ -111,49 +110,8 @@ export default class Objective extends Model {
   })
     createdBy!: string;
 
-  // External issue tracking columns (Jira Integration)
-  @ForeignKey(() => ExternalProject)
-  @Column({
-    type: DataType.INTEGER,
-    allowNull: true,
-  })
-    externalProjectId!: number | null;
-
-  @Column({
-    type: DataType.STRING(255),
-    allowNull: true,
-  })
-    externalIssueId!: string | null;
-
-  @Column({
-    type: DataType.STRING(100),
-    allowNull: true,
-  })
-    externalIssueKey!: string | null;
-
-  @Column({
-    type: DataType.TEXT,
-    allowNull: true,
-  })
-    externalUrl!: string | null;
-
-  @Column({
-    type: DataType.JSONB,
-    allowNull: true,
-  })
-    externalRawData!: Record<string, any> | null;
-
-  @Column({
-    type: DataType.DATE,
-    allowNull: true,
-  })
-    lastSyncedAt!: Date | null;
-
   @BelongsTo(() => Project)
     project!: Project;
-
-  @BelongsTo(() => ExternalProject)
-    externalProject!: ExternalProject;
 
   @BelongsToMany(() => Person, () => PersonObjective)
     persons!: Person[];

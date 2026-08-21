@@ -180,7 +180,7 @@ una tiene su ADR en `docs/adrs/`.
 - **Identidad federada en Zitadel, con la misma app OIDC para los dos frontends.** Comparten
   `ZITADEL_CLIENT_ID` con secretos de sesión distintos.
 
-- **Monorepo npm con modelos compartidos.** Los 28 modelos Sequelize viven en `@jiku/models`,
+- **Monorepo npm con modelos compartidos.** Los 26 modelos Sequelize viven en `@jiku/models`,
   que **no abre la conexión**, justamente para que api y core usen la misma definición con
   credenciales distintas y no puedan divergir.
 
@@ -241,7 +241,7 @@ es una migración de vocabulario a medio camino, con la dirección definida.
   (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`) de una
   funcionalidad de mail eliminada que ninguna migración borró. La suscripción registra interés
   y nada más.
-- **Instalación desde cero** — las 95 migraciones asumen un esquema preexistente; ninguna crea
+- **Instalación desde cero** — las 101 migraciones asumen un esquema preexistente; ninguna crea
   la tabla `objectives`. Una instalación nueva necesita un dump previo.
 - **Facturación, costos y tarifas** — el producto registra tiempo, no dinero.
 - **Uso en mobile del portal de clientes** — bajo 768 px el `Sidebar` de `opus-web` desaparece

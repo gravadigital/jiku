@@ -2,8 +2,8 @@
 
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
-**Extraído de** `packages/models/src/*.model.ts` — los 28 modelos Sequelize del paquete
-compartido — y de las 95 migraciones de `api/db-upgrade/migrations/`.
+**Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
+compartido — y de las 101 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -59,7 +59,6 @@ erDiagram
     users ||--o{ attachments : "sube"
 
     clients ||--o{ projects : "tiene"
-    clients ||--o{ external_integration_config : "configura"
 
     projects ||--o{ objectives : contiene
     projects ||--o{ requirements : contiene
@@ -87,12 +86,6 @@ erDiagram
     objectives ||--o{ objectives_subscriptors : tiene
     objectives ||--o{ worked_times : recibe
     objectives ||--o| objective_mail_threads : "hilo (sin uso)"
-
-    external_integration_config ||--o{ external_project : mapea
-    external_integration_config ||--o{ external_sync_event : registra
-    external_project ||--o{ objectives : "sincroniza"
-    external_project ||--o{ external_sync_event : "se sincroniza en"
-    projects ||--o| external_project : "espeja"
 
     origins
     system_settings
@@ -223,12 +216,6 @@ Los tags se consultan con un contains de `jsonb`:
 | `project_id` | `INTEGER` | NOT NULL → `projects.id` |
 | `created_by` | `VARCHAR` | NOT NULL → `users.id` |
 | `requirement_id` | `INTEGER` | NULL → `requirements.id`, **sin constraint** (`constraints: false`) |
-| `external_project_id` | `INTEGER` | NULL → `external_project.id` |
-| `external_issue_id` | `VARCHAR(255)` | NULL |
-| `external_issue_key` | `VARCHAR(100)` | NULL |
-| `external_url` | `TEXT` | NULL |
-| `external_raw_data` | `JSONB` | NULL |
-| `last_synced_at` | `TIMESTAMP` | NULL |
 
 Dos particularidades del modelo, ambas relevantes al escribir código:
 
@@ -300,13 +287,6 @@ Historial de una tarea: cambios de campo y comentarios.
 | `visibility_level` | `ENUM` | NOT NULL, default `internal` — `public`, `internal` |
 | `objective_id` | `INTEGER` | NOT NULL → `objectives.id` |
 | `changed_by` | `VARCHAR` | NOT NULL → `users.id` |
-| `external_reference_url` | `TEXT` | NULL |
-| `external_user_name` | `VARCHAR(255)` | NULL |
-| `external_user_id` | `VARCHAR(128)` | NULL |
-
-**Índice único parcial** `uk_objective_activity_external_comment` sobre `external_reference_url`,
-solo donde `type_of_activity = 'comment'` y la URL no es nula: evita importar dos veces el mismo
-comentario externo.
 
 > Los valores del enum son **camelCase** (`estimatedFinishDate`, `stageId`), a diferencia del
 > resto de los enums del esquema. `stageId` quedó del concepto de etapa eliminado.
@@ -497,57 +477,6 @@ ADR-001) y llevan el prefijo `20260819_01` .. `20260819_05`.
 > esquema de `sync()`). El modelo de `@jiku/models` y la migración se escriben juntos y se revisan
 > campo por campo: **la revisión es la única barrera.**
 
-### Integración con sistemas externos (Jira)
-
-Cuatro tablas del módulo de integración. `objectives` lleva las columnas `external_*` que las
-enlazan.
-
-#### `external_integration_config`
-| Columna | Tipo | Restricciones |
-|---|---|---|
-| `id` | `INTEGER` | PK, autoincremental |
-| `client_id` | `INTEGER` | NOT NULL → `clients.id` |
-| `system_type` | `VARCHAR(50)` | NOT NULL |
-| `base_url` | `VARCHAR(500)` | NOT NULL |
-| `auth_email` | `VARCHAR(255)` | NOT NULL |
-| `auth_token_encrypted` | `TEXT` | NOT NULL |
-| `enabled` | `BOOLEAN` | NOT NULL, default `true` |
-| `config` | `JSONB` | NULL |
-
-#### `external_project`
-| Columna | Tipo | Restricciones |
-|---|---|---|
-| `id` | `INTEGER` | PK, autoincremental |
-| `integration_id` | `INTEGER` | NOT NULL → `external_integration_config.id` |
-| `external_project_id` | `VARCHAR(255)` | NOT NULL |
-| `external_project_key` | `VARCHAR(100)` | NOT NULL |
-| `name` | `VARCHAR(500)` | NOT NULL |
-| `local_project_id` | `INTEGER` | NULL → `projects.id` |
-| `config` | `JSONB` | NULL |
-| `prefix` | `VARCHAR(50)` | NULL |
-
-Tres índices declarados en el modelo:
-- `idx_external_project_prefix` — parcial, donde `prefix IS NOT NULL`
-- `idx_external_project_integration_project` — `(integration_id, external_project_id)`
-- `idx_external_project_unique_prefix` — **único** sobre `(integration_id, external_project_id, prefix)`
-
-#### `external_sync_event`
-`timestamps: false`; usa `started_at` / `finished_at` propios.
-
-| Columna | Tipo | Restricciones |
-|---|---|---|
-| `id` | `INTEGER` | PK, autoincremental |
-| `integration_id` | `INTEGER` | NOT NULL → `external_integration_config.id` |
-| `external_project_id` | `INTEGER` | NULL → `external_project.id` |
-| `started_at` | `TIMESTAMP` | NOT NULL, default `NOW` |
-| `finished_at` | `TIMESTAMP` | NULL |
-| `status` | `VARCHAR(20)` | NOT NULL |
-| `issues_created` | `INTEGER` | NOT NULL, default `0` |
-| `issues_updated` | `INTEGER` | NOT NULL, default `0` |
-| `issues_failed` | `INTEGER` | NOT NULL, default `0` |
-| `errors` | `JSONB` | NULL |
-| `metadata` | `JSONB` | NULL |
-
 ### Tablas intermedias
 
 | Tabla | Une | Columnas extra |
@@ -705,12 +634,6 @@ Table objectives {
   project_id integer [not null, ref: > projects.id]
   created_by varchar [not null, ref: > users.id]
   requirement_id integer [note: 'sin constraint']
-  external_project_id integer [ref: > external_project.id]
-  external_issue_id varchar(255)
-  external_issue_key varchar(100)
-  external_url text
-  external_raw_data jsonb
-  last_synced_at timestamp
   created_at timestamp
   updated_at timestamp
 }
@@ -758,15 +681,8 @@ Table objective_activity {
   visibility_level visibility_level [not null, default: 'internal']
   objective_id integer [not null, ref: > objectives.id]
   changed_by varchar [not null, ref: > users.id]
-  external_reference_url text
-  external_user_name varchar(255)
-  external_user_id varchar(128)
   created_at timestamp
   updated_at timestamp
-
-  indexes {
-    external_reference_url [unique, name: 'uk_objective_activity_external_comment', note: 'parcial: type_of_activity = comment']
-  }
 }
 
 Table requirement_activity {
@@ -869,52 +785,6 @@ Table people_requirements {
   updated_at timestamp
 }
 
-Table external_integration_config {
-  id integer [pk, increment]
-  client_id integer [not null, ref: > clients.id]
-  system_type varchar(50) [not null]
-  base_url varchar(500) [not null]
-  auth_email varchar(255) [not null]
-  auth_token_encrypted text [not null]
-  enabled boolean [not null, default: true]
-  config jsonb
-  created_at timestamp
-  updated_at timestamp
-}
-
-Table external_project {
-  id integer [pk, increment]
-  integration_id integer [not null, ref: > external_integration_config.id]
-  external_project_id varchar(255) [not null]
-  external_project_key varchar(100) [not null]
-  name varchar(500) [not null]
-  local_project_id integer [ref: > projects.id]
-  config jsonb
-  prefix varchar(50)
-  created_at timestamp
-  updated_at timestamp
-
-  indexes {
-    prefix [name: 'idx_external_project_prefix']
-    (integration_id, external_project_id) [name: 'idx_external_project_integration_project']
-    (integration_id, external_project_id, prefix) [unique, name: 'idx_external_project_unique_prefix']
-  }
-}
-
-Table external_sync_event {
-  id integer [pk, increment]
-  integration_id integer [not null, ref: > external_integration_config.id]
-  external_project_id integer [ref: > external_project.id]
-  started_at timestamp [not null]
-  finished_at timestamp
-  status varchar(20) [not null]
-  issues_created integer [not null, default: 0]
-  issues_updated integer [not null, default: 0]
-  issues_failed integer [not null, default: 0]
-  errors jsonb
-  metadata jsonb
-}
-
 Table project_status_updates {
   id integer [pk, increment]
   status varchar [not null]
@@ -1013,7 +883,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **95** |
+| Cantidad | **101** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`
@@ -1021,7 +891,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 > ### Las migraciones no construyen el esquema desde cero
 >
-> **Las 95 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
+> **Las 101 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
 > crea**. Contra una base vacía la api falla al arrancar:
 >
 > ```
@@ -1039,6 +909,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
+| `20260820_01_drop_external_integration` | Da de baja la integración con sistemas externos: borra las 3 tablas `external_*`, las 9 columnas de `objectives` y `objective_activity` (incluida `last_synced_at`, la única sin el prefijo) y el índice único parcial `uk_objective_activity_external_comment` |
 | `20260808_01_remove_stages` | Elimina la tabla `stages`. La api sigue aceptando `stageId` porque la web lo manda |
 | `20260729_01_extend_attachments_entity_type_comment_split` | Separa `comment` en `objective_comment` y `requirement_comment`. Quedan filas legado con `comment` |
 | `20260724_01_add_index_projects_client_id` | Índice en `projects.client_id` |

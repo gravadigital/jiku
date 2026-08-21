@@ -10,9 +10,6 @@
 
 import Attachment from './attachment.model';
 import Client from './client.model';
-import ExternalIntegrationConfig from './external-integration-config.model';
-import ExternalProject from './external-project.model';
-import ExternalSyncEvent from './external-sync-event.model';
 import File from './file.model';
 import InboundMailThread from './inbound-mail-thread.model';
 import ObjectiveMailThread from './objective-mail-thread.model';
@@ -41,9 +38,6 @@ import WorkedTime from './worked-time.model';
 export { default as Attachment, AttachmentEntityType } from './attachment.model';
 export { RetentionStatus } from './retention-status.enum';
 export { default as Client } from './client.model';
-export { default as ExternalIntegrationConfig } from './external-integration-config.model';
-export { default as ExternalProject } from './external-project.model';
-export { default as ExternalSyncEvent } from './external-sync-event.model';
 export { default as File, ByteStatus } from './file.model';
 export { default as InboundMailThread } from './inbound-mail-thread.model';
 export { default as ObjectiveMailThread } from './objective-mail-thread.model';
@@ -80,9 +74,6 @@ export { default as WorkedTime } from './worked-time.model';
 export const allModels = [
   Attachment,
   Client,
-  ExternalIntegrationConfig,
-  ExternalProject,
-  ExternalSyncEvent,
   File,
   InboundMailThread,
   ObjectiveMailThread,

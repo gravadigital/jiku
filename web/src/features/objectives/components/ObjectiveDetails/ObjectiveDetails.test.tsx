@@ -95,4 +95,79 @@ describe('ObjectiveDetails', () => {
 
     expect(await screen.findByText(/Requisito no disponible/)).toBeInTheDocument();
   });
+
+  it('no renderiza ninguna fila "Url Externa"', () => {
+    vi.mocked(useRequirementModule.useRequirement).mockReturnValue({
+      data: undefined,
+      isError: false,
+      isLoading: false,
+    } as any);
+
+    render(<ObjectiveDetails objective={baseObjective} />, { wrapper: createWrapper() });
+
+    expect(screen.queryByText('Url Externa')).not.toBeInTheDocument();
+    expect(
+      screen.queryAllByRole('link').filter((link) => link.getAttribute('target') === '_blank')
+    ).toEqual([]);
+  });
+
+  it('la columna izquierda conserva sus seis filas de metadato', () => {
+    vi.mocked(useRequirementModule.useRequirement).mockReturnValue({
+      data: { id: 42, title: 'REQ-12 Bug login' },
+      isError: false,
+      isLoading: false,
+    } as any);
+
+    render(<ObjectiveDetails objective={{ ...baseObjective, requirementId: 42 }} />, {
+      wrapper: createWrapper(),
+    });
+
+    // Se asierta el ORDEN en el DOM, no solo la presencia: el REQ descartó rebalancear la
+    // grilla, así que reordenar filas entre columnas también sería una regresión.
+    const columnaIzquierda = screen.getByText('Estado').closest('p')?.parentElement;
+    const etiquetas = Array.from(columnaIzquierda?.children ?? []).map(
+      (fila) => fila.firstElementChild?.textContent
+    );
+    expect(etiquetas).toEqual([
+      'Estado',
+      'Proyecto',
+      'Área',
+      'Visibilidad',
+      'Creado por',
+      'Requisito',
+    ]);
+
+    const filaProyecto = screen.getByText('Proyecto').closest('p');
+    const filaArea = screen.getByText('Área').closest('p');
+    expect(filaProyecto?.nextElementSibling).toBe(filaArea);
+  });
+
+  it('no renderiza la fila "Url Externa" ni aunque el backend mande los campos', () => {
+    vi.mocked(useRequirementModule.useRequirement).mockReturnValue({
+      data: undefined,
+      isError: false,
+      isLoading: false,
+    } as any);
+
+    // El objeto simula un backend que todavía manda los campos de la integración dada de
+    // baja (REQ-003). Los campos ya no existen en `Objective`, de ahí el cast: el test
+    // prueba que la rama de render fue ELIMINADA, no solo no satisfecha.
+    const objetivoConCamposExternos = {
+      ...baseObjective,
+      externalProjectId: 7,
+      externalIssueId: '10042',
+      externalIssueKey: 'ABC-1',
+      externalUrl: 'https://jira.example/browse/ABC-1',
+    } as unknown as Objective;
+
+    render(<ObjectiveDetails objective={objetivoConCamposExternos} />, {
+      wrapper: createWrapper(),
+    });
+
+    expect(screen.queryByText('Url Externa')).not.toBeInTheDocument();
+    expect(screen.queryByText('https://jira.example/browse/ABC-1')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'https://jira.example/browse/ABC-1' })
+    ).not.toBeInTheDocument();
+  });
 });

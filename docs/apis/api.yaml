@@ -2552,11 +2552,6 @@ components:
         projectId: { type: integer }
         requirementId: { type: integer, nullable: true }
         createdBy: { type: string }
-        externalProjectId: { type: integer, nullable: true }
-        externalIssueId: { type: string, nullable: true }
-        externalIssueKey: { type: string, nullable: true }
-        externalUrl: { type: string, nullable: true }
-        lastSyncedAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
