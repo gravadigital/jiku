@@ -150,7 +150,7 @@ llamen (`core/src/bus/consumer.ts:44-46`).
 
 | Paquete | Qué aporta |
 |---|---|
-| `@jiku/models` | Los 28 modelos Sequelize. Compartidos con `api` para que no puedan divergir. El paquete **no abre la conexión**: cada servicio registra las clases en su propio Sequelize porque conectan con credenciales distintas |
+| `@jiku/models` | Los 26 modelos Sequelize. Compartidos con `api` para que no puedan divergir. El paquete **no abre la conexión**: cada servicio registra las clases en su propio Sequelize porque conectan con credenciales distintas |
 | `@jiku/nats-protocol` | Gramática de subjects, formato de `Reply`, catálogo de códigos de error, hash del inbox |
 | `@jiku/zitadel-auth` | Obtiene y renueva el access token del service user |
 

@@ -1,6 +1,5 @@
 import { Table, Model, Column, DataType, HasMany, CreatedAt, UpdatedAt } from 'sequelize-typescript';
 import Project from './project.model';
-import ExternalIntegrationConfig from './external-integration-config.model';
 
 @Table({
   timestamps: true,
@@ -44,6 +43,4 @@ export default class Client extends Model {
   @HasMany(() => Project)
     projects!: Project[];
 
-  @HasMany(() => ExternalIntegrationConfig)
-    externalIntegrations!: ExternalIntegrationConfig[];
 }

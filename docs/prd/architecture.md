@@ -83,7 +83,7 @@ graph TB
     end
 
     subgraph Data["Datos"]
-        PG[("PostgreSQL 15<br/>jiku · 28 tablas<br/>@jiku/models")]
+        PG[("PostgreSQL 15<br/>jiku · 25 tablas<br/>@jiku/models")]
     end
 
     subgraph Ext["Servicios externos"]
@@ -103,7 +103,7 @@ graph TB
     Opus -->|"OIDC Auth Code + PKCE<br/>mismo CLIENT_ID"| Zitadel
     Web -.->|"next/font"| GFonts
 
-    Api -->|"SOLO LECTURA<br/>+ 95 migraciones + 2 excepciones"| PG
+    Api -->|"SOLO LECTURA<br/>+ 101 migraciones + 2 excepciones"| PG
     Api -->|"13 formas de comando<br/>{instance}.{user-id}.gestion.v1.*"| Nats
     Api -->|"JWKS + service user token"| Zitadel
     Api -->|"Put/Get/Delete/Head + presigned"| S3
@@ -152,7 +152,7 @@ No son workspaces del monorepo, pero son parte de la arquitectura en producción
 
 | Paquete | Qué aporta | Por qué existe |
 |---|---|---|
-| `@jiku/models` | Los 28 modelos Sequelize | Compartido por api y core **para que no puedan divergir**. Deliberadamente **no abre la conexión**: cada servicio registra las clases en su propio Sequelize, porque conectan con credenciales distintas. Es lo que hace posible la garantía de solo-lectura |
+| `@jiku/models` | Los 26 modelos Sequelize | Compartido por api y core **para que no puedan divergir**. Deliberadamente **no abre la conexión**: cada servicio registra las clases en su propio Sequelize, porque conectan con credenciales distintas. Es lo que hace posible la garantía de solo-lectura |
 | `@jiku/nats-protocol` | Gramática de subjects, formato de `Reply`, catálogo de códigos de error, hash del inbox | El contrato del bus tiene que ser idéntico en los dos extremos |
 | `@jiku/zitadel-auth` | Token del service user con auto-refresh | El token caduca en ~1 h: pasarlo por variable de entorno obligaría a reiniciar |
 
@@ -160,7 +160,7 @@ No son workspaces del monorepo, pero son parte de la arquitectura en producción
 
 | Base | Tipo | Usada por | Propósito |
 |---|---|---|---|
-| `jiku` | PostgreSQL 15.4 | `api` (solo lectura), `core` (lectura y escritura) | **Única base del producto.** 28 tablas: núcleo de dominio, tiempo, actividad, permisos, adjuntos, integración externa preparada y auxiliares |
+| `jiku` | PostgreSQL 15.4 | `api` (solo lectura), `core` (lectura y escritura) | **Única base del producto.** 25 tablas: núcleo de dominio, tiempo, actividad, permisos, adjuntos y auxiliares |
 
 **No hay cache distribuida, ni Redis, ni base de sesión.** La única capa de cache es TanStack
 Query en el navegador (`staleTime` 30 s, `gcTime` 5 min). Las sesiones son JWT firmados por
@@ -176,7 +176,7 @@ separación no es de datos sino de **operación**:
 |---|---|---|
 | Lectura de cualquier tabla | `api` | Sequelize con credenciales de solo lectura |
 | Escritura de dominio | `core` | Sequelize con el usuario dueño, una transacción por comando |
-| Migraciones del esquema | `api` | 95 migraciones con `POSTGRESQL_MIGRATION_USER`, al arrancar |
+| Migraciones del esquema | `api` | 101 migraciones con `POSTGRESQL_MIGRATION_USER`, al arrancar |
 | **Excepción 1** | `api` | La fila de `attachments` se escribe directo con el ORM |
 | **Excepción 2** | `api` | `PUT /api/week-assigned-times` borra y recrea la semana en una transacción |
 
@@ -430,7 +430,7 @@ pantalla espera a la más lenta.
 - Base de datos en volumen nombrado (`jiku-${STAGE}-database-data`)
 - Las **migraciones corren al arrancar la api**, no core — pese a lo que dice el comentario de
   `deploy/docker-compose.yml:129`, que es incorrecto en su segunda mitad
-- **Una instalación nueva no se puede levantar desde cero:** las 95 migraciones asumen un esquema
+- **Una instalación nueva no se puede levantar desde cero:** las 101 migraciones asumen un esquema
   existente y ninguna crea `objectives`. Requiere un dump previo
 
 **Evolución sugerida** (deriva de los feature groups, no está decidida):

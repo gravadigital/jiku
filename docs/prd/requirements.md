@@ -83,8 +83,7 @@ status: Draft - Importado desde código existente
   has_many ActividadDeTarea, has_many HoraTrabajada
 - **Notas:** `finishedAt` lo mantiene un hook al entrar y salir de `finalizado`. `priority` es
   entero en la base y enum de nombres en el bus: la api traduce en ambos sentidos y core usa un
-  escape transitorio (`priorityValue`) para no perder el valor 5. Lleva además siete columnas
-  `external_*` de la integración con Jira (ver Supuestos). `visibilityLevel: 'public'` significa
+  escape transitorio (`priorityValue`) para no perder el valor 5. `visibilityLevel: 'public'` significa
   **"visible para usuarios externos autenticados"**: desde REQ-002 no habilita acceso anónimo a
   los adjuntos de la tarea.
 
@@ -619,7 +618,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-R04 | Respuesta garantizada | El despachador **nunca lanza**: todo error se traduce a un `Reply` de falla, con una última red en el consumer | Tests de core | **[implementado]** |
 | NFR-R05 | Healthchecks | No hay healthcheck en ningún servicio del compose | — | **[ausente]** |
 | NFR-R06 | Logs en producción | Winston con dos transports a archivo, pero **`LOGGER_*` no está definido en el compose**: quedan con `filename: undefined` | Revisión de deploy | **[roto]** |
-| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 95 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
+| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 101 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
 | NFR-R08 | Instalación desde cero | **No soportada.** Ninguna migración crea `objectives`; requiere un dump previo | — | **[limitación asumida]** |
 
 ### Usabilidad
@@ -654,7 +653,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-M02 | Tests contra base real | `core` y `api` corren contra PostgreSQL efímero, sin mocks de Sequelize | `tests/setup-env.ts` | **[implementado]** |
 | NFR-M03 | Tests de escritura punta a punta | El `FakeBus` de la api **ejecuta core de verdad** contra la misma base: un test verifica comando publicado, traducción a HTTP y escritura efectiva | `api/tests/mocks/bus.ts` | **[implementado]** |
 | NFR-M04 | Zona horaria de los tests | `TZ=UTC` fijado en los cuatro servicios | Configs de test | **[implementado]** |
-| NFR-M05 | Modelos sin divergencia posible | Los 28 modelos viven en `@jiku/models`, compartido por api y core | Estructura del monorepo | **[implementado]** |
+| NFR-M05 | Modelos sin divergencia posible | Los 26 modelos viven en `@jiku/models`, compartido por api y core | Estructura del monorepo | **[implementado]** |
 | NFR-M06 | Catálogo de códigos de error | **No existe lista cerrada.** `daily_limit_exceeded` transporta datos **parseando el mensaje con un regex**; 4 códigos declarados no se emiten; `unknown_command` no tiene mapeo HTTP | Revisión de código | **[hueco conocido]** |
 | NFR-M07 | Áreas sin cobertura | `web`: `clients`, `time-allocation`, `contexts`, `lib`. `opus-web`: `middleware.ts` (el guard de toda la app), config de NextAuth, interceptores de axios y los 6 hooks de requisitos | Reporte de cobertura | **[hueco conocido]** |
 | NFR-M08 | Tipado estricto | `core` con `strict: true` + `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns`. **La api lo tiene apagado** | `tsconfig.json` | **[desparejo]** |
@@ -668,7 +667,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | **Runtime** | Node ≥ 24 (imagen `node:24.12-alpine3.23`), TypeScript 5.9 |
 | **Backend** | Express 5 (api) · sin framework HTTP (core) · Sequelize 6 + sequelize-typescript · Joi 18 · Winston |
 | **Frontend** | Next.js 16 App Router con `output: 'standalone'` · React 19 · TanStack Query 5 · Sass + CSS Modules · NextAuth v5 beta |
-| **Datos** | PostgreSQL, 28 tablas, esquema compartido entre api (RO) y core (RW) |
+| **Datos** | PostgreSQL, 25 tablas, esquema compartido entre api (RO) y core (RW) |
 | **Mensajería** | NATS 2.29 request/reply, **sin JetStream** |
 | **Identidad** | Zitadel (OIDC) — obligatorio; su auth-callout autoriza el bus |
 | **Storage** | S3-compatible (AWS S3, MinIO, DigitalOcean Spaces o Cloudflare R2). **Sin defaults para bucket y región, a propósito** |
@@ -691,10 +690,6 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
   distinguirlo: hay tratamiento responsive incoherente, no ausencia deliberada de tratamiento.
 - **Se asume que el equipo interno entrando al portal de clientes es un efecto colateral**, no
   una capacidad buscada (C-66).
-- **La integración con Jira se asume no iniciada.** El esquema tiene cuatro tablas
-  (`external_integration_config`, `external_project`, `external_sync_event`) y siete columnas
-  `external_*` en `objectives`, pero **no hay una sola línea de código** que las use en ninguno de
-  los cuatro servicios. Se documenta como esquema preparado, no como feature.
 - **Las tres tablas de mail (`objective_mail_threads`, `requirement_mail_threads`,
   `inbound_mail_threads`) se asumen muertas**: quedaron de notificaciones eliminadas y ninguna
   migración las borra, porque una migración destructiva perdería datos.
@@ -736,6 +731,5 @@ Ordenadas por impacto en el producto:
 13. **¿Se completa la eliminación de `stages`?** La tabla ya no existe pero `web` sigue enviando
     `stageId`, la api lo reenvía, y los adjuntos históricos con `entityType: 'stage'` **nunca se
     autorizan**.
-14. **¿Se retoma la integración con Jira?** El esquema está preparado y no hay código.
-15. **¿Se corrige `PUT /api/week-assigned-times` para pasar por `core`?** Es la única escritura de
+14. **¿Se corrige `PUT /api/week-assigned-times` para pasar por `core`?** Es la única escritura de
     dominio que viola la regla estructural del producto (NFR-S09).

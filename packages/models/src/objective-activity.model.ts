@@ -1,7 +1,6 @@
 import { Table, Model, Column, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import Objective from './objectives.model';
 import User from './user.model';
-import {Op} from 'sequelize';
 
 enum typeOfActivity {
   State = 'state',
@@ -24,17 +23,6 @@ export enum activityVisibilityLevel {
   timestamps: true,
   tableName: 'objective_activity',
   underscored: true,
-  indexes: [
-    {
-      name: 'uk_objective_activity_external_comment',
-      unique: true,
-      fields: ['external_reference_url'],
-      where: {
-        type_of_activity: 'comment',
-        external_reference_url: { [Op.ne]: null }
-      }
-    }
-  ]
 })
 
 export default class ObjectiveActivity extends Model {
@@ -85,27 +73,6 @@ export default class ObjectiveActivity extends Model {
     allowNull: false
   })
     changedBy!: string;
-
-  @Column({
-    type: DataType.TEXT,
-    allowNull: true,
-    field: 'external_reference_url',
-  })
-    externalReferenceUrl?: string;
-
-  @Column({
-    type: DataType.STRING(255),
-    allowNull: true,
-    field: 'external_user_name',
-  })
-    externalUserName?: string;
-
-  @Column({
-    type: DataType.STRING(128),
-    allowNull: true,
-    field: 'external_user_id',
-  })
-    externalUserId?: string;
 
   @BelongsTo(() => Objective)
     objective!: Objective;
