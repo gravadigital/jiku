@@ -40,10 +40,6 @@ export interface Objective {
   workedMinutes: number;
   portalContainer?: HTMLDivElement | null;
   visibilityLevel: string;
-  externalProjectId?: number | null;
-  externalIssueId?: string | null;
-  externalIssueKey?: string | null;
-  externalUrl?: string | null;
   requirementId?: number | null;
 }
 

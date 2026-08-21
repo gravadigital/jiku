@@ -76,12 +76,8 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
         {commentActivities.map((comment) => (
           <li key={comment.id} className={styles.comment}>
             <ObjectiveComment
-              authorName={
-                comment.externalUserId
-                  ? `${comment.externalUserName!} (En sistema externo)`
-                  : comment.user.name
-              }
-              authorId={comment.externalUserId ? comment.externalUserId : comment.user.id || ''}
+              authorName={comment.user.name}
+              authorId={comment.user.id || ''}
               date={comment.createdAt}
               updateDate={comment.updatedAt}
               content={comment.newValue}

@@ -81,16 +81,6 @@ export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
               </a>
             </p>
 
-            {objective.externalProjectId ? (
-              <p>
-                <span>Url Externa</span>
-                {': '}
-                <a href={objective.externalUrl || ''} target="_blank" rel="noopener noreferrer">
-                  {objective.externalUrl}
-                </a>
-              </p>
-            ) : null}
-
             <p>
               <span>Área</span>
               {': '}

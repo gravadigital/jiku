@@ -4590,8 +4590,8 @@
           "type": "paragraph",
           "category": "content",
           "level": "body",
-          "content": "Estado: Activo · Proyecto: Portal Opus · Url Externa: — · Área: Desarrollo · Visibilidad: Interno · Creado por: L. Álvarez · Requisito: #1042",
-          "annotation": "markup <p><span>Etiqueta</span> valor</p>, no un <dl>, a diferencia de detalle-proyecto y detalle-requisito. Proyecto vacío: \"No definido\" · si la query del requisito falla: \"Requisito no disponible\" · la fila de Url Externa no se renderiza si no hay valor"
+          "content": "Estado: Activo · Proyecto: Portal Opus · Área: Desarrollo · Visibilidad: Interno · Creado por: L. Álvarez · Requisito: #1042",
+          "annotation": "markup <p><span>Etiqueta</span> valor</p>, no un <dl>, a diferencia de detalle-proyecto y detalle-requisito. Proyecto vacío: \"No definido\" · si la query del requisito falla: \"Requisito no disponible\""
         },
         {
           "name": "metadatos-derecha",
@@ -4663,7 +4663,7 @@
             "empty"
           ],
           "content": "M. Pérez · 🔒 · (editado) · 17/08/2026 — Falta definir el formato exacto de la exportación.",
-          "annotation": "la marca de visibilidad es solo un emoji (👁 público / 🔒 interno) con el significado en un tooltip de hover. En edición aparecen \"Cancelar\" y \"Guardar\". Toast de éxito \"Comentario editado exitosamente\"; error \"El comentario no puede estar vacío\""
+          "annotation": "el autor es siempre un usuario de Jiku: la atribución no tiene variantes. La marca de visibilidad es solo un emoji (👁 público / 🔒 interno) con el significado en un tooltip de hover. En edición aparecen \"Cancelar\" y \"Guardar\". Toast de éxito \"Comentario editado exitosamente\"; error \"El comentario no puede estar vacío\""
         },
         {
           "name": "vacio-comentarios",
