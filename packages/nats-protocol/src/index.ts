@@ -39,16 +39,6 @@ export const QUERY_SERVICE = process.env.NATS_QUERY_SERVICE || 'jiku-queries';
 export const PROTOCOL_VERSION = process.env.NATS_PROTOCOL_VERSION || 'v1';
 export const INSTANCE = process.env.NATS_INSTANCE || 'dev';
 
-/**
- * @deprecated Usá `COMMAND_SERVICE`. Es un alias, no una variable propia: ya NO lee
- * `NATS_SERVICE_NAME`.
- *
- * Existe solo para que `core/src/bus/consumer.ts` se renombre sin tocarse: su línea 70 saca el
- * subject de suscripción Y el queue group del mismo símbolo, así que aliasarlo mueve los dos a
- * la vez. Desaparece en S-012, cuando el consumer se reemplaza por el servicio micro.
- */
-export const SERVICE_NAME = COMMAND_SERVICE;
-
 /** Arma el subject de un comando saliente. `userId` es el `sub` de quien publica. */
 export function commandSubject(command: string, userId: string): string {
   return `${INSTANCE}.${userId}.${COMMAND_SERVICE}.${PROTOCOL_VERSION}.${command}`;
@@ -81,19 +71,6 @@ export function querySubject(query: string, userId: string): string {
  */
 export function groupSubject(service: string): string {
   return `${INSTANCE}.*.${service}.${PROTOCOL_VERSION}`;
-}
-
-/**
- * Subject con wildcard que atiende core: cubre a cualquier caller.
- *
- * @deprecated Usá `groupSubject(COMMAND_SERVICE)`, que devuelve el mismo prefijo sin el `.>`
- * final —la forma que pide el framework micro—. El cuerpo quedó sin tocar a propósito: el
- * nombre nuevo llega por el alias de `SERVICE_NAME`, así que el diff muestra que la función no
- * cambió. Se elimina en S-012, cuando su único caller (`core/src/bus/consumer.ts`) se reemplaza
- * por el servicio micro.
- */
-export function subscriptionSubject(): string {
-  return `${INSTANCE}.*.${SERVICE_NAME}.${PROTOCOL_VERSION}.>`;
 }
 
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */

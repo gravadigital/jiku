@@ -37,8 +37,3 @@ token. Two queue groups over overlapping subjects deliver the message to **both*
 **two** replies reach the same inbox; a plain `request()` returns the first and **discards the second
 silently**. Sharing the process does not avoid it — the overlap is in the subject. With a distinct
 `{svc}` it cannot happen, because subject tokens are compared whole.
-
-**Deprecated:** `SERVICE_NAME` is an alias of `COMMAND_SERVICE` and **no longer reads
-`NATS_SERVICE_NAME`**. It exists only so `core/src/bus/consumer.ts` gets renamed without being
-touched: its line 70 takes the subscription subject **and** the queue group from the same symbol, so
-aliasing it moves both at once. It disappears in S-012.

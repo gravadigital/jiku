@@ -1,12 +1,11 @@
 type Protocol = typeof import('../../src/index');
 
-/** Las cinco variables que el módulo lee al importarse. Se resetean SIEMPRE. */
+/** Las cuatro variables que el módulo lee al importarse. Se resetean SIEMPRE. */
 const PROTOCOL_ENV_KEYS = [
   'NATS_INSTANCE',
   'NATS_PROTOCOL_VERSION',
   'NATS_COMMAND_SERVICE',
   'NATS_QUERY_SERVICE',
-  'NATS_SERVICE_NAME',
 ] as const;
 
 type ProtocolEnvKey = (typeof PROTOCOL_ENV_KEYS)[number];
@@ -15,7 +14,7 @@ type ProtocolEnvKey = (typeof PROTOCOL_ENV_KEYS)[number];
  * Re-importa el paquete con un entorno controlado.
  *
  * El módulo lee `process.env` AL IMPORTARSE, así que no hay forma de cambiar una constante
- * después del import: hay que volver a importarlo. Y las cinco variables se resetean siempre,
+ * después del import: hay que volver a importarlo. Y las cuatro variables se resetean siempre,
  * no solo las que el test pisa, para que la suite no dependa del shell de quien la corre.
  */
 export function reload(env: Partial<Record<ProtocolEnvKey, string>> = {}): Protocol {
