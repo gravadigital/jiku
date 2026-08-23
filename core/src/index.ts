@@ -1,14 +1,24 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+import { COMMAND_SERVICE } from '@jiku/nats-protocol';
 import logger from './logger';
 import initializeDb from './models';
 import { loadConfig } from './config';
-import { Consumer } from './bus/consumer';
+import { BusHost } from './bus/host';
 import { Dispatcher } from './bus/dispatcher';
 import { registry } from './commands';
 
-const consumer = new Consumer(new Dispatcher(registry));
+const dispatcher = new Dispatcher(registry);
+
+// Un spec por servicio del bus. Hoy hay uno; el segundo es un elemento más en esta misma
+// llamada, sobre la misma conexión.
+const host = new BusHost({
+  name: COMMAND_SERVICE,
+  description: 'Comandos de dominio de Jiku: la única vía de escritura a la base',
+  patterns: registry.patterns(),
+  handle: (subject, payload) => dispatcher.dispatch(subject, payload),
+});
 
 async function main(): Promise<void> {
   // Antes que nada: si falta configuración obligatoria, el proceso tiene que morir acá y no
@@ -17,13 +27,13 @@ async function main(): Promise<void> {
 
   await initializeDb();
   logger.info(`[core] ${registry.patterns().length} registered commands`);
-  await consumer.start();
+  await host.start();
 }
 
-/** Drena el bus antes de salir para no cortar mensajes en vuelo. */
+/** Para los servicios y drena el bus antes de salir, para no cortar mensajes en vuelo. */
 function shutdown(signal: string): void {
   logger.info(`[core] ${signal} recibido, cerrando`);
-  consumer
+  host
     .stop()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));
