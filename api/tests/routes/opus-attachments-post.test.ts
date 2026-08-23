@@ -160,17 +160,18 @@ describe('POST /api/opus/attachments', () => {
       });
   });
 
-  // TS-25 (CA-13): el timeout del bus sale 503.
-  it('devuelve 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
+  // TS-25 (S-014/CA-10): el timeout del bus sale 504 `gateway_timeout`. El portal muestra el
+  // `message` del cuerpo sin cambiar una línea, así que el texto nuevo llega solo.
+  it('devuelve 504 cuando la respuesta del bus no llega a tiempo', () => {
+    fakeBus.failWithTimeout();
 
     return request(application)
       .post('/api/opus/attachments')
       .set('Authorization', 'Bearer token_01_user')
       .send(validBody)
-      .expect(503)
+      .expect(504)
       .then(res => {
-        res.body.code.should.equal('service_unavailable');
+        res.body.code.should.equal('gateway_timeout');
       });
   });
 

@@ -4,8 +4,8 @@ title: Carga de horas trabajadas
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-18
-stories: []
+last_updated: 2026-08-23
+stories: [S-014]
 ---
 
 # Carga de Horas Trabajadas
@@ -213,7 +213,8 @@ relaciones, así que la api **relee la base**
 | 4 | Superaría los 1440 min del día | 400 | `{ code: daily_limit_exceeded, remainingMinutes: N }` | **Rollback.** La api agrega `remainingMinutes` **parseando el mensaje con un regex** (deuda declarada, NFR-M06) |
 | 4 | El requisito no es del proyecto | 400 | `{ code: requirement_project_mismatch }` | Rollback, nada escrito |
 | 4 | Proyecto, persona o tarea inexistentes | 400 | `{ code: project_not_found \| person_not_found \| objective_not_found }` | Rollback |
-| 3 | Timeout del bus (core caído o lento) | **503** | `{ code: bus_unavailable }` | **La operación no ocurrió.** Sin reintento ni cola ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)) |
+| 3 | **Nadie escuchando** el subject (core no desplegado) | **503** | `{ code: service_unavailable }` | **La operación no ocurrió.** El server contesta *no responders* en milisegundos. **Reintentar es seguro** |
+| 3 | **La respuesta no llegó a tiempo** (core lento) | **504** | `{ code: gateway_timeout }` | **PUDO haber ocurrido.** Sin reintento ni cola ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)): **reintentar a ciegas puede duplicar** |
 | 4 | Error inesperado en core | 500 | `{ code: internal_error }` | El despachador **nunca lanza**: traduce a un `Reply` de falla. Rollback |
 
 ## Resultado
@@ -240,5 +241,8 @@ estado (completo / parcial / vacío) contra `GET /settings/hours-per-day`.
   `errorMessage`. **Cambiar la redacción del mensaje en core rompe la api.** Es deuda declarada.
 - **La ventana de fechas se valida dos veces en el flujo de borrado**, no en el de alta: al borrar,
   la api verifica ventana y titularidad, y core "borra lo que le dicen".
-- Si core escribe y la respuesta se pierde en el bus, el usuario ve un 503 de una operación que
-  **sí ocurrió**. No hay forma de distinguirlo desde el frontend.
+- Si core escribe y la respuesta se pierde en el bus, el usuario ve un **504** de una operación que
+  **sí ocurrió**. No hay forma de distinguirlo desde el frontend. El desdoblamiento 503/504 hace el
+  status **más honesto sobre la causa** (tardó, no es que no hubiera nadie) pero **igual de engañoso
+  sobre el efecto**: el riesgo asumido de
+  [ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md) no se resuelve, solo se vuelve legible.

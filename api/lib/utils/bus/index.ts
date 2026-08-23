@@ -2,18 +2,45 @@ import { NatsConnection, connect, credsAuthenticator, tokenAuthenticator } from 
 import { readFileSync } from 'fs';
 import { serviceUserFromEnv } from '@jiku/zitadel-auth';
 import logger from '../../logger';
-import { Reply, USER_ID, commandSubject, inboxPrefix } from './protocol';
+import { Reply, USER_ID, commandSubject, inboxPrefix, querySubject } from './protocol';
 
-const REQUEST_TIMEOUT_MS = Number(process.env.NATS_REQUEST_TIMEOUT_MS) || 5000;
+export const REQUEST_TIMEOUT_MS = Number(process.env.NATS_REQUEST_TIMEOUT_MS) || 5000;
 
 /**
- * Cliente del bus: publica comandos a core y espera la respuesta.
+ * Timeout de las CONSULTAS, separado del de los comandos y más holgado a propósito.
  *
- * Request/reply directo, sin JetStream. Si core no contesta dentro del timeout, la
- * request falla: no hay reintento ni cola. Un comando perdido es un comando perdido.
+ * El perfil es el opuesto: una lectura son joins largos y una escritura es una transacción
+ * corta, así que compartir un solo timeout obligaría a elegir entre cortar lecturas
+ * legítimas o regalarle 5 segundos de más a cada escritura.
+ *
+ * Y detrás hay una invariante de operación: `POSTGRESQL_STATEMENT_TIMEOUT_MS` de core (8000)
+ * tiene que quedar ESTRICTAMENTE POR DEBAJO de este valor, para que la base corte primero y
+ * el error sea explicable, en vez de un timeout mudo del bus.
+ */
+export const QUERY_TIMEOUT_MS = Number(process.env.NATS_QUERY_TIMEOUT_MS) || 10000;
+
+/**
+ * Cliente del bus: publica comandos y consultas, y espera la respuesta.
+ *
+ * Request/reply directo, sin JetStream. Si no contestan dentro del timeout, la request
+ * falla: no hay reintento ni cola. Un comando perdido es un comando perdido.
  */
 export interface Bus {
   request<T = any>(command: string, payload: unknown): Promise<Reply<T>>;
+
+  /**
+   * Publica una CONSULTA y espera la respuesta.
+   *
+   * Mismo transporte que `request()`, con dos diferencias y solo dos: el token `{svc}` del
+   * subject (`jiku-queries` en lugar de `jiku-commands`) y el timeout, propio y más largo.
+   *
+   * Hoy no tiene ningún caller, y es deliberado: los endpoints de lectura de la api siguen
+   * leyendo PostgreSQL directo (ADR-001) y no migran al bus. El cliente se entrega por
+   * adelantado para el requerimiento que defina el contrato de consultas. Hasta que haya
+   * alguien escuchando, una consulta devuelve el `no responders` del server, que es
+   * exactamente lo que corresponde.
+   */
+  query<T = any>(query: string, payload: unknown): Promise<Reply<T>>;
 }
 
 class NatsBus implements Bus {
@@ -77,6 +104,25 @@ class NatsBus implements Bus {
       subject,
       new TextEncoder().encode(JSON.stringify(payload)),
       { timeout: REQUEST_TIMEOUT_MS }
+    );
+
+    return JSON.parse(new TextDecoder().decode(message.data)) as Reply<T>;
+  }
+
+  async query<T = any>(query: string, payload: unknown): Promise<Reply<T>> {
+    if (!this.connection) {
+      throw new Error('Bus no conectado');
+    }
+
+    // LA MISMA conexión, el MISMO inbox y el MISMO service user que los comandos: lo que se
+    // separa es el timeout y el subject, no el transporte. Una segunda conexión pediría una
+    // identidad nueva al auth-callout y ampliaría la superficie de autenticación sin que
+    // haga falta.
+    const subject = querySubject(query, this.userId);
+    const message = await this.connection.request(
+      subject,
+      new TextEncoder().encode(JSON.stringify(payload)),
+      { timeout: QUERY_TIMEOUT_MS }
     );
 
     return JSON.parse(new TextDecoder().decode(message.data)) as Reply<T>;

@@ -4,8 +4,8 @@ title: Subida de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-19
-stories: [S-002, S-004, S-006, S-007]
+last_updated: 2026-08-23
+stories: [S-002, S-004, S-006, S-007, S-014]
 ---
 
 # Subida de Archivos
@@ -374,7 +374,8 @@ Ver [`vinculacion-de-archivos`](vinculacion-de-archivos.md).
 | 5 | Extensión fuera de la allowlist | 400 | `{ code: file_type_not_allowed }` | Rollback del comando. No queda fila de `files` (CA-23) |
 | 5 | MIME fuera de la allowlist, **aunque la extensión esté** | 400 | `{ code: file_type_not_allowed }` | Idem (CA-24) |
 | 5 | Supera `file-max-size-bytes` | 400 | `{ code: file_too_large }` | Idem (CA-25) |
-| 3 | Timeout del bus | **503** | `{ code: bus_unavailable }` | La operación no ocurrió |
+| 3 | **Nadie escuchando** el subject (core no desplegado) | **503** | `{ code: service_unavailable }` | **La operación no ocurrió.** El server contesta *no responders* en milisegundos. **Reintentar es seguro** |
+| 3 | **La respuesta no llegó a tiempo** (core lento) | **504** | `{ code: gateway_timeout }` | **PUDO haber ocurrido.** Sin acuse ni idempotencia ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)): **reintentar a ciegas puede duplicar** |
 | 7 | `uploadUrl` vencida | — | 403 de S3 | *No hay reply: es S3.* El front **pide un ticket nuevo** (CA-16) |
 | 7 | **El `PUT` falla en silencio** | — | — | **No hay compensación.** La fila de `files` queda con `byte_status: 'pending'`; el error se descubre **al descargar** (`file_not_available`), no al subir |
 | 7 | CORS no configurado en el bucket | — | error de red del navegador | **Síntoma opaco que no señala la causa.** Es la razón por la que S-008 es precondición dura de prueba |

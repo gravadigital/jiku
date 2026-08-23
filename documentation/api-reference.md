@@ -31,9 +31,22 @@ A token that validates but whose subject is not in the `users` table gets 401
 `hasAnyRole` check, so any authenticated user reaches it — some of those validate access
 inside the handler instead, per entity.
 
-**Bus** marks the writes that publish a command to `core` instead of writing directly. Those
-can return 503 if the bus is unreachable, or time out if core does not answer within
-`NATS_REQUEST_TIMEOUT_MS`.
+**Bus** marks the writes that publish a command to `core` instead of writing directly. Those have
+three failure modes. The first two used to be one single `503`, and they are told apart on purpose:
+they mean opposite things about whether it is safe to retry.
+
+- **`503 service_unavailable`** — **nobody is subscribed** to the subject. The server answers *no
+  responders* in milliseconds, it does not wait for the timeout. It is a **deployment** problem: core
+  is not running. **The operation did not happen, so retrying is safe.**
+- **`504 gateway_timeout`** — someone was listening but the reply did not arrive within
+  `NATS_REQUEST_TIMEOUT_MS` (default 5000 ms). It is a **performance** problem, and
+  **THE OPERATION MAY HAVE HAPPENED**: without JetStream there is no ack and commands are not
+  idempotent, so **retrying blindly can duplicate**.
+- **`503 service_unavailable`** — any other exception falls back here, which is the behaviour that
+  predates the split.
+
+`gateway_timeout` is not a core error code and is **not** in `STATUS_BY_ERROR_CODE`: the api produces
+it in the `catch`, when there is no reply at all to translate.
 
 ## Internal endpoints
 

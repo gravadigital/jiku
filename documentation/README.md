@@ -76,9 +76,19 @@ one image runs anywhere.
 
 Because writes cross the bus, a failed mutation has one more place to look than a read.
 
-- **503** — the api could not reach the bus.
-- **timeout** — core did not answer in time. There is no JetStream, so **the command may have
-  been applied anyway**.
+- **503 `service_unavailable`** — **nobody is subscribed** to the subject: a deployment problem,
+  answered in milliseconds rather than at the timeout. The command was never received, so
+  **retrying is safe**.
+- **504 `gateway_timeout`** — core did not answer in time: a performance problem. There is no
+  JetStream, so **the command may have been applied anyway** — **check before retrying**, since
+  commands are not idempotent.
+- **Anything else** — any other exception, and the error codes core returns in a reply, keep the
+  behaviour they had before the split: the former fall back to `503 service_unavailable`, the latter
+  are translated to HTTP by `httpStatusFor`.
+
+Same symptom for the user, opposite recovery: that is why the first two are separate statuses instead
+of one 503. `gateway_timeout` is not a core error code — the api produces it in the `catch`, when
+there is no reply at all to translate.
 
 `deploy/bus-inspect.sh` shows what is happening on the bus. See
 [deploy/README.md](../deploy/README.md).

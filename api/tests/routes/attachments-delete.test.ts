@@ -262,16 +262,17 @@ describe('DELETE /api/attachments/:id', () => {
       });
   });
 
-  // TS-37 (CA-13): timeout del bus → 503.
-  it('devuelve 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
+  // TS-37 (S-014/CA-10): timeout del bus → 504 `gateway_timeout`. El desvínculo PUDO haber
+  // ocurrido: sin JetStream no hay acuse, así que reintentar a ciegas no es inocuo.
+  it('devuelve 504 cuando la respuesta del bus no llega a tiempo', () => {
+    fakeBus.failWithTimeout();
 
     return request(application)
       .delete(`/api/attachments/${link1.id}`)
       .set('Authorization', 'Bearer token_01_user')
-      .expect(503)
+      .expect(504)
       .then(res => {
-        res.body.code.should.equal('service_unavailable');
+        res.body.code.should.equal('gateway_timeout');
       });
   });
 });

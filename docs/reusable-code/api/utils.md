@@ -2,6 +2,53 @@
 
 > Partial catalog seeded by S-005. Run `/service-update-reusable-code api` for a full scan.
 
+## bus().query()
+
+**Location:** `api/lib/utils/bus/index.ts`
+
+**Description:** The query side of the bus client. Mirrors `request()` with two differences and only
+two: the `{svc}` token of the subject (`jiku-queries` instead of `jiku-commands`, built with
+`querySubject()` from `@jiku/nats-protocol` — nothing is concatenated by hand) and the timeout,
+which is its own and longer.
+
+**It runs over the same connection, the same inbox and the same service user as commands.** What is
+separated is the timeout and the subject, not the transport: a second connection would ask the
+auth-callout for a new identity and widen the authentication surface for nothing.
+
+The timeout is separate because the profile is the opposite one: a read is long joins, a write is a
+short transaction. Sharing one value would force a choice between cutting legitimate reads short and
+handing every write five extra seconds. There is also an operational invariant behind it — core's
+`POSTGRESQL_STATEMENT_TIMEOUT_MS` (8000) must stay strictly below `NATS_QUERY_TIMEOUT_MS` (10000),
+so the database cuts first and the error is explainable instead of a mute bus timeout.
+
+**It has no callers, deliberately** (S-014, CA-7). The api's read endpoints keep reading PostgreSQL
+directly (ADR-001) and do not migrate to the bus; the client is delivered ahead of the requirement
+that will define the query contract. Until `jiku-queries` is deployed, a query gets the server's
+*no responders* — which is exactly the correct answer.
+
+**Inherited constraint for whoever writes the first caller:** `opus-web` pins a 10 s timeout in its
+own HTTP client. With commands (5000 ms) the 504 arrives comfortably and its message is shown; with
+`NATS_QUERY_TIMEOUT_MS` (10000) the two tie, and the portal would show axios' generic error
+*instead* of the body's message.
+
+**Signature:**
+
+```ts
+interface Bus {
+  request<T = any>(command: string, payload: unknown): Promise<Reply<T>>;
+  query<T = any>(query: string, payload: unknown): Promise<Reply<T>>;
+}
+```
+
+**Usage example:**
+
+```ts
+// The subject ends up as `{instance}.{userId}.jiku-queries.v1.tasks.list`.
+const reply = await bus().query('tasks.list', { projectId: 1 });
+```
+
+**Used by:** nobody yet, and that is the point (CA-7).
+
 ## redirectToPresigned
 
 **Location:** `api/lib/utils/bus/download-ticket.ts`

@@ -30,10 +30,21 @@ info:
     NATS que atiende `core`.
 
     **Las escrituras pasan por el bus.** Los endpoints marcados con `x-bus-command` publican un
-    comando y esperan respuesta. Eso agrega dos modos de falla a todos ellos: `503`
-    (`service_unavailable`) si el bus no responde dentro de `NATS_REQUEST_TIMEOUT_MS`, y los
-    códigos de error que devuelve core, traducidos a HTTP por `httpStatusFor`. El contrato del
-    bus está en [core.yaml](./core.yaml).
+    comando y esperan respuesta. Eso agrega **tres** modos de falla a todos ellos:
+
+    - **`503` (`service_unavailable`) — problema de despliegue.** No hay **ningún suscriptor** del
+      subject. El server contesta *"no responders"* **en milisegundos**, no al vencer el timeout.
+      La operación **no ocurrió**, así que reintentar es seguro.
+    - **`504` (`gateway_timeout`) — problema de performance.** Había alguien escuchando, pero la
+      respuesta no llegó dentro de `NATS_REQUEST_TIMEOUT_MS` (default 5000 ms). **La operación
+      pudo haber ocurrido**: sin JetStream no hay acuse, así que reintentar a ciegas puede
+      duplicar.
+    - **Los códigos de error que devuelve core**, traducidos a HTTP por `httpStatusFor`.
+
+    Los dos primeros los genera la api en su `catch`; **`gateway_timeout` NO es un `errorCode` de
+    core** y por eso **no está en `STATUS_BY_ERROR_CODE`**. Separarlos es lo que permite distinguir
+    "no desplegué core" de "core está lento" sin mirar los logs. El contrato del bus está en
+    [core.yaml](./core.yaml).
 
     **Después de publicar, la api relee la base.** Core solo devuelve el `id`, pero el contrato
     con los frontends es el recurso completo con sus relaciones.
@@ -148,6 +159,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /clients/{id}:
     parameters:
@@ -197,6 +209,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /clients/{clientId}/projects:
     get:
@@ -302,6 +315,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /projects/{id}:
     parameters:
@@ -359,6 +373,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /projects/{projid}/persons:
     get:
@@ -513,6 +528,7 @@ paths:
         '404': { $ref: '#/components/responses/ProjectNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /requirements/report:
     get:
@@ -662,6 +678,7 @@ paths:
         '404': { $ref: '#/components/responses/RequirementNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /requirements/{reqid}/comments:
     post:
@@ -698,6 +715,7 @@ paths:
         '404': { $ref: '#/components/responses/RequirementNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /requirements/{reqid}/worked-hours:
     get:
@@ -825,6 +843,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /objectives/{id}:
     parameters:
@@ -882,6 +901,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /objectives/{id}/comments:
     post:
@@ -915,6 +935,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /objectives/{id}/comment/{cid}:
     patch:
@@ -1053,6 +1074,7 @@ paths:
               example: { code: access_denied, message: Solo podés cargar tus propias horas }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /worked-times/{id}:
     delete:
@@ -1080,6 +1102,7 @@ paths:
         '403': { $ref: '#/components/responses/AccessDenied' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /worked-times/person-objectives:
     get:
@@ -1248,6 +1271,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /unworked-times/{id}:
     delete:
@@ -1273,6 +1297,7 @@ paths:
         '403': { $ref: '#/components/responses/AccessDenied' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /unworked-times/reasons:
     get:
@@ -1509,6 +1534,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /attachments/{id}:
     parameters:
@@ -1555,6 +1581,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /attachments/{id}/download:
     get:
@@ -1598,6 +1625,7 @@ paths:
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /attachments/{id}/preview:
     get:
@@ -1634,6 +1662,7 @@ paths:
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /files/{id}/preview:
     get:
@@ -1690,6 +1719,7 @@ paths:
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   # ==========================================================================
   # opus — portal de clientes
@@ -1834,6 +1864,7 @@ paths:
         '404': { $ref: '#/components/responses/ProjectNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/requirements/{reqid}:
     parameters:
@@ -1886,6 +1917,7 @@ paths:
         '404': { $ref: '#/components/responses/RequirementNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/requirements/{reqid}/comments:
     post:
@@ -1921,6 +1953,7 @@ paths:
         '404': { $ref: '#/components/responses/RequirementNotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/requirements/{reqid}/subscriptors:
     post:
@@ -1962,6 +1995,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/requirements/{reqid}/subscriptors/{userId}:
     delete:
@@ -1998,6 +2032,7 @@ paths:
               example: { code: subscription_not_found, message: Subscription not found }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/attachments:
     post:
@@ -2032,6 +2067,7 @@ paths:
         '403': { $ref: '#/components/responses/AccessDenied' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   /opus/attachments/{id}/preview:
     get:
@@ -2060,6 +2096,7 @@ paths:
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   # ==========================================================================
   # other
@@ -2276,14 +2313,35 @@ components:
           example: { code: internal_error, message: Internal error }
     BusUnavailable:
       description: |
-        El bus no respondió dentro de `NATS_REQUEST_TIMEOUT_MS` (default 5000 ms), o no está
-        disponible. **Sin JetStream no hay reintento: la operación no ocurrió.**
+        **No hay ningún suscriptor del subject:** el server contesta *"no responders"* **en
+        milisegundos**, no al vencer el timeout. Es la señal de un problema de **despliegue**.
+
+        **La operación no ocurrió**, y sin JetStream no hay reintento — así que **reintentar es
+        seguro**.
+
+        No cubre el timeout: eso es `504` (`GatewayTimeout`).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example:
             code: service_unavailable
             message: El servicio no está disponible en este momento
+    GatewayTimeout:
+      description: |
+        **La respuesta no llegó dentro de `NATS_REQUEST_TIMEOUT_MS`** (default 5000 ms). Había
+        alguien escuchando y no contestó a tiempo: es la señal de un problema de **performance**,
+        no de despliegue.
+
+        **LA OPERACIÓN PUDO HABER OCURRIDO.** Es el modo de falla más confuso del sistema: sin
+        JetStream no hay acuse ni idempotencia (ADR-002), así que core puede haber escrito y la
+        respuesta haberse perdido. **Reintentar a ciegas puede duplicar.** El `message` no invita
+        a reintentar, a propósito.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: gateway_timeout
+            message: La operación tardó demasiado
 
   schemas:
 

@@ -3,12 +3,13 @@
 > Partial catalog. It was seeded by story S-005 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code api` to complete it.
 
-**Last updated:** 2026-08-19 (S-004)
+**Last updated:** 2026-08-23 (S-014)
 
 ## Utils
 
-Total: 2
+Total: 3
 
+- **bus().query()** (`api/lib/utils/bus/index.ts`) - The bus query client: publishes on the `jiku-queries` subject with its own, longer timeout (`NATS_QUERY_TIMEOUT_MS`, 10000), over the same connection, inbox and service user as commands. Has no callers yet, on purpose (S-014).
 - **redirectToPresigned** (`api/lib/utils/bus/download-ticket.ts`) - Closes any file-read path with a 302 to the presigned URL signed by `core`, carrying the reply metadata in the headers. Shared by the four read paths that remain after S-009 removed the public one.
 - **toUploadTicket** (`api/lib/utils/bus/upload-ticket.ts`) - Translates the `files.request-upload` reply into the HTTP `UploadTicket`, renaming `id` to `fileId`. Shared by the two upload endpoints (S-004).
 
@@ -19,3 +20,10 @@ Total: 3
 - **DownloadTicket** (`api/lib/utils/bus/download-ticket.ts`) - The `data` of the `files.{fileId}.request-download` reply: `downloadUrl`, `expiresIn`, `fileName`, `mimeType`, `fileSize`.
 - **UploadTicketReply** (`api/lib/utils/bus/upload-ticket.ts`) - The `data` of the `files.request-upload` reply: `id` (of `files`), `uploadUrl`, `expiresIn`.
 - **UploadTicket** (`api/lib/utils/bus/upload-ticket.ts`) - The HTTP upload-permission contract: `fileId`, `uploadUrl`, `expiresIn`.
+
+## Test Helpers
+
+Total: 2
+
+- **fakeBus.failWithNoResponders()** (`api/tests/mocks/bus.ts`) - Simulates that nobody is subscribed to the subject, so a test does not have to build the `NatsError` by hand. The api answers `503 service_unavailable`.
+- **fakeBus.failWithTimeout()** (`api/tests/mocks/bus.ts`) - Simulates that the reply never arrived. The api answers `504 gateway_timeout`. A bare `new Error('timeout')` is **not** a timeout for the api: this is the only way to simulate one.

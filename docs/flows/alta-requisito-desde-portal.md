@@ -4,8 +4,8 @@ title: Alta de requisito desde el portal de clientes
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-19
-stories: [S-003, S-004, S-007]
+last_updated: 2026-08-23
+stories: [S-003, S-004, S-007, S-014]
 ---
 
 # Alta de Requisito desde el Portal de Clientes
@@ -267,7 +267,8 @@ durante 1,8 segundos** y cierra el modal, invalidando las queries del tablero.
 | 6 | Un `fileId` no existe o está borrado | 400 | `{ code: invalid_fields }` | **Rollback: se descarta el requisito entero**, no solo el vínculo |
 | 6 | **`File.uploaded_by` ≠ el actor resuelto** | **403** | `{ code: file_not_owned }` | **Rollback total igual.** Es error de permisos, no de forma (CA-10 a CA-13) |
 | 6 | Persona responsable inexistente | 400 | `{ code: person_not_found }` | Rollback |
-| 5 | Timeout del bus | **503** | `{ code: bus_unavailable }` | La operación no ocurrió |
+| 5 | **Nadie escuchando** el subject (core no desplegado) | **503** | `{ code: service_unavailable }` | **La operación no ocurrió.** El server contesta *no responders* en milisegundos. **Reintentar es seguro** |
+| 5 | **La respuesta no llegó a tiempo** (core lento) | **504** | `{ code: gateway_timeout }` | **PUDO haber ocurrido.** Sin acuse ni idempotencia ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)): **reintentar a ciegas puede duplicar** |
 | 2 | **Fallo de creación en el portal** | cualquiera | — | **El modal no muestra el error.** El botón vuelve de "Creando..." a "Crear elemento" sin mensaje (NFR-U06, gap conocido) |
 
 ## Resultado
