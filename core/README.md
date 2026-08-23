@@ -11,16 +11,29 @@ The contract is [docs/apis/core.yaml](../docs/apis/core.yaml).
 ## How it works
 
 ```
-NATS ──> Consumer ──> Dispatcher ──> Command ──> database
-                      (transaction)  (validates and writes)
+NATS ──> Service ──> Dispatcher ──> Command ──> database
+                     (transaction)  (validates and writes)
 ```
 
-| Piece                   | Responsibility                                       |
-| ----------------------- | ---------------------------------------------------- |
-| `src/bus/consumer.ts`   | connects to the bus, subscribes with a queue group   |
-| `src/bus/dispatcher.ts` | resolves the command, opens the transaction, replies |
-| `src/commands/`         | one file per command                                 |
-| `src/models/`           | registers the models from `@jiku/models`             |
+| Piece                   | Responsibility                                                            |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `src/bus/host.ts`       | opens the connection and registers the micro services                     |
+| `src/bus/service.ts`    | registers a micro service from a spec: endpoints, queue group and reply   |
+| `src/bus/dispatcher.ts` | resolves the command, opens the transaction, replies                      |
+| `src/commands/`         | one file per command                                                      |
+| `src/models/`           | registers the models from `@jiku/models`                                  |
+
+Each command pattern in the registry becomes **one micro endpoint**, so the subject matching is
+done by the server instead of inside the process: `nats micro info jiku-commands` lists them all.
+
+**Metrics have two known limits, and they matter before you build a dashboard.**
+`num_errors` stays at **0**: a business failure is answered with `respondError()`, which does not
+increment it — micro only counts an error when the handler throws, and the handler never throws
+because that would lose the reply envelope from the body. Measure failures by logs and by
+`errorCode`, and **do not set alerts on `num_errors`**.
+`processing_time` and `average_processing_time` are per endpoint but do **not** measure how long
+a command takes: micro samples the latency synchronously, right after handing the message over,
+and the handler returns immediately so the next message is not blocked.
 
 **The dispatcher owns the transaction**: it commits when a command replies `success`, and rolls
 back otherwise. Commands never open or close it, which is what makes it impossible to leave a
@@ -67,7 +80,8 @@ verifies a command stores exactly what the API used to store.
 | `ZITADEL_SERVICE_USER_KEY_B64`             | core's service-user key, base64-encoded. **Without it the connection is rejected**: the sentinel credentials grant nothing by themselves — the token is what triggers the auth-callout, which reads the role and mints the permissions. |
 | `ZITADEL_ISSUER_URL`, `ZITADEL_PROJECT_ID` | where to request the token, and the project holding the roles                                                                                                                                                                           |
 | `NATS_INSTANCE`                            | first subject segment (`dev`, `prod`)                                                                                                                                                                                                   |
-| `NATS_SERVICE_NAME`                        | which service it answers for                                                                                                                                                                                                            |
+| `NATS_COMMAND_SERVICE`                     | the `{svc}` token of the command subject: `jiku-commands`                                                                                                                                                                               |
+| `SERVICE_VERSION`                          | version the service announces on the bus, default `1.0.0`. **Strict SemVer**: micro rejects the registration with anything else, so an invalid value (`latest`) **kills startup** instead of degrading silently. Declared in [deploy/.env.dist](../deploy/.env.dist). |
 | `NATS_PROTOCOL_VERSION`                    | protocol version (`v1`)                                                                                                                                                                                                                 |
 | `LOG_COMMANDS`                             | prints each command and its reply. Off by default: payloads carry business data.                                                                                                                                                        |
 | `CORE_TRUSTED_PUBLISHER_ID`                | the `sub` of the api's service user. Core compares the subject's `caller` against it to tell the api's channel from an external publisher's. **Core fails to start without it** — an empty value would send every command down the external branch, leaving `files.uploaded_by` with the api's service user instead of the person, so nobody could link what they uploaded. |

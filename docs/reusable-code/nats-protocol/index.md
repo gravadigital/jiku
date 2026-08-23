@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-23 (S-011)
+**Last updated:** 2026-08-23 (S-012)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -32,15 +32,13 @@ Total: 5
 
 Total: 1
 
-- **reload** (`packages/nats-protocol/tests/helpers/reload.ts`) - Re-imports the package with a controlled environment. Mandatory for any assertion that depends on `INSTANCE`, `PROTOCOL_VERSION`, `COMMAND_SERVICE`, `QUERY_SERVICE` or `SERVICE_NAME`, because those are evaluated **at import time**.
+- **reload** (`packages/nats-protocol/tests/helpers/reload.ts`) - Re-imports the package with a controlled environment. Mandatory for any assertion that depends on `INSTANCE`, `PROTOCOL_VERSION`, `COMMAND_SERVICE` or `QUERY_SERVICE`, because those are evaluated **at import time**.
 
 ## Deprecated — do not reuse
 
-These three are alive only so `core` did not have to be touched in S-011. They are listed here so
-nobody picks them up for new code.
+This one is alive only so `core` did not have to be touched in S-011. It is listed here so nobody
+picks it up for new code.
 
-- **SERVICE_NAME** - Alias of `COMMAND_SERVICE`. It no longer reads `NATS_SERVICE_NAME`. Removed in S-012.
-- **subscriptionSubject()** - Use `groupSubject(COMMAND_SERVICE)`. Removed in S-012.
 - **commandFromSubject** - Use `methodFromSubject`. Same symbol, kept so `core/src/bus/dispatcher.ts` stays untouched.
 
 > **Note on `commandSubject`.** It is not new, and its signature did not change, but since S-011 the

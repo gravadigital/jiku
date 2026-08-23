@@ -34,9 +34,9 @@ catalog of constants; a malformed method produces a malformed subject, and whoev
 id slot covers any caller, and several replicas share the messages between them.
 
 It returns the prefix **without** the trailing `.>` on purpose: the micro framework takes the group
-and builds each endpoint's subject on its own. It is the structural replacement for the deprecated
-`subscriptionSubject()`, and the relation between them is exact:
-`subscriptionSubject() === groupSubject(COMMAND_SERVICE) + '.>'`.
+and builds each endpoint's subject on its own. Appending a `.>` here would produce a wildcard
+subscription that swallows every method at once — which is precisely what per-endpoint registration
+replaces.
 
 **Signature:**
 ```ts

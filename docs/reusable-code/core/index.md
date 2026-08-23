@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-19 (S-003)
+**Last updated:** 2026-08-23 (S-012)
 
 ## Utils
 
@@ -18,9 +18,17 @@ Total: 6
 
 ## Services
 
-Total: 1
+Total: 3
 
 - **StorageSigner** (`core/src/commands/files/storage.ts`) - Lazily built S3 signer exposing exactly two local (no-network) operations: sign a PutObject and sign a GetObject.
+- **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. Takes the specs as varargs, so mounting a second service is adding one element.
+- **registerService** (`core/src/bus/service.ts`) - Registers a micro service from a `ServiceSpec` on an existing connection: one endpoint per command pattern, own queue group, and a duplicate-subject check that fails startup.
+
+## Types
+
+Total: 1
+
+- **ServiceSpec** (`core/src/bus/service.ts`) - What a micro service needs to be registered: bus name, description, the command patterns, and a `handle` that never throws.
 
 ## Constants
 
@@ -30,6 +38,8 @@ Total: 1
 
 ## Test Helpers
 
-Total: 1
+Total: 3
 
 - **S3Double** (`core/tests/helpers/s3-double.ts`) - Test double for the S3 signer: records the signing calls and never touches the network.
+- **fakeMsg** (`core/tests/helpers/micro-double.ts`) - Test double for a micro `ServiceMsg`: records `respond()` and `respondError()` without transforming the arguments, and `json()` throws on a malformed body just like the real one.
+- **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()`: records the service configs, groups and endpoints created, and shares one ordering trace with the service so shutdown order can be asserted.

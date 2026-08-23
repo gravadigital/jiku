@@ -3,9 +3,9 @@ import 'should';
 import { reload } from './helpers/reload';
 
 /**
- * Los 19 símbolos de runtime de la superficie pública, enumerados uno por uno.
+ * Los 17 símbolos de runtime de la superficie pública, enumerados uno por uno.
  *
- * La lista es literal y no un conteo: `Object.keys(module).length === 19` pasaría igual si
+ * La lista es literal y no un conteo: `Object.keys(module).length === 17` pasaría igual si
  * alguien agregara un símbolo y borrara otro.
  */
 const PUBLIC_SURFACE = [
@@ -13,11 +13,9 @@ const PUBLIC_SURFACE = [
   'PROTOCOL_VERSION',
   'COMMAND_SERVICE',
   'QUERY_SERVICE',
-  'SERVICE_NAME',
   'commandSubject',
   'querySubject',
   'groupSubject',
-  'subscriptionSubject',
   'endpointName',
   'endpointSubject',
   'methodFromSubject',
@@ -80,15 +78,15 @@ describe('nats-protocol · el inbox hasheado y el caller', () => {
 });
 
 describe('nats-protocol · la superficie pública y el envelope', () => {
-  it('TS-48: los 19 símbolos de runtime están exportados', () => {
+  it('TS-48: los 17 símbolos de runtime están exportados', () => {
     const p = reload({});
     const exported = Object.keys(p);
     PUBLIC_SURFACE.forEach((name) => {
       exported.should.containEql(name);
-      // Incluidos los tres @deprecated: SERVICE_NAME, subscriptionSubject, commandFromSubject.
+      // Incluido el @deprecated que queda: commandFromSubject.
       ((p as unknown as Record<string, unknown>)[name] === undefined).should.be.false();
     });
-    PUBLIC_SURFACE.length.should.equal(19);
+    PUBLIC_SURFACE.length.should.equal(17);
   });
 
   it('TS-49: ErrorCode tiene 26 miembros', () => {
@@ -104,5 +102,32 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       errorCode: 'client_not_found',
       errorMessage: 'Client not found',
     });
+  });
+
+  // Las dos aserciones negativas usan el cast a Record<string, unknown> y NO acceso tipado: con
+  // acceso tipado el archivo dejaría de compilar en el momento del borrado, y la idea es que la
+  // aserción exista ANTES —en rojo— y sobreviva al borrado sin tocarse.
+  //
+  // Cada test afirma DOS cosas, y las dos hacen falta: `=== undefined` atrapa el símbolo borrado,
+  // y `Object.keys()` atrapa el caso en que alguien lo redeclare como `export const X = undefined`
+  // —presente en la superficie, con valor vacío—, que pasaría la primera y es peor que el original.
+  it('TS-57: SERVICE_NAME ya no está exportado', () => {
+    // El símbolo era un alias de COMMAND_SERVICE que existía solo para que el consumer viejo de
+    // core se renombrara sin tocarse. Muerto el consumer, un alias sin callers es superficie que
+    // invita a reusarse: esta aserción es lo que impide que vuelva.
+    const p = reload({});
+    const surface = p as unknown as Record<string, unknown>;
+    (surface.SERVICE_NAME === undefined).should.be.true();
+    Object.keys(p).should.not.containEql('SERVICE_NAME');
+  });
+
+  it('TS-58: subscriptionSubject ya no está exportado', () => {
+    // El prefijo de grupo que el framework micro necesita lo da groupSubject(), SIN el `.>` final:
+    // micro arma el subject de cada endpoint por su cuenta. La forma vieja —una suscripción
+    // wildcard con `.>`— ya no tiene quién la use.
+    const p = reload({});
+    const surface = p as unknown as Record<string, unknown>;
+    (surface.subscriptionSubject === undefined).should.be.true();
+    Object.keys(p).should.not.containEql('subscriptionSubject');
   });
 });

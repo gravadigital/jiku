@@ -48,22 +48,6 @@ describe('nats-protocol · los dos nombres de servicio', () => {
     // produciría `dev.u1..v1.clients.new`, un token vacío que NATS rechaza.
     reload({ NATS_COMMAND_SERVICE: '' }).COMMAND_SERVICE.should.equal('jiku-commands');
   });
-
-  it('TS-7: SERVICE_NAME es exactamente COMMAND_SERVICE', () => {
-    const p = reload({});
-    p.SERVICE_NAME.should.equal('jiku-commands');
-    (p.SERVICE_NAME === p.COMMAND_SERVICE).should.be.true();
-  });
-
-  it('TS-8: SERVICE_NAME sigue el override de NATS_COMMAND_SERVICE', () => {
-    reload({ NATS_COMMAND_SERVICE: 'otro-commands' }).SERVICE_NAME.should.equal('otro-commands');
-  });
-
-  it('TS-9: NATS_SERVICE_NAME ya no se lee', () => {
-    // Regresión de la variable muerta: definirla no tiene ningún efecto.
-    const p = reload({ NATS_SERVICE_NAME: 'gestion' });
-    [p.SERVICE_NAME, p.COMMAND_SERVICE].should.eql(['jiku-commands', 'jiku-commands']);
-  });
 });
 
 describe('nats-protocol · subjects de comandos, consultas y grupo', () => {
@@ -156,15 +140,5 @@ describe('nats-protocol · subjects de comandos, consultas y grupo', () => {
 
   it('TS-21: groupSubject() pone * en el user id, no el user id', () => {
     reload({}).groupSubject('jiku-commands').split('.')[1].should.equal('*');
-  });
-
-  it('TS-46: subscriptionSubject() resuelve al nombre nuevo', () => {
-    // Es lo que renombra la suscripción de core sin tocar una línea de core/src.
-    reload({}).subscriptionSubject().should.equal('dev.*.jiku-commands.v1.>');
-  });
-
-  it('TS-47: subscriptionSubject() y groupSubject() son consistentes', () => {
-    const p = reload({});
-    (p.subscriptionSubject() === p.groupSubject(p.COMMAND_SERVICE) + '.>').should.be.true();
   });
 });
