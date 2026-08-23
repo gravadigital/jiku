@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-23 (S-012)
+**Last updated:** 2026-08-23 (S-013)
 
 ## Utils
 
@@ -18,17 +18,22 @@ Total: 6
 
 ## Services
 
-Total: 3
+Total: 6
 
 - **StorageSigner** (`core/src/commands/files/storage.ts`) - Lazily built S3 signer exposing exactly two local (no-network) operations: sign a PutObject and sign a GetObject.
 - **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. Takes the specs as varargs, so mounting a second service is adding one element.
 - **registerService** (`core/src/bus/service.ts`) - Registers a micro service from a `ServiceSpec` on an existing connection: one endpoint per command pattern, own queue group, and a duplicate-subject check that fails startup.
+- **readDb** (`core/src/models/read.ts`) - The READ-ONLY Sequelize connection of the query service, built WITHOUT registering the models on purpose: registering them in the same process would reassign the `@jiku/models` classes and break ADR-001 with no symptom. Own pool ceiling and own `statement_timeout`.
+- **QueryRegistry** (`core/src/queries/registry.ts`) - Maps a query method to the query that serves it. Exact `Map` matching, not segment matching: query patterns carry no `{param}`. Registering a duplicate pattern throws.
+- **QueryDispatcher** (`core/src/queries/dispatcher.ts`) - Translates a bus subject into a query execution WITHOUT opening a transaction, injecting the read-only connection into the context. Never throws: it always resolves to a `Reply`.
 
 ## Types
 
-Total: 1
+Total: 3
 
 - **ServiceSpec** (`core/src/bus/service.ts`) - What a micro service needs to be registered: bus name, description, the command patterns, and a `handle` that never throws.
+- **Query** (`core/src/queries/types.ts`) - A read endpoint: a `pattern` without `{param}` and an `execute(payload, ctx)` that resolves to a `Reply`. No `validate()` yet — there is no query contract to validate against.
+- **QueryContext** (`core/src/queries/types.ts`) - What a query receives: the `caller` read from the subject and the read-only `db` connection. It has NO `transaction` and NO `params`, and both absences are the contract.
 
 ## Constants
 
