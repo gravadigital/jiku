@@ -4,8 +4,8 @@ title: Lectura de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-20
-stories: [S-002, S-005, S-006, S-007, S-009]
+last_updated: 2026-08-23
+stories: [S-002, S-005, S-006, S-007, S-009, S-014]
 ---
 
 # Lectura de Archivos
@@ -402,7 +402,8 @@ de vínculos para descargar lo que subió.
 | — | **Petición sin token a la `api`**, cualquier método y cualquier path | *(nada: `validateToken` corta antes del router)* | **401** | S-009 CA-3, CA-7, CA-9, CA-10 |
 | 5 | Archivo borrado (`retention_status` no `active`) | `file_not_found` | 404 | — |
 | 5 | ~~`byte_status: 'pending'`~~ — **ya no se verifica** (2026-08-20) | *(se firma igual)* | **302** | Ver la nota de estado |
-| 4 | Timeout del bus | — | **503** | ADR-002 |
+| 4 | **Nadie escuchando** el subject (core no desplegado) | — | **503** `service_unavailable` | *No responders* en milisegundos. **La lectura no ocurrió**; reintentar es seguro |
+| 4 | **La respuesta no llegó a tiempo** (core lento) | — | **504** `gateway_timeout` | ADR-002. En una lectura no hay efecto que duplicar, pero el status distingue **despliegue** de **performance** |
 | 7 | Objeto borrado del bucket por fuera del producto | *(el 302 lleva a un `NoSuchKey` de S3)* | 403/404 de S3 | Caso residual |
 | 7 | `downloadUrl` vencida antes de seguirse | — | 403 de S3 | El front vuelve a pedir |
 
@@ -443,7 +444,9 @@ un solo byte.**
   falló en silencio**. Ahora se detecta por `byte_status` **antes** de redirigir, así que ve un 404
   entendible en lugar de un error de S3 opaco al final de una redirección.
 - **El costo nuevo: cada preview publica un comando.** Un requisito con ocho imágenes embebidas son
-  **ocho comandos** por el bus, cada uno contra el timeout de 5 s. **Es la consecuencia aceptada** de
+  **ocho comandos** por el bus, cada uno contra el timeout de 5 s —`NATS_REQUEST_TIMEOUT_MS`, que el
+  desdoblamiento 503/504 **no cambia**: lo que cambia es que al vencer sale **504 `gateway_timeout`**
+  en lugar de 503, y que el 503 queda para "no hay nadie escuchando". **Es la consecuencia aceptada** de
   que el único control del storage sea `core`. Se descartó cachear o agrupar por lote: rompería CA-20
   (el TTL configurable tiene que aplicar en caliente) y agregaría una **segunda** forma de acceder al
   storage, que es justo lo que esta decisión elimina. **Queda como el punto a medir**; la salida, si

@@ -1,3 +1,4 @@
+import { ErrorCode, NatsError } from 'nats';
 import { Bus } from '../../lib/utils/bus';
 import { Reply, commandSubject } from '../../lib/utils/bus/protocol';
 
@@ -52,10 +53,35 @@ export class FakeBus implements Bus {
     return this;
   }
 
-  /** Simula un bus caído o un timeout. */
+  /** Simula una falla cualquiera del bus, con el error que el test le pase. */
   failWith(error: Error): this {
     this.failure = error;
     return this;
+  }
+
+  /**
+   * Simula que NO HAY NINGÚN SUSCRIPTOR del subject: el server contesta `no responders` en
+   * milisegundos, no al vencer el timeout. Es la señal de un problema de DESPLIEGUE, y la
+   * api la traduce a 503 `service_unavailable`.
+   *
+   * Existe para que ningún test tenga que construir el `NatsError` a mano: así la forma
+   * exacta del error queda definida en UN solo lugar, y un test no puede simular la falla
+   * con un `Error` pelado que el `catch` de la api ya no lee como esta causa.
+   */
+  failWithNoResponders(): this {
+    return this.failWith(NatsError.errorForCode(ErrorCode.NoResponders));
+  }
+
+  /**
+   * Simula que LA RESPUESTA NO LLEGÓ A TIEMPO. Es un problema de PERFORMANCE, y la api lo
+   * traduce a 504 `gateway_timeout`.
+   *
+   * Es la única señal que toma esa rama: un `new Error('timeout')` NO es un timeout para el
+   * `catch` de `sendCommand`, porque la discriminación se hace sobre la señal del cliente
+   * NATS y no sobre el texto del mensaje.
+   */
+  failWithTimeout(): this {
+    return this.failWith(NatsError.errorForCode(ErrorCode.Timeout));
   }
 
   reset(): this {
@@ -91,6 +117,23 @@ export class FakeBus implements Bus {
     // el bus real, así que el formato no puede divergir del protocolo. El user id es uno
     // de prueba — a core solo le importa que el segmento esté.
     return dispatch(commandSubject(command, TEST_USER_ID), payload) as Promise<Reply<T>>;
+  }
+
+  /**
+   * Las consultas no se pueden despachar: todavía no hay contrato de consultas, así que no
+   * existe el dispatcher contra el que ejecutarlas.
+   *
+   * Rechazar explícitamente nombrando la razón es lo honesto. La alternativa —dejar el
+   * método sin implementar— haría que los tests fallaran con un `TypeError` opaco en vez de
+   * por la razón real, y el diagnóstico se vuelve caro.
+   *
+   * Rechaza ANTES de registrar en `sent`: nada se publicó, así que anotarlo sería mentir, y
+   * además ensuciaría el registro que otros tests cuentan.
+   */
+  async query<T = any>(query: string, _payload: unknown): Promise<Reply<T>> {
+    throw new Error(
+      `FakeBus.query('${query}'): todavía no hay contrato de consultas, así que no hay nada que despachar`
+    );
   }
 
   private loadDispatcher() {

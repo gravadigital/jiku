@@ -135,15 +135,19 @@ describe('POST /api/projects', () => {
       });
   });
 
-  it('should respond 503 when the bus is unreachable', () => {
-    fakeBus.failWith(new Error('TIMEOUT'));
+  // S-014/CA-10: `no responders` → 503 `service_unavailable`. Y la aserción de que no se
+  // escribió nada es justamente lo que obliga a que este caso sea 503 y no 504: con un timeout
+  // la escritura PUDO haber ocurrido, así que `count === 0` no sería afirmable.
+  it('should respond 503 when there is no subscriber for the subject', () => {
+    fakeBus.failWithNoResponders();
 
     return request(application)
       .post('/api/projects')
       .set('Authorization', 'Bearer token_01_user')
       .send(VALID_BODY)
       .expect(503)
-      .then(() => {
+      .then((response) => {
+        response.body.code.should.equal('service_unavailable');
         return Project.count().then((count) => count.should.equal(0));
       });
   });

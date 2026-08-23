@@ -1,9 +1,11 @@
 import 'mocha';
 import 'should';
+import { ErrorCode, NatsError } from 'nats';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import { Attachment, File, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, User } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
 
 describe('POST /api/requirements', () => {
   let application: Application;
@@ -462,5 +464,120 @@ describe('POST /api/requirements', () => {
       .then((res) => {
         res.body.type.should.equal('incidencia');
       });
+  });
+  /**
+   * Los tres modos de falla del bus (S-014). El fixture es el mismo en los seis: el
+   * `before` ya dejó creados el usuario y el proyecto `id: 1`, así que la request pasa los
+   * permisos y la validación y llega a `sendCommand`, que es el punto que se ejercita.
+   *
+   * LA DISTINCIÓN SE HACE SOBRE LA SEÑAL DEL CLIENTE NATS, no sobre el tiempo transcurrido
+   * ni sobre el texto del mensaje: `no responders` llega en milisegundos —lo contesta el
+   * server— y un timeout que vence antes de lo esperado sigue siendo un timeout.
+   */
+  describe('los modos de falla del bus (S-014)', () => {
+    const BUS_FAILURE_BODY = {
+      title: 'T',
+      description: 'D',
+      type: 'funcionalidad',
+      estimatedFinishDate: '2026-07-01',
+      projectId: 1,
+    };
+
+    // TS-1 (CA-1): no hay ningún suscriptor del subject. Es un problema de DESPLIEGUE y el
+    // server lo contesta en milisegundos, sin esperar el timeout. La operación NO ocurrió.
+    it('TS-1: responde 503 service_unavailable cuando no hay ningún suscriptor', () => {
+      fakeBus.failWithNoResponders();
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+          res.body.message.should.equal('El servicio no está disponible en este momento');
+        });
+    });
+
+    // TS-2 (CA-2): la respuesta no llegó a tiempo. Es un problema de PERFORMANCE, y la
+    // operación PUDO haber ocurrido. El `message` se afirma a propósito: es el copy aprobado
+    // por la revisión UX y esta aserción es lo único que impide que se lo cambien sin que
+    // nada falle.
+    it('TS-2: responde 504 gateway_timeout cuando la respuesta no llega a tiempo', () => {
+      fakeBus.failWithTimeout();
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(504)
+        .then((res) => {
+          res.body.code.should.equal('gateway_timeout');
+          res.body.message.should.equal('La operación tardó demasiado');
+        });
+    });
+
+    // TS-3 (CA-3): EL TEST QUE HACE VERIFICABLE LA REGLA. Un `Error` cuyo texto dice
+    // 'timeout' pero que no lleva la señal de NATS NO es un timeout: cae en el default y
+    // sale 503. Si esto devolviera 504, la rama estaría leyendo el mensaje.
+    it('TS-3: no lee el texto del error: un Error("timeout") sin señal NATS sigue en 503', () => {
+      fakeBus.failWith(new Error('timeout'));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+          res.body.code.should.not.equal('gateway_timeout');
+        });
+    });
+
+    // TS-4 (CA-4): el default no cambió. El `catch` GANÓ una rama, no se reescribió.
+    it('TS-4: responde 503 ante una excepción genérica', () => {
+      fakeBus.failWith(new Error('boom'));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+        });
+    });
+
+    // TS-5 (CA-4): un `NatsError` que NO es de timeout también cae en el default. La rama
+    // discrimina por un código concreto, no por el tipo del error.
+    it('TS-5: responde 503 ante un NatsError que no es de timeout', () => {
+      fakeBus.failWith(NatsError.errorForCode(ErrorCode.ConnectionClosed));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+        });
+    });
+
+    // TS-6 (CA-1): con `no responders` nadie recibió el comando, así que la base tiene que
+    // quedar igual. Es la mitad que le falta al status: el 503 promete que la operación no
+    // ocurrió, y esto lo comprueba.
+    it('TS-6: no escribe nada cuando no hay ningún suscriptor', () => {
+      fakeBus.failWithNoResponders();
+
+      return Requirement.count().then((before) => {
+        return request(application)
+          .post('/api/requirements')
+          .set('Authorization', 'Bearer token_01_user')
+          .send(BUS_FAILURE_BODY)
+          .expect(503)
+          .then(() => Requirement.count())
+          .then((after) => after.should.equal(before));
+      });
+    });
   });
 });

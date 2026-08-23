@@ -255,17 +255,19 @@ describe('POST /api/attachments', () => {
       });
   });
 
-  // TS-16 (CA-13): el timeout de 5000 ms de ADR-002 sale 503, no 500. La operación no ocurrió.
-  it('devuelve 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
+  // TS-16 (S-014/CA-10): el timeout de 5000 ms de ADR-002 sale 504 `gateway_timeout`, no 503:
+  // 503 es "no hay nadie escuchando" y la operación no ocurrió; acá había alguien y la
+  // respuesta no llegó, así que LA OPERACIÓN PUDO HABER OCURRIDO.
+  it('devuelve 504 cuando la respuesta del bus no llega a tiempo', () => {
+    fakeBus.failWithTimeout();
 
     return request(application)
       .post('/api/attachments')
       .set('Authorization', 'Bearer token_01_user')
       .send(validBody)
-      .expect(503)
+      .expect(504)
       .then(res => {
-        res.body.code.should.equal('service_unavailable');
+        res.body.code.should.equal('gateway_timeout');
       });
   });
 

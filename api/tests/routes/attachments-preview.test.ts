@@ -284,9 +284,15 @@ describe('GET /api/attachments/:id/preview', () => {
       });
   });
 
-  // TS-10: bus caído / timeout → 503.
-  it('responde 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
+  // TS-10 (S-014/CA-10): NO HAY NADIE ESCUCHANDO el subject → 503 `service_unavailable`. La
+  // simulación ahora lleva la señal de `no responders`, que es literalmente lo que significa
+  // que core no esté desplegado; un `Error` pelado caería en el default y afirmaría 503 por la
+  // razón equivocada. El timeout es el otro caso y sale 504.
+  //
+  // La aserción del `message` se conserva a propósito: es el copy aprobado por la revisión UX
+  // y esto es lo único que impide que se lo cambien sin que nada falle.
+  it('responde 503 cuando no hay ningún suscriptor del subject', () => {
+    fakeBus.failWithNoResponders();
 
     return request(application)
       .get(`/api/attachments/${attOk.id}/preview`)

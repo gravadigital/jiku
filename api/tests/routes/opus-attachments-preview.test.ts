@@ -185,9 +185,10 @@ describe('GET /api/opus/attachments/:id/preview', () => {
       });
   });
 
-  // TS-10 (variante opus): bus caído → 503.
-  it('responde 503 cuando el bus no responde', () => {
-    fakeBus.failWith(new Error('timeout'));
+  // TS-10 (variante opus, S-014/CA-10): no hay ningún suscriptor → 503 `service_unavailable`,
+  // con la señal explícita de `no responders`. El timeout es el otro caso y sale 504.
+  it('responde 503 cuando no hay ningún suscriptor del subject', () => {
+    fakeBus.failWithNoResponders();
 
     return request(application)
       .get(`/api/opus/attachments/${attComment.id}/preview`)

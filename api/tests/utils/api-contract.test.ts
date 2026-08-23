@@ -70,3 +70,116 @@ describe('docs/apis/api.yaml — contrato de adjuntos', () => {
       });
   });
 });
+
+/**
+ * Los tres modos de falla del bus en el spec (S-014, CA-11).
+ *
+ * `docs/apis/api.yaml` ya declara el desdoblamiento 503/504 en las 26 operaciones que publican
+ * un comando. Lo que hace este describe es BLINDARLO: 26 operaciones es mucha superficie
+ * mecánica, y un spec que documenta 503 donde el servicio devuelve 504 es peor que uno que no
+ * documenta nada.
+ *
+ * MISMO MOLDE QUE EL DESCRIBE DE ARRIBA: cuenta líneas, no parsea YAML. Los `$ref` del spec
+ * están escritos en una sola línea y con formato uniforme, así que un `split('\n')` + `filter`
+ * alcanza. No se agrega `js-yaml`.
+ */
+describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+  const BUS_UNAVAILABLE_REF = "'503': { $ref: '#/components/responses/BusUnavailable' }";
+  const GATEWAY_TIMEOUT_REF = "'504': { $ref: '#/components/responses/GatewayTimeout' }";
+
+  function specLines(): string[] {
+    return readFileSync(SPEC_PATH, 'utf8').split('\n');
+  }
+
+  function countLinesWith(needle: string): number {
+    return specLines().filter((line) => line.includes(needle)).length;
+  }
+
+  // TS-20: LA INVARIANTE Y EL ANCLA, en dos aserciones distintas y a propósito. La igualdad es
+  // la regla —toda operación que puede dar 503 puede dar 504, porque las dos fallas son
+  // alcanzables desde el mismo `catch`—; el 26 es el estado de hoy. Si mañana se agrega una
+  // operación que publica un comando, el número correcto pasa a 27 y este test tiene que fallar
+  // por la razón útil ("agregaste un 503 sin su 504"), no por un literal desactualizado.
+  it('TS-20: toda operación con 503 declara también 504', () => {
+    const busUnavailable = countLinesWith(BUS_UNAVAILABLE_REF);
+    const gatewayTimeout = countLinesWith(GATEWAY_TIMEOUT_REF);
+
+    busUnavailable.should.equal(gatewayTimeout);
+    busUnavailable.should.equal(26);
+  });
+
+  // TS-22: ninguna clave '503' o '504' apunta a otro componente. Es lo que impide que una
+  // operación "declare el 504" con una respuesta inline que diga otra cosa: el texto se escribe
+  // UNA vez, en el componente compartido, y las operaciones solo lo referencian.
+  it('TS-22: ninguna clave 503 o 504 referencia otro componente', () => {
+    const huerfanas = specLines().filter((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("'503':")) {
+        return !trimmed.includes("#/components/responses/BusUnavailable");
+      }
+      if (trimmed.startsWith("'504':")) {
+        return !trimmed.includes("#/components/responses/GatewayTimeout");
+      }
+      return false;
+    });
+
+    huerfanas.should.have.length(0, `claves 503/504 con otro $ref: ${huerfanas.join(' | ')}`);
+  });
+
+  // TS-21: los dos componentes existen con su `example`. El `message` del 504 es el copy
+  // aprobado por la revisión UX: afirmarlo acá es lo que impide que el spec y el servicio
+  // divergan en el texto que ve la persona.
+  describe('TS-21: los dos componentes de respuesta', () => {
+    /** Las líneas del bloque de un componente de `components/responses`, hasta el siguiente. */
+    function componentBlock(name: string): string[] {
+      const lines = specLines();
+      const start = lines.findIndex((line) => line.trim() === `${name}:`);
+      start.should.be.above(-1, `no se encontró el componente ${name} en api.yaml`);
+
+      const indent = (lines[start].match(/^\s*/) as RegExpMatchArray)[0].length;
+      const block: string[] = [];
+      for (let index = start + 1; index < lines.length; index += 1) {
+        const line = lines[index];
+        const isNewSibling =
+          line.trim() !== '' && (line.match(/^\s*/) as RegExpMatchArray)[0].length <= indent;
+        if (isNewSibling) {
+          break;
+        }
+        block.push(line);
+      }
+      return block;
+    }
+
+    it('BusUnavailable trae el example de service_unavailable', () => {
+      const block = componentBlock('BusUnavailable').join('\n');
+      block.should.match(/code: service_unavailable/);
+      block.should.match(/message: El servicio no está disponible en este momento/);
+    });
+
+    it('GatewayTimeout trae el example de gateway_timeout con el copy aprobado', () => {
+      const block = componentBlock('GatewayTimeout').join('\n');
+      block.should.match(/code: gateway_timeout/);
+      block.should.match(/message: La operación tardó demasiado/);
+    });
+
+    // La causa del 503 quedó ACOTADA a "no hay ningún suscriptor": mencionar el timeout ahí es
+    // exactamente la conflación que esta story vino a deshacer.
+    it('BusUnavailable no se atribuye el timeout', () => {
+      const description = componentBlock('BusUnavailable')
+        .join('\n')
+        .split('content:')[0];
+      description.should.match(/no hay ningún suscriptor/i);
+      description.should.match(/No cubre el timeout/i);
+    });
+
+    // El 504 dice que la operación PUDO haber ocurrido. Es el riesgo asumido de ADR-002, que esta
+    // story no resuelve: el spec es el lugar donde queda dicho.
+    it('GatewayTimeout avisa que la operación pudo haber ocurrido', () => {
+      const description = componentBlock('GatewayTimeout')
+        .join('\n')
+        .split('content:')[0];
+      description.should.match(/PUDO HABER OCURRIDO/);
+    });
+  });
+});

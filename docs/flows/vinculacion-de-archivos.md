@@ -4,8 +4,8 @@ title: Vinculación de archivos a entidades
 type: feature
 status: Draft
 created: 2026-08-19
-last_updated: 2026-08-19
-stories: [S-003, S-004]
+last_updated: 2026-08-23
+stories: [S-003, S-004, S-014]
 ---
 
 # Vinculación de Archivos a Entidades
@@ -325,7 +325,8 @@ VALUES ('requirement', 412, 1234);
 |---|---|---|---|---|
 | 2 | Rol no autorizado | 403 | `{ code: access_denied }` | La `api` rechaza sin publicar |
 | 2 | **Sin permiso sobre el proyecto** | 403 | `{ code: access_denied }` | Rechaza sin publicar. **Es la capa que aísla un cliente de otro** (CA-26) |
-| 2 | Timeout del bus | **503** | `{ code: bus_unavailable }` | La operación no ocurrió |
+| 2 | **Nadie escuchando** el subject (core no desplegado) | **503** | `{ code: service_unavailable }` | **La operación no ocurrió.** El server contesta *no responders* en milisegundos. **Reintentar es seguro** |
+| 2 | **La respuesta no llegó a tiempo** (core lento) | **504** | `{ code: gateway_timeout }` | **PUDO haber ocurrido.** Sin acuse ni idempotencia ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)): **reintentar a ciegas puede duplicar** |
 | 5 | `fileId` inexistente o borrado | 400 | `{ code: invalid_fields }` | **Rollback: se descarta la entidad entera**, no solo el vínculo |
 | 5 | `File.uploaded_by` ≠ actor | **403** | `{ code: file_not_owned }` | **Rollback de la entidad entera** (CA-10 a CA-13) |
 | 5 | Más de 10 `fileIds` | 400 | `{ code: invalid_fields }` | Joi, por `maxItems: 10` (CA-22) |

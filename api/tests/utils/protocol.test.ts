@@ -58,4 +58,36 @@ describe('httpStatusFor', () => {
     httpStatusFor('internal_error').should.equal(500);
     httpStatusFor(undefined).should.equal(500);
   });
+
+  /**
+   * S-014 (CA-5): los dos códigos que la api emite POR SU CUENTA no están —y no tienen que
+   * estar— en este mapa.
+   *
+   * Este mapa traduce el `errorCode` DE UN REPLY DE CORE. `service_unavailable` y
+   * `gateway_timeout` no vienen en ningún reply: los genera la api en el `catch` del bus,
+   * cuando no hubo reply. Son dos mapas distintos y confundirlos es el error fácil de la
+   * story: agregar `gateway_timeout` acá sería declarar que core lo emite, que es falso.
+   */
+  // TS-7: EL 500 DE ESTA ASERCIÓN ES LA PRUEBA DE LA AUSENCIA EN EL MAPA, NO UN
+  // COMPORTAMIENTO DESEADO. No lo "arregles" agregando la entrada: eso es exactamente lo que
+  // CA-5 prohíbe. Nadie llama a `httpStatusFor('gateway_timeout')` en producción, porque el
+  // status del timeout lo pone `sendCommand` directo.
+  it('TS-7: no tiene gateway_timeout en el mapa (lo emite la api, no core)', () => {
+    httpStatusFor('gateway_timeout').should.equal(500);
+  });
+
+  // TS-8: `service_unavailable` tampoco está, por la misma razón y desde siempre. Es la
+  // prueba de que la ausencia de `gateway_timeout` sigue el patrón que ya existía.
+  it('TS-8: tampoco tiene service_unavailable, por la misma razón', () => {
+    httpStatusFor('service_unavailable').should.equal(500);
+  });
+
+  // TS-9: el mapa no perdió ninguna entrada al desdoblar el 503/504. La rama del 504 vive en
+  // `send-command.ts` y no toca `protocol.ts`.
+  it('TS-9: conserva las entradas existentes tras el desdoblamiento 503/504', () => {
+    httpStatusFor('invalid_fields').should.equal(400);
+    httpStatusFor('user_not_found').should.equal(404);
+    httpStatusFor('file_not_owned').should.equal(403);
+    httpStatusFor('internal_error').should.equal(500);
+  });
 });
