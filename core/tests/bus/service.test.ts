@@ -7,6 +7,7 @@ import { NatsError, NatsConnection, ServiceMsg } from 'nats';
 import { Reply, commandSubject, failure, success } from '@jiku/nats-protocol';
 import { ServiceSpec, registerService } from '../../src/bus/service';
 import { registry } from '../../src/commands';
+import { queryRegistry } from '../../src/queries';
 import logger from '../../src/logger';
 import { FakeMsg, decode, encode, fakeConnection, fakeMsg } from '../helpers/micro-double';
 
@@ -48,6 +49,34 @@ function specFor(
   return { name: 'jiku-commands', description: DESCRIPTION, patterns, handle };
 }
 
+/** La descripción real del servicio de consultas, la misma que `src/index.ts` construye. */
+const QUERIES_DESCRIPTION = 'Consultas de lectura de Jiku: proyectos, tareas y comentarios';
+
+/**
+ * Los 6 endpoints de consulta, COPIADOS de la tabla del contrato, no recalculados. Ninguno lleva
+ * `{param}`, así que ningún subject lleva `*`: es una decisión de performance (el cache de
+ * subjects de 1024 entradas del server), no un olvido.
+ */
+const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
+  ['projects-list', 'projects.list'],
+  ['projects-get', 'projects.get'],
+  ['tasks-list', 'tasks.list'],
+  ['tasks-get', 'tasks.get'],
+  ['comments-list', 'comments.list'],
+  ['comments-get', 'comments.get'],
+];
+
+/**
+ * El spec de consultas, con la descripción REAL: si mañana cambia en `src/index.ts`, el test lo
+ * delata. Mismo criterio que `specFor()` para los comandos.
+ */
+function queriesSpecFor(
+  handle: ServiceSpec['handle'],
+  patterns: string[] = queryRegistry.patterns()
+): ServiceSpec {
+  return { name: 'jiku-queries', description: QUERIES_DESCRIPTION, patterns, handle };
+}
+
 /** Deja correr los microtasks: el handler de micro invoca `handle()` con `void`, sin `await`. */
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -72,6 +101,24 @@ function sourceFiles(dir = join(__dirname, '..', '..', 'src')): string[] {
 async function deliver(msg: FakeMsg, handle: ServiceSpec['handle']): Promise<void> {
   const nc = fakeConnection();
   await registerService(nc as unknown as NatsConnection, specFor(handle));
+  const handler = nc.created[0].group.endpoints[0].handler;
+  (typeof handler).should.equal('function');
+  handler!(null, msg as unknown as ServiceMsg);
+  await flush();
+}
+
+/**
+ * Igual que `deliver()`, pero por el endpoint que `registerService` registró para el spec de
+ * CONSULTAS. Es el mismo `handle()` de los comandos —eso es justamente lo que verifica CA-14—,
+ * así que lo único que cambia es el spec.
+ */
+async function deliverQuery(
+  msg: FakeMsg,
+  handle: ServiceSpec['handle'],
+  pattern = 'tasks.list'
+): Promise<void> {
+  const nc = fakeConnection();
+  await registerService(nc as unknown as NatsConnection, queriesSpecFor(handle, [pattern]));
   const handler = nc.created[0].group.endpoints[0].handler;
   (typeof handler).should.equal('function');
   handler!(null, msg as unknown as ServiceMsg);
@@ -474,6 +521,95 @@ describe('bus/service', () => {
       } finally {
         error.restore();
       }
+    });
+  });
+
+  /**
+   * El SEGUNDO servicio del proceso. Nada de lo que verifica es código nuevo de `service.ts`:
+   * `registerService` ya era genérico desde S-012, y lo que S-013 comprueba es que las
+   * propiedades que dejó implementadas SE CUMPLEN CON DOS.
+   */
+  describe('registerService() con el spec de CONSULTAS (jiku-queries)', () => {
+    const handle = (): Promise<Reply> => Promise.resolve(success());
+
+    it('TS-21 · el servicio de consultas se anuncia con nombre, versión, queue group y metadata', async () => {
+      const nc = fakeConnection();
+
+      await registerService(nc as unknown as NatsConnection, queriesSpecFor(handle));
+
+      nc.configs.length.should.equal(1);
+      // `queue: 'jiku-queries'`, NO `q`: sin esa línea el balanceo entre réplicas se compartiría
+      // con el de comandos y nada lo delataría.
+      nc.configs[0].should.deepEqual({
+        name: 'jiku-queries',
+        version: '1.0.0',
+        description: QUERIES_DESCRIPTION,
+        queue: 'jiku-queries',
+        metadata: { instance: 'dev', protocol: 'v1' },
+      });
+    });
+
+    it('TS-22 · el grupo de consultas es el suyo, con el * del caller y SIN .>', async () => {
+      const nc = fakeConnection();
+
+      await registerService(nc as unknown as NatsConnection, queriesSpecFor(handle));
+
+      nc.created[0].groups.length.should.equal(1);
+      String(nc.created[0].group.subject).should.equal('dev.*.jiku-queries.v1');
+    });
+
+    it('TS-23 · los 6 endpoints, con el par (nombre, subject) del contrato y SIN *', async () => {
+      const nc = fakeConnection();
+
+      await registerService(nc as unknown as NatsConnection, queriesSpecFor(handle));
+
+      const registered = nc.created[0].group.endpoints.map(
+        (endpoint) => [endpoint.name, endpoint.subject] as [string, string | undefined]
+      );
+      registered.length.should.equal(6);
+      registered.should.deepEqual(QUERY_CONTRACT_ENDPOINTS);
+
+      for (const [name, subject] of registered) {
+        String(subject).should.not.containEql('*');
+        name.should.not.containEql('.');
+      }
+    });
+
+    it('TS-27 · un payload no-JSON en un endpoint de CONSULTA se contesta por el mismo handle()', async () => {
+      let invoked = 0;
+      const msg = fakeMsg({
+        subject: 'dev.api.jiku-queries.v1.tasks.list',
+        data: encode('{no-json'),
+      });
+
+      await deliverQuery(msg, () => {
+        invoked += 1;
+        return Promise.resolve(success());
+      });
+
+      invoked.should.equal(0);
+      msg.replyCount.should.equal(1);
+      msg.errorResponses[0].code.should.equal(500);
+      msg.errorResponses[0].description.should.equal('invalid_fields');
+      decode(msg.errorResponses[0].data).should.equal(
+        '{"status":"failure","errorCode":"invalid_fields","errorMessage":"Malformed JSON payload"}'
+      );
+    });
+
+    it('TS-27 · una excepción en un endpoint de CONSULTA también se contesta, con internal_error', async () => {
+      const msg = fakeMsg({
+        subject: 'dev.api.jiku-queries.v1.tasks.list',
+        data: encode('{}'),
+      });
+
+      await deliverQuery(msg, () => Promise.reject(new Error('boom')));
+
+      msg.replyCount.should.equal(1);
+      msg.errorResponses[0].code.should.equal(500);
+      msg.errorResponses[0].description.should.equal('internal_error');
+      decode(msg.errorResponses[0].data).should.equal(
+        '{"status":"failure","errorCode":"internal_error","errorMessage":"Internal error"}'
+      );
     });
   });
 });

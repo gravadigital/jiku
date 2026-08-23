@@ -1,5 +1,7 @@
 import 'mocha';
 import 'should';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ConnectionOptions, NatsConnection, ServiceConfig } from 'nats';
 import { Reply, inboxPrefix, success } from '@jiku/nats-protocol';
 import { BusHost } from '../../src/bus/host';
@@ -14,6 +16,8 @@ import { FakeConnection, FakeService, fakeConnection } from '../helpers/micro-do
  */
 class TestHost extends BusHost {
   captured: ConnectionOptions | null = null;
+  /** Cuántas veces se abrió una conexión. Con dos servicios tiene que seguir siendo UNA. */
+  openCount = 0;
 
   constructor(
     private double: FakeConnection,
@@ -24,6 +28,7 @@ class TestHost extends BusHost {
 
   protected openConnection(options: ConnectionOptions): Promise<NatsConnection> {
     this.captured = options;
+    this.openCount += 1;
     return Promise.resolve(this.double as unknown as NatsConnection);
   }
 }
@@ -171,5 +176,151 @@ describe('bus/host', () => {
     await new TestHost(nc, specNamed('jiku-commands')).stop();
 
     nc.trace.should.deepEqual([]);
+  });
+
+  /**
+   * El proceso con los DOS servicios. Los TS-X de S-012 de más arriba usan nombres genéricos
+   * (`A`, `B`); estos usan los nombres REALES y en el orden real del contrato —comandos primero,
+   * consultas después—, porque lo que se verifica es el cableado de `src/index.ts`.
+   *
+   * Los ids llevan el prefijo de la story: este archivo ya tiene un TS-24 y un TS-25 de S-012,
+   * que son escenarios distintos.
+   */
+  describe('los DOS servicios del proceso', () => {
+    it('S-013 TS-24 · dos specs sobre UNA conexión dan DOS servicios, registrados EN SERIE', async () => {
+      let resolveCommands: ((service: FakeService) => void) | null = null;
+      const requested: string[] = [];
+      const nc = fakeConnection({
+        add: (config: ServiceConfig): Promise<FakeService> => {
+          requested.push(config.name);
+          if (config.name === 'jiku-commands') {
+            return new Promise<FakeService>((resolve) => {
+              resolveCommands = resolve;
+            });
+          }
+          return Promise.resolve(nc.makeService(config));
+        },
+      });
+      const host = new TestHost(nc, specNamed('jiku-commands'), specNamed('jiku-queries'));
+
+      const started = host.start();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Con el `add` de jiku-commands pendiente, jiku-queries NO fue pedido todavía: el registro
+      // es en serie, y de eso sale CA-12 sin código nuevo.
+      requested.should.deepEqual(['jiku-commands']);
+
+      resolveCommands!(nc.makeService({ name: 'jiku-commands', version: '1.0.0' }));
+      await started;
+
+      nc.configs.map((config) => config.name).should.deepEqual([
+        'jiku-commands',
+        'jiku-queries',
+      ]);
+      nc.created.length.should.equal(2);
+      for (const service of nc.created) {
+        service.groups.length.should.equal(1);
+      }
+      // UNA sola conexión para los dos servicios, con su inbox hasheado.
+      host.openCount.should.equal(1);
+      String(host.captured!.inboxPrefix).should.startWith('_INBOX.');
+    });
+
+    it('S-013 TS-25 · si falla el registro del SEGUNDO, start() rechaza y no queda uno solo arriba', async () => {
+      const boom = new Error("'latest' is not a semver value");
+      const nc = fakeConnection({
+        add: (config: ServiceConfig): Promise<FakeService> => {
+          if (config.name === 'jiku-queries') {
+            return Promise.reject(boom);
+          }
+          return Promise.resolve(nc.makeService(config));
+        },
+      });
+      const host = new TestHost(nc, specNamed('jiku-commands'), specNamed('jiku-queries'));
+      let thrown: Error | null = null;
+
+      try {
+        await host.start();
+      } catch (error) {
+        thrown = error as Error;
+      }
+
+      (thrown === boom).should.be.true();
+      // Se intentó registrar los dos, pero solo uno quedó creado. El rechazo llega a
+      // `main().catch()` → `process.exit(1)`: el proceso NO puede quedar arriba con un servicio
+      // registrado y el otro caído.
+      nc.configs.map((config) => config.name).should.deepEqual([
+        'jiku-commands',
+        'jiku-queries',
+      ]);
+      nc.created.length.should.equal(1);
+    });
+
+    it('S-013 TS-26 · stop() para LOS DOS servicios ANTES de drenar', async () => {
+      const nc = fakeConnection();
+      const host = new TestHost(nc, specNamed('jiku-commands'), specNamed('jiku-queries'));
+
+      await host.start();
+      await host.stop();
+
+      // DOS paradas primero. El orden es la garantía: al revés, una request nueva podría entrar
+      // durante el drain y quedarse sin respuesta.
+      nc.trace.should.deepEqual([
+        'service.stop',
+        'service.stop',
+        'connection.drain',
+        'connection.close',
+      ]);
+    });
+  });
+
+  /**
+   * TS-28 · el cableado del proceso, leído del fuente.
+   *
+   * Es una verificación estática porque `src/index.ts` no se puede importar en un test: al
+   * importarse conecta a la base y arranca el host. Lo que importa es que haya UNA sola llamada
+   * a `new BusHost(` con los dos specs, y no dos hosts ni dos conexiones.
+   */
+  describe('el cableado de src/index.ts (TS-28)', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'src', 'index.ts'), 'utf8');
+
+    it('construye el dispatcher de consultas y le pasa los patrones del registry', () => {
+      source.should.containEql('QUERY_SERVICE');
+      source.should.containEql('new QueryDispatcher(');
+      source.should.containEql('queryRegistry.patterns()');
+      source.should.containEql('registry.patterns()');
+    });
+
+    it('hay UNA sola llamada a new BusHost(', () => {
+      source.split('new BusHost(').length.should.equal(2);
+    });
+
+    it('los DOS specs viajan DENTRO de esa única llamada', () => {
+      // No alcanza con que los dos nombres aparezcan en el archivo: lo que CA-1 pide es que los
+      // dos entren por el MISMO host. Se recorta el argumento de `new BusHost(` balanceando
+      // paréntesis y se verifica ahí adentro.
+      const start = source.indexOf('new BusHost(') + 'new BusHost('.length;
+      let depth = 1;
+      let end = start;
+      while (end < source.length && depth > 0) {
+        if (source[end] === '(') depth++;
+        else if (source[end] === ')') depth--;
+        if (depth > 0) end++;
+      }
+      depth.should.equal(0);
+      const args = source.slice(start, end);
+      args.should.containEql('COMMAND_SERVICE');
+      args.should.containEql('QUERY_SERVICE');
+      // Dos objetos literales, cada uno con su `handle`: uno por servicio.
+      args.split('handle:').length.should.equal(3);
+    });
+
+    it('dotenv.config() sigue en las dos primeras líneas', () => {
+      // `models/read.ts` y `bus/service.ts` leen `process.env` AL IMPORTARSE: ese orden ahora
+      // protege a los dos.
+      const head = source.split('\n').slice(0, 2).join('\n');
+      head.should.containEql("import * as dotenv from 'dotenv'");
+      head.should.containEql('dotenv.config()');
+    });
   });
 });

@@ -25,6 +25,30 @@ export async function mochaGlobalSetup(): Promise<void> {
     .map((model) => `"${model.getTableName()}"`)
     .join(', ');
   await sequelize.query(`TRUNCATE ${tables} RESTART IDENTITY CASCADE`);
+
+  // El rol de SOLO LECTURA de las consultas. Va acá y no en `setup-env.ts` porque
+  // `GRANT SELECT ON ALL TABLES` necesita que las tablas EXISTAN, y las crea el `sync()` de
+  // arriba. Idempotente: con KEEP_DB=true el contenedor sobrevive entre corridas.
+  const readUser = process.env.POSTGRESQL_READ_USER as string;
+  const readPassword = process.env.POSTGRESQL_READ_PASSWORD as string;
+  const database = process.env.POSTGRESQL_DB as string;
+
+  await sequelize.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${readUser}') THEN
+        CREATE ROLE "${readUser}" LOGIN PASSWORD '${readPassword}';
+      END IF;
+    END $$;
+  `);
+  // SELECT y nada más. Un GRANT de más acá convierte CA-5 en un test que no prueba nada.
+  // El nombre de la base va ENTRE COMILLAS DOBLES: es `gestionTest`, con mayúscula, y sin
+  // comillas Postgres lo pasa a minúsculas y el GRANT falla con "database does not exist".
+  await sequelize.query(`GRANT CONNECT ON DATABASE "${database}" TO "${readUser}"`);
+  await sequelize.query(`GRANT USAGE ON SCHEMA public TO "${readUser}"`);
+  await sequelize.query(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO "${readUser}"`);
+  // La interpolación es aceptable acá y SOLO acá: los valores vienen de `.env.test`, no de
+  // entrada de usuario, y `CREATE ROLE` no acepta parámetros. En `src/` la regla es la
+  // opuesta: listas blancas para nombres, parámetros para valores.
 }
 
 export async function mochaGlobalTeardown(): Promise<void> {

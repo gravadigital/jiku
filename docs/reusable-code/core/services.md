@@ -148,3 +148,126 @@ replacement for the body.
 the handler never throws (if it did, micro would answer `Empty` with headers and lose the envelope).
 `processing_time` is per endpoint but measures enqueueing, not the command. Measure failures by logs
 and `errorCode`; do not build alerts on those metrics.
+
+## readDb
+
+**Location:** `core/src/models/read.ts`
+
+**Description:** The **read-only** Sequelize connection used by the query service. It is created
+**without registering any model, and that is the most important line of the module.**
+
+`@jiku/models` exports classes that get registered on **one** Sequelize instance (ADR-005). That
+worked while `api` and `core` were separate processes. Two instances in the **same** process fight
+over the classes: whichever registers the package's model index **second reassigns** them, and
+`Objective.findAll()` starts going out through the wrong connection. In the bad direction — queries
+going out through the owner user — **ADR-001 stops holding with no symptom at all.** That is why
+nothing is registered here and queries use explicit SQL (`ctx.db.query(...)`) instead of the ORM.
+
+Two settings are its own, and neither is shared with the write connection:
+
+- **`pool.max`** from `POSTGRESQL_READ_POOL_MAX`, default `10`. The write connection declares no
+  pool, so it runs on Sequelize's implicit `max: 5`. The asymmetry is deliberate: a read holds a
+  connection for one statement, a write holds it for a whole transaction. **Total per replica: 15**
+  — check it against the installation's `max_connections` before raising it.
+- **`dialectOptions.statement_timeout`** from `POSTGRESQL_STATEMENT_TIMEOUT_MS`, default `8000`.
+  **Invariant: strictly lower than `NATS_QUERY_TIMEOUT_MS`** (10000, read by the api). The database
+  has to cut first, or the caller gets a bus timeout that explains nothing.
+
+It is built **at import time**, like `models/index.ts`, so the environment variables have to be set
+before (dotenv in `src/index.ts`, `tests/setup-env.ts` in the tests). It does **not** connect on
+import — Sequelize opens the socket on the first query — and there is no startup `authenticate()`
+or retry: a misconfigured credential should fail loudly at first use.
+
+**Interface:**
+```ts
+export const readDb: Sequelize; // Object.keys(readDb.models).length === 0, always
+```
+
+**Usage:** inject it, do not import it from inside `queries/`:
+```ts
+const queries = new QueryDispatcher(queryRegistry, readDb);
+```
+
+**Do not add `models` to this constructor.** `tests/models/read.test.ts` asserts that
+`Objective.sequelize === sequelize` (the owner connection) precisely so that a future refactor
+adding it fails there instead of in production.
+
+## QueryRegistry
+
+**Location:** `core/src/queries/registry.ts`
+
+**Description:** Resolves a query method name to the query that serves it.
+
+It deliberately does **not** reuse `CommandRegistry`: that registry's segment matching exists to
+extract `{param}` from subjects with embedded ids, and **query patterns have no params** — the
+resource id travels in the payload, because the server matches with a 1024-entry subject cache and a
+new subject per id consulted would make the cache useless. A `Map` lookup is exact, shorter, and does
+not suggest that a query pattern could carry `{id}`.
+
+`register()` **throws on a duplicate pattern**, naming it. With a `Map`, silent overwrite is the
+default and one of the two queries would be unreachable with no error anywhere — the same reasoning
+behind the duplicate-subject check in `registerService`.
+
+**Interface:**
+```ts
+class QueryRegistry {
+  register(query: Query): this;      // throws on a duplicate pattern
+  registerAll(queries: Query[]): this;
+  resolve(method: string): Query | null;  // exact match
+  patterns(): string[];                   // in registration order
+}
+```
+
+**Usage:**
+```ts
+export const queryRegistry = new QueryRegistry().registerAll([
+  projectsList, projectsGet, tasksList, tasksGet, commentsList, commentsGet,
+]);
+```
+
+`patterns()` feeds the `ServiceSpec` of the query service, so a new query becomes a new micro
+endpoint without touching `bus/service.ts` or `src/index.ts`.
+
+## QueryDispatcher
+
+**Location:** `core/src/queries/dispatcher.ts`
+
+**Description:** Translates a bus message into the execution of a query. It is a separate object
+from the command `Dispatcher`, not a branch of it: four of ADR-003's six rules are about the
+transaction, and none has a counterpart here — an `if (isQuery)` inside the command dispatcher is
+exactly what that ADR warns against.
+
+Three properties are load-bearing:
+
+- **It opens no transaction.** A read does not need atomicity, and a transaction per request would
+  take and hold a snapshot for every query. A query needing consistency across several reads opens
+  an explicit `READ ONLY` transaction inside itself.
+- **It never throws.** An unknown method answers `unknown_command`; a query that rejects is logged
+  and answered `internal_error` with a generic message — the stack never crosses the bus. The
+  service's `handle()` is the last net, but the detail is logged here, where *which query* failed is
+  known and not just which subject.
+- **The connection is injected, not imported.** That is what keeps `queries/` free of any reference
+  to the ORM or to `models/read`, lets the tests run against another connection, and makes the
+  import of `read.ts` (whose Sequelize reads `process.env` at import time) happen **after** dotenv.
+
+It uses `methodFromSubject()`, not the deprecated `commandFromSubject()`: with two services on the
+bus the fifth segment is a method, not always a command.
+
+**Interface:**
+```ts
+class QueryDispatcher {
+  constructor(registry: QueryRegistry, db: Sequelize);
+  dispatch(subject: string, raw: unknown): Promise<Reply>; // never rejects
+}
+```
+
+**Usage:**
+```ts
+const queries = new QueryDispatcher(queryRegistry, readDb);
+const host = new BusHost(commandsSpec, {
+  name: QUERY_SERVICE,
+  description: 'Consultas de lectura de Jiku: proyectos, tareas y comentarios',
+  patterns: queryRegistry.patterns(),
+  handle: (subject, payload) => queries.dispatch(subject, payload),
+});
+```

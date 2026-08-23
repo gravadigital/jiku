@@ -84,3 +84,16 @@ if (process.env.CI !== 'true') {
 } else {
   console.log(`[tests] base externa: ${process.env.POSTGRESQL_HOST}:${process.env.POSTGRESQL_PORT}`);
 }
+
+// La conexión de lectura de `src/models/read.ts` se construye AL IMPORTARSE, igual que la de
+// escritura. Estas variables tienen que estar puestas ANTES de que cualquier test importe `src/`,
+// y este archivo es el único punto que corre antes (.mocharc.json lo mete en `require`).
+// El rol lo crea `global-setup.ts`: los GRANT necesitan las tablas del sync.
+//
+// Va DESPUÉS del `if (CI)` para que valga en las dos ramas, y con `||` para no pisar lo que ya
+// trajo dotenv de `.env.test` ni lo que el pipeline inyecte por entorno.
+process.env.POSTGRESQL_READ_USER = process.env.POSTGRESQL_READ_USER || 'jiku_test_readonly';
+process.env.POSTGRESQL_READ_PASSWORD = process.env.POSTGRESQL_READ_PASSWORD || 'readonly';
+process.env.POSTGRESQL_READ_POOL_MAX = process.env.POSTGRESQL_READ_POOL_MAX || '10';
+process.env.POSTGRESQL_STATEMENT_TIMEOUT_MS =
+  process.env.POSTGRESQL_STATEMENT_TIMEOUT_MS || '8000';
