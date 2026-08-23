@@ -99,7 +99,7 @@ print(base64.b32encode(digest).decode().rstrip("=")[:16].lower())' "$USER_ID")
       --creds /creds/sentinel-client.creds \
       --token "$TOKEN" \
       --inbox-prefix "_INBOX.${INBOX_HASH}" \
-      request "${NATS_INSTANCE:-dev}.${USER_ID}.${NATS_SERVICE_NAME:-gestion}.${NATS_PROTOCOL_VERSION:-v1}.${COMMAND}" "$PAYLOAD"
+      request "${NATS_INSTANCE:-dev}.${USER_ID}.${NATS_COMMAND_SERVICE:-jiku-commands}.${NATS_PROTOCOL_VERSION:-v1}.${COMMAND}" "$PAYLOAD"
     ;;
 
   *)

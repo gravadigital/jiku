@@ -168,7 +168,7 @@ La `api` mantiene sus dos capas de autorización
 `entityType` del contrato de subida, el permiso de proyecto se valida en el momento en que la
 entidad sí existe.
 
-**Subject:** `{instance}.{api-service-user}.gestion.v1.requirements.new` (y equivalentes)
+**Subject:** `{instance}.{api-service-user}.jiku-commands.v1.requirements.new` (y equivalentes)
 
 **Payload (fragmento):**
 ```json
@@ -193,7 +193,7 @@ draft.
 **Destino:** `core`
 **Tipo:** Evento (NATS request/reply)
 
-**Subject:** `{instance}.{externo-service-user}.gestion.v1.requirements.{id}.comment`
+**Subject:** `{instance}.{externo-service-user}.jiku-commands.v1.requirements.{id}.comment`
 
 **Payload:** `{ author, comment, fileIds: [1240] }`
 
@@ -296,7 +296,7 @@ VALUES ('requirement', 412, 1234);
 
 1. **[navegador]** `DELETE /api/attachments/{id}` — el id es el del **vínculo**
 2. **[`api`]** Autoriza sobre la **entidad** del vínculo. Si falla, **403 sin publicar**
-3. **[`api`]** Publica `{instance}.{api-service-user}.gestion.v1.attachments.{id}.delete`
+3. **[`api`]** Publica `{instance}.{api-service-user}.jiku-commands.v1.attachments.{id}.delete`
    - **Parámetro `{id}`:** el id de **`attachments`** — el vínculo, no el archivo. El nombre es
      deliberado: `attachments.{id}.delete` es más honesto que `files.{id}.unlink`, porque su
      parámetro es el id del vínculo, **al revés que el comando de descarga**

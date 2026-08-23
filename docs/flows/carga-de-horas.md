@@ -51,7 +51,7 @@ sequenceDiagram
         A-->>W: 403 access_denied
     else validación ok
         A->>N: publica worked-times.new (objectiveId → taskId)
-        N->>C: entrega el comando (queue group gestion)
+        N->>C: entrega el comando (queue group jiku-commands)
         C->>C: abre transacción
         C->>DB: suma minutos del día (trabajadas + ausencias)
         alt total > 1440
@@ -125,7 +125,7 @@ Además, Joi valida que `objectiveId` y `requirementId` sean **mutuamente excluy
 **Destino:** `core`
 **Tipo:** Evento (NATS request/reply)
 
-**Subject:** `{instance}.{user-id}.gestion.v1.worked-times.new`
+**Subject:** `{instance}.{user-id}.jiku-commands.v1.worked-times.new`
 
 **Payload** (nótese la traducción `objectiveId` → `taskId`):
 ```json

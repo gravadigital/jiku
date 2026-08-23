@@ -2,20 +2,40 @@
 #
 # Gramática: {instance}.{user-id}.{svc}.{version}.{comando}
 #
+# UN PROCESO, DOS SERVICIOS MICRO, UNA SOLA CONEXIÓN
+#   core atiende DOS endpoints: `jiku-commands` (las escrituras) y `jiku-queries` (las
+#   lecturas). Los dos viven en el mismo proceso y comparten la MISMA conexión al bus, y
+#   por eso las dos suscripciones están en esta única plantilla: el callout mintea los
+#   permisos por conexión, no por endpoint.
+#
 # IDENTIDAD vs ENDPOINT
-#   Son dos cosas distintas, y core usa las dos:
+#   Son dos cosas distintas:
 #     - {{user_id}}  QUIÉN es: el `sub` de su service user. Único por réplica.
-#     - {{service}}  QUÉ atiende: `gestion`, el endpoint. Compartido entre réplicas, que
-#                    es lo que permite balancear con queue groups.
+#     - el endpoint  QUÉ atiende. Compartido entre réplicas, que es lo que permite
+#                    balancear con queue groups.
+#
+#   POR QUÉ ESTA PLANTILLA YA NO USA EL PLACEHOLDER DE ENDPOINT. El placeholder que el
+#   callout expande con el campo `service` de la regla que matcheó en rules.yaml da UN SOLO
+#   valor, y acá hacen falta DOS prefijos. No hay forma de expresarlo con esa variable, así
+#   que los dos van ENUMERADOS literalmente abajo. No lo "simplifiques" de vuelta al
+#   placeholder: perderías uno de los dos endpoints, y el que se pierde no da ningún error
+#   — simplemente nadie atiende ese prefijo.
 #
 # CÓMO ATIENDE
-#   Se suscribe a `{instance}.*.gestion.v1.>`: el `*` cubre el user id de CUALQUIER caller
-#   (hoy solo la api, mañana otros servicios). El user id de quien llamó viene en el
-#   subject del mensaje, avalado por el callout — core lo lee de ahí y no del cuerpo.
+#   Se suscribe a `{instance}.*.jiku-commands.v1.>` y a `{instance}.*.jiku-queries.v1.>`:
+#   el `*` cubre el user id de CUALQUIER caller (hoy solo la api, mañana otros servicios).
+#   El user id de quien llamó viene en el subject del mensaje, avalado por el callout —
+#   core lo lee de ahí y no del cuerpo.
 #
 #   Eso garantiza que core sepa QUÉ SERVICE USER le habla. NO le dice qué persona originó
 #   la acción: eso viaja en el cuerpo (`creator` / `author`), porque la api usa un único
 #   service_user para todos sus usuarios.
+#
+#   Los dos prefijos van SEPARADOS en el token `{svc}` y no anidados: el `>` de una
+#   suscripción se comería las consultas si compartieran ese token, el mensaje se
+#   entregaría a los dos queue groups y saldrían DOS respuestas al mismo inbox — el caller
+#   recibe la primera y descarta la segunda en silencio. NATS compara los tokens enteros,
+#   así que con `{svc}` distinto el problema no existe.
 
 pub:
   allow:
@@ -25,8 +45,18 @@ pub:
 
 sub:
   allow:
-    # Atender los comandos dirigidos a su endpoint, de cualquier caller.
-    - "{{instance}}.*.{{service}}.v1.>"
+    # Los comandos dirigidos a su endpoint de escrituras, de cualquier caller.
+    - "{{instance}}.*.jiku-commands.v1.>"
+    # Las consultas, ídem. Todavía no hay servicio que las atienda; el permiso queda
+    # declarado para que registrarlo no requiera un segundo cambio de seguridad.
+    - "{{instance}}.*.jiku-queries.v1.>"
+    # Discovery y stats del protocolo de servicios de NATS (micro). SIN ESTA LÍNEA LOS
+    # SERVICIOS LEVANTAN, ATIENDEN REQUESTS Y SON INVISIBLES para `nats micro ls`: no hay
+    # error, no hay log, no hay síntoma — solo desaparece la observabilidad.
+    # No expone payloads de negocio, solo metadata del protocolo (nombre, versión,
+    # endpoints, contadores). NO lleva `{{instance}}`: es un subject global a la cuenta,
+    # no del namespace del producto; prefijarlo rompe el discovery igual que omitirlo.
+    - "$SRV.>"
     # Inbox propio (respuestas de los servicios que llame), bajo el hash de su user id.
     # Es POR RÉPLICA, no por endpoint: dos réplicas con distinto service user no se roban
     # las respuestas.

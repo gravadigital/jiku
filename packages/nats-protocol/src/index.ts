@@ -8,44 +8,146 @@
 import { createHash } from 'node:crypto';
 
 /**
- * Gramática de subjects: `{instance}.{user-id}.{svc}.{version}.{comando}`
+ * Gramática de subjects: `{instance}.{user-id}.{svc}.{version}.{método}`
  *
- *   instance  despliegue (dev / prod)
+ *   instance  despliegue (dev / prod)                     NATS_INSTANCE
  *   user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo. Vale igual para
  *             personas y para service users, porque ambos son usuarios de Zitadel.
- *   svc       a quién le habla: `gestion` (core)
- *   version   versión del protocolo
- *   comando   clients.new, requirements.{id}.edit, ...
+ *   svc       `jiku-commands`                             NATS_COMMAND_SERVICE
+ *             `jiku-queries`                              NATS_QUERY_SERVICE
+ *   version   versión del protocolo                       NATS_PROTOCOL_VERSION
+ *   método    clients.new, requirements.{id}.edit, tasks.list, ...
  *
- * Ejemplo: `dev.323332022539911171.gestion.v1.clients.new`
+ * Ejemplo: `dev.323332022539911171.jiku-commands.v1.clients.new`
+ *
+ * LA GRAMÁTICA NO CAMBIÓ: el conjunto de valores del token `{svc}` pasó de uno a dos.
+ *
+ * POR QUÉ LA SEPARACIÓN VIVE EN `{svc}` Y NO ANIDADA BAJO EL SERVICIO DE COMANDOS. La
+ * suscripción de comandos termina en `>`, y ese `>` se comería también las consultas si
+ * compartieran el token `{svc}`. Dos queue groups sobre subjects solapados entregan el
+ * mensaje a LAS DOS suscripciones y llegan DOS respuestas al mismo inbox; un `request()`
+ * pelado devuelve la primera y DESCARTA LA SEGUNDA EN SILENCIO. Compartir el proceso no lo
+ * evita: el solapamiento está en el subject. Con un `{svc}` distinto el problema no puede
+ * pasar, porque los tokens de subject se comparan enteros.
  *
  * El user id va crudo a propósito: es lo que permite que core sepa quién lo llamó
  * leyendo el subject —avalado por el callout— en vez del cuerpo del mensaje. El inbox,
  * en cambio, usa un hash del user id (ver `inboxPrefix`).
  */
-export const SERVICE_NAME = process.env.NATS_SERVICE_NAME || 'gestion';
+export const COMMAND_SERVICE = process.env.NATS_COMMAND_SERVICE || 'jiku-commands';
+export const QUERY_SERVICE = process.env.NATS_QUERY_SERVICE || 'jiku-queries';
 export const PROTOCOL_VERSION = process.env.NATS_PROTOCOL_VERSION || 'v1';
 export const INSTANCE = process.env.NATS_INSTANCE || 'dev';
 
+/**
+ * @deprecated Usá `COMMAND_SERVICE`. Es un alias, no una variable propia: ya NO lee
+ * `NATS_SERVICE_NAME`.
+ *
+ * Existe solo para que `core/src/bus/consumer.ts` se renombre sin tocarse: su línea 70 saca el
+ * subject de suscripción Y el queue group del mismo símbolo, así que aliasarlo mueve los dos a
+ * la vez. Desaparece en S-012, cuando el consumer se reemplaza por el servicio micro.
+ */
+export const SERVICE_NAME = COMMAND_SERVICE;
+
 /** Arma el subject de un comando saliente. `userId` es el `sub` de quien publica. */
 export function commandSubject(command: string, userId: string): string {
-  return `${INSTANCE}.${userId}.${SERVICE_NAME}.${PROTOCOL_VERSION}.${command}`;
+  return `${INSTANCE}.${userId}.${COMMAND_SERVICE}.${PROTOCOL_VERSION}.${command}`;
 }
 
-/** Subject con wildcard que atiende core: cubre a cualquier caller. */
+/**
+ * Arma el subject de una consulta saliente.
+ *
+ * Misma gramática que un comando y distinto token `{svc}`, y eso último no es cosmético: la
+ * suscripción de comandos termina en `>` y se comería las consultas si compartieran el token.
+ * Dos queue groups sobre subjects solapados entregan el mensaje a LAS DOS suscripciones, llegan
+ * dos respuestas al mismo inbox, y `request()` devuelve la primera y descarta la segunda EN
+ * SILENCIO. Con `{svc}` distinto no puede pasar: los tokens se comparan enteros.
+ *
+ * El orden de los parámetros es el mismo que en `commandSubject`, a propósito: las dos toman
+ * dos strings, así que invertirlo sería un bug que el compilador no atrapa.
+ */
+export function querySubject(query: string, userId: string): string {
+  return `${INSTANCE}.${userId}.${QUERY_SERVICE}.${PROTOCOL_VERSION}.${query}`;
+}
+
+/**
+ * Prefijo del grupo de un servicio micro: `{instance}.*.{svc}.{version}`.
+ *
+ * El `*` en el user id cubre a cualquier caller. Va SIN el `.>` final a propósito: micro recibe
+ * el grupo y arma el subject de cada endpoint por su cuenta.
+ *
+ * El servicio va por parámetro y no de una constante porque hacen falta DOS grupos, uno por
+ * servicio, desde el mismo proceso.
+ */
+export function groupSubject(service: string): string {
+  return `${INSTANCE}.*.${service}.${PROTOCOL_VERSION}`;
+}
+
+/**
+ * Subject con wildcard que atiende core: cubre a cualquier caller.
+ *
+ * @deprecated Usá `groupSubject(COMMAND_SERVICE)`, que devuelve el mismo prefijo sin el `.>`
+ * final —la forma que pide el framework micro—. El cuerpo quedó sin tocar a propósito: el
+ * nombre nuevo llega por el alias de `SERVICE_NAME`, así que el diff muestra que la función no
+ * cambió. Se elimina en S-012, cuando su único caller (`core/src/bus/consumer.ts`) se reemplaza
+ * por el servicio micro.
+ */
 export function subscriptionSubject(): string {
   return `${INSTANCE}.*.${SERVICE_NAME}.${PROTOCOL_VERSION}.>`;
 }
 
+/** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
+function isParam(segment: string): boolean {
+  return segment.startsWith('{') && segment.endsWith('}');
+}
+
 /**
- * Extrae el nombre del comando de un subject completo.
+ * Nombre del endpoint micro que atiende un patrón: `tasks.{id}.edit` -> `tasks-edit`.
  *
- * `dev.api.gestion.v1.clients.new` -> `clients.new`
- * `dev.api.gestion.v1.clients.7.edit` -> `clients.7.edit`
+ * Sin puntos porque micro valida el nombre contra /^[-\w]+$/ (ADR-32 de NATS). Y el `{param}` se
+ * ELIMINA en vez de reemplazarse: el despachador extrae los params del subject completo con el
+ * registry por segmentos, así que no los necesita del nombre.
  */
-export function commandFromSubject(subject: string): string {
+export function endpointName(pattern: string): string {
+  return pattern
+    .split('.')
+    .filter((segment) => !isParam(segment))
+    .join('-');
+}
+
+/**
+ * Subject del endpoint micro que atiende un patrón: `tasks.{id}.edit` -> `tasks.*.edit`.
+ *
+ * Un token de subject no puede llevar llaves. El `*` matchea un token cualquiera, que es
+ * exactamente el rol del param.
+ */
+export function endpointSubject(pattern: string): string {
+  return pattern
+    .split('.')
+    .map((segment) => (isParam(segment) ? '*' : segment))
+    .join('.');
+}
+
+/**
+ * Extrae el nombre del método de un subject completo.
+ *
+ * `dev.api.jiku-commands.v1.clients.new` -> `clients.new`
+ * `dev.api.jiku-commands.v1.clients.7.edit` -> `clients.7.edit`
+ * `dev.api.jiku-queries.v1.tasks.list` -> `tasks.list`
+ *
+ * El `slice(4)` vale para los dos servicios porque `jiku-commands` y `jiku-queries` llevan
+ * guion, no punto: son UN solo token del subject.
+ */
+export function methodFromSubject(subject: string): string {
   return subject.split('.').slice(4).join('.');
 }
+
+/**
+ * @deprecated Usá `methodFromSubject`: con dos servicios en el bus, el quinto segmento es un
+ * método (comando o consulta), no siempre un comando. Es el MISMO símbolo, no una copia: se
+ * mantiene para no tocar `core/src/bus/dispatcher.ts`. Se elimina cuando su caller se repunte.
+ */
+export const commandFromSubject = methodFromSubject;
 
 /**
  * Quién publicó el mensaje, leído del subject: el user id de Zitadel del caller.

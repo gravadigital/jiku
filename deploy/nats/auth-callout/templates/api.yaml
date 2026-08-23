@@ -4,11 +4,13 @@
 #   {instance}.{user-id}.{svc}.{version}.{comando}
 #     instance  despliegue (dev / prod)
 #     user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo
-#     svc       A QUIÉN le habla: `gestion` (core)
+#     svc       A QUIÉN le habla. Son DOS valores, los dos atendidos por core:
+#                 `jiku-commands`  las escrituras (los 20 comandos del protocolo)
+#                 `jiku-queries`   las lecturas
 #     version   versión del protocolo: v1
 #     comando   clients.new, requirements.{id}.edit, ...
 #
-#   Ejemplo: dev.323332022539911171.gestion.v1.requirements.new
+#   Ejemplo: dev.323332022539911171.jiku-commands.v1.requirements.new
 #
 # PLACEHOLDERS
 #   {{instance}}      la instancia de deploy
@@ -31,7 +33,11 @@ pub:
     # Comandos hacia core, bajo su propia identidad. El `>` final cubre todos los comandos
     # del protocolo; acotarlo uno por uno tendría sentido si hubiera roles distintos
     # publicando, pero hoy la api es el único emisor y ya filtra por rol antes de publicar.
-    - "{{instance}}.{{user_id}}.gestion.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
+    # Consultas. Se autoriza POR ADELANTADO: todavía no hay cliente que las use, y un
+    # permiso sobre un subject sin suscriptores no hace absolutamente nada. Lo que evita
+    # es un SEGUNDO cambio de seguridad el día que el cliente exista.
+    - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
 
 sub:
   allow:
