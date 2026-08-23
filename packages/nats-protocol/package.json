@@ -7,8 +7,17 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint ./src"
+    "test": "mocha \"tests/**/*.test.ts\"",
+    "lint": "eslint ./src ./tests"
   },
   "license": "Apache-2.0",
-  "author": "Grava Digital"
+  "author": "Grava Digital",
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.0.3",
+    "mocha": "11.7.5",
+    "should": "^13.2.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
 }
