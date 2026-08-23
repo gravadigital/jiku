@@ -499,11 +499,12 @@ Nothing in `deploy/` needs changing: the rule and the template
 ([nats/auth-callout/templates/external-publisher.yaml](nats/auth-callout/templates/external-publisher.yaml))
 are already versioned.
 
-**Its permissions are narrower than the api's, on purpose.** The api publishes under
-`gestion.v1.>` — everything. An external publisher gets an explicit list: the two `files.*`
-commands, the domain commands that accept `fileIds`, and `attachments.*.delete`. Adding a new
-command to that list is a deliberate decision, which is the point: an outside service should not
-gain access to a new command just because the protocol grew one.
+**Its permissions are narrower than the api's, on purpose.** The api publishes under two
+prefixes, `jiku-commands.v1.>` and `jiku-queries.v1.>` — everything, writes and reads. An external
+publisher gets an explicit list of nine subjects under `jiku-commands.v1` only: the two `files.*`
+commands, the domain commands that accept `fileIds`, and `attachments.*.delete`. No query
+permission at all. Adding a new command to that list is a deliberate decision, which is the point:
+an outside service should not gain access to a new command just because the protocol grew one.
 
 **The client must set `inboxPrefix` when it connects.** Replies come back on
 `_INBOX.<hash-of-user-id>.>`, and that is the only inbox the template authorises. A client that

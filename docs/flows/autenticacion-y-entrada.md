@@ -176,7 +176,8 @@ Camino distinto, mismo proveedor:
 1. `@jiku/zitadel-auth` pide el access token del **service user** con su JSON key, y lo
    **renueva solo** (caduca en ~1 h)
 2. Al conectar a NATS, el **auth-callout** intercepta, valida el token contra Zitadel y mintea:
-   - permiso de publicación sobre `{instance}.{user-id}.gestion.v1.>`
+   - permiso de publicación sobre `{instance}.{user-id}.jiku-commands.v1.>` (comandos)
+   - permiso de publicación sobre `{instance}.{user-id}.jiku-queries.v1.>` (consultas)
    - permiso de inbox sobre `_INBOX.<hash(user-id)>.>`
 3. El cliente **debe** fijar `inboxPrefix` con el mismo hash, o las respuestas nunca llegan
 

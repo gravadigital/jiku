@@ -169,7 +169,7 @@ control por entidad se corre al momento de vincular (CA-26).
 La `api` valida el JWT y la forma con Joi. **No valida tipo ni tamaño** —eso es de `core` ahora
 (D-08)— y **no toca la base**.
 
-**Subject:** `{instance}.{api-service-user}.gestion.v1.files.request-upload`
+**Subject:** `{instance}.{api-service-user}.jiku-commands.v1.files.request-upload`
 
 **Payload (`FilesRequestUploadPayload`):**
 ```json
@@ -199,16 +199,21 @@ Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
 **Destino:** `core`
 **Tipo:** Evento (NATS request/reply)
 
-**Subject:** `{instance}.{externo-service-user}.gestion.v1.files.request-upload`
+**Subject:** `{instance}.{externo-service-user}.jiku-commands.v1.files.request-upload`
 
 **Payload:** `{ fileName, mimeType, fileSize }`. **No manda `uploader`.**
 
 **Es el mismo comando, sin ruta alternativa** (RF-11, CA-4). El servicio externo no atraviesa la
 `api` en ningún momento: ni para pedir el ticket ni para subir el byte.
 
-> El servicio externo necesita **su propia plantilla de auth-callout** con permiso sobre los
-> subjects que publica. La de la `api` (`deploy/nats/auth-callout/templates/api.yaml`) **no cambia**:
-> ya autoriza `{{instance}}.{{user_id}}.gestion.v1.>`.
+> El servicio externo **ya tiene su propia plantilla de auth-callout**
+> (`deploy/nats/auth-callout/templates/external-publisher.yaml`, con su regla en `rules.yaml`), y su
+> permiso **no es un prefijo con `>`**: **enumera 9 subjects**, uno por comando que puede publicar.
+> Un comando fuera de esa lista se rechaza, incluidos todos los que no tienen nada que ver con
+> archivos. Tampoco tiene permiso de consultas.
+>
+> La de la `api` (`deploy/nats/auth-callout/templates/api.yaml`) **sí cambió** con el rename a
+> `jiku-commands`: ahora autoriza **dos** prefijos con `>`, el de comandos y el de consultas.
 
 ---
 

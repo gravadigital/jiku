@@ -171,7 +171,7 @@ requisitos en el proyecto de otro.
 **Destino:** `core`
 **Tipo:** Evento (NATS request/reply)
 
-**Subject:** `{instance}.{user-id}.gestion.v1.requirements.new`
+**Subject:** `{instance}.{user-id}.jiku-commands.v1.requirements.new`
 
 **Payload:**
 ```json

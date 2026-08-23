@@ -37,7 +37,7 @@ rules:
   #
   # VA ARRIBA DE `internal-app` A PROPÓSITO. Gana la primera regla que coincida, y esta es
   # la más restrictiva de las dos: su plantilla enumera los comandos en vez de abrir
-  # `gestion.v1.>`. Si un token llegara con los dos roles, queremos que caiga en esta.
+  # `jiku-commands.v1.>`. Si un token llegara con los dos roles, queremos que caiga en esta.
   #
   # Para habilitar uno: crear un machine user en Zitadel con Access Token Type = JWT y
   # asignarle el rol `external-publisher` en GESTION_ZITADEL_PROJECT_ID. No hace falta
@@ -57,16 +57,26 @@ rules:
     service: api
     template: templates/api.yaml
 
-  # Core: atiende el endpoint `gestion`, que es por donde entran todos los comandos.
+  # Core: atiende DOS endpoints en un mismo proceso y con una sola conexión —
+  # `jiku-commands` (por donde entran todos los comandos) y `jiku-queries` (las consultas).
+  #
+  # `service` NOMBRA UNO SOLO, Y YA NO DETERMINA QUÉ ESCUCHA LA PLANTILLA. El placeholder
+  # `{{service}}` es un solo valor y acá hacen falta dos prefijos, así que
+  # `templates/core.yaml` los ENUMERA literalmente en su `sub.allow` en vez de usarlo.
+  # Consecuencia: cambiar este `service` NO mueve la suscripción — solo cambia cómo se
+  # identifica el endpoint en los logs del callout. Para mover la suscripción hay que
+  # editar la plantilla.
   - match: core
     type: service
-    service: gestion
+    service: jiku-commands
     template: templates/core.yaml
 
   # Rol de diagnóstico: escucha todo sin publicar. Solo para entornos locales.
+  # Ídem que `core`: su plantilla enumera los dos prefijos, así que este `service` tampoco
+  # determina qué escucha.
   - match: bus-observer
     type: service
-    service: gestion
+    service: jiku-commands
     template: templates/observer.yaml
 
   # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.

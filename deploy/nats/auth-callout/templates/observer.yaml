@@ -13,8 +13,23 @@ pub:
 
 sub:
   allow:
-    # Todo el protocolo, de cualquier caller. El `*` cubre el user id de quien publica.
-    - "{{instance}}.*.{{service}}.>"
+    # Todo el protocolo de comandos, de cualquier caller. El `*` cubre el user id de quien
+    # publica.
+    #
+    # LOS DOS PREFIJOS VAN ENUMERADOS porque el placeholder que el callout expande con el
+    # campo `service` de la regla da UN SOLO valor y acá hacen falta dos. No se puede
+    # colapsar a una línea con la variable.
+    #
+    # SIN EL SEGMENTO DE VERSIÓN, a propósito: es el patrón más amplio y preserva el
+    # alcance que esta plantilla ya tenía. Agregarle `.v1.` ACOTARÍA al observador, y el
+    # síntoma aparecería el día que el protocolo suba a v2 y deje de ver nada.
+    - "{{instance}}.*.jiku-commands.>"
+    # Todo el protocolo de consultas, ídem.
+    - "{{instance}}.*.jiku-queries.>"
+    # Discovery y stats de micro: qué servicios hay, en qué versión y con qué endpoints.
+    # Es la mitad del diagnóstico ("¿está registrado el servicio?"), y es metadata: este
+    # rol ya escucha payloads de negocio completos, así que no amplía el riesgo.
+    - "$SRV.>"
     # Las respuestas viajan por el inbox del caller, cuyo prefijo es el hash de SU user
     # id. Como el observador mira el tráfico de todos, acá va `>` en vez de
     # `{{user_id_hash}}`: es justamente el permiso amplio que lo hace inadecuado para

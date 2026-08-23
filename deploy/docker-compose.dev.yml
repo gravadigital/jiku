@@ -110,9 +110,17 @@ services:
       - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
       - NATS_INSTANCE=${NATS_INSTANCE}
-      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      # Los DOS nombres de servicio del bus: la api publica los comandos en uno y las
+      # consultas en el otro. El auth-callout autoriza los dos prefijos en
+      # nats/auth-callout/templates/api.yaml.
+      - NATS_COMMAND_SERVICE=${NATS_COMMAND_SERVICE}
+      - NATS_QUERY_SERVICE=${NATS_QUERY_SERVICE}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
       - NATS_REQUEST_TIMEOUT_MS=${NATS_REQUEST_TIMEOUT_MS}
+      # Cuánto espera la api la respuesta de una CONSULTA. Más holgado que el de comandos, y
+      # por encima del statement_timeout de la conexión de lectura de core, para que la base
+      # corte primero y el error sea explicable en vez de un timeout mudo del bus.
+      - NATS_QUERY_TIMEOUT_MS=${NATS_QUERY_TIMEOUT_MS}
     volumes:
       - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
     depends_on:
@@ -132,6 +140,16 @@ services:
       - POSTGRESQL_USER=${DATABASE_USER}
       - POSTGRESQL_PASSWORD=${DATABASE_PASSWORD}
       - POSTGRESQL_HOST=database
+      # Conexión de SOLO LECTURA para las consultas que entran por el bus. Reusa el MISMO
+      # rol de solo lectura que ya usa la api: es de solo lectura y no hay razón para
+      # duplicar una credencial en dos claves de .env — eso es lo que se desincroniza en la
+      # primera rotación de contraseña, con core leyendo con la vieja y la api con la nueva.
+      - POSTGRESQL_READ_USER=${DATABASE_READONLY_USER}
+      - POSTGRESQL_READ_PASSWORD=${DATABASE_READONLY_PASSWORD}
+      - POSTGRESQL_READ_POOL_MAX=${POSTGRESQL_READ_POOL_MAX}
+      # Corte de la sentencia de lectura, ESTRICTAMENTE MENOR que NATS_QUERY_TIMEOUT_MS: la
+      # base tiene que vencer antes que el bus, o el caller espera sin saber por qué.
+      - POSTGRESQL_STATEMENT_TIMEOUT_MS=${POSTGRESQL_STATEMENT_TIMEOUT_MS}
       - NATS_URL=nats://nats:4222
       - NATS_CREDS=/run/secrets/nats.creds
       # La key del service user, en base64: el servicio pide el token y lo renueva solo.
@@ -139,7 +157,16 @@ services:
       - ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
       - NATS_INSTANCE=${NATS_INSTANCE}
-      - NATS_SERVICE_NAME=${NATS_SERVICE_NAME}
+      # Los DOS nombres de servicio del bus: core atiende los dos endpoints en el MISMO
+      # proceso y con una sola conexión. El auth-callout autoriza las dos suscripciones en
+      # nats/auth-callout/templates/core.yaml.
+      - NATS_COMMAND_SERVICE=${NATS_COMMAND_SERVICE}
+      - NATS_QUERY_SERVICE=${NATS_QUERY_SERVICE}
+      # Versión que core anuncia al registrarse como servicio micro en el bus. SemVer
+      # ESTRICTO: micro valida con la regex oficial y rechaza cualquier otra cosa, así que un
+      # valor mal formado es un arranque fallido. NO se ata a ${CORE_VERSION}: el tag de la
+      # imagen y la versión que el bus publica no tienen por qué moverse juntos.
+      - SERVICE_VERSION=${SERVICE_VERSION}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
       # A diferencia de los otros dos compose, acá lleva default: este archivo levanta el
       # stack con el IdP mock del callout y `cp .env.dist .env` sin editar, y el assert de core

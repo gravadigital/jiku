@@ -18,11 +18,13 @@
 #   {instance}.{user-id}.{svc}.{version}.{comando}
 #     instance  despliegue (dev / prod)
 #     user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo
-#     svc       A QUIÉN le habla: `gestion` (core)
+#     svc       A QUIÉN le habla: `jiku-commands` (core). Es el ÚNICO valor que este rol
+#               puede usar: no tiene permiso sobre el servicio de consultas, y es
+#               deliberado — un publicador externo publica comandos, no lee.
 #     version   versión del protocolo: v1
 #     comando   files.request-upload, requirements.new, ...
 #
-#   Ejemplo: dev.323332022539911171.gestion.v1.files.request-upload
+#   Ejemplo: dev.323332022539911171.jiku-commands.v1.files.request-upload
 #
 # PLACEHOLDERS
 #   {{instance}}      la instancia de deploy
@@ -42,9 +44,11 @@
 #   comportamiento buscado — el publicador externo es el autor.
 #
 # EL PERMISO ES ACOTADO, A DIFERENCIA DEL DE LA API
-#   api.yaml usa `gestion.v1.>` y justifica ese `>` diciendo que "acotarlo uno por uno
-#   tendría sentido si hubiera roles distintos publicando". Con este rol ya los hay, así
-#   que acá se enumeran los comandos, según ADR-008 (deny by default).
+#   api.yaml usa DOS prefijos con `>` —el de comandos y el de consultas— y justifica esos
+#   `>` diciendo que "acotarlo uno por uno tendría sentido si hubiera roles distintos
+#   publicando". Con este rol ya los hay, así que acá se enumeran los comandos, según
+#   ADR-008 (deny by default). El contraste es el punto: la api abre los prefijos enteros,
+#   este rol recibe una lista de nueve subjects y ninguno de consultas.
 #
 #   Agregar un comando nuevo a esta lista es una decisión deliberada, que es exactamente
 #   lo que se busca: un publicador externo no debería ganar acceso a un comando nuevo del
@@ -54,24 +58,24 @@ pub:
   allow:
     # Pedir la prefirmada de subida. El PUT del binario NO pasa por el bus: va directo
     # al bucket por HTTP con la URL que devuelve este comando.
-    - "{{instance}}.{{user_id}}.gestion.v1.files.request-upload"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.files.request-upload"
 
     # Pedir la prefirmada de descarga de un archivo propio. core verifica la titularidad:
     # un archivo de otro publicador da `file_not_owned`.
-    - "{{instance}}.{{user_id}}.gestion.v1.files.*.request-download"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.files.*.request-download"
 
     # Comandos de dominio que aceptan `fileIds`, que es cómo un archivo ya subido queda
     # vinculado a una entidad. Son los únicos que lo aceptan; verificado contra
     # core/src/commands/.
-    - "{{instance}}.{{user_id}}.gestion.v1.requirements.new"
-    - "{{instance}}.{{user_id}}.gestion.v1.requirements.*.edit"
-    - "{{instance}}.{{user_id}}.gestion.v1.requirements.*.comment"
-    - "{{instance}}.{{user_id}}.gestion.v1.tasks.new"
-    - "{{instance}}.{{user_id}}.gestion.v1.tasks.*.edit"
-    - "{{instance}}.{{user_id}}.gestion.v1.tasks.*.comment"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.requirements.new"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.requirements.*.edit"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.requirements.*.comment"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.tasks.new"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.tasks.*.edit"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.tasks.*.comment"
 
     # Desvincular un adjunto que subió. No borra el archivo del bucket: rompe el vínculo.
-    - "{{instance}}.{{user_id}}.gestion.v1.attachments.*.delete"
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.attachments.*.delete"
 
 sub:
   allow:

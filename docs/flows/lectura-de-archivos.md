@@ -243,7 +243,7 @@ autorizar, así que tiene el `file_id` en la mano. No hay consulta extra.
 **Destino:** `core`
 **Tipo:** Evento (NATS request/reply)
 
-**Subject:** `{instance}.{api-service-user}.gestion.v1.files.{file_id}.request-download`
+**Subject:** `{instance}.{api-service-user}.jiku-commands.v1.files.{file_id}.request-download`
 
 > **El subject lleva el id del archivo, no el del vínculo.** El parámetro se llama `fileId` a
 > propósito, para que no se confunda con el id de `attachments` que sí viaja en el contrato HTTP.
