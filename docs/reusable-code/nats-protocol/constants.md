@@ -64,6 +64,13 @@ requirement.
 Without the third one the code falls through the `|| 500` of `httpStatusFor()` and the user sees a
 generic 500 instead of the intended status.
 
+**The rule still stands, and REQ-006 is a declared exception to its third step — not an oversight.**
+The five codes of the query plane (below) make **two** of the three changes on purpose: the package
+and the contract, never the HTTP map. The reason is that when REQ-006 closes, `bus.query()` still
+has **no caller**, so none of those five can reach an HTTP response; a map today would be dead code
+that has to be maintained. The third change belongs to the requirement that migrates the `GET`
+routes. For any code that **does** have an HTTP consumer, all three steps apply as written.
+
 **The source of truth for the value is `docs/apis/core.yaml`, not this file.** The first lines of
 `src/index.ts` say so explicitly: on any discrepancy, the document wins. A new code is not chosen
 from the package — it is copied from the contract.
@@ -73,12 +80,39 @@ dispatcher** rather than by a command: both dispatchers authorise the caller of 
 resolving the method and before opening the transaction. That is why it does not appear in the
 `x-error-codes` of any of the 20 messages — that list enumerates what an `execute()` returns.
 
+**REQ-006 added five codes, and none of them is emitted by a command** — the catalog went from 27 to
+**32** members. They belong to the query plane (`jiku-queries`), and they sit immediately after
+`CALLER_NOT_AUTHORIZED` because they share with it the property that separates them from the other
+26. Their emitters land in later stories; at the end of REQ-006 the five are declared and **nobody
+emits them**, which is the correct state for a shared package consumed compiled.
+
+| Code | Emitter (story) | HTTP once a consumer exists |
+|---|---|---|
+| `unknown_caller` | query dispatcher (S-023) | 403 |
+| `query_timeout` | query engine, PostgreSQL `statement_timeout` (S-022) | 504 |
+| `invalid_cursor` | query engine, keyset cursor (S-022) | 400 |
+| `comment_not_found` | `comments.get` (S-025) | 404 |
+| `task_not_found` | `tasks.get` (S-022) | 404 |
+
+**The HTTP column is documentation, not code** — see the exception to the three-changes rule above.
+
+Two distinctions the catalog encodes deliberately, and that must not be "cleaned up":
+
+- **`unknown_caller` is not `caller_not_authorized`.** Two gates, one behind the other:
+  `authorizeCaller()` answers *"may this caller run this method?"*; resolving the caller **class**
+  answers *"what do I trim for them?"*. Merging them would map one code to two causes and would
+  erase the rule that a caller with no row gets an **error**, never an empty list.
+- **`task_not_found` coexists with `objective_not_found`.** The bus resource is called `tasks`
+  (ADR-004: the product vocabulary lives in the contract, not in the schema), so its not-found code
+  is `task_not_found`. `objective_not_found` stays exactly where it is, emitted by the commands.
+
 **Signature:**
 ```ts
 const ErrorCode: {
   readonly INVALID_FIELDS: 'invalid_fields';
   readonly CALLER_NOT_AUTHORIZED: 'caller_not_authorized';
-  // ...27 members in total
+  readonly UNKNOWN_CALLER: 'unknown_caller';
+  // ...32 members in total
 };
 type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 ```

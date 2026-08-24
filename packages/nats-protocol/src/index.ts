@@ -235,6 +235,26 @@ export interface Reply<T = unknown> {
   status: ReplyStatus;
   errorCode?: string;
   errorMessage?: string;
+  /**
+   * Datos estructurados del error (REQ-006).
+   *
+   * OPCIONAL Y AUSENTE POR DEFAULT: `failure(errorCode, errorMessage)` sigue produciendo un
+   * envelope SIN LA CLAVE, así que los 20 comandos viajan byte a byte iguales. La clave aparece
+   * solo si el emisor pasa el tercer argumento.
+   *
+   * Existe para que un llamador NUNCA tenga que sacar un dato de `errorMessage` con un regex
+   * —la deuda que hoy arrastra `daily_limit_exceeded`—. El plano de consultas lo usa desde su
+   * primera línea: un nombre de campo rechazado vuelve como `{ field, value, allowed }`.
+   *
+   * ACÁ ADENTRO VAN DATOS DEL CONTRATO: qué campo, qué valor, qué se aceptaba. NUNCA stack
+   * traces, ni nombres de columna de la base, ni fragmentos de SQL, ni el subject completo —que
+   * lleva el user id—. Esto llega al caller y, cuando exista un consumidor HTTP, potencialmente
+   * al usuario final.
+   *
+   * Un consumidor que no conoce el campo lo ignora (`api/lib/utils/bus/protocol.ts` proyecta el
+   * envelope y descarta las claves que no declara), así que es compatible en las dos direcciones.
+   */
+  errorDetails?: Record<string, unknown>;
   data?: T;
 }
 
@@ -242,8 +262,24 @@ export function success<T>(data?: T): Reply<T> {
   return data === undefined ? { status: 'success' } : { status: 'success', data };
 }
 
-export function failure(errorCode: string, errorMessage: string): Reply<never> {
-  return { status: 'failure', errorCode, errorMessage };
+export function failure(
+  errorCode: string,
+  errorMessage: string,
+  details?: Record<string, unknown>,
+): Reply<never> {
+  // LA CLAVE SE AGREGA CONDICIONALMENTE, y no es un detalle de estilo. Un
+  // `{ ..., errorDetails: details }` deja la clave SIEMPRE, con valor `undefined`: por el cable
+  // el JSON sería idéntico —`undefined` no se serializa—, pero `should.deepEqual` compara claves
+  // propias, y las aserciones de `core` y de la api que comparan el `Reply` entero se pondrían en
+  // rojo sin que el comportamiento haya cambiado.
+  //
+  // Y la comparación es contra `undefined` EXPLÍCITAMENTE, no `if (details)`: un `{}` es un
+  // detalle legítimo y tiene que viajar. La ausencia se decide por `undefined`, no por "vacío".
+  const reply: Reply<never> = { status: 'failure', errorCode, errorMessage };
+  if (details !== undefined) {
+    reply.errorDetails = details;
+  }
+  return reply;
 }
 
 /**
@@ -278,6 +314,49 @@ export const ErrorCode = {
   // escrito, y la fuente de verdad del valor) y ese mapa. Faltando el tercero, el código cae en
   // el `|| 500` de `httpStatusFor()` y el usuario ve un 500 genérico.
   CALLER_NOT_AUTHORIZED: 'caller_not_authorized',
+
+  // REQ-006 agrega CINCO códigos y NINGUNO lo emite un comando: son del plano de consultas
+  // (`jiku-queries`), cuyo contrato vive en `docs/apis/core-queries.yaml`. Están acá, y no en un
+  // catálogo aparte, porque `ErrorCode` es UN catálogo compartido, no uno por plano. Por eso
+  // tampoco figuran en el `x-error-codes` de ninguno de los 20 mensajes de `docs/apis/core.yaml`:
+  // esa lista enumera lo que devuelve un `execute()`. Van pegados a CALLER_NOT_AUTHORIZED porque
+  // comparten con él lo que los separa de los otros 26: no los emite un comando.
+  //
+  // HOY NO LOS EMITE NADIE, Y ESTÁ BIEN. Un código declarado sin emisor no rompe nada; uno
+  // emitido sin declarar obliga al literal a mano —la deuda que este catálogo ya arrastra tres
+  // veces—. Y como el paquete se consume COMPILADO, la declaración necesariamente llega antes:
+  // sin ella, `ErrorCode.INVALID_CURSOR` no es un `undefined` en runtime, es un TS2339 que no
+  // compila.
+  //
+  // EL MAPEO HTTP PREVISTO ES DOCUMENTACIÓN, NO CÓDIGO: unknown_caller 403, query_timeout 504,
+  // invalid_cursor 400, comment_not_found 404, task_not_found 404. NO SE AGREGAN a
+  // `api/lib/utils/bus/protocol.ts`: al cerrar REQ-006 `bus.query()` SIGUE SIN CALLER, así que
+  // ninguno de los cinco llega a una respuesta HTTP y el mapa sería código muerto que además hay
+  // que mantener. Es la única excepción declarada a la regla de ADR-002 —"todo errorCode nuevo va
+  // al mapa"— y el mapa es del requerimiento que migre las rutas GET.
+  //
+  // `UNKNOWN_CALLER` NO ES `CALLER_NOT_AUTHORIZED`, y fusionarlos sería un bug. Son dos compuertas
+  // distintas, una detrás de la otra: `authorizeCaller()` responde "¿puede ejecutar este método?"
+  // -> caller_not_authorized; resolver la CLASE del caller responde "¿qué le recorto?" ->
+  // unknown_caller cuando no hay fila en `users`, `roles` está vacío, o los roles no corresponden
+  // a ninguna clase conocida. Fusionarlos obligaría a un futuro mapa a HTTP a mandar un mismo
+  // código a dos causas y, peor, borraría la regla de que un caller SIN FILA recibe UN ERROR y
+  // NUNCA `items: []`, que se leería como "no hay datos".
+  //
+  // `TASK_NOT_FOUND` CONVIVE CON `OBJECTIVE_NOT_FOUND`, a propósito. El recurso del bus se llama
+  // `tasks` (ADR-004: el vocabulario del producto vive en el contrato, no en el esquema), así que
+  // su código de "no encontrado" se llama `task_not_found`. `objective_not_found` SE QUEDA donde
+  // está —emitido por los comandos—: retirarlo obligaría a tocar comandos que REQ-006 declara
+  // intactos y a cambiar el mapa de `sendCommand`, que tampoco se toca.
+  //
+  // Sus emisores llegan después, cada uno en su story: `invalid_cursor`, `query_timeout` y
+  // `task_not_found` con el motor de consulta (S-022); `unknown_caller` con el despachador de
+  // consultas (S-023); `comment_not_found` con `comments.get` (S-025).
+  UNKNOWN_CALLER: 'unknown_caller',
+  QUERY_TIMEOUT: 'query_timeout',
+  INVALID_CURSOR: 'invalid_cursor',
+  COMMENT_NOT_FOUND: 'comment_not_found',
+  TASK_NOT_FOUND: 'task_not_found',
 
   CLIENT_NOT_FOUND: 'client_not_found',
   PROJECT_NOT_FOUND: 'project_not_found',
