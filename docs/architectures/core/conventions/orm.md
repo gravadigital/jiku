@@ -188,7 +188,7 @@ Método del modelo, no un `destroy`. Los adjuntos no se borran físicamente.
 
 ## Migraciones
 
-**Core no las corre.** Viven en `api/db-upgrade/migrations/` (101 migraciones) y las ejecuta la api
+**Core no las corre.** Viven en `api/db-upgrade/migrations/` (102 migraciones) y las ejecuta la api
 al arrancar con credenciales propias (`POSTGRESQL_MIGRATION_USER`). El esquema tiene un solo dueño.
 
 > El comentario de `deploy/docker-compose.yml:129` dice que core corre las migraciones. **Es

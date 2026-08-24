@@ -80,6 +80,7 @@ date: 2026-08-18
 | 35 | boton-resolver-requisito | button | primary | input | desktop | hidden_in_states: estado terminal / readonly | Resuelve el requisito |
 | 36 | badge-resultado | badge | cancelado | content | desktop | visible_only_in_states: estado terminal / readonly | Muestra el resultado final |
 | 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
+| 38 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-287`, `:159-180`, `:185-225`, `:227-280`, `:289-295`, `:301-367`, `:370-392`, `:376-390`, `:394-398`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
@@ -98,9 +99,9 @@ date: 2026-08-18
     - card-contexto
     - card-estado (stepper-workflow con paso-workflow × 5, 4 acordeon-campo, boton-guardar-campos, boton-transicion)
     - seccion-tareas (tabs-estado-tarea, tabla-tareas, paginacion-tareas)
-    - card-actividad (feed-actividad, formulario-comentario con editor-comentario, boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, toggle-visibilidad, boton-enviar-comentario)
+    - card-actividad (feed-actividad —con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio—, formulario-comentario con editor-comentario, boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, toggle-visibilidad, boton-enviar-comentario)
   - col ~5/12 (420px fijos): columna derecha
-    - card-informacion-general
+    - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-etiquetas (chip-etiqueta × N)
     - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado)
 
@@ -344,12 +345,19 @@ date: 2026-08-18
 - Asset: nada
 - Annotation: `RequirementResolutionCard.tsx:28-30`, `:155-158`
 
+### marca-identidad-automatica
+- Texto/label: `"Automático"` · nombre accesible `"Identidad automática: no es una persona"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en los dos lugares de esta pantalla donde se muestra autoría: la fila `"Creado por"` de `card-informacion-general` y el autor de cada entrada de `feed-actividad`. Se renderiza **solo cuando esa identidad es de tipo servicio**; para una persona no hay bloque, no hay espacio reservado y no hay marca de "es una persona" (REQ-005 RF-3, RF-10). Es la primera vez que la interfaz representa un autor que no es alguien del equipo ni el cliente: desde REQ-005 un conector externo tiene fila en `users` y puede figurar como `created_by` de un requisito y como autor de una actividad (REQ-005 "Impacto en UX" pregunta 1)
+
 ## Estados
 
 ### default
 - Aplica: Sí
 - Mensaje: —
 - Cambios: ninguno (estado base). Disparado por el requisito resuelto, que viene del servidor como `initialRequirement` y se refresca con `useRequirement` (`RequirementDetailContainer.tsx:19`, `RequirementDetail.tsx:126-400`) [fuente: código-existente]
+  - marca-identidad-automatica: presente o ausente **según el dato, no según el estado** — aparece junto a cada autor cuyo `identityType` es `service` (REQ-005 RF-3). Un requisito creado por una persona y comentado solo por personas no la muestra nunca; el mismo requisito con una actividad del conector externo la muestra en esa entrada y no en las otras
 
 ### empty
 - Aplica: Sí (por sección; no hay empty global)
@@ -471,6 +479,7 @@ date: 2026-08-18
   - **El indicador `✓`/`!` del campo del acordeón no tiene texto alternativo:** un lector lee `"! Alcance"` sin saber que significa "falta completar" (`RequirementStatusCard.tsx:118`). El acordeón tiene `aria-expanded` pero **le falta `aria-controls`** (`:116`).
   - **El símbolo `×` del stepper no tiene texto que lo explique**, aunque se lee como carácter (`RequirementStatusCard.tsx:339`); el nodo actual sí lleva `aria-current="step"` (`:328`).
   - **`boton-enviar-comentario` está `disabled` sin explicación:** no hay `aria-describedby` que diga que hace falta escribir un comentario (`RequirementActivityForm.tsx:131`).
+  - **La marca de identidad automática no puede quedar solo en el color ni solo en un `title`.** Es un `badge` con texto visible (`"Automático"`) y nombre accesible propio; **se descartó resolverla con un `Tooltip` de `:hover`**, que es el patrón que esta pantalla ya usa para el motivo de una opción deshabilitada y que este mismo documento registra como inalcanzable por teclado y sin `aria-describedby` (REQ-005).
   - Bien resueltos: la paginación de tareas es `<nav aria-label="Paginación">` con `aria-current="page"` (`RequirementDetail.tsx:227`, `:254`); todos los botones de icono llevan `aria-label`; el toggle de visibilidad lleva `aria-pressed`; los tres campos de resolución tienen `<label htmlFor>` correctamente asociados (`RequirementResolutionCard.tsx:102-145`); y el error de subida en el comentario lleva `role="alert"` (`RequirementActivityForm.tsx:76`).
   [fuente: código-existente]
 
@@ -492,3 +501,12 @@ date: 2026-08-18
 - **`file_not_available` se comunica al abrir, no al listar.** El adjunto embebido en el markdown se sigue mostrando; el mensaje aparece cuando el usuario intenta verlo (RF-21, CA-15). Se descartó marcar los adjuntos rotos en el feed: exigiría verificar cada uno al renderizar, y el propio REQ registra que cada lectura cuesta un comando por el bus.
 - **El error de titularidad se dice en lenguaje de personas.** *"No podés adjuntar un archivo que subió otra persona"* en lugar de nombrar propiedad de archivos, un concepto que la interfaz nunca expuso.
 - **No se agregó componente al Design System.** `progress-bar` no tiene spec en `web` v0.1.0 — el catálogo es un scaffold de tres componentes. Gap anotado en la `## Revisión UX` de REQ-001.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **Un autor que no es una persona se marca, no se oculta.** Desde REQ-005 toda identidad que se autentica en el bus —incluidos los service users— tiene fila en `users`, así que el conector externo puede aparecer como `created_by` de un requisito y como autor de una actividad. Se descartó **filtrarlo**: es el comportamiento que REQ-001 buscó a propósito (*"el publicador externo es el autor"*), y esconderlo dejaría el requisito sin autor visible. Se descartó también **no hacer nada**: el usuario leería el `name` de un service user creyendo que es alguien del equipo. La respuesta es un `badge` de texto al lado del nombre.
+- **`"Automático"`, no `"Servicio"` ni `"Integración"`.** `"Servicio"` nombra el `identityType` de la base, un concepto que la interfaz nunca expuso. `"Integración"` está peor: REQ-003 dio de baja la integración con sistemas externos **como capacidad**, y reintroducir la palabra en la UI sugeriría que volvió. `"Automático"` describe lo único que el lector necesita saber: eso no lo escribió una persona.
+- **La marca acompaña al nombre y no lo reemplaza.** El `name` del service user sigue siendo el dato más útil para saber **qué** lo creó (`Conector`, `Portal`, el nombre que traiga el token); la marca solo dice **qué clase** de autor es.
+- **No se marca a las personas.** Se descartó un par simétrico (`"Persona"` / `"Automático"`): el caso normal no necesita etiqueta y etiquetarlo sumaría ruido a cada entrada del feed, que es el bloque de mayor densidad de la pantalla.
+- **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0 —el catálogo sigue siendo el scaffold de tres componentes— pero **es un tipo que esta pantalla ya usa** en `codigo-requisito` y `badge-resultado`: el gap es previo y la marca no suma un compromiso nuevo. Anotado en la `## Revisión UX` de REQ-005.
+- **Pregunta abierta:** el `name` de un service user lo define su plantilla del auth-callout y hoy nadie lo revisa como microcopy. Si llega vacío o con un identificador técnico, esta pantalla lo muestra tal cual. Queda anotado; el fallback (`"—"` o un genérico) no se decide acá porque el dato es de despliegue.

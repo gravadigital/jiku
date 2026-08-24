@@ -133,6 +133,13 @@ class S3StorageSigner implements StorageSigner {
         secretAccessKey: secretAccessKey as string,
       },
       forcePathStyle,
+      // El SDK v3 calcula un checksum CRC32 por defecto en `PutObject` y al PREFIRMAR lo mete
+      // como QUERY PARAM FIRMADO. Al firmar todavía no hay cuerpo, así que el valor es el CRC32
+      // del contenido VACÍO: el objeto que el navegador sube nunca coincide y el proveedor
+      // rechaza el PUT con 403. Y como una respuesta de error no lleva cabeceras CORS, el
+      // navegador lo reporta como un fallo de CORS, un síntoma que apunta al lugar equivocado.
+      // `WHEN_REQUIRED` lo deja solo donde la operación lo exige, que no es `PutObject`.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
     });
   }
 

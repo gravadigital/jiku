@@ -38,11 +38,31 @@ status: Draft - Importado desde código existente
   ninguna interfaz.
 
 ### Usuario (`users`)
-- **Atributos clave:** `id` (string, PK — es el `sub` de Zitadel), `name`, `username`, `email`
+- **Atributos clave:** `id` (string, PK — es el `sub` de Zitadel), `name`, `username`, `email`,
+  `roles` (lista de strings, req, default `[]` — REQ-005), `identityType`
+  (enum: person/service, req, default `person` — REQ-005)
 - **Relaciones:** has_one Persona (opt), has_many PermisoDeProyecto
-- **Notas:** **Espejo del proveedor de identidad. El producto no la escribe.** Quien autentica
-  contra Zitadel sin fila acá recibe 401 `user_not_found` en todas las rutas. Es la limitación
-  de alcance más importante del producto.
+- **Notas:** Espejo del proveedor de identidad. **Desde REQ-005 el producto SÍ la escribe**, pero
+  solo por un camino: `core` consume el evento `{instance}.events.auth` que emite el auth-callout
+  en cada autenticación del bus, y crea o actualiza la fila espejando `name`, `username`, `email`,
+  `roles` e `identityType`. El alta es automática y sin aprobación. **La limitación subsiste para
+  quien nunca conecta al bus:** una persona que solo usa `web` u `opus-web` autentica por HTTP
+  contra la api, no dispara el callout, y sigue recibiendo 401 `user_not_found` en todas las
+  rutas — su alta queda pendiente de FG-1.
+  - `roles` guarda el array del token **tal cual viene**, sin filtrar ni validar. Puede contener
+    roles de producto (`admin`, `user`, `external-user`) y roles de bus (`internal-app`, `core`,
+    `external-publisher`, `bus-observer`), o estar vacío.
+  - **Dos planos de autorización sobre la misma entidad.** La autorización HTTP sigue saliendo del
+    claim del token que la api valida contra Zitadel (no consulta esta columna). La autorización de
+    los callers del bus distintos de la api —conectores externos y personas que llamen a `core` por
+    NATS— se resuelve con `Usuario.roles` persistido: sin fila no hay roles, y sin roles no hay
+    autorización.
+  - `identityType` distingue a las personas de los service users, que a partir de REQ-005 también
+    tienen fila. Una fila con `identityType: "service"` **no tiene Persona vinculada y no
+    representa a nadie del equipo**: todo listado o selector que asuma que un Usuario es una
+    persona tiene que filtrarla.
+  - La entrega del evento **no es durable** (NATS sin JetStream): un evento perdido no se reintenta
+    ni se reconcilia, y la fila se corrige en la próxima autenticación de esa identidad.
 
 ### Proyecto (`projects`)
 - **Atributos clave:** `code` (string), `name` (string), `type` (enum: interno/comercial/
@@ -618,7 +638,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-R04 | Respuesta garantizada | El despachador **nunca lanza**: todo error se traduce a un `Reply` de falla, con una última red en el consumer | Tests de core | **[implementado]** |
 | NFR-R05 | Healthchecks | No hay healthcheck en ningún servicio del compose | — | **[ausente]** |
 | NFR-R06 | Logs en producción | Winston con dos transports a archivo, pero **`LOGGER_*` no está definido en el compose**: quedan con `filename: undefined` | Revisión de deploy | **[roto]** |
-| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 101 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
+| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 102 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
 | NFR-R08 | Instalación desde cero | **No soportada.** Ninguna migración crea `objectives`; requiere un dump previo | — | **[limitación asumida]** |
 
 ### Usabilidad

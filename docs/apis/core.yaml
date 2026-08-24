@@ -41,13 +41,46 @@ info:
     no queue, no retry and no persistence: if core is down, the api's request times out and
     the operation did not happen.
 
-    **Core does not authenticate users and knows nothing about roles.** It trusts the
-    `creator` / `author` / `editor` that travels in the body. That trust rests entirely on the
-    bus access policy, which lets nobody but the api publish these commands.
+    **Core does not authenticate users, but since REQ-005 it DOES know about roles.** It still
+    trusts the `creator` / `author` / `editor` that travels in the body **inside the api's
+    channel** — but that trust **no longer rests entirely on the bus access policy**. There is now
+    a second plane:
 
-    **People never connect to the bus.** They speak HTTP with the api, and the api publishes
-    with its own service user. That is why the acting user travels in the body instead of
-    being read from the subject: the subject identifies the api, not the person.
+    **Authorisation gate on the caller (REQ-005).** Both dispatchers — commands and queries —
+    check the caller of the subject **before resolving the method and before opening the
+    transaction**:
+
+    ```
+    caller == CORE_TRUSTED_PUBLISHER_ID  -> passes WITHOUT touching the database
+    otherwise                            -> User.findByPk(caller)
+                                              no row                        -> caller_not_authorized
+                                              row, no role allows the method -> caller_not_authorized
+    ```
+
+    The map of role → method is closed and **deny-by-default** (ADR-008): `external-publisher`
+    gets the 9 subjects its callout template enumerates and no queries; the product roles
+    (`admin`, `user`, `external-user`) get **every query and no command**; anything absent from the
+    map authorises nothing.
+
+    **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there
+    is a **silent total write outage**: if the api connects to the bus before core is subscribed,
+    its authentication event is lost (core NATS, no retry, no record), the api stays connected and
+    functional **without a row in `users`**, and core refuses **all 20 commands** with a 403 — until
+    the api reconnects, which with a hot-renewed ~1 h token may not happen for days. The api also
+    already authorises by role before publishing (`hasAnyRole`), so consulting `users.roles` for its
+    service user would be authorising the same thing twice from two sources, with the worse of the
+    two deciding. The exemption reuses the very constant and branch that `resolveActor` already has.
+
+    **Product roles authorise no command on purpose.** Core does not hold the business rules that
+    depend on the end user — the worked-hours window, who may charge hours to someone else, the
+    frozen past weeks of assignment. They live in the api. A person publishing `worked-times.new`
+    straight to the bus would bypass three rules that have nowhere to live on the writer's side.
+
+    **People CAN now connect to the bus (REQ-005), but only to read.** `templates/person.yaml`
+    grants publish on `{instance}.{user_id}.jiku-queries.v1.>` and its own inbox — nothing else.
+    Commands are still published by the api with its own service user, and that is still why the
+    acting user travels in the body instead of being read from the subject: the subject identifies
+    the api, not the person.
 
     **The transaction belongs to the dispatcher**: commit if the reply is `success`, rollback
     in any other case.
@@ -139,6 +172,42 @@ servers:
 # `request()` returns the first and DISCARDS THE SECOND SILENTLY. Sharing the process does not
 # avoid it: the overlap is in the subject. With a distinct `{svc}` the problem cannot happen,
 # because subject tokens are compared whole.
+#
+# ---------------------------------------------------------------------------
+# THE EVENT SUBJECT DOES NOT FOLLOW THIS GRAMMAR, AND THAT IS CORRECT (REQ-005)
+# ---------------------------------------------------------------------------
+#
+#   {instance}.events.auth                          3 segments, fire-and-forget, NO reply
+#   {instance}.{user-id}.{svc}.{version}.{method}    5+ segments, request/reply
+#
+# DO NOT "FIX" IT into the grammar above. It is a different shape because it is a different
+# pattern:
+#   - There is no reply. The publisher (`auth-callout`, credential `callout-events`) does not
+#     wait for anything, and there is nothing to ack: `CALLOUT_EVENTS_STREAM` is deliberately
+#     left undefined, so the message is plain core NATS, not JetStream.
+#   - There is no caller in the subject. The identity travels in the payload (`id` = the Zitadel
+#     `sub`), because the event is ABOUT an identity rather than published BY one on its behalf.
+#   - It is NOT a micro endpoint. Micro is request/reply and every endpoint must answer;
+#     `respond()` on a message without a reply subject is a silent no-op that also pollutes the
+#     `$SRV` counters. Core consumes it with a FLAT subscription plus a queue group, in
+#     `src/bus/host.ts`, and `registerService()` is untouched.
+#   - It has its own dispatcher (`src/events/`), not a branch of the command one: no `Reply`, no
+#     caller in the subject, total-replacement update semantics, and no `status` to decide the
+#     transaction. Four `if`s make a different dispatcher.
+#
+# CORE CONSUMES, IT STILL DOES NOT PUBLISH. The ADR-002 rule ("Core MUST NOT publish messages")
+# is intact.
+#
+# THE SUBSCRIPTION PERMISSION IS THE LITERAL SUBJECT in `templates/core.yaml` `sub.allow` — never
+# `{{instance}}.events.>`. Deny-by-default applies on the bus too (ADR-008): a future event MUST
+# require a new line there, so no consumer starts receiving a new event type just because someone
+# added it to the namespace. WITHOUT THAT LINE core starts, serves the 20 commands, logs that it
+# subscribed, and receives nothing — the permissions violation is asynchronous and lands in the
+# NATS SERVER's log, never as a failure of `subscribe()`.
+#
+# The event's contract (payload, guards, field mapping) is documented in
+# `docs/flows/sincronizacion-de-identidades.md`, not in `channels` below: it is not a
+# request/reply channel and modelling it as one would be wrong.
 #
 # The `channels` below are named after the COMMAND, not the full subject: the prefix is the same
 # for all of them and depends on the environment.
@@ -1062,10 +1131,27 @@ components:
         > `file_not_owned` has to be **403, not 400**. Reusing `invalid_attachment_id` (mapped to
         > 400) would make "the file does not exist" indistinguishable from "the file is not
         > yours", and the second one is the new rule.
+
+        > **REQ-005 adds one code, and it is the first one emitted by the DISPATCHER rather than
+        > by a command**: `caller_not_authorized` → **403**. Core now authorises the CALLER of the
+        > subject against the roles persisted in `users.roles`, before resolving the method and
+        > before opening the transaction.
+        >
+        > **One code for two situations, deliberately.** "No row in `users`" and "there is a row
+        > but the role does not allow this method" answer **the same thing**. Telling them apart
+        > would leak to an unauthorised caller whether an identity exists in the database — a free
+        > oracle. `user_not_found` is **not** reused for the same reason, and because it is already
+        > mapped to **404**, which is the wrong status for a permissions refusal.
+        >
+        > **403 and not 400:** it describes a permission, not malformed input — the same argument
+        > already written next to `file_not_owned`. **In practice the api never receives it** (its
+        > channel is exempt from the gate, see `info.description`); it is mapped anyway because
+        > **the map belongs to the service, not to the endpoint**.
       enum:
         - invalid_fields
         - internal_error
         - unknown_command
+        - caller_not_authorized
         - client_not_found
         - project_not_found
         - objective_not_found

@@ -9,7 +9,7 @@ function getProjectById(req: Request, res: Response) {
       id: req.params.id
     },
     include: [
-      { model: User, as: 'creator' },
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
       { model: Client, as: 'client' }
     ]
   })

@@ -53,6 +53,12 @@ secundario.
   colapsados al abrir**. Es otro árbol de componentes, no un reflow.
 - **Ver más de un estado** — Cada estado pagina **independientemente**, de a 20, con su propio
   "Ver más".
+- **Ver un requisito que no pidió una persona** — Camino de lectura **nuevo desde REQ-005**. La
+  columna "AUTOR" del tablero puede traer una identidad de servicio: un conector externo que crea
+  requisitos por el bus. Va acompañada de un badge **"Automático"**, para que el cliente no lea el
+  nombre de un servicio creyendo que es alguien del equipo. **En mobile no aparece**, porque la card
+  del acordeón no muestra autor: ahí el cliente lo descubre recién al abrir el requisito (RF-3,
+  RF-10).
 - **Entrar desde un link viejo de adjunto** — Camino de entrada **nuevo desde REQ-002**. Alguien
   abre `/attachments/123/informe.pdf` desde un correo de hace meses: la ruta ya no existe y
   `attachments` salió del matcher, así que el guard lo alcanza y lo manda a **login** (RF-1, RF-2,
@@ -180,7 +186,11 @@ dejarlo escrito junto al pedido, no en un mail aparte."
 - **Suscribirse al requisito** — Botón visible **solo para `external-user`**. 🔴 **No dispara
   ninguna notificación**: no hay canal en el producto. Desde la interfaz, la acción **no tiene
   consecuencia observable**.
-- **Ver un cambio de campo** — Se renderiza como *"{Autor} cambió {Campo} de {X} a {Y}"*.
+- **Ver un cambio de campo** — Se renderiza como *"{Autor} cambió {Campo} de {X} a {Y}"*. **Desde
+  REQ-005** ese `{Autor}` puede ser una identidad de servicio, y entonces lleva el badge
+  **"Automático"** al lado del nombre. En un comentario la marca es doble: el badge y el avatar,
+  que en vez de iniciales muestra un icono — las iniciales de "Conector Portal" son "CP" y se leen
+  como una persona (RF-3, RF-10).
 - **Abrir un adjunto** — Preview embebido para imágenes, descarga para el resto. Si el contenido
   del archivo nunca llegó al sistema, dice *"El archivo no está disponible"* en lugar de fallar de
   forma opaca (REQ-001 RF-21, CA-15). **Desde REQ-002 este es el único camino a un archivo:** abrir
@@ -220,6 +230,8 @@ proyecto.
 - El cliente debería ver **solo lo público**, y no debería poder inferir que existe actividad
   interna — **hoy se cumple**: el feed filtra del lado del servidor
 - Suscribirse debería producir **algo**. Hoy no produce nada (FG-2)
+- El cliente no debería creer que le escribió una persona cuando le escribió un servicio —
+  **se cumple desde REQ-005** con la marca de autoría automática, en el badge y en el avatar
 
 ---
 

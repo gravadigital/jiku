@@ -2158,8 +2158,11 @@ paths:
         Es también el único endpoint donde `validateToken` **no** exige que el usuario exista en
         `users` (`lib/utils/middlewares/validate-token.ts:115`).
 
-        Pendiente: definir si el alta pasa a ser un comando de core, si la resuelve el
-        auth-callout, o si esta ruta conserva escritura propia.
+        **REQ-005 responde a medias.** Para quien **se conecta al bus** el alta la resuelve el
+        auth-callout: emite un evento de autenticación que `core` consume y espeja en `users`
+        (S-016). Para el **usuario de `web` / `opus-web` la pregunta sigue abierta**: ese camino no
+        pasa por el bus, así que ni el auth-callout ni el evento lo cubren, y esta ruta sigue
+        siendo un no-op.
       responses:
         '200':
           description: OK. Cuerpo vacío
@@ -2562,7 +2565,19 @@ components:
 
     User:
       type: object
-      description: Usuario. El `id` es el `sub` de Zitadel, no un entero
+      description: |
+        Usuario. El `id` es el `sub` de Zitadel, no un entero.
+
+        **`roles` e `identityType` NO están acá, y la omisión es deliberada** (S-015, D-12 de
+        REQ-005). Las dos columnas existen en el modelo (`@jiku/models`) y en la base, pero **no
+        salen en ninguna respuesta HTTP**: este schema es alcanzable por `external-user` a través
+        de `GET /opus/projects/{projid}/users`, y exponer ahí el modelo de roles del producto
+        sería filtrar información de autorización a la superficie **menos confiable**.
+
+        **La garantía no la da este schema: la dan los `include` acotados.** El default de
+        Sequelize es devolver todas las columnas del modelo, así que un `include` de `User` sin
+        `attributes` devolvería las dos columnas **sin ningún cambio de spec que lo delate**. Si
+        agregás un `include` de `User`, declarale `attributes: ['id', 'name', 'email']`.
       properties:
         id: { type: string }
         name: { type: string }

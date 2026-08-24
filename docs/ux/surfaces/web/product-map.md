@@ -28,22 +28,22 @@ del grupo `(loggedin)` [fuente: código-existente].
 |---|---|---|---|---|---|
 | 1 | home-vacia | Raíz de la aplicación | equipo-interno | solo desktop | — *(ver Preguntas Abiertas)* |
 | 2 | login | Entrada al sistema vía OIDC | equipo-interno | solo desktop | C-67 |
-| 3 | login-entrada | Callback post-OIDC, sin UI propia | equipo-interno | solo desktop | C-67 |
+| 3 | login-entrada | Callback post-OIDC, sin UI propia | equipo-interno | solo desktop | C-67, REQ-005 |
 | 4 | sin-permisos | Corte de acceso para `external-user` | equipo-interno | solo desktop | C-70 |
 | 5 | listado-actores | Ver los actores y su cartera de proyectos | equipo-interno | solo desktop | C-01, C-02 |
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
 | 7 | edicion-actor | Editar un actor | equipo-interno | solo desktop | C-04 |
 | 8 | listado-proyectos | Ver y filtrar los proyectos | equipo-interno | solo desktop | C-06 |
-| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001 |
+| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos | equipo-interno | solo desktop | C-13 |
-| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001 |
+| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28 |
-| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003 |
+| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
@@ -58,6 +58,15 @@ del grupo `(loggedin)` [fuente: código-existente].
 > **Todas las pantallas son `solo desktop`.** No es una decisión por pantalla sino del shell: la
 > sidebar mide 290 px fijos y el layout no tiene ningún media query, así que bajo ~1000 px no hay
 > navegación. Ver [`grid.md`](../../../design-system/web/foundations/grid.md).
+
+> **REQ-005 no agrega ni quita pantallas, y toca tres.** El evento de autenticación del bus no
+> tiene interfaz; lo que sí es user-visible es su consecuencia: desde REQ-005 una **identidad de
+> servicio** tiene fila en `users` y puede figurar como autor. Las tres pantallas que exponen un
+> usuario —`detalle-requisito` (fila "Creado por" y feed de actividad), `detalle-proyecto` (fila
+> "Creado por") y `detalle-tarea` (metadatos, historial y comentarios)— suman el bloque
+> `marca-identidad-automatica`, un badge `"Automático"` que acompaña al nombre. `login-entrada`
+> gana precisión en su estado de fallo, sin cambio de bloques. **Se verificó que
+> `listado-requisitos` no tiene columna de autor**, así que no se toca [REQ-005 RF-3, RF-10].
 
 ## Inventario de Overlays
 

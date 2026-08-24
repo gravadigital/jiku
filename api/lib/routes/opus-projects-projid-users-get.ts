@@ -3,7 +3,7 @@ import logger from '../logger';
 import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateProject from '../utils/middlewares/validate-project';
-import { User, UserProjectPermission } from '@jiku/models';
+import { IdentityType, User, UserProjectPermission } from '@jiku/models';
 
 const router: Router = Router();
 
@@ -15,7 +15,16 @@ function getProjectUsers(req: Request, res: Response) {
     include: [{
       model: User,
       as: 'user',
-      attributes: ['id', 'name', 'email']
+      attributes: ['id', 'name', 'email'],
+      // Es DEFENSA, no correccion: hoy un service user tampoco apareceria, porque el listado
+      // sale de user_project_permissions y no tiene fila ahi. Esta aca para que conceder un
+      // permiso de proyecto a un service user por error no lo meta en un selector de personas.
+      //
+      // El `where` dentro de un include promueve el JOIN a INNER, y eso es lo que se busca: la
+      // fila de permiso sin usuario `person` NO tiene que aparecer. Con LEFT JOIN
+      // (`required: false`) el `.map(p => p.user)` de abajo produciria `undefined` en la
+      // respuesta.
+      where: { identityType: IdentityType.Person },
     }],
     order: [[{ model: User, as: 'user' }, 'name', 'ASC']]
   })

@@ -126,6 +126,7 @@ También dentro del layout partido de `/login`, sin estilos propios (elementos `
 
 ### fallo de `POST /auth/present`
 - Aplica: No — no implementado (ver gaps-as-is.md). Se traga con `console.warn` y el flujo continúa al redirect. Un usuario que no quedó registrado en la api entra igual, y recién falla en la primera pantalla que pida datos (401 → el interceptor lo devuelve a `/login`) (`authApi.ts:19-21`, `axios.ts:46-51`) [fuente: código-existente].
+- **Precisión con REQ-005:** el alta automática de usuarios **ya existe en el producto**, pero no por este camino. Desde REQ-005 toda identidad que se autentica **en el bus** queda dada de alta sola, sin aprobación (RF-4); quien entra por `web` sigue sin alta y sigue cayendo en este mismo bucle de 401 (CA-17). O sea: la pantalla no cambia, pero **la razón por la que el usuario queda afuera dejó de ser "el producto no da de alta a nadie" y pasó a ser "no da de alta por esta puerta"**. El caso sigue abierto en FG-1
 
 ## Interacciones
 
@@ -148,3 +149,10 @@ También dentro del layout partido de `/login`, sin estilos propios (elementos `
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **No se agrega ningún bloque, y la revisión sirvió igual.** REQ-005 preguntó explícitamente si el 401 `user_not_found` seguía contándose igual. La respuesta es que sí para el usuario de esta superficie (CA-17), pero el enunciado que lo explicaba —"el producto no escribe `users`"— quedó falso: ahora sí lo escribe, por el evento del bus. Se corrigió la precisión del estado en vez de inventar un mensaje que el código no tiene.
+- **Se descartó mostrarle al usuario que existe un camino de alta que no es el suyo.** Sería exacto y sería inútil: el usuario de `web` no puede conectarse al bus para provisionarse, así que la información no habilita ninguna acción. El silencio se mantiene, y sigue siendo un gap de FG-1, no de este REQ.
+- **Se revisó `sin-permisos` y no cambia.** Es la pantalla del `external-user` redirigido desde `(loggedin)`, un corte por rol y no por ausencia de fila en `users`: REQ-005 no la toca.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla.

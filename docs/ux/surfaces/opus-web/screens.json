@@ -606,7 +606,7 @@
               "Alta masiva de usuarios por CSV",
               "badge:En cola",
               "28 feb 2026",
-              "María Núñez",
+              "Conector Portal",
               "Funcionalidad",
               "badge:Baja"
             ]
@@ -678,7 +678,7 @@
           "type": "card",
           "category": "content",
           "content": "#1042 · Exportar reporte de horas a Excel",
-          "paragraph": "12 mar 2026 · María Núñez",
+          "paragraph": "12 mar 2026 · Conector Portal",
           "visible_only_in_viewports": [
             "desktop"
           ],
@@ -780,6 +780,21 @@
             "desktop"
           ],
           "annotation": "chrome del grupo (dashboard), no de esta pantalla: proyectos + alta + cerrar sesión, 263px a la izquierda · click en un proyecto entra a su tablero (Sidebar.tsx:40) · display:none bajo 768px sin reemplazo (Sidebar.module.scss:13): en mobile no hay ninguna navegación"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty"
+          ],
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en la celda \"AUTOR\" de fila-requisito y junto al autor de card-kanban · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10) · el valor por defecto \"—\" no cambia: sigue siendo el de un creador ausente, no el de un creador automático · no existe en mobile, porque card-requisito-mobile no muestra autor"
         }
       ],
       "layouts": {
@@ -841,6 +856,7 @@
                   "cabecera-columnas",
                   "fila-grupo",
                   "fila-requisito",
+                  "marca-identidad-automatica",
                   {
                     "row": "tablero-kanban",
                     "fixed_cols": "500px 500px 500px",
@@ -852,6 +868,7 @@
                         "stack": [
                           "columna-kanban",
                           "card-kanban",
+                          "marca-identidad-automatica",
                           "pill-estado",
                           "pill-prioridad",
                           "boton-ver-mas"
@@ -1114,7 +1131,7 @@
           "type": "paragraph",
           "category": "content",
           "level": "caption",
-          "content": "Elemento creado por María Núñez",
+          "content": "Elemento creado por Conector Portal",
           "visible_only_in_states": [
             "default",
             "error de validación",
@@ -1156,14 +1173,16 @@
           "name": "item-comentario",
           "type": "card",
           "category": "content",
-          "content": "María Núñez · hace 3 días",
+          "content": "Conector Portal · hace 3 días",
           "paragraph": "Confirmamos que el export tiene que incluir las ausencias.",
           "visible_only_in_states": [
             "default",
             "error de validación",
             "success"
           ],
-          "annotation": "avatar de iniciales (dos primeras palabras del nombre) + fecha relativa con formatDistanceToNow, locale es y addSuffix. Autor ausente: \"Usuario\""
+          "annotation": "con REQ-005 la tarjeta gana dos variants: persona (avatar de iniciales, dos primeras palabras del nombre, sin badge) e identidad-automatica (icono en el avatar en lugar de iniciales + marca-identidad-automatica al lado del nombre). El resto de la tarjeta —fecha, contenido, markdown— no cambia. El avatar de iniciales es la parte que más engaña cuando el autor no es una persona: \"Conector Portal\" produce \"CP\", indistinguible de \"Carla Pérez\". Acá se dibuja la variant nueva; la persona es el caso base y lo ilustra item-cambio, que no lleva marca. El glifo del avatar no está especificado: card no tiene spec en el DS de opus-web v0.1.0. Fecha con formatDistanceToNow de date-fns, locale es y addSuffix. Autor ausente: \"Usuario\"",
+          "variant": "identidad-automatica",
+          "icon": "settings"
         },
         {
           "name": "item-cambio",
@@ -1330,6 +1349,19 @@
             "default"
           ],
           "annotation": "\"Subiendo captura-pantalla.png... 58%\" · solo mientras hay una subida en curso (sub-estado del default). Bloque nuevo con REQ-001 (RF-8): reemplaza al AttachmentSkeleton indeterminado del final del editor, porque ahora el byte va directo al storage y el porcentaje es real. Mismo bloque en los dos viewports, siempre dentro del editor"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor en los dos lugares donde esta pantalla lo muestra: pie-autoria y el autor de cada item-comentario / item-cambio del feed · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado · el caso llega a esta superficie por el canal del publicador externo de REQ-001: desde REQ-005 ese conector tiene fila en users y puede figurar como creador de un requisito y como autor de una actividad pública, que es lo que el cliente lee acá · badge sin spec en el DS de opus-web v0.1.0 (gap previo al delta)"
         }
       ],
       "layouts": {
@@ -1388,9 +1420,11 @@
           "descripcion",
           "bloque-resolucion",
           "pie-autoria",
+          "marca-identidad-automatica",
           "titulo-actividad",
           "feed-actividad",
           "item-comentario",
+          "marca-identidad-automatica",
           "item-cambio",
           "editor-comentario",
           "progreso-subida-adjunto",
@@ -1501,7 +1535,8 @@
                           "titulo-requisito",
                           "descripcion",
                           "bloque-resolucion",
-                          "pie-autoria"
+                          "pie-autoria",
+                          "marca-identidad-automatica"
                         ]
                       },
                       {
@@ -1511,6 +1546,7 @@
                           "titulo-actividad",
                           "feed-actividad",
                           "item-comentario",
+                          "marca-identidad-automatica",
                           "item-cambio",
                           "editor-comentario",
                           "progreso-subida-adjunto",
@@ -1654,7 +1690,7 @@
               "subtitle": "de En cola a Desarrollo · hace 2 días"
             },
             {
-              "title": "Diego Sosa · hace 1 día",
+              "title": "Conector Portal · hace 1 día",
               "subtitle": "Arranco por el reporte semanal y sigo con el mensual."
             }
           ],
@@ -1675,6 +1711,14 @@
           "variant": "primary",
           "content": "Enviar",
           "icon": "arrow-right"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · el overlay compone los mismos tres paneles que la pantalla #5, así que hereda la marca: acompaña al nombre del autor de cada entrada de feed-actividad, y al comentario le corresponde además la variant identidad-automatica del avatar (REQ-005 RF-3, RF-10; Inventario de Overlays O-01) · presente o ausente según el dato, no según el estado: solo cuando identityType es service · el pie de autoría no está transcripto como bloque propio en el inventario de este overlay —el relevamiento lo agrupó en el panel de contenido—, así que acá la marca se dibuja una sola vez, junto al feed"
         }
       ],
       "layouts": {
@@ -1685,6 +1729,7 @@
           "descripcion",
           "titulo-actividad",
           "feed-actividad",
+          "marca-identidad-automatica",
           "editor-comentario",
           "boton-enviar"
         ],
@@ -1723,6 +1768,7 @@
                 "stack": [
                   "titulo-actividad",
                   "feed-actividad",
+                  "marca-identidad-automatica",
                   "editor-comentario",
                   "boton-enviar"
                 ]
