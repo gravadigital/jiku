@@ -618,7 +618,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-R04 | Respuesta garantizada | El despachador **nunca lanza**: todo error se traduce a un `Reply` de falla, con una última red en el consumer | Tests de core | **[implementado]** |
 | NFR-R05 | Healthchecks | No hay healthcheck en ningún servicio del compose | — | **[ausente]** |
 | NFR-R06 | Logs en producción | Winston con dos transports a archivo, pero **`LOGGER_*` no está definido en el compose**: quedan con `filename: undefined` | Revisión de deploy | **[roto]** |
-| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 101 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
+| NFR-R07 | Fuente única del esquema | **Dos fuentes**: producción se construye con las 102 migraciones de la api, desarrollo con `sequelize.sync()` de core | — | **[hueco conocido]** |
 | NFR-R08 | Instalación desde cero | **No soportada.** Ninguna migración crea `objectives`; requiere un dump previo | — | **[limitación asumida]** |
 
 ### Usabilidad

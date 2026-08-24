@@ -53,7 +53,7 @@ api/
 │       ├── bus/              cliente NATS, sendCommand/runCommand, protocolo, traductores
 │       ├── middlewares/      7 compartidos: auth, roles, entidades del path, fechas
 │       └── *.ts              validación, storage, permisos de adjuntos, helpers
-├── db-upgrade/migrations/   101 migraciones, corren al arrancar
+├── db-upgrade/migrations/   102 migraciones, corren al arrancar
 ├── tests/                    61 archivos de rutas + utils + configuraciones
 └── types/
 ```
@@ -159,7 +159,7 @@ Importan porque condicionan qué se puede planificar sobre este servicio.
    Sin definir si pasa a ser comando de core, lo resuelve el auth-callout, o la ruta conserva
    escritura propia.
 
-2. **Las migraciones no construyen el esquema desde cero.** Las 101 asumen un esquema existente
+2. **Las migraciones no construyen el esquema desde cero.** Las 102 asumen un esquema existente
    y ninguna crea `objectives`. Una instalación nueva necesita un dump previo (`DUMP_FILE`).
 
 3. **Un comando perdido es un comando perdido.** Sin JetStream: sin reintentos, sin transacción

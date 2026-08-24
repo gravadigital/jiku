@@ -420,4 +420,26 @@ describe('GET /api/projects', () => {
         response.body.should.have.length(filters.limit);
       });
   });
+
+  // CA-12 (S-015): es el caso MAS EXPUESTO de todos, porque devuelve una lista: un `include`
+  // sin acotar filtraria los roles de CADA creador de proyecto en una sola respuesta. Por eso
+  // el test recorre todos los elementos, no solo el primero. La asercion es sobre las CLAVES
+  // PRESENTES, no sobre la ausencia de `roles`.
+  it('should return every project creator with exactly id, name and email', () => {
+    return request(application)
+      .get('/api/projects')
+      .set('Accept', 'application/json')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        response.body.should.be.an.Array();
+        response.body.length.should.be.above(0);
+        response.body.forEach((project: { creator: Record<string, unknown> }) => {
+          Object.keys(project.creator).should.have.length(3);
+          project.creator.should.have.property('id');
+          project.creator.should.have.property('name');
+          project.creator.should.have.property('email');
+        });
+      });
+  });
 });

@@ -180,6 +180,34 @@ describe('GET /api/objectives/:id', () => {
       });
   });
 
+  // CA-12 (S-015): acota los DOS `include` de `User` de esta ruta -- `creator` y el `user` de
+  // cada `ObjectiveActivity`. La asercion es sobre las CLAVES PRESENTES, no sobre la ausencia
+  // de `roles`: un `should.not.have.property('roles')` pasaria igual el dia que se agregue otra
+  // columna al modelo.
+  it('should return creator and every activity user with exactly id, name and email', () => {
+    return request(application)
+      .get('/api/objectives/1')
+      .set('Accept', 'application/json')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        Object.keys(response.body.creator).should.have.length(3);
+        response.body.creator.should.have.property('id');
+        response.body.creator.should.have.property('name');
+        response.body.creator.should.have.property('email');
+
+        const activities = response.body.ObjectiveActivity;
+        activities.should.be.an.Array();
+        activities.length.should.be.above(0);
+        activities.forEach((activity: { user: Record<string, unknown> }) => {
+          Object.keys(activity.user).should.have.length(3);
+          activity.user.should.have.property('id');
+          activity.user.should.have.property('name');
+          activity.user.should.have.property('email');
+        });
+      });
+  });
+
   // TS-17: objective sin vinculo expone requirementId null
   it('TS-17: should expose requirementId as null when objective has no linked requirement', () => {
     return request(application)

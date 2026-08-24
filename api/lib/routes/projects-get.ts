@@ -28,7 +28,7 @@ function getAllProjects(req: Request, res: Response) {
     limit: limit,
     offset: offset,
     where: whereClause,
-    include: {model: User, as: 'creator'},
+    include: { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
   })
     .then((projects) => {
       const projectsWithEmptyStrings = projects.map((project) => {

@@ -9,11 +9,11 @@ function getObjectiveById(req: Request, res: Response, next: NextFunction) {
       id: req.params.id
     },
     include: [Project,
-      {model: User, as: 'creator'},
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
       {
         model: ObjectiveActivity,
         include: [
-          {model: User, as: 'user'}
+          { model: User, as: 'user', attributes: ['id', 'name', 'email'] }
         ]
       },
       {

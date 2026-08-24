@@ -3,7 +3,7 @@
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
 **Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
-compartido — y de las 101 migraciones de `api/db-upgrade/migrations/`.
+compartido — y de las 102 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -126,15 +126,42 @@ Espejo del proveedor de identidad. **No la escribe el producto.**
   externo. Traducirlos obligaría a un mapa `person→persona` en el consumidor del evento, que es un
   lugar más donde divergir sin síntoma. Precedente en este mismo esquema:
   `Enum visibility_level { public internal }`.
-- **Que no salgan en ninguna respuesta HTTP no lo garantiza el schema: hay que acotar los
-  `include`.** El default de Sequelize es devolver **todas** las columnas, así que estas dos
-  aparecen **solas** en cualquier respuesta cuyo `include` de `User` no declare `attributes`. No hay
-  cambio de spec que lo delate. Acotar esos `include` es CA-12 de S-015, del lado `api`; **hasta que
-  aterrice, la afirmación "no salen en ninguna respuesta HTTP" es falsa por omisión.**
+- **Que no salgan en ninguna respuesta HTTP no lo garantiza el schema: lo garantizan los `include`
+  acotados.** El default de Sequelize es devolver **todas** las columnas, así que estas dos
+  aparecerían **solas** en cualquier respuesta cuyo `include` de `User` no declare `attributes`, y
+  **sin ningún cambio de spec que lo delate**. S-015 (CA-12) acotó los cinco `include` de `api/lib/`
+  que no lo declaraban, a `attributes: ['id', 'name', 'email']` — la misma lista que los siete que ya
+  estaban acotados. **Si agregás un `include` de `User`, declarale esos `attributes`:** es la única
+  barrera que hay.
 - **`roles` no se valida contra ningún catálogo, a propósito.** Los roles se guardan tal como vienen
   del proveedor de identidad; la autorización no sale de esta lista por sí misma, sale de compararla
   contra un mapa cerrado y deny-by-default. Un rol inventado en Zitadel no autoriza nada, y validar
   acá sería un lugar más donde divergir del proveedor.
+
+##### Migración y backfill (REQ-005, S-015)
+
+`api/db-upgrade/migrations/20260824_01_users_roles_identity_type.js` crea el ENUM nativo y las dos
+columnas en **un solo `ALTER` con dos `ADD COLUMN`**. Es **puramente aditiva**: con defaults no
+volátiles PostgreSQL ≥ 11 no reescribe la tabla, así que no hizo falta ventana de mantenimiento.
+
+- **El backfill lo dan los defaults, sin ningún `UPDATE`.** Toda fila preexistente quedó
+  `identity_type = 'person'` y `roles = '[]'`. `'person'` es correcto para todas: `users` se puebla a
+  mano con las personas del equipo y ninguna identidad de servicio tenía fila. `'[]'` es la opción
+  conservadora — **no inventa autorización que nadie concedió**.
+- **Los defaults se conservan** (no hay `ALTER COLUMN ... DROP DEFAULT`). Son lo que hace que un
+  `INSERT` que no mencione las dos columnas —los 132 puntos de siembra de las suites, el que produce
+  `sync()`— siga funcionando sin cambios.
+- **Sin índices.** Los dos accesos son por PK (`findByPk`) y el filtro de `opus` cae sobre un
+  `include` ya acotado por `user_project_permissions`. `roles` se lee entero en el mismo `SELECT` de
+  la fila: no hay consulta por contenido, así que **no hay índice GIN que justificar**.
+- **Reversible**, y el orden importa: el `down` hace `DROP COLUMN` de las dos **y después**
+  `DROP TYPE` — el tipo no se puede borrar mientras una columna lo use, y el error de Postgres
+  (`cannot drop type identity_type because other objects depend on it`) **no nombra la columna que lo
+  retiene**.
+- **Nada escribe las dos columnas todavía.** El escritor es S-016 (el consumidor del evento de
+  autenticación del bus); el lector, S-017 (la compuerta de autorización por `roles`). El único
+  lector en todo el producto al cerrar S-015 es el filtro `identityType: 'person'` de
+  `GET /api/opus/projects/{projid}/users`.
 
 #### `clients` — actores
 "Actor" en la UI, `clients` en la base.
@@ -920,7 +947,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 > ### Las migraciones no construyen el esquema desde cero
 >
-> **Las 101 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
+> **Las 102 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
 > crea**. Contra una base vacía la api falla al arrancar:
 >
 > ```
