@@ -1,5 +1,6 @@
 import 'should';
 
+import { ErrorCodeValue } from '../src/index';
 import { reload } from './helpers/reload';
 
 /**
@@ -93,8 +94,8 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     PUBLIC_SURFACE.length.should.equal(18);
   });
 
-  it('TS-49: ErrorCode tiene 26 miembros', () => {
-    Object.keys(reload({}).ErrorCode).length.should.equal(26);
+  it('TS-49: ErrorCode tiene 27 miembros', () => {
+    Object.keys(reload({}).ErrorCode).length.should.equal(27);
   });
 
   it('TS-50: el envelope intacto', () => {
@@ -106,6 +107,54 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       errorCode: 'client_not_found',
       errorMessage: 'Client not found',
     });
+  });
+
+  it('TS-69: CALLER_NOT_AUTHORIZED tiene el valor exacto del contrato', () => {
+    // El valor cruza el bus y lo indexa el mapa de la api: un typo acá sale 500 en producción y
+    // ningún test de `core` lo atrapa, porque `core` usaría la misma constante equivocada.
+    reload({}).ErrorCode.CALLER_NOT_AUTHORIZED.should.equal('caller_not_authorized');
+  });
+
+  it('TS-70: la clave es la traducción mecánica del valor', () => {
+    // Romper la simetría de los 26 que ya están haría que el próximo código se agregue mal.
+    const entries = Object.entries(reload({}).ErrorCode);
+    const found = entries.find(([, value]) => value === 'caller_not_authorized');
+    (found as [string, string])[0].should.equal('CALLER_NOT_AUTHORIZED');
+  });
+
+  it('TS-71: user_not_found sigue existiendo y es un código DISTINTO', () => {
+    // Reusarlo era la tentación —ya existe y ya está mapeado— y está descartado por dos razones:
+    // sería un oráculo de existencia de identidades, y su 404 es el status equivocado para un
+    // rechazo de permisos.
+    const E = reload({}).ErrorCode;
+    E.USER_NOT_FOUND.should.equal('user_not_found');
+    E.CALLER_NOT_AUTHORIZED.should.equal('caller_not_authorized');
+    ((E.USER_NOT_FOUND as string) === (E.CALLER_NOT_AUTHORIZED as string)).should.be.false();
+  });
+
+  it('TS-72: los 27 valores del catálogo son únicos entre sí', () => {
+    // Atrapa el copy-paste que deja dos claves con el mismo valor: un fallo que ninguna otra
+    // aserción ve, porque el catálogo se lee siempre por clave.
+    const values = Object.values(reload({}).ErrorCode);
+    values.length.should.equal(27);
+    new Set(values).size.should.equal(27);
+  });
+
+  it('TS-73: el envelope de falla con el código nuevo', () => {
+    const p = reload({});
+    p.failure(p.ErrorCode.CALLER_NOT_AUTHORIZED, 'No autorizado').should.eql({
+      status: 'failure',
+      errorCode: 'caller_not_authorized',
+      errorMessage: 'No autorizado',
+    });
+  });
+
+  it('TS-74: ErrorCodeValue incluye el valor nuevo sin editar el tipo', () => {
+    // La aserción fuerte es de compilación: antes del cambio esta línea es un TS2322. Y prueba que
+    // el `as const` sigue en su lugar — sin él el tipo sería `string` y compilaría igual, que es
+    // el falso verde a evitar.
+    const code: ErrorCodeValue = 'caller_not_authorized';
+    code.should.equal('caller_not_authorized');
   });
 
   // Las dos aserciones negativas usan el cast a Record<string, unknown> y NO acceso tipado: con

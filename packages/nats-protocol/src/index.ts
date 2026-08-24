@@ -256,6 +256,28 @@ export const ErrorCode = {
   INVALID_FIELDS: 'invalid_fields',
   INTERNAL_ERROR: 'internal_error',
   UNKNOWN_COMMAND: 'unknown_command',
+  // REQ-005 agrega UN código, y es el primero que emite EL DESPACHADOR y no un comando: los dos
+  // despachadores autorizan al caller del subject contra los roles persistidos ANTES de resolver
+  // el método y ANTES de abrir la transacción. Por eso es el CUARTO de la familia de arriba —los
+  // que no vienen de un comando— y por eso NO figura en el `x-error-codes` de ninguno de los 20
+  // mensajes de `docs/apis/core.yaml`: esa lista enumera lo que devuelve un `execute()`.
+  //
+  // UN SOLO CÓDIGO PARA DOS SITUACIONES, A PROPÓSITO: "no hay fila para el caller" y "hay fila
+  // pero ningún rol autoriza este método" responden LO MISMO. Distinguirlas le diría a un caller
+  // no autorizado si una identidad existe en la base, que es un oráculo gratis.
+  //
+  // Y POR ESO `USER_NOT_FOUND` NO SE REUSA — además de que ya está mapeado a 404, que es el
+  // status equivocado para un rechazo de permisos.
+  //
+  // MAPEA A 403 en `api/lib/utils/bus/protocol.ts`, junto a `file_not_owned` y con su mismo
+  // argumento: describe un PERMISO, no una entrada inválida. En la práctica la api NUNCA lo
+  // recibe —su canal está exento de la compuerta—, y se mapea igual porque el mapa es DEL
+  // SERVICIO, no del endpoint.
+  //
+  // Los tres lugares de la convención: este archivo, el `enum` de `docs/apis/core.yaml` (ya
+  // escrito, y la fuente de verdad del valor) y ese mapa. Faltando el tercero, el código cae en
+  // el `|| 500` de `httpStatusFor()` y el usuario ve un 500 genérico.
+  CALLER_NOT_AUTHORIZED: 'caller_not_authorized',
 
   CLIENT_NOT_FOUND: 'client_not_found',
   PROJECT_NOT_FOUND: 'project_not_found',
