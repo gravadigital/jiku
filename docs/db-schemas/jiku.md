@@ -108,7 +108,33 @@ Espejo del proveedor de identidad. **No la escribe el producto.**
 | `name` | `VARCHAR` | NOT NULL |
 | `username` | `VARCHAR` | NOT NULL |
 | `email` | `VARCHAR` | NOT NULL |
+| `roles` | `JSONB` | NOT NULL, default `'[]'::jsonb` — lista de strings, sin CHECK ni validación de contenido |
+| `identity_type` | `ENUM` `identity_type` | NOT NULL, default `'person'` — `person`, `service` |
 | `created_at`, `updated_at` | `TIMESTAMP` | |
+
+- **`identity_type` es un ENUM nativo en la base pero el modelo lo declara `DataType.STRING`.** Es
+  la misma divergencia deliberada de `byte_status` / `retention_status` y por la misma razón:
+  declararlo `ENUM` en el modelo haría que `sync()` cree el tipo con la convención de nombre de
+  Sequelize (`enum_users_identity_type`), distinto del `identity_type` que crea la migración. El
+  argumento completo está en la nota de `byte_status` / `retention_status` de la sección `files`,
+  bajo "Migración y backfill (REQ-001, S-001)".
+- **Los dos valores están en inglés**, contra la convención *"ENUM con valores en español (son los
+  que viajan al front)"*. Dos razones, y la segunda es la que sostiene la excepción por sí sola:
+  **no tienen que viajar al front** —el schema `User` de `docs/apis/api.yaml` **no** los declara, y
+  la omisión es deliberada: ese schema es alcanzable por `external-user`— y **no los elige el
+  producto**: son el `type` de `deploy/nats/auth-callout/rules.yaml`, un contrato con un componente
+  externo. Traducirlos obligaría a un mapa `person→persona` en el consumidor del evento, que es un
+  lugar más donde divergir sin síntoma. Precedente en este mismo esquema:
+  `Enum visibility_level { public internal }`.
+- **Que no salgan en ninguna respuesta HTTP no lo garantiza el schema: hay que acotar los
+  `include`.** El default de Sequelize es devolver **todas** las columnas, así que estas dos
+  aparecen **solas** en cualquier respuesta cuyo `include` de `User` no declare `attributes`. No hay
+  cambio de spec que lo delate. Acotar esos `include` es CA-12 de S-015, del lado `api`; **hasta que
+  aterrice, la afirmación "no salen en ninguna respuesta HTTP" es falsa por omisión.**
+- **`roles` no se valida contra ningún catálogo, a propósito.** Los roles se guardan tal como vienen
+  del proveedor de identidad; la autorización no sale de esta lista por sí misma, sale de compararla
+  contra un mapa cerrado y deny-by-default. Un rol inventado en Zitadel no autoriza nada, y validar
+  acá sería un lugar más donde divergir del proveedor.
 
 #### `clients` — actores
 "Actor" en la UI, `clients` en la base.
@@ -547,6 +573,8 @@ Table users {
   name varchar [not null]
   username varchar [not null]
   email varchar [not null]
+  roles jsonb [not null, default: `'[]'::jsonb`, note: 'lista de strings, sin validacion de contenido']
+  identity_type identity_type [not null, default: 'person', note: 'el modelo lo declara DataType.STRING a proposito']
   created_at timestamp
   updated_at timestamp
 }
@@ -854,6 +882,7 @@ Table inbound_mail_threads {
 
 // --- Enums ---
 
+Enum identity_type         { person service }
 Enum project_type          { interno comercial investigacion propuesta }
 Enum project_status        { analisis activo inactivo finalizado cancelado }
 Enum objective_state       { backlog activo finalizado cancelado en_revision }

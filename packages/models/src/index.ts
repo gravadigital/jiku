@@ -59,7 +59,7 @@ export { default as Resource } from './resource.model';
 export { default as SystemSetting } from './system-setting.model';
 export { default as UnworkedTime, UnworkedReason } from './unworked-time.model';
 export { default as UserProjectPermission } from './user-project-permission.model';
-export { default as User } from './user.model';
+export { default as User, IdentityType } from './user.model';
 export { default as WeekAssignedTime } from './week-assigned-time.model';
 export { default as WorkedTime } from './worked-time.model';
 
