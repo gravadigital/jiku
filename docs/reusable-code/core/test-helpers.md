@@ -68,3 +68,65 @@ non-configurable and non-writable"*. That is why `BusHost` has the `openConnecti
 **The doubles do not implement `ServiceMsg` or `NatsConnection` in full**, on purpose: it is enough
 to type the parameters of the functions under test and cast at the test boundary, which is one of
 the two `any`/cast borders the `_base` convention tolerates.
+
+## FakeSubscription
+
+**Location:** `core/tests/helpers/micro-double.ts`
+
+**Description:** Test double for a flat `Sub<Msg>` — the subscription of the event consumer. Like
+the rest of the file, it substitutes **a network that is not there**, never the database: without
+it, the subscription's log line, the per-message `try/catch` and the shutdown drain could only be
+verified by hand against a real bus.
+
+**It is the mirror image of `FakeConnection.status()`: this iterator does not end on its own.** A
+subscription has to stay open to receive, so the exit is given by `drain()` or `unsubscribe()` —
+and **every test that pushes messages has to drain before finishing**, because the consumer's
+`for await` runs with `void` and no `await` from `start()`.
+
+Two design points are what make the assertions writable without arbitrary `setTimeout`s:
+
+- **`push()` returns a promise that resolves once the consumer asked for the next message**, i.e.
+  once it finished processing this one. That is what TS-29, TS-30 and TS-33 of S-016 are built on.
+- **`drain()` writes `'subscription.drain'` into the connection's shared trace and then waits for
+  the iterator to end**, so a message still in flight finishes before `stop()` resolves — exactly
+  the guarantee the shutdown order has to have.
+
+The messages it delivers are `FakeMsg`, the double that already existed: its `json()` **throws** on
+a malformed body just like the real one, and its `replyCount` is what lets a test assert that
+**nobody answered**.
+
+**Interface:**
+```ts
+class FakeSubscription {
+  readonly subject: string;
+  readonly opts?: SubscriptionOptions;   // .queue is the queue group
+  readonly delivered: FakeMsg[];         // what the iterator already handed over, in order
+  readonly closed: Promise<void>;
+
+  push(data: Uint8Array, subject?: string): Promise<void>; // resolves once processed
+  drain(): Promise<void>;                                  // traces + ends the iterator
+  unsubscribe(): void;
+  getSubject(): string;
+  isDraining(): boolean;
+  isClosed(): boolean;
+  [Symbol.asyncIterator](): AsyncIterator<FakeMsg>;
+}
+
+// FakeConnection gains:
+//   .subscribe(subject, opts) -> records into .subscriptions, traces 'subscribe'
+//   .subscriptions            -> the flat subscriptions opened, in order
+```
+
+**Usage:**
+```ts
+const host = new TestHost(nc, spec).withEventConsumer({ subject, handle });
+await host.start();
+
+await nc.subscriptions[0].push(encode('{no-json'));   // resolves once the consumer discarded it
+nc.subscriptions[0].delivered[0].replyCount.should.equal(0); // nobody answered
+
+await host.stop();   // drains: 'subscription.drain' lands between the services and the connection
+```
+
+**It has no methods no test looks at** (`getReceived`, `getMax`, `getPending`). The file's criterion
+is minimal: what `BusHost` uses and what the test asserts.
