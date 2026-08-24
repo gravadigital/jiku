@@ -4,8 +4,8 @@ title: Vinculación de archivos a entidades
 type: feature
 status: Draft
 created: 2026-08-19
-last_updated: 2026-08-23
-stories: [S-003, S-004, S-014]
+last_updated: 2026-08-24
+stories: [S-003, S-004, S-014, S-027]
 ---
 
 # Vinculación de Archivos a Entidades
@@ -13,7 +13,7 @@ stories: [S-003, S-004, S-014]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-19
+**Última actualización:** 2026-08-24
 **Stories:** S-003, S-004
 
 > **Estado de implementación (al cerrar el lado `core` de S-004):** los pasos **4 y 5**
@@ -383,3 +383,31 @@ VALUES ('requirement', 412, 1234);
 - **La validación tardía es segura por ADR-003, no por suerte.** `core` crea la entidad primero y
   valida los archivos después porque el despachador garantiza que el rollback descarta todo. El test
   que importa de CA-10 no es que devuelva 403: es que **no quede el comentario**.
+
+### Nueva superficie de lectura sobre el modelo Archivo/Adjunto (REQ-006 · S-027)
+
+REQ-006 expone en lectura por el bus el modelo que REQ-001 separó, con el recurso
+**`attachments.list`**: el vínculo entidad ↔ archivo **con los datos del archivo aplanados**
+(`id`, `entityType`, `entityId`, `fileId`, `fileName`, `mimeType`, `fileSize`, `uploadedBy`,
+`byteStatus`, `createdAt`).
+
+- **La traducción de `entityType` va en LAS DOS DIRECCIONES** y vive en el servicio de consultas, no
+  en `@jiku/models` (ADR-004): se **filtra** con el vocabulario del contrato y se **devuelve** con el
+  vocabulario del contrato.
+
+  | Contrato | `entity_type` en la base |
+  |---|---|
+  | `project` · `requirement` · `requirement_comment` | igual |
+  | `task` | `objective` |
+  | `task_comment` | `objective_comment` |
+
+- **Dos exclusiones permanentes, no configurables por payload:** los vínculos con `deleted_at` no
+  nulo y los archivos con `retention_status != 'active'` **se excluyen siempre**. Es coherente con
+  D-04: desvincular es borrar el `Attachment`, y el archivo se retiene.
+- **Las filas legado con `entity_type = 'comment'`** —las que dejó
+  `20260729_01_extend_attachments_entity_type_comment_split`— **no aparecen** en `attachments.list`:
+  `comment` no es un `entityType` declarado, y lo no declarado no existe para esta API (ADR-008). El
+  síntoma ("un adjunto viejo no aparece") es difícil de diagnosticar sin esta línea.
+- **`attachments` no tiene `get` y no tiene `include`.** La entidad dueña es polimórfica sin FK
+  (D-05): quien la quiera la pide con su propio recurso.
+- El recorrido completo está en `docs/flows/consulta-por-el-bus.md`.

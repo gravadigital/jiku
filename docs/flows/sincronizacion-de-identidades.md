@@ -5,7 +5,7 @@ type: event
 status: Draft
 created: 2026-08-24
 last_updated: 2026-08-24
-stories: [S-016, S-018]
+stories: [S-016, S-018, S-023]
 ---
 
 # Sincronización de Identidades desde el Evento de Autenticación
@@ -334,3 +334,20 @@ de esa autenticación**.
   en vivo. Es la única forma de verificar el caso de `core` caído, que **no es testeable en una
   suite**: es una propiedad de infraestructura.
 - **Origen:** REQ-005 · stories S-016 (el consumidor y el permiso) y S-018 (la rama de persona).
+
+### Consecuencia nueva: la lectura por el bus queda acoplada a este flujo (REQ-006 · S-023)
+
+Desde REQ-006 este flujo **no solo condiciona la escritura**: condiciona también **toda la superficie
+de lectura por el bus**. El servicio de consultas resuelve la **clase del caller** —conector, interno
+o externo— leyendo `users.roles`, y **sin fila no consulta**: la respuesta es `unknown_caller`.
+
+- **La entrega del evento sigue sin ser durable** (NATS core, sin JetStream). Un evento perdido deja
+  al caller sin fila, y **todas** sus consultas fallan hasta su próxima autenticación contra el bus —
+  con un token de ~1 h renovado en caliente, potencialmente en **días**.
+- **Incluye al service user de la api**, sin excepción por configuración: la exención del
+  `CORE_TRUSTED_PUBLISHER_ID` vale para la compuerta de autorización, **no** para la resolución de la
+  clase.
+- **`roles` deja de ser un dato informativo del espejo de identidad y pasa a ser el control de acceso
+  efectivo** de toda la lectura por el bus. La regla de precedencia con varios roles es "gana el más
+  restrictivo": `external-user` → `user` → `internal-app`.
+- El recorrido completo está en `docs/flows/consulta-por-el-bus.md`, Paso 3.

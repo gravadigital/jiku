@@ -646,7 +646,8 @@ Table projects {
   updated_at timestamp
 
   indexes {
-    client_id
+    client_id [name: 'idx_projects_client_id', note: '20260724_01. REQ-006 NO lo borra: el compuesto de abajo lo sustituye funcionalmente, pero borrar un indice preexistente es otro alcance']
+    (client_id, name, id) [name: 'idx_projects_client_name_id', note: 'REQ-006: keyset de projects.list + filter.clientId con sort por name']
   }
 }
 
@@ -674,6 +675,11 @@ Table requirements {
   acceptance_criteria text
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (project_id, created_at, id) [name: 'idx_requirements_project_created_id', note: 'REQ-006: keyset de requirements.list por proyecto. DESC en created_at e id']
+    (state, created_at, id) [name: 'idx_requirements_state_created_id', note: 'REQ-006: filter.state + sort default. DESC en created_at e id']
+    tags [type: gin, name: 'idx_requirements_tags_gin', note: 'REQ-006: filtro tag por par exacto (tags @> [...]) y el recurso requirements.tags']
+  }
 }
 
 Table objectives {
@@ -691,6 +697,11 @@ Table objectives {
   requirement_id integer [note: 'sin constraint']
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (project_id, created_at, id) [name: 'idx_objectives_project_created_id', note: 'REQ-006: keyset de tasks.list por proyecto con el sort default ["-createdAt"]. DESC en created_at e id']
+    (priority, created_at, id) [name: 'idx_objectives_priority_created_id', note: 'REQ-006: sort ["-priority", ...]. DESC en las tres']
+    (state, created_at, id) [name: 'idx_objectives_state_created_id', note: 'REQ-006: filter.state + sort default. DESC en created_at e id']
+  }
 }
 
 Table worked_times {
@@ -703,6 +714,12 @@ Table worked_times {
   requirement_id integer [ref: > requirements.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (person_id, date, id) [name: 'idx_worked_times_person_date_id', note: 'REQ-006: keyset de worked-times.list con sort default ["-date"]. DESC en date e id']
+    (project_id, date, id) [name: 'idx_worked_times_project_date_id', note: 'REQ-006: idem por proyecto. DESC en date e id']
+    requirement_id [name: 'idx_worked_times_requirement_id', note: 'REQ-006: requirements.totalMinutes. Subconsulta correlacionada POR FILA: con limit 200 son 200']
+    objective_id [name: 'idx_worked_times_objective_id', note: 'REQ-006: la otra mitad de totalMinutes. Las dos juntas son 400 subconsultas con limit 200']
+  }
   note: 'objective_id y requirement_id son mutuamente excluyentes (lo valida la api)'
 }
 
@@ -714,6 +731,9 @@ Table unworked_times {
   person_id integer [not null, ref: > people.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (person_id, date, id) [name: 'idx_unworked_times_person_date_id', note: 'REQ-006: keyset de unworked-times.list con sort default ["date"]']
+  }
 }
 
 Table week_assigned_times {
@@ -726,6 +746,9 @@ Table week_assigned_times {
   person_id integer [ref: > people.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (person_id, date_from, id) [name: 'idx_week_assigned_times_person_datefrom_id', note: 'REQ-006: keyset de week-assigned-times.list con sort default ["dateFrom"]']
+  }
 }
 
 Table objective_activity {
@@ -738,6 +761,9 @@ Table objective_activity {
   changed_by varchar [not null, ref: > users.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (objective_id, type_of_activity, created_at, id) [name: 'idx_objective_activity_entity_type_created_id', note: 'REQ-006: comments.list (type_of_activity = comment) y activity.list, que NO filtra por tipo — el prefijo (objective_id) le sirve igual']
+  }
 }
 
 Table requirement_activity {
@@ -750,6 +776,9 @@ Table requirement_activity {
   changed_by varchar(100) [not null, ref: > users.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (requirement_id, type_of_activity, created_at, id) [name: 'idx_requirement_activity_entity_type_created_id', note: 'REQ-006: el mismo indice del otro lado. Los ids de las dos tablas SE PISAN: por eso entityType es obligatorio en el contrato']
+  }
 }
 
 Table objectives_subscriptors {
@@ -774,6 +803,9 @@ Table user_project_permissions {
   project_id integer [ref: > projects.id]
   created_at timestamp
   updated_at timestamp
+  indexes {
+    user_id [name: 'idx_user_project_permissions_user_id', note: 'REQ-006: PARTICIPA DE TODA CONSULTA EN MODO EXTERNO. Verificar antes de crear: puede existir uno implicito por constraint']
+  }
   note: 'Sostiene el aislamiento del portal de clientes'
 }
 
@@ -830,6 +862,9 @@ Table people_objectives {
   active boolean
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (person_id, objective_id) [name: 'idx_people_objectives_person_objective', note: 'REQ-006: filter.responsiblePersonId de tasks']
+  }
 }
 
 Table people_requirements {
@@ -838,6 +873,9 @@ Table people_requirements {
   is_leader boolean
   created_at timestamp
   updated_at timestamp
+  indexes {
+    (person_id, requirement_id) [name: 'idx_people_requirements_person_requirement', note: 'REQ-006: filter.responsiblePersonId de requirements']
+  }
 }
 
 Table project_status_updates {
@@ -965,6 +1003,8 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
+| `YYYYMMDD_NN_query_indexes` (**pendiente, S-021 de REQ-006**) | Crea los ~17 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. **No borra** `idx_projects_client_id`. Ver "Los índices del keyset" abajo |
+| `20260824_01_users_roles_identity_type` | Agrega `users.roles` (`JSONB`) e `users.identity_type`: el espejo de identidad de REQ-005 y, desde REQ-006, **el control de acceso efectivo de toda la lectura por el bus** |
 | `20260820_01_drop_external_integration` | Da de baja la integración con sistemas externos: borra las 3 tablas `external_*`, las 9 columnas de `objectives` y `objective_activity` (incluida `last_synced_at`, la única sin el prefijo) y el índice único parcial `uk_objective_activity_external_comment` |
 | `20260808_01_remove_stages` | Elimina la tabla `stages`. La api sigue aceptando `stageId` porque la web lo manda |
 | `20260729_01_extend_attachments_entity_type_comment_split` | Separa `comment` en `objective_comment` y `requirement_comment`. Quedan filas legado con `comment` |
@@ -976,6 +1016,36 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 | `20260703_01` / `_02` | Crea `people_requirements` y migra el responsable único a la tabla intermedia |
 | `20260626_01_worked_times_requirement_id` | Permite imputar horas a un requisito, no solo a una tarea |
 | `20260612_03_attachments_entity_id_nullable` | Habilita drafts anclados al usuario |
+
+### Los índices del keyset (REQ-006)
+
+**Un campo del contrato de consultas se declara ordenable SOLO si tiene índice compuesto terminado
+en `id`.** No es una recomendación de performance: es lo que hace posible la paginación keyset, que
+resuelve la página siguiente con `WHERE (sort…, id) > (k…)` en vez de `OFFSET`. Sin el índice, cada
+página degrada a `Seq Scan` + `Sort` y el `statement_timeout` de 8000 ms de la conexión de solo
+lectura empieza a devolver `query_timeout` bajo carga normal.
+
+Consecuencias prácticas al tocar estas tablas:
+
+- **Agregar un campo ordenable al contrato es agregar un índice**, en la misma entrega. Si el índice
+  no se puede pagar, el campo se declara filtrable pero **no** ordenable — es exactamente el caso de
+  `objectives.estimated_finish_date`, que además es `VARCHAR` (inconsistencia 1).
+- **La dirección de cada columna importa.** PostgreSQL recorre un índice hacia atrás, pero un
+  compuesto con direcciones **mixtas** solo sirve al orden que declara y a su inverso exacto. Los
+  índices de arriba llevan `DESC` donde el default del recurso ordena descendente.
+- **Tres índices ya existían y no se recrean:** `attachments(entity_type, entity_id)`,
+  `projects(client_id)` (que **no se borra**) y `files(uploaded_by, byte_status)` — este último cubre
+  el caso "archivo sin vínculo, solo quien lo subió" de `files.get`.
+- **`user_project_permissions(user_id)` participa de TODA consulta en modo externo.** Es el índice de
+  menor tamaño y mayor frecuencia de uso del conjunto: es lo que hace barato el recorte que el
+  contrato **no permite desactivar por payload**.
+- **`projects.key_value_pairs` es `JSON` y no `JSONB`** (inconsistencia 3), así que **no admite GIN
+  con `@>`**. Por eso `properties` es incluible y **no** filtrable en el contrato, mientras
+  `requirements.tags` —que sí es `JSONB`— sí lo es.
+- **`CREATE INDEX` común toma un `SHARE` lock** y bloquea las escrituras mientras construye. Contra
+  `objectives`, `requirements` y `objective_activity` en producción hay que decidir entre ventana y
+  `CREATE INDEX CONCURRENTLY`, que **no puede correr dentro de la transacción** que `sequelize-cli`
+  abre por migración.
 
 ## Inconsistencias del esquema a tener en cuenta
 

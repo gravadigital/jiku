@@ -63,6 +63,18 @@ status: Draft - Importado desde código existente
     persona tiene que filtrarla.
   - La entrega del evento **no es durable** (NATS sin JetStream): un evento perdido no se reintenta
     ni se reconcilia, y la fila se corrige en la próxima autenticación de esa identidad.
+  - **Desde REQ-006 `roles` es el control de acceso efectivo de toda la superficie de lectura del
+    bus**, y deja de ser un dato solo informativo del espejo de identidad. De la columna sale una
+    **clase de caller** con tres valores —`internal-app` → **conector**, `user` → **interno**,
+    `external-user` → **externo**—, y con varios roles **gana el más restrictivo**
+    (`external-user` → `user` → `internal-app`). La clase se resuelve **una sola vez, en el
+    despachador de consultas**, y viaja en el contexto de la consulta: ningún módulo de recurso
+    vuelve a resolverla.
+  - Una identidad **sin fila, con `roles` vacío o con roles desconocidos** no puede leer nada por
+    el bus: la respuesta es `unknown_caller`, **nunca una colección vacía**. **Sin excepciones por
+    identidad**, incluido el service user de la api. Como la fila la crea un evento de entrega no
+    durable, la disponibilidad de la lectura por el bus **queda acoplada a la sincronización de
+    `users`**.
 
 ### Proyecto (`projects`)
 - **Atributos clave:** `code` (string), `name` (string), `type` (enum: interno/comercial/
@@ -75,6 +87,9 @@ status: Draft - Importado desde código existente
   `board_de_tareas` (validadas como URI) y `mattermost_group_name` — más propiedades dinámicas.
   En el bus este campo se llama `properties` y viaja como lista `{code, value}`.
   `type === 'interno'` deriva `AsignacionSemanal.internal`.
+  `ticketSlug` **no se expone ni se acepta como filtro en el contrato de consultas del bus**
+  (REQ-006): la columna está marcada para eliminarse (FG-6) y el contrato nace sin ella para que
+  el saneamiento no tenga que romper un contrato recién publicado.
 
 ### Requisito (`requirements`)
 - **Atributos clave:** `title` (string 255, req), `description` (text, req), `type` (enum:
@@ -91,7 +106,10 @@ status: Draft - Importado desde código existente
   las mantiene un hook `@BeforeUpdate` del modelo. Los tags se consultan con contains de `jsonb`.
   Es la **única entidad que un cliente externo puede crear**. `visibilityLevel: 'public'` significa
   **"visible para usuarios externos autenticados"** y nada más: desde REQ-002 no habilita acceso
-  anónimo a los adjuntos de la entidad.
+  anónimo a los adjuntos de la entidad. Desde REQ-006 ese significado gana un **segundo punto de
+  aplicación**: el recorte del modo externo del servicio de consultas exige
+  `visibilityLevel = 'public'` **además** del permiso de proyecto, y lo aplica **antes** del filtro
+  del caller.
 
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
@@ -103,9 +121,13 @@ status: Draft - Importado desde código existente
   has_many ActividadDeTarea, has_many HoraTrabajada
 - **Notas:** `finishedAt` lo mantiene un hook al entrar y salir de `finalizado`. `priority` es
   entero en la base y enum de nombres en el bus: la api traduce en ambos sentidos y core usa un
-  escape transitorio (`priorityValue`) para no perder el valor 5. `visibilityLevel: 'public'` significa
+  escape transitorio (`priorityValue`) para no perder el valor 5. Desde REQ-006 ese escape **se
+  formaliza en el contrato de lectura del bus**: la consulta devuelve `priority` como nombre de
+  enum **y** `priorityValue` con el entero crudo, y acepta filtrar por las dos formas — deja de ser
+  un escape y pasa a ser parte del contrato. `visibilityLevel: 'public'` significa
   **"visible para usuarios externos autenticados"**: desde REQ-002 no habilita acceso anónimo a
-  los adjuntos de la tarea.
+  los adjuntos de la tarea, y desde REQ-006 el recorte del modo externo de las consultas lo exige
+  además del permiso de proyecto.
 
 ### HoraTrabajada (`worked_times`)
 - **Atributos clave:** `date` (timestamp), `minutes` (int)
@@ -137,7 +159,8 @@ status: Draft - Importado desde código existente
   una actividad con `typeOfActivity: 'comment'`. Es lo que permite el feed cronológico unificado.
   La visibilidad de los cambios de campo **la decide el sistema, no el usuario**.
   `visibilityLevel: 'public'` significa **"visible para usuarios externos autenticados"**: desde
-  REQ-002 no habilita acceso anónimo a los adjuntos del comentario.
+  REQ-002 no habilita acceso anónimo a los adjuntos del comentario, y desde REQ-006 el recorte del
+  modo externo del servicio de consultas lo exige además del permiso de proyecto.
 
 ### Suscriptor (`requirement_subscriptors` / `objectives_subscriptors`)
 - **Atributos clave:** `userId` (string, req)
@@ -150,7 +173,11 @@ status: Draft - Importado desde código existente
 - **Relaciones:** belongs_to Usuario, belongs_to Proyecto
 - **Notas:** **La tabla que sostiene todo el aislamiento del portal de clientes.** Un
   `external-user` solo ve los proyectos con una fila acá. **No se administra desde ninguna
-  interfaz del producto:** se inserta a mano.
+  interfaz del producto:** se inserta a mano. **Desde REQ-006 gana un segundo punto de
+  aplicación:** hasta ahora el aislamiento lo aplicaba la api con `validateProjectPermissions`
+  antes de leer Postgres; el servicio de consultas la consulta por su cuenta para recortar a los
+  callers en modo externo, **antes** del filtro del caller y sin forma de desactivarlo por
+  payload.
 
 ### Archivo (`files`)
 - **Atributos clave:** `fileName` (string 255, req — el nombre original, **no** es la clave),
@@ -170,7 +197,11 @@ status: Draft - Importado desde código existente
   **identificables pero no se limpian**: el barrido quedó fuera de alcance (REQ-001).
   **El acceso a un archivo exige sesión en todos los casos** (REQ-002): eliminado el endpoint
   público, no queda ninguna vía anónima y la visibilidad de la entidad vinculada ya no habilita
-  acceso sin autenticar.
+  acceso sin autenticar. **Desde REQ-006 los tres atributos de ubicación física (`storageKey`,
+  `storageBucket`, `storageRegion`) son explícitamente no exponibles** en el contrato de lectura
+  del bus, que además **no mintea URLs**: obtener los bytes sigue siendo el comando
+  `files.{fileId}.request-download`. `checksum` se expone solo bajo pedido (`include`) y con la
+  advertencia de que nadie lo verifica.
 
 ### Adjunto (`attachments`)
 - **Atributos clave:** `entityType` (string, req), `entityId` (int, **req**), `fileId` (int, req)
@@ -193,6 +224,10 @@ status: Draft - Importado desde código existente
   `file-allowed-extensions`, `file-allowed-mime-types`. **Cada clave tiene un default en el
   código**, así que el sistema funciona sin valor cargado. `value` es `TEXT` y no
   `VARCHAR(255)` porque la lista de tipos MIME permitidos no entra en 255 caracteres.
+  **Desde REQ-006 la entidad deja de ser opaca para los consumidores:** `settings.list` la expone
+  en lectura por el bus, pero **solo por lista blanca de claves** (`hours-per-day` y las cinco de
+  archivos). Una clave no declarada **no existe** para esa API, aunque exista en la tabla. La
+  escritura sigue siendo solo por SQL.
 
 ---
 

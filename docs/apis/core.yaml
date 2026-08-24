@@ -24,13 +24,20 @@ info:
 
     **One process, two logical services on the bus.** Since REQ-004 the `core` process registers
     **two NATS micro services over a single connection**: `jiku-commands`, the 20 write commands
-    this spec describes, and `jiku-queries`, six read endpoints (`projects.list/get`,
-    `tasks.list/get`, `comments.list/get`) with their own queue group and their own read-only
-    connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE of this spec** —
-    the endpoints are registered and discoverable, but their filters, pagination, fields and
-    payloads are defined by a later requirement (RF-10 of REQ-004). Until then they answer a
-    well-formed `failure`. When that contract exists it gets its own spec; this file stays the
-    contract of the commands.
+    this spec describes, and `jiku-queries`, the read endpoints, with their own queue group and
+    their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
+    of this spec, and that is permanent** — this file stays the contract of the commands.
+
+    **REQ-006 defines that contract: 23 endpoints over 18 resources**, and it gets **its own spec**,
+    `docs/apis/core-queries.yaml` (AsyncAPI 2.6, same format, same "the document wins" rule),
+    written by the last story of that requirement. Until that story lands, the endpoints that have
+    no resource sheet yet are registered and discoverable and answer a well-formed `failure`
+    (`unknown_command`, "todavía no tiene contrato definido"); when it lands, `core/src/queries/pending.ts`
+    is deleted and `nats micro info jiku-queries` lists 23 endpoints with contract.
+
+    **What REQ-006 changes IN THIS FILE** is only what is shared with the commands: the `Reply`
+    envelope gains the optional `errorDetails`, and `ErrorCode` gains five codes that **no command
+    emits**. Both changes are additive; the 20 commands are unchanged.
 
     **Both services are discoverable.** `$SRV.PING` / `INFO` / `STATS` report, per endpoint,
     request count, mean latency and last error. One caveat worth knowing before building a
@@ -989,6 +996,27 @@ components:
             English and Spanish are mixed, sometimes in the same file. It is inherited
             inconsistency that was not unified because the frontends display some of them
             directly.
+
+            **Never put structured data in here** — see `errorDetails`. And **never the full
+            subject**: it carries the user id.
+        errorDetails:
+          type: object
+          additionalProperties: true
+          description: |
+            > **REQ-006 adds this field.** Optional, additive, and **absent** unless the emitter
+            > passes it: `failure(errorCode, errorMessage)` keeps producing a reply **without the
+            > key**, so the 20 commands are byte-for-byte unchanged.
+
+            Structured data about the error, so a caller never has to parse `errorMessage` with a
+            regex. The query contract (`jiku-queries`) uses it from day one — a rejected name comes
+            back as `{ field, value, allowed }` — and any command may start using it.
+
+            **What goes in here is CONTRACT data**: which field, which value, what was accepted.
+            Never stack traces, never database column names, never SQL fragments. It reaches the
+            caller and, once a consumer maps it to HTTP, potentially the end user.
+
+            Consumers that do not know the field ignore it (`api/lib/utils/bus/protocol.ts` parses
+            the envelope and drops unknown keys), so it is compatible in both directions.
         data:
           type: object
           description: Reply body. Absent on edits and deletes.
@@ -1147,11 +1175,57 @@ components:
         > already written next to `file_not_owned`. **In practice the api never receives it** (its
         > channel is exempt from the gate, see `info.description`); it is mapped anyway because
         > **the map belongs to the service, not to the endpoint**.
+
+        > **REQ-006 adds five codes, and NONE of them is emitted by a command.** They belong to the
+        > query plane (`jiku-queries`), whose contract lives in its own spec —
+        > `docs/apis/core-queries.yaml`. They are listed here because
+        > **`ErrorCode` is one shared catalog** in `@jiku/nats-protocol`, not one per plane.
+        >
+        > | Code | Emitter | HTTP (once a consumer exists) |
+        > |---|---|---|
+        > | `unknown_caller` | query dispatcher | **403** |
+        > | `query_timeout` | query engine (PostgreSQL `statement_timeout`, 8000 ms) | **504** |
+        > | `invalid_cursor` | query engine (keyset cursor) | **400** |
+        > | `comment_not_found` | `comments.get` | **404** |
+        > | `task_not_found` | `tasks.get` | **404** |
+        >
+        > **The HTTP column is documentation, not code.** REQ-006 does **not** implement
+        > `httpStatusForQuery` and does **not** touch `api/lib/utils/bus/protocol.ts`: when that REQ
+        > closes, `bus.query()` still has no caller, so none of these five ever reaches an HTTP
+        > response. The map belongs to the requirement that migrates the `GET` routes.
+        >
+        > **`unknown_caller` is NOT `caller_not_authorized`, and merging them would be a bug.**
+        > Two different questions, both live in the query plane, in this order:
+        > `authorizeCaller()` answers *"may this caller run this method?"* →
+        > `caller_not_authorized`; resolving the caller **class** answers *"what do I trim for
+        > them?"* → `unknown_caller` when there is no row in `users`, `roles` is empty, or the roles
+        > map to no known class. Merging them would force a future `httpStatusForQuery` to map one
+        > code to two causes and — worse — would erase the rule that **a caller with no row gets an
+        > ERROR, never an empty list**, which would read as "there is no data".
+        >
+        > **`task_not_found` COEXISTS with `objective_not_found`, deliberately.** The bus resource is
+        > called `tasks` (ADR-004: the product vocabulary lives in the contract, not in the schema),
+        > so its not-found code is `task_not_found`. `objective_not_found` stays exactly where it is
+        > — emitted by the commands — because retiring it would mean touching commands that REQ-006
+        > declares untouched, and changing `sendCommand`'s HTTP map, which it also declares
+        > untouched.
+        >
+        > **The `*_not_found` codes of the query plane do not distinguish "does not exist" from "you
+        > cannot see it".** Answering a permission error would confirm to an external user that the
+        > resource exists. And **a `list` never returns `*_not_found`**: a filter that matches
+        > nothing is `items: []`.
       enum:
         - invalid_fields
         - internal_error
         - unknown_command
         - caller_not_authorized
+        # REQ-006 — the five codes of the query plane. NONE is emitted by a command; see the note
+        # above. Their contract lives in `docs/apis/core-queries.yaml`.
+        - unknown_caller
+        - query_timeout
+        - invalid_cursor
+        - comment_not_found
+        - task_not_found
         - client_not_found
         - project_not_found
         - objective_not_found

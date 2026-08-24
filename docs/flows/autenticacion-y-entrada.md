@@ -4,8 +4,8 @@ title: Autenticación y entrada al sistema
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-18
-stories: []
+last_updated: 2026-08-24
+stories: [S-023]
 ---
 
 # Autenticación y Entrada al Sistema
@@ -13,7 +13,7 @@ stories: []
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-18
+**Última actualización:** 2026-08-24
 **Stories:** —
 
 ## Descripción
@@ -230,3 +230,20 @@ ambos, un access token vencido fuerza re-login.
 - **Zitadel es un punto único de fallo con dos alcances distintos:** si está caído, nadie entra
   (molesto pero visible) y **los servicios no pueden renovar su token de bus**, así que la
   escritura se detiene cuando el token vigente expira (grave y menos evidente).
+
+### Un segundo lugar donde una identidad sin fila en `users` bloquea el acceso (REQ-006 · S-023)
+
+**Hasta REQ-006, el síntoma de una identidad sin fila en `users` era un 401 `user_not_found` en
+HTTP.** Desde S-023 hay un **segundo lugar donde la misma limitación se aplica**, sobre otra
+superficie: **toda consulta por el bus** de un caller cuyo id del subject no tenga fila en `users`,
+o la tenga con `roles: []`, o solo con roles fuera del mapa de clases, responde **`unknown_caller`**
+— nunca una lista vacía, que se leería como "no hay datos".
+
+- **Son dos compuertas consecutivas, no una.** `authorizeCaller()` (REQ-005) responde *"¿puede
+  ejecutar este método?"* → `caller_not_authorized`; la resolución de la **clase del caller**
+  (REQ-006) responde *"¿qué le recorto?"* → `unknown_caller`. La primera **exime** al
+  `CORE_TRUSTED_PUBLISHER_ID` sin tocar la base; **la segunda no exime a nadie, la api incluida**.
+- **La api no es excepción, y es deliberado.** Si su evento de autenticación se perdió, sus consultas
+  fallan hasta que su próxima autenticación contra el bus reponga la fila. **No hay lista de service
+  users privilegiados en configuración.**
+- El recorrido completo está en `docs/flows/consulta-por-el-bus.md`, Paso 3.

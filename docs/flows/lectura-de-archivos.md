@@ -4,8 +4,8 @@ title: Lectura de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-23
-stories: [S-002, S-005, S-006, S-007, S-009, S-014]
+last_updated: 2026-08-24
+stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027]
 ---
 
 # Lectura de Archivos
@@ -13,7 +13,7 @@ stories: [S-002, S-005, S-006, S-007, S-009, S-014]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-20
+**Última actualización:** 2026-08-24
 **Stories:** S-002, S-005, S-006, S-007, S-009
 
 > **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)**,
@@ -502,3 +502,21 @@ un solo byte.**
   el permiso de proyecto pasó a ser la **única** puerta a un adjunto, sin alternativa. Lo que **no**
   cambió es el modelo de confianza del bus: quien pueda publicar sigue pudiendo pedir la URL de
   cualquier archivo por su `fileId` (ADR-007, ADR-009). REQ-002 cerró una puerta HTTP, no esa.
+
+### Frontera explícita: la descarga y el preview NO son consultas (REQ-006 · S-027)
+
+REQ-006 agrega una **superficie de lectura de metadatos por el bus** —`files.get` y
+`attachments.list`— que **no reemplaza este flujo y no lo toca**:
+
+- **Esta API no mintea URLs** (RF-27 de REQ-006). `files.get` devuelve `id`, `fileName`, `fileSize`,
+  `mimeType`, `byteStatus`, `retentionStatus`, `uploadedBy`, `createdAt` y, bajo pedido, `checksum`.
+  **Obtener los bytes sigue siendo el comando `files.{fileId}.request-download`**, que es donde vive
+  el efecto de firmar, con su vencimiento y su auditoría. Una consulta es idempotente y sin efectos;
+  mintear una prefirmada es un efecto.
+- **`storageKey`, `storageBucket` y `storageRegion` nunca se devuelven**, ni como campo ni como
+  filtro: pedirlos responde `invalid_fields`.
+- **Un archivo con `retentionStatus` distinto de `active` responde `file_not_found`** en `files.get`,
+  igual que un id inexistente y que uno no visible: el contrato **no distingue las tres situaciones**.
+- **En modo externo**, `files.get` aplica dos ramas: el archivo se ve si alguna de sus entidades
+  dueñas es visible **o**, si no tiene ningún vínculo vivo, **solo si el propio caller lo subió**.
+- El recorrido completo está en `docs/flows/consulta-por-el-bus.md`.
