@@ -26,6 +26,8 @@ sub:
     - "{{instance}}.*.jiku-commands.>"
     # Todo el protocolo de consultas, ídem.
     - "{{instance}}.*.jiku-queries.>"
+    # TOdos los eventos
+    - "{{instance}}.events.>"
     # Discovery y stats de micro: qué servicios hay, en qué versión y con qué endpoints.
     # Es la mitad del diagnóstico ("¿está registrado el servicio?"), y es metadata: este
     # rol ya escucha payloads de negocio completos, así que no amplía el riesgo.

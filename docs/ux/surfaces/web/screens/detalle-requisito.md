@@ -386,6 +386,7 @@ date: 2026-08-18
 - Mensajes: `error.message` o `"Error al actualizar el requisito"` (actualización); `error.message` o `"Error al agregar el comentario"` (comentario); **con REQ-001** `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10) y `"El archivo no está disponible"` al abrir un adjunto cuyo contenido nunca llegó (RF-21, CA-15)
 - Cambios: ninguno en la pantalla; el toast aparece en el contenedor del shell (`RequirementDetail.tsx:108`, `RequirementActivityForm.tsx:50`) [fuente: código-existente]
 - **El error al refrescar el requisito no se maneja:** `RequirementDetailContainer` hace `requirement ?? initialRequirement`, así que si el refetch falla **se sigue mostrando el dato del render inicial sin ningún aviso** — la pantalla se ve normal con datos potencialmente viejos (`RequirementDetailContainer.tsx:19`). El error al cargar las tareas vinculadas tampoco: `linkedObjectives` viene en el mismo payload del requisito y, si falta, la tabla queda vacía sin distinguir de "no hay tareas" (`RequirementDetail.tsx:33`) [fuente: código-existente]
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). Los dos salen por los toasts que ya existen: **la pantalla no se modifica**. Aplica a las tres escrituras de la pantalla —avanzar el workflow, editar la clasificación inline y comentar—: con el 503 nada ocurrió; con el 504 **pudo haber ocurrido**, y acá el reintento a ciegas es especialmente caro porque el cambio de estado y el comentario son **actividad del feed**: se duplican a la vista, y si son públicos **el cliente los ve duplicados en Opus**. Agrava el problema que ya está anotado abajo: si el refetch del requisito falla, la pantalla sigue mostrando el dato viejo sin avisar, así que el usuario no puede verificar si el cambio entró [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -480,6 +481,13 @@ date: 2026-08-18
 ### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
 
 - **La subida gana representación visible donde antes no tenía ninguna.** El progreso real es lo único que el rediseño le aporta al usuario de esta pantalla (RF-8), y sin un bloque propio se perdería: el botón de adjuntar no tiene estado de carga.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **Se documenta en el estado de error, no en un bloque nuevo.** `web` no se modifica (RF-16) y los dos mensajes viajan en el cuerpo del error. Lo que cambia es la recuperación, y la recuperación es información de estado.
+- **Es la pantalla donde el 504 y un gap previo se multiplican.** El `requirement ?? initialRequirement` hace que un refetch fallido muestre datos viejos sin avisar. Con una sola falla genérica eso era molesto; con el 504 —"pudo haber ocurrido"— es lo que le saca al usuario **la única forma de verificar** si su cambio entró. Queda anotado: no se corrige acá porque es código de `web`.
+- **La edición inline de clasificación (O-04) no recibe tratamiento propio.** Cambiar estado, tipo o prioridad es idempotente: reintentar el mismo valor no crea nada. El desdoblamiento no cambia la acción del usuario ahí, así que no se documenta por separado.
+
 - **Enviar el comentario queda deshabilitado mientras un archivo sube.** El sistema no verifica que el byte llegue (D-13), así que enviar antes de tiempo produciría un comentario con un adjunto vacío y sin síntoma hasta que alguien lo abra. Se descartó encolar el envío por eso.
 - **`file_not_available` se comunica al abrir, no al listar.** El adjunto embebido en el markdown se sigue mostrando; el mensaje aparece cuando el usuario intenta verlo (RF-21, CA-15). Se descartó marcar los adjuntos rotos en el feed: exigiría verificar cada uno al renderizar, y el propio REQ registra que cada lectura cuesta un comando por el bus.
 - **El error de titularidad se dice en lenguaje de personas.** *"No podés adjuntar un archivo que subió otra persona"* en lugar de nombrar propiedad de archivos, un concepto que la interfaz nunca expuso.

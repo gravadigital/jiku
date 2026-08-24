@@ -280,6 +280,7 @@ El módulo declara además dos cortes propios (`@media (max-width: 1024px)` que 
 - Cambios:
   - Solo el toast; el formulario queda con los datos cargados
   - No hay manejo de `isError` de `useProjects` ni de `usePersons`: ante un fallo los selects quedan vacíos sin explicación (`:222`, `:~223`)
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). Los dos salen por el mismo toast de `error.message`: **la pantalla no se modifica**. Con el 503 el requisito **no se creó** y reintentar es seguro; con el 504 **pudo haberse creado**, y el duplicado no se queda en `web`: un requisito nace `public`, así que **el cliente lo ve por duplicado en Opus** sin que nadie se lo explique. La recuperación correcta es revisar el listado antes de repetir el submit [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -332,6 +333,12 @@ El módulo declara además dos cortes propios (`@media (max-width: 1024px)` que 
 ### REQ-001 — Rediseño de archivos y adjuntos (2026-08-19)
 
 - **Los adjuntos embebidos del editor dejan de subirse como borrador.** El archivo pasa a existir por sí solo y el vínculo con el requisito se crea al guardar, en la misma operación (RF-1, RF-3, RF-4). **Para el usuario el gesto no cambia** —sigue pudiendo adjuntar antes de que el requisito exista, que es lo que RF-1 preserva a propósito— así que no se modificó la estructura ni el layout de la pantalla: se corrigió la anotación de mecanismo, que describía un patrón eliminado.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **El duplicado que puede dejar un 504 acá cruza a la otra superficie.** Es lo que distingue esta pantalla de las otras altas: el requisito nace con `visibility_level: public`, así que un reintento a ciegas no ensucia solo el listado interno — le muestra dos pedidos iguales al cliente en Opus. Por eso el estado de error nombra la consecuencia cross-surface, y el flujo 1 de `cross-surface-flows.md` la registra del lado del cliente.
+- **Sin bloque nuevo, por decisión del REQ.** `web` no se modifica (RF-16): los dos mensajes viajan en el cuerpo y salen por el toast existente.
+
 - **El límite de tamaño y las extensiones dejan de decidirse en el cliente.** Son configurables en caliente y los valida `core` (RF-6, RF-15). El mensaje de rechazo llega del servidor.
 - **Se agrega un modo de fallo que antes no existía:** intentar adjuntar un archivo subido por otra persona falla con *"No podés adjuntar un archivo que subió otra persona"* (RF-12, CA-10). En esta pantalla es improbable —el usuario adjunta lo que acaba de subir— pero es alcanzable si se recupera un formulario de otra sesión.
 

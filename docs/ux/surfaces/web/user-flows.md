@@ -64,7 +64,16 @@ Es el flujo de **mayor frecuencia del producto** y el que sostiene toda la traza
 - **Tope diario superado** — El error informa **cuántos minutos quedan disponibles**, así que el
   usuario puede corregir el monto sin adivinar. Es el mejor mensaje de error del producto.
 - **Tarea y requisito a la vez** — El selector agrupado lo previene por construcción: se elige uno.
-- **Bus caído** — 503. La carga no ocurrió y **no queda registro de que se intentó**.
+- **No hay quién atienda el comando** — `503 service_unavailable`, *"El servicio no está
+  disponible en este momento"*. La carga **no ocurrió** y **no queda registro de que se intentó**;
+  reintentar es seguro [REQ-004 RF-16, CA-8].
+- **La respuesta no llegó a tiempo** — `504 gateway_timeout`, *"La operación tardó demasiado"*. La
+  carga **pudo haber ocurrido**: si el registro se escribió y la respuesta se perdió, reintentar
+  duplica el asiento y consume el tope diario dos veces. La interfaz no puede distinguirlo, así que
+  la recuperación correcta es **mirar la lista del día antes de reintentar**, no volver a apretar
+  [REQ-004 RF-16, CA-9]. Antes los dos casos colapsaban en un 503 genérico y la nota del flujo de
+  sistema decía que el usuario veía *"un 503 de una operación que sí ocurrió"*: eso es lo que este
+  desdoblamiento hace nombrable.
 
 ### Estado final
 
@@ -126,6 +135,14 @@ lo ve en Opus sin que nadie se lo comunique.
 - **Adjunto cuyo contenido nunca llegó** — Al abrirlo dice *"El archivo no está disponible"*, no un
   error genérico (RF-21, CA-15). El sistema registra el archivo antes de recibir su contenido y no
   verifica que haya llegado, así que este caso es alcanzable si la subida se corta a mitad.
+- **Falla del bus** — Se separa en dos casos con recuperación opuesta [REQ-004 RF-16, CA-8, CA-9].
+  `503 service_unavailable` (*"El servicio no está disponible en este momento"*): el avance de
+  estado o el comentario **no ocurrió**, reintentar es seguro. `504 gateway_timeout` (*"La operación
+  tardó demasiado"*): **pudo haber ocurrido**, y como el cambio de estado y el comentario son
+  actividad del feed, un reintento a ciegas puede dejar **dos entradas** — y si son públicas, el
+  cliente las ve duplicadas en Opus. La recuperación es **refrescar el requisito antes de repetir**,
+  con un agravante: si el refetch falla la pantalla sigue mostrando el dato viejo sin avisar, así
+  que la verificación puede mentir.
 
 ### Estado final
 
@@ -168,6 +185,11 @@ Es el contrapunto del flujo 1: acá se registra **lo planeado**, allá **lo ocur
 - **Semana pasada** — La api rechaza. **No hay aviso previo en la interfaz**: el usuario descubre
   la restricción al intentar guardar.
 - **Fallo al guardar** — La transacción del ORM revierte: la semana queda como estaba.
+- **Este es el único flujo de escritura que no pasa por el bus**, así que el desdoblamiento
+  503/504 de [REQ-004] **no aplica acá**: `PUT /api/week-assigned-times` escribe con el ORM
+  (excepción 3 de ADR-001) y no hay caso "pudo haber ocurrido" — o la transacción commiteó, o
+  revirtió. Se registra explícitamente para que no se asuma lo contrario por analogía con los otros
+  tres flujos.
 
 ### Estado final
 
@@ -215,6 +237,12 @@ Es lo que hace que el flujo 1 tenga contra qué imputar.
   proyecto o el requisito.
 - **Fallo en una de varias tareas** — Cada tarea es un comando propio: **las que ya se crearon
   quedan**. No hay atomicidad entre los formularios del mismo submit.
+- **Falla del bus** — Como cada tarea es un comando propio, la falla es por tarea y los dos casos
+  se resuelven distinto [REQ-004 RF-16, CA-8, CA-9]. Con `503 service_unavailable` **ninguna** salió
+  y reintentar es seguro. Con `504 gateway_timeout` **no se sabe cuáles llegaron**, y volver a
+  apretar "Guardar" reenvía los N formularios y duplica las que sí se crearon. Es el flujo donde el
+  reintento a ciegas hace más daño, y el que convierte el fallo parcial ya conocido en un caso
+  reproducible en vez de una posibilidad.
 
 ### Estado final
 

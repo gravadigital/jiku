@@ -270,6 +270,7 @@ Sin media query, la grilla de 2 columnas se mantiene a 400px de ancho: cada camp
 - Mensaje: toast `"Hubo un error al crear el proyecto"`
 - Cambios: ninguno en la pantalla; el formulario queda con los datos (`:191-193`). En un fallo de render, el boundary heredado `projects/error.tsx:6-11` muestra `"Error"` + `error.message` [fuente: código-existente]
 - **El error al cargar clientes no se maneja:** `useClients` sin `isError`; ante un fallo, `clients` cae al default `[]` y el select de cliente queda vacío sin explicación, mientras `isLoadingClients` pasa a false y la pantalla se muestra (`:146`, `:227`) [fuente: código-existente]
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). **La pantalla no se modifica**: hoy el toast es un literal fijo (`"Hubo un error al crear el proyecto"`) y **descarta el mensaje de la api**, así que la distinción llega al navegador y **no llega al usuario**. Con el 503 el proyecto no se creó; con el 504 pudo haberse creado y el formulario, que queda con los datos, invita a reintentar y duplicar. Es el caso donde el desdoblamiento existe y la pantalla lo tira [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -347,3 +348,8 @@ Limpieza del payload antes de enviar (`:162-180`): `endDate` falsy → se elimin
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **Se documenta un gap que el REQ deja al descubierto sin crearlo.** Esta pantalla usa un literal fijo en el toast en vez del `message` de la api, a diferencia de alta-actor y alta-requisito. Antes daba lo mismo —el mensaje del servidor era igual de genérico—; con el desdoblamiento 503/504 pasa a ser una pérdida de información concreta. **No se corrige acá:** es código de `web` y el REQ lo deja explícitamente sin cambios (RF-16). Queda anotado para el requerimiento que lo trate.
+- **No se agrega bloque ni estado nuevo.** La distinción no tiene representación visual propia por decisión del REQ: viaja en el cuerpo del error y sale por el toast del shell.

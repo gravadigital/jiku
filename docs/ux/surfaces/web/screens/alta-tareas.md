@@ -202,6 +202,7 @@ Notas de transcripción [fuente: código-existente]:
 - Cambios:
   - Solo el toast. No navega, no marca nada, los N formularios quedan como estaban (`:149-151`)
 - Nota: **el fallo parcial no está resuelto.** El envío es `Promise.all(formsData.map(mutateAsync))` (`:136`): las N mutaciones salen en paralelo y `Promise.all` rechaza con el primer error, sin esperar ni reportar el resto. Las que sí se crearon quedan creadas, y volver a apretar `"Guardar"` reenvía todas, duplicando las ya creadas [fuente: código-existente]. Tampoco hay manejo de `isError` de `usePersons` (`:81`) ni de `useProjects` (`:82-84`): los selects quedan vacíos sin explicación
+- **REQ-004: la falla del bus se parte en dos, y en esta pantalla el 504 es el peor caso de la superficie.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9), y los dos salen por el mismo toast: **la pantalla no se modifica**. Pero cada tarea es un comando propio y el submit es un `Promise.all` de N mutaciones, así que el 503 y el 504 se resuelven distinto: con el 503 **ninguna** salió y reintentar es seguro, mientras que con el 504 **no se sabe cuáles llegaron** y volver a apretar `"Guardar"` reenvía los N formularios, duplicando las que sí se crearon. Es la misma falla parcial que ya existe, ahora con un caso que la garantiza en vez de dejarla como posibilidad [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -250,3 +251,8 @@ Notas de transcripción [fuente: código-existente]:
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **Se documenta la interacción entre el 504 y el fallo parcial que ya estaba.** El `Promise.all` sin reporte por formulario era deuda declarada; el desdoblamiento del REQ no la crea, pero le da un disparador concreto y frecuente. Se anota en el estado de error para que quien retome el fallo parcial sepa que ahora tiene un caso reproducible, no solo una hipótesis.
+- **No se agrega marca por formulario ni estado nuevo.** Resolver el fallo parcial —marcar qué tarea se creó y qué tarea no— es un rediseño de esta pantalla y no está en el alcance del REQ, que deja `web` sin cambios (RF-16). Queda como gap conocido, no como delta de este requerimiento.

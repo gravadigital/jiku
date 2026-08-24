@@ -42,6 +42,22 @@ case "${1:-up}" in
       exit 1
     }
 
+    # The callout publishes an authentication event per connection, and refuses to start
+    # without the credential it publishes them with. Checked here rather than left to the
+    # container, because a path that does not exist is far cheaper to read in this message
+    # than in the logs of a container that keeps restarting.
+    #
+    # It is its own script, and not part of bootstrap.sh's one-shot run, because it has to be
+    # addable to an installation that already exists.
+    [[ -f nats/creds/callout-events.creds ]] || {
+      echo "nats/creds/callout-events.creds is missing: the auth-callout publishes an" >&2
+      echo "authentication event per connection and does not start without it." >&2
+      echo "" >&2
+      echo "Generate it (it invalidates nothing already distributed):" >&2
+      echo "  ./nats/add-events-user.sh" >&2
+      exit 1
+    }
+
     echo "==> database"
     $COMPOSE up -d database
     until docker exec jiku-local-database pg_isready -U "$DATABASE_USER" -q 2>/dev/null; do

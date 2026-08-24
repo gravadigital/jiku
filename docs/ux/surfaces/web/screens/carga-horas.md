@@ -298,6 +298,7 @@ Notas de transcripción [fuente: código-existente]:
 - Mensaje: toast `apiError.message` o `"Error al cargar horas"` (`:197`) · `"Error al registrar ausencia"` (`:219`) · `"Error al eliminar"` (`DayEntriesList.tsx:113`) · `"Error al eliminar ausencia"` (`:128`)
 - Cambios: solo toasts
 - Nota: **el error de las cargas del día no se maneja.** `DayEntriesList` desestructura solo `isLoading` de sus dos queries e ignora `isError`, así que ante un fallo las listas quedan vacías y se muestra `"No hay cargas para este día"`: **un error es indistinguible de un día sin cargas** (`DayEntriesList.tsx:82`, `:181`). Lo mismo con el semáforo: un fallo deja todos los días en `empty`, visualmente idéntico a "no cargué nada" (`DaySelector.tsx:26-28`). `usePersons` (`:~86`) y la query de motivos (`:104`) tampoco manejan `isError`: los selects quedan vacíos [fuente: código-existente]
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` —no hay ningún `jiku-commands` escuchando, mensaje `"El servicio no está disponible en este momento"`— de `504 gateway_timeout` —la respuesta no llegó a tiempo, mensaje `"La operación tardó demasiado"`— (RF-16, CA-8, CA-9). Los dos salen por el mismo toast de `apiError.message`: **la pantalla no se modifica**. Lo que cambia es qué puede hacer el usuario: con el 503 la carga **no ocurrió** y reintentar es seguro; con el 504 **pudo haber ocurrido**, y reintentar duplica el asiento y consume el tope diario dos veces. La única recuperación disponible es **mirar la lista del día antes de repetir** — y el toast dura 2 segundos, así que puede desaparecer antes de que el usuario lea la diferencia [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -349,3 +350,9 @@ Notas de transcripción [fuente: código-existente]:
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **No se agrega ningún bloque para el 504, y es una decisión.** El REQ deja `web` sin cambios de código a propósito (RF-16): la api separa las dos fallas y el frontend muestra el mensaje que viene en el cuerpo. Diseñar acá un `alert` propio para el timeout habría inventado UI que el REQ declaró fuera de alcance. Lo que sí se documenta es la **consecuencia**, porque cambia la recuperación del usuario y ninguna otra pieza la registra.
+- **Es la pantalla donde el 504 duele más de la superficie.** Es el flujo de mayor frecuencia (flujo 1 de `user-flows`) y su escritura **no es idempotente**: un asiento duplicado no solo ensucia el dato, consume el tope de 1440 minutos del día. Por eso el estado de error dice explícitamente "mirar la lista antes de reintentar" en vez de "reintentar".
+- **Descartado avisar del riesgo de duplicado en la confirmación de borrado (O-02).** El borrado sí es idempotente desde el punto de vista del usuario: reintentar un borrado que ya ocurrió no crea nada. El desdoblamiento no cambia nada ahí.

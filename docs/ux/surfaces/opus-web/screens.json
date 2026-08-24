@@ -15,7 +15,6 @@
     {
       "name": "login",
       "displayName": "Login",
-      "route": "/login",
       "audiences": [
         "cliente"
       ],
@@ -24,10 +23,18 @@
           "name": "fondo-arcos",
           "type": "image",
           "category": "content",
-          "content": "Fondo decorativo · ocho elipses + gradiente",
+          "content": "Fondo decorativo · ocho elipses + gradiente fadeToWhite",
           "aspect_ratio": "16:10",
           "h": 120,
-          "annotation": "SVG inline escrito a mano en el JSX · preserveAspectRatio=\"xMidYMid slice\": recorta en vez de deformarse"
+          "annotation": "SVG inline viewBox=\"0 0 1440 900\" escrito a mano en el JSX (login/page.tsx:20-102) · capa absoluta inset:0 detrás de todo · preserveAspectRatio=\"xMidYMid slice\": recorta en vez de deformarse · sin aria-hidden ni role=presentation"
+        },
+        {
+          "name": "tarjeta-bienvenida",
+          "type": "section",
+          "category": "layout",
+          "h": 44,
+          "content": "Stack centrado · max-width 480px",
+          "annotation": "contenedor de composición sin fondo, borde ni sombra — no es un card del diccionario: es un stack centrado en los dos ejes con padding 0 24px (login.module.scss:30-40)"
         },
         {
           "name": "logo-circular",
@@ -36,7 +43,7 @@
           "content": "Opus",
           "aspect_ratio": "1:1",
           "h": 110,
-          "annotation": "logo.png a 76×76 dentro de un círculo blanco de 120×120 · lleva priority"
+          "annotation": "logo.png a 76×76 dentro de un círculo blanco de 120×120 (login.module.scss:43-52) · lleva priority para que Next no lo cargue lazy · alt=\"Opus\""
         },
         {
           "name": "titulo",
@@ -44,7 +51,7 @@
           "category": "content",
           "level": "h1",
           "content": "¡Bienvenido a OPUS!",
-          "annotation": "única vez en toda la aplicación que la marca se escribe en mayúsculas · desde REQ-002 también recibe a quien abre un link viejo de adjunto sin sesión (/attachments/{id}/{fileName}): la ruta se borró y attachments salió del matcher, así que el guard redirige acá (RF-1, RF-2, CA-1). No hay mensaje contextual —descarte explícito del REQ— y este título es todo el texto disponible para quien no venía a entrar al portal"
+          "annotation": "hardcodeado sin i18n (login/page.tsx:111) · única vez en toda la aplicación que la marca se escribe en mayúsculas · desde REQ-002 también recibe a quien abre un link viejo de adjunto sin sesión (/attachments/{id}/{fileName}): la ruta se borró y attachments salió del matcher, así que el guard redirige acá (RF-1, RF-2, CA-1). No hay mensaje contextual —descarte explícito del REQ— y este título es todo el texto disponible para quien no venía a entrar al portal"
         },
         {
           "name": "descripcion",
@@ -52,7 +59,7 @@
           "category": "content",
           "level": "body",
           "content": "Seguí el avance de tu proyecto y conocé el estado de cada tarea al instante.",
-          "annotation": "única declaración de propósito de producto del código · dice \"tarea\", no \"requisito\""
+          "annotation": "única declaración de propósito de producto de todo el código · max-width 360px · usa voseo y dice \"tarea\", no \"requisito\""
         },
         {
           "name": "flecha-descendente",
@@ -60,7 +67,7 @@
           "category": "content",
           "icon": "arrow-down",
           "content": "",
-          "annotation": "decorativa, apunta al botón · sin aria-hidden"
+          "annotation": "flecha 24×32 dibujada a mano (línea + polilínea) en SVG inline · puramente decorativa, apunta al botón · sin animación y sin aria-hidden"
         },
         {
           "name": "boton-ingresar",
@@ -68,12 +75,12 @@
           "category": "input",
           "variant": "primary",
           "content": "Iniciar sesión",
-          "annotation": "signIn('zitadel') · navega fuera de la aplicación",
+          "annotation": "on click → setLoading(true) + signIn('zitadel', {callbackUrl:'/login/enter'}), que navega fuera de la aplicación al proveedor de identidad (login/page.tsx:12-15) · único elemento interactivo de la composición",
           "state_overrides": {
             "loading": {
               "variant": "disabled",
               "content": "Cargando...",
-              "annotation": "el estado no se revierte nunca: sin catch ni finally"
+              "annotation": "el estado no se revierte nunca: signIn no tiene catch ni finally, así que si no navega el botón queda deshabilitado de forma permanente · el cambio no se anuncia (sin aria-busy ni aria-live)"
             }
           }
         }
@@ -81,6 +88,7 @@
       "layouts": {
         "mobile": [
           "fondo-arcos",
+          "tarjeta-bienvenida",
           "logo-circular",
           "titulo",
           "descripcion",
@@ -90,6 +98,8 @@
         "desktop": [
           {
             "row": "centrado",
+            "fixed_cols": "minmax(0,1fr) 480px minmax(0,1fr)",
+            "annotation": "sin media queries: misma composición que en mobile, centrada en los dos ejes con la tarjeta a max-width 480px (login.module.scss:4-13, :30-40)",
             "cols": [
               {
                 "w": 3,
@@ -99,6 +109,7 @@
                 "w": 6,
                 "stack": [
                   "fondo-arcos",
+                  "tarjeta-bienvenida",
                   "logo-circular",
                   "titulo",
                   "descripcion",
@@ -120,15 +131,38 @@
           "applies": true
         },
         {
+          "name": "empty",
+          "applies": false
+        },
+        {
           "name": "loading",
           "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": false
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": false
         }
       ]
     },
     {
       "name": "login-entrada",
-      "displayName": "Login entrada (sin UI)",
-      "route": "/login/enter",
+      "displayName": "Login entrada",
       "audiences": [
         "cliente"
       ],
@@ -138,8 +172,8 @@
           "type": "section",
           "category": "layout",
           "h": 90,
-          "content": "Sin interfaz — server component que redirige",
-          "annotation": "POST /api/auth/present (timeout 10 s) y redirect('/') · el componente no devuelve JSX, así que no hay DOM que pintar"
+          "content": "Sin interfaz · server component que ejecuta el alta y redirige",
+          "annotation": "bloque sintético: la tabla ## Estructura no declara ninguno porque el componente no devuelve JSX (login/enter/page.tsx:4-7). Hace POST /api/auth/present con Bearer del accessToken (timeout 10 s, lib/axios.ts:17) y después redirect('/') — siempre, tanto si el alta funcionó como si falló (el error se traga con console.warn, authApi.ts:24-31). La cadena completa son cuatro redirecciones: Zitadel → /login/enter → / → /projects → /projects/{primerId}/requirements?view=list. No hay loading.tsx en la ruta, así que durante el POST el navegador sigue mostrando la pantalla anterior sin señal de actividad, y la transición no se anuncia (sin aria-live ni DOM propio)"
         }
       ],
       "layouts": {
@@ -147,24 +181,122 @@
           "sin-interfaz"
         ],
         "desktop": [
-          "sin-interfaz"
+          {
+            "row": "centrado",
+            "annotation": "no hay layout que declarar: la pantalla no pinta nada en ningún ancho. El usuario ve el estado de transición del navegador",
+            "cols": [
+              {
+                "w": 2,
+                "stack": []
+              },
+              {
+                "w": 8,
+                "stack": [
+                  "sin-interfaz"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": []
+              }
+            ]
+          }
         ]
       },
       "states": [
         {
           "name": "default",
           "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": false
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": false
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": false
         }
       ]
     },
     {
       "name": "proyectos-redireccion",
       "displayName": "Proyectos (redirección)",
-      "route": "/projects",
       "audiences": [
         "cliente"
       ],
       "blocks": [
+        {
+          "name": "contenedor-centrado",
+          "type": "section",
+          "category": "layout",
+          "h": 44,
+          "content": "Stack centrado en los dos ejes",
+          "annotation": "contenedor de composición sin tipo propio en el diccionario: flex column con align/justify center, min-height 300px y gap var(--spacing-md), ocupando el <main> completo (projects/page.module.scss:15-23). En mobile solo cambia el padding (dos @include mobile, :8 y :26)"
+        },
+        {
+          "name": "indicador-carga",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando...",
+          "visible_only_in_states": [
+            "loading",
+            "default"
+          ],
+          "annotation": "Spinner size=\"lg\" con texto visualmente oculto \"Cargando...\" (Spinner.tsx:11) · role=\"status\" + aria-label=\"Cargando\" (Spinner.tsx:9) · visible en loading y en el default, que acá es \"redirigiendo\""
+        },
+        {
+          "name": "texto-estado",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Redirigiendo...",
+          "annotation": "todos los mensajes hardcodeados · la pantalla no tiene <h1> en ningún estado · el default es \"redirigiendo\": el useEffect ya disparó el router.push y no hay indicación de a qué proyecto se está entrando (projects/page.tsx:63-70)",
+          "state_overrides": {
+            "loading": {
+              "content": "Cargando proyectos...",
+              "annotation": "disparado por isLoading de useProjects() (projects/page.tsx:27-36)"
+            },
+            "empty": {
+              "content": "No tienes proyectos asignados",
+              "annotation": "disparado por !projects || projects.length === 0 (projects/page.tsx:51-59) · usa \"tú\" mientras el resto de la aplicación vosea · es terminal de hecho: la única salida es el logout del sidebar, que bajo 768px no existe · no distingue \"no te asignaron\" de \"no tenés permisos\" ni de \"el alta en la api falló\""
+            },
+            "error de sistema": {
+              "content": "Error al cargar los proyectos",
+              "annotation": "disparado por isError de useProjects() (projects/page.tsx:38-49) · se pinta en --color-error · sin role=\"alert\", no se anuncia"
+            }
+          }
+        },
+        {
+          "name": "boton-reintentar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Reintentar",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "on click → refetch() de useProjects (projects/page.tsx:43) · no navega · único elemento interactivo, y solo existe en el estado de error"
+        },
         {
           "name": "sidebar-navegacion",
           "type": "sidebar",
@@ -191,54 +323,12 @@
           "visible_only_in_viewports": [
             "desktop"
           ],
-          "annotation": "chrome de (dashboard) · 263px fijos · display:none bajo 768px, y no se monta reemplazo"
-        },
-        {
-          "name": "indicador-carga",
-          "type": "loader",
-          "category": "feedback",
-          "content": "Cargando...",
-          "hidden_in_states": [
-            "empty",
-            "error de sistema"
-          ],
-          "annotation": "Spinner size=lg · role=\"status\" + aria-label=\"Cargando\""
-        },
-        {
-          "name": "texto-estado",
-          "type": "paragraph",
-          "category": "content",
-          "level": "body",
-          "content": "Redirigiendo...",
-          "annotation": "la pantalla no tiene <h1> en ningún estado",
-          "state_overrides": {
-            "loading": {
-              "content": "Cargando proyectos..."
-            },
-            "empty": {
-              "content": "No tienes proyectos asignados",
-              "annotation": "usa \"tú\" mientras el resto de la aplicación vosea · no distingue \"no te asignaron\" de \"perdiste el permiso\" ni de \"el alta falló\""
-            },
-            "error de sistema": {
-              "content": "Error al cargar los proyectos",
-              "annotation": "se pinta en --color-error · sin role=\"alert\", no se anuncia"
-            }
-          }
-        },
-        {
-          "name": "boton-reintentar",
-          "type": "button",
-          "category": "input",
-          "variant": "primary",
-          "content": "Reintentar",
-          "visible_only_in_states": [
-            "error de sistema"
-          ],
-          "annotation": "refetch() de useProjects · no navega"
+          "annotation": "chrome del grupo (dashboard), no de esta pantalla · 263px fijos · display:none bajo 768px (Sidebar.module.scss:13) sin reemplazo: en mobile no hay ninguna navegación, y con el empty el usuario queda sin salida"
         }
       ],
       "layouts": {
         "mobile": [
+          "contenedor-centrado",
           "indicador-carga",
           "texto-estado",
           "boton-reintentar"
@@ -246,6 +336,7 @@
         "desktop": [
           {
             "row": "shell",
+            "fixed_cols": "263px minmax(0,1fr)",
             "cols": [
               {
                 "w": 3,
@@ -260,19 +351,20 @@
                     "row": "centrado",
                     "cols": [
                       {
-                        "w": 3,
+                        "w": 2,
                         "stack": []
                       },
                       {
-                        "w": 6,
+                        "w": 8,
                         "stack": [
+                          "contenedor-centrado",
                           "indicador-carga",
                           "texto-estado",
                           "boton-reintentar"
                         ]
                       },
                       {
-                        "w": 3,
+                        "w": 2,
                         "stack": []
                       }
                     ]
@@ -289,73 +381,51 @@
           "applies": true
         },
         {
-          "name": "loading",
-          "applies": true
-        },
-        {
           "name": "empty",
           "applies": true
         },
         {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
           "name": "error de sistema",
           "applies": true
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": false
         }
       ]
     },
     {
       "name": "tablero-requisitos",
       "displayName": "Tablero de requisitos",
-      "route": "/projects/[projectId]/requirements",
       "audiences": [
         "cliente"
       ],
       "blocks": [
         {
-          "name": "sidebar-navegacion",
-          "type": "sidebar",
+          "name": "encabezado-tablero",
+          "type": "header",
           "category": "layout",
-          "content": "Opus",
-          "items": [
-            {
-              "title": "Proyecto Alfa",
-              "icon": "folder"
-            },
-            {
-              "title": "Proyecto Beta",
-              "icon": "folder"
-            },
-            {
-              "title": "Nuevo requisito",
-              "icon": "plus"
-            },
-            {
-              "title": "Cerrar sesión",
-              "icon": "lock"
-            }
-          ],
-          "active": 0,
-          "visible_only_in_viewports": [
-            "desktop"
-          ],
+          "content": "Requisitos",
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "toda la navegación de la superficie · bajo 768px desaparece y no hay reemplazo"
-        },
-        {
-          "name": "boton-nuevo-requisito",
-          "type": "button",
-          "category": "input",
-          "variant": "primary",
-          "content": "Nuevo requisito",
-          "icon": "plus",
-          "visible_only_in_viewports": [
-            "desktop"
-          ],
-          "hidden_in_states": [
-            "loading"
-          ],
-          "annotation": "vive en el sidebar del shell (Sidebar.tsx:95-98) · abre CreateRequirementModal montado por (dashboard)/layout.tsx:13 · bajo 768px desaparece con el sidebar"
+          "annotation": "BoardHeader · 61px de alto fijo, space-between: contiene breadcrumb y toggle-vista · recibe onNewRequirement de la pantalla y lo ignora (BoardHeader.tsx:24, renombrado _onNewRequirement): acá no hay botón de nuevo requisito · se renderiza también en mobile"
         },
         {
           "name": "breadcrumb",
@@ -368,7 +438,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "si useProjects falla cae al literal \"Proyecto\" · <div> sin <nav>, no es semántico"
+          "annotation": "{nombre del proyecto} › Requisitos · el separador › es un carácter literal (BoardHeader.tsx:76) · el nombre viene de useProjects y si la query falla cae al literal \"Proyecto\" (requirements/page.tsx:133) · <div> sin <nav aria-label> ni lista: no es semántico, y la pantalla no tiene <h1>"
         },
         {
           "name": "toggle-vista",
@@ -382,7 +452,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "router.replace con ?view= · en mobile se muestra y no hace nada: la rama de useIsMobile está por encima"
+          "annotation": "router.replace con ?view=list / ?view=kanban, no push: no ensucia el historial · SVG de líneas y de cuadrantes · dos <button> sin role=tab ni aria-pressed, el activo se marca solo por clase · en mobile se muestra y no hace nada: la rama de useIsMobile() está en la pantalla, por encima del header"
         },
         {
           "name": "cabecera-columnas",
@@ -391,31 +461,31 @@
           "columns": [
             {
               "label": "ID",
-              "width": 6
+              "width": "6%"
             },
             {
               "label": "TÍTULO",
-              "width": 34
+              "width": "30%"
             },
             {
               "label": "ESTADO",
-              "width": 13
+              "width": "13%"
             },
             {
               "label": "CREACIÓN",
-              "width": 12
+              "width": "13%"
             },
             {
               "label": "AUTOR",
-              "width": 13
+              "width": "14%"
             },
             {
               "label": "TIPO",
-              "width": 10
+              "width": "11%"
             },
             {
               "label": "PRIORIDAD",
-              "width": 12
+              "width": "13%"
             }
           ],
           "rows": [],
@@ -425,7 +495,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "sticky con sombra al scrollear · mayúsculas en el código, no por CSS"
+          "annotation": "sticky al tope del scroll, con sombra cuando isScrolled (ListView.tsx:75) · las etiquetas van en mayúsculas en el código, no por CSS (ListView.tsx:77-83) · grid-template-columns real: 64px 1fr 140px 140px 160px 120px 150px, acá pasadas a % del ancho medido a 1440px"
         },
         {
           "name": "fila-grupo",
@@ -433,7 +503,31 @@
           "category": "content",
           "items": [
             {
+              "title": "Análisis · 4",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Planificación · 2",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "En cola · 3",
+              "icon": "chevron-down"
+            },
+            {
               "title": "Desarrollo · 12",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Revisión · 1",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Resuelto · 28",
+              "icon": "chevron-down"
+            },
+            {
+              "title": "Cancelado · 5",
               "icon": "chevron-down"
             }
           ],
@@ -443,7 +537,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "clickeable, colapsa el grupo · en desktop arrancan colapsados solo resuelto y cancelado"
+          "annotation": "una cabecera de grupo por estado (STATE_LABELS, RequirementGroupRow.tsx:14-22), ancho completo y clickeable: colapsa/expande el grupo · ChevronDown de 14px rotado al colapsar · en desktop arrancan colapsados solo resuelto y cancelado · un grupo expandido y vacío muestra \"Sin elementos\" (ListView.tsx:112), y los vacíos arrancan colapsados, así que casi nunca se ve · en el wireframe las 7 se dibujan juntas y las filas del grupo expandido van abajo"
         },
         {
           "name": "fila-requisito",
@@ -452,31 +546,31 @@
           "columns": [
             {
               "label": "ID",
-              "width": 6
+              "width": "6%"
             },
             {
               "label": "TÍTULO",
-              "width": 34
+              "width": "30%"
             },
             {
               "label": "ESTADO",
-              "width": 13
+              "width": "13%"
             },
             {
               "label": "CREACIÓN",
-              "width": 12
+              "width": "13%"
             },
             {
               "label": "AUTOR",
-              "width": 13
+              "width": "14%"
             },
             {
               "label": "TIPO",
-              "width": 10
+              "width": "11%"
             },
             {
               "label": "PRIORIDAD",
-              "width": 12
+              "width": "13%"
             }
           ],
           "rows": [
@@ -523,7 +617,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "click abre el overlay de detalle · autor ausente → \"—\", tipo nulo → \"Sin tipo\" · fila sin role ni tabIndex, no alcanzable por teclado"
+          "annotation": "click abre el overlay de detalle (ListView.tsx:108) · autor sin nombre → \"—\", fecha nula → \"—\", tipo nulo o sin_tipo → \"Sin tipo\" · fecha con toLocaleDateString('es-ES', day 2-digit / month short / year numeric) · icono Calendar de 12px · mismo grid de 7 columnas que la cabecera, hecho con <div> + display:grid sin roles de tabla y sin role/tabIndex/onKeyDown: no es alcanzable por teclado"
         },
         {
           "name": "pill-estado",
@@ -537,7 +631,13 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "es dropdown solo para roles internos (user/admin) · para external-user es un <span> estático, sin chevron y sin nada que indique que es de solo lectura · click hace stopPropagation para no abrir el detalle"
+          "state_overrides": {
+            "readonly": {
+              "icon": null,
+              "annotation": "external-user: <span> estático, sin chevron y sin ninguna marca de solo lectura (ListRequirementRow.tsx:193-198)"
+            }
+          },
+          "annotation": "valores: Análisis, Planificación, En cola, Desarrollo, Revisión, Resuelto, Cancelado · es dropdown solo para roles internos (isInternal = roles incluye 'user' o 'admin') · para external-user es un <span> estático sin chevron y nada indica que sea de solo lectura · click con stopPropagation para no abrir el detalle · ofrece los 7 estados siempre y en cualquier orden: no valida transiciones · sin update optimista, el pill no cambia hasta el refetch de las 7 queries"
         },
         {
           "name": "pill-prioridad",
@@ -551,7 +651,13 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "bandera de color + chevron cuando es editable · mismo tratamiento por rol que pill-estado · valores: Sin prioridad, Baja, Media, Alta, Urgente"
+          "state_overrides": {
+            "readonly": {
+              "icon": null,
+              "annotation": "external-user: <span> estático, sin chevron y sin ninguna marca de solo lectura"
+            }
+          },
+          "annotation": "valores: Sin prioridad, Baja, Media, Alta, Urgente (PRIORITY_LABEL, ListRequirementRow.tsx:44-50) · bandera de color + chevron cuando es editable · mismo tratamiento por rol que pill-estado, con stopPropagation en :217 · éxito → toast \"Requisito actualizado correctamente\"; falla → toast \"Error al actualizar la prioridad\""
         },
         {
           "name": "columna-kanban",
@@ -565,20 +671,21 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "?view=kanban · 500px fijos, colapsable por click en la cabecera · las 7 columnas suman 3620px: siempre hay scroll horizontal"
+          "annotation": "solo con ?view=kanban · una columna por estado (Análisis, Planificación, En cola, Desarrollo, Revisión, Resuelto, Cancelado), flex 0 0 500px con gap 20px: las 7 suman 3620px y siempre hay scroll horizontal · colapsable por click en la cabecera (<header onClick> sin rol ni teclado) · una columna vacía no muestra ningún mensaje"
         },
         {
           "name": "card-kanban",
           "type": "card",
           "category": "content",
-          "content": "#1042 · Exportar reporte de horas a Excel\n12 mar 2026 · María Núñez",
+          "content": "#1042 · Exportar reporte de horas a Excel",
+          "paragraph": "12 mar 2026 · María Núñez",
           "visible_only_in_viewports": [
             "desktop"
           ],
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "los pills solo se muestran si el requisito tiene descripción — condición no explicada en el código · fecha en UTC con formato propio, distinto del de la lista"
+          "annotation": "click abre el overlay de detalle (KanbanBoard.tsx:64) · los pills solo se muestran si el requisito tiene descripción (KanbanCard.tsx:140), condición que el código no explica · fecha con formato propio en UTC, distinto del de la lista · <article onClick> sin role=button ni tabIndex"
         },
         {
           "name": "boton-ver-mas",
@@ -586,59 +693,31 @@
           "category": "input",
           "variant": "secondary",
           "content": "Ver más",
-          "hidden_in_states": [
-            "loading"
+          "visible_only_in_states": [
+            "default"
           ],
-          "annotation": "solo si hasMore · trae 20 más de ese estado · paginación independiente por estado",
-          "state_overrides": {}
+          "annotation": "aparece solo si hasMore · fetchNextPage() trae 20 requisitos más de ese estado, con paginación independiente por estado · en carga parcial (isFetchingNextPage) pasa a disabled con spinner y \"Cargando...\" · implementaciones idénticas en KanbanColumn.tsx:87-94 y StateAccordion.tsx:91-98: en la vista lista no existe"
         },
         {
           "name": "acordeon-estado",
-          "type": "list",
+          "type": "section",
           "category": "content",
-          "items": [
-            {
-              "title": "Análisis · 4",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "Planificación · 2",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "En cola · 3",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "Desarrollo · 12",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "Revisión · 1",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "Resuelto · 28",
-              "icon": "chevron-down"
-            },
-            {
-              "title": "Cancelado · 5",
-              "icon": "chevron-down"
-            }
-          ],
+          "h": 56,
+          "content": "Análisis · 4",
           "visible_only_in_viewports": [
             "mobile"
           ],
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "todos arrancan colapsados · su aria-label dice \"objetivos\", no \"requisitos\" · los 7 se pintan del mismo color (getStateDataAttribute siempre devuelve 'backlog')"
+          "annotation": "un acordeón por estado en MOBILE_STATES_ORDER, todos colapsados al abrir (useState(new Set())) · etiqueta + conteo, con chevron · role=button, tabIndex=0, Enter/Space y aria-expanded — resuelto, a diferencia de desktop · su aria-label dice \"objetivos\", no \"requisitos\" (StateAccordion.tsx:58) · getStateDataAttribute mapea un enum que ya no existe y siempre devuelve 'backlog': los 7 se pintan del mismo color · expandido y vacío: \"Sin requisitos en este estado\""
         },
         {
           "name": "card-requisito-mobile",
           "type": "card",
           "category": "content",
-          "content": "Exportar reporte de horas a Excel\n#1042 · 12 mar 2026",
+          "content": "Exportar reporte de horas a Excel",
+          "paragraph": "#1042 · 12 mar 2026",
           "icon": "calendar",
           "visible_only_in_viewports": [
             "mobile"
@@ -646,7 +725,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "no muestra estado, tipo, autor ni prioridad — la representación más reducida de las tres · es un <Link>: navega en vez de abrir overlay"
+          "annotation": "es un <Link>: navega a /projects/{id}/requirements/{reqId} en vez de abrir el overlay — modelo de navegación distinto del de desktop · SVG de calendario inline de 14px · no muestra estado, tipo, autor ni prioridad: la representación más reducida de las tres"
         },
         {
           "name": "indicador-carga",
@@ -656,110 +735,23 @@
           "visible_only_in_states": [
             "loading"
           ],
-          "annotation": "disparado por queries.some(isLoading) — las siete a la vez: la pantalla espera a la más lenta, sin carga progresiva"
-        }
-      ],
-      "layouts": {
-        "mobile": [
-          "breadcrumb",
-          "toggle-vista",
-          "acordeon-estado",
-          "card-requisito-mobile",
-          "boton-ver-mas",
-          "indicador-carga"
-        ],
-        "desktop": [
-          {
-            "row": "shell",
-            "cols": [
-              {
-                "w": 3,
-                "stack": [
-                  "sidebar-navegacion",
-                  "boton-nuevo-requisito"
-                ]
-              },
-              {
-                "w": 9,
-                "stack": [
-                  {
-                    "row": "header",
-                    "cols": [
-                      {
-                        "w": 6,
-                        "stack": [
-                          "breadcrumb"
-                        ]
-                      },
-                      {
-                        "w": 6,
-                        "stack": [
-                          "toggle-vista"
-                        ]
-                      }
-                    ]
-                  },
-                  "cabecera-columnas",
-                  "fila-grupo",
-                  "fila-requisito",
-                  {
-                    "row": "tablero-kanban",
-                    "fixed_cols": "500px 500px 500px",
-                    "cols": [
-                      {
-                        "w": 4,
-                        "card": true,
-                        "stack": [
-                          "columna-kanban",
-                          "card-kanban",
-                          "pill-estado",
-                          "pill-prioridad"
-                        ]
-                      },
-                      {
-                        "w": 4,
-                        "card": true,
-                        "stack": [
-                          "columna-kanban",
-                          "card-kanban"
-                        ]
-                      },
-                      {
-                        "w": 4,
-                        "card": true,
-                        "stack": [
-                          "columna-kanban"
-                        ]
-                      }
-                    ]
-                  },
-                  "boton-ver-mas",
-                  "indicador-carga"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "states": [
-        {
-          "name": "default",
-          "applies": true
+          "annotation": "Spinner size=lg con role=status y el texto visualmente oculto \"Cargando...\" · reemplaza la pantalla entera, incluido el BoardHeader (requirements/page.tsx:153-162) · disparado por queries.some(isLoading) — las 7 queries a la vez: espera a la más lenta, sin carga progresiva por columna"
         },
         {
-          "name": "loading",
-          "applies": true
-        }
-      ]
-    },
-    {
-      "name": "detalle-requisito",
-      "displayName": "Detalle de requisito",
-      "route": "/projects/[projectId]/requirements/[requirementId]",
-      "audiences": [
-        "cliente"
-      ],
-      "blocks": [
+          "name": "boton-nuevo-requisito",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Nuevo requisito",
+          "icon": "plus",
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "vive en el sidebar del shell (Sidebar.tsx:95-98), no en el cuerpo de la pantalla · abre el overlay de alta de requisito (CreateRequirementModal, montado por (dashboard)/layout.tsx:13), disponible en todas las pantallas del grupo · bajo 768px desaparece con el sidebar y no hay reemplazo · REQ-004: ante un 504 el alta no muestra nada y el reintento probable duplica el requisito"
+        },
         {
           "name": "sidebar-navegacion",
           "type": "sidebar",
@@ -787,12 +779,161 @@
           "visible_only_in_viewports": [
             "desktop"
           ],
+          "annotation": "chrome del grupo (dashboard), no de esta pantalla: proyectos + alta + cerrar sesión, 263px a la izquierda · click en un proyecto entra a su tablero (Sidebar.tsx:40) · display:none bajo 768px sin reemplazo (Sidebar.module.scss:13): en mobile no hay ninguna navegación"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "breadcrumb",
+          "toggle-vista",
+          {
+            "row": "acordeones",
+            "annotation": "MobileRequirementsBoard: árbol de componentes propio, no un reflow del de desktop · acordeon-estado × 7 de ancho completo, apilados con gap var(--spacing-sm) — Análisis · 4, Planificación · 2, En cola · 3, Desarrollo · 12, Revisión · 1, Resuelto · 28, Cancelado · 5 · todos arrancan colapsados; acá el primero se dibuja expandido con sus cards y el \"Ver más\" · sin chrome: el sidebar no se renderiza",
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "acordeon-estado",
+                  "card-requisito-mobile",
+                  "boton-ver-mas",
+                  "acordeon-estado",
+                  "acordeon-estado"
+                ]
+              }
+            ]
+          },
+          "indicador-carga"
+        ],
+        "desktop": [
+          {
+            "row": "shell",
+            "fixed_cols": "263px minmax(0,1fr)",
+            "annotation": "chrome de (dashboard): sidebar de 263px a la izquierda, con boton-nuevo-requisito dentro",
+            "cols": [
+              {
+                "w": 3,
+                "stack": [
+                  "sidebar-navegacion",
+                  "boton-nuevo-requisito"
+                ]
+              },
+              {
+                "w": 9,
+                "stack": [
+                  {
+                    "row": "header",
+                    "annotation": "BoardHeader: space-between de 61px entre dos grupos de ancho natural — las fracciones 6/12 son aproximadas, no hay grilla",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "breadcrumb"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "toggle-vista"
+                        ]
+                      }
+                    ]
+                  },
+                  "cabecera-columnas",
+                  "fila-grupo",
+                  "fila-requisito",
+                  {
+                    "row": "tablero-kanban",
+                    "fixed_cols": "500px 500px 500px",
+                    "annotation": "vista kanban (?view=kanban): excluyente con la lista de arriba, se dibuja debajo porque el book renderiza un solo layout por viewport · 3 de las 7 columnas de 500px fijos, con scroll horizontal",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban",
+                          "card-kanban",
+                          "pill-estado",
+                          "pill-prioridad",
+                          "boton-ver-mas"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban",
+                          "card-kanban"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "card": true,
+                        "stack": [
+                          "columna-kanban"
+                        ]
+                      }
+                    ]
+                  },
+                  "indicador-carga"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": false
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "readonly",
+          "applies": false
+        }
+      ]
+    },
+    {
+      "name": "detalle-requisito",
+      "displayName": "Detalle de requisito",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "encabezado-detalle",
+          "type": "header",
+          "category": "layout",
+          "content": "Breadcrumb + acciones del detalle",
           "hidden_in_states": [
             "loading",
             "error de sistema",
             "not found"
           ],
-          "annotation": "chrome de (dashboard) · ausente en mobile"
+          "annotation": "sin texto propio: es el mismo BoardHeader del tablero invocado con requirementId (61px de alto). Contiene el breadcrumb y los tres botones de acción, que se dibujan como bloques propios"
         },
         {
           "name": "breadcrumb",
@@ -808,7 +949,7 @@
             "error de sistema",
             "not found"
           ],
-          "annotation": "con requirementId presente, \"Requisitos\" pasa a ser un <button> clickeable"
+          "annotation": "{nombre del proyecto} › \"Requisitos\" › #{id}; el separador es un carácter literal. Con requirementId presente \"Requisitos\" pasa a ser un button clickeable que vuelve al tablero; sin él es un span. No es semántico: div sin nav aria-label ni lista"
         },
         {
           "name": "boton-enlace",
@@ -822,7 +963,7 @@
             "error de sistema",
             "not found"
           ],
-          "annotation": "copia la URL y vuelve a \"Enlace\" a los 2 s · el cambio a \"Copiado\" no se anuncia (sin aria-live)"
+          "annotation": "copia {origin}/projects/{projectId}/requirements/{requirementId} al portapapeles y pasa a \"Copiado\" con icono Check por 2 segundos. El cambio no se anuncia: sin aria-live"
         },
         {
           "name": "boton-suscripcion",
@@ -836,7 +977,7 @@
             "error de sistema",
             "not found"
           ],
-          "annotation": "solo se renderiza para external-user · no dispara ninguna notificación: no hay canal en el producto (FG-2) · en error dice \"Error\" con el motivo en un title, invisible en touch"
+          "annotation": "solo se renderiza para external-user. Alterna a \"Desuscribirse\" según si el currentUserId está en subscribers; en curso dice \"...\" y en error \"Error\", con el motivo \"Error al procesar la solicitud\" en un title invisible en touch. Ni el éxito ni el error están implementados como estado"
         },
         {
           "name": "boton-volver",
@@ -850,40 +991,85 @@
             "error de sistema",
             "not found"
           ],
-          "annotation": "router.push al tablero"
+          "annotation": "router.push al tablero de requisitos del proyecto"
         },
         {
           "name": "panel-propiedades",
           "type": "sidebar",
           "category": "layout",
-          "content": "Propiedades",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "columna de propiedades del requisito: 220px fijos en desktop; en mobile pasa a ancho completo y el borde lateral se vuelve inferior. Contiene estado, tipo, prioridad, suscriptores y fechas, con las etiquetas en mayúsculas por CSS. No aporta elementos focalizables"
+        },
+        {
+          "name": "propiedad-estado",
+          "type": "badge",
+          "category": "content",
+          "content": "ESTADO · Desarrollo",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "punto de color + etiqueta del estado actual: Análisis, Planificación, En cola, Desarrollo, Revisión, Resuelto, Cancelado. De solo lectura acá para todos los roles, incluidos los internos que sí lo editan en el tablero, y nada lo indica"
+        },
+        {
+          "name": "propiedad-tipo",
+          "type": "section",
+          "category": "content",
+          "content": "TIPO · Funcionalidad",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "grupo etiqueta/valor sin tipo propio. Ausencia: \"Sin tipo\""
+        },
+        {
+          "name": "propiedad-prioridad",
+          "type": "badge",
+          "category": "content",
+          "content": "PRIORIDAD · Alta",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "bandera de color + etiqueta de la prioridad: Sin prioridad, Baja, Media, Alta, Urgente. De solo lectura acá para todos los roles"
+        },
+        {
+          "name": "lista-suscriptores",
+          "type": "list",
+          "category": "content",
           "items": [
             {
-              "title": "ESTADO · Desarrollo"
+              "title": "María Núñez"
             },
             {
-              "title": "TIPO · Funcionalidad"
-            },
-            {
-              "title": "PRIORIDAD · Alta"
-            },
-            {
-              "title": "SUSCRIPTORES · María Núñez"
-            },
-            {
-              "title": "FECHA DE CREACIÓN · 12 de marzo 2026"
-            },
-            {
-              "title": "ÚLTIMA ACTUALIZACIÓN · 18 de marzo 2026"
+              "title": "Diego Sosa"
             }
           ],
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "220px fijos en desktop · en mobile pasa a ancho completo con borde inferior · ausencias: \"Sin tipo\", \"Sin prioridad\", \"Sin suscriptores\", \"Sin fecha\"; la fecha de finalización no se renderiza si no hay"
+          "annotation": "etiqueta \"SUSCRIPTORES\" + lista de nombres. Es una ul/li real, el único listado semántico de la pantalla. Ausencia: \"Sin suscriptores\""
+        },
+        {
+          "name": "propiedad-fechas",
+          "type": "section",
+          "category": "content",
+          "content": "FECHA DE CREACIÓN · 12 de marzo 2026   ·   ÚLTIMA ACTUALIZACIÓN · 18 de marzo 2026",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "formato d 'de' MMMM yyyy con locale es de date-fns. \"Fecha de finalización\" no se renderiza si no hay fecha; las otras dos muestran \"Sin fecha\". \"Última actualización\" se calcula como el createdAt máximo de la actividad, no de un campo del requisito"
         },
         {
           "name": "titulo-requisito",
@@ -894,38 +1080,34 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "28px acá y 26px en el overlay, mismo componente · la jerarquía arranca en h2: no hay h1 en la pantalla"
+          "annotation": "28px en esta pantalla y 26px en el overlay, mismo componente. La jerarquía arranca en h2: no hay ningún h1 en la pantalla"
         },
         {
           "name": "descripcion",
           "type": "paragraph",
           "category": "content",
           "level": "body",
-          "content": "Necesitamos bajar las horas cargadas por proyecto y por persona a una planilla, con el mismo corte semanal que usamos hoy en la reunión de los lunes. Ausencia: \"Sin descripción\".",
+          "content": "Necesitamos bajar las horas cargadas por proyecto y por persona a una planilla, con el mismo corte semanal que usamos hoy en la reunión de los lunes.",
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "RichContentRenderer: parsea adjuntos en dos formatos y el resto por markdown · si el HEAD del adjunto falla hay un catch vacío y se muestra sin nombre ni tamaño · desde REQ-002 es el único acceso a un archivo que queda en el producto: el preview y el HEAD entran por /api/attachments/{N}/preview y siguen byte por byte igual (RF-6, CA-5, CA-6), pero abrir un adjunto exige sesión en todos los casos y no hay ningún control de compartir hacia afuera (RF-8, CA-8)"
+          "annotation": "RichContentRenderer parsea los placeholders de adjunto en dos formatos —![attach:N] de este frontend y [nombre](/api/attachments/N/preview) del gestor interno— y renderiza preview de imagen o bloque de descarga; el resto pasa por markdown. Los adjuntos se resuelven con un HEAD por adjunto y si ese fetch falla hay un catch vacío: el adjunto queda sin nombre ni tamaño. Ausencia: \"Sin descripción\". Desde REQ-002 es el único acceso a un archivo que queda en el producto y abrir un adjunto exige sesión en todos los casos: no hay ningún control de compartir"
         },
         {
           "name": "bloque-resolucion",
           "type": "section",
           "category": "content",
-          "h": 54,
-          "content": "Resolución — solo si type === 'incidencia' y hay resolutionComment",
+          "content": "RESOLUCIÓN · Se corrigió el cálculo de las horas de la semana partida y se republicó el reporte",
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "un requisito de otro tipo con resolución cargada no la muestra"
+          "annotation": "solo se muestra si type === 'incidencia' Y hay resolutionComment: un requisito de otro tipo con resolución cargada no la muestra"
         },
         {
           "name": "pie-autoria",
@@ -936,10 +1118,9 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "dice \"Elemento\", no \"Requisito\" · creador ausente → \"—\""
+          "annotation": "dice \"Elemento\", no \"Requisito\". Creador ausente: \"—\""
         },
         {
           "name": "titulo-actividad",
@@ -950,36 +1131,57 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "en mayúsculas en el código; en el overlay el literal es \"Actividad\" y las dos hojas aplican uppercase"
+          "annotation": "en mayúsculas en el código; en el overlay el literal es \"Actividad\" y las dos hojas aplican text-transform: uppercase: el literal difiere, el resultado visual no"
         },
         {
           "name": "feed-actividad",
           "type": "list",
           "category": "content",
+          "items_count": 0,
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "contenedor del historial: la secuencia de item-comentario e item-cambio en orden ascendente (lo más viejo arriba), así que lo último queda al fondo, junto al editor, y no hay auto-scroll. Vacío: \"No hay actividad registrada\". No es una lista semántica: divs anidados sin ul/li ni role=list",
+          "state_overrides": {
+            "success": {
+              "annotation": "el comentario nuevo aparece al fondo del feed tras invalidar ['requirement', requirementId] — sin toast ni confirmación explícita"
+            }
+          }
+        },
+        {
+          "name": "item-comentario",
+          "type": "card",
+          "category": "content",
+          "content": "María Núñez · hace 3 días",
+          "paragraph": "Confirmamos que el export tiene que incluir las ausencias.",
+          "visible_only_in_states": [
+            "default",
+            "error de validación",
+            "success"
+          ],
+          "annotation": "avatar de iniciales (dos primeras palabras del nombre) + fecha relativa con formatDistanceToNow, locale es y addSuffix. Autor ausente: \"Usuario\""
+        },
+        {
+          "name": "item-cambio",
+          "type": "list",
+          "category": "content",
+          "variant": "timeline",
           "items": [
-            {
-              "title": "María Núñez · hace 3 días",
-              "subtitle": "Confirmamos que el export tiene que incluir las ausencias."
-            },
             {
               "title": "Diego Sosa cambió Estado",
               "subtitle": "de En cola a Desarrollo · hace 2 días"
-            },
-            {
-              "title": "Diego Sosa · hace 1 día",
-              "subtitle": "Arranco por el reporte semanal y sigo con el mensual."
             }
           ],
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "orden ascendente: lo último queda al fondo, junto al editor · sin auto-scroll · vacío: \"No hay actividad registrada\" · no es una lista semántica (<div> anidados)"
+          "annotation": "punto y línea de timeline. Nombres de campo: Estado, Prioridad, Tipo, Título, Descripción; para Descripción no muestra los valores, solo \"cambió Descripción\". Conserva \"Programado\" y \"Finalizado\" de un enum anterior como fallback legible del historial migrado. La línea se dibuja salvo cuando el ítem siguiente es un comentario"
         },
         {
           "name": "editor-comentario",
@@ -990,18 +1192,17 @@
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "usa \"tú\", no voseo · el <textarea> no tiene etiqueta, solo placeholder · se parte en un textarea por segmento de texto al insertar un adjunto · con REQ-001 el mensaje de rechazo deja de nombrar el límite: \"10MB\" es configurable en caliente (RF-15) y quedaría mintiendo",
+          "annotation": "usa \"tú\" (\"Escribe\"), no voseo: queda registrado como hallazgo de microcopy y no se corrige acá. El textarea no tiene etiqueta, solo placeholder. RichTextEditor parte el valor en segmentos y renderiza un textarea por segmento de texto: al insertar un adjunto en el medio, el texto se parte en dos textareas independientes. El p role=alert de arriba muestra también \"Sin permiso para comentar\" (403), \"No podés adjuntar un archivo que subió otra persona\" y \"El archivo no está disponible\" (REQ-001) y, con REQ-004, \"El servicio no está disponible en este momento\" (503) o \"La operación tardó demasiado\" (504): con el 504 el comentario pudo haberse agregado y reintentar deja dos comentarios iguales",
           "state_overrides": {
             "error de validación": {
               "state": "error",
-              "error_msg": "El archivo supera el tamaño máximo permitido"
+              "error_msg": "El archivo supera el tamaño máximo permitido",
+              "annotation": "p role=alert sobre el editor: \"El archivo supera el tamaño máximo permitido\", \"Ese tipo de archivo no está permitido\" o \"Error al subir el archivo\". Con REQ-001 el límite y las listas los valida el servidor y son configurables en caliente, así que el mensaje deja de nombrar el número y el rechazo llega después de intentar subir. El comentario vacío sigue sin mensaje: el submit hace return en silencio"
             },
             "success": {
-              "content": "Escribe un comentario...",
-              "annotation": "tras enviar se limpian texto, adjuntos y error — pero el foco no vuelve al editor"
+              "annotation": "tras enviar se limpian el texto, los adjuntos pendientes y el error — sin toast ni confirmación explícita, y el foco no vuelve al editor"
             }
           }
         },
@@ -1011,30 +1212,13 @@
           "category": "input",
           "variant": "secondary",
           "content": "Adjuntar",
-          "icon": "upload",
+          "icon": "paperclip",
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "input file oculto. Con REQ-001 el tamaño y las extensiones son configurables en caliente y los valida el servidor (RF-6, RF-15), así que el cliente no puede anticipar el rechazo. La subida es de a un archivo por vez (RF-7)",
-          "state_overrides": {
-            "subiendo adjunto": {
-              "variant": "disabled"
-            }
-          }
-        },
-        {
-          "name": "progreso-subida-adjunto",
-          "type": "progress-bar",
-          "category": "feedback",
-          "content": "Subiendo captura-pantalla.png... 58%",
-          "visible_only_in_states": [
-            "subiendo adjunto"
-          ],
-          "annotation": "Subiendo captura-pantalla.png… 58% · bloque nuevo con REQ-001 (RF-8). Reemplaza al AttachmentSkeleton indeterminado que aparecía al final del editor: el byte va directo al storage y el porcentaje es real. Mismo bloque en los dos viewports, siempre dentro del editor",
-          "fill": 0.58
+          "annotation": "dispara un input type=file oculto. Queda deshabilitado mientras hay una subida en curso (de a un archivo por vez, RF-7) y mientras se envía el comentario. Con REQ-001 el tamaño y las listas de extensiones y MIME son del servidor y configurables en caliente (RF-6, RF-15): el cliente ya no puede anticipar el rechazo"
         },
         {
           "name": "boton-enviar",
@@ -1042,23 +1226,13 @@
           "category": "input",
           "variant": "primary",
           "content": "Enviar",
-          "icon": "arrow-right",
+          "icon": "send",
           "visible_only_in_states": [
             "default",
             "error de validación",
-            "success",
-            "subiendo adjunto"
+            "success"
           ],
-          "annotation": "deshabilitado si no hay contenido o si la mutación está en curso · el comentario vacío no da mensaje: el submit hace return en silencio",
-          "state_overrides": {
-            "error de validación": {
-              "variant": "disabled"
-            },
-            "subiendo adjunto": {
-              "variant": "disabled",
-              "annotation": "enviar mientras el byte viaja vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13)"
-            }
-          }
+          "annotation": "deshabilitado si no hay contenido, si la mutación está en curso o mientras sube un adjunto: enviar con el byte en viaje vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13). El comentario vacío no da mensaje. Con REQ-001 el vínculo se crea contra archivos que ya existen y el comentario y sus vínculos se guardan juntos o no se guarda ninguno"
         },
         {
           "name": "indicador-carga",
@@ -1068,7 +1242,36 @@
           "visible_only_in_states": [
             "loading"
           ],
-          "annotation": "reemplaza la pantalla entera por spinner + texto centrados"
+          "annotation": "spinner size=lg con role=status y texto visualmente oculto \"Cargando...\". Reemplaza la pantalla entera por spinner + texto centrados"
+        },
+        {
+          "name": "sidebar-navegacion",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Opus",
+          "items": [
+            {
+              "title": "Proyecto Alfa",
+              "icon": "folder"
+            },
+            {
+              "title": "Proyecto Beta",
+              "icon": "folder"
+            },
+            {
+              "title": "Nuevo requisito",
+              "icon": "plus"
+            },
+            {
+              "title": "Cerrar sesión",
+              "icon": "lock"
+            }
+          ],
+          "active": 0,
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "annotation": "chrome del grupo (dashboard), no de esta pantalla: marca \"Opus\", lista de proyectos, alta y cerrar sesión. display:none bajo 768px sin reemplazo: en mobile el detalle no tiene ninguna salida de navegación fuera de sus propios botones"
         },
         {
           "name": "alerta-sistema",
@@ -1079,18 +1282,18 @@
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "disparado por error de useRequirement"
+          "annotation": "disparado por el error de useRequirement. El error propio del comentario no pasa por acá: vive en el p role=alert del editor, dentro del default"
         },
         {
           "name": "alerta-not-found",
           "type": "alert",
           "category": "feedback",
-          "kind": "warning",
+          "kind": "error",
           "content": "Requisito no encontrado",
           "visible_only_in_states": [
             "not found"
           ],
-          "annotation": "query resuelta sin error y sin datos · no se distingue del permiso denegado · único not-found implementado de la superficie"
+          "annotation": "query resuelta sin error y sin datos. No distingue el permiso denegado del inexistente. Es el único not found implementado de la superficie: no hay not-found.tsx en ninguna ruta"
         },
         {
           "name": "boton-volver-listado",
@@ -1098,11 +1301,12 @@
           "category": "input",
           "variant": "secondary",
           "content": "Volver al listado",
+          "icon": "arrow-left",
           "visible_only_in_states": [
             "error de sistema",
             "not found"
           ],
-          "annotation": "en not found es la única acción: no hay reintentar"
+          "annotation": "única salida en not found; en error de sistema acompaña a \"Reintentar\""
         },
         {
           "name": "boton-reintentar",
@@ -1110,30 +1314,84 @@
           "category": "input",
           "variant": "primary",
           "content": "Reintentar",
+          "icon": "refresh",
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "solo en error de sistema"
+          "annotation": "refetch() de useRequirement, no navega. No existe en not found: ahí reintentar no tendría sentido"
+        },
+        {
+          "name": "progreso-subida-adjunto",
+          "type": "progress-bar",
+          "category": "feedback",
+          "content": "Subiendo captura-pantalla.png... 58%",
+          "fill": 0.58,
+          "visible_only_in_states": [
+            "default"
+          ],
+          "annotation": "\"Subiendo captura-pantalla.png... 58%\" · solo mientras hay una subida en curso (sub-estado del default). Bloque nuevo con REQ-001 (RF-8): reemplaza al AttachmentSkeleton indeterminado del final del editor, porque ahora el byte va directo al storage y el porcentaje es real. Mismo bloque en los dos viewports, siempre dentro del editor"
         }
       ],
       "layouts": {
         "mobile": [
           "breadcrumb",
-          "boton-enlace",
-          "boton-suscripcion",
-          "boton-volver",
+          {
+            "row": "acciones-header",
+            "cols": [
+              {
+                "w": 4,
+                "stack": [
+                  "boton-enlace"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "boton-suscripcion"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "boton-volver"
+                ]
+              }
+            ]
+          },
           "indicador-carga",
           "alerta-sistema",
           "alerta-not-found",
-          "boton-volver-listado",
-          "boton-reintentar",
+          {
+            "row": "acciones-excepcion",
+            "cols": [
+              {
+                "w": 6,
+                "stack": [
+                  "boton-volver-listado"
+                ]
+              },
+              {
+                "w": 6,
+                "stack": [
+                  "boton-reintentar"
+                ]
+              }
+            ]
+          },
           "panel-propiedades",
+          "propiedad-estado",
+          "propiedad-tipo",
+          "propiedad-prioridad",
+          "lista-suscriptores",
+          "propiedad-fechas",
           "titulo-requisito",
           "descripcion",
           "bloque-resolucion",
           "pie-autoria",
           "titulo-actividad",
           "feed-actividad",
+          "item-comentario",
+          "item-cambio",
           "editor-comentario",
           "progreso-subida-adjunto",
           {
@@ -1157,18 +1415,20 @@
         "desktop": [
           {
             "row": "shell",
+            "fixed_cols": "263px minmax(0,1fr)",
             "cols": [
               {
-                "w": 3,
+                "w": 2,
                 "stack": [
                   "sidebar-navegacion"
                 ]
               },
               {
-                "w": 9,
+                "w": 10,
                 "stack": [
                   {
                     "row": "header",
+                    "fixed_cols": "minmax(0,1fr) auto auto auto",
                     "cols": [
                       {
                         "w": 5,
@@ -1177,31 +1437,21 @@
                         ]
                       },
                       {
-                        "w": 7,
+                        "w": 2,
                         "stack": [
-                          {
-                            "row": "acciones",
-                            "cols": [
-                              {
-                                "w": 4,
-                                "stack": [
-                                  "boton-enlace"
-                                ]
-                              },
-                              {
-                                "w": 4,
-                                "stack": [
-                                  "boton-suscripcion"
-                                ]
-                              },
-                              {
-                                "w": 4,
-                                "stack": [
-                                  "boton-volver"
-                                ]
-                              }
-                            ]
-                          }
+                          "boton-enlace"
+                        ]
+                      },
+                      {
+                        "w": 2,
+                        "stack": [
+                          "boton-suscripcion"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-volver"
                         ]
                       }
                     ]
@@ -1210,50 +1460,48 @@
                   "alerta-sistema",
                   "alerta-not-found",
                   {
-                    "row": "acciones-error",
+                    "row": "acciones-excepcion",
                     "cols": [
                       {
-                        "w": 6,
+                        "w": 3,
                         "stack": [
                           "boton-volver-listado"
                         ]
                       },
                       {
-                        "w": 6,
+                        "w": 3,
                         "stack": [
                           "boton-reintentar"
                         ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": []
                       }
                     ]
                   },
                   {
                     "row": "cuerpo",
-                    "fixed_cols": "minmax(0,1fr) 559px",
+                    "fixed_cols": "220px minmax(0,1fr) 559px",
                     "cols": [
                       {
-                        "w": 7,
+                        "w": 3,
                         "stack": [
-                          {
-                            "row": "info",
-                            "fixed_cols": "220px minmax(0,1fr)",
-                            "cols": [
-                              {
-                                "w": 3,
-                                "stack": [
-                                  "panel-propiedades"
-                                ]
-                              },
-                              {
-                                "w": 9,
-                                "stack": [
-                                  "titulo-requisito",
-                                  "descripcion",
-                                  "bloque-resolucion",
-                                  "pie-autoria"
-                                ]
-                              }
-                            ]
-                          }
+                          "panel-propiedades",
+                          "propiedad-estado",
+                          "propiedad-tipo",
+                          "propiedad-prioridad",
+                          "lista-suscriptores",
+                          "propiedad-fechas"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "titulo-requisito",
+                          "descripcion",
+                          "bloque-resolucion",
+                          "pie-autoria"
                         ]
                       },
                       {
@@ -1262,25 +1510,12 @@
                         "stack": [
                           "titulo-actividad",
                           "feed-actividad",
+                          "item-comentario",
+                          "item-cambio",
                           "editor-comentario",
                           "progreso-subida-adjunto",
-                          {
-                            "row": "acciones-comentario",
-                            "cols": [
-                              {
-                                "w": 6,
-                                "stack": [
-                                  "boton-adjuntar"
-                                ]
-                              },
-                              {
-                                "w": 6,
-                                "stack": [
-                                  "boton-enviar"
-                                ]
-                              }
-                            ]
-                          }
+                          "boton-adjuntar",
+                          "boton-enviar"
                         ]
                       }
                     ]
@@ -1295,6 +1530,10 @@
         {
           "name": "default",
           "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
         },
         {
           "name": "loading",
@@ -1317,9 +1556,8 @@
           "applies": true
         },
         {
-          "name": "subiendo adjunto",
-          "applies": true,
-          "parent_state": "default"
+          "name": "terminal",
+          "applies": false
         }
       ]
     },
@@ -1596,7 +1834,7 @@
           "variant": "secondary",
           "content": "Adjuntar",
           "icon": "upload",
-          "annotation": "10 MB y 12 extensiones, validado en el cliente · si un adjunto falla del lado del servidor se descarta toda la creación"
+          "annotation": "10 MB y 12 extensiones, validado en el cliente · REQ-001 RF-1/RF-4/RF-7/RF-8: se suben de a uno por vez con progreso real y el vínculo se crea al guardar; el archivo existe por sí solo, así que abandonar el modal no lo deja huérfano"
         },
         {
           "name": "boton-crear",
@@ -2107,58 +2345,6 @@
       "automatic": false
     },
     {
-      "src": "overlay-detalle-requisito",
-      "srcBlock": "topbar-modal",
-      "dst": "detalle-requisito",
-      "trigger": "click 'Abrir'",
-      "automatic": false
-    },
-    {
-      "src": "overlay-nuevo-requisito",
-      "srcState": "success",
-      "srcBlock": "pantalla-exito",
-      "dst": "tablero-requisitos",
-      "trigger": "cierra a los 1,8 s",
-      "automatic": true
-    },
-    {
-      "src": "detalle-requisito",
-      "srcBlock": "boton-volver",
-      "dst": "tablero-requisitos",
-      "trigger": "click 'Volver'",
-      "automatic": false
-    },
-    {
-      "src": "detalle-requisito",
-      "srcBlock": "breadcrumb",
-      "dst": "tablero-requisitos",
-      "trigger": "click 'Requisitos'",
-      "automatic": false
-    },
-    {
-      "src": "detalle-requisito",
-      "srcBlock": "boton-suscripcion",
-      "dst": "overlay-toast",
-      "trigger": "suscribirse / desuscribirse",
-      "automatic": false
-    },
-    {
-      "src": "detalle-requisito",
-      "srcState": "error de sistema",
-      "srcBlock": "boton-volver-listado",
-      "dst": "tablero-requisitos",
-      "trigger": "click 'Volver al listado'",
-      "automatic": false
-    },
-    {
-      "src": "detalle-requisito",
-      "srcState": "not found",
-      "srcBlock": "boton-volver-listado",
-      "dst": "tablero-requisitos",
-      "trigger": "click 'Volver al listado'",
-      "automatic": false
-    },
-    {
       "src": "tablero-requisitos",
       "srcBlock": "boton-nuevo-requisito",
       "dst": "overlay-nuevo-requisito",
@@ -2178,6 +2364,28 @@
       "dst": "overlay-dropdown-prioridad",
       "trigger": "click pill (rol interno)",
       "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "card-kanban",
+      "dst": "overlay-detalle-requisito",
+      "trigger": "click card de kanban",
+      "automatic": false
+    },
+    {
+      "src": "overlay-detalle-requisito",
+      "srcBlock": "titulo-requisito",
+      "dst": "detalle-requisito",
+      "trigger": "click 'Abrir' → pantalla completa",
+      "automatic": false
+    },
+    {
+      "src": "overlay-nuevo-requisito",
+      "srcState": "success",
+      "srcBlock": "pantalla-exito",
+      "dst": "tablero-requisitos",
+      "trigger": "cierra a los 1,8 s",
+      "automatic": true
     },
     {
       "src": "overlay-nuevo-requisito",
@@ -2219,6 +2427,50 @@
       "srcBlock": "lista-usuarios",
       "dst": "overlay-nuevo-requisito",
       "trigger": "elegir usuario",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "boton-volver",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "breadcrumb",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Requisitos'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "boton-suscripcion",
+      "dst": "overlay-toast",
+      "trigger": "suscribirse / desuscribirse",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "sidebar-navegacion",
+      "dst": "tablero-requisitos",
+      "trigger": "cambiar de proyecto",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcState": "error de sistema",
+      "srcBlock": "boton-volver-listado",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver al listado'",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcState": "error de sistema",
+      "srcBlock": "boton-reintentar",
+      "dst": "detalle-requisito",
+      "trigger": "refetch del requisito",
       "automatic": false
     }
   ]

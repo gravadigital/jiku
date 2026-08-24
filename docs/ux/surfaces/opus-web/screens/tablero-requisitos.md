@@ -268,6 +268,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 
 ### error de sistema / sin conexión
 - Aplica: No — no implementado (ver gaps-as-is.md). Las siete queries pueden fallar y la pantalla renderiza el tablero con las siete secciones en cero, indistinguible de un proyecto sin requisitos: `requirements/page.tsx:153-196` solo evalúa `isLoading`, nunca `isError`. Si además falla `useProjects`, el breadcrumb muestra el literal "Proyecto" y nada avisa (`requirements/page.tsx:132-135`)
+- **REQ-004: ahora hay dos fallas distinguibles y la pantalla no muestra ninguna.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`, la operación **no** ocurrió) de `504 gateway_timeout` (`"La operación tardó demasiado"`, **pudo** haber ocurrido) — RF-16, CA-8, CA-9. Alcanza a las dos escrituras que salen de acá: el alta de requisito que abre `boton-nuevo-requisito` (overlay O-02) y el cambio inline de estado y prioridad de los pills. El cambio inline es idempotente y no cambia nada; **el alta no**, y es donde el gap se vuelve caro: el modal no muestra error alguno, así que ante un 504 el cliente no sabe que su pedido pudo haberse creado y el reintento probable lo duplica —y el duplicado aparece en `web` para el equipo. El desdoblamiento **mejora el diagnóstico del servidor y no cambia nada de lo que el cliente ve**: la información existe y la superficie la descarta [REQ-004]
 
 ### success
 - Aplica: No — no implementado (ver gaps-as-is.md) a nivel pantalla. El éxito de un cambio de estado o prioridad se manifiesta como un toast global: "Requisito actualizado correctamente" (`useUpdateRequirement.ts:19`) — ver overlays de la superficie
@@ -322,3 +323,8 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **Se anota en un estado marcado "no implementado", y es deliberado.** La tentación era diseñar acá el estado de error que falta. No se hace: el REQ deja `opus-web` sin cambios (RF-16) y crear un estado nuevo sería inventar alcance. Lo que sí se registra es que el gap **empeoró**: antes faltaba mostrar "algo falló", ahora faltan **dos mensajes con recuperación opuesta**, y uno de ellos ("pudo haber ocurrido") es el que evita un duplicado.
+- **El alta se documenta desde esta pantalla porque el overlay no tiene documento propio.** O-02 vive en el inventario de overlays del product-map, no en un `.md` de pantalla; `boton-nuevo-requisito` está declarado acá, así que acá va la consecuencia. El inventario de overlays también la registra en su fila.

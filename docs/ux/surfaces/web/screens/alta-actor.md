@@ -129,6 +129,7 @@ El `titulo-pagina` (`"Crear actor"`) lo aporta el shell, arriba del bloque.
 - Aplica: Sí
 - Mensaje: toast con `err.message` de la api, o `"Hubo un error al crear el actor"`
 - Cambios: ninguno en la pantalla. El formulario queda como estaba, con los datos, y se puede reintentar. El toast tiene `autoClose: 2000`, así que si el usuario no lo ve en 2 segundos no queda rastro del error (`clients/new/page.tsx:16-22`, `(loggedin)/layout.tsx:34`) [fuente: código-existente]
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` —no hay ningún `jiku-commands` escuchando, mensaje `"El servicio no está disponible en este momento"`— de `504 gateway_timeout` —la respuesta no llegó a tiempo, mensaje `"La operación tardó demasiado"`— (RF-16, CA-8, CA-9). Los dos llegan por el mismo toast de `err.message`: **la pantalla no se modifica**. Con el 503 el actor **no se creó** y reintentar es seguro; con el 504 **pudo haberse creado**, y como el formulario queda con los datos, apretar de nuevo "Guardar" es lo más probable que haga el usuario — y duplica el actor. El `autoClose: 2000` del toast agrava el caso: el mensaje que explica la diferencia se va en 2 segundos [REQ-004]
 
 ### success
 - Aplica: Sí
@@ -184,3 +185,8 @@ La validación usa `abortEarly: false` y mapea `err.inner` a errores por campo (
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-004 — El bus en dos servicios micro (2026-08-23)
+
+- **Sin cambios de estructura ni de layout: solo se documenta la consecuencia del 504.** El REQ deja `web` sin tocar (RF-16) y los dos mensajes viajan en el cuerpo del error, así que no hay bloque nuevo que diseñar. Se registra en el estado de error porque la escritura **no es idempotente** y el reintento a ciegas crea un actor duplicado.
+- **El `autoClose: 2000` deja de ser un detalle.** Con una sola falla genérica, perder el toast costaba poco: el usuario reintentaba y ya. Con dos fallas de recuperación opuesta, perder el mensaje es perder **la única señal** de si conviene reintentar. Queda anotado como consecuencia, no se corrige acá: es un cambio de código en `web`, fuera del alcance del REQ.

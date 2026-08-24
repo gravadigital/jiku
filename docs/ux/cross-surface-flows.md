@@ -55,6 +55,17 @@ Si nadie mira, el pedido del cliente espera indefinidamente sin que nada lo señ
 Es el argumento más fuerte para FG-2 (notificaciones): el canal formal con el cliente existe y
 **su primera milla no avisa a nadie**.
 
+**Y desde [REQ-004] hay un segundo modo de falla en esa misma primera milla.** Si el alta del
+cliente vuelve con `504 gateway_timeout` —*"La operación tardó demasiado"*—, el requisito **pudo
+haberse creado igual**: la escritura llegó a `jiku-commands` y la respuesta se perdió. El cliente
+no ve ningún mensaje (el modal de Opus no muestra error alguno, flujo 2 de `opus-web`), así que
+reintenta; y lo que aparece en **listado-requisitos** de `web` son **dos pedidos idénticos**, sin
+`created_by` destacado ni nada que los relacione. Las dos discontinuidades se suman: nadie del
+equipo sabe que el pedido llegó, y cuando alguien lo encuentra puede estar duplicado — y no hay
+forma en la interfaz de saber cuál de los dos mirar (RF-16, CA-9). El caso contrario también existe:
+el cliente asume que su pedido falló y no reintenta, mientras el equipo lo ve en el listado. En los
+dos casos el dato cruzó y la certeza no.
+
 ### Criterios de éxito
 
 - Un pedido del cliente debería **llegarle a alguien**, no quedar esperando que lo encuentren

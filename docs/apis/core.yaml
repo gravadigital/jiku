@@ -1,6 +1,7 @@
 asyncapi: '2.6.0'
 
-# Messaging contract of `core` — the 17 commands it serves over NATS.
+# Messaging contract of `core` — the 20 commands it serves over NATS as the `jiku-commands` micro
+# service.
 #
 # WHY AsyncAPI AND NOT OpenAPI
 #   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
@@ -20,6 +21,21 @@ info:
   description: |
     `core` is the only service that writes to Jiku's database. It serves commands published by
     the api over NATS, validates the business rules and writes.
+
+    **One process, two logical services on the bus.** Since REQ-004 the `core` process registers
+    **two NATS micro services over a single connection**: `jiku-commands`, the 20 write commands
+    this spec describes, and `jiku-queries`, six read endpoints (`projects.list/get`,
+    `tasks.list/get`, `comments.list/get`) with their own queue group and their own read-only
+    connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE of this spec** —
+    the endpoints are registered and discoverable, but their filters, pagination, fields and
+    payloads are defined by a later requirement (RF-10 of REQ-004). Until then they answer a
+    well-formed `failure`. When that contract exists it gets its own spec; this file stays the
+    contract of the commands.
+
+    **Both services are discoverable.** `$SRV.PING` / `INFO` / `STATS` report, per endpoint,
+    request count, mean latency and last error. One caveat worth knowing before building a
+    dashboard: **`num_errors` stays at 0 by design of the library** — `respondError()` does not
+    increment it — so failures are measured by logs and by `errorCode`, never by that metric.
 
     **Pattern: request/reply, no JetStream.** Every message is answered on the spot. There is
     no queue, no retry and no persistence: if core is down, the api's request times out and
@@ -100,20 +116,77 @@ servers:
 # Subject grammar
 # ---------------------------------------------------------------------------
 #
-#   {instance}.{user-id}.{svc}.{version}.{command}
-#   dev.323332022539911171.gestion.v1.clients.new
+#   {instance}.{user-id}.{svc}.{version}.{method}
+#   dev.323332022539911171.jiku-commands.v1.clients.new
 #
 #   instance   deployment: dev / prod              (NATS_INSTANCE)
 #   user-id    WHO publishes: the token's `sub`, RAW
-#   svc        who it talks to: `gestion`          (NATS_SERVICE_NAME)
+#   svc        jiku-commands                       (NATS_COMMAND_SERVICE)
+#              jiku-queries                        (NATS_QUERY_SERVICE)
 #   version    protocol version: `v1`              (NATS_PROTOCOL_VERSION)
-#   command    clients.new, requirements.{id}.edit, ...
+#   method     clients.new, requirements.{id}.edit, ...
 #
-# Core subscribes to `{instance}.*.{svc}.{version}.>` with queue group `gestion`, so the
-# wildcard covers any caller and several replicas share the messages between them.
+# THE GRAMMAR DID NOT CHANGE — the set of values of the `{svc}` token went from one to two.
+#
+# Core registers the group `{instance}.*.{svc}.{version}` per service and subscribes one endpoint
+# per method, with queue group `jiku-commands` for the commands and `jiku-queries` for the
+# queries. The wildcard covers any caller and several replicas share the messages between them.
+#
+# WHY THE SEPARATION LIVES IN `{svc}` AND NOT NESTED UNDER THE COMMANDS SERVICE. The commands
+# subscription used to be `{instance}.*.{svc}.v1.>`, and that `>` would also swallow the queries
+# if they shared the `{svc}` token. Two different queue groups over overlapping subjects means the
+# message is delivered to BOTH subscriptions and TWO replies reach the same inbox; a plain
+# `request()` returns the first and DISCARDS THE SECOND SILENTLY. Sharing the process does not
+# avoid it: the overlap is in the subject. With a distinct `{svc}` the problem cannot happen,
+# because subject tokens are compared whole.
 #
 # The `channels` below are named after the COMMAND, not the full subject: the prefix is the same
 # for all of them and depends on the environment.
+#
+# EVERY CHANNEL IS A MICRO ENDPOINT. The endpoint name and subject are DERIVED from the command
+# pattern by `endpointName()` / `endpointSubject()` of `@jiku/nats-protocol` — nothing is written
+# by hand, so adding command 21 to the registry registers it as an endpoint too. This is the table
+# `nats micro info jiku-commands` shows:
+#
+#   #   command pattern                                    endpoint subject                      endpoint name
+#   1   clients.new                                        clients.new                           clients-new
+#   2   clients.{id}.edit                                  clients.*.edit                        clients-edit
+#   3   projects.new                                       projects.new                          projects-new
+#   4   projects.{id}.edit                                 projects.*.edit                       projects-edit
+#   5   tasks.new                                          tasks.new                             tasks-new
+#   6   tasks.{id}.edit                                    tasks.*.edit                          tasks-edit
+#   7   tasks.{id}.comment                                 tasks.*.comment                       tasks-comment
+#   8   requirements.new                                   requirements.new                      requirements-new
+#   9   requirements.{id}.edit                             requirements.*.edit                   requirements-edit
+#   10  requirements.{id}.resolve                          requirements.*.resolve                requirements-resolve
+#   11  requirements.{id}.comment                          requirements.*.comment                requirements-comment
+#   12  requirements.{id}.subscriptors.new                 requirements.*.subscriptors.new        requirements-subscriptors-new
+#   13  requirements.{id}.subscriptors.{userId}.delete     requirements.*.subscriptors.*.delete   requirements-subscriptors-delete
+#   14  attachments.{id}.delete                            attachments.*.delete                  attachments-delete
+#   15  files.request-upload                               files.request-upload                  files-request-upload
+#   16  files.{fileId}.request-download                    files.*.request-download              files-request-download
+#   17  worked-times.new                                   worked-times.new                      worked-times-new
+#   18  worked-times.{id}.delete                           worked-times.*.delete                 worked-times-delete
+#   19  unworked-times.new                                 unworked-times.new                    unworked-times-new
+#   20  unworked-times.{id}.delete                         unworked-times.*.delete               unworked-times-delete
+#
+# Two shape rules the derivation respects, and why:
+#   - THE NAME CARRIES NO DOTS. Micro validates the endpoint name against /^[-\w]+$/; the subject,
+#     with its dots and `*`, travels separately in `opts.subject`.
+#   - `{param}` BECOMES `*`. A subject token cannot carry braces, and the dispatcher already
+#     extracts the params from the full subject with the segment registry — it does not need them
+#     from the endpoint.
+#
+# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 20
+# above do not overlap, and the reason is structural rather than luck — the registry matches BY
+# SEGMENT COUNT, and those sharing a length differ in their first or last literal token. But the
+# design does not rest on that manual check: `registerService()` keeps a Set of subjects and FAILS
+# THE STARTUP on a duplicate, naming the service and the subject.
+#
+# ON A `failure`, THE ENVELOPE TRAVELS IN THE BODY, and the `Nats-Service-Error` /
+# `Nats-Service-Error-Code` headers are ADDED — never a replacement for the body. The `500` of
+# `respondError` is the MICRO TRANSPORT status, not the HTTP one: the status the person sees is
+# decided by the api's `httpStatusFor` over the `errorCode` OF THE BODY.
 #
 # THE user-id IDENTIFIES THE SERVICE, NOT THE PERSON. The api uses a single service user for
 # everybody; the end user travels in the body.

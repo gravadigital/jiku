@@ -34,7 +34,11 @@ services:
   auth-callout:
     # Imagen publicada: el callout no vive en este monorepo. Trae SOLO el callout — el
     # servidor NATS es el servicio `nats` de arriba.
-    image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-latest}
+    # image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-latest}
+    build:
+      # El contexto es el root: estos servicios usan los paquetes de packages/.
+      context: ../../../herramientas/nats-zitadel-auth-callout
+      dockerfile: Dockerfile
     container_name: jiku-local-auth-callout
     # Las creds son 600 y pertenecen al usuario del host: el contenedor corre con ese
     # mismo uid para poder leerlas sin aflojar permisos en el host.
@@ -59,6 +63,13 @@ services:
       - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
       - CALLOUT_LOG_LEVEL=debug
+      # Eventos de autenticación. El detalle de por qué NO hay CALLOUT_EVENTS_STREAM está en
+      # docker-compose.yml. Las creds las emite ./nats/add-events-user.sh, y local.sh chequea
+      # que existan antes de levantar: sin el archivo el callout no arranca, y el error es más
+      # barato de leer ahí que en un contenedor que reinicia.
+      - CALLOUT_EVENTS_SUBJECT=${NATS_INSTANCE}.events.auth
+      - CALLOUT_EVENTS_CREDS=/etc/nats-creds/callout-events.creds
+      - CALLOUT_IDP_ENRICH=profile
     volumes:
       - ./nats/auth-callout:/etc/auth-callout:ro
       - ./nats/creds:/etc/nats-creds:ro

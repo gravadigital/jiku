@@ -74,6 +74,28 @@ services:
       - CALLOUT_IDP_MODE=${GESTION_IDP_MODE}
       - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      # Eventos de autenticación: el callout publica uno por conexión autenticada, con la
+      # identidad que acaba de verificar. Es el único componente que sabe que una autenticación
+      # ocurrió — el server ve una conexión y Zitadel ve un pedido de token.
+      - CALLOUT_EVENTS_SUBJECT=${NATS_INSTANCE}.events.auth
+      # Credencial PROPIA, y una SEGUNDA CONEXIÓN en la cuenta GESTION. La conexión del callout
+      # vive en GESTION_AUTH, y las cuentas son namespaces de subjects aislados: un evento
+      # publicado ahí no lo vería nadie. La emite nats/add-events-user.sh, que hay que correr
+      # ANTES de desplegar esto: sin el archivo el callout no arranca.
+      - CALLOUT_EVENTS_CREDS=/etc/nats-creds/callout-events.creds
+      # Zitadel NO manda `name` ni `email` en el access token, ni pidiéndolo con los scopes
+      # `profile email`: un access token no es un ID token y esos claims viven en userinfo. Sin
+      # esta línea los eventos llegan con los dos campos vacíos. Se cachea por identidad (5
+      # min), así que una flota que reconecta cuesta una llamada por usuario, no por conexión.
+      - CALLOUT_IDP_ENRICH=profile
+      #
+      # NO HAY CALLOUT_EVENTS_STREAM, Y ES DELIBERADO. Esa variable no nombra un stream: elige
+      # el MODO DE ENTREGA. Sin ella el evento es un mensaje core NATS —lo recibe quien esté
+      # suscripto en ese instante, y no queda nada para leer después—. Con ella el publish va a
+      # JetStream y ESPERA EL ACK, lo que exige tres cosas que hoy no están: JetStream
+      # habilitado en el server y en la cuenta, el stream creado a mano (el callout a propósito
+      # no puede crearlo) y dos permisos que callout-events no tiene. Agregarla sola es un
+      # arranque fallido, no un evento sin confirmar.
     volumes:
       - ./nats/auth-callout:/etc/auth-callout:ro
       - ./nats/creds:/etc/nats-creds:ro

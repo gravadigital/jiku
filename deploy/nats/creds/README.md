@@ -37,13 +37,35 @@ it does not touch your own.
 | `nats-resolver.conf`            | operator, system account and account JWTs              | the `nats-server` (included from `nats-server.conf`) |
 | `sentinel-client.creds`         | the sentinel services connect with                     | api and core                                         |
 | `sentinel-handler.creds`        | the callout's own sentinel                             | auth-callout                                         |
+| `callout-events.creds`          | publishes the authentication events                    | auth-callout                                         |
 | `callout-env.sh`                | path contract for the callout                          | auth-callout                                         |
 | `app-account.pub` / `.sk.seed`  | APP account: signs the User JWTs the callout issues    | auth-callout                                         |
 | `auth-account.pub` / `.sk.seed` | AUTH account: signs the `authorization_response`       | auth-callout                                         |
 | `callout-xkey.pub` / `.seed`    | XKey (curve25519) that decrypts authorisation requests | auth-callout                                         |
 
-The three seeds and the two `.creds` are **secret material**; the script sets them to `600`.
+The three seeds and the `.creds` files are **secret material**; the script sets them to `600`.
 The `.pub` files are public but kept alongside for convenience.
+
+## Adding the events credential to an installation that already exists
+
+`callout-events.creds` arrived after the bus was deployed, so it has its own script rather than
+being only a step of the one-shot bootstrap:
+
+```sh
+cd deploy/nats
+./add-events-user.sh
+```
+
+**It is not a regeneration and it is not `--force`.** A user JWT is signed by the *account's*
+signing key, whose seed is already here as `app-account.sk.seed`, and adding a user does not
+touch the account JWT — so `nats-resolver.conf` does not change and no credential already
+distributed stops working. The script rebuilds a throwaway `nsc` context out of what is in this
+directory, mints the one user and throws the context away again.
+
+The permission it writes is the **literal** subject `<instance>.events.auth`, while the callout
+is configured with a pattern. The instance is read from `deploy/.env` (`NATS_INSTANCE`); pass
+`--instance` to override it. Getting the two out of step fails as an asynchronous permissions
+violation in the callout's log — never as a refused connection.
 
 ## Why `sentinel-client.creds` is safe to distribute
 

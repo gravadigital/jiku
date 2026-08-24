@@ -76,7 +76,7 @@ rules:
   # determina qué escucha.
   - match: bus-observer
     type: service
-    service: jiku-commands
+    service: bus-observer
     template: templates/observer.yaml
 
   # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.

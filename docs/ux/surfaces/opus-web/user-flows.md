@@ -132,6 +132,14 @@ los dos miremos, para que no se pierda en un chat."
 - 🔴 **Fallo de creación** — **El modal no muestra ningún error.** El botón vuelve de "Creando..."
   a "Crear elemento" **sin mensaje** [fuente: código-existente]. El cliente no sabe si se creó, y
   la recuperación probable es reintentar — con riesgo de duplicar.
+- 🔴 **Y desde [REQ-004] hay dos fallas distintas detrás de ese silencio.** La api separa
+  `503 service_unavailable` (*"El servicio no está disponible en este momento"* — el requisito
+  **no** se creó, reintentar es seguro) de `504 gateway_timeout` (*"La operación tardó demasiado"*
+  — **pudo** haberse creado, reintentar duplica) — RF-16, CA-8, CA-9. **El portal no muestra
+  ninguno de los dos.** El desdoblamiento mejora el diagnóstico del lado del servidor y **no cambia
+  nada de lo que el cliente ve**: la información que resolvería el gap de arriba ya existe y la
+  superficie la descarta. Y el duplicado no se queda acá — aparece en `listado-requisitos` de `web`
+  como dos pedidos idénticos (ver [cross-surface-flows](../../cross-surface-flows.md), flujo 1).
 - **Adjunto inválido** — Lo rechaza el servidor con *"El archivo supera el tamaño máximo
   permitido"* o *"Ese tipo de archivo no está permitido"* (REQ-001 RF-6, RF-15). El mensaje llega
   **después** de intentar subir, no antes.
@@ -192,6 +200,13 @@ dejarlo escrito junto al pedido, no en un mail aparte."
 - **Comentario vacío** — No se envía, **sin mensaje**.
 - 🔴 **Fallo de suscripción** — El error es **la palabra "Error" en el propio botón**, con el
   motivo en un atributo `title` — **invisible en touch** [fuente: código-existente].
+- **Falla del bus al comentar** — El comentario es un comando del bus, así que hereda el
+  desdoblamiento de [REQ-004 RF-16, CA-8, CA-9]: con `503 service_unavailable` el comentario **no**
+  se agregó y reintentar es seguro; con `504 gateway_timeout` **pudo** haberse agregado y reintentar
+  deja **dos comentarios iguales** en un feed que el equipo también lee. El mensaje llega al
+  `<p role="alert">` del editor, que ya renderiza el `message` del `ApiError` — no hace falta tocar
+  nada. Lo que falta es lo de siempre: como el envío exitoso **no tiene confirmación**, el cliente
+  tiene que releer el feed para saber si duplicar o no.
 - **Foco tras enviar** — No vuelve al editor: el cliente tiene que volver a hacer clic para
   escribir otro comentario.
 

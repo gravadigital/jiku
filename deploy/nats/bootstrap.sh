@@ -13,6 +13,7 @@
 #   app-account.{pub,sk.seed}    APP account: signs the User JWTs the callout issues
 #   auth-account.{pub,sk.seed}   AUTH account: signs the authorization_response
 #   callout-xkey.{pub,seed}      XKey (curve25519) that decrypts the auth requests
+#   callout-events.creds     what the callout publishes authentication events with
 #   callout-env.sh           path contract for the callout
 #
 # Requires `nsc` (https://github.com/nats-io/nsc).
@@ -150,6 +151,13 @@ ENVEOF
 # Secret material: seeds and creds with restrictive permissions.
 chmod 600 "$OUT"/*.creds "$OUT"/*.seed 2>/dev/null || true
 chmod 644 "$OUT"/*.pub "$OUT/callout-env.sh" "$OUT/nats-resolver.conf" 2>/dev/null || true
+
+# The events publisher's user, in the APP account. It lives in its own script because it has to
+# be addable to an installation that already exists — the events feature arrived after the bus
+# was deployed — and this one refuses to run twice. Adding a user does not touch the account
+# JWT, so that script needs nothing this one has not already written to creds/.
+echo "==> events publisher user"
+./add-events-user.sh
 
 echo
 echo "Done. Generated in deploy/nats/$OUT/:"
