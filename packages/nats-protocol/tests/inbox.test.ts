@@ -3,10 +3,13 @@ import 'should';
 import { reload } from './helpers/reload';
 
 /**
- * Los 17 símbolos de runtime de la superficie pública, enumerados uno por uno.
+ * Los 18 símbolos de runtime de la superficie pública, enumerados uno por uno.
  *
- * La lista es literal y no un conteo: `Object.keys(module).length === 17` pasaría igual si
+ * La lista es literal y no un conteo: `Object.keys(module).length === 18` pasaría igual si
  * alguien agregara un símbolo y borrara otro.
+ *
+ * `AuthEvent` NO está acá: es un tipo, se borra al compilar y `module.AuthEvent` es `undefined`.
+ * Lo mismo que pasa con `Reply` y `ErrorCodeValue`, que tampoco están.
  */
 const PUBLIC_SURFACE = [
   'INSTANCE',
@@ -16,6 +19,7 @@ const PUBLIC_SURFACE = [
   'commandSubject',
   'querySubject',
   'groupSubject',
+  'authEventSubject',
   'endpointName',
   'endpointSubject',
   'methodFromSubject',
@@ -78,7 +82,7 @@ describe('nats-protocol · el inbox hasheado y el caller', () => {
 });
 
 describe('nats-protocol · la superficie pública y el envelope', () => {
-  it('TS-48: los 17 símbolos de runtime están exportados', () => {
+  it('TS-48: los 18 símbolos de runtime están exportados', () => {
     const p = reload({});
     const exported = Object.keys(p);
     PUBLIC_SURFACE.forEach((name) => {
@@ -86,7 +90,7 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       // Incluido el @deprecated que queda: commandFromSubject.
       ((p as unknown as Record<string, unknown>)[name] === undefined).should.be.false();
     });
-    PUBLIC_SURFACE.length.should.equal(17);
+    PUBLIC_SURFACE.length.should.equal(18);
   });
 
   it('TS-49: ErrorCode tiene 26 miembros', () => {

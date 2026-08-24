@@ -33,6 +33,28 @@ import { createHash } from 'node:crypto';
  * El user id va crudo a propósito: es lo que permite que core sepa quién lo llamó
  * leyendo el subject —avalado por el callout— en vez del cuerpo del mensaje. El inbox,
  * en cambio, usa un hash del user id (ver `inboxPrefix`).
+ *
+ * EL SUBJECT DE EVENTOS NO SIGUE ESTA GRAMÁTICA, Y ESTÁ BIEN ASÍ (REQ-005).
+ *
+ *   {instance}.events.auth                          3 segmentos, fire-and-forget, sin reply
+ *   {instance}.{user-id}.{svc}.{version}.{método}    5+ segmentos, request/reply
+ *
+ * NO LO "ARREGLES" metiéndolo en la gramática de arriba. Es otra forma porque es otro patrón:
+ *   - No hay reply. El emisor (el auth-callout, con la credencial `callout-events`) no espera
+ *     nada, y no hay nada que ackear: CALLOUT_EVENTS_STREAM está deliberadamente sin definir,
+ *     así que el mensaje es core NATS puro, no JetStream.
+ *   - No hay caller en el subject. La identidad viaja en el payload (`id` = el `sub` de
+ *     Zitadel), porque el evento es SOBRE una identidad y no lo publica ella en su nombre.
+ *   - No es un endpoint micro. Micro es request/reply y todo endpoint tiene que responder;
+ *     `respond()` sobre un mensaje sin `reply` subject es un no-op silencioso que además
+ *     ensucia los contadores de $SRV. Core lo consume con una suscripción PLANA más queue
+ *     group, y `registerService()` queda sin tocar.
+ *
+ * EL PERMISO DE SUSCRIPCIÓN ES EL SUBJECT LITERAL en `templates/core.yaml` `sub.allow`, nunca
+ * `{{instance}}.events.>`. El deny-by-default también vale en el bus (ADR-008): un evento
+ * futuro TIENE que costar una línea nueva ahí. Sin esa línea core arranca, atiende los 20
+ * comandos, loguea que se suscribió, y no recibe nada — la violación de permisos es asíncrona
+ * y aparece en el log del SERVIDOR NATS, nunca como un fallo de `subscribe()`.
  */
 export const COMMAND_SERVICE = process.env.NATS_COMMAND_SERVICE || 'jiku-commands';
 export const QUERY_SERVICE = process.env.NATS_QUERY_SERVICE || 'jiku-queries';
@@ -71,6 +93,23 @@ export function querySubject(query: string, userId: string): string {
  */
 export function groupSubject(service: string): string {
   return `${INSTANCE}.*.${service}.${PROTOCOL_VERSION}`;
+}
+
+/**
+ * Subject del evento de autenticación: `{instance}.events.auth`.
+ *
+ * TRES SEGMENTOS, NO CINCO: no sigue la gramática de comandos y consultas, y el bloque de arriba
+ * explica por qué. Fire-and-forget, sin reply y sin ack.
+ *
+ * No toma parámetros porque no hay nada que parametrizar: hay UN evento. Y no existe un
+ * `eventsGroupSubject()` a propósito — el permiso de `templates/core.yaml` es el subject LITERAL,
+ * así que un evento futuro tiene que costar un helper nuevo acá y una línea nueva allá (ADR-008).
+ *
+ * El emisor es el auth-callout, con su credencial `callout-events`, que solo puede publicar este
+ * subject y no puede suscribirse a nada. El consumidor es core, con una suscripción plana.
+ */
+export function authEventSubject(): string {
+  return `${INSTANCE}.events.auth`;
 }
 
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
@@ -257,3 +296,46 @@ export const ErrorCode = {
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/**
+ * El payload del evento de autenticación, tal como el auth-callout lo publica.
+ *
+ * SON LOS NUEVE CAMPOS QUE CORE LEE, de los quince que el emisor manda. Los otros seis
+ * —`authenticated_at`, `expires_at`, `client_ip`, `session`, `matched_role`, `template`— NO SE
+ * DECLARAN, y tampoco cualquiera nuevo que el emisor agregue: su schema vive en otro repo y puede
+ * crecer, así que el consumidor valida con `.unknown(true)` y un campo nuevo no puede tirarlo.
+ * `client_ip` y `session` además NO SE PERSISTEN NUNCA: es minimización de datos personales, no
+ * solo alcance (RF-12).
+ *
+ * LOS NOMBRES VAN EN snake_case, VERBATIM DEL EMISOR. Este paquete es el LECTOR del contrato, no
+ * su autor: `identity_type` se llama así porque así llega. La traducción a `identityType` es de
+ * core, en el handler, que es donde ADR-004 la quiere.
+ *
+ * DESCRIBE EL PAYLOAD VALIDADO. Los nueve son requeridos porque el esquema Joi de core aplica
+ * defaults a `roles` (lista vacía) y a `identity_type` (`person`) antes de que el handler lo vea.
+ *
+ * `type` y `version` van como `string` y `number` Y NO como los literales 'authenticated' y 1: en
+ * el cable un `version: 2` es un valor legítimo que core descarta, y congelarlos haría el tipo
+ * mentir sobre el contrato.
+ *
+ * `identity_type` es `string` y NO el enum `IdentityType` de `@jiku/models`: este paquete no
+ * depende de nada, y un valor fuera del enum es un evento INVÁLIDO —que core descarta— no un tipo
+ * imposible.
+ */
+export interface AuthEvent {
+  /** Guarda: core solo procesa `'authenticated'`. No se persiste. */
+  type: string;
+  /** Guarda: core solo procesa la versión `1`. No se persiste. */
+  version: number;
+  /** Guarda: tiene que coincidir con el `INSTANCE` del consumidor. No se persiste. */
+  instance: string;
+  /** El `sub` de Zitadel. Es la PK de `users`: no hace falta ninguna correlación. */
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  /** Tal cual vienen, sin filtrar ni validar contra ningún catálogo. */
+  roles: string[];
+  /** Sale del `type` de la regla de `rules.yaml` que matcheó, no de una heurística. */
+  identity_type: string;
+}

@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-23 (S-012)
+**Last updated:** 2026-08-24 (S-016)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -20,13 +20,20 @@ Total: 2
 
 ## Utils
 
-Total: 5
+Total: 6
 
 - **querySubject** (`packages/nats-protocol/src/index.ts`) - Builds the subject of an outgoing query: `{instance}.{userId}.jiku-queries.{version}.{method}`. Same signature as `commandSubject`.
 - **groupSubject** (`packages/nats-protocol/src/index.ts`) - Prefix of a micro service group: `{instance}.*.{svc}.{version}`, without the trailing `.>`. The service goes in as a parameter so one process can register two groups.
+- **authEventSubject** (`packages/nats-protocol/src/index.ts`) - Subject of the authentication event: `{instance}.events.auth`. Three segments, **outside** the command grammar, fire-and-forget with no reply. Takes no parameters and has no wildcard variant, by deny-by-default (ADR-008).
 - **endpointName** (`packages/nats-protocol/src/index.ts`) - Micro endpoint name for a command pattern: `tasks.{id}.edit` -> `tasks-edit`. Drops the `{param}` segments and joins with `-`.
 - **endpointSubject** (`packages/nats-protocol/src/index.ts`) - Micro endpoint subject for a command pattern: `tasks.{id}.edit` -> `tasks.*.edit`. Replaces every `{param}` with `*`.
 - **methodFromSubject** (`packages/nats-protocol/src/index.ts`) - Extracts the method (command **or** query) from a full subject. Rename of `commandFromSubject`, which stays as an alias of the same symbol.
+
+## Types
+
+Total: 1
+
+- **AuthEvent** (`packages/nats-protocol/src/index.ts`) - The payload of the authentication event as the `auth-callout` publishes it: **nine** of the fifteen fields the emitter sends, in `snake_case` verbatim, all required. `identity_type` is `string` and **not** the `IdentityType` enum of `@jiku/models` — the package keeps zero runtime dependencies. `client_ip` and `session` are not declared and never persisted (RF-12).
 
 ## Test Helpers
 
