@@ -34,12 +34,7 @@ services:
   auth-callout:
     # Imagen publicada: el callout no vive en este monorepo. Trae SOLO el callout — el
     # servidor NATS es el servicio `nats` de arriba.
-    # image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-latest}
-    build:
-      # El contexto es el root: estos servicios usan los paquetes de packages/.
-      context: ../../../herramientas/nats-zitadel-auth-callout
-      dockerfile: Dockerfile
-    container_name: jiku-local-auth-callout
+    image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-latest}
     # Las creds son 600 y pertenecen al usuario del host: el contenedor corre con ese
     # mismo uid para poder leerlas sin aflojar permisos en el host.
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
