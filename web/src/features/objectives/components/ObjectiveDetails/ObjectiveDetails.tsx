@@ -6,6 +6,7 @@ import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer
 import { ProjectPriorityTag } from '@/features/projects';
 import { useRequirement } from '@/features/requirements/hooks/useRequirement';
 import { SectionCard } from '@/shared/components/ui';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { getObjectiveArea, getObjectiveState, getObjectiveVisibility } from '@/shared/utils';
 import styles from './ObjectiveDetails.module.scss';
 import type { Objective } from '@/shared/types';
@@ -95,7 +96,8 @@ export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
             <p>
               <span>Creado por</span>
               {': '}
-              {objective.creator.name}
+              {objective.creator.name}{' '}
+              <AutomatedIdentityBadge identityType={objective.creator.identityType} />
             </p>
 
             {objective.requirementId ? (

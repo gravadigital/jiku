@@ -1,4 +1,4 @@
-import type { User } from '@/features/auth/types';
+import type { AuthorUser } from '@/features/auth/types';
 
 export interface Client {
   id?: number;
@@ -19,7 +19,7 @@ export interface Project {
   priority: number;
   initDate: Date;
   endDate: Date;
-  creator: User;
+  creator: AuthorUser;
   client?: Client;
   keyValuePairs?: Record<string, string>;
 }

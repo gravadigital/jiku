@@ -11,7 +11,7 @@ function getRequirementDetail(req: Request, res: Response) {
     where: { id: req.params.reqid },
     include: [
       { model: Project, as: 'project', attributes: ['id', 'name'] },
-      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'identityType'] },
       {
         model: Person,
         as: 'responsiblePeople',
@@ -21,7 +21,7 @@ function getRequirementDetail(req: Request, res: Response) {
       {
         model: RequirementActivity,
         as: 'requirementActivities',
-        include: [{ model: User, as: 'changedByUser', attributes: ['id', 'name', 'email'] }],
+        include: [{ model: User, as: 'changedByUser', attributes: ['id', 'name', 'email', 'identityType'] }],
         order: [['createdAt', 'ASC']],
       },
     ],

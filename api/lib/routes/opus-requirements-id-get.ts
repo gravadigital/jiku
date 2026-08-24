@@ -16,7 +16,7 @@ function loadPublicActivity(req: Request, res: Response, next: NextFunction) {
     include: [{
       model: User,
       as: 'changedByUser',
-      attributes: ['id', 'name', 'email'],
+      attributes: ['id', 'name', 'email', 'identityType'],
     }],
     order: [['createdAt', 'ASC']],
   })
@@ -33,6 +33,8 @@ function loadPublicActivity(req: Request, res: Response, next: NextFunction) {
 function loadSubscriptors(req: Request, res: Response, next: NextFunction) {
   return RequirementSubscriptor.findAll({
     where: { requirementId: req.requirement.id },
+    // El `user` de los suscriptores se queda en TRES campos: es un selector, no una autoria
+    // (S-019 CA-1).
     include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
   })
     .then((subscriptors) => {
@@ -45,6 +47,14 @@ function loadSubscriptors(req: Request, res: Response, next: NextFunction) {
     });
 }
 
+/**
+ * `identityType` aparece DOS veces en este archivo -- aca y en el `include` de
+ * `loadPublicActivity` -- porque este handler NO serializa el modelo: arma la respuesta campo
+ * por campo. Sumarlo solo al `include` no cambiaria un byte de lo que sale.
+ *
+ * `subscriptors` NO lo lleva, y no es un olvido: es un selector de suscriptores, no una
+ * autoria (S-019 CA-1).
+ */
 function sendResponse(req: Request, res: Response) {
   const requirement = req.requirement;
   const activities = req.requirementActivity || [];
@@ -72,6 +82,7 @@ function sendResponse(req: Request, res: Response) {
       id: requirement.creator.id,
       name: requirement.creator.name,
       email: requirement.creator.email,
+      identityType: requirement.creator.identityType,
     } : null,
     createdAt: requirement.createdAt,
     scheduledAt: requirement.scheduledAt ?? null,
@@ -90,6 +101,7 @@ function sendResponse(req: Request, res: Response) {
         id: activity.changedByUser.id,
         name: activity.changedByUser.name,
         email: activity.changedByUser.email,
+        identityType: activity.changedByUser.identityType,
       } : null,
     })),
     subscriptors,

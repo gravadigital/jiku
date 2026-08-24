@@ -6,15 +6,22 @@ import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
 import { updateComment } from '@/features/objectives/services/commentsApi';
 import { Button, Tooltip } from '@/shared/components/ui';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { calculateTimeSince, formatDate } from '@/shared/utils';
 import editIcon from '@root/assets/edit.svg';
 import { useCurrentUser } from '@root/hooks/use-current-user';
 import styles from './ObjectiveComment.module.scss';
 import type { ActivityVisibilityLevel } from '@/features/objectives/types';
+import type { IdentityType } from '@/shared/types';
 
 interface CommentProps {
   readonly authorName: string;
   readonly authorId: string;
+  /**
+   * Tipo de identidad del autor. Opcional a proposito: un llamador que no lo pase deja el
+   * comentario sin marca, que es el comportamiento previo a S-019.
+   */
+  readonly authorIdentityType?: IdentityType;
   readonly date: Date;
   readonly updateDate: Date;
   readonly content: string;
@@ -27,6 +34,7 @@ interface CommentProps {
 export function ObjectiveComment({
   authorName,
   authorId,
+  authorIdentityType,
   date,
   updateDate,
   content,
@@ -77,6 +85,7 @@ export function ObjectiveComment({
       <div className={styles.commentHeader}>
         <div className={styles.authorSection}>
           <span className={styles.authorName}>{authorName}</span>
+          <AutomatedIdentityBadge identityType={authorIdentityType} />
           <Tooltip
             message={visibilityLevel === 'public' ? 'Visible para externos' : 'Solo interno'}
           >

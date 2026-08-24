@@ -3,7 +3,13 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-08-19 (S-006)
+**Last updated:** 2026-08-24 (S-019)
+
+## Components
+
+Total: 1
+
+- **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 
 ## Services
 
@@ -31,9 +37,11 @@ Total: 3
 
 ## Types
 
-Total: 4
+Total: 6
 
 - **UploadTicket** (`web/src/features/attachments/types/attachment.types.ts`) - Upload permission for a single object: `fileId`, `uploadUrl`, `expiresIn`.
 - **UploadTicketRequest** (`web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
 - **AttachmentResource** (`web/src/features/attachments/types/attachment.types.ts`) - Discriminates the two identifier spaces: `'attachment'` (a link) and `'file'` (a file with no link).
 - **UploadQueueError** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - One failed file in the queue: `fileName`, `message`, `retryable`.
+- **IdentityType** (`web/src/features/auth/types/auth.types.ts`) - The two kinds of identity a user row can have: `'person' | 'service'`.
+- **AuthorUser** (`web/src/features/auth/types/auth.types.ts`) - A user as an **author**: mirrors the api's `AuthorUser` schema (`id`, `name`, `email`, optional `identityType`), with no `username` and no `roles`.

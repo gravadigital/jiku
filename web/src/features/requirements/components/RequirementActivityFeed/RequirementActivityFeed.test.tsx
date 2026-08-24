@@ -58,6 +58,38 @@ const stateEntry: RequirementActivity = {
   createdAt: '2026-06-01T13:00:00Z',
 };
 
+const serviceCommentEntry: RequirementActivity = {
+  id: 1,
+  typeOfActivity: 'comment',
+  previousValue: null,
+  newValue: 'sincronizado',
+  visibilityLevel: 'public',
+  changedBy: 'u-svc',
+  changedByUser: {
+    id: 'u-svc',
+    name: 'Conector Portal',
+    email: 'conector@grava.io',
+    identityType: 'service',
+  },
+  createdAt: '2026-06-01T10:00:00Z',
+};
+
+const personStateEntry: RequirementActivity = {
+  id: 2,
+  typeOfActivity: 'state',
+  previousValue: 'analisis',
+  newValue: 'planificacion',
+  visibilityLevel: 'public',
+  changedBy: 'u1',
+  changedByUser: {
+    id: 'u1',
+    name: 'Iván López',
+    email: 'ivan@grava.io',
+    identityType: 'person',
+  },
+  createdAt: '2026-06-01T11:00:00Z',
+};
+
 describe('RequirementActivityFeed', () => {
   it('muestra mensaje vacío cuando no hay actividad', () => {
     render(<RequirementActivityFeed activity={[]} />);
@@ -302,5 +334,86 @@ describe('RequirementActivityFeed', () => {
       expect.stringContaining('Iván Rodríguez'),
       expect.stringContaining('Ana Pérez'),
     ]);
+  });
+
+  describe('Marca de identidad automática (S-019)', () => {
+    it('TS-9: una entrada escrita por un servicio muestra el nombre y la marca', () => {
+      render(<RequirementActivityFeed activity={[serviceCommentEntry]} />);
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+    });
+
+    it('TS-10: en un feed mixto solo se marca la entrada del servicio', () => {
+      render(<RequirementActivityFeed activity={[serviceCommentEntry, personStateEntry]} />);
+
+      const badges = screen.getAllByText('Automático');
+      expect(badges).toHaveLength(1);
+
+      const serviceEntry = screen.getByText('Conector Portal').closest('[class*="entry"]');
+      expect(serviceEntry).toContainElement(badges[0]);
+
+      const personEntry = screen.getByText('Iván López').closest('[class*="entry"]');
+      expect(personEntry).not.toContainElement(badges[0]);
+    });
+
+    it('TS-11: una entrada sin identityType no se marca y renderiza normal', () => {
+      const sinCampo: RequirementActivity = {
+        ...serviceCommentEntry,
+        changedByUser: {
+          id: 'u-svc',
+          name: 'Conector Portal',
+          email: 'conector@grava.io',
+        },
+      };
+
+      render(<RequirementActivityFeed activity={[sinCampo]} />);
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-12: un feed vacío no muestra la marca', () => {
+      render(<RequirementActivityFeed activity={[]} />);
+
+      expect(screen.getByText('Sin actividad registrada')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('marca al autor de una entrada de resolución escrita por un servicio', () => {
+      const resolucionDeServicio: RequirementActivity = {
+        ...serviceCommentEntry,
+        id: 6,
+        typeOfActivity: 'resolution',
+        previousValue: '',
+        newValue: 'resuelto automáticamente',
+      };
+
+      render(<RequirementActivityFeed activity={[resolucionDeServicio]} />);
+
+      expect(screen.getByText(/agregó una resolución/i)).toBeInTheDocument();
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+    });
+
+    it('marca al autor de un cambio de campo genérico escrito por un servicio', () => {
+      const genericoDeServicio: RequirementActivity = {
+        ...serviceCommentEntry,
+        id: 7,
+        typeOfActivity: 'title',
+        previousValue: 'Antes',
+        newValue: 'Después',
+      };
+
+      render(<RequirementActivityFeed activity={[genericoDeServicio]} />);
+
+      expect(screen.getByText(/cambió/)).toBeInTheDocument();
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+    });
+
+    it('no cambia el avatar de iniciales del autor de servicio', () => {
+      render(<RequirementActivityFeed activity={[serviceCommentEntry]} />);
+
+      expect(screen.getByText('CP')).toBeInTheDocument();
+    });
   });
 });

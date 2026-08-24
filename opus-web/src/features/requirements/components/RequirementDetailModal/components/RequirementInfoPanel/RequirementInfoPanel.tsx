@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RichContentRenderer } from '@/shared/components/ui';
+import { AutomatedIdentityBadge, RichContentRenderer } from '@/shared/components/ui';
 import { SubscribersList } from '@/features/subscriptions/components/SubscribersList';
 import type { RequirementDetail } from '@/features/requirements/types/requirement.types';
 import styles from './RequirementInfoPanel.module.scss';
@@ -163,6 +163,10 @@ export function RequirementInfoPanel({ requirement }: RequirementInfoPanelProps)
           {/* Footer */}
           <div className={styles.footer}>
             Elemento creado por&nbsp;<strong>{requirement.creator?.name ?? '—'}</strong>
+            <AutomatedIdentityBadge
+              identityType={requirement.creator?.identityType}
+              className={styles.identityBadge}
+            />
           </div>
         </div>
       </div>

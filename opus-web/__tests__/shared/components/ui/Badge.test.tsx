@@ -36,4 +36,20 @@ describe('Badge', () => {
     render(<Badge className="custom-class">Badge</Badge>);
     expect(screen.getByText('Badge')).toHaveClass('custom-class');
   });
+
+  it('TS-8: sin las props de accesibilidad no emite role ni aria-label', () => {
+    render(<Badge>Texto</Badge>);
+    const badge = screen.getByText('Texto');
+    expect(badge).not.toHaveAttribute('role');
+    expect(badge).not.toHaveAttribute('aria-label');
+  });
+
+  it('TS-8: pasa role y aria-label al span cuando se los declara', () => {
+    render(
+      <Badge role="img" aria-label="Nombre accesible">
+        Texto
+      </Badge>
+    );
+    expect(screen.getByRole('img', { name: 'Nombre accesible' })).toBeInTheDocument();
+  });
 });

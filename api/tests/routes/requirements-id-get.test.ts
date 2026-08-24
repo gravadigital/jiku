@@ -3,7 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Objective, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, User } from '@jiku/models';
+import { IdentityType, Objective, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, User } from '@jiku/models';
 
 describe('GET /api/requirements/:reqid', () => {
   let application: Application;
@@ -62,6 +62,38 @@ describe('GET /api/requirements/:reqid', () => {
         visibilityLevel: 'public',
         requirementId: 1,
         changedBy: 'zitadel-sub-01',
+      }))
+      // S-019: la identidad automatica. El `name` 'Conector Portal' es el ejemplo de la story:
+      // es el nombre que un avatar de iniciales convierte en "CP" y hace pasar por persona.
+      .then(() => User.create({
+        id: 'zitadel-sub-svc',
+        name: 'Conector Portal',
+        username: 'conector-portal',
+        email: 'conector@portal.test',
+        identityType: IdentityType.Service,
+      }))
+      .then(() => Requirement.create({
+        id: 4,
+        title: 'Requisito creado por el conector',
+        description: 'Alta automatica',
+        type: 'funcionalidad',
+        priority: 'media',
+        state: 'analisis',
+        estimatedFinishDate: '2026-06-01',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-svc',
+      }))
+      // Va sobre el requisito 1 y con `typeOfActivity: 'comment'` a proposito: la actividad
+      // 'state' que siembra este mismo `before` la busca un test preexistente con
+      // `find(a => a.typeOfActivity === 'state')`, y una segunda 'state' lo volveria ambiguo.
+      .then(() => RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'Sincronizado desde el portal',
+        visibilityLevel: 'public',
+        requirementId: 1,
+        changedBy: 'zitadel-sub-svc',
       }));
   });
 
@@ -257,6 +289,88 @@ describe('GET /api/requirements/:reqid', () => {
         .then((response) => {
           response.body.linkedObjectives.should.be.an.Array();
           response.body.linkedObjectives.should.have.length(0);
+        });
+    });
+  });
+
+  /**
+   * S-019: `identityType` en los payloads de autoria de `detalle-requisito` de `web`.
+   *
+   * Son DOS puntos, y el inventario de la story solo nombraba uno: el `creator` del requisito
+   * (`requirements-id-get.ts:14`) y el `changedByUser` de cada entrada del feed (linea 24).
+   * CA-3 pide la marca en los dos lugares.
+   */
+  describe('S-019: identityType en creator y en el autor de cada actividad', () => {
+    // La asercion es sobre las CLAVES PRESENTES y no sobre la ausencia de `roles`: un
+    // `should.not.have.property('roles')` pasaria igual el dia que se agregue otra columna al
+    // modelo. Es el patron que dejo S-015 CA-12.
+    it('S-019 TS-1: should return creator with exactly id, name, email and identityType', () => {
+      return request(application)
+        .get('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          Object.keys(response.body.creator).should.have.length(4);
+          response.body.creator.should.eql({
+            id: 'zitadel-sub-01',
+            name: 'User 01',
+            email: 'user01@mail.com',
+            identityType: 'person',
+          });
+        });
+    });
+
+    // CA-11: la marca ACOMPAÑA al nombre, no lo reemplaza. Ocultar o filtrar al autor de
+    // servicio contradiria REQ-001 ("el publicador externo es el autor") y dejaria al
+    // requisito sin autor visible.
+    it('S-019 TS-2: should mark a service creator and keep its name', () => {
+      return request(application)
+        .get('/api/requirements/4')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.creator.identityType.should.equal('service');
+          response.body.creator.name.should.equal('Conector Portal');
+        });
+    });
+
+    it('S-019 TS-3: should return every activity author with exactly the four keys', () => {
+      return request(application)
+        .get('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.activity.should.be.an.Array();
+          response.body.activity.length.should.be.above(0);
+          response.body.activity.forEach((entry: { changedByUser: Record<string, unknown> }) => {
+            Object.keys(entry.changedByUser).should.have.length(4);
+            entry.changedByUser.should.have.property('id');
+            entry.changedByUser.should.have.property('name');
+            entry.changedByUser.should.have.property('email');
+            entry.changedByUser.should.have.property('identityType');
+          });
+          const serviceEntry = response.body.activity
+            .find((entry: any) => entry.changedBy === 'zitadel-sub-svc');
+          serviceEntry.changedByUser.identityType.should.equal('service');
+          serviceEntry.changedByUser.name.should.equal('Conector Portal');
+        });
+    });
+
+    // `roles` es el campo que NO puede salir: exponer el modelo de roles del producto en una
+    // respuesta HTTP seria filtrar informacion de autorizacion (D-12 de REQ-005). La unica
+    // barrera es el `attributes` acotado del `include`.
+    it('S-019 TS-4: should not leak roles nor username in any author object', () => {
+      return request(application)
+        .get('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          Object.keys(response.body.creator).should.not.containEql('roles');
+          Object.keys(response.body.creator).should.not.containEql('username');
+          response.body.activity.forEach((entry: { changedByUser: Record<string, unknown> }) => {
+            Object.keys(entry.changedByUser).should.not.containEql('roles');
+            Object.keys(entry.changedByUser).should.not.containEql('username');
+          });
         });
     });
   });

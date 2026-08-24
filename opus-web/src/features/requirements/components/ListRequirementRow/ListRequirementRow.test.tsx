@@ -83,4 +83,85 @@ describe('ListRequirementRow', () => {
     expect(screen.getByText('Sin tipo')).toBeInTheDocument();
     expect(screen.queryByText('sin_tipo')).not.toBeInTheDocument();
   });
+  describe('marca de identidad automática', () => {
+    const servicio = {
+      id: 'u-svc',
+      name: 'Conector Portal',
+      email: 'conector@grava.io',
+      identityType: 'service' as const,
+    };
+
+    it('TS-9: la celda AUTOR muestra el nombre y la marca cuando el creador es una identidad de servicio', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <ListRequirementRow
+          requirement={buildRequirement({ creator: servicio })}
+          stateLabel="En cola"
+        />
+      );
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
+
+    it('TS-10: un creador que es una persona no lleva marca', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <ListRequirementRow
+          requirement={buildRequirement({
+            creator: { id: 'u1', name: 'Juan Pérez', email: 'juan@x.com', identityType: 'person' },
+          })}
+          stateLabel="En cola"
+        />
+      );
+      expect(screen.getByText('Juan Pérez')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-11: un creador sin identityType (api vieja) no lleva marca', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(<ListRequirementRow requirement={buildRequirement()} stateLabel="En cola" />);
+      expect(screen.getByText('Juan Pérez')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-12: creator null sigue mostrando "—" y no lleva marca', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <ListRequirementRow
+          requirement={buildRequirement({ creator: null })}
+          stateLabel="En cola"
+        />
+      );
+      expect(screen.getByText('—')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-13: en una lista mixta solo la fila del servicio se marca', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <>
+          <ListRequirementRow
+            requirement={buildRequirement({ id: 1, creator: servicio })}
+            stateLabel="En cola"
+          />
+          <ListRequirementRow
+            requirement={buildRequirement({
+              id: 2,
+              creator: {
+                id: 'u1',
+                name: 'Juan Pérez',
+                email: 'juan@x.com',
+                identityType: 'person',
+              },
+            })}
+            stateLabel="En cola"
+          />
+        </>
+      );
+      const marcas = screen.getAllByText('Automático');
+      expect(marcas).toHaveLength(1);
+      // La marca vive en la misma celda que el nombre del servicio, no en la de la persona.
+      expect(marcas[0].parentElement).toHaveTextContent('Conector Portal');
+    });
+  });
 });

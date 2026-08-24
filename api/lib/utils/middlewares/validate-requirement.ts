@@ -9,7 +9,9 @@ function validateRequirement(req: Request, res: Response, next: NextFunction) {
     where: { id: reqId },
     include: [
       { model: Project, as: 'project', attributes: ['id', 'name', 'keyValuePairs'] },
-      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+      // Es el `include` que alimenta `req.requirement.creator`, o sea el `pie-autoria` de
+      // `opus-web` (S-019 CA-7). Cuatro campos, y `roles` sigue afuera.
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'identityType'] },
     ],
   })
     .then((requirement) => {

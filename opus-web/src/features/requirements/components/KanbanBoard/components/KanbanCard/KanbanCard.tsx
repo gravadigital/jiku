@@ -2,7 +2,7 @@
 
 import { Calendar, User } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { Dropdown } from '@/shared/components/ui';
+import { AutomatedIdentityBadge, Dropdown } from '@/shared/components/ui';
 import type {
   Requirement,
   RequirementState,
@@ -135,6 +135,10 @@ export function KanbanCard({ requirement, stateLabel, onClick }: KanbanCardProps
           <User size={11} />
           {creator?.name ?? '—'}
         </span>
+        <AutomatedIdentityBadge
+          identityType={creator?.identityType}
+          className={styles.identityBadge}
+        />
       </div>
 
       {description && (

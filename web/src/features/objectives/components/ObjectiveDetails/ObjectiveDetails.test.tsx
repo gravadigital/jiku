@@ -170,4 +170,90 @@ describe('ObjectiveDetails', () => {
       screen.queryByRole('link', { name: 'https://jira.example/browse/ABC-1' })
     ).not.toBeInTheDocument();
   });
+
+  describe('Marca de identidad automática (S-019)', () => {
+    beforeEach(() => {
+      vi.mocked(useRequirementModule.useRequirement).mockReturnValue({
+        data: undefined,
+        isError: false,
+        isLoading: false,
+      } as any);
+    });
+
+    it('TS-16: la fila "Creado por" muestra el nombre y la marca cuando el creador es una identidad de servicio', () => {
+      render(
+        <ObjectiveDetails
+          objective={{
+            ...baseObjective,
+            creator: {
+              id: 'u-svc',
+              name: 'Conector Portal',
+              email: 'conector@grava.io',
+              identityType: 'service',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      const row = screen.getByText('Creado por').closest('p');
+      expect(row).toHaveTextContent('Conector Portal');
+      expect(row).toHaveTextContent('Automático');
+    });
+
+    it('TS-17: la fila "Creado por" de una persona no muestra la marca', () => {
+      render(
+        <ObjectiveDetails
+          objective={{
+            ...baseObjective,
+            creator: {
+              id: 'u1',
+              name: 'Ana Pérez',
+              email: 'ana@grava.io',
+              identityType: 'person',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      const row = screen.getByText('Creado por').closest('p');
+      expect(row).toHaveTextContent('Ana Pérez');
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('no muestra la marca cuando el creador llega sin identityType (api vieja)', () => {
+      render(<ObjectiveDetails objective={baseObjective} />, { wrapper: createWrapper() });
+
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('no envuelve el nombre del creador en un span: la regla `p > span` de esta pantalla lo pondria en negrita', () => {
+      render(
+        <ObjectiveDetails
+          objective={{
+            ...baseObjective,
+            creator: {
+              id: 'u-svc',
+              name: 'Conector Portal',
+              email: 'conector@grava.io',
+              identityType: 'service',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      const row = screen.getByText('Creado por').closest('p');
+      const textosDeSpans = Array.from(row?.querySelectorAll('span') ?? []).map(
+        (span) => span.textContent
+      );
+
+      // El span de la etiqueta y el del badge, sí. El del valor, no: iria en negrita y
+      // quedaria distinto de las filas hermanas (`Área`, `Visibilidad`), que son texto suelto.
+      expect(textosDeSpans).toContain('Creado por');
+      expect(textosDeSpans).toContain('Automático');
+      expect(textosDeSpans).not.toContain('Conector Portal');
+    });
+  });
 });

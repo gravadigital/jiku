@@ -18,6 +18,23 @@ export interface User {
   email: string;
 }
 
+export type IdentityType = 'person' | 'service';
+
+/**
+ * Un usuario cuando aparece como AUTOR de algo (creador de proyecto, requisito o tarea;
+ * autor de una entrada de actividad o de un comentario). Espeja el schema `AuthorUser`
+ * de la api: NO trae `username`, y `roles` no sale en ninguna respuesta HTTP.
+ *
+ * `identityType` es opcional a proposito: una api vieja no lo manda, y la condicion del
+ * front es `=== 'service'`, asi que su ausencia NO marca nada. Falla del lado seguro.
+ */
+export interface AuthorUser {
+  id?: string;
+  name: string;
+  email: string;
+  identityType?: IdentityType;
+}
+
 export interface UserCredentials {
   username: string;
   password: string;

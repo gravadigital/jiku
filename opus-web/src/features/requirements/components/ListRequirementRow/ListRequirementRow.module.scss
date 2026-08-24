@@ -139,6 +139,15 @@
 .creator {
   font-size: 12px;
   color: #94a3b8;
+  // La celda "AUTOR" son 160px: el nombre trunca y el badge nunca, porque la marca es la
+  // informacion nueva y no puede ser lo que desaparece.
+  @include truncate;
+  min-width: 0;
+}
+
+.identityBadge {
+  flex-shrink: 0;
+  margin-left: var(--spacing-xs);
 }
 
 // Type — plain text, same style as date

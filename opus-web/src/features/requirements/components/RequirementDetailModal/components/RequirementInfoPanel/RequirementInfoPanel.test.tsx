@@ -129,4 +129,43 @@ describe('RequirementInfoPanel', () => {
     );
     expect(screen.queryByText('Resolución')).not.toBeInTheDocument();
   });
+  describe('pie-autoria · marca de identidad automática', () => {
+    it('TS-18: el pie muestra el literal, el nombre y la marca cuando el creador es una identidad de servicio', () => {
+      render(
+        <RequirementInfoPanel
+          requirement={buildRequirement({
+            creator: {
+              id: 'u-svc',
+              name: 'Conector Portal',
+              email: 'conector@grava.io',
+              identityType: 'service',
+            },
+          })}
+        />
+      );
+      // El literal no cambia: "Elemento creado por" funciona igual para una persona y para
+      // un servicio.
+      expect(screen.getByText(/Elemento creado por/)).toBeInTheDocument();
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
+
+    it('TS-19: un creador que es una persona no lleva marca', () => {
+      render(
+        <RequirementInfoPanel
+          requirement={buildRequirement({
+            creator: { id: 'u1', name: 'Juan Pérez', email: 'juan@x.com', identityType: 'person' },
+          })}
+        />
+      );
+      expect(screen.getByText('Juan Pérez')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-20: creator null sigue mostrando "—" y no lleva marca', () => {
+      render(<RequirementInfoPanel requirement={buildRequirement({ creator: null })} />);
+      expect(screen.getByText('—')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+  });
 });

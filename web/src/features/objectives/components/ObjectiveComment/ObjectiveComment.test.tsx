@@ -1,6 +1,8 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useCurrentUser } from '@root/hooks/use-current-user';
 import { ObjectiveComment } from './ObjectiveComment';
 
 vi.mock('@root/assets/edit.svg', () => ({ default: 'edit-icon.svg' }));
@@ -29,7 +31,7 @@ vi.mock('react-toastify', () => ({
 }));
 
 vi.mock('@root/hooks/use-current-user', () => ({
-  useCurrentUser: () => null,
+  useCurrentUser: vi.fn(),
 }));
 
 vi.mock('@/features/objectives/services/commentsApi', () => ({
@@ -56,6 +58,7 @@ const baseProps = {
 describe('ObjectiveComment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useCurrentUser).mockReturnValue(null);
   });
 
   it('usa MarkdownViewer para renderizar el contenido (no ReactMarkdown crudo)', () => {
@@ -74,5 +77,54 @@ describe('ObjectiveComment', () => {
   it('muestra el badge "Público" para comentarios públicos', () => {
     render(<ObjectiveComment {...baseProps} content="hola" visibilityLevel="public" />);
     expect(screen.getByText('👁')).toBeInTheDocument();
+  });
+
+  describe('Marca de identidad automática (S-019)', () => {
+    it('muestra la marca en el header cuando el autor es una identidad de servicio', () => {
+      render(
+        <ObjectiveComment
+          {...baseProps}
+          authorName="Conector Portal"
+          authorId="u-svc"
+          authorIdentityType="service"
+          content="sincronizado desde el portal"
+        />
+      );
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
+
+    it('no muestra la marca cuando el autor es una persona', () => {
+      render(<ObjectiveComment {...baseProps} authorIdentityType="person" content="hola" />);
+
+      expect(screen.getByText('Agustin Nava')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('no muestra la marca cuando la prop no viene (llamador viejo)', () => {
+      render(<ObjectiveComment {...baseProps} content="hola" />);
+
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-22: la marca sigue presente después de entrar en modo edición', async () => {
+      vi.mocked(useCurrentUser).mockReturnValue({ id: 'u-svc', name: 'Conector Portal' });
+
+      render(
+        <ObjectiveComment
+          {...baseProps}
+          authorName="Conector Portal"
+          authorId="u-svc"
+          authorIdentityType="service"
+          content="sincronizado desde el portal"
+        />
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: 'Editar comentario' }));
+
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
   });
 });

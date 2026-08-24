@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { calculateTimeSince } from '@/shared/utils/calculate-time-since';
 import { getActivityFieldLabel, getActivityValueLabel } from '../../utils/requirementHelpers';
 import styles from './RequirementActivityFeed.module.scss';
@@ -30,6 +31,20 @@ function getActorName(entry: RequirementActivity): string {
   return entry.changedByUser?.name ?? entry.changedBy;
 }
 
+/**
+ * El autor de una entrada del feed: su nombre y, cuando NO es una persona, la marca de
+ * identidad automatica. Es el UNICO lugar de la pantalla donde se decide eso, y por eso
+ * las cuatro formas de entrada (state, comment, resolution y generica) lo comparten.
+ */
+function ActorName({ entry }: { readonly entry: RequirementActivity }) {
+  return (
+    <>
+      <strong>{getActorName(entry)}</strong>{' '}
+      <AutomatedIdentityBadge identityType={entry.changedByUser?.identityType} />
+    </>
+  );
+}
+
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -50,7 +65,7 @@ function getAvatarColor(name: string): string {
 function formatStateChange(entry: RequirementActivity): React.ReactNode {
   return (
     <>
-      <strong>{getActorName(entry)}</strong>
+      <ActorName entry={entry} />
       {' cambió el estado de '}
       <strong>{formatStateLabel(entry.previousValue)}</strong>
       {' a '}
@@ -62,7 +77,7 @@ function formatStateChange(entry: RequirementActivity): React.ReactNode {
 function formatComment(entry: RequirementActivity): React.ReactNode {
   return (
     <>
-      <strong>{getActorName(entry)}</strong>
+      <ActorName entry={entry} />
       {' comentó'}
     </>
   );
@@ -71,7 +86,7 @@ function formatComment(entry: RequirementActivity): React.ReactNode {
 function formatResolution(entry: RequirementActivity): React.ReactNode {
   return (
     <>
-      <strong>{getActorName(entry)}</strong>
+      <ActorName entry={entry} />
       {' agregó una resolución'}
     </>
   );
@@ -86,7 +101,7 @@ function formatGeneric(entry: RequirementActivity): React.ReactNode {
 
   return (
     <>
-      <strong>{getActorName(entry)}</strong>
+      <ActorName entry={entry} />
       {' cambió '}
       {fieldLabel}
       {showValues && (

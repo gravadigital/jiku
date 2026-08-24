@@ -1,5 +1,13 @@
 // Re-exports from features (canonical locations)
-export type { CustomError, Person, TokenInfo, User, UserCredentials } from '@/features/auth/types';
+export type {
+  AuthorUser,
+  CustomError,
+  IdentityType,
+  Person,
+  TokenInfo,
+  User,
+  UserCredentials,
+} from '@/features/auth/types';
 export { Token } from '@/features/auth/types';
 export type { Client, Project, ProjectFilters } from '@/features/projects/types';
 export type {

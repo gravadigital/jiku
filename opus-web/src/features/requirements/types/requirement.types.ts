@@ -1,4 +1,5 @@
 import type { Subscriber } from '@/features/subscriptions';
+import type { AuthorUser } from '@/shared/types';
 
 export type RequirementState =
   'analisis' | 'planificacion' | 'en_cola' | 'desarrollo' | 'revision' | 'resuelto' | 'cancelado';
@@ -15,7 +16,7 @@ export interface RequirementActivity {
   newValue?: string;
   visibilityLevel: 'public' | 'internal';
   createdAt: string;
-  user: { id: string; name: string; email: string } | null;
+  user: AuthorUser | null;
 }
 
 export interface Requirement {
@@ -34,7 +35,7 @@ export interface Requirement {
   inReviewAt: string | null;
   finishedAt: string | null;
   resolutionComment: string | null;
-  creator: { id: string; name: string; email: string } | null;
+  creator: AuthorUser | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,5 +70,5 @@ export interface CreateRequirementResponse {
   state: RequirementState;
   priority: RequirementPriority;
   projectId: number;
-  creator: { id: string; name: string; email: string } | null;
+  creator: AuthorUser | null;
 }

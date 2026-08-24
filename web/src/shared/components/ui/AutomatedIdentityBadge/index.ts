@@ -1,0 +1,1 @@
+export { AutomatedIdentityBadge } from './AutomatedIdentityBadge';

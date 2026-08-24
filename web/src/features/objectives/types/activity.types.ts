@@ -1,4 +1,4 @@
-import type { User } from '@/features/auth/types';
+import type { AuthorUser } from '@/features/auth/types';
 
 export type ActivityType = 'comment' | 'state_change' | 'assignment' | 'update';
 
@@ -13,7 +13,7 @@ export interface ObjectiveActivity {
   createdAt: Date;
   updatedAt: Date;
   projectId: number;
-  user: User;
+  user: AuthorUser;
   visibilityLevel: ActivityVisibilityLevel;
 }
 

@@ -19,7 +19,10 @@ function validateObjective(req: Request, res: Response, next: NextFunction) {
     include: [{
       model: User,
       as: 'creator',
-      attributes: ['id', 'name', 'email'],
+      // Este archivo NO TIENE IMPORTADORES en todo el repo (verificado con grep sobre .ts/.js
+      // fuera de node_modules y dist). `detalle-tarea` se alimenta de `objectives-id-get.ts`,
+      // no de aca. Se acota igual para que no sea una trampa el dia que alguien lo revive.
+      attributes: ['id', 'name', 'email', 'identityType'],
     }, {
       model: Project,
       as: 'project',
@@ -27,6 +30,9 @@ function validateObjective(req: Request, res: Response, next: NextFunction) {
     }, {
       model: ObjectiveSubscriptor,
       as: 'objectiveSubscriptors',
+      // El `user` de `objectiveSubscriptors` NO lleva `identityType`: es un selector de
+      // suscriptores, no una autoria (S-019 CA-1). Un service user no tiene por que estar
+      // suscripto, y la marca no tiene donde ir en una lista de destinatarios.
       include: [{
         model: User,
         as: 'user',

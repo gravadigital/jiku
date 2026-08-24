@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { useUpdateRequirement } from '../../hooks/useUpdateRequirement';
 import { RequirementActivityFeed } from '../RequirementActivityFeed';
 import { RequirementActivityForm } from '../RequirementActivityForm';
@@ -351,7 +352,10 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
 
               <div className={styles.row}>
                 <dt>Creado por</dt>
-                <dd>{requirement.creator.name}</dd>
+                <dd>
+                  {requirement.creator.name}{' '}
+                  <AutomatedIdentityBadge identityType={requirement.creator.identityType} />
+                </dd>
               </div>
 
               <div className={styles.row}>

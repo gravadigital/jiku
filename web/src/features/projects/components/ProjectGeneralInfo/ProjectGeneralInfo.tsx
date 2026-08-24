@@ -1,4 +1,5 @@
 import React from 'react';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { getProjectStatus } from '@/shared/utils';
 import styles from './ProjectGeneralInfo.module.scss';
 import type { Project } from '@/shared/types';
@@ -33,7 +34,10 @@ export function ProjectGeneralInfo({ project }: ProjectGeneralInfoProps) {
 
       <div className={styles.row}>
         <dt>Creado por</dt>
-        <dd>{project.creator.name}</dd>
+        <dd>
+          {project.creator.name}{' '}
+          <AutomatedIdentityBadge identityType={project.creator.identityType} />
+        </dd>
       </div>
       <div className={styles.row}>
         <dt>Fecha de inicio</dt>

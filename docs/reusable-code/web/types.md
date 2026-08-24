@@ -78,3 +78,49 @@ interface UploadQueueError {
   readonly retryable: boolean;
 }
 ```
+
+---
+
+## IdentityType
+
+**Location:** `web/src/features/auth/types/auth.types.ts`
+
+**Description:** The two kinds of identity a `users` row can have. The values are in English
+because the product does not choose them: they are the `type` of
+`deploy/nats/auth-callout/rules.yaml`. The word the user reads is chosen by the front, not by this
+type.
+
+**Interface:**
+
+```ts
+type IdentityType = 'person' | 'service';
+```
+
+---
+
+## AuthorUser
+
+**Location:** `web/src/features/auth/types/auth.types.ts`
+
+**Description:** A user as it appears when it is the **author** of something — creator of a project,
+requirement or task; author of an activity entry or a comment. It mirrors the api's `AuthorUser`
+schema, so it does **not** carry `username` (the api never returns it in an authorship payload) and
+it never carries `roles` (that field is not exposed in any HTTP response).
+
+`identityType` is optional on purpose: it is the deployment compatibility contract — an old api does
+not send it, and every read is `=== 'service'`, so its absence marks nothing. It fails on the safe
+side: a mark is lost, a person is never marked.
+
+Do **not** use it for a person selector payload (`GET /api/opus/projects/{projid}/users`): that one
+is already filtered to `person`, so the field would be constant. Use `User` there.
+
+**Interface:**
+
+```ts
+interface AuthorUser {
+  id?: string;
+  name: string;
+  email: string;
+  identityType?: IdentityType;
+}
+```

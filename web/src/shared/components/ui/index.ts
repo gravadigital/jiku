@@ -1,4 +1,5 @@
 export { AddButton } from './AddButton';
+export { AutomatedIdentityBadge } from './AutomatedIdentityBadge';
 export { Button } from './Button';
 export { Card } from './Card';
 export { CommentEditor } from './CommentEditor';

@@ -1,0 +1,15 @@
+@use '@/styles' as *;
+
+// El selector lleva el atributo a proposito, y no es cosmetico: `detalle-tarea` declara
+// reglas ambientales de descendencia sobre `span` —`.container span { font-size: medium;
+// font-weight: bold }` en ObjectiveHistoryList y `p > span { font-weight: bold }` en
+// ObjectiveDetails— que le ganarian a una clase sola y dejarian dos de los seis badges mas
+// grandes y en negrita que los otros cuatro. Calificar con `[role='img']` sube la
+// especificidad a (0,2,0) y garantiza que los seis se vean iguales.
+.badge[role='img'] {
+  @include tag-base;
+
+  background-color: var(--color-surface-alt);
+  color: var(--color-general-text);
+  border: 1px solid var(--color-general-border);
+}
