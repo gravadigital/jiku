@@ -333,7 +333,7 @@ nombres, las inconsistencias de tipo del esquema (`estimated_finish_date` es `VA
 y `DATE` en requisitos; `worked_times.date` es `TIMESTAMP` y `unworked_times.date` es `DATE`), la
 asimetría sin justificar en el reemplazo de responsables, y las tres tablas de mail muertas.
 
-Incluye además el problema de instalación: **las 102 migraciones no construyen el esquema desde
+Incluye además el problema de instalación: **las 103 migraciones no construyen el esquema desde
 cero** —ninguna crea `objectives`— así que una instalación nueva necesita un dump previo, y el
 esquema de desarrollo lo construye `sequelize.sync()` mientras el de producción lo construyen las
 migraciones: **dos fuentes para la misma cosa**.

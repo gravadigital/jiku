@@ -103,7 +103,7 @@ graph TB
     Opus -->|"OIDC Auth Code + PKCE<br/>mismo CLIENT_ID"| Zitadel
     Web -.->|"next/font"| GFonts
 
-    Api -->|"SOLO LECTURA<br/>+ 102 migraciones + 2 excepciones"| PG
+    Api -->|"SOLO LECTURA<br/>+ 103 migraciones + 2 excepciones"| PG
     Api -->|"13 formas de comando<br/>{instance}.{user-id}.gestion.v1.*"| Nats
     Api -->|"JWKS + service user token"| Zitadel
     Api -->|"Put/Get/Delete/Head + presigned"| S3
@@ -176,7 +176,7 @@ separación no es de datos sino de **operación**:
 |---|---|---|
 | Lectura de cualquier tabla | `api` | Sequelize con credenciales de solo lectura |
 | Escritura de dominio | `core` | Sequelize con el usuario dueño, una transacción por comando |
-| Migraciones del esquema | `api` | 102 migraciones con `POSTGRESQL_MIGRATION_USER`, al arrancar |
+| Migraciones del esquema | `api` | 103 migraciones con `POSTGRESQL_MIGRATION_USER`, al arrancar |
 | **Excepción 1** | `api` | La fila de `attachments` se escribe directo con el ORM |
 | **Excepción 2** | `api` | `PUT /api/week-assigned-times` borra y recrea la semana en una transacción |
 
@@ -430,7 +430,7 @@ pantalla espera a la más lenta.
 - Base de datos en volumen nombrado (`jiku-${STAGE}-database-data`)
 - Las **migraciones corren al arrancar la api**, no core — pese a lo que dice el comentario de
   `deploy/docker-compose.yml:129`, que es incorrecto en su segunda mitad
-- **Una instalación nueva no se puede levantar desde cero:** las 102 migraciones asumen un esquema
+- **Una instalación nueva no se puede levantar desde cero:** las 103 migraciones asumen un esquema
   existente y ninguna crea `objectives`. Requiere un dump previo
 
 **Evolución sugerida** (deriva de los feature groups, no está decidida):

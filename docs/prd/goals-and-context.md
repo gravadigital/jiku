@@ -241,7 +241,7 @@ es una migración de vocabulario a medio camino, con la dirección definida.
   (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`) de una
   funcionalidad de mail eliminada que ninguna migración borró. La suscripción registra interés
   y nada más.
-- **Instalación desde cero** — las 102 migraciones asumen un esquema preexistente; ninguna crea
+- **Instalación desde cero** — las 103 migraciones asumen un esquema preexistente; ninguna crea
   la tabla `objectives`. Una instalación nueva necesita un dump previo.
 - **Facturación, costos y tarifas** — el producto registra tiempo, no dinero.
 - **Uso en mobile del portal de clientes** — bajo 768 px el `Sidebar` de `opus-web` desaparece
