@@ -546,6 +546,58 @@ records the external service itself. That is intended — it is the author.
 
 ---
 
+## Letting a person query the bus
+
+A person with a product role — `admin`, `user` or `external-user` — connects to the bus with their
+own Zitadel token, not through a service user. The subject carries their `sub` as the `user-id`, so
+every query is attributed to the person who made it rather than to the api.
+
+**They can only read.** The template
+([nats/auth-callout/templates/person.yaml](nats/auth-callout/templates/person.yaml)) authorises
+exactly two things: publishing under `{instance}.{user-id}.jiku-queries.v1.>`, and listening on
+`_INBOX.<hash-of-user-id>.>`. Nothing else — no commands, no `$SRV.>` discovery, no service
+subscription.
+
+**They cannot publish a command, and two layers say so independently.** Either one is enough on its
+own:
+
+1. `person.yaml` grants no publish permission on the commands prefix, so the **NATS server rejects
+   the publish with a permissions violation, on the spot**. The message never leaves the server and
+   core never sees it.
+2. Core's role → method map (`core/src/authorize-caller.ts`) authorises **every** query and **no**
+   command for the three product roles, so even if the template grew that permission by mistake,
+   core answers `caller_not_authorized`.
+
+The second layer is not redundancy for its own sake. Core does not hold the rules the api does — the
+time-entry window (today plus the ten previous days), who may log hours on someone else's behalf, or
+the ban on editing past assignment weeks. A person publishing commands straight at the bus would
+bypass all three.
+
+| Caller                                          | Commands                          | Queries                            |
+| ----------------------------------------------- | --------------------------------- | ---------------------------------- |
+| the api (`internal-app`)                        | the whole `jiku-commands.v1` prefix | the whole `jiku-queries.v1` prefix |
+| an external publisher                           | an explicit list of nine subjects  | none                               |
+| **a person** (`admin`, `user`, `external-user`) | **none**                          | the whole `jiku-queries.v1` prefix  |
+
+Of the three, a person is the only one that cannot write and an external publisher the only one that
+cannot read. It is the narrowest permission in `nats/auth-callout/templates/`, on purpose.
+
+**The client must set `inboxPrefix` when it connects.** Same trap as every other caller on this bus:
+replies come back on `_INBOX.<hash-of-user-id>.>` and that is the only inbox the template
+authorises. Let the library pick a random `_INBOX.<random>` and the replies never arrive at all —
+and the symptom is a **timeout**, not a permissions error, which sends you looking in the wrong
+place.
+
+**Nothing in `deploy/` needs changing to let a person in.** Granting the role on the
+`GESTION_ZITADEL_PROJECT_ID` project is enough, because the three rules and the template are already
+versioned here — and they are the same three roles the frontends already use, so in practice there
+is nothing new to grant.
+
+**No component of the product connects a person to the bus today, and that is expected.** `web` and
+`opus-web` talk HTTP to the api. What exists is the road, not traffic on it.
+
+---
+
 ## Diagnosis
 
 ### A file upload fails with an opaque network error

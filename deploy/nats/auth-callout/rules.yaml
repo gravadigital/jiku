@@ -18,17 +18,36 @@
 #   Gramática completa: <instance>.<user-id>.<svc>.<version>.<method>
 #
 # ROLES DEL PRODUCTO
-#   user                usuario de la web  -> NO accede a NATS
-#   external-user       usuario de opus    -> NO accede a NATS
+#   admin               administrador web  -> accede a NATS con permiso de SOLO CONSULTAS
+#   user                usuario de la web  -> accede a NATS con permiso de SOLO CONSULTAS
+#   external-user       usuario de opus    -> accede a NATS con permiso de SOLO CONSULTAS
 #   internal-app        la api             -> accede a NATS y consulta a core
 #   core                el servicio core   -> atiende los comandos
 #   external-publisher  servicio de afuera -> sube archivos y los vincula, con permiso
 #                                             acotado a esos comandos
+#   bus-observer        diagnóstico local  -> escucha todo, no publica nada
 #
-#   Las personas no conectan al bus: hablan HTTP con la api, y es la api la que publica
-#   los comandos con su propio service_user. Por eso `user` y `external-user` NO tienen
-#   regla acá: sin coincidencia, la conexión se rechaza. Es el comportamiento buscado,
-#   no un olvido.
+# LAS PERSONAS CONECTAN AL BUS, Y SOLO PUEDEN LEER
+#   Los tres roles de producto tienen regla acá, y su plantilla —templates/person.yaml—
+#   autoriza exactamente dos cosas: publicar sobre el prefijo de consultas y escuchar su
+#   propio inbox. Ningún comando, y nada más.
+#
+#   Los comandos los sigue publicando la api con su propio service_user, y ESA PARTE NO
+#   CAMBIÓ: una persona que necesita escribir habla HTTP con la api, igual que siempre.
+#
+#   LA GARANTÍA DE QUE UNA PERSONA NO ESCRIBA PASÓ DEL TRANSPORTE A DOS CAPAS, y las dos
+#   tienen que seguir siendo verdad:
+#     1. templates/person.yaml no le da permiso de publicación sobre el prefijo de
+#        comandos -> el servidor NATS le rechaza la publicación con una violación de
+#        permisos, en el momento.
+#     2. El mapa rol -> método de core (core/src/authorize-caller.ts, S-017) no autoriza
+#        ningún comando para roles de producto -> si ese permiso existiera por un error
+#        de plantilla, core responde `caller_not_authorized`.
+#   CADA UNA ALCANZA POR SÍ SOLA. Antes la garantía era que una persona no podía
+#   CONECTARSE: una sola, implícita, y del transporte. La de ahora es más fuerte en un
+#   sentido —defensa en profundidad, dos capas explícitas— y más frágil en otro:
+#   depende de DOS ARCHIVOS CORRECTOS en vez de la AUSENCIA de uno. Un rol nuevo con
+#   acceso al bus se declara en los dos lugares.
 
 version: 1
 
@@ -79,5 +98,51 @@ rules:
     service: bus-observer
     template: templates/observer.yaml
 
+  # PERSONAS CON UN ROL DE PRODUCTO. Las tres reglas de abajo son las que hacen que una
+  # persona pueda conectarse, y las tres apuntan a la MISMA plantilla: `person.yaml`
+  # autoriza publicar SOLO sobre el prefijo de consultas y escuchar su propio inbox.
+  # Ninguna escritura, ningún `$SRV.>`, ninguna suscripción de servicio.
+  #
+  # ESO ES COHERENTE CON EL MAPA ROL -> MÉTODO DE core, A PROPÓSITO. `authorize-caller.ts`
+  # autoriza a estos tres roles TODAS las consultas y NINGÚN comando, así que la
+  # plantilla no mintea un permiso que el escritor va a rechazar: las dos capas dicen lo
+  # mismo, y el diagnóstico es más claro — el rechazo llega como violación de permisos en
+  # el cliente al publicar, no como un `failure` a los 5 segundos de un request que nadie
+  # iba a autorizar.
+  #
+  # `type: person` ES LO QUE PRODUCE `identity_type: "person"` EN EL EVENTO de
+  # {instance}.events.auth. Estas tres reglas son lo que hace observable la distinción
+  # person / service: hasta que existieron, las cuatro de arriba eran las únicas del
+  # archivo y TODO evento salía con `identity_type: "service"`.
+  #
+  # SIN `service`, A DIFERENCIA DE LAS CUATRO DE ARRIBA. Ese campo nombra el ENDPOINT que
+  # el usuario atiende, y una persona no atiende ninguno: `person.yaml` no tiene
+  # `sub.allow` de servicio y no usa `{{service}}`. Declararlo sería inventar un endpoint
+  # que nadie atiende y nadie puede alcanzar.
+  #
+  # LAS TRES VAN ÚLTIMAS, Y NO ES ORDEN ALFABÉTICO NI CASUALIDAD. Gana la primera regla
+  # que coincida, así que un token que llegara con un rol de servicio Y uno de producto
+  # —un machine user al que alguien le asignó `admin` por error— tiene que caer en la
+  # regla DE SERVICIO, que es la que tiene el permiso acotado y correcto para lo que ese
+  # usuario hace. Con la de persona arriba perdería el permiso que necesita, y el síntoma
+  # sería una violación de permisos sobre un subject que "siempre funcionó". Es el mismo
+  # argumento con que `external-publisher` VA ARRIBA DE `internal-app`, y si reordenás
+  # este archivo "para agrupar", rompés esto sin enterarte.
+  - match: admin
+    type: person
+    template: templates/person.yaml
+
+  # Usuario de la web.
+  - match: user
+    type: person
+    template: templates/person.yaml
+
+  # Usuario de opus, el portal de clientes.
+  - match: external-user
+    type: person
+    template: templates/person.yaml
+
   # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.
-  # Es lo que mantiene a `user` y `external-user` fuera del bus.
+  # Lo que queda afuera es CUALQUIER ROL QUE NO ESTÉ EN ESTAS SIETE REGLAS. Ya no son
+  # `user` ni `external-user` —los dos tienen regla, como `admin`—: es cualquier otro,
+  # y agregar uno es un cambio de seguridad (ADR-007), no un renglón más.
