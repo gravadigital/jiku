@@ -15,11 +15,11 @@ import {
  * haga red: no está simulando algo que el sistema real hace de otra forma, está reemplazando
  * una operación puramente local por otra puramente local.
  *
- * SOBRE EL `caller` DE `dispatch()`: su default es `'api'`, que NO es el valor de
- * `CORE_TRUSTED_PUBLISHER_ID` en `.env.test`. Eso es deliberado —los tests de la rama
- * confiable tienen que pasar `TRUSTED` EXPLÍCITAMENTE. Un test que cae en la rama equivocada
- * sin darse cuenta es exactamente el fallo que CA-8 y CA-9 buscan prevenir, y un default que
- * coincidiera lo haría invisible.
+ * SOBRE EL `caller` DE `dispatch()`: desde S-017 su default ES `CORE_TRUSTED_PUBLISHER_ID`. La
+ * compuerta de autorización rechaza a todo caller sin fila en `users`, y el default anterior
+ * (`'api'`) no la tenía. Los tests de la rama EXTERNA siguen pasando su caller explícitamente
+ * —afirman sobre él— y sus filas de fixture llevan `roles: ['external-publisher']`; lo que se
+ * perdió es que un test que OLVIDE su caller ahora cae en la rama exenta y no en la externa.
  */
 
 export interface SignCall {

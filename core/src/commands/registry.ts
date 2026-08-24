@@ -7,6 +7,48 @@ interface Entry {
 }
 
 /**
+ * Compara un patrón —ya partido en segmentos— contra el nombre de un método, y devuelve los
+ * params capturados o `null` si no matchea.
+ *
+ * SE EXTRAJO DE `resolve()` EN S-017 porque la compuerta de autorización necesita el MISMO
+ * matching sin resolver el comando: CA-6 la pone ANTES de `resolve()`. Duplicar diez líneas
+ * habría dejado el mismo algoritmo sutil en dos archivos, y el comentario de la clase explica
+ * por qué es sutil — una regex ingenua se rompe con un `.` dentro de un valor.
+ *
+ * Un objeto VACÍO es un match válido (un patrón sin params), así que el caller compara contra
+ * `null` explícitamente y no con un `if` a secas sobre el valor.
+ */
+function matchSegments(segments: string[], parts: string[]): Record<string, string> | null {
+  if (segments.length !== parts.length) {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment.startsWith('{') && segment.endsWith('}')) {
+      params[segment.slice(1, -1)] = parts[i];
+    } else if (segment !== parts[i]) {
+      return null;
+    }
+  }
+
+  return params;
+}
+
+/**
+ * ¿El nombre de un método matchea un patrón con `{param}`?
+ *
+ * SU OTRO CONSUMIDOR ES LA COMPUERTA DE AUTORIZACIÓN (`src/authorize-caller.ts`), que compara el
+ * método recibido contra los patrones del mapa rol → método ANTES de resolver el comando. No la
+ * reemplaces por una regex ni la muevas: el mapa y el registry TIENEN que matchear igual, o un
+ * caller quedaría autorizado a un patrón que el registry resuelve distinto.
+ */
+export function matchesPattern(pattern: string, name: string): boolean {
+  return matchSegments(pattern.split('.'), name.split('.')) !== null;
+}
+
+/**
  * Registro de comandos: resuelve el nombre de un comando al handler que lo atiende,
  * extrayendo de paso los parámetros del patrón.
  *
@@ -33,24 +75,8 @@ export class CommandRegistry {
     const parts = name.split('.');
 
     for (const entry of this.entries) {
-      if (entry.segments.length !== parts.length) {
-        continue;
-      }
-
-      const params: Record<string, string> = {};
-      let matches = true;
-
-      for (let i = 0; i < entry.segments.length; i++) {
-        const segment = entry.segments[i];
-        if (segment.startsWith('{') && segment.endsWith('}')) {
-          params[segment.slice(1, -1)] = parts[i];
-        } else if (segment !== parts[i]) {
-          matches = false;
-          break;
-        }
-      }
-
-      if (matches) {
+      const params = matchSegments(entry.segments, parts);
+      if (params !== null) {
         return { command: entry.command, params };
       }
     }

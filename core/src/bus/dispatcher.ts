@@ -1,4 +1,5 @@
 import { sequelize } from '../models';
+import { authorizeCaller } from '../authorize-caller';
 import logger from '../logger';
 import { CommandRegistry } from '../commands/registry';
 import { ErrorCode, Reply, callerFromSubject, commandFromSubject, failure } from '@jiku/nats-protocol';
@@ -48,6 +49,22 @@ export class Dispatcher {
 
   async dispatch(subject: string, raw: unknown): Promise<Reply> {
     const name = commandFromSubject(subject);
+    // El caller se resuelve UNA VEZ y se reusa en el contexto del comando: antes se calculaba
+    // inline dentro de la llamada a `execute`, y la compuerta lo necesita antes.
+    const caller = callerFromSubject(subject);
+
+    // LA COMPUERTA VA PRIMERO DE TODO (CA-6), y las dos cosas que quedan detrás son el motivo:
+    // `registry.resolve()` —un caller no autorizado no tiene por qué enterarse de si el comando
+    // existe— y `sequelize.transaction()` —no consume una conexión del pool de escritura—. Es el
+    // mismo criterio con que la validación de Joi corre antes de abrir la transacción.
+    //
+    // NO devuelve un booleano: devuelve el `Reply` de falla ya armado, o `null`. Así el código
+    // del error, su mensaje y su log viven en UN solo lugar para los DOS planos.
+    const denied = await authorizeCaller(caller, name, 'commands');
+    if (denied) {
+      return denied;
+    }
+
     const resolved = this.registry.resolve(name);
 
     if (!resolved) {
@@ -59,6 +76,9 @@ export class Dispatcher {
 
     // Traza de diagnóstico: con LOG_COMMANDS=true imprime cada comando y su payload.
     // Apagada por defecto porque el payload lleva datos de negocio.
+    //
+    // SIGUE ACÁ, DESPUÉS DE LA COMPUERTA, y es deliberado: de un caller rechazado se registra
+    // quién y qué método (en `[auth]`), NUNCA qué mandó.
     if (process.env.LOG_COMMANDS === 'true') {
       logger.info(`[cmd] ${name} <- ${JSON.stringify(raw)}`);
     }
@@ -70,11 +90,7 @@ export class Dispatcher {
 
     const transaction = await sequelize.transaction();
     try {
-      const reply = await command.execute(validated.value, {
-        caller: callerFromSubject(subject),
-        params,
-        transaction,
-      });
+      const reply = await command.execute(validated.value, { caller, params, transaction });
 
       if (reply.status === 'success') {
         await transaction.commit();
