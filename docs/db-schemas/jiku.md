@@ -3,7 +3,7 @@
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
 **Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
-compartido — y de las 102 migraciones de `api/db-upgrade/migrations/`.
+compartido — y de las 103 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -717,7 +717,7 @@ Table worked_times {
   indexes {
     (person_id, date, id) [name: 'idx_worked_times_person_date_id', note: 'REQ-006: keyset de worked-times.list con sort default ["-date"]. DESC en date e id']
     (project_id, date, id) [name: 'idx_worked_times_project_date_id', note: 'REQ-006: idem por proyecto. DESC en date e id']
-    requirement_id [name: 'idx_worked_times_requirement_id', note: 'REQ-006: requirements.totalMinutes. Subconsulta correlacionada POR FILA: con limit 200 son 200']
+    requirement_id [name: 'idx_worked_times_requirement_id', note: 'REQ-006: requirements.totalMinutes. Subconsulta correlacionada POR FILA: con limit 200 son 200. YA EXISTIA: lo creo 20260626_01 junto con la columna, asi que 20260824_02 no lo crea (IF NOT EXISTS) ni lo dropea']
     objective_id [name: 'idx_worked_times_objective_id', note: 'REQ-006: la otra mitad de totalMinutes. Las dos juntas son 400 subconsultas con limit 200']
   }
   note: 'objective_id y requirement_id son mutuamente excluyentes (lo valida la api)'
@@ -804,7 +804,7 @@ Table user_project_permissions {
   created_at timestamp
   updated_at timestamp
   indexes {
-    user_id [name: 'idx_user_project_permissions_user_id', note: 'REQ-006: PARTICIPA DE TODA CONSULTA EN MODO EXTERNO. Verificar antes de crear: puede existir uno implicito por constraint']
+    user_id [name: 'idx_user_project_permissions_user_id', note: 'REQ-006: PARTICIPA DE TODA CONSULTA EN MODO EXTERNO. VERIFICADO en S-021: contra una base migrada NO se crea, porque uk_user_project_permissions (user_id, project_id) de 20260529_07 ya cubre el prefijo. Solo aparece en la base que construye sync()']
   }
   note: 'Sostiene el aislamiento del portal de clientes'
 }
@@ -977,7 +977,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **101** |
+| Cantidad | **103** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`
@@ -985,7 +985,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 > ### Las migraciones no construyen el esquema desde cero
 >
-> **Las 102 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
+> **Las 103 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
 > crea**. Contra una base vacía la api falla al arrancar:
 >
 > ```
@@ -1003,7 +1003,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
-| `YYYYMMDD_NN_query_indexes` (**pendiente, S-021 de REQ-006**) | Crea los ~17 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. **No borra** `idx_projects_client_id`. Ver "Los índices del keyset" abajo |
+| `20260824_02_query_indexes` | Creó los 18 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. El de `user_project_permissions(user_id)` es condicional por catálogo y **contra una base migrada no se crea**, porque `uk_user_project_permissions` ya lo cubre. **No borra** `idx_projects_client_id` ni `idx_worked_times_requirement_id`. Ver "Los índices del keyset" abajo |
 | `20260824_01_users_roles_identity_type` | Agrega `users.roles` (`JSONB`) e `users.identity_type`: el espejo de identidad de REQ-005 y, desde REQ-006, **el control de acceso efectivo de toda la lectura por el bus** |
 | `20260820_01_drop_external_integration` | Da de baja la integración con sistemas externos: borra las 3 tablas `external_*`, las 9 columnas de `objectives` y `objective_activity` (incluida `last_synced_at`, la única sin el prefijo) y el índice único parcial `uk_objective_activity_external_comment` |
 | `20260808_01_remove_stages` | Elimina la tabla `stages`. La api sigue aceptando `stageId` porque la web lo manda |
@@ -1014,7 +1014,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 | `20260717_01` / `20260717_02` | Agrega `sin_tipo` (revertido en `20260722_01`) y crea `requirement_mail_threads` |
 | `20260707_01` | Agrega `en_cola` al estado y los campos de información base |
 | `20260703_01` / `_02` | Crea `people_requirements` y migra el responsable único a la tabla intermedia |
-| `20260626_01_worked_times_requirement_id` | Permite imputar horas a un requisito, no solo a una tarea |
+| `20260626_01_worked_times_requirement_id` | Permite imputar horas a un requisito, no solo a una tarea. **Crea también `idx_worked_times_requirement_id`**, que es uno de los 18 del keyset: `20260824_02` no lo recrea (su `IF NOT EXISTS` lo absorbe) ni lo dropea en su `down` |
 | `20260612_03_attachments_entity_id_nullable` | Habilita drafts anclados al usuario |
 
 ### Los índices del keyset (REQ-006)
@@ -1033,19 +1033,32 @@ Consecuencias prácticas al tocar estas tablas:
 - **La dirección de cada columna importa.** PostgreSQL recorre un índice hacia atrás, pero un
   compuesto con direcciones **mixtas** solo sirve al orden que declara y a su inverso exacto. Los
   índices de arriba llevan `DESC` donde el default del recurso ordena descendente.
-- **Tres índices ya existían y no se recrean:** `attachments(entity_type, entity_id)`,
-  `projects(client_id)` (que **no se borra**) y `files(uploaded_by, byte_status)` — este último cubre
-  el caso "archivo sin vínculo, solo quien lo subió" de `files.get`.
+- **Cuatro índices ya existían y no se recrean:** `attachments(entity_type, entity_id)`,
+  `projects(client_id)` (que **no se borra**), `files(uploaded_by, byte_status)` — este último cubre
+  el caso "archivo sin vínculo, solo quien lo subió" de `files.get` — y
+  **`worked_times(requirement_id)`**, que `20260626_01` creó junto con la columna. El cuarto lo
+  encontró la implementación de S-021 contra el catálogo real; el diseño enumeraba tres. La
+  consecuencia está en el `down` de `20260824_02`, que **no lo dropea**: lo posee `20260626_01`, y
+  un `down` solo puede borrar los nombres que su propio `up` creó.
 - **`user_project_permissions(user_id)` participa de TODA consulta en modo externo.** Es el índice de
   menor tamaño y mayor frecuencia de uso del conjunto: es lo que hace barato el recorte que el
   contrato **no permite desactivar por payload**.
 - **`projects.key_value_pairs` es `JSON` y no `JSONB`** (inconsistencia 3), así que **no admite GIN
   con `@>`**. Por eso `properties` es incluible y **no** filtrable en el contrato, mientras
   `requirements.tags` —que sí es `JSONB`— sí lo es.
-- **`CREATE INDEX` común toma un `SHARE` lock** y bloquea las escrituras mientras construye. Contra
-  `objectives`, `requirements` y `objective_activity` en producción hay que decidir entre ventana y
-  `CREATE INDEX CONCURRENTLY`, que **no puede correr dentro de la transacción** que `sequelize-cli`
-  abre por migración.
+- **`CREATE INDEX` común toma un `SHARE` lock** y bloquea las escrituras mientras construye.
+  `20260824_02` **usa el común y descarta `CONCURRENTLY`**, con los tamaños medidos escritos en el
+  propio archivo: `objectives` 2.670 filas / 888 kB, `requirements` 124 / 240 kB,
+  `objective_activity` 6.930 / 1304 kB. A esa escala el lock dura milisegundos, y la ventana coincide
+  igual con el despliegue porque las escrituras entran por `core`, que se despliega **después** de la
+  migración. El umbral para reconsiderarlo está escrito en la migración: ~5.000.000 de filas o un
+  `CREATE INDEX` estimado en más de ~30 s.
+- **`sequelize-cli` NO abre una transacción por migración**, contra lo que suele asumirse. Usa umzug
+  2.3.0, que pasa el `queryInterface` pelado; las transacciones que se ven en las migraciones del
+  repo las abre cada archivo. Así que `CREATE INDEX CONCURRENTLY` **está disponible sin desactivar
+  nada** — basta con no abrir una. El motivo real para no usarlo es otro: las migraciones corren
+  **al arrancar la api**, y un `CONCURRENTLY` que falla a mitad deja el índice `INVALID` bloqueando el
+  próximo arranque hasta que alguien lo dropee a mano.
 
 ## Inconsistencias del esquema a tener en cuenta
 

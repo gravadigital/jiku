@@ -196,7 +196,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 - Se esperan **aditivas**: el esquema no está versionado aparte del producto.
 - Tabla de control: `sequelize_meta`.
 
-> **Las 102 migraciones actuales no construyen el esquema desde cero**: todas asumen uno
+> **Las 103 migraciones actuales no construyen el esquema desde cero**: todas asumen uno
 > existente y ninguna crea `objectives`. Una instalación nueva necesita un dump previo. No
 > asumas que `upgrade-db` sobre una base vacía funciona.
 
