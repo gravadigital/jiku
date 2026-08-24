@@ -1,5 +1,5 @@
 import type { ObjectiveActivity } from './activity.types';
-import type { Person, User } from '@/features/auth/types';
+import type { AuthorUser, Person } from '@/features/auth/types';
 import type { Project } from '@/features/projects/types/project.types';
 
 export type ObjectiveState = 'activo' | 'backlog' | 'en_revision' | 'cancelado' | 'finalizado';
@@ -33,7 +33,7 @@ export interface Objective {
   project: Project;
   ObjectiveActivity?: ObjectiveActivity[];
   persons: Person[];
-  creator: User;
+  creator: AuthorUser;
   showProject?: boolean;
   workedTime?: WorkedTime[];
   workedTimeDetailed?: WorkedTime[];

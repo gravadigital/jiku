@@ -660,4 +660,56 @@ describe('RequirementDetail', () => {
       expect(activeStep).toBeDefined();
     });
   });
+
+  describe('Marca de identidad automática (S-019)', () => {
+    it('TS-7: la fila "Creado por" muestra el nombre y la marca cuando el creador es una identidad de servicio', () => {
+      render(
+        <RequirementDetail
+          requirement={{
+            ...baseRequirement,
+            creator: {
+              id: 'u-svc',
+              name: 'Conector Portal',
+              email: 'conector@grava.io',
+              identityType: 'service',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      const row = screen.getByText('Creado por').closest('div');
+      expect(row).toHaveTextContent('Conector Portal');
+      expect(row).toHaveTextContent('Automático');
+    });
+
+    it('TS-8: la fila "Creado por" de una persona no muestra la marca', () => {
+      render(
+        <RequirementDetail
+          requirement={{
+            ...baseRequirement,
+            creator: {
+              id: 'u1',
+              name: 'Iván López',
+              email: 'ivan@grava.io',
+              identityType: 'person',
+            },
+          }}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      const row = screen.getByText('Creado por').closest('div');
+      expect(row).toHaveTextContent('Iván López');
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('no muestra la marca cuando el creador llega sin identityType (api vieja)', () => {
+      render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
+
+      const row = screen.getByText('Creado por').closest('div');
+      expect(row).toHaveTextContent('Iván López');
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+  });
 });

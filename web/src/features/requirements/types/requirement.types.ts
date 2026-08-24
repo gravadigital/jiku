@@ -1,3 +1,4 @@
+import type { IdentityType } from '@/features/auth/types';
 import type { Objective } from '@/features/objectives/types/objective.types';
 
 export type RequirementType = 'funcionalidad' | 'mejora' | 'incidencia' | 'otro' | null;
@@ -51,12 +52,16 @@ export interface RequirementActivityUser {
   id: string;
   name: string;
   email: string;
+  /** Marca de identidad automatica. Ausente contra una api vieja: no marca nada. */
+  identityType?: IdentityType;
 }
 
 export interface RequirementCreator {
   id: string;
   name: string;
   email: string;
+  /** Marca de identidad automatica. Ausente contra una api vieja: no marca nada. */
+  identityType?: IdentityType;
 }
 
 export interface RequirementActivity {

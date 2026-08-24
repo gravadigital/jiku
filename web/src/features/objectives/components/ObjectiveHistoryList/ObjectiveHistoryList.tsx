@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tooltip } from '@/shared/components/ui';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import {
   calculateTimeSince,
   formatDate,
@@ -38,7 +39,8 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
         {activities.map((activity) => (
           <li key={activity.id}>
             <div className={styles.listContainer}>
-              <span>{activity.user.name}</span>
+              <span>{activity.user.name}</span>{' '}
+              <AutomatedIdentityBadge identityType={activity.user.identityType} />
               {' cambió '}
               <span>{getObjectiveTypeOfActivity(activity.typeOfActivity)}</span>
               {activity.typeOfActivity === 'description' ? null : (
@@ -78,6 +80,7 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
             <ObjectiveComment
               authorName={comment.user.name}
               authorId={comment.user.id || ''}
+              authorIdentityType={comment.user.identityType}
               date={comment.createdAt}
               updateDate={comment.updatedAt}
               content={comment.newValue}

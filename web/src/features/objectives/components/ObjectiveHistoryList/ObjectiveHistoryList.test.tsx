@@ -53,8 +53,52 @@ const baseComment: ObjectiveActivity = {
   createdAt: new Date('2026-04-24T10:00:00Z'),
   updatedAt: new Date('2026-04-24T10:00:00Z'),
   projectId: 5,
-  user: { id: 'u-1', name: 'Ana Pérez', username: 'aperez', email: 'ana@grava.io' },
+  user: { id: 'u-1', name: 'Ana Pérez', email: 'ana@grava.io' },
   visibilityLevel: 'internal',
+};
+
+const serviceStateActivity: ObjectiveActivity = {
+  id: 100,
+  typeOfActivity: 'state',
+  previousValue: 'activo',
+  newValue: 'finalizado',
+  objectiveId: 12,
+  createdAt: new Date('2026-06-01'),
+  updatedAt: new Date('2026-06-01'),
+  projectId: 5,
+  user: {
+    id: 'u-svc',
+    name: 'Conector Portal',
+    email: 'conector@grava.io',
+    identityType: 'service',
+  },
+  visibilityLevel: 'public',
+};
+
+const personStateActivity: ObjectiveActivity = {
+  ...serviceStateActivity,
+  id: 101,
+  previousValue: 'backlog',
+  newValue: 'activo',
+  user: { id: 'u1', name: 'Ana Pérez', email: 'ana@grava.io', identityType: 'person' },
+};
+
+const personComment: ObjectiveActivity = {
+  ...baseComment,
+  id: 301,
+  user: { id: 'u1', name: 'Ana Pérez', email: 'ana@grava.io', identityType: 'person' },
+};
+
+const serviceComment: ObjectiveActivity = {
+  ...baseComment,
+  id: 300,
+  newValue: 'sincronizado desde el portal',
+  user: {
+    id: 'u-svc',
+    name: 'Conector Portal',
+    email: 'conector@grava.io',
+    identityType: 'service',
+  },
 };
 
 describe('ObjectiveHistoryList', () => {
@@ -132,5 +176,77 @@ describe('ObjectiveHistoryList', () => {
       screen.getByRole('heading', { name: 'Historial de cambios', level: 2 })
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Comentarios', level: 2 })).toBeInTheDocument();
+  });
+
+  describe('Marca de identidad automática (S-019)', () => {
+    it('TS-18: una entrada del historial escrita por un servicio muestra el nombre y la marca', () => {
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[serviceStateActivity]} />);
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+    });
+
+    it('TS-19: en un historial mixto solo se marca la entrada del servicio', () => {
+      render(
+        <ObjectiveHistoryList
+          objectiveId={12}
+          objectiveActivity={[serviceStateActivity, personStateActivity]}
+        />
+      );
+
+      const badges = screen.getAllByText('Automático');
+      expect(badges).toHaveLength(1);
+
+      const serviceRow = screen.getByText('Conector Portal').closest('li');
+      expect(serviceRow).toContainElement(badges[0]);
+
+      const personRow = screen.getByText('Ana Pérez').closest('li');
+      expect(personRow).not.toContainElement(badges[0]);
+    });
+
+    it('TS-20: un comentario escrito por un servicio muestra el nombre y la marca en su header', () => {
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[serviceComment]} />);
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+    });
+
+    it('TS-21: un comentario escrito por una persona no muestra la marca', () => {
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[personComment]} />);
+
+      expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-23: el comentario de un servicio no habilita ninguna acción para otro usuario', () => {
+      vi.mocked(useCurrentUser).mockReturnValue({ id: 'u1', name: 'Ana Pérez' });
+
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[serviceComment]} />);
+
+      expect(screen.getAllByText('Automático')).toHaveLength(1);
+      expect(
+        screen.queryByRole('button', { name: 'Editar comentario' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('TS-24: sin historial ni comentarios no hay ninguna marca', () => {
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[]} />);
+
+      expect(screen.getByText('No hay cambios aún')).toBeInTheDocument();
+      expect(screen.getByText('No hay comentarios aún')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('una entrada del historial sin identityType no se marca', () => {
+      const sinCampo: ObjectiveActivity = {
+        ...serviceStateActivity,
+        user: { id: 'u-svc', name: 'Conector Portal', email: 'conector@grava.io' },
+      };
+
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[sinCampo]} />);
+
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
   });
 });
