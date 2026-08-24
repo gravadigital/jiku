@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-24 (S-016)
+**Last updated:** 2026-08-24 (S-017)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -13,10 +13,11 @@ so a change here does not reach them without `npm run build:packages`.
 
 ## Constants
 
-Total: 2
+Total: 3
 
 - **COMMAND_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the commands service: `NATS_COMMAND_SERVICE || 'jiku-commands'`. Read once, at import time.
 - **QUERY_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the queries service: `NATS_QUERY_SERVICE || 'jiku-queries'`. Read once, at import time.
+- **ErrorCode** (`packages/nats-protocol/src/index.ts`) - The catalog of protocol error codes as a frozen object (`as const`), 27 members. Use the constant, never the literal. The catalog is **not closed** and holds codes with no emitter on purpose (ADR-005). Adding a code is **three** changes — this file, the `enum` of `docs/apis/core.yaml` and the map of `api/lib/utils/bus/protocol.ts` — and without the third it falls through to a generic 500. The source of truth for the value is the contract, not this file. REQ-005 added `caller_not_authorized` (403), the first code emitted by **the dispatcher** and not by a command.
 
 ## Utils
 

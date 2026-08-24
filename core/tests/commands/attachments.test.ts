@@ -18,9 +18,11 @@ import { S3Double, installS3Double, uninstallS3Double } from '../helpers/s3-doub
 const UPLOADER_A = 'zitadel-user-a';
 
 /**
- * `dispatch()` usa `'api'` por default, que NO coincide con `CORE_TRUSTED_PUBLISHER_ID` de
- * `.env.test` — es deliberado en este codebase. Este comando no resuelve actor, así que los dos
- * callers tienen que dar exactamente el mismo resultado; TS-15 es el que lo prueba.
+ * Desde S-017 el default de `dispatch()` ES `CORE_TRUSTED_PUBLISHER_ID`: la compuerta de
+ * autorización rechazaría cualquier otro por no tener fila en `users`. Este comando no resuelve
+ * actor, así que el caller exento y este caller externo tienen que dar exactamente el mismo
+ * resultado; TS-15 es el que lo prueba — y por eso su fila lleva `roles`, sin los cuales la
+ * compuerta lo rechazaría antes de llegar al comando.
  */
 const EXTERNAL = 'servicio-externo-sub';
 
@@ -33,7 +35,15 @@ describe('attachments', () => {
     // `files.uploaded_by` es FK a `users.id`: el actor tiene que existir antes que el archivo.
     await User.bulkCreate([
       { id: UPLOADER_A, name: 'Usuario A', username: 'usuario-a-att', email: 'a-att@test.local' },
-      { id: EXTERNAL, name: 'Externo', username: 'externo-att', email: 'externo-att@test.local' },
+      // `roles` desde S-017: `attachments.{id}.delete` es uno de los 9 subjects que
+      // `external-publisher` autoriza. Sin la lista la compuerta lo rechazaría (CA-10).
+      {
+        id: EXTERNAL,
+        name: 'Externo',
+        username: 'externo-att',
+        email: 'externo-att@test.local',
+        roles: ['external-publisher'],
+      },
     ]);
     p1 = await Project.create({
       name: 'Proyecto Adjuntos', code: 'ATT', status: 'activo', type: 'comercial',

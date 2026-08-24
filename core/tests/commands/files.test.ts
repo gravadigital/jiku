@@ -15,9 +15,10 @@ import { dispatch } from '../helpers/dispatch';
 import { S3Double, installS3Double, uninstallS3Double } from '../helpers/s3-double';
 
 /**
- * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`. Es el `caller` que ejercita la rama de la api;
- * el default de `dispatch()` (`'api'`) NO coincide con él a propósito, así que la rama
- * confiable siempre se pide explícitamente.
+ * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`. Es el `caller` que ejercita la rama de la api, y
+ * desde S-017 es TAMBIÉN el default de `dispatch()`: la compuerta de autorización rechazaría
+ * cualquier otro default por no tener fila en `users`. Se sigue pasando explícito donde el test
+ * afirma sobre la rama confiable, para que se lea en el call site cuál de las dos se ejercita.
  */
 const TRUSTED = 'api-service-user-sub';
 const EXTERNAL = 'servicio-externo-sub';
@@ -81,7 +82,19 @@ describe('files', () => {
     // `files.uploaded_by` es FK a `users.id`: los actores tienen que existir.
     await User.bulkCreate([
       { id: UPLOADER_A, name: 'Usuario A', username: 'usuario-a', email: 'a@test.local' },
-      { id: EXTERNAL, name: 'Externo', username: 'externo', email: 'externo@test.local' },
+      // `roles` desde S-017: la compuerta de autorización lee ESTA lista, no el claim del token,
+      // y sin ella este caller sería rechazado con `caller_not_authorized` antes de llegar al
+      // comando. `external-publisher` es el rol que autoriza los 9 subjects de la plantilla del
+      // callout, entre ellos los dos de archivos que este archivo ejercita.
+      {
+        id: EXTERNAL,
+        name: 'Externo',
+        username: 'externo',
+        email: 'externo@test.local',
+        roles: ['external-publisher'],
+      },
+      // `TRUSTED` NO lleva roles: su fila existe solo porque `files.uploaded_by` es FK a
+      // `users.id`, y la compuerta lo exime por `sub`. Para la autorización es dato, no compuerta.
       { id: TRUSTED, name: 'Api', username: 'api-su', email: 'api@test.local' },
     ]);
   });

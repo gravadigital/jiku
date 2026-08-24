@@ -2,6 +2,7 @@ import 'mocha';
 import 'should';
 import * as sinon from 'sinon';
 import { Sequelize } from 'sequelize-typescript';
+import { User } from '@jiku/models';
 import { Reply, success } from '@jiku/nats-protocol';
 import { sequelize } from '../../src/models';
 import { readDb } from '../../src/models/read';
@@ -63,6 +64,28 @@ describe('queries/registry', () => {
 });
 
 describe('queries/dispatcher', () => {
+  before(async () => {
+    // Desde S-017 los dos despachadores autorizan al caller del subject ANTES de resolver el
+    // método. Los subjects de este archivo NO CAMBIAN —sus aserciones afirman sobre el caller que
+    // llevan— así que lo que se agrega son las filas que la compuerta va a encontrar. `admin`
+    // autoriza TODAS las consultas y NINGÚN comando, que es exactamente lo que estos tests
+    // necesitan.
+    await User.bulkCreate([
+      { id: 'api', name: 'Api', username: 'api-q', email: 'api-q@test.local', roles: ['admin'] },
+      {
+        id: '323332022539911171',
+        name: 'Persona',
+        username: 'persona-q',
+        email: 'persona-q@test.local',
+        roles: ['admin'],
+      },
+    ]);
+  });
+
+  after(async () => {
+    await User.destroy({ where: { id: ['api', '323332022539911171'] } });
+  });
+
   it('TS-15 · el despachador NO abre transacción, en ninguna de las dos conexiones', async () => {
     const writeTx = sinon.spy(sequelize, 'transaction');
     const readTx = sinon.spy(readDb, 'transaction');

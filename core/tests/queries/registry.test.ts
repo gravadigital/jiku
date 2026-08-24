@@ -2,6 +2,7 @@ import 'mocha';
 import 'should';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { User } from '@jiku/models';
 import { endpointName, endpointSubject } from '@jiku/nats-protocol';
 import { readDb } from '../../src/models/read';
 import { QueryDispatcher } from '../../src/queries/dispatcher';
@@ -24,6 +25,26 @@ const CONTRACT_PATTERNS = [
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 
 describe('queries/index — el registry poblado', () => {
+  before(async () => {
+    // Desde S-017 el despachador de consultas autoriza al caller del subject ANTES de resolver el
+    // método, y TS-19 entra por el despachador real con `dev.api.jiku-queries.v1.…`. El subject NO
+    // CAMBIA —la aserción es sobre el stub sin contrato, no sobre el caller—: lo que se agrega es
+    // la fila que la compuerta va a encontrar. `admin` autoriza TODAS las consultas y NINGÚN
+    // comando, que es exactamente lo que este archivo necesita.
+    await User.destroy({ where: { id: 'api' } });
+    await User.create({
+      id: 'api',
+      name: 'Api',
+      username: 'api-qr',
+      email: 'api-qr@test.local',
+      roles: ['admin'],
+    });
+  });
+
+  after(async () => {
+    await User.destroy({ where: { id: 'api' } });
+  });
+
   it('TS-13 · los 6 patrones del registry, exactos y en el orden del contrato', () => {
     queryRegistry.patterns().should.deepEqual(CONTRACT_PATTERNS);
   });

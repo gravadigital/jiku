@@ -1,5 +1,88 @@
 # Utils — `core`
 
+
+## authorizeCaller
+
+**Location:** `core/src/authorize-caller.ts`
+
+**Description:** The authorisation gate of **both** dispatchers — commands and queries. It runs
+**before resolving the method and before opening the transaction**, so an unauthorised caller never
+learns whether the method exists and never takes a connection from the write pool.
+
+```
+caller === CORE_TRUSTED_PUBLISHER_ID  -> null (passes WITHOUT touching the database)
+otherwise                             -> User.findByPk(caller)
+                                           no row                         -> failure
+                                           row, no role allows the method -> the SAME failure
+```
+
+Returns `null` when authorised, or the ready-made `Reply` the dispatcher must return — so the error
+code, its message and its log live in **one** place for both planes. One code and **one message** for
+both refusal cases on purpose: a different message would be the existence oracle the shared code
+avoids.
+
+**It never rejects, and it fails closed.** `getTrustedPublisherId()` throws when `loadConfig()` has
+not run, and `findByPk` can reject; both would escape `dispatch()`, and *"the dispatcher never
+throws"* (ADR-003) admits no path where it does. On anything unexpected it logs `error` and returns
+`internal_error` — **not `null`**: a gate that cannot decide **denies**, since letting the message
+through would turn a database outage into an authorisation bypass.
+
+**No transaction** (a documented exception to the `orm` convention: there is no transaction yet), no
+cache, and the read goes out through the **owner** connection even on the query plane —
+`models/read.ts` deliberately registers no models, so the ORM is not available there.
+
+**Signature:**
+```ts
+type Plane = 'commands' | 'queries';
+function authorizeCaller(caller: string, method: string, plane: Plane): Promise<Reply<never> | null>
+```
+
+**Usage:**
+```ts
+const denied = await authorizeCaller(callerFromSubject(subject), name, 'commands');
+if (denied) {
+  return denied;
+}
+```
+
+## rolesAuthorize
+
+**Location:** `core/src/authorize-caller.ts`
+
+**Description:** The pure predicate behind the gate: does any of the caller's roles authorise this
+method on this plane? **Union, not precedence** — one role is enough, which differs on purpose from
+the callout's `rules.yaml`, where the first matching rule wins and only one template is granted. A
+role absent from `ROLE_METHODS` is skipped rather than an error: that is the deny-by-default of
+ADR-008, and it is what makes it acceptable to store `roles` without validating them against any
+catalog.
+
+**Signature:**
+```ts
+function rolesAuthorize(roles: readonly string[], method: string, plane: Plane): boolean
+```
+
+## matchesPattern
+
+**Location:** `core/src/commands/registry.ts`
+
+**Description:** Does a method name match a pattern with `{param}` segments? Extracted from
+`CommandRegistry.resolve()` in S-017 because the authorisation gate needs the **same** matching
+without resolving the command — five of the nine patterns of `external-publisher` carry a `{param}`.
+The map and the registry **must** match identically, or a caller would end up authorised for a
+pattern the registry resolves differently. Do not replace it with a regex: matching is by segment
+because a `.` inside a value breaks a naive one.
+
+**Signature:**
+```ts
+function matchesPattern(pattern: string, name: string): boolean
+```
+
+**Usage:**
+```ts
+matchesPattern('files.{fileId}.request-download', 'files.7.request-download'); // true
+matchesPattern('tasks.{id}.edit', 'tasks.7.comment'); // false
+```
+
 ## resolveActor
 
 **Location:** `core/src/commands/resolve-actor.ts`

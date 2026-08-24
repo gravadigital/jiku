@@ -2,8 +2,9 @@
 
 Bus worker: **the only service that writes to the database**.
 
-It handles the commands the API publishes, validates business rules and writes. It exposes no
-HTTP and validates neither tokens nor roles — that is the API's job.
+It handles the commands the API publishes, validates business rules and writes. It exposes no HTTP
+and validates no tokens — that is the API's job. **Since REQ-005 it does know about roles**, but
+only to authorise the **caller** of a subject: see [the authorisation gate](#the-authorisation-gate).
 
 **One process, two micro services, one NATS connection.** `jiku-commands` serves the 20 domain
 commands; `jiku-queries` serves the 6 read endpoints. They are announced separately in `$SRV`, each
@@ -22,11 +23,11 @@ described here because they do not exist yet.
 ## How it works
 
 ```
-NATS ──> jiku-commands ──> Dispatcher      ──> Command ──> database (owner user)
-                           (transaction)       (validates and writes)
+NATS ──> jiku-commands ──> authorizeCaller ──> Dispatcher      ──> Command ──> database (owner)
+                           (the gate)          (transaction)       (validates and writes)
 
-NATS ──> jiku-queries  ──> QueryDispatcher ──> Query   ──> database (read-only role)
-                           (NO transaction)    (explicit SQL, no ORM)
+NATS ──> jiku-queries  ──> authorizeCaller ──> QueryDispatcher ──> Query   ──> database (read-only)
+                           (the gate)          (NO transaction)    (explicit SQL, no ORM)
 
 NATS ──> {instance}.events.auth ──> EventDispatcher ──> syncUser ──> database (owner user)
          (flat subscription,        (transaction)       (mirrors the identity)
@@ -37,9 +38,10 @@ NATS ──> {instance}.events.auth ──> EventDispatcher ──> syncUser ─
 | ------------------------- | ----------------------------------------------------------------------- |
 | `src/bus/host.ts`         | opens the connection, registers the micro services and subscribes to the event |
 | `src/bus/service.ts`      | registers a micro service from a spec: endpoints, queue group and reply |
-| `src/bus/dispatcher.ts`   | resolves the command, opens the transaction, replies                    |
+| `src/authorize-caller.ts` | the role → method map and **the authorisation gate**, shared by both planes |
+| `src/bus/dispatcher.ts`   | authorises the caller, resolves the command, opens the transaction, replies |
 | `src/commands/`           | one file per command                                                    |
-| `src/queries/`            | registry + dispatcher (**no transaction**) + the 6 read endpoints       |
+| `src/queries/`            | registry + dispatcher (**authorises, no transaction**) + the 6 read endpoints |
 | `src/events/`             | the event dispatcher (guards + transaction + outcome) and its handlers   |
 | `src/models/`             | registers the models from `@jiku/models` on the **owner** connection    |
 | `src/models/read.ts`      | the **read-only** connection — **without models**, own pool and timeout |
@@ -75,6 +77,66 @@ half-written change by forgetting a rollback.
 
 **The dispatcher never throws.** An unexpected error becomes an error `Reply` — there is a
 request waiting, and silence would hang the API until its timeout.
+
+### The authorisation gate
+
+**Both dispatchers authorise the CALLER of the subject before resolving the method and before
+opening the transaction.** It is the product's second line of defence: until REQ-005 the bus access
+policy minted by the `auth-callout` was the only one, and `docs/prd/architecture.md` said so
+explicitly.
+
+```
+caller == CORE_TRUSTED_PUBLISHER_ID  -> passes WITHOUT touching the database
+otherwise                            -> User.findByPk(caller)
+                                          no row                         -> caller_not_authorized
+                                          row, no role allows the method -> caller_not_authorized
+```
+
+The map of role → method lives in `src/authorize-caller.ts`, is a module constant and is
+**deny-by-default** (ADR-008): anything absent from it authorises nothing.
+
+| Role                            | Commands | Queries | Why                                        |
+| ------------------------------- | -------- | ------- | ------------------------------------------ |
+| `internal-app`                  | —        | —       | **exempt by `sub`, not by role** (see below) |
+| `external-publisher`            | the 9    | none    | mirrors its callout template                |
+| `admin` · `user` · `external-user` | none  | all     | the business rules live in the api          |
+| `core` · `bus-observer`         | none     | none    | core does not call itself; the observer does not publish |
+| *(empty list, or unknown role)* | none     | none    | no match, no authorisation                  |
+
+**Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there is a
+**silent total write outage**: if the api connects to the bus before core is subscribed, its
+authentication event is **lost** (plain core NATS — no stream, no retry, no record), the api stays
+connected and functional **with no row in `users`**, and core refuses **all 20 commands**. The
+symptom is a 403 on every write in the product; the cause is a message lost hours ago, which fixes
+itself "when the api reconnects" — with a hot-renewed ~1 h token, possibly not for days. The api
+also **already authorises by role** (`hasAnyRole`) before publishing, so consulting `users.roles`
+for its service user would authorise the same thing twice from two sources, with the worse of the
+two deciding. The exemption reuses the very constant and branch `resolveActor` already has, and it
+is a **string comparison**: the hot path pays neither a query nor a millisecond.
+
+**Product roles authorise no command, on purpose.** Core does not hold the business rules that
+depend on the end user — the worked-hours window, who may charge hours to someone else, the frozen
+past weeks of assignment. They live in the api. Enabling commands for people is its own requirement.
+
+**There is no cache.** Every non-exempt caller pays its own `findByPk`. Caching would reintroduce
+stale roles with an extra, unmeasurable window in order to save a by-PK `SELECT` that the hot path
+never runs. The consequence is the one to know: **revoking a role in Zitadel takes effect
+immediately on the HTTP plane and only eventually on the bus plane** — the row keeps the previous
+roles until that identity authenticates again, and established connections are not invalidated.
+
+**A new role with bus access is TWO changes, not one:** this map **and** its `auth-callout`
+template. A role missing from the map authorises nothing — the correct default — but the symptom is
+"I gave them the role and they can do nothing", so it helps to know where to look. The same goes the
+other way: the 9 subjects of `external-publisher` are enumerated in the map **and** in
+`deploy/nats/auth-callout/templates/external-publisher.yaml`, with nothing technical keeping them in
+sync. That is the accepted price of defence in depth.
+
+**A rejection answers `caller_not_authorized` (403 in the api) and logs one `warn` prefixed
+`[auth]`** with the caller and the method — never the payload. The **same** code and the **same**
+message for "no row" and "role not allowed": telling them apart would leak to an unauthorised caller
+whether an identity exists in the database. The gate **never throws** and **fails closed**: if it
+cannot decide (database down, config not loaded) it answers `internal_error` rather than letting the
+message through.
 
 ### The event consumer
 
@@ -114,6 +176,13 @@ More on the design in [documentation/README.md](../documentation/README.md).
 
 The `pattern` has to match the subject in the protocol document. Variable segments go in
 braces: `clients.{id}.edit`.
+
+**A new command is NOT authorised for the external connector just by existing.** Only the api's
+channel is exempt from the gate; every other caller is authorised against the role → method map. To
+let the external connector publish a new command, add it in **two** places — `ROLE_METHODS` in
+`src/authorize-caller.ts` **and** `deploy/nats/auth-callout/templates/external-publisher.yaml` — and
+**in the same commit**. Adding it to only one of the two gives a rejection in the transport or a
+`caller_not_authorized` from the gate, depending on which one you forgot.
 
 **Query patterns never take braces.** `projects.list`, `tasks.get` — the resource id travels **in
 the payload**, not in the subject. That is a performance decision, not an oversight: the server

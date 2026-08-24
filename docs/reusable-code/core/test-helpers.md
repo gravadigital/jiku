@@ -3,6 +3,37 @@
 > `S3Double` is listed in [index.md](index.md) but has no detail entry yet — the catalog is
 > partial, as the index states. This file was opened by S-012 with the doubles of the bus layer.
 
+## dispatch / dispatchQuery
+
+**Location:** `core/tests/helpers/dispatch.ts`
+
+**Description:** Dispatch a command or a query as if it had arrived on the bus, building the full
+subject with the protocol package's helpers. Both go in through the **real** dispatcher over the
+**real** registry, so every test also covers subject parsing, the authorisation gate, method
+resolution and — for commands — the dispatcher's transaction.
+
+**The default caller is the trusted publisher, and it changed in S-017.** It used to be `'api'`,
+which does **not** match `CORE_TRUSTED_PUBLISHER_ID`, so that a test could not fall into
+`resolveActor`'s trusted branch unnoticed. With the authorisation gate installed that choice stopped
+being viable: `'api'` is not the trusted publisher and has no row in `users`, so the ~112 dispatches
+that pass no caller would all answer `caller_not_authorized`. The alternatives were passing the
+caller explicitly at 112 call sites of a security diff, or inventing a test role authorising all 20
+commands — a hole in the map the suite would keep open.
+
+**What to know:** a test that **forgets** its caller now lands on the **exempt** branch, not the
+external one. The half that mattered is preserved — tests of the external branch still pass their
+caller explicitly, because they assert on it, and their `users` fixtures carry
+`roles: ['external-publisher']`.
+
+The value comes from `getTrustedPublisherId()` and not a literal, so `core/.env.test` stays the only
+source of it.
+
+**Signature:**
+```ts
+function dispatch<T>(command: string, payload: unknown, caller?: string): Promise<Reply<T>>;
+function dispatchQuery<T>(query: string, payload: unknown, caller?: string): Promise<Reply<T>>;
+```
+
 ## fakeMsg / fakeConnection
 
 **Location:** `core/tests/helpers/micro-double.ts`

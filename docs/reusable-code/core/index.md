@@ -3,12 +3,15 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-24 (S-016)
+**Last updated:** 2026-08-24 (S-017)
 
 ## Utils
 
-Total: 6
+Total: 9
 
+- **authorizeCaller** (`core/src/authorize-caller.ts`) - The authorisation gate of both dispatchers: exempts the api's channel by `sub`, otherwise reads `users.roles` and authorises the caller against a closed deny-by-default map. Never throws and fails closed.
+- **rolesAuthorize** (`core/src/authorize-caller.ts`) - Pure predicate behind the gate: does any of the caller's roles authorise this method on this plane? Union semantics, not precedence.
+- **matchesPattern** (`core/src/commands/registry.ts`) - Does a method name match a `{param}` pattern? Extracted from `CommandRegistry.resolve()` so the authorisation gate can match without resolving the command.
 - **resolveActor** (`core/src/commands/resolve-actor.ts`) - Resolves who the actor of a command is depending on whether the api or an external publisher published it. Shared by seven commands; moved up from `commands/files/` in S-003.
 - **linkFiles** (`core/src/commands/link-files.ts`) - Links `fileIds` to an already existing entity: resolves the actor, validates existence, liveness and ownership, marks the bytes uploaded and inserts one `attachments` row per file. Additive mode, for creation commands.
 - **syncFileLinks** (`core/src/commands/link-files.ts`) - Same validation as `linkFiles` but with complete-set semantics for edit commands: preserves the rows of the links that stay and hard-deletes the ones no longer declared.
@@ -41,14 +44,17 @@ Total: 6
 
 ## Constants
 
-Total: 1
+Total: 2
 
+- **ROLE_METHODS** (`core/src/authorize-caller.ts`) - The role → method map of the bus: closed, deny-by-default and the complete table of the roles that may connect. Mirrors the 9 subjects of the external connector's callout template.
 - **Config accessors** (`core/src/config.ts`) - `loadConfig()` / `getTrustedPublisherId()`: startup validation and access to `CORE_TRUSTED_PUBLISHER_ID`.
 
 ## Test Helpers
 
-Total: 4
+Total: 6
 
+- **dispatch** (`core/tests/helpers/dispatch.ts`) - Dispatches a command as if it had arrived on the bus, building the full subject. Its default caller is the trusted publisher, since S-017.
+- **dispatchQuery** (`core/tests/helpers/dispatch.ts`) - Same for the QUERY plane: `jiku-queries` subject, the real `QueryDispatcher` over `readDb`, no transaction.
 - **S3Double** (`core/tests/helpers/s3-double.ts`) - Test double for the S3 signer: records the signing calls and never touches the network.
 - **fakeMsg** (`core/tests/helpers/micro-double.ts`) - Test double for a micro `ServiceMsg`: records `respond()` and `respondError()` without transforming the arguments, and `json()` throws on a malformed body just like the real one.
 - **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()` and `subscribe()`: records the service configs, groups and endpoints created plus the flat subscriptions opened, and shares one ordering trace with the service and the subscription so shutdown order can be asserted.

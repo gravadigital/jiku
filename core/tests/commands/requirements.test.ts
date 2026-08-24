@@ -12,10 +12,11 @@ const CREATOR = 'zitadel-sub-reqs';
 const OTHER_USER = 'zitadel-sub-reqs-2';
 
 /**
- * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`: el `caller` que ejercita la rama de la api. El
- * default de `dispatch()` (`'api'`) NO coincide con él a propósito, así que la rama confiable
- * se pide SIEMPRE explícitamente. Mismos nombres que en `files.test.ts`, para que los dos
- * archivos hablen el mismo idioma.
+ * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`: el `caller` que ejercita la rama de la api, y desde
+ * S-017 TAMBIÉN el default de `dispatch()` — la compuerta de autorización rechazaría cualquier
+ * otro default por no tener fila en `users`. Se sigue pasando explícito donde el test afirma
+ * sobre la rama confiable. Mismos nombres que en `files.test.ts`, para que los dos archivos
+ * hablen el mismo idioma.
  */
 const TRUSTED = 'api-service-user-sub';
 const EXTERNAL = 'servicio-externo-sub';
@@ -412,12 +413,24 @@ describe('requirements — vinculación de archivos (S-003)', () => {
   }
 
   before(async () => {
+    // `roles` desde S-017, y SOLO para los dos callers externos: la compuerta de autorización lee
+    // esta lista, y `external-publisher` autoriza los tres subjects de requisitos que este archivo
+    // ejercita por la rama externa. `ADMIN` NO lleva roles a propósito: acá es un autor DECLARADO
+    // EN EL CUERPO, nunca un `caller`, y darle `['admin']` sugeriría que su rol influye en algo —
+    // lo contrario de lo que afirma `TS-13: sin excepción por rol`.
+    const ROLES_BY_ID: Record<string, string[]> = {
+      [EXTERNAL]: ['external-publisher'],
+      [EXTERNAL_B]: ['external-publisher'],
+    };
     for (const [id, username] of [
       [UPLOADER_A, 'uploader-a-s3'], [UPLOADER_B, 'uploader-b-s3'],
       [ADMIN, 'admin-s3'], [EXTERNAL, 'externo-s3'], [EXTERNAL_B, 'externo-b-s3'],
       [TRUSTED, 'api-su-s3'],
     ] as [string, string][]) {
-      await User.create({ id, name: id, username, email: `${username}@test.local` });
+      await User.create({
+        id, name: id, username, email: `${username}@test.local`,
+        ...(ROLES_BY_ID[id] ? { roles: ROLES_BY_ID[id] } : {}),
+      });
     }
     const project = await Project.create({
       name: 'Proyecto Files', code: 'FILES', status: 'activo', type: 'comercial',
