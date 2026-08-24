@@ -77,4 +77,52 @@ describe('KanbanCard', () => {
     ).not.toThrow();
     expect(screen.getByText('???')).toBeInTheDocument();
   });
+  describe('marca de identidad automática', () => {
+    const servicio = {
+      id: 'u-svc',
+      name: 'Conector Portal',
+      email: 'conector@grava.io',
+      identityType: 'service' as const,
+    };
+
+    it('TS-14: la fila meta muestra el nombre y la marca cuando el creador es una identidad de servicio', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <KanbanCard
+          requirement={buildRequirement({ creator: servicio })}
+          stateLabel="Planificación"
+        />
+      );
+      expect(screen.getByText('Conector Portal')).toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
+
+    it('TS-15: un creador que es una persona no lleva marca', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <KanbanCard
+          requirement={buildRequirement({
+            creator: { id: 'u1', name: 'Juan Pérez', email: 'juan@x.com', identityType: 'person' },
+          })}
+          stateLabel="Planificación"
+        />
+      );
+      expect(screen.getByText('Juan Pérez')).toBeInTheDocument();
+      expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+    });
+
+    it('TS-16: la marca no depende de que el requisito tenga descripción', () => {
+      mockUseSession.mockReturnValue({ data: { user: { roles: ['external-user'] } } });
+      render(
+        <KanbanCard
+          requirement={buildRequirement({ description: '', creator: servicio })}
+          stateLabel="Planificación"
+        />
+      );
+      // Sin descripcion los dos pills no se renderizan (KanbanCard.tsx:140), pero la marca
+      // vive en `meta` y aparece igual.
+      expect(screen.queryByText('Planificación')).not.toBeInTheDocument();
+      expect(screen.getByText('Automático')).toBeInTheDocument();
+    });
+  });
 });

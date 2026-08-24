@@ -2,7 +2,8 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RichContentRenderer } from '@/shared/components/ui';
+import { Bot } from 'lucide-react';
+import { AutomatedIdentityBadge, RichContentRenderer } from '@/shared/components/ui';
 import type { RequirementActivity } from '@/features/requirements/types/requirement.types';
 import styles from './ActivityPanel.module.scss';
 
@@ -75,14 +76,21 @@ function formatActivityValue(typeOfActivity: string, value: string): string {
 
 function CommentItem({ activity }: { activity: RequirementActivity }) {
   const authorName = activity.user?.name ?? 'Usuario';
+  // La variant se deriva una sola vez: el avatar y el badge tienen que decir lo mismo.
+  const isAutomated = activity.user?.identityType === 'service';
+
   return (
-    <div className={styles.comment}>
+    <div className={styles.comment} data-variant={isAutomated ? 'identidad-automatica' : 'persona'}>
       <div className={styles.commentBody}>
         <div className={styles.commentHeader}>
           <div className={styles.commentAvatar} aria-hidden="true">
-            {getInitials(authorName)}
+            {isAutomated ? <Bot size={16} /> : getInitials(authorName)}
           </div>
           <span className={styles.commentAuthor}>{authorName}</span>
+          <AutomatedIdentityBadge
+            identityType={activity.user?.identityType}
+            className={styles.commentIdentityBadge}
+          />
           <span className={styles.commentTime}>{formatRelativeDate(activity.createdAt)}</span>
         </div>
         {activity.newValue && (
@@ -108,6 +116,10 @@ function ChangeItem({ activity, isLast }: { activity: RequirementActivity; isLas
       <div className={styles.eventBody}>
         <p className={styles.eventText}>
           <strong>{authorName}</strong>
+          <AutomatedIdentityBadge
+            identityType={activity.user?.identityType}
+            className={styles.eventIdentityBadge}
+          />
           {' cambió '}
           <span className={styles.fieldName}>{fieldName}</span>
           {activity.typeOfActivity !== 'description' &&

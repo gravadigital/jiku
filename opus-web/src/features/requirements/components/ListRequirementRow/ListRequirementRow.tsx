@@ -2,7 +2,7 @@
 
 import { Calendar } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { Dropdown } from '@/shared/components/ui';
+import { AutomatedIdentityBadge, Dropdown } from '@/shared/components/ui';
 import type {
   Requirement,
   RequirementState,
@@ -207,6 +207,10 @@ export function ListRequirementRow({
       </div>
       <div className={styles.td}>
         <span className={styles.creator}>{requirement.creator?.name ?? '—'}</span>
+        <AutomatedIdentityBadge
+          identityType={requirement.creator?.identityType}
+          className={styles.identityBadge}
+        />
       </div>
       <div className={styles.td}>
         <span className={styles.typeText}>{getTypeLabel(requirement.type)}</span>

@@ -208,6 +208,12 @@
 }
 
 /* ── Footer ── */
+// Va por `margin-left` y no por `gap` en `.footer`: el texto "Elemento creado por " es un
+// nodo suelto que el flex convierte en item anonimo, y un `gap` anularia el `&nbsp;`.
+.identityBadge {
+  margin-left: var(--spacing-xs);
+}
+
 .footer {
   height: 48px;
   display: flex;

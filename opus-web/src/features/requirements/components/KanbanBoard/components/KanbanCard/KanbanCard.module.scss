@@ -62,6 +62,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  // Habilita el ellipsis que ya declara: sin esto no aplica dentro del flex de `.meta`.
+  min-width: 0;
+}
+
+// `.meta` ya tiene `gap: 5px`: no lleva margin, seria doble separacion.
+.identityBadge {
+  flex-shrink: 0;
 }
 
 // Fila 4: Pills

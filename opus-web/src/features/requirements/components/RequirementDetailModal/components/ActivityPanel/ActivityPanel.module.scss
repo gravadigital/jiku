@@ -50,6 +50,16 @@
   padding: 15px;
 }
 
+// `.commentHeader` ya tiene `gap: 6px`: no hace falta margin.
+.commentIdentityBadge {
+  flex-shrink: 0;
+}
+
+// El `<p>` del cambio no es flex: la separacion va por margin.
+.eventIdentityBadge {
+  margin-left: var(--spacing-xs);
+}
+
 .commentHeader {
   display: flex;
   align-items: baseline;

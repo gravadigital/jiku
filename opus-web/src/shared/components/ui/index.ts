@@ -2,6 +2,7 @@ export { Button } from './Button';
 export { Spinner } from './Spinner';
 export { Card } from './Card';
 export { Badge } from './Badge';
+export { AutomatedIdentityBadge } from './AutomatedIdentityBadge';
 export { Dropdown } from './Dropdown';
 export { Modal } from './Modal';
 export { MarkdownRenderer } from './MarkdownRenderer';
