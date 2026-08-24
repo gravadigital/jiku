@@ -78,6 +78,21 @@ services:
       - CALLOUT_IDP_MODE=${GESTION_IDP_MODE:-mock}
       - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      # Eventos de autenticación: el callout publica uno por conexión autenticada. La
+      # credencial la emite nats/add-events-user.sh y SIN EL ARCHIVO EL CALLOUT NO ARRANCA.
+      # OJO CON EL MOCK: con CALLOUT_IDP_MODE=mock el token no trae `name` ni `email` y no hay
+      # userinfo al que llamar, así que los eventos llegan con esos campos vacíos y la guarda
+      # de obligatorios de core LOS DESCARTA TODOS. El camino feliz del evento se verifica en
+      # docker-compose.local.yml (Zitadel real) o publicándolo a mano con `nats pub`, no acá.
+      - CALLOUT_EVENTS_SUBJECT=${NATS_INSTANCE}.events.auth
+      - CALLOUT_EVENTS_CREDS=/etc/nats-creds/callout-events.creds
+      # Se pone igual que en los otros dos compose para que cambiar GESTION_IDP_MODE=zitadel
+      # acá no herede un stack que descarta todo. Con el mock no tiene a quién preguntarle.
+      - CALLOUT_IDP_ENRICH=profile
+      #
+      # NO HAY CALLOUT_EVENTS_STREAM, Y ES DELIBERADO acá igual que en los otros dos: elige el
+      # MODO DE ENTREGA, no nombra un stream, y agregarla sola es un arranque fallido del
+      # callout. El detalle completo está en docker-compose.yml, donde vive el bloque canónico.
       - CALLOUT_LOG_LEVEL=debug
     volumes:
       - ./nats/auth-callout:/etc/auth-callout:ro
@@ -168,6 +183,12 @@ services:
       # imagen y la versión que el bus publica no tienen por qué moverse juntos.
       - SERVICE_VERSION=${SERVICE_VERSION}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      # Queue group de la suscripción de core al evento de autenticación
+      # ({instance}.events.auth). La lee SOLO core: la api no consume el evento.
+      # EL PERMISO DE ESA SUSCRIPCIÓN VIVE EN nats/auth-callout/templates/core.yaml —
+      # sin la línea de `sub.allow` de ahí, core loguea que se suscribió y acto seguido se
+      # cae con `PERMISSIONS_VIOLATION`: reinicia en loop sin espejar una sola identidad.
+      - NATS_EVENTS_QUEUE=${NATS_EVENTS_QUEUE:-jiku-events}
       # A diferencia de los otros dos compose, acá lleva default: este archivo levanta el
       # stack con el IdP mock del callout y `cp .env.dist .env` sin editar, y el assert de core
       # rechaza el valor vacío además del ausente. No hay service user real cuyo `sub` proteger.

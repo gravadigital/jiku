@@ -271,3 +271,51 @@ const host = new BusHost(commandsSpec, {
   handle: (subject, payload) => queries.dispatch(subject, payload),
 });
 ```
+
+## EventDispatcher
+
+**Location:** `core/src/events/dispatcher.ts`
+
+**Description:** Translates a bus **event** into the execution of its handler. It is a third,
+separate object — not a branch of the command `Dispatcher` nor of the `QueryDispatcher`. An event
+differs from a command in **four** ways: there is no `Reply`, there is no `caller` in the subject,
+the update semantics are **full replacement** instead of a partial edit, and **`status` does not
+exist** to decide the transaction. Four `if`s inside one dispatcher are a different dispatcher.
+
+Four properties are load-bearing:
+
+- **The `instance` guard runs first, before the schema.** Its `warn` prints **both values** — the
+  event's and the consumer's. Three different causes give the same symptom ("no event ever
+  arrives"): the missing `sub.allow` line, a misaligned subject, and a payload for another
+  instance. That one log line is the only thing that separates them.
+- **The Joi schema carries `.unknown(true)` on purpose.** It breaks the `validation` convention's
+  rule, and it has to: the emitter's schema lives in **another repo** and can grow, so a new field
+  cannot take the consumer down. The nine declared fields are the ones core reads; the six ignored
+  ones pass through and **`client_ip` and `session` are never persisted**.
+- **The transaction opens after all the guards**, so an invalid payload never takes a pool
+  connection — the same criterion by which a command's validation runs before the transaction.
+- **It never rejects.** `'applied'` commits; anything else, including an exception, rolls back and
+  is logged. Opening the transaction has its own `try`, and the rollback of the catch cannot be the
+  source of a rejection either. That is not a precaution: a rejection escaping here would kill the
+  subscription's `for await` and **core would stop receiving events forever**, with a single error
+  in the log and no healthcheck noticing.
+
+**The log never prints the payload** — only the identity's `id` and the outcome. The payload
+carries `email`, `client_ip` and a session id.
+
+**Interface:**
+```ts
+class EventDispatcher {
+  constructor(handler: EventHandler<AuthEvent>);
+  dispatch(raw: unknown): Promise<void>; // never rejects
+}
+```
+
+**Usage:**
+```ts
+const events = new EventDispatcher(syncUser);
+const host = new BusHost(commandsSpec, queriesSpec).withEventConsumer({
+  subject: authEventSubject(),
+  handle: (payload) => events.dispatch(payload),
+});
+```

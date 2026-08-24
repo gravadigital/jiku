@@ -189,6 +189,12 @@ services:
       # imagen y la versión que el bus publica no tienen por qué moverse juntos.
       - SERVICE_VERSION=${SERVICE_VERSION}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}
+      # Queue group de la suscripción de core al evento de autenticación
+      # ({instance}.events.auth). La lee SOLO core: la api no consume el evento.
+      # EL PERMISO DE ESA SUSCRIPCIÓN VIVE EN nats/auth-callout/templates/core.yaml —
+      # sin la línea de `sub.allow` de ahí, core loguea que se suscribió y acto seguido se
+      # cae con `PERMISSIONS_VIOLATION`: reinicia en loop sin espejar una sola identidad.
+      - NATS_EVENTS_QUEUE=${NATS_EVENTS_QUEUE}
       # El `sub` del service user de la api: core lo compara con el `caller` del subject
       # para distinguir el canal de la api del de un publicador externo. Es el campo `userId`
       # del JSON key de la api. SIN ELLA CORE NO ARRANCA, a propósito.

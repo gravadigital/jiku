@@ -27,15 +27,20 @@ NATS ──> jiku-commands ──> Dispatcher      ──> Command ──> datab
 
 NATS ──> jiku-queries  ──> QueryDispatcher ──> Query   ──> database (read-only role)
                            (NO transaction)    (explicit SQL, no ORM)
+
+NATS ──> {instance}.events.auth ──> EventDispatcher ──> syncUser ──> database (owner user)
+         (flat subscription,        (transaction)       (mirrors the identity)
+          no reply)
 ```
 
 | Piece                     | Responsibility                                                          |
 | ------------------------- | ----------------------------------------------------------------------- |
-| `src/bus/host.ts`         | opens the connection and registers the micro services                   |
+| `src/bus/host.ts`         | opens the connection, registers the micro services and subscribes to the event |
 | `src/bus/service.ts`      | registers a micro service from a spec: endpoints, queue group and reply |
 | `src/bus/dispatcher.ts`   | resolves the command, opens the transaction, replies                    |
 | `src/commands/`           | one file per command                                                    |
 | `src/queries/`            | registry + dispatcher (**no transaction**) + the 6 read endpoints       |
+| `src/events/`             | the event dispatcher (guards + transaction + outcome) and its handlers   |
 | `src/models/`             | registers the models from `@jiku/models` on the **owner** connection    |
 | `src/models/read.ts`      | the **read-only** connection — **without models**, own pool and timeout |
 
@@ -70,6 +75,34 @@ half-written change by forgetting a rollback.
 
 **The dispatcher never throws.** An unexpected error becomes an error `Reply` — there is a
 request waiting, and silence would hang the API until its timeout.
+
+### The event consumer
+
+Core also **consumes** one event: `{instance}.events.auth`, published by the `auth-callout` every
+time an identity — a person or a service user — authenticates on the bus. The handler mirrors that
+identity into `users`: name, username, email, roles and identity type, **replacing all five every
+time**. It is not a partial edit — the event carries the whole identity and Zitadel is the truth.
+**Core still does not publish anything**: consuming is a different thing.
+
+**It is a flat subscription with a queue group, not a micro endpoint.** Micro is request/reply and
+requires every endpoint to answer; `respond()` on a message with no `reply` subject is a **silent
+no-op** that also pollutes the `$SRV` counters. So `nats micro ls` keeps showing exactly two
+services. The subject is the **literal** one the `authEventSubject()` helper derives — never a
+wildcard.
+
+**Its permission is that literal subject in `templates/core.yaml` › `sub.allow`, and without that
+line core starts, serves the 20 commands, logs `[events] suscripto a …` and receives nothing.**
+`subscribe()` does not fail when the subject is not authorized: the NATS client does not check
+subscription permissions locally, and the violation shows up in the **server's** log, not in
+core's. That log line is what separates "it did not subscribe" from "it subscribed and nothing
+arrives" — three different causes give the same symptom, and the other one is a misaligned
+`NATS_INSTANCE`, which the `warn` prints **with both values**.
+
+**Delivery is not durable, and that is accepted.** `CALLOUT_EVENTS_STREAM` is deliberately left
+undefined in the compose, so the message is plain core NATS: no stream, no ack, no retry. If core
+is down when an identity authenticates, **the event is lost with no retry, no reconciliation and no
+record** — the row stays stale until that identity authenticates again. The cause is the missing
+variable in the deployment, **not core's code**.
 
 More on the design in [documentation/README.md](../documentation/README.md).
 
@@ -123,6 +156,7 @@ verifies a command stores exactly what the API used to store.
 | `NATS_QUERY_SERVICE`                       | the `{svc}` token of the **query** subject: `jiku-queries`. Also the queue group of the second micro service. The separation lives in this token and not nested under the command one because the command subscription ends in `>`, which would swallow the queries too — two queue groups over overlapping subjects put two replies in the same inbox and one gets discarded in silence. |
 | `SERVICE_VERSION`                          | version the service announces on the bus, default `1.0.0`. **Strict SemVer**: micro rejects the registration with anything else, so an invalid value (`latest`) **kills startup** instead of degrading silently. Declared in [deploy/.env.dist](../deploy/.env.dist). |
 | `NATS_PROTOCOL_VERSION`                    | protocol version (`v1`)                                                                                                                                                                                                                 |
+| `NATS_EVENTS_QUEUE`                        | queue group of the flat subscription to `{instance}.events.auth`, default `jiku-events`. **With N replicas and no queue group, all N would write the same row**: the mirroring is idempotent, so it is an optimisation rather than a correctness need, but two concurrent `UPDATE`s on the same row are a pointless lock. There is **no** variable for the subject: it is derived from `NATS_INSTANCE` by the protocol package, because one that could override it would let the code drift from the callout's permission **with no symptom at all**. |
 | `LOG_COMMANDS`                             | prints each command and its reply. Off by default: payloads carry business data.                                                                                                                                                        |
 | `CORE_TRUSTED_PUBLISHER_ID`                | the `sub` of the api's service user. Core compares the subject's `caller` against it to tell the api's channel from an external publisher's. **Core fails to start without it** — an empty value would send every command down the external branch, leaving `files.uploaded_by` with the api's service user instead of the person, so nobody could link what they uploaded. |
 | `STORAGE_S3_ENDPOINT`                      | S3-compatible provider endpoint (AWS S3, MinIO, Spaces, R2). No default: it depends on each installation.                                                                                                                                |

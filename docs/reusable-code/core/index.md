@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-23 (S-013)
+**Last updated:** 2026-08-24 (S-016)
 
 ## Utils
 
@@ -18,22 +18,26 @@ Total: 6
 
 ## Services
 
-Total: 6
+Total: 7
 
 - **StorageSigner** (`core/src/commands/files/storage.ts`) - Lazily built S3 signer exposing exactly two local (no-network) operations: sign a PutObject and sign a GetObject.
-- **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. Takes the specs as varargs, so mounting a second service is adding one element.
+- **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. Takes the specs as varargs, so mounting a second service is adding one element. `withEventConsumer()` adds a FLAT subscription (with queue group) on the same connection, drained between the services and the connection.
 - **registerService** (`core/src/bus/service.ts`) - Registers a micro service from a `ServiceSpec` on an existing connection: one endpoint per command pattern, own queue group, and a duplicate-subject check that fails startup.
 - **readDb** (`core/src/models/read.ts`) - The READ-ONLY Sequelize connection of the query service, built WITHOUT registering the models on purpose: registering them in the same process would reassign the `@jiku/models` classes and break ADR-001 with no symptom. Own pool ceiling and own `statement_timeout`.
 - **QueryRegistry** (`core/src/queries/registry.ts`) - Maps a query method to the query that serves it. Exact `Map` matching, not segment matching: query patterns carry no `{param}`. Registering a duplicate pattern throws.
 - **QueryDispatcher** (`core/src/queries/dispatcher.ts`) - Translates a bus subject into a query execution WITHOUT opening a transaction, injecting the read-only connection into the context. Never throws: it always resolves to a `Reply`.
+- **EventDispatcher** (`core/src/events/dispatcher.ts`) - Translates a bus EVENT into the execution of its handler: guards (`instance`, `type`, `version`, the four required fields) with Joi `.unknown(true)`, then the transaction, and an `outcome` instead of a `reply.status` to decide commit/rollback. Resolves to `void` and never rejects — a rejection would kill the subscription's `for await`.
 
 ## Types
 
-Total: 3
+Total: 6
 
 - **ServiceSpec** (`core/src/bus/service.ts`) - What a micro service needs to be registered: bus name, description, the command patterns, and a `handle` that never throws.
 - **Query** (`core/src/queries/types.ts`) - A read endpoint: a `pattern` without `{param}` and an `execute(payload, ctx)` that resolves to a `Reply`. No `validate()` yet — there is no query contract to validate against.
 - **QueryContext** (`core/src/queries/types.ts`) - What a query receives: the `caller` read from the subject and the read-only `db` connection. It has NO `transaction` and NO `params`, and both absences are the contract.
+- **EventSpec** (`core/src/bus/host.ts`) - What a flat event consumer needs: the LITERAL subject and a `handle(payload)`. No `queue` (that is read by `start()`), and it is NOT a `ServiceSpec`: an event has nobody to answer.
+- **EventContext** (`core/src/events/types.ts`) - What an event handler receives: `transaction` and NOTHING else. No `caller` (the 3-segment subject does not carry one), no `params` (the subject is literal), no `commit`/`rollback` (ADR-003).
+- **EventHandler / EventOutcome** (`core/src/events/types.ts`) - An event handler takes the validated payload plus the context and resolves to `'applied'` or `'discarded'` — the discriminant that replaces `reply.status` when there is no reply.
 
 ## Constants
 
@@ -43,8 +47,9 @@ Total: 1
 
 ## Test Helpers
 
-Total: 3
+Total: 4
 
 - **S3Double** (`core/tests/helpers/s3-double.ts`) - Test double for the S3 signer: records the signing calls and never touches the network.
 - **fakeMsg** (`core/tests/helpers/micro-double.ts`) - Test double for a micro `ServiceMsg`: records `respond()` and `respondError()` without transforming the arguments, and `json()` throws on a malformed body just like the real one.
-- **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()`: records the service configs, groups and endpoints created, and shares one ordering trace with the service so shutdown order can be asserted.
+- **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()` and `subscribe()`: records the service configs, groups and endpoints created plus the flat subscriptions opened, and shares one ordering trace with the service and the subscription so shutdown order can be asserted.
+- **FakeSubscription** (`core/tests/helpers/micro-double.ts`) - Test double for a flat `Sub<Msg>`: async-iterable with a `push()` that resolves once the consumer has finished with the message, and a `drain()` that ends the iterator and writes `'subscription.drain'` to the shared trace.

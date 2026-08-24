@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { COMMAND_SERVICE, QUERY_SERVICE } from '@jiku/nats-protocol';
+import { COMMAND_SERVICE, QUERY_SERVICE, authEventSubject } from '@jiku/nats-protocol';
 import logger from './logger';
 import initializeDb from './models';
 import { readDb } from './models/read';
@@ -11,6 +11,8 @@ import { Dispatcher } from './bus/dispatcher';
 import { registry } from './commands';
 import { QueryDispatcher } from './queries/dispatcher';
 import { queryRegistry } from './queries';
+import { EventDispatcher } from './events/dispatcher';
+import { syncUser } from './events/auth/user-sync';
 
 const dispatcher = new Dispatcher(registry);
 
@@ -19,6 +21,11 @@ const dispatcher = new Dispatcher(registry);
 // construcción de su Sequelize, que lee `process.env` al importarse— ocurra DESPUÉS de dotenv, y
 // lo que mantiene a `queries/` sin ninguna referencia al ORM.
 const queries = new QueryDispatcher(queryRegistry, readDb);
+
+// El despachador de eventos: su propio objeto, con su propia validación y su propia transacción.
+// Se construye al nivel del módulo igual que los otros dos, que es lo que permite pasarle el
+// consumidor al host en la misma expresión.
+const events = new EventDispatcher(syncUser);
 
 // Un spec por servicio del bus, sobre la MISMA conexión: `nc.services.add()` no tiene singleton,
 // así que cada uno se anuncia por separado en `$SRV`, con su queue group y sus contadores. El
@@ -36,7 +43,19 @@ const host = new BusHost(
     patterns: queryRegistry.patterns(),
     handle: (subject, payload) => queries.dispatch(subject, payload),
   }
-);
+  // El consumidor de eventos va sobre la MISMA conexión que los dos servicios micro: el callout
+  // mintea los permisos POR CONEXIÓN, así que `templates/core.yaml` autoriza las suscripciones de
+  // comandos y consultas y la del evento en la misma plantilla. Los dos specs de arriba NO
+  // CAMBIAN: el evento no es un endpoint micro, y por eso va por `withEventConsumer()`.
+).withEventConsumer({
+  // El subject SE DERIVA de `INSTANCE` en el paquete, igual que los de comandos y consultas. No
+  // hay variable que lo pise: una permitiría desalinear el código respecto del permiso del
+  // callout SIN NINGÚN SÍNTOMA.
+  subject: authEventSubject(),
+  // La lambda y no `events.dispatch` a secas: el segundo pierde el `this` de la clase y falla en
+  // runtime con "Cannot read properties of undefined".
+  handle: (payload) => events.dispatch(payload),
+});
 
 async function main(): Promise<void> {
   // Antes que nada: si falta configuración obligatoria, el proceso tiene que morir acá y no

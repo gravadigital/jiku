@@ -114,3 +114,96 @@ const rows = await ctx.db.query<ProjectRow>(
   { type: QueryTypes.SELECT, replacements: { clientId, limit } }
 );
 ```
+
+## EventSpec
+
+**Location:** `core/src/bus/host.ts`
+
+**Description:** What a **flat event consumer** needs to be mounted on the host's connection. It is
+**not** a `ServiceSpec` and cannot be one: micro is request/reply and requires every endpoint to
+answer, and `respond()` on a message with **no `reply` subject is a silent no-op** that also
+pollutes the `$SRV` counters. An event has nobody to answer.
+
+**Two members, and one absence is the contract:**
+
+- `subject` travels here because it is **contract**: it comes from the protocol package's helper,
+  the same symbol the callout's permission template documents. It is the **literal** subject, never
+  a wildcard — a wildcard would compile, receive the same thing today, and leave the code asking
+  for more permission than the template grants (ADR-008).
+- **No `queue`.** The queue group is consumer infrastructure and `start()` reads it from
+  `NATS_EVENTS_QUEUE`, where it already reads `NATS_URL` and the rest. Defaults live where the
+  variable is read.
+
+**Interface:**
+```ts
+interface EventSpec {
+  /** LITERAL subject. Not a wildcard: the callout's permission is literal. */
+  subject: string;
+  /** Processes the already decoded payload. If it rejects, the loop's try/catch absorbs it. */
+  handle: (payload: unknown) => Promise<void>;
+}
+```
+
+**Usage:** declared with the fluent `withEventConsumer()`, which **throws if the host already
+started** — registering a consumer after `start()` would open no subscription and the symptom would
+be "no event ever arrives":
+```ts
+const host = new BusHost(commandsSpec, queriesSpec).withEventConsumer({
+  subject: authEventSubject(),
+  handle: (payload) => events.dispatch(payload),
+});
+```
+
+## EventContext
+
+**Location:** `core/src/events/types.ts`
+
+**Description:** What an event handler receives besides its payload. **One member, and the three
+absences are the contract:**
+
+- **No `caller`.** The event's subject has three segments and carries none: the identity travels in
+  the payload, because the event is **about** an identity rather than published **by** one on its
+  behalf.
+- **No `params`.** The subject is literal; there is no `{param}` to extract.
+- **No `commit` / `rollback`.** The same structural impossibility as ADR-003: the transaction
+  belongs to the dispatcher, so a handler cannot leave a half-written change by forgetting a
+  rollback.
+
+**Interface:**
+```ts
+interface EventContext {
+  transaction: Transaction;
+}
+```
+
+## EventHandler / EventOutcome
+
+**Location:** `core/src/events/types.ts`
+
+**Description:** An event handler takes the **already validated** payload plus the context and
+resolves to an `EventOutcome`. That outcome is **the discriminant that replaces `reply.status`**:
+ADR-003 says "commit if the reply is success, roll back in any other case", and here there is no
+reply — an event is not answered. The guarantee is the same, the discriminant is not.
+
+A handler **never throws to signal an expected case** — it returns `'discarded'`, the same way a
+command signals failure with a `Reply` rather than an exception. A database exception does travel
+up: the dispatcher catches it and rolls back.
+
+**Interface:**
+```ts
+type EventOutcome = 'applied' | 'discarded';
+
+type EventHandler<TPayload> = (
+  payload: TPayload,
+  ctx: EventContext
+) => Promise<EventOutcome>;
+```
+
+**Usage:**
+```ts
+export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<EventOutcome> {
+  const existing = await User.findByPk(event.id, { transaction: ctx.transaction });
+  // ... create or update, always with { transaction: ctx.transaction }
+  return 'applied';
+}
+```

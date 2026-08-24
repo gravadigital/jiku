@@ -50,6 +50,30 @@ sub:
     # Las consultas, ídem. Todavía no hay servicio que las atienda; el permiso queda
     # declarado para que registrarlo no requiera un segundo cambio de seguridad.
     - "{{instance}}.*.jiku-queries.v1.>"
+    # El evento de autenticación que publica el auth-callout, una vez por conexión
+    # aceptada. SIN ESTA LÍNEA core ARRANCA, REGISTRA LOS 20 COMANDOS Y LAS 6 CONSULTAS,
+    # LOGUEA `[events] suscripto a <subject>` Y NO RECIBE NI UN EVENTO: no espeja ni una
+    # identidad. La violación es ASÍNCRONA y sale en el log del SERVIDOR NATS
+    # (`Subscription Violation ... Subject "<instance>.events.auth"`), NUNCA como fallo de
+    # `subscribe()`, que resuelve igual y hasta alcanza a imprimir su línea de log.
+    # MEDIDO EN S-016, y no es lo que se esperaba: con el cliente nats.js actual esa
+    # violación asíncrona llega como `uncaughtException` y TIRA EL PROCESO segundos
+    # después de arrancar. O sea que el síntoma NO es silencioso como el de `$SRV.>`: es
+    # un core que reinicia en loop, y el log de core nombra la causa una sola vez, arriba
+    # del stack trace. Si ves ese loop, revisá esta línea antes que el código.
+    # VA LITERAL Y ENUMERADO: este subject y nada más. NUNCA un wildcard sobre el
+    # namespace de eventos — o sea `{{instance}}.events` seguido del comodín de cola.
+    # Deny-by-default aplica también en el bus (ADR-008): un evento futuro DEBE
+    # requerir una línea nueva acá, así que ningún consumidor empieza a recibir un
+    # tipo de evento nuevo porque alguien lo agregó al namespace. Ese wildcard existe
+    # a propósito SOLO en observer.yaml, que es el rol de diagnóstico local —y solo
+    # local— cuyo propósito ES ver todo. No lo tomes como precedente para acá: son
+    # dos políticas distintas a propósito.
+    # SON 3 SEGMENTOS Y NO SIGUE LA GRAMÁTICA del encabezado
+    # ({instance}.{user-id}.{svc}.{version}.{comando}): el evento es SOBRE una
+    # identidad, no publicado POR ella en su nombre — la identidad viaja en el campo
+    # `id` del cuerpo. No lo "corrijas" agregándole user id ni versión.
+    - "{{instance}}.events.auth"
     # Discovery y stats del protocolo de servicios de NATS (micro). SIN ESTA LÍNEA LOS
     # SERVICIOS LEVANTAN, ATIENDEN REQUESTS Y SON INVISIBLES para `nats micro ls`: no hay
     # error, no hay log, no hay síntoma — solo desaparece la observabilidad.

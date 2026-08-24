@@ -37,7 +37,7 @@ it does not touch your own.
 | `nats-resolver.conf`            | operator, system account and account JWTs              | the `nats-server` (included from `nats-server.conf`) |
 | `sentinel-client.creds`         | the sentinel services connect with                     | api and core                                         |
 | `sentinel-handler.creds`        | the callout's own sentinel                             | auth-callout                                         |
-| `callout-events.creds`          | publishes the authentication events                    | auth-callout                                         |
+| `callout-events.creds`          | publishes the authentication events (required)         | auth-callout                                         |
 | `callout-env.sh`                | path contract for the callout                          | auth-callout                                         |
 | `app-account.pub` / `.sk.seed`  | APP account: signs the User JWTs the callout issues    | auth-callout                                         |
 | `auth-account.pub` / `.sk.seed` | AUTH account: signs the `authorization_response`       | auth-callout                                         |
@@ -46,10 +46,19 @@ it does not touch your own.
 The three seeds and the `.creds` files are **secret material**; the script sets them to `600`.
 The `.pub` files are public but kept alongside for convenience.
 
-## Adding the events credential to an installation that already exists
+## The events credential, and adding it to an installation that already exists
 
-`callout-events.creds` arrived after the bus was deployed, so it has its own script rather than
-being only a step of the one-shot bootstrap:
+**`callout-events.creds` is a deployment precondition, not an extra.** The auth-callout publishes
+one authentication event per accepted connection and **does not start without this credential**:
+`CALLOUT_EVENTS_CREDS` points at a path that is not there. Since S-016 `core` *consumes* those
+events to mirror identities into `users`, an installation missing the file is also one where
+**no identity is ever mirrored**. Before S-016 nobody listened and a missing credential had no
+functional consequence; that is no longer the case.
+
+**A new installation already has it:** `bootstrap.sh` calls `add-events-user.sh` as its last
+step. It arrived after the bus was first deployed, so it also has its own script rather than
+being only a step of the one-shot bootstrap — which is what an installation that predates it
+needs:
 
 ```sh
 cd deploy/nats

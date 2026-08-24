@@ -5,6 +5,7 @@ import {
   ServiceConfig,
   ServiceHandler,
   Status,
+  SubscriptionOptions,
 } from 'nats';
 
 /**
@@ -167,11 +168,136 @@ export class FakeService {
   }
 }
 
+/**
+ * Doble de `Sub<Msg>`: la suscripción PLANA del consumidor de eventos.
+ *
+ * Es lo mínimo del tipo real de `nats@2.29.3` que `BusHost` usa y que los tests assertan, y nada
+ * más: `getReceived`, `getMax` y `getPending` no están porque ningún test los mira.
+ *
+ * AL REVÉS QUE `FakeConnection.status()`, ESTE ITERADOR NO TERMINA SOLO: una suscripción tiene
+ * que quedarse abierta para recibir. La salida la da `drain()` o `unsubscribe()`, así que TODO
+ * test que empuje mensajes tiene que drenar antes de terminar, o el proceso queda colgado — el
+ * `for await` del consumidor corre con `void` y sin `await` desde `start()`.
+ *
+ * La cola interna más una promesa "hay algo nuevo" alcanzan: sin `setInterval` ni polling con
+ * timers, que hacen los tests lentos y flakey.
+ */
+export class FakeSubscription {
+  /** Los mensajes que el iterador YA entregó, en orden. */
+  readonly delivered: FakeMsg[] = [];
+  private queue: FakeMsg[] = [];
+  /** Resolver del iterador que está esperando un mensaje, si hay uno esperando. */
+  private waiting: (() => void) | null = null;
+  /** Resolvers de los `push()` que esperan a que el consumidor termine con su mensaje. */
+  private processed: (() => void)[] = [];
+  private ended = false;
+  private draining = false;
+  private iterating = false;
+  private finish: (() => void) | null = null;
+  /** Resuelve cuando el iterador terminó: es lo que hace que `drain()` espere al mensaje en vuelo. */
+  private finished: Promise<void>;
+  readonly closed: Promise<void>;
+
+  constructor(
+    readonly subject: string,
+    readonly opts: SubscriptionOptions | undefined,
+    private trace: string[]
+  ) {
+    this.finished = new Promise<void>((resolve) => {
+      this.finish = resolve;
+    });
+    this.closed = this.finished;
+  }
+
+  /**
+   * Entrega un mensaje al consumidor.
+   *
+   * La promesa que devuelve se resuelve cuando el consumidor PIDIÓ EL SIGUIENTE, o sea cuando
+   * terminó de procesar este. Es lo que permite escribir los tests sin `setTimeout` arbitrarios.
+   */
+  push(data: Uint8Array, subject: string = this.subject): Promise<void> {
+    this.queue.push(new FakeMsg(subject, data));
+    this.wake();
+    return new Promise<void>((resolve) => {
+      this.processed.push(resolve);
+    });
+  }
+
+  /** Termina el iterador y deja que el mensaje EN VUELO termine de procesarse. */
+  drain(): Promise<void> {
+    this.trace.push('subscription.drain');
+    this.draining = true;
+    return this.end();
+  }
+
+  unsubscribe(): void {
+    void this.end();
+  }
+
+  getSubject(): string {
+    return this.subject;
+  }
+
+  isDraining(): boolean {
+    return this.draining;
+  }
+
+  isClosed(): boolean {
+    return this.ended && this.queue.length === 0;
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<FakeMsg> {
+    this.iterating = true;
+    return {
+      next: async (): Promise<IteratorResult<FakeMsg>> => {
+        // Pedir el siguiente ES la señal de que el anterior terminó de procesarse.
+        this.release();
+        while (this.queue.length === 0) {
+          if (this.ended) {
+            this.finish?.();
+            return { done: true, value: undefined as unknown as FakeMsg };
+          }
+          await new Promise<void>((resolve) => {
+            this.waiting = resolve;
+          });
+        }
+        const message = this.queue.shift() as FakeMsg;
+        this.delivered.push(message);
+        return { done: false, value: message };
+      },
+    };
+  }
+
+  private end(): Promise<void> {
+    this.ended = true;
+    this.wake();
+    // Si nadie empezó a iterar, no hay nada que esperar: sin esto un `stop()` sobre una
+    // suscripción que nunca se consumió colgaría el test.
+    return this.iterating ? this.finished : Promise.resolve();
+  }
+
+  private wake(): void {
+    const waiting = this.waiting;
+    this.waiting = null;
+    waiting?.();
+  }
+
+  private release(): void {
+    const pending = this.processed;
+    this.processed = [];
+    for (const resolve of pending) {
+      resolve();
+    }
+  }
+}
+
 /** Doble de `NatsConnection`, con solo lo que `BusHost` y `registerService` usan. */
 export class FakeConnection {
   /** Las configs con las que se pidió un servicio, en orden. */
   readonly configs: ServiceConfig[] = [];
   readonly created: FakeService[] = [];
+  /** Las suscripciones planas que se abrieron, en orden. */
+  readonly subscriptions: FakeSubscription[] = [];
   /**
    * Traza compartida entre el servicio y la conexión. Que el orden del apagado se lea de UN
    * array es lo que hace posible assertar CA-13 sin acrobacias.
@@ -198,6 +324,20 @@ export class FakeConnection {
     const service = new FakeService(config, this.trace);
     this.created.push(service);
     return service;
+  }
+
+  /**
+   * La suscripción plana del consumidor de eventos.
+   *
+   * Registra `{ subject, opts }` SIN transformar nada: el test asserta el subject literal y el
+   * queue group tal cual llegaron. `'subscribe'` va a la traza compartida, y de ahí sale la
+   * aserción de que la suscripción se abre DESPUÉS de registrar los servicios micro.
+   */
+  subscribe(subject: string, opts?: SubscriptionOptions): FakeSubscription {
+    const subscription = new FakeSubscription(subject, opts, this.trace);
+    this.subscriptions.push(subscription);
+    this.trace.push('subscribe');
+    return subscription;
   }
 
   status(): AsyncIterable<Status> {
