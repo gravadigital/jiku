@@ -90,13 +90,37 @@ The server runs in operator mode and needs an identity, generated once:
 
 ```sh
 cd nats
-./bootstrap.sh          # requires nsc
+./bootstrap.sh            # requires nsc
+./add-events-user.sh      # only if bootstrap.sh predates the events credential
 ```
 
 Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
 copy**: regenerating it forces reissuing the credentials of every service.
 
 Without `nats/creds/nats-resolver.conf` the server does not start.
+
+#### The events credential is a deployment precondition, not an optional step
+
+The auth-callout publishes one authentication event per accepted connection, and it publishes
+them with `nats/creds/callout-events.creds`. **Without that file the callout does not start**:
+`CALLOUT_EVENTS_CREDS` points at a path that is not there. And since S-016 `core` *consumes*
+those events to mirror identities into `users`, an installation missing the file is also an
+installation where **no identity is ever mirrored**. Until S-016 nobody listened, and a missing
+credential had no functional consequence — that is no longer true.
+
+Which of the two commands above you need depends on the installation:
+
+- **A new installation: nothing to do.** `bootstrap.sh` calls `add-events-user.sh` as its last
+  step, so the credential is already there. Running it again only reports that the user exists.
+- **An installation older than the events credential: run it by hand.** That is the second
+  command. **It invalidates nothing already distributed** and rewrites nothing else in `creds/`:
+  a user JWT is signed by the account signing key that is already on disk, so the account JWT
+  and `nats-resolver.conf` do not change and no service has to be reissued.
+
+`./local.sh up` checks for the file before bringing anything up and aborts with the command that
+fixes it. **`docker compose -f docker-compose.dev.yml up` does not check** — there is no script
+in that path to put the check in — so the symptom there is an auth-callout container that keeps
+restarting.
 
 ### 4. Bring it up
 
@@ -429,6 +453,7 @@ cp .env.dist .env      # fill in, including each service's version
 ./service-user-key.sh api  <key.json>
 ./service-user-key.sh core <key.json>
 cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
+cd nats && ./add-events-user.sh && cd ..   # only if that creds/ predates the events credential
 docker compose pull
 docker compose up -d
 ```
@@ -443,6 +468,9 @@ Differences from the local environment:
   promise. `dev-<commit-sha>` pins one specific dev build.
 - The read-only user has to be created by hand (SQL below); `local.sh` does it on its own, but
   the production compose does not.
+- Nothing checks for `nats/creds/callout-events.creds` before starting. `local.sh` does that
+  check on a development machine; `docker compose up -d` does not, and the auth-callout will
+  simply keep restarting. See step 3.
 
 ---
 
