@@ -182,3 +182,62 @@ spelled with a **hyphen, not a dot**: they are a single subject token. That is t
 `core`'s dispatcher working without being touched. `commandFromSubject` is kept as
 `export const commandFromSubject = methodFromSubject` — the **same** symbol, not a wrapper, so two
 implementations cannot diverge.
+
+
+## failure
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** Builds a failure `Reply`. A reply is **always** built with `failure()` or
+`success()` and never by hand, so the envelope has one shape across the whole bus.
+
+Since REQ-006 it takes an optional **third** parameter, `details`, which lands in the reply's
+`errorDetails`. It exists so a caller never has to pull a value out of `errorMessage` with a regex —
+the debt `daily_limit_exceeded` still carries. The query plane uses it from its first line: a
+rejected field name comes back as `{ field, value, allowed }`.
+
+**Omitting the third parameter leaves the key out entirely — it is not set to `undefined`.** That is
+the whole point and it is asserted from both sides. An `errorDetails: undefined` disappears when the
+reply is serialised to JSON, so the wire would look identical, but it **exists as an own key**, and
+the `should.deepEqual` assertions in `core` and `api` compare own keys. Building the object with the
+key always present would turn several consumer assertions red without any behaviour having changed.
+The check is against `undefined` explicitly, never `if (details)`: an empty `{}` is a legitimate
+detail and does travel.
+
+**What goes inside `errorDetails` is CONTRACT data**: which field, which value, what was accepted.
+Never stack traces, never database column names, never SQL fragments, and never the full subject —
+it carries the user id. It reaches the caller and, once a consumer maps it to HTTP, potentially the
+end user.
+
+The first parameter is typed `string` and not `ErrorCodeValue` — see the known debt in
+`constants.md` — so the compiler does not catch a hand-written code. Pass an `ErrorCode` member.
+
+**Signature:**
+```ts
+function failure(
+  errorCode: string,
+  errorMessage: string,
+  details?: Record<string, unknown>,
+): Reply<never>;
+```
+
+**Usage:**
+```ts
+import { ErrorCode, failure } from '@jiku/nats-protocol';
+
+// Two arguments — the envelope has NO `errorDetails` key.
+failure(ErrorCode.CLIENT_NOT_FOUND, 'Cliente no encontrado');
+// -> { status: 'failure', errorCode: 'client_not_found', errorMessage: 'Cliente no encontrado' }
+
+// Three arguments — structured data travels as data, not as text to parse.
+failure(ErrorCode.INVALID_FIELDS, 'Campo no declarado en filter', {
+  field: 'nombreInventado',
+  value: 1,
+  allowed: ['id', 'title'],
+});
+```
+
+**Note:** `details` is stored **by reference**: it is not cloned and not frozen. Nothing in the
+contract asks for it, and adding it would be behaviour the contract does not declare. A consumer
+that does not know the field ignores it (`api/lib/utils/bus/protocol.ts` projects the envelope into
+a new object and never reads it), so the field is compatible in both directions.

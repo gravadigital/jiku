@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-24 (S-017)
+**Last updated:** 2026-08-24 (S-020)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -17,11 +17,11 @@ Total: 3
 
 - **COMMAND_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the commands service: `NATS_COMMAND_SERVICE || 'jiku-commands'`. Read once, at import time.
 - **QUERY_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the queries service: `NATS_QUERY_SERVICE || 'jiku-queries'`. Read once, at import time.
-- **ErrorCode** (`packages/nats-protocol/src/index.ts`) - The catalog of protocol error codes as a frozen object (`as const`), 27 members. Use the constant, never the literal. The catalog is **not closed** and holds codes with no emitter on purpose (ADR-005). Adding a code is **three** changes — this file, the `enum` of `docs/apis/core.yaml` and the map of `api/lib/utils/bus/protocol.ts` — and without the third it falls through to a generic 500. The source of truth for the value is the contract, not this file. REQ-005 added `caller_not_authorized` (403), the first code emitted by **the dispatcher** and not by a command.
+- **ErrorCode** (`packages/nats-protocol/src/index.ts`) - The catalog of protocol error codes as a frozen object (`as const`), 32 members. Use the constant, never the literal. The catalog is **not closed** and holds codes with no emitter on purpose (ADR-005). Adding a code is **three** changes — this file, the `enum` of `docs/apis/core.yaml` and the map of `api/lib/utils/bus/protocol.ts` — and without the third it falls through to a generic 500. The source of truth for the value is the contract, not this file. REQ-005 added `caller_not_authorized` (403), the first code emitted by **the dispatcher** and not by a command. REQ-006 added the **five** codes of the query plane — `unknown_caller`, `query_timeout`, `invalid_cursor`, `comment_not_found`, `task_not_found` — none of them emitted by a command, and each making only **two** of the three changes on purpose: their HTTP map belongs to the requirement that migrates the `GET` routes.
 
 ## Utils
 
-Total: 6
+Total: 7
 
 - **querySubject** (`packages/nats-protocol/src/index.ts`) - Builds the subject of an outgoing query: `{instance}.{userId}.jiku-queries.{version}.{method}`. Same signature as `commandSubject`.
 - **groupSubject** (`packages/nats-protocol/src/index.ts`) - Prefix of a micro service group: `{instance}.*.{svc}.{version}`, without the trailing `.>`. The service goes in as a parameter so one process can register two groups.
@@ -29,6 +29,7 @@ Total: 6
 - **endpointName** (`packages/nats-protocol/src/index.ts`) - Micro endpoint name for a command pattern: `tasks.{id}.edit` -> `tasks-edit`. Drops the `{param}` segments and joins with `-`.
 - **endpointSubject** (`packages/nats-protocol/src/index.ts`) - Micro endpoint subject for a command pattern: `tasks.{id}.edit` -> `tasks.*.edit`. Replaces every `{param}` with `*`.
 - **methodFromSubject** (`packages/nats-protocol/src/index.ts`) - Extracts the method (command **or** query) from a full subject. Rename of `commandFromSubject`, which stays as an alias of the same symbol.
+- **failure** (`packages/nats-protocol/src/index.ts`) - Builds a failure `Reply`. Since REQ-006 it takes an optional **third** parameter that lands in `errorDetails`; omitting it leaves the key **out of the object**, not set to `undefined` — which is what keeps the consumers' `deepEqual` assertions green. What goes in there is contract data (field, value, allowed), never stack traces, column names or SQL.
 
 ## Types
 
