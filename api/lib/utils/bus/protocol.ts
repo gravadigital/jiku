@@ -82,6 +82,26 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   // endpoint, y sin la entrada ese 403 saldría 500.
   file_not_owned: 403,
 
+  // `caller_not_authorized` es 403 por LA MISMA RAZÓN que `file_not_owned`: describe un
+  // PERMISO —quién publicó el comando—, no una entrada inválida. Es el primer código que
+  // emite EL DESPACHADOR de core y no un comando: los dos despachadores autorizan al caller
+  // del subject contra los roles persistidos en `users.roles` antes de resolver el método y
+  // antes de abrir la transacción (REQ-005, S-017). Por eso tampoco figura en el
+  // `x-error-codes` de ningún mensaje de `docs/apis/core.yaml`.
+  //
+  // UN SOLO CÓDIGO PARA DOS SITUACIONES: "no hay fila en `users` para el caller" y "hay fila
+  // pero ningún rol autoriza este método". `user_not_found` NO se reusa —está mapeado a 404,
+  // el status equivocado para un rechazo de permisos— y distinguir los dos casos le diría a un
+  // caller no autorizado si una identidad existe en la base.
+  //
+  // EN LA PRÁCTICA ESTA API NUNCA LO RECIBE, y no es un olvido: su canal está EXENTO de la
+  // compuerta. La api ya autoriza por rol (`hasAnyRole`) antes de publicar, y sin la exención
+  // un evento de autenticación perdido —el bus no tiene JetStream— dejaría a core rechazando
+  // los 20 comandos hasta que la api reconecte, que con un token de ~1 h puede tardar días.
+  // Se mapea igual porque EL MAPA ES DEL SERVICIO, NO DEL ENDPOINT: el mismo argumento que ya
+  // está escrito arriba para `file_not_owned`. Sin esta entrada saldría 500.
+  caller_not_authorized: 403,
+
   unknown_command: 500,
   internal_error: 500,
 };

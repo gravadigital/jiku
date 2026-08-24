@@ -1,6 +1,6 @@
 import 'mocha';
 import 'should';
-import { httpStatusFor } from '../../lib/utils/bus/protocol';
+import { errorBody, httpStatusFor } from '../../lib/utils/bus/protocol';
 
 describe('httpStatusFor', () => {
   // Los dos códigos que emite `files.{fileId}.request-download` (S-005). Sin su entrada en
@@ -89,5 +89,54 @@ describe('httpStatusFor', () => {
     httpStatusFor('user_not_found').should.equal(404);
     httpStatusFor('file_not_owned').should.equal(403);
     httpStatusFor('internal_error').should.equal(500);
+  });
+
+  /**
+   * S-017 (CA-13 punto 3, CA-14): el único código que agrega REQ-005, y el primero que emite
+   * el DESPACHADOR de core y no un comando.
+   *
+   * En la práctica esta api nunca lo recibe —su canal está exento de la compuerta—, así que
+   * estos cinco tests son lo único que sostiene la entrada del mapa. Sin ellos, el próximo
+   * que lea "la api nunca lo recibe" la borra por código muerto, y el día que aparezca (una
+   * rotación del service user que deje CORE_TRUSTED_PUBLISHER_ID desalineada) saldrá 500.
+   */
+  it('TS-5 (S-017): mapea caller_not_authorized a 403', () => {
+    httpStatusFor('caller_not_authorized').should.equal(403);
+  });
+
+  // Las tres direcciones importan y cada una atrapa un error distinto: 400 sería tratarlo
+  // como entrada inválida, 404 sería reusar el status de `user_not_found`, y 500 sería que la
+  // entrada no está y cayó en el fallback.
+  it('TS-6 (S-017): no es 400 ni 404 ni 500', () => {
+    httpStatusFor('caller_not_authorized').should.not.equal(400);
+    httpStatusFor('caller_not_authorized').should.not.equal(404);
+    httpStatusFor('caller_not_authorized').should.not.equal(500);
+  });
+
+  // La igualdad es lo que documenta la relación: los dos describen un permiso y ninguno de los
+  // dos lo emite un comando que esta api publique.
+  it('TS-7 (S-017): comparte el 403 con file_not_owned, su precedente', () => {
+    httpStatusFor('caller_not_authorized').should.equal(httpStatusFor('file_not_owned'));
+    httpStatusFor('caller_not_authorized').should.equal(403);
+  });
+
+  // CA-9 del lado de la api: reusar `user_not_found` era la tentación —ya existe, ya está
+  // mapeado— y está descartado por dos razones. Una de las dos es este 404.
+  it('TS-8 (S-017): user_not_found sigue en 404 y es un código distinto', () => {
+    httpStatusFor('user_not_found').should.equal(404);
+    httpStatusFor('caller_not_authorized').should.equal(403);
+    httpStatusFor('user_not_found').should.not.equal(httpStatusFor('caller_not_authorized'));
+  });
+
+  it('TS-9 (S-017): errorBody arma { code, message } sin remainingMinutes', () => {
+    const body = errorBody({
+      status: 'failure',
+      errorCode: 'caller_not_authorized',
+      errorMessage: 'Caller no autorizado',
+    });
+    body.should.deepEqual({
+      code: 'caller_not_authorized',
+      message: 'Caller no autorizado',
+    });
   });
 });
