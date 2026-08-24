@@ -3,7 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Objective, ObjectiveActivity, Person, PersonObjective, Project, Requirement, User, WorkedTime } from '@jiku/models';
+import { IdentityType, Objective, ObjectiveActivity, Person, PersonObjective, Project, Requirement, User, WorkedTime } from '@jiku/models';
 
 describe('GET /api/objectives/:id', () => {
   let application: Application;
@@ -180,32 +180,109 @@ describe('GET /api/objectives/:id', () => {
       });
   });
 
-  // CA-12 (S-015): acota los DOS `include` de `User` de esta ruta -- `creator` y el `user` de
-  // cada `ObjectiveActivity`. La asercion es sobre las CLAVES PRESENTES, no sobre la ausencia
-  // de `roles`: un `should.not.have.property('roles')` pasaria igual el dia que se agregue otra
-  // columna al modelo.
-  it('should return creator and every activity user with exactly id, name and email', () => {
+  // CA-12 (S-015) + CA-1 (S-019): acota los DOS `include` de `User` de esta ruta -- `creator`
+  // y el `user` de cada `ObjectiveActivity` -- a cuatro campos. La asercion es sobre las CLAVES
+  // PRESENTES, no sobre la ausencia de `roles`: un `should.not.have.property('roles')` pasaria
+  // igual el dia que se agregue otra columna al modelo.
+  //
+  // El 3 paso a 4 por S-019: el cuarto campo es `identityType`, y `roles` sigue afuera.
+  // La MISMA lista alimenta el historial y los comentarios de `detalle-tarea` (el front la
+  // parte filtrando por `typeOfActivity === 'comment'`), asi que esta asercion cubre los dos
+  // lugares que pide CA-5.
+  it('S-019 TS-7: should return creator and every activity user with exactly the four keys', () => {
     return request(application)
       .get('/api/objectives/1')
       .set('Accept', 'application/json')
       .set('Authorization', 'Bearer token_01_user')
       .expect(200)
       .then((response) => {
-        Object.keys(response.body.creator).should.have.length(3);
+        Object.keys(response.body.creator).should.have.length(4);
         response.body.creator.should.have.property('id');
         response.body.creator.should.have.property('name');
         response.body.creator.should.have.property('email');
+        response.body.creator.identityType.should.equal('person');
 
         const activities = response.body.ObjectiveActivity;
         activities.should.be.an.Array();
         activities.length.should.be.above(0);
         activities.forEach((activity: { user: Record<string, unknown> }) => {
-          Object.keys(activity.user).should.have.length(3);
+          Object.keys(activity.user).should.have.length(4);
           activity.user.should.have.property('id');
           activity.user.should.have.property('name');
           activity.user.should.have.property('email');
+          activity.user.should.have.property('identityType');
         });
       });
+  });
+
+  // S-019 TS-9: `roles` es el campo que NO puede salir (D-12 de REQ-005). La unica barrera es
+  // el `attributes` acotado del `include`.
+  it('S-019 TS-9: should not leak roles nor username in creator nor in any activity user', () => {
+    return request(application)
+      .get('/api/objectives/1')
+      .set('Accept', 'application/json')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        Object.keys(response.body.creator).should.not.containEql('roles');
+        Object.keys(response.body.creator).should.not.containEql('username');
+        response.body.ObjectiveActivity.forEach((activity: { user: Record<string, unknown> }) => {
+          Object.keys(activity.user).should.not.containEql('roles');
+          Object.keys(activity.user).should.not.containEql('username');
+        });
+      });
+  });
+
+  /**
+   * S-019 CA-5: el autor de un COMENTARIO de una identidad automatica se marca.
+   *
+   * Fixture propia, con el patron del describe de S-010 de mas abajo: las tres actividades que
+   * arma el `before` del archivo son de tipo state / priority / area, y hace falta una de tipo
+   * `comment` con un autor de servicio.
+   */
+  describe('S-019: el comentario de una identidad automatica', () => {
+    let serviceCommentId: number;
+
+    before(() => {
+      return User.create({
+        id: 'zitadel-sub-svc',
+        name: 'Conector Portal',
+        username: 'conector-portal',
+        email: 'conector@portal.test',
+        identityType: IdentityType.Service,
+      })
+        .then(() => ObjectiveActivity.create({
+          changedBy: 'zitadel-sub-svc',
+          typeOfActivity: 'comment',
+          previousValue: '',
+          newValue: 'Sincronizado desde el portal',
+          objectiveId: 1,
+        }))
+        .then((activity) => {
+          serviceCommentId = activity.id;
+        });
+    });
+
+    after(() => {
+      return ObjectiveActivity.destroy({ where: { id: serviceCommentId } })
+        .then(() => User.destroy({ where: { id: 'zitadel-sub-svc' } }));
+    });
+
+    // CA-11: la marca acompaña al nombre, no lo reemplaza.
+    it('S-019 TS-8: should mark the service author of a comment and keep its name', () => {
+      return request(application)
+        .get('/api/objectives/1')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const comment = response.body.ObjectiveActivity
+            .find((activity: any) => activity.id === serviceCommentId);
+          comment.typeOfActivity.should.equal('comment');
+          comment.user.identityType.should.equal('service');
+          comment.user.name.should.equal('Conector Portal');
+        });
+    });
   });
 
   // TS-17: objective sin vinculo expone requirementId null

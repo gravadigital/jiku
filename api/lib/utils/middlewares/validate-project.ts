@@ -18,7 +18,12 @@ function validateProject(req: Request, res: Response, next: NextFunction){
     include: [{
       model: User,
       as: 'creator',
-      attributes: ['id', 'name', 'email'],
+      // `identityType` se declara por consistencia con los otros seis `include` de autoria
+      // (S-019 CA-1), no porque llegue a una respuesta: hoy NINGUN handler devuelve
+      // `req.project` -- sus seis consumidores solo leen `req.project.id` o setean su propio
+      // `req.project`. Si algun dia una ruta lo serializa, el campo ya esta y no hay que
+      // acordarse. Lo que NO se puede hacer es quitar el `attributes`: seria filtrar `roles`.
+      attributes: ['id', 'name', 'email', 'identityType'],
     }],
   })
     .then((projectFound) =>{

@@ -140,6 +140,43 @@ describe('GET /opus/projects/:projid/users', () => {
       .then(() => UserProjectPermission.create({
         userId: 'service-only-01',
         projectId: 5
+      }))
+      // S-019 CA-2: la guarda de esta story. Va en un proyecto NUEVO (el 6) por el mismo
+      // criterio que la siembra de S-015 de arriba: meter el service user en el proyecto 1
+      // convertiria las aserciones existentes (`should.have.length(3)`) en una red de
+      // regresion implicita que seguiria pasando solo porque el filtro funciona.
+      .then(() => Project.create({
+        id: 6,
+        name: 'Project 6 - S-019 guard',
+        type: 'comercial',
+        status: 'activo',
+        initDate: new Date(),
+        createdBy: 'zitadel-sub-01',
+      }))
+      .then(() => User.create({
+        id: 'zitadel-sub-svc',
+        name: 'Conector Portal',
+        username: 'conector-portal',
+        email: 'conector@portal.test',
+        identityType: IdentityType.Service,
+      }))
+      .then(() => User.create({
+        id: 'person-project-06',
+        name: 'Persona Proyecto 6',
+        username: 'personap6',
+        email: 'personap6@mail.com',
+        identityType: IdentityType.Person,
+      }))
+      // El permiso del service user esta sembrado A PROPOSITO: sin el, el test pasaria sin
+      // probar nada -- un service user ya estaria fuera del listado por otra razon (el listado
+      // sale de user_project_permissions y no tendria fila ahi).
+      .then(() => UserProjectPermission.create({
+        userId: 'zitadel-sub-svc',
+        projectId: 6
+      }))
+      .then(() => UserProjectPermission.create({
+        userId: 'person-project-06',
+        projectId: 6
       }));
   });
 
@@ -299,6 +336,51 @@ describe('GET /opus/projects/:projid/users', () => {
         .then((response) => {
           response.body.should.be.an.Array();
           response.body.should.have.length(0);
+        });
+    });
+  });
+
+  /**
+   * S-019 CA-2: este selector NO gana `identityType`.
+   *
+   * Ya esta filtrado a `person` por S-015, asi que toda fila que devuelve es una persona y el
+   * campo seria constante. Y es la superficie de `external-user`: no gana campos sin una razon
+   * (ADR-006). Si el test de las 3 claves de mas arriba empieza a fallar con 4, alguien agrego
+   * el campo aca por simetria con los payloads de autoria: no es simetrico.
+   */
+  describe('S-019: el selector de personas queda afuera (CA-2)', () => {
+    it('S-019 TS-20: should keep every user of the selector at exactly three keys', () => {
+      return request(application)
+        .get('/api/opus/projects/6/users')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.be.above(0);
+          response.body.forEach((user: Record<string, unknown>) => {
+            Object.keys(user).should.have.length(3);
+            user.should.have.property('id');
+            user.should.have.property('name');
+            user.should.have.property('email');
+            Object.keys(user).should.not.containEql('identityType');
+            Object.keys(user).should.not.containEql('roles');
+          });
+        });
+    });
+
+    it('S-019 TS-21: should keep excluding a service user that has project permission', () => {
+      return request(application)
+        .get('/api/opus/projects/6/users')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.map((user: { id: string }) => user.id)
+            .should.not.containEql('zitadel-sub-svc');
+          response.body.map((user: { id: string }) => user.id)
+            .should.containEql('person-project-06');
         });
     });
   });

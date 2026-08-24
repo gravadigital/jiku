@@ -248,4 +248,29 @@ describe('GET /api/requirements', () => {
         });
       });
   });
+
+  /**
+   * S-019 CA-15: `listado-requisitos` NO tiene columna de autor.
+   *
+   * Es la pantalla que el diseño tecnico nombro y que se cayo al verificarla: la tabla no tiene
+   * donde poner la marca, y `requirements-get.ts` no tiene `include` de `creator`. No se le
+   * agrega. Si este test empieza a fallar, alguien sumo el `include` por simetria con el
+   * detalle: el criterio dice que no.
+   *
+   * La asercion es sobre `Object.keys(...)` y no sobre `req.creator === undefined`: lo segundo
+   * pasa igual si la clave existe con valor `undefined`.
+   */
+  it('S-019 TS-23: should not expose creator in the requirements list', () => {
+    return request(application)
+      .get('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        response.body.should.be.an.Array();
+        response.body.length.should.be.above(0);
+        response.body.forEach((req: Record<string, unknown>) => {
+          Object.keys(req).should.not.containEql('creator');
+        });
+      });
+  });
 });

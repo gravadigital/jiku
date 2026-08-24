@@ -289,6 +289,12 @@ paths:
                     - $ref: '#/components/schemas/Project'
                     - type: object
                       properties:
+                        # NO es AuthorUser: `projects-get.ts:31` mantiene ['id','name','email']
+                        # y `listado-proyectos` quedó fuera de S-019 (CA-15). Este `creator` es
+                        # `UserSummary`-shaped y el spec lo sobredeclara con `User` (que trae
+                        # `username`). La deriva es preexistente —ver Hallazgo 4 del plan de
+                        # S-015 (api)— y su arreglo va por
+                        # /product-change-technical-definition.
                         creator: { $ref: '#/components/schemas/User' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -323,13 +329,22 @@ paths:
     get:
       tags: [projects]
       summary: Detalle de un proyecto
-      description: Responde **400** `project_not_found` cuando no existe, no 404.
+      description: |
+        Responde **400** `project_not_found` cuando no existe, no 404.
+
+        Devuelve `creator` y `client` embebidos. `creator` es un `AuthorUser`: alimenta la fila
+        "Creado por" de `detalle-proyecto` (S-019, CA-4).
       responses:
         '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Project' }
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Project'
+                  - type: object
+                    properties:
+                      creator: { $ref: '#/components/schemas/AuthorUser' }
         '400':
           description: El proyecto no existe
           content:
@@ -1785,7 +1800,12 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Requirement' }
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Requirement'
+                    - type: object
+                      properties:
+                        creator: { $ref: '#/components/schemas/AuthorUser' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
@@ -1874,6 +1894,20 @@ paths:
       summary: Detalle de un requisito en el portal
       description: |
         Filtra las actividades por visibilidad: un `external-user` no ve las `internal`.
+
+        **La respuesta real NO es `RequirementWithRelations`.** Este handler es el único de la
+        api que no serializa el modelo: `sendResponse` construye el objeto campo por campo
+        (`opus-requirements-id-get.ts:61-96`). Lo que devuelve, con los nombres exactos:
+
+        - `creator` — un `AuthorUser` (el `pie-autoria` de `opus-web`).
+        - `requirementActivity[]` — el feed y los comentarios; cada entrada trae `user`, también
+          un `AuthorUser`.
+        - `subscriptors[]` — **tres campos** (`id`, `name`, `email`) y nada más: es un
+          **selector** de suscriptores, no una autoría, así que **no** lleva `identityType`.
+        - `lastActivityAt` — derivado de la última actividad pública.
+
+        El `$ref` de abajo quedó desalineado con el handler **antes** de S-019 y sigue así: su
+        arreglo va por `/product-change-technical-definition`.
       x-roles: [user, external-user]
       responses:
         '200':
@@ -2568,21 +2602,62 @@ components:
       description: |
         Usuario. El `id` es el `sub` de Zitadel, no un entero.
 
-        **`roles` e `identityType` NO están acá, y la omisión es deliberada** (S-015, D-12 de
-        REQ-005). Las dos columnas existen en el modelo (`@jiku/models`) y en la base, pero **no
-        salen en ninguna respuesta HTTP**: este schema es alcanzable por `external-user` a través
-        de `GET /opus/projects/{projid}/users`, y exponer ahí el modelo de roles del producto
-        sería filtrar información de autorización a la superficie **menos confiable**.
+        **Ni `roles` ni `identityType` están acá, y en los dos casos la omisión es deliberada —
+        pero por razones distintas, y desde S-019 hay que distinguirlas:**
+
+        - **`roles` no sale en NINGUNA respuesta HTTP, y sigue siendo así** (S-015, D-12 de
+          REQ-005). Este schema es alcanzable por `external-user` a través de
+          `GET /opus/projects/{projid}/users`, y exponer ahí el modelo de roles del producto
+          sería filtrar información de autorización a la superficie **menos confiable**.
+        - **`identityType` sí sale, pero solo en los payloads de autoría** — ver `AuthorUser`
+          (S-019, CA-1). **No sale en este schema ni en el selector de personas**: ese endpoint
+          ya está filtrado a `identityType: 'person'`, así que el campo sería constante.
 
         **La garantía no la da este schema: la dan los `include` acotados.** El default de
         Sequelize es devolver todas las columnas del modelo, así que un `include` de `User` sin
         `attributes` devolvería las dos columnas **sin ningún cambio de spec que lo delate**. Si
-        agregás un `include` de `User`, declarale `attributes: ['id', 'name', 'email']`.
+        agregás un `include` de `User`, declarale `attributes: ['id', 'name', 'email']` — o
+        `['id', 'name', 'email', 'identityType']` si el usuario es un **autor**.
       properties:
         id: { type: string }
         name: { type: string }
         email: { type: string, format: email }
         username: { type: string }
+
+    AuthorUser:
+      type: object
+      description: |
+        El usuario cuando aparece como **autor** de algo: creador de un proyecto, un requisito o
+        una tarea, y autor de una entrada de actividad o de un comentario.
+
+        Es un schema distinto de `User` a propósito (S-019, CA-1 y CA-2). Declara `identityType`
+        porque la interfaz necesita distinguir a una persona de una identidad automática y
+        marcarla; **`User` no lo declara** porque es alcanzable por `external-user` a través de
+        `GET /opus/projects/{projid}/users`, un **selector de personas** ya filtrado a
+        `identityType: 'person'`, donde el campo sería constante.
+
+        **`roles` no sale acá ni en ningún otro schema.** Ese es el argumento de seguridad de
+        D-12 de REQ-005, y sigue en pie: exponer el modelo de roles del producto en una respuesta
+        HTTP sería filtrar información de autorización. La garantía no la da este schema: la dan
+        los `include` acotados de la api.
+
+        **No cubre a todo `User` embebido.** Un `uploader` de adjunto, un suscriptor y el
+        `creator` de `GET /projects` **no** son `AuthorUser`: siguen devolviendo tres campos. El
+        arreglo completo de la deriva —un `UserSummary` para todo usuario embebido— sigue
+        pendiente y va por `/product-change-technical-definition`.
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        identityType:
+          type: string
+          enum: [person, service]
+          description: |
+            Marca de identidad automática en la interfaz. `service` es una identidad de servicio
+            —un conector externo, no una persona—, y el front renderiza la marca **solo** si el
+            valor es exactamente `service`. Los dos valores están en inglés porque no los elige
+            el producto: son el `type` de `deploy/nats/auth-callout/rules.yaml`. La palabra que
+            ve el usuario la elige el front.
 
     Person:
       type: object
@@ -2643,6 +2718,23 @@ components:
         - type: object
           properties:
             project: { $ref: '#/components/schemas/Project' }
+            creator: { $ref: '#/components/schemas/AuthorUser' }
+            ObjectiveActivity:
+              type: array
+              description: |
+                **La clave es literalmente `ObjectiveActivity`**: es el nombre de la asociación,
+                sin alias. De esta única lista salen las DOS listas de `detalle-tarea` —el
+                historial y los comentarios—: el front las parte filtrando por
+                `typeOfActivity === 'comment'` (S-019, CA-5).
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/ObjectiveActivity'
+                  - type: object
+                    properties:
+                      changedBy: { type: string }
+                      previousValue: { type: string }
+                      newValue: { type: string }
+                      user: { $ref: '#/components/schemas/AuthorUser' }
             persons:
               type: array
               items: { $ref: '#/components/schemas/Person' }
@@ -2707,12 +2799,38 @@ components:
         projectId: { type: integer }
 
     RequirementWithRelations:
+      description: |
+        **Lo referencian cinco respuestas, y solo dos devuelven `creator` de verdad:**
+        `GET /requirements/{reqid}` y `GET /opus/requirements/{reqid}`. `GET /requirements`,
+        `POST /requirements` y `PATCH /requirements/{reqid}` **no** tienen el `include` de
+        `creator` (ni el del feed), así que para esos tres el schema sobredeclara. La deriva es
+        preexistente —Hallazgo 4 del plan de S-015 (api)— y su arreglo va por
+        `/product-change-technical-definition`.
+
+        **`GET /opus/requirements/{reqid}` además no devuelve este schema:** su handler arma la
+        respuesta campo por campo (proyección a mano). Ver la `description` de ese endpoint.
       allOf:
         - $ref: '#/components/schemas/Requirement'
         - type: object
           properties:
             project: { $ref: '#/components/schemas/ProjectSummary' }
-            creator: { $ref: '#/components/schemas/User' }
+            creator: { $ref: '#/components/schemas/AuthorUser' }
+            activity:
+              type: array
+              description: |
+                El feed del requisito. **El handler la rebautiza:** la asociación es
+                `requirementActivities` y la clave de la respuesta es `activity`
+                (`requirements-id-get.ts:43-44`). Solo la devuelve
+                `GET /requirements/{reqid}`.
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/RequirementActivity'
+                  - type: object
+                    properties:
+                      changedBy: { type: string }
+                      previousValue: { type: string }
+                      newValue: { type: string }
+                      changedByUser: { $ref: '#/components/schemas/AuthorUser' }
             responsiblePeople:
               type: array
               description: |

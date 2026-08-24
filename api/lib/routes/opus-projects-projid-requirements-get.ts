@@ -49,7 +49,7 @@ function getProjectRequirements(req: Request, res: Response) {
     include: [{
       model: User,
       as: 'creator',
-      attributes: ['id', 'name', 'email'],
+      attributes: ['id', 'name', 'email', 'identityType'],
     }],
   })
     .then((requirements) => res.status(200).json(requirements))
