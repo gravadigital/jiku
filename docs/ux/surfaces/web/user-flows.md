@@ -122,6 +122,13 @@ lo ve en Opus sin que nadie se lo comunique.
   vínculo con el comentario se crea al enviarlo: si el envío falla, no queda ni el comentario ni
   el vínculo, pero **el archivo sí queda** y se puede volver a usar (REQ-001 RF-1, RF-7, RF-8).
   Un archivo **solo lo puede adjuntar quien lo subió**, sin excepción por rol (RF-12, RF-13).
+- **Leer una entrada del feed que no la escribió una persona** — Camino de lectura **nuevo desde
+  REQ-005**. Una identidad de servicio —el conector externo— tiene fila en `users` y puede figurar
+  como autor de una actividad o como `created_by` del requisito. En el feed y en la fila
+  "Creado por" el nombre viene acompañado de un badge **"Automático"**, que es lo único que
+  distingue a ese autor de un compañero de equipo. **No hay acción asociada:** el usuario no puede
+  responderle, y el comentario de un servicio no es editable como no lo es ningún comentario ajeno
+  (RF-3, RF-10).
 
 ### Errores y recuperación
 
@@ -153,6 +160,8 @@ nueva. **En Opus, el cliente ve el mismo cambio** — es actividad pública.
 
 - El usuario debería saber **qué falta completar** para avanzar, sin conocer el proceso de memoria
 - El paso a `resuelto` no debería poder ocurrir por accidente durante una edición
+- El usuario debería poder distinguir **qué escribió una persona y qué escribió un servicio** sin
+  tener que reconocer nombres — **se cumple desde REQ-005** con la marca de autoría automática
 
 ---
 

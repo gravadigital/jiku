@@ -68,6 +68,7 @@ date: 2026-08-18
 | 21 | lista-adjuntos | list | — | content | desktop | hidden_in_states: loading | Adjuntos ya subidos |
 | 22 | item-adjunto | card | disponible / no disponible | content | desktop | hidden_in_states: loading | Un adjunto con sus acciones |
 | 23 | boton-ver-mas-adjuntos | button | tertiary | input | desktop | hidden_in_states: loading | Suma un lote de adjuntos visibles |
+| 24 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading | Marca que el creador mostrado es una identidad de servicio y no una persona |
 
 **Origen:** `projects/[id]/page.tsx:26`, `projects/[id]/page.tsx:31`, `projects/[id]/page.tsx:32`, `projects/[id]/page.tsx:34-36`, `projects/[id]/page.tsx:37-39`, `projects/[id]/page.tsx:46-49`, `projects/[id]/page.tsx:51`, `projects/[id]/page.tsx:54`, `projects/[id]/page.tsx:58`, `projects/[id]/page.tsx:64-67`, `projects/[id]/page.tsx:69-72`, `projects/[id]/page.tsx:74`, `ProjectRequirementsSection.tsx:98-113`, `ProjectRequirementsSection.tsx:117-160`, `ProjectRequirementsSection.tsx:164-210`, `ProjectObjectivesSection.tsx:87-102`, `ProjectObjectivesSection.tsx:105-157`, `ProjectObjectivesSection.tsx:159-205`, `FileUploader.tsx:94-158`, `FileUploader.tsx:126-133`, `AttachmentsList.tsx:57`, `AttachmentsList.tsx:59`, `AttachmentsList.tsx:69`
 
@@ -86,7 +87,7 @@ date: 2026-08-18
     - seccion-requisitos (tabs-estado-requisito, tabla-requisitos, paginacion-requisitos)
     - seccion-tareas (tabs-estado-tarea, tabla-tareas, paginacion-tareas)
   - col 5/12 (420px fijos): columna derecha
-    - card-informacion-general
+    - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-propiedades
     - card-adjuntos (zona-subida-archivos, lista-adjuntos, boton-ver-mas-adjuntos)
 
@@ -236,12 +237,19 @@ date: 2026-08-18
 - Asset: nada
 - Annotation: `AttachmentsList.tsx:69`
 
+### marca-identidad-automatica
+- Texto/label: `"Automático"` · nombre accesible `"Identidad automática: no es una persona"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-005.** Acompaña al valor de la fila `"Creado por"` de `card-informacion-general` cuando ese usuario es una identidad de servicio, y **solo ahí**: esta pantalla no muestra autoría en ningún otro bloque —`item-adjunto` lista el nombre del archivo y no quién lo subió, así que `uploaded_by` sigue siendo invisible acá pese a que desde REQ-005 puede ser un service user. Se renderiza solo cuando `identityType` es `service`; para una persona no hay bloque ni espacio reservado (REQ-005 RF-3, RF-10)
+
 ## Estados
 
 ### default
 - Aplica: Sí
 - Mensaje: —
 - Cambios: ninguno (estado base). Disparado por `project` resuelto (`projects/[id]/page.tsx:29-78`) [fuente: código-existente]
+  - marca-identidad-automatica: presente o ausente **según el dato, no según el estado** — aparece solo si el creador del proyecto es una identidad de servicio (REQ-005 RF-3)
 
 ### empty
 - Aplica: Sí (por sección; no hay empty global)
@@ -351,3 +359,10 @@ date: 2026-08-18
 - **`archivo no disponible` se resuelve dentro de `item-adjunto` y no como un overlay o una pantalla de error.** El adjunto sigue existiendo y sigue siendo borrable; sacarlo de la lista lo volvería invisible y no habría forma de limpiarlo. Se descartó ocultarlo por eso.
 - **Los límites de tamaño y tipo dejan de estar en el microcopy de la pantalla.** Pasan a ser configurables en caliente (RF-15), así que cualquier número escrito en la interfaz puede quedar desactualizado sin que nadie lo note. El mensaje de rechazo viene del servidor. Se descartó leer la configuración para mostrarla: agrega un pedido de datos a una pantalla que hoy no lo necesita, para prevenir un error que el servidor ya explica bien.
 - **No se agregó componente al Design System.** `progress-bar` y el mensaje de error inline no tienen spec en `web` v0.1.0, pero ese catálogo es un scaffold placeholder con tres componentes; crear uno suelto acá lo desbalancea. Queda anotado como gap conocido en la `## Revisión UX` de REQ-001.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **La marca de autoría automática entra en un solo bloque de esta pantalla.** `"Creado por"` de `card-informacion-general` es el único lugar donde el proyecto expone un usuario. Se revisó el resto y no hay más: las dos tablas muestran requisitos y tareas sin columna de autor, y `item-adjunto` muestra el nombre del archivo sin quién lo subió.
+- **`uploaded_by` sigue sin mostrarse, y ahora es una decisión y no una omisión.** Desde REQ-005 un conector externo puede ser el `uploaded_by` de un archivo de esta lista. Se descartó agregar la columna: el adjunto se identifica por su nombre, agregar autoría a cada fila competiría con las tres acciones que ya lleva (`Preview` · `Download` · `Eliminar`), y la regla que importa —que un archivo solo lo puede adjuntar quien lo subió (REQ-001 RF-12)— ya se comunica cuando se rompe, no de forma preventiva. Queda anotado como gap: si el equipo necesita rastrear qué subió un conector, hoy la interfaz no lo dice en ninguna parte.
+- **Consistencia con `detalle-requisito`.** Mismo bloque, mismo microcopy `"Automático"`, misma decisión de acompañar el nombre en vez de reemplazarlo. Una segunda forma de decir lo mismo en la pantalla de al lado sería peor que no decirlo.
+- **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0; el gap es previo y esta pantalla ya no tenía badges propios, así que la marca los introduce como tipo pero no como compromiso nuevo del catálogo. Anotado en la `## Revisión UX` de REQ-005.

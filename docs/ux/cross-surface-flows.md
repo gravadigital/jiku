@@ -66,10 +66,30 @@ forma en la interfaz de saber cuál de los dos mirar (RF-16, CA-9). El caso cont
 el cliente asume que su pedido falló y no reintenta, mientras el equipo lo ve en el listado. En los
 dos casos el dato cruzó y la certeza no.
 
+**Y desde [REQ-005] el pedido puede tener un tercer origen.** Hasta ahora un requisito lo creaba
+un cliente en `opus-web` o alguien del equipo en `web`. Desde REQ-005 toda identidad que se
+autentica en el bus tiene fila en `users`, así que el **conector externo** de REQ-001 puede crear
+requisitos de verdad —antes no podía: sin fila en `users` la escritura violaba la FK— y aparece
+como autor en las dos superficies. Ese tercer origen **sí se distingue**: donde el producto muestra
+autor, el nombre viene con un badge *"Automático"* — en el detalle del requisito de `web` y en la
+columna "AUTOR" del tablero de `opus-web`. Donde no muestra autor no hay nada que marcar, y el paso
+3 de este recorrido es justamente uno de esos casos: **listado-requisitos** no tiene columna de
+autor, así que ahí el pedido del conector sigue siendo indistinguible del resto (RF-3, RF-10).
+
+**La ironía vale registrarla:** el origen que nadie pidió distinguir —el del servicio— quedó
+marcado, y el que el criterio de éxito de este flujo pide desde el relevamiento —el del cliente
+contra el del equipo— **sigue sin marca**. No es una decisión de REQ-005: es que el service user
+introduce un riesgo de lectura (creer que un servicio es una persona) que el par cliente/equipo no
+tiene, porque los dos son personas. El criterio de éxito sigue abierto.
+
 ### Criterios de éxito
 
 - Un pedido del cliente debería **llegarle a alguien**, no quedar esperando que lo encuentren
 - El equipo debería poder distinguir lo que pidió un cliente de lo que se generó internamente
+- **Nuevo:** el equipo y el cliente deberían poder distinguir lo que creó un **servicio** de lo que
+  creó una persona — **se cumple desde REQ-005** en el detalle de las dos superficies y en el
+  tablero de `opus-web`; **no se cumple** en `listado-requisitos` de `web` (sin columna de autor)
+  ni en el tablero mobile de `opus-web` (la card no muestra autor)
 
 ---
 
@@ -162,6 +182,20 @@ datos permitiría:
 | Miembro del equipo en `web` | Cliente en `opus-web` | Rechazado |
 | Un servicio externo | Cualquier persona, y viceversa | Rechazado |
 
+**Y desde [REQ-005] la fila "un servicio externo" dejó de ser hipotética** [REQ-005 RF-2, RF-6, CA-3,
+CA-4]. Ese cruce se documentaba como regla, pero el canal **no funcionaba**: sin fila en `users` el
+`INSERT` de `files` violaba la FK de `uploaded_by`, así que el publicador externo no podía subir
+nada que después alguien intentara reusar. Desde REQ-005 el conector tiene fila —se la crea su
+propio evento de autenticación— y el cruce se vuelve alcanzable de verdad: **un archivo cuyo autor
+es un servicio, visible en las dos superficies, y que ninguna persona puede reusar.** La regla no
+cambió; lo que cambió es que ahora se puede llegar a ella.
+
+**Lo que sí cruza distinto es la autoría.** El mismo feed que las dos superficies leen puede tener
+entradas de un autor que no es una persona, y **las dos lo marcan con la misma palabra**:
+`"Automático"`. `opus-web` suma una segunda señal que `web` no necesita —el avatar del comentario,
+que en vez de iniciales muestra un icono— porque su tarjeta de comentario **tiene** avatar y el
+feed de `web` no. Es la misma decisión adaptada a dos composiciones distintas, no dos decisiones.
+
 La asimetría es deliberada y vale nombrarla: **el contenido de una superficie se ve en la otra, y
 el archivo también se ve en la otra —lo que no cruza es el permiso de volver a usarlo.** Ver un
 adjunto del cliente y adjuntarlo a otra cosa son dos cosas distintas, y solo la primera cruza.
@@ -199,6 +233,8 @@ motivo en un `title` invisible en touch.
 - Un comentario debería **notificar a la otra parte** (FG-2)
 - El equipo debería poder ver claramente **qué comentarios ve el cliente** antes de escribir
 - El cliente no debería poder inferir que existe actividad interna — **hoy se cumple**
+- Las dos partes deberían leer **la misma marca** para un autor que no es una persona —
+  **se cumple desde REQ-005**: el mismo badge `"Automático"` en las dos superficies
 
 ---
 

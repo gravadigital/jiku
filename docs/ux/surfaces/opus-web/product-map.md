@@ -30,8 +30,8 @@ origin: relevamiento de código — brownfield
 | 1 | login | Entrada al portal vía OIDC | cliente | ambos | C-67 |
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
 | 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético | cliente | ambos | C-59 |
-| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto | cliente | ambos | C-60, C-61, C-66 |
-| 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001 |
+| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto | cliente | ambos | C-60, C-61, C-66, REQ-005 |
+| 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005 |
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
 
@@ -60,12 +60,12 @@ origin: relevamiento de código — brownfield
 
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
-| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas |
+| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas. **REQ-005:** compone los mismos tres paneles que la pantalla #5, así que hereda `marca-identidad-automatica` en `pie-autoria` y en el feed, y la variant `identidad-automatica` del comentario (RF-3, RF-10) |
 | O-02 | Nuevo requisito | modal | Sidebar · botón "Nuevo requisito"; tablero-requisitos | Crear un requisito. **REQ-001:** los adjuntos dejan de ser borrador y la subida muestra progreso real (RF-1, RF-8). **REQ-004:** un `504 gateway_timeout` deja el alta en duda —el requisito pudo haberse creado— y el modal **no muestra ningún error**, así que el reintento probable duplica el pedido y el duplicado aparece en `web` (RF-16, CA-9) |
 | O-03 | Dropdown de estado | dropdown en portal | fila de lista, card de kanban | Cambiar estado inline — **solo visible para rol interno** |
 | O-04 | Dropdown de prioridad | dropdown en portal | fila de lista, card de kanban | Cambiar prioridad inline — **solo rol interno** |
 | O-05 | Dropdowns del formulario (proyecto, prioridad, tipo) | panel posicionado a mano | Nuevo requisito | Selección dentro del alta |
-| O-06 | Selector de suscriptores | panel posicionado a mano | Nuevo requisito | Elegir quién sigue el requisito |
+| O-06 | Selector de suscriptores | panel posicionado a mano | Nuevo requisito | Elegir quién sigue el requisito. **REQ-005: verificado sin cambios.** Consume `GET /api/opus/projects/{projid}/users`, que ya está acotado por `user_project_permissions` —donde un service user no tiene fila— y que además suma el filtro `identityType: 'person'` **en la api**. El front no filtra nada |
 | O-07 | Toast | notificación efímera (4 s) | `useUpdateRequirement` | Confirmar un cambio de estado o prioridad |
 
 **Overlays que existen en el código y no se pueden abrir** (componentes muertos): `Modal`
@@ -75,6 +75,15 @@ el gap bloqueante de navegación en mobile.
 > **El detalle de requisito está implementado dos veces**: como overlay (O-01) y como pantalla
 > propia (#5). Los dos componen los mismos tres paneles, con 1 px de diferencia en el ancho del
 > panel de actividad.
+
+> **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
+> interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de
+> un requisito o de una actividad, y que desde REQ-005 tiene fila en `users` y por lo tanto puede
+> escribir de verdad— aparece como autor donde el cliente espera una persona. Las dos pantallas que
+> lo muestran suman `marca-identidad-automatica` (`"Automático"`), y `item-comentario` gana la
+> variant `identidad-automatica` porque su **avatar de iniciales** es la parte que más engaña:
+> "Conector Portal" produce "CP", indistinguible de una persona. En **mobile** el tablero no muestra
+> autor, así que ahí no hay marca —asimetría registrada, no gap [REQ-005 RF-3, RF-10].
 
 ## Estructura de Navegación
 

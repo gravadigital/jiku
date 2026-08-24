@@ -67,7 +67,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 15 | pie-autoria | paragraph | caption | content | ambos | visible_only_in_states: default | Quién creó el requisito |
 | 16 | titulo-actividad | heading | h3 | content | ambos | visible_only_in_states: default | Encabeza el panel de actividad |
 | 17 | feed-actividad | list | — | content | ambos | visible_only_in_states: default | Historial de comentarios y cambios |
-| 18 | item-comentario | card | — | content | ambos | visible_only_in_states: default | Un comentario del feed |
+| 18 | item-comentario | card | persona / identidad-automatica | content | ambos | visible_only_in_states: default | Un comentario del feed |
 | 19 | item-cambio | list | timeline | content | ambos | visible_only_in_states: default | Un cambio de campo en el feed |
 | 20 | editor-comentario | text-input | multilínea con adjuntos | input | ambos | visible_only_in_states: default | Escribir un comentario |
 | 21 | boton-adjuntar | button | secondary | input | ambos | visible_only_in_states: default | Adjuntar un archivo al comentario, de a uno por vez |
@@ -79,6 +79,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 27 | boton-volver-listado | button | secondary | input | ambos | visible_only_in_states: error de sistema / sin conexión, not found | Salida del estado de excepción |
 | 28 | boton-reintentar | button | primary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Reintentar la carga. **No existe en not found** |
 | 29 | progreso-subida-adjunto | progress-bar | — | feedback | ambos | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
+| 30 | marca-identidad-automatica | badge | automatico | content | ambos | visible_only_in_states: default | Marca que el autor mostrado es una identidad de servicio y no una persona |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]/page.tsx`, `RequirementDetailView/RequirementDetailView.tsx`, `RequirementDetailView/RequirementDetailView.module.scss`, `BoardHeader/BoardHeader.tsx`, `RequirementDetailModal/components/RequirementInfoPanel/RequirementInfoPanel.tsx`, `RequirementDetailModal/components/ActivityPanel/ActivityPanel.tsx`, `RequirementDetailModal/components/CommentInput/CommentInput.tsx`, `subscriptions/components/SubscribersList/SubscribersList.tsx` [fuente: código-existente].
 
@@ -94,9 +95,9 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
 - titulo-requisito
 - descripcion
 - bloque-resolucion
-- pie-autoria
+- pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*
 - titulo-actividad
-- feed-actividad
+- feed-actividad *(item-comentario e item-cambio, con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - editor-comentario — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
 
 **Origen:** `RequirementDetailView.module.scss:91-99` — `@include mobile { .body { flex-direction: column } .rightPanel { width: 100%; flex-shrink: 1 } }` y `RequirementInfoPanel.module.scss:20-40` — `.layout { @include mobile { flex-direction: column; overflow: visible } }`, `.sidebar { @include mobile { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb } }` [fuente: código-existente].
@@ -114,10 +115,10 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
   - col 7/12: panel izquierdo *(flexible)*
     - row `info`
       - col 3/12: panel-propiedades *(220px fijos)* — propiedad-estado, propiedad-tipo, propiedad-prioridad, lista-suscriptores, propiedad-fechas
-      - col 9/12: titulo-requisito, descripcion, bloque-resolucion, pie-autoria
+      - col 9/12: titulo-requisito, descripcion, bloque-resolucion, pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*
   - col 5/12: panel derecho *(559px fijos)*
     - titulo-actividad
-    - feed-actividad *(scroll)* — item-comentario, item-cambio
+    - feed-actividad *(scroll)* — item-comentario, item-cambio, marca-identidad-automatica *(junto al autor de cada entrada de una identidad de servicio)*
     - editor-comentario *(anclado abajo)* — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
 
 **Origen:** `RequirementDetailView.module.scss:11-49` — `.body { display:flex }` con `.leftPanel { flex: 1 1 0 }` y `.rightPanel { width: 559px; flex-shrink: 0 }`; el panel de propiedades en `RequirementInfoPanel.module.scss:15-40` — `.layout { display:flex }` con `.sidebar { width: 220px; flex-shrink: 0 }` [fuente: código-existente].
@@ -227,7 +228,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Texto/label: "Elemento creado por **{nombre}**" · ausencia del creador: `"—"`
 - Icono: nada
 - Asset: nada
-- Annotation: `RequirementInfoPanel.tsx:165`. Dice "Elemento", no "Requisito"
+- Annotation: `RequirementInfoPanel.tsx:165`. Dice "Elemento", no "Requisito". **Con REQ-005** puede nombrar a una identidad de servicio —un conector externo que crea requisitos por el bus—, y en ese caso lo acompaña `marca-identidad-automatica`. El literal no cambia: "Elemento creado por" funciona igual para una persona y para un servicio, y reescribirlo a "Creado automáticamente por" habría exigido dos frases donde alcanza una más un badge
 
 ### titulo-actividad
 - Texto/label: "ACTIVIDAD"
@@ -243,9 +244,9 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 
 ### item-comentario
 - Texto/label: dinámico — nombre del autor, fecha relativa, contenido · autor ausente: "Usuario"
-- Icono: nada
-- Asset: avatar de iniciales (dos primeras palabras del nombre)
-- Annotation: `ActivityPanel.tsx:76-96`, ausencia en `:77`, iniciales en `:20-27`; fecha con `formatDistanceToNow` de date-fns con locale `es` y `addSuffix` — "hace 3 días"
+- Icono: variant `identidad-automatica`: icono en el avatar en lugar de iniciales
+- Asset: variant `persona`: avatar de iniciales (dos primeras palabras del nombre) · variant `identidad-automatica`: avatar con icono, sin iniciales
+- Annotation: `ActivityPanel.tsx:76-96`, ausencia en `:77`, iniciales en `:20-27`; fecha con `formatDistanceToNow` de date-fns con locale `es` y `addSuffix` — "hace 3 días". **Con REQ-005 la tarjeta gana dos variants.** El avatar de iniciales es la parte que **más engaña** cuando el autor no es una persona: "Conector Portal" produce "CP", indistinguible de "Carla Pérez". La variant `identidad-automatica` reemplaza las iniciales por un icono y suma `marca-identidad-automatica` al lado del nombre; el resto de la tarjeta —fecha, contenido, markdown— no cambia
 
 ### item-cambio
 - Texto/label: "**{Autor}** cambió *{Campo}* de {valor anterior} a **{valor nuevo}**". Nombres de campo: "Estado", "Prioridad", "Tipo", "Título", "Descripción"
@@ -313,6 +314,12 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Asset: nada
 - Annotation: `refetch()` de `useRequirement`, no navega. **No existe en `not found`**: ahí reintentar no tendría sentido
 
+
+### marca-identidad-automatica
+- Texto/label: "Automático" · nombre accesible "Identidad automática: no es una persona"
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor en los dos lugares donde esta pantalla lo muestra: `pie-autoria` y el autor de cada `item-comentario` / `item-cambio` del feed. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. El caso llega a esta superficie por el canal del publicador externo de REQ-001: desde REQ-005 ese conector tiene fila en `users` y puede figurar como creador de un requisito y como autor de una actividad pública, que es exactamente lo que el cliente lee acá
 ## Estados
 
 ### default
@@ -323,6 +330,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
   - **empty (actividad)** — Mensaje: "No hay actividad registrada" · feed-actividad reemplazado por el texto (`ActivityPanel.tsx:136-142`)
   - **empty (suscriptores)** — Mensaje: "Sin suscriptores" (`SubscribersList.tsx:11-13`)
   - **empty (descripción)** — Mensaje: "Sin descripción" (`RequirementInfoPanel.tsx:150`)
+  - **autoría automática** — presente o ausente **según el dato, no según el estado**: `marca-identidad-automatica` aparece junto a cada autor cuyo `identityType` es `service`, y `item-comentario` toma la variant `identidad-automatica` (REQ-005 RF-3). Un requisito creado y comentado solo por personas no la muestra nunca
   - **subiendo adjunto** — **cambia con REQ-001** (RF-8): el `AttachmentSkeleton` indeterminado que aparecía al final del editor (`CommentInput.tsx:151-152` → `RichTextEditor.tsx:161-165`) se reemplaza por `progreso-subida-adjunto` con porcentaje real. `boton-adjuntar` queda deshabilitado mientras hay una subida en curso (de a uno, RF-7) y `boton-enviar` también, porque enviar mientras el byte viaja vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13)
   - **loading (envío de comentario)** — el editor, boton-adjuntar y boton-enviar se deshabilitan, disparado por `isPending` de `useCreateComment`. **Sin texto de "enviando"** (`CommentInput.tsx:133`, `:151`, `:169`)
 
@@ -404,6 +412,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
   - El **cambio de "Enlace" a "Copiado" no se anuncia**: sin `aria-live` (`BoardHeader.tsx:103-108`).
   - El **feed de actividad no es una lista**: `<div>` anidados, sin `<ul>`/`<li>` ni `role="list"` (`ActivityPanel.tsx:145-153`).
   - El **`<textarea>` del editor no tiene etiqueta**: solo `placeholder`, sin `<label>` ni `aria-label` (`RichTextEditor.tsx:126-134`). Y como el editor se parte en un `<textarea>` por segmento de texto, el foco no se maneja entre ellos.
+  - **La marca de identidad automática no puede quedar en el avatar.** El avatar del comentario es `aria-hidden`, así que un lector de pantalla nunca sabría que el icono reemplazó a las iniciales: la marca es un `badge` con texto visible y nombre accesible propio, leído junto al nombre del autor. **Se descartó el `title` de `:hover`**, el patrón que esta superficie ya usa para el motivo del fallo de suscripción y que este mismo documento registra como invisible en touch (REQ-005).
   - Presentes: `aria-label` en los tres botones del header (`BoardHeader.tsx:101`, `:117`, `:139`), `role="alert"` en el error del comentario (`CommentInput.tsx:139`), `aria-label` en el input de archivo y en los botones de adjuntar y enviar (`:162`, `:168`, `:178`), `aria-hidden` en iconos decorativos, avatar de comentario, timeline y punto de estado, y `<ul>`/`<li>` reales en la lista de suscriptores (`SubscribersList.tsx:16-22`).
 
 ## Decisiones y descartes
@@ -432,3 +441,12 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - **No se agrega ningún control de compartir, y es el descarte central del REQ.** Ni botón, ni copia de URL, ni link con vencimiento: RF-8 lo deja fuera de alcance de forma explícita. Es la decisión que más se nota desde esta pantalla, porque es acá donde un cliente tendría el impulso de mandarle un entregable a alguien de su organización que no entra al portal. El criterio para el día que se retome está anotado en el REQ —una prefirmada emitida por `core`, con vencimiento— pero **no se captura ni se planifica**, así que la pantalla no anticipa nada: agregar un affordance de compartir que no existe sería peor que su ausencia.
 - **No se avisa que el link viejo dejó de funcionar.** Se descartó mostrar acá cualquier aviso del tipo "los links compartidos ya no abren": el usuario de esta pantalla ya está autenticado y para él nada cambió, así que el mensaje le hablaría de un problema que no tiene. Quien sí lo tiene llega a `login`, y ahí también se descartó el mensaje contextual por falta de alcance técnico (ver [`login.md`](login.md)).
 - **Sin cambios en el Design System.** El delta de REQ-002 en esta superficie no introduce ningún tipo de bloque nuevo, así que no hay gap nuevo contra el catálogo de `opus-web` v0.1.0. El gap de `progress-bar` que dejó REQ-001 sigue abierto y **no se resuelve acá**: no lo toca este REQ.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **El cliente es quien más necesita la marca, y es el que menos contexto tiene para inferirla.** El equipo interno puede sospechar que "Conector Portal" no es un compañero; un cliente que entra tres veces por año no tiene forma de saberlo, y su modelo mental del feed es "acá me escribe el equipo". Por eso la marca entra en esta superficie con **más** peso que en `web`, no menos: además del badge, la variant del avatar.
+- **El avatar de iniciales es el problema, no el nombre.** "Conector Portal" → "CP" es indistinguible de una persona, y el avatar es lo primero que el ojo lee en una tarjeta de comentario. Se descartó dejar las iniciales y confiar solo en el badge: la corrección tiene que estar donde está el error de lectura.
+- **`"Automático"`, la misma palabra que en `web`.** Las dos superficies tienen marca y tipografía distintas, pero el requisito es la misma entidad y el feed es el mismo feed filtrado (flujo 3 de `cross-surface-flows.md`). Dos palabras distintas para el mismo hecho sería una divergencia gratuita.
+- **`pie-autoria` conserva su literal.** "Elemento creado por **{nombre}**" no se reescribe a "Creado automáticamente por": mantener una sola frase para los dos casos evita que la ausencia del badge tenga que significar algo.
+- **No se toca el selector de suscriptores (O-06), y se verificó en vez de asumirlo.** Es la pregunta 2 del REQ. El selector consume `GET /api/opus/projects/{projid}/users`, que ya está acotado por `user_project_permissions` —donde un service user no tiene fila— y que además suma el filtro `identityType: 'person'` **en la api** como defensa (REQ-005 story 1). No hay nada que filtrar en el front y no hay estado nuevo que representar.
+- **No se agregó componente al Design System.** `badge` no tiene spec en `opus-web` v0.1.0 —el catálogo sigue siendo el scaffold de tres componentes— pero es un tipo que esta pantalla ya usa en `propiedad-estado` y `propiedad-prioridad`: el gap es previo al delta. La variant del avatar tampoco se especifica acá: `item-comentario` es un `card` y `card` también está sin spec. Los dos anotados en la `## Revisión UX` de REQ-005.

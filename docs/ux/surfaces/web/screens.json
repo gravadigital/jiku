@@ -1867,7 +1867,7 @@
           "type": "card",
           "category": "content",
           "content": "Información general",
-          "paragraph": "Código: OPUS-01 · Cliente: Opus S.A. · Estado: Activo · Creado por: L. Álvarez · Fecha de inicio: 3 de marzo de 2026 · Fecha de cierre estimada: No definida",
+          "paragraph": "Código: OPUS-01 · Cliente: Opus S.A. · Estado: Activo · Creado por: Conector Portal · Fecha de inicio: 3 de marzo de 2026 · Fecha de cierre estimada: No definida",
           "hidden_in_states": [
             "loading"
           ],
@@ -2001,6 +2001,17 @@
             "loading"
           ],
           "annotation": "suma un lote de adjuntos visibles (AttachmentsList.tsx:69)"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al valor de la fila \"Creado por\" de card-informacion-general, y solo ahí: esta pantalla no muestra autoría en ningún otro bloque —item-adjunto lista el nombre del archivo y no quién lo subió, así que uploaded_by sigue invisible acá pese a que desde REQ-005 puede ser un service user · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10)"
         }
       ],
       "layouts": {
@@ -2075,6 +2086,7 @@
                 "w": 5,
                 "stack": [
                   "card-informacion-general",
+                  "marca-identidad-automatica",
                   "card-propiedades",
                   {
                     "row": "bloque-adjuntos",
@@ -3792,6 +3804,10 @@
             {
               "title": "L. Álvarez completó el alcance",
               "subtitle": "Público · 15/08/2026 11:40"
+            },
+            {
+              "title": "Conector Portal creó el requisito",
+              "subtitle": "Público · 12/08/2026 09:02"
             }
           ],
           "annotation": "etiquetas de visibilidad \"Interno\" / \"Público\" (RequirementActivityFeed.tsx:118, :177)",
@@ -3866,7 +3882,7 @@
           "type": "card",
           "category": "content",
           "content": "Información General",
-          "paragraph": "Proyecto: Portal Opus · Responsable (líder): L. Álvarez · Responsable(s): M. Pérez, J. Sosa · Visibilidad: Interno · Creado por: L. Álvarez · Fecha de creación: 12/08/2026 · Última actualización: 18/08/2026",
+          "paragraph": "Proyecto: Portal Opus · Responsable (líder): L. Álvarez · Responsable(s): M. Pérez, J. Sosa · Visibilidad: Interno · Creado por: Conector Portal · Fecha de creación: 12/08/2026 · Última actualización: 18/08/2026",
           "annotation": "filas <dt>/<dd>; el título no es encabezado, es un <div className=cardTitle> (RequirementDetail.tsx:302, :306-364)"
         },
         {
@@ -3996,6 +4012,18 @@
           "fill": 0.72,
           "content": "Subiendo captura-error.png... 72%",
           "annotation": "\"Subiendo captura-error.png... 72%\" — visible solo mientras hay una subida en curso (sub-estado de default) · bloque nuevo con REQ-001 (RF-8): el byte va del navegador directo al storage, así que el porcentaje es el de la transferencia real. Antes la pantalla no daba ningún feedback de subida: el adjunto aparecía o no aparecía · mientras sube, boton-adjuntar y boton-enviar-comentario quedan disabled (RF-7, D-13)"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en la fila \"Creado por\" de card-informacion-general y junto al autor de cada entrada de feed-actividad · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10); para una persona no hay bloque, no hay espacio reservado y no hay marca de \"es una persona\" · badge con texto visible y nombre accesible propio: se descartó el Tooltip de :hover que esta pantalla ya usa y que está registrado como inalcanzable por teclado"
         }
       ],
       "layouts": {
@@ -4124,6 +4152,7 @@
                   "paginacion-tareas",
                   "card-actividad",
                   "feed-actividad",
+                  "marca-identidad-automatica",
                   "formulario-comentario",
                   "editor-comentario",
                   "progreso-subida-adjunto",
@@ -4156,6 +4185,7 @@
                 "w": 5,
                 "stack": [
                   "card-informacion-general",
+                  "marca-identidad-automatica",
                   "card-etiquetas",
                   {
                     "row": "chips-etiquetas",
@@ -5876,6 +5906,10 @@
             {
               "title": "L. Álvarez modificó la descripción",
               "subtitle": "15/08/2026 11:40"
+            },
+            {
+              "title": "Conector Portal creó la tarea",
+              "subtitle": "14/08/2026 08:11"
             }
           ],
           "annotation": "por entrada: usuario, tipo de actividad vía getObjectiveTypeOfActivity, valor anterior y nuevo vía getObjectiveState (ObjectiveHistoryList.tsx:39-61). Las actividades de tipo description no muestran el cambio de valor (:44), solo que hubo un cambio; valor nuevo vacío: \"No definida\" (:52). La fecha completa vive en un Tooltip de :hover, inalcanzable por teclado (:56)"
@@ -5913,7 +5947,7 @@
           "hidden_in_states": [
             "empty"
           ],
-          "content": "M. Pérez · (editado) · 17/08/2026",
+          "content": "Conector Portal · 17/08/2026",
           "paragraph": "Falta definir el formato exacto de la exportación.",
           "annotation": "autor: siempre un usuario de Jiku (ObjectiveComment.tsx:79) — con REQ-003 desaparece la rama que sufijaba \"(En sistema externo)\", que nunca se renderizó. Marca \"(editado)\" con Tooltip en los modificados (:94) y fecha en un Tooltip \"Creación: {fecha}\" (:98); contenido en markdown vía <MarkdownViewer> (:116). En edición reemplaza el markdown por el editor con \"Cancelar\" y \"Guardar\" (:120-134); \"Cancelar\" descarta lo editado sin aviso. No se puede borrar un comentario"
         },
@@ -6072,6 +6106,17 @@
             "default"
           ],
           "annotation": "\"Subiendo especificacion.pdf... 47%\" · bloque nuevo con REQ-001 (RF-8) y sub-estado \"subiendo adjunto\" de default: se ve solo mientras el byte viaja del navegador directo al storage, así que el progreso es real. Mientras sube, boton-adjuntar-comentario y boton-guardar-comentario quedan disabled (RF-7, D-13). No se fusiona con loading porque hoy loading={loading || isUploading} mezcla subir y enviar (CommentEditor.tsx:157) y colapsarlas tiraría el porcentaje"
+        },
+        {
+          "name": "marca-identidad-automatica",
+          "type": "badge",
+          "category": "content",
+          "variant": "automatico",
+          "content": "Automático",
+          "hidden_in_states": [
+            "empty"
+          ],
+          "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en los tres lugares donde esta pantalla expone un usuario: la fila \"Creado por\" de la grilla de metadatos, el autor de cada entrada de lista-historial y el autor de cada comentario · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10) · en comentario es compatible con el sub-estado de edición: la marca es del autor, no del modo de la tarjeta · es la variante de autoría que REQ-003 dejó sin diseñar al eliminar el sufijo \"(En sistema externo)\", y no es la misma: aquella marcaba a una persona que había escrito en otro sistema · texto visible y no emoji ni Tooltip, contra los dos patrones que esta pantalla ya tiene registrados como defectos"
         }
       ],
       "layouts": {
@@ -6119,6 +6164,7 @@
                           "fila-metadato",
                           "fila-metadato",
                           "fila-metadato",
+                          "marca-identidad-automatica",
                           "link-requisito"
                         ]
                       },
@@ -6143,6 +6189,7 @@
           },
           "titulo-historial",
           "lista-historial",
+          "marca-identidad-automatica",
           "vacio-historial",
           "titulo-comentarios",
           "lista-comentarios",
@@ -6150,9 +6197,15 @@
             "row": "comentario",
             "cols": [
               {
-                "w": 9,
+                "w": 7,
                 "stack": [
                   "comentario"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": [
+                  "marca-identidad-automatica"
                 ]
               },
               {

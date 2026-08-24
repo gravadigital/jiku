@@ -77,6 +77,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 14 | indicador-carga | loader | lg | feedback | ambos | visible_only_in_states: loading | Señal de carga de la pantalla entera |
 | 15 | boton-nuevo-requisito | button | primary | input | solo desktop | hidden_in_states: loading | Abrir el alta de requisito. Vive en el sidebar del shell |
 | 16 | sidebar-navegacion | sidebar | — | layout | solo desktop | — | Chrome de `(dashboard)`: proyectos, alta y cerrar sesión. Bajo 768px no se renderiza |
+| 17 | marca-identidad-automatica | badge | automatico | content | solo desktop | hidden_in_states: loading, empty | Marca que el autor mostrado es una identidad de servicio y no una persona |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/page.tsx`, `.../page.module.scss`, `BoardHeader/BoardHeader.tsx`, `ListView/ListView.tsx`, `ListView/components/RequirementGroupRow/RequirementGroupRow.tsx`, `ListRequirementRow/ListRequirementRow.tsx`, `KanbanBoard/KanbanBoard.tsx`, `KanbanColumn/KanbanColumn.tsx`, `KanbanBoard/components/KanbanCard/KanbanCard.tsx`, `MobileRequirementsBoard/MobileRequirementsBoard.tsx`, `StateAccordion/StateAccordion.tsx`, `RequirementCard/RequirementCard.tsx` [fuente: código-existente].
 
@@ -112,7 +113,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
   - row `grid-7` — 7 columnas de ancho fijo: `64px 1fr 140px 140px 160px 120px 150px`
 - por cada uno de los 7 estados:
   - fila-grupo *(ancho completo, clickeable)*
-  - fila-requisito × N *(mismo grid de 7 columnas)*
+  - fila-requisito × N *(mismo grid de 7 columnas)* — marca-identidad-automatica en la celda "AUTOR", cuando el creador es una identidad de servicio
 
 **Origen:** `BoardHeader.module.scss:3-13` (`display:flex; justify-content:space-between; height:61px`), `ListView.module.scss:10-14` y `ListRequirementRow.module.scss:3-15` — las dos declaran `grid-template-columns: 64px 1fr 140px 140px 160px 120px 150px` [fuente: código-existente].
 
@@ -124,7 +125,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - encabezado-tablero
 - row `tablero` *(scroll horizontal)*
   - columna-kanban × 7, cada una de **500px fijos**, con `gap: 20px`
-    - card-kanban × N
+    - card-kanban × N *(con marca-identidad-automatica junto al autor, cuando es una identidad de servicio)*
     - boton-ver-mas
 
 **Origen:** `KanbanBoard.module.scss:1-11` — `display:flex; gap:20px; overflow-x:auto` y `KanbanColumn.module.scss:3-6` — `flex: 0 0 500px` [fuente: código-existente].
@@ -169,7 +170,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Texto/label: dinámico — `#{id}`, `title`, etiqueta de estado, fecha, `creator.name`, tipo, prioridad
 - Icono: `Calendar` de lucide-react, 12px · `ListRequirementRow.tsx:204`
 - Asset: nada
-- Annotation: valores por defecto — autor sin nombre → `"—"` (`:209`); fecha nula → `"—"` (`:73`); tipo nulo o `sin_tipo` → `"Sin tipo"` (`:60`). Fecha con `toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric'})` (`:75-79`)
+- Annotation: valores por defecto — autor sin nombre → `"—"` (`:209`); fecha nula → `"—"` (`:73`); tipo nulo o `sin_tipo` → `"Sin tipo"` (`:60`). Fecha con `toLocaleDateString('es-ES', {day:'2-digit', month:'short', year:'numeric'})` (`:75-79`). **Con REQ-005 la celda "AUTOR" puede traer una identidad de servicio** —un conector externo que crea requisitos por el bus— y en ese caso la acompaña `marca-identidad-automatica`. El valor por defecto `"—"` no cambia: sigue siendo el de un creador ausente, no el de un creador automático
 
 ### pill-estado
 - Texto/label: la etiqueta del valor actual ("Análisis", "Planificación", "En cola", "Desarrollo", "Revisión", "Resuelto", "Cancelado")
@@ -193,7 +194,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Texto/label: dinámico — `#{id}`, título, fecha, autor, y los dos pills
 - Icono: nada
 - Asset: nada
-- Annotation: **los pills solo se muestran si el requisito tiene descripción** (`KanbanCard.tsx:140`) — condición que no está explicada en el código. Fecha con formato propio en UTC, distinto del de la lista: `{día} {mes abreviado} {año}` (`:60-66`)
+- Annotation: **los pills solo se muestran si el requisito tiene descripción** (`KanbanCard.tsx:140`) — condición que no está explicada en el código. Fecha con formato propio en UTC, distinto del de la lista: `{día} {mes abreviado} {año}` (`:60-66`). **Con REQ-005** el autor de la card puede ser una identidad de servicio y lleva `marca-identidad-automatica`, igual que en la fila de la lista
 
 ### boton-ver-mas
 - Texto/label: "Ver más" · en carga: "Cargando..." con spinner
@@ -211,7 +212,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Texto/label: dinámico — título, `#{id}`, fecha
 - Icono: SVG de calendario inline, 14px · `RequirementCard.tsx:59-75`
 - Asset: nada
-- Annotation: **no muestra estado, tipo, autor ni prioridad.** Es la representación más reducida de las tres
+- Annotation: **no muestra estado, tipo, autor ni prioridad.** Es la representación más reducida de las tres. **Consecuencia con REQ-005:** al no mostrar autor, **no lleva la marca de identidad automática** — no hay nada que marcar. El cliente en mobile no distingue un requisito creado por un conector hasta que lo abre, y ahí sí lo ve en `pie-autoria`. Se registra como asimetría entre viewports, no como gap a corregir: agregar autor a esta card sería un cambio de diseño que REQ-005 no pide
 
 ### indicador-carga
 - Texto/label: texto visualmente oculto "Cargando..." dentro del spinner
@@ -237,12 +238,19 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Asset: nada
 - Annotation: chrome del grupo `(dashboard)`, no de esta pantalla. `display:none` bajo 768px (`Sidebar.module.scss:13`) **sin reemplazo**: en mobile no hay ninguna navegación
 
+
+### marca-identidad-automatica
+- Texto/label: "Automático" · nombre accesible "Identidad automática: no es una persona"
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en la celda "AUTOR" de `fila-requisito` y junto al autor de `card-kanban`. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. **No existe en mobile**, porque `card-requisito-mobile` no muestra autor
 ## Estados
 
 ### default
 - Aplica: Sí
 - Mensaje: —
 - Cambios: ninguno (estado base). Las tres vistas según viewport y `?view=` · `requirements/page.tsx:164-196` [fuente: código-existente]
+  - marca-identidad-automatica: presente o ausente **según el dato, no según el estado** — aparece en las filas y cards cuyo creador tiene `identityType: service` (REQ-005 RF-3), y solo en las dos vistas de desktop
 
 ### empty
 - Aplica: No — no implementado (ver gaps-as-is.md) a nivel pantalla. Un proyecto sin ningún requisito muestra las 7 secciones en cero, sin mensaje ni acción; en desktop además todas colapsadas, así que la pantalla queda casi en blanco (`requirements/page.tsx:164-196`).
@@ -328,3 +336,11 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 
 - **Se anota en un estado marcado "no implementado", y es deliberado.** La tentación era diseñar acá el estado de error que falta. No se hace: el REQ deja `opus-web` sin cambios (RF-16) y crear un estado nuevo sería inventar alcance. Lo que sí se registra es que el gap **empeoró**: antes faltaba mostrar "algo falló", ahora faltan **dos mensajes con recuperación opuesta**, y uno de ellos ("pudo haber ocurrido") es el que evita un duplicado.
 - **El alta se documenta desde esta pantalla porque el overlay no tiene documento propio.** O-02 vive en el inventario de overlays del product-map, no en un `.md` de pantalla; `boton-nuevo-requisito` está declarado acá, así que acá va la consecuencia. El inventario de overlays también la registra en su fila.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **La columna "AUTOR" pasa de ser decorativa a ser informativa.** Hasta ahora todos los autores eran personas, así que la columna solo decía cuál. Desde REQ-005 puede decir **qué clase** de autor es, y ese es un dato que cambia cómo el cliente lee la fila: un requisito que apareció solo no se responde igual que uno que escribió alguien.
+- **La marca vive en la celda de autor, no en la fila.** Se descartó marcar la fila entera (un color de fondo, un icono al margen): confundiría "creado por un servicio" con un estado del requisito, y la fila ya carga dos pills de color con significado propio.
+- **Mobile queda sin marca, y es una consecuencia y no un olvido.** `card-requisito-mobile` no muestra autor, así que no hay dónde ponerla; el cliente en mobile lo descubre al abrir el requisito. Se descartó agregarle autor a la card para poder marcarlo: es la representación más reducida de las tres a propósito, y sumarle un dato para poder anotarlo invierte el orden de las razones.
+- **Consistencia con `detalle-requisito` y con `web`.** Mismo bloque, mismo microcopy `"Automático"`. El requisito es la misma entidad en las dos superficies y no puede tener dos vocabularios de autoría.
+- **No se agregó componente al Design System.** `badge` no tiene spec en `opus-web` v0.1.0 pero es un tipo que esta pantalla ya usa en `pill-estado` y `pill-prioridad`: el gap es previo al delta. Anotado en la `## Revisión UX` de REQ-005.

@@ -73,6 +73,7 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 25 | vacio-historial | empty-state | — | feedback | desktop | visible_only_in_states: empty del historial | Mensaje de historial vacío |
 | 26 | vacio-comentarios | empty-state | — | feedback | desktop | visible_only_in_states: empty de comentarios | Mensaje de comentarios vacíos |
 | 27 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
+| 28 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: empty del historial, empty de comentarios | Marca que el autor mostrado es una identidad de servicio y no una persona |
 
 **Origen:** `src/app/(loggedin)/objectives/[id]/page.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.module.scss`, `src/features/objectives/components/ObjectiveHistoryList/ObjectiveHistoryList.tsx`, `src/features/objectives/components/ObjectiveComment/ObjectiveComment.tsx`, `src/shared/components/ui/CommentEditor/CommentEditor.tsx`.
 
@@ -88,14 +89,14 @@ Notas de transcripción [fuente: código-existente]:
 - tarjeta-detalle
   - tag-prioridad
   - row `metadatos`
-    - col 6/12: badge-estado (Estado), link-proyecto (Proyecto), Área, Visibilidad, Creado por, link-requisito (Requisito)
+    - col 6/12: badge-estado (Estado), link-proyecto (Proyecto), Área, Visibilidad, Creado por *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*, link-requisito (Requisito)
     - col 6/12: Fecha de inicio, Fecha de finalización estimada, Fecha de cierre, Última actualización, Horas trabajadas, lista-equipo (Equipo)
   - descripcion-tarea
 - titulo-historial
-- lista-historial
+- lista-historial *(con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - titulo-comentarios
 - lista-comentarios
-  - comentario × N (con badge-visibilidad-comentario y boton-editar-comentario)
+  - comentario × N (con badge-visibilidad-comentario, marca-identidad-automatica *(solo si el autor es una identidad de servicio)* y boton-editar-comentario)
 - editor-comentario-nuevo
 - lista-adjuntos-pendientes
   - boton-quitar-adjunto por archivo
@@ -278,6 +279,12 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Asset: nada
 - Annotation: es un `<div>` que se renderiza dentro de un `<ul>`
 
+### marca-identidad-automatica
+- Texto/label: `"Automático"` · nombre accesible `"Identidad automática: no es una persona"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en los tres lugares donde esta pantalla expone un usuario: la fila `"Creado por"` de la grilla de metadatos, el autor de cada entrada de `lista-historial` y el autor de cada `comentario`. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. **Es la variante de autoría que REQ-003 dejó explícitamente sin diseñar** al eliminar el sufijo `"(En sistema externo)"`, y no es la misma: aquella marcaba a una persona que había escrito en otro sistema; esta marca a una identidad del propio producto que no es una persona
+
 ## Estados
 
 ### default
@@ -285,6 +292,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Mensaje: —
 - Cambios: ninguno (estado base). `getObjectiveById` resuelve (`objectives/[id]/page.tsx:12-33`)
 - Sub-estado `comentario en edición`: click en boton-editar-comentario reemplaza el markdown por el editor, con `"Cancelar"` y `"Guardar"` (`ObjectiveComment.tsx:120-134`)
+- marca-identidad-automatica: presente o ausente **según el dato, no según el estado** — aparece junto a cada autor cuyo `identityType` es `service` (REQ-005 RF-3). En `comentario` es compatible con el sub-estado de edición: la marca es del autor, no del modo de la tarjeta
 
 ### empty
 - Aplica: Sí
@@ -364,7 +372,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Orden de foco:** boton-editar → boton-volver (el `row-reverse` de `PageLayout` invierte el orden visual pero no el del DOM, `PageLayout.module.scss:33`) → link-requisito → boton-editar-comentario de cada comentario → editor-comentario-nuevo → boton-quitar-adjunto de cada adjunto → checkbox-comentario-publico → boton-adjuntar-comentario → boton-guardar-comentario. **`link-proyecto` no está en el orden de foco:** es un `<a onClick>` sin `href`, así que no es enfocable por teclado ni se anuncia como enlace (`ObjectiveDetails.tsx:79`) [fuente: código-existente].
 - **Landmarks y jerarquía:** los landmarks son los del shell. Un solo `<h1>`, el del `PageLayout` (el título de la tarea, `objectives/[id]/page.tsx:16`), y dos `<h2>`: `"Historial de cambios"` y `"Comentarios"` (`ObjectiveHistoryList.tsx:101`, `:104`). Correcto. **La estructura de metadatos no es semántica:** `<p><span>Etiqueta</span> valor</p>` en vez de `<dl>`/`<dt>`/`<dd>`, así que la relación etiqueta-valor no se anuncia (`ObjectiveDetails.tsx:68-166`).
 - **Foco y teclado:** la pantalla no abre modales ni dropdowns propios, así que no introduce focus traps. Los `Tooltip` del historial y de los comentarios son de `:hover` puro. No hay atajos de teclado propios.
-- **Propio de esta composición:** **HTML inválido en las dos listas de actividad:** el empty de historial y el de comentarios devuelven un `<div>` que se renderiza dentro de un `<ul>` (`<ul>{renderActivityContent(...)}</ul>`, `ObjectiveHistoryList.tsx:33`, `:102`). **La visibilidad de cada comentario se comunica solo por emoji** (`👁` / `🔒`), con el significado en un `Tooltip` de `:hover`: los emoji los leen los lectores de pantalla, pero como `"ojo"` / `"candado"`, no como `"público"` / `"interno"` (`ObjectiveComment.tsx:84`). **Las fechas completas viven solo en tooltips de `:hover`** y son inalcanzables por teclado (`ObjectiveHistoryList.tsx:56`, `ObjectiveComment.tsx:98`). `boton-guardar-comentario` está `disabled` sin `aria-describedby` que explique por qué (`CommentEditor.tsx:158`), y `boton-quitar-adjunto` no identifica cuál adjunto quita (`CommentEditor.tsx:134`). El tag de prioridad muestra el número crudo sin leyenda de la escala (`ObjectiveDetails.tsx:63`) [fuente: código-existente].
+- **Propio de esta composición:** **HTML inválido en las dos listas de actividad:** el empty de historial y el de comentarios devuelven un `<div>` que se renderiza dentro de un `<ul>` (`<ul>{renderActivityContent(...)}</ul>`, `ObjectiveHistoryList.tsx:33`, `:102`). **La visibilidad de cada comentario se comunica solo por emoji** (`👁` / `🔒`), con el significado en un `Tooltip` de `:hover`: los emoji los leen los lectores de pantalla, pero como `"ojo"` / `"candado"`, no como `"público"` / `"interno"` (`ObjectiveComment.tsx:84`). **Las fechas completas viven solo en tooltips de `:hover`** y son inalcanzables por teclado (`ObjectiveHistoryList.tsx:56`, `ObjectiveComment.tsx:98`). `boton-guardar-comentario` está `disabled` sin `aria-describedby` que explique por qué (`CommentEditor.tsx:158`), y `boton-quitar-adjunto` no identifica cuál adjunto quita (`CommentEditor.tsx:134`). El tag de prioridad muestra el número crudo sin leyenda de la escala (`ObjectiveDetails.tsx:63`) [fuente: código-existente]. **La marca de identidad automática se resuelve como texto visible y no como emoji ni `Tooltip`**, a propósito y contra los dos patrones que esta misma pantalla ya tiene registrados como defectos: la visibilidad de un comentario se comunica con `👁`/`🔒` que un lector lee como `"ojo"`/`"candado"`, y las fechas completas viven en tooltips de `:hover` inalcanzables por teclado. Repetir cualquiera de los dos para una marca nueva sería sumar un defecto conocido (REQ-005).
 
 ## Decisiones y descartes
 
@@ -385,3 +393,10 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Ningún cambio visual.** Las dos ramas que se eliminan son las que ya se tomaban en toda fila que el producto haya escrito. La pantalla renderiza **exactamente lo mismo** antes y después; lo que cambia es que deja de declarar dos caminos que nunca se recorrían. Por eso no se toca ningún estado, ninguna transición ni el `user-flows.md` de la superficie.
 - **La grilla de metadatos no se rebalancea.** La columna izquierda pasa de 7 a 6 filas y la derecha se queda en 6, así que las dos columnas quedan parejas sin mover nada. Se descartó reordenar filas entre columnas para aprovechar el hueco: el orden actual es el del DOM y cualquier reordenamiento sería un cambio de diseño que este REQ no pidió.
 - **Sin cambios en el Design System.** El delta solo **quita** un bloque `link` y simplifica microcopy: no introduce ningún tipo de bloque nuevo, así que no hay nada que verificar contra el catálogo de `web` v0.1.0.
+
+### REQ-005 — Sincronización de usuarios y roles desde el bus (2026-08-24)
+
+- **La autoría no-humana vuelve a hacer falta, ocho meses después de darla de baja.** REQ-003 dejó escrito que esta pantalla quedaba *"sin ninguna forma de representar autoría ajena al producto"* y que *"si alguna vez vuelve a hacer falta, hay que diseñarla de cero"*. REQ-005 es ese caso, y **la diferencia importa para no repetir el diseño viejo**: `"(En sistema externo)"` marcaba a una **persona** que había escrito en Jira; `"Automático"` marca a una identidad que **no es una persona**. Un sufijo entre paréntesis pegado al nombre servía para lo primero; para lo segundo hace falta separar el qué del quién, y por eso es un bloque propio y no un sufijo.
+- **Tres lugares, un solo bloque.** `"Creado por"`, el historial y los comentarios muestran el mismo dato con la misma consecuencia para el lector. Se descartó tratar el historial distinto (por ejemplo, con la marca en la propia frase *"{Autor} cambió {Campo}"*): dejaría al lector aprendiendo dos convenciones en una pantalla que ya mezcla dos listas de actividad.
+- **La marca no cambia nada de lo que el usuario puede hacer.** Un comentario de una identidad de servicio se lee igual y **no se puede editar** —`boton-editar-comentario` ya está acotado a los comentarios propios—, así que no hace falta ningún estado nuevo ni ninguna advertencia.
+- **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0, pero es un tipo que esta pantalla ya usa tres veces (`tag-prioridad`, `badge-estado`, `badge-visibilidad-comentario`): el gap es previo al delta. Anotado en la `## Revisión UX` de REQ-005.
