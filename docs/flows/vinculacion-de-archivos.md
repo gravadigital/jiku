@@ -4,7 +4,7 @@ title: Vinculación de archivos a entidades
 type: feature
 status: Draft
 created: 2026-08-19
-last_updated: 2026-08-24
+last_updated: 2026-08-25
 stories: [S-003, S-004, S-014, S-027]
 ---
 
@@ -13,7 +13,7 @@ stories: [S-003, S-004, S-014, S-027]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-24
+**Última actualización:** 2026-08-25
 **Stories:** S-003, S-004
 
 > **Estado de implementación (al cerrar el lado `core` de S-004):** los pasos **4 y 5**
@@ -411,3 +411,10 @@ REQ-006 expone en lectura por el bus el modelo que REQ-001 separó, con el recur
 - **`attachments` no tiene `get` y no tiene `include`.** La entidad dueña es polimórfica sin FK
   (D-05): quien la quiera la pide con su propio recurso.
 - El recorrido completo está en `docs/flows/consulta-por-el-bus.md`.
+
+**Implementado en S-027**, y con el mapa de `entityType` **en un solo lugar**
+(`core/src/queries/entity-type.ts`): las cuatro entradas que se superponen con la traducción de
+`comments` se **derivan** de ella, y un test hace `grep` sobre `core/src/` para verificar que el
+nombre de base del comentario de tarea aparece en **un solo archivo**. El recorte externo del
+recurso reusa **ese mismo mapa** para sus cinco ramas, así que un sexto tipo de entidad se agrega
+en un único lugar y la traducción y el recorte lo aprenden juntos.

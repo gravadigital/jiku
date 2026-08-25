@@ -1,4 +1,10 @@
-import { OneRelationSpec, QueryContext, ResourceSpec } from '../types';
+import {
+  AttachmentOwner,
+  OneRelationSpec,
+  PolymorphicExternalScope,
+  QueryContext,
+  ResourceSpec,
+} from '../types';
 import { specFor } from './spec';
 import {
   FilterCondition,
@@ -63,18 +69,75 @@ class Params {
  */
 const SCOPE = 'scope_';
 
+/**
+ * Alias del SALTO AL DUEÑO dentro de una rama polimórfica. Del motor, no de la ficha.
+ *
+ * Un comentario no lleva el proyecto: lo lleva su entidad dueña, y alcanzarla necesita un JOIN
+ * DENTRO del `EXISTS`. El alias es fijo por el mismo criterio que `scope_`: no puede salir de la
+ * ficha ni del payload, y no colisiona con ninguno de los otros.
+ */
+const SCOPE_OWNER = 'scope_owner_';
+
+/** Alias de la FILA PUENTE del recorte `bridge`. Del motor, con el mismo criterio. */
+const BRIDGE = 'br_';
+
 /** La lista de proyectos permitidos del caller. Una sola vez, para las dos variantes del recorte. */
 const PERMITTED_PROJECTS =
   '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
 
-/** `t.created_at`. La columna ya viene de la ficha; acá solo se califica con el alias. */
-function column(spec: { column: string }): string {
-  return `${MAIN}.${spec.column}`;
-}
-
 /* ---------------------------------------------------------------------------------------------
  * EL RECORTE DEL MODO EXTERNO
  * ------------------------------------------------------------------------------------------- */
+
+/**
+ * UNA RAMA POLIMÓRFICA: "la entidad a la que apunta `row` es visible para el caller".
+ *
+ * UNA SOLA FUNCIÓN PARA LOS DOS CONSUMIDORES —`polymorphic` sobre `t` y `bridge` sobre `br_`—, y
+ * esa reutilización es CA-17 aplicada al recorte: si el emisor estuviera dos veces, agregar un
+ * sexto tipo de entidad arreglaría un recurso y dejaría el otro roto, sin ningún síntoma.
+ *
+ * DEVUELVE UN GRUPO PARENTIZADO Y CADA RAMA TAMBIÉN LO ESTÁ: cada rama lleva un AND adentro
+ * (`tipo = X AND EXISTS(…)`) y el grupo las une con OR. Sin los paréntesis, el OR se come lo que
+ * venga después y el recorte deja de recortar.
+ *
+ * UN TIPO QUE NO ESTÁ EN `branches` NO PASA NINGUNA RAMA: deny-by-default (ADR-008), sin una línea
+ * que lo excluya.
+ */
+function polymorphicSql(
+  scope: PolymorphicExternalScope,
+  row: string,
+  params: Params
+): string {
+  const branches = Object.entries(scope.branches).map(([type, owner]: [string, AttachmentOwner]) => {
+    const inner: string[] = [`${SCOPE}.${owner.key} = ${row}.${scope.idColumn}`];
+    let joins = '';
+
+    if (owner.ownVisibility) {
+      // La visibilidad DE LA FILA ALCANZADA: un comentario tiene la suya y su default es
+      // `internal`. Sin esto, un comentario interno sobre una tarea pública se ve desde el portal.
+      inner.push(`${SCOPE}.${owner.ownVisibility.column} = :${params.add(owner.ownVisibility.value)}`);
+    }
+
+    // EL PROYECTO LO LLEVA la tabla del dueño si hay salto, y la alcanzada si no.
+    const carrier = owner.owner ? SCOPE_OWNER : SCOPE;
+    if (owner.owner) {
+      joins =
+        ` JOIN ${owner.owner.table} ${SCOPE_OWNER}` +
+        ` ON ${SCOPE_OWNER}.${owner.owner.key} = ${SCOPE}.${owner.owner.foreignKey}`;
+    }
+    inner.push(`${carrier}.${owner.projectColumn} IN ${PERMITTED_PROJECTS}`);
+    if (owner.visibility) {
+      inner.push(`${carrier}.${owner.visibility.column} = :${params.add(owner.visibility.value)}`);
+    }
+
+    const exists = `EXISTS (SELECT 1 FROM ${owner.table} ${SCOPE}${joins} WHERE ${inner.join(' AND ')})`;
+    // EL VALOR DEL TIPO VA COMO PARÁMETRO, no concatenado: es un VALOR, no un nombre. Y por
+    // `params.add()` y no `params.set()`, que es de nombre fijo y colisionaría entre las ramas.
+    return `${row}.${scope.typeColumn} = :${params.add(type)} AND ${exists}`;
+  });
+
+  return `(${branches.map((branch) => `(${branch})`).join(' OR ')})`;
+}
 
 /**
  * EL RECORTE DEL MODO EXTERNO, sobre el SQL y NUNCA sobre el objeto `filter`.
@@ -163,6 +226,34 @@ function externalScopeSql(
       parts.push(`${MAIN}.${scope.ownVisibility.column} = :externalOwnVisibility`);
     }
     return parts.join(' AND ');
+  }
+
+  if (scope.kind === 'polymorphic') {
+    // LA ENTIDAD DUEÑA LA DECIDE EL VALOR DE UNA COLUMNA, fila por fila. Ver
+    // `PolymorphicExternalScope`: `exists` tiene UNA tabla y acá hacen falta todas las del mapa.
+    return polymorphicSql(scope, MAIN, params);
+  }
+
+  if (scope.kind === 'bridge') {
+    // LA MISMA CONDICIÓN DE "VIVA" EN LAS DOS SUBCONSULTAS, tomada de la MISMA variable: si la
+    // positiva y la negativa difirieran, existiría una fila que no pasa ninguna de las dos ramas.
+    const live = [`${BRIDGE}.${scope.foreignKey} = ${MAIN}.${scope.localKey}`];
+    if (scope.liveWhere) {
+      live.push(scope.liveWhere);
+    }
+    const from = `SELECT 1 FROM ${scope.table} ${BRIDGE} WHERE ${live.join(' AND ')}`;
+
+    // (A) ALGUNA fila puente viva cuya entidad es visible.
+    const reachable = `EXISTS (${from} AND ${polymorphicSql(scope.through, BRIDGE, params)})`;
+    if (!scope.orOrphanColumn) {
+      return `(${reachable})`;
+    }
+    // (B) NINGUNA fila puente viva Y la fila es del caller. `NOT EXISTS` Y NO `orSelfColumn`: esa
+    // entra SIEMPRE, y con ella un archivo con vínculo vivo a una entidad que el caller NO ve
+    // sería visible para quien lo subió. Ver `BridgeExternalScope`.
+    const orphan = `(NOT EXISTS (${from}) AND ${MAIN}.${scope.orOrphanColumn} = :caller)`;
+    // EL PARÉNTESIS EXTERIOR NO ES OPCIONAL: este valor se une con AND al resto del `WHERE`.
+    return `(${reachable} OR ${orphan})`;
   }
 
   const parts = [`${MAIN}.${scope.projectColumn} IN ${PERMITTED_PROJECTS}`];
@@ -254,7 +345,10 @@ function conditionSql(condition: FilterCondition, params: Params): string {
     return `(${parts.join(' OR ')})`;
   }
 
-  const col = column({ column: spec.column as string });
+  // LA COLUMNA SE CALIFICA CON EL ALIAS QUE DECLARA LA FICHA: sin `from`, la tabla del recurso.
+  // El caso es un filtro por un campo que la tabla del recurso NO LLEVA y que llega por un JOIN
+  // fijo. EL MOTOR NO CONOCE RECURSOS, tampoco en los comentarios: el ejemplo vive en la ficha.
+  const col = `${spec.from ?? MAIN}.${spec.column as string}`;
 
   switch (operator.op) {
   case 'isNull':
@@ -440,13 +534,17 @@ function selectParts(
       continue;
     }
     // Sin `kind` es un campo del conjunto base: una columna con su alias del contrato.
+    //
+    // `from` LO SACA DE OTRA TABLA Y LO DEJA IGUAL DE PLANO: el `AS "{campo}"` ya pone el valor
+    // bajo el nombre del contrato, y `projectRow` lo lee de `row[name]` sin saber de dónde vino.
+    // Es lo que hace que "aplanado" salga gratis y no necesite una rama por recurso en `project`.
     if (!('kind' in spec)) {
-      columns.push(`${MAIN}.${spec.column} AS "${name}"`);
+      columns.push(`${spec.from ?? MAIN}.${spec.column} AS "${name}"`);
       continue;
     }
     const includable = spec;
     if (includable.kind === 'field') {
-      columns.push(`${MAIN}.${includable.column} AS "${name}"`);
+      columns.push(`${includable.from ?? MAIN}.${includable.column} AS "${name}"`);
       continue;
     }
     // EL CAMPO CALCULADO: una expresión por fila, con el alias del campo del contrato. NO GENERA
@@ -480,6 +578,21 @@ function selectParts(
   });
 
   return { columns, joins };
+}
+
+/**
+ * LOS JOIN FIJOS DE LA FICHA, en el orden declarado.
+ *
+ * VA EN LOS TRES SQL —filas, COUNT y `get`— y ANTES de los JOIN de relaciones: `resource.where`
+ * puede nombrar sus alias, y un COUNT sin el JOIN falla con `missing FROM-clause entry`. Como el
+ * default es `count: false`, ese bug no aparecería hasta que alguien pidiera el total.
+ *
+ * `table`, `alias` y `on` SALEN DE LA FICHA, jamás del payload.
+ */
+function fixedJoins(resource: ResourceSpec): string[] {
+  return (resource.joins ?? []).map(
+    (join) => `${join.kind} JOIN ${join.table} ${join.alias} ON ${join.on}`
+  );
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -526,6 +639,7 @@ export function buildRowsSql(
   const sql = [
     `SELECT ${columns.join(', ')}`,
     `FROM ${resource.table} ${MAIN}`,
+    ...fixedJoins(resource),
     ...joins,
     where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
     `ORDER BY ${orderBySql(query.sort)}`,
@@ -574,6 +688,7 @@ export function buildCountSql(
   const sql = [
     'SELECT COUNT(*) AS total',
     `FROM ${resource.table} ${MAIN}`,
+    ...fixedJoins(resource),
     ...joins,
     where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
   ]
@@ -622,6 +737,7 @@ export function buildGetSql(
   const sql = [
     `SELECT ${columns.join(', ')}`,
     `FROM ${resource.table} ${MAIN}`,
+    ...fixedJoins(resource),
     ...joins,
     `WHERE ${where.join(' AND ')}`,
     'LIMIT 1',

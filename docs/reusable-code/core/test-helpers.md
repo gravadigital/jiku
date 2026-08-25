@@ -411,3 +411,49 @@ await destroyTeamWorld();
 await destroyQueryCallers();
 await destroyWorld();
 ```
+
+## File query fixtures
+
+**Location:** `core/tests/queries/file-fixtures.ts`
+
+**Description:** The fixture world of **files and links** (S-027): seven files and fifteen links.
+It is **the world with the most branches of the whole contract**, and not for fun — the external
+clip of `files.get` has TWO branches and the second one is NEGATIVE (`NOT EXISTS`), so it needs four
+files that differ **only** by whether they have a live link and by who uploaded them. With three,
+one of the four cases goes untested, and it is always the same one: the file with a live link to a
+foreign entity **uploaded by the caller**, which is the case that tells this clip apart from a
+copied `orSelfColumn`.
+
+**All five entity types are present**, each with its visible / non-visible pair: it is the only way
+to verify that the five branches of the polymorphic clip were emitted and that none stayed
+always-true. Plus the two permanent exclusions (a link with `deleted_at`, a link to a non-retained
+file) and the **legacy row** whose `entity_type` has no contract translation.
+
+**Reuses instead of duplicating:** `task-fixtures.ts` for projects, creator and callers,
+`activity-fixtures.ts` for the task clip matrix and the comments in both tables, and
+`domain-fixtures.ts` for the requirements.
+
+Link ids are **explicit** so tests can assert on them; **file ids are accessors**
+(`getLinkedFileId()`, …) because `files.id` is auto-increment and `TRUNCATE … RESTART IDENTITY`
+resets it. Two links of the same task share a `created_at` **on purpose**: without the tie, "it is
+ordered" passes with or without the tiebreaker and the keyset skips rows in production unnoticed.
+`created_at` is pinned with raw SQL because Sequelize overwrites timestamps on save.
+
+`destroyFileWorld()` deletes `attachments` **before** `files`, and with `force: true`: the model's
+`@BeforeDestroy requireForce` hook makes "yes, delete the row" explicit at the call site —
+unlinking **deletes** the row (REQ-001).
+
+**Note:** the link model has **no `uploadedBy`**. Ownership belongs to the FILE. An older fixture
+passes it with an `as any` and Sequelize drops it silently, which is what makes people believe the
+column exists; this one does not pass it.
+
+**Usage:**
+```ts
+await createWorld();
+await createDomainWorld();
+await createActivityTasks();
+await createQueryCallers();
+await createFileWorld();
+// …
+await destroyFileWorld();
+```

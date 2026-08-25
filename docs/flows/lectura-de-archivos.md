@@ -4,7 +4,7 @@ title: Lectura de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-24
+last_updated: 2026-08-25
 stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027]
 ---
 
@@ -13,7 +13,7 @@ stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-24
+**Última actualización:** 2026-08-25
 **Stories:** S-002, S-005, S-006, S-007, S-009
 
 > **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)**,
@@ -520,3 +520,9 @@ REQ-006 agrega una **superficie de lectura de metadatos por el bus** —`files.g
 - **En modo externo**, `files.get` aplica dos ramas: el archivo se ve si alguna de sus entidades
   dueñas es visible **o**, si no tiene ningún vínculo vivo, **solo si el propio caller lo subió**.
 - El recorrido completo está en `docs/flows/consulta-por-el-bus.md`.
+
+**Implementado en S-027.** Los dos endpoints responden en `core`, y **este flujo no cambió una
+línea**: la firma sigue viviendo en `files.{fileId}.request-download`. Un test de la suite de
+`files.get` inspecciona la respuesta serializada entera buscando `http`, `storage`, `downloadUrl`,
+`expiresIn` y `X-Amz`, y otro verifica que los tres campos de ubicación física responden
+`invalid_fields` en `fields`, en `include` y como filtro.

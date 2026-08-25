@@ -553,6 +553,9 @@ describe('la compuerta de autorización · plano de consultas', () => {
     'comments.get',
     'activity.list',
     'subscriptions.list',
+    // Los dos de S-027: ídem, `queries: ALL` ya los autoriza y `ROLE_METHODS` no cambió.
+    'attachments.list',
+    'files.get',
     // Los seis de S-026: `queries: ALL` ya los autoriza, así que `ROLE_METHODS` no cambió.
     'people.list',
     'users.list',
@@ -637,7 +640,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
     }
   });
 
-  it('TS-39b · con fila, el caller exento atraviesa las 12 consultas', async () => {
+  it('TS-39b · con fila, el caller exento atraviesa TODAS las consultas registradas', async () => {
     await User.create({
       id: getTrustedPublisherId(),
       name: 'Publicador Confiable',

@@ -85,7 +85,7 @@ describe('queries/pending — el stub sin consumidores (S-025, CA-17)', () => {
     }
   });
 
-  it('TS-82 · el registro tiene los DIECIOCHO patrones esperados, en el orden del contrato', () => {
+  it('TS-82 · el registro tiene los VEINTE patrones esperados, en el orden del contrato', () => {
     queryRegistry.patterns().should.deepEqual([
       'clients.list',
       'clients.get',
@@ -99,6 +99,10 @@ describe('queries/pending — el stub sin consumidores (S-025, CA-17)', () => {
       'comments.get',
       'activity.list',
       'subscriptions.list',
+      // Los dos de S-027: los archivos en lectura. `attachments` no tiene `get` y `files` no
+      // tiene `list`, y las dos ausencias SON el contrato (CA-14).
+      'attachments.list',
+      'files.get',
       // Los seis de S-026, al final. Ninguno tiene `get` (CA-15).
       'people.list',
       'users.list',

@@ -421,7 +421,73 @@ const USERS_SCOPE: ExternalScopeSpec = {
 
 // worked-times / unworked-times / week-assigned-times (S-026) — no external access at all
 const WORKED_TIMES_SCOPE: ExternalScopeSpec = { kind: 'none' };
+
+// attachments (S-027) — POLYMORPHIC: which table to look at is decided by a column's VALUE
+const ATTACHMENTS_SCOPE: ExternalScopeSpec = {
+  kind: 'polymorphic',
+  typeColumn: 'entity_type',
+  idColumn: 'entity_id',
+  branches: ATTACHMENT_ENTITY_OWNERS,
+};
+
+// files (S-027) — BRIDGE: visible through its live links, or, with none, only to whoever uploaded it
+const FILES_SCOPE: ExternalScopeSpec = {
+  kind: 'bridge',
+  table: 'attachments',
+  foreignKey: 'file_id',
+  localKey: 'id',
+  liveWhere: 'br_.deleted_at IS NULL',
+  through: ATTACHMENTS_SCOPE,
+  orOrphanColumn: 'uploaded_by',
+};
 ```
+
+### PolymorphicExternalScope / BridgeExternalScope / AttachmentOwner (S-027)
+
+The fifth and sixth shapes of the clip, and both are **generic**: `engine/` names no resource.
+
+**`polymorphic`** — the row points at an entity **whose type decides which table to look at**.
+`ExistsExternalScope` carries ONE `table`; a polymorphic FK-less table needs one per value. It is
+**not** a discriminator: a `DiscriminatorSpec` picks the RESOURCE's table and is mandatory in the
+payload, while here the resource's table never changes and the type is a **column whose value
+varies per row**. The engine emits it as **one branch per entry of `branches`, the whole group
+PARENTHESISED**: the clip is prepended to the `WHERE` and joined with AND, so `A OR B AND C` reads
+`A OR (B AND C)` and **the clip stops clipping**. A type absent from `branches` passes no branch, so
+the row is not seen — deny-by-default with no line excluding it.
+
+**`bridge`** — the row is visible through its **bridge rows**, and, when it has **no live one**, by
+being its own. **The orphan branch is NOT `orSelfColumn`, and the difference is a security one:**
+`orSelfColumn` enters ALWAYS, this one only when the positive `EXISTS` is empty. With the wide
+semantics, a file with a live link to an entity the caller cannot see would be visible to whoever
+uploaded it. `liveWhere` comes from the spec and appears in **both** subqueries, taken from the same
+variable: if they differed, a row would pass neither branch.
+
+**`AttachmentOwner`** is declared in `core/src/queries/entity-type.ts` — it is **data** of the query
+plane, and that file imports nothing from the engine — and re-exported from `types.ts` so the engine
+consumes it as a type of the plane and not as a resource's data.
+
+**Interface:**
+```ts
+export interface PolymorphicExternalScope {
+  readonly kind: 'polymorphic';
+  readonly typeColumn: string;
+  readonly idColumn: string;
+  readonly branches: Readonly<Record<string, AttachmentOwner>>;
+}
+
+export interface BridgeExternalScope {
+  readonly kind: 'bridge';
+  readonly table: string;
+  readonly foreignKey: string;
+  readonly localKey: string;
+  readonly liveWhere?: string;
+  readonly through: PolymorphicExternalScope;
+  readonly orOrphanColumn?: string;
+}
+```
+
+The engine's fixed aliases are `t`, `rel_*`, `r`, `j`, `scope_`, plus `scope_owner_` (the jump to
+the owner inside a branch) and `br_` (the bridge row). None comes from a spec or a payload.
 
 ## ValidatedListQuery / ValidatedGetQuery / SqlPlan
 
@@ -619,3 +685,53 @@ base: {
   attachments: { kind: 'relation', cardinality: 'many', table: 'attachments', … },
 },
 ```
+
+## ResourceSpec.joins / FixedJoinSpec / BaseFieldSpec.from
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** A **fixed JOIN declared by the spec**, plus the `from` that qualifies a column with
+its alias (S-027). It exists because the resource's table does **not carry every field of the
+contract**: `attachments` is the link — `entity_type`, `entity_id`, `file_id` — and the contract
+also asks for the file's name, size, type, uploader and byte status, **flattened onto the link**.
+
+None of the three `BaseSpec` shapes could produce that. `BaseFieldSpec` always emitted against `t`,
+and a 1:1 `RelationSpec` projects **nested** under the field's key, which is a different contract.
+
+**It is not a relation and it is not projected:** it appears in neither `base` nor `includable`, has
+no fields of its own and produces no key in the item. It is only one more table in the `FROM`, so
+the fields that name it with `from` can come out of it.
+
+**`on` and `alias` come from the spec, never from the payload** — the same rule that already governs
+`ManyRelationSpec.where` and `IncludableComputedSpec.expr`.
+
+**It goes in ALL THREE statements** — rows, COUNT and `get`. Forgetting the COUNT is the real
+failure mode: `resource.where` may name the alias, and a COUNT without the JOIN fails with
+`missing FROM-clause entry`. Since the default is `count: false`, that bug would not surface until
+somebody asked for the total.
+
+**`SortableSpec` deliberately has no `from`:** ordering by a joined table's column would make the
+keyset compare against it, and the walk would stop using the resource's own index.
+
+**Interface:**
+```ts
+export interface FixedJoinSpec {
+  readonly table: string;
+  readonly alias: string;
+  readonly on: string;
+  readonly kind: 'INNER' | 'LEFT';
+}
+
+// BaseFieldSpec (and, through it, IncludableFieldSpec) and FilterableSpec both gain:
+readonly from?: string;   // absent means "the resource's table", never "I don't know"
+```
+
+**Usage:**
+```ts
+// core/src/queries/attachments/attachments-spec.ts
+const JOINS = [{ table: 'files', alias: 'f', on: 'f.id = t.file_id', kind: 'INNER' }];
+const BASE = { fileName: { column: 'file_name', from: 'f' }, … };
+const FILTERABLE = { uploadedBy: { column: 'uploaded_by', from: 'f', kind: 'string' } };
+```
+
+A spec **without** `joins` produces exactly the same SQL as before, character for character.

@@ -11,6 +11,8 @@ import commentsList from './comments/comments-list';
 import commentsGet from './comments/comments-get';
 import activityList from './activity/activity-list';
 import subscriptionsList from './subscriptions/subscriptions-list';
+import attachmentsList from './attachments/attachments-list';
+import filesGet from './files/files-get';
 import peopleList from './people/people-list';
 import usersList from './users/users-list';
 import workedTimesList from './worked-times/worked-times-list';
@@ -32,9 +34,20 @@ import projectPermissionsList from './project-permissions/project-permissions-li
  *     OBLIGATORIO: son la familia de las dos tablas cuyos ids se pisan, y el discriminador es lo
  *     que hace que un id tenga significado.
  *
+ *   - `attachments` (`list`) y `files` (`get`) lo responden desde S-027: los archivos en lectura,
+ *     con la traducción de `entityType` en LAS DOS DIRECCIONES sobre el mismo mapa que `comments`,
+ *     las dos exclusiones permanentes —el vínculo borrado y el archivo no retenido—, y CERO URLS
+ *     MINTEADAS: descargar sigue siendo el comando `files.{fileId}.request-download`, que es donde
+ *     vive el efecto de firmar.
+ *
  *   - `people`, `users`, `worked-times`, `unworked-times`, `week-assigned-times` y
  *     `project-permissions` lo responden desde S-026: la mitad operativa del producto —el equipo,
  *     la carga de horas y la asignación semanal— resuelta por el bus.
+ *
+ * `attachments` NO TIENE `get` y `files` NO TIENE `list`, y las dos ausencias son el contrato
+ * (CA-14 de S-027): no hay pantalla de detalle de un vínculo, y los archivos se listan POR SU
+ * VÍNCULO. Publicar cualquiera de los dos responde `unknown_command` SIN CÓDIGO PROPIO: el patrón
+ * simplemente no está en este registro, y el despachador ya sabe qué contestar.
  *
  * NINGUNO de los seis de S-026 tiene `get`, ni `activity` ni `subscriptions` tampoco, y la ausencia
  * es el contrato: `get` existe solo donde hay pantalla de detalle (RF-2). Traer varios por id es
@@ -60,6 +73,10 @@ export const queryRegistry = new QueryRegistry().registerAll([
   commentsGet,
   activityList,
   subscriptionsList,
+  // LOS DOS DE S-027, donde el contrato los pone respecto de lo que ya está (11 y 12 de la tabla
+  // del REQ). Los seis de S-026 NO SE REORDENAN acá: `CONTRACT_PATTERNS` sigue al código.
+  attachmentsList,
+  filesGet,
   peopleList,
   usersList,
   workedTimesList,

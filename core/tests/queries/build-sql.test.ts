@@ -5,7 +5,15 @@ import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
 import { buildCountSql, buildGetSql, buildRowsSql } from '../../src/queries/engine/build-sql';
 import { validateGet, validateList } from '../../src/queries/engine/validate-query';
 import { SqlPlan, ValidatedGetQuery, ValidatedListQuery } from '../../src/queries/engine/types';
-import { CallerClass, QueryContext, ResourceSpec } from '../../src/queries/types';
+import {
+  AttachmentOwner,
+  BaseSpec,
+  CallerClass,
+  FilterableSpec,
+  PolymorphicExternalScope,
+  QueryContext,
+  ResourceSpec,
+} from '../../src/queries/types';
 
 /**
  * El SQL generado, leído como texto.
@@ -1031,5 +1039,424 @@ describe('queries/engine/build-sql — el recorte SIN ACCESO y la cláusula prop
         `AND scope_.project_id IN ${PERMITTED})`
     );
     sql.should.not.containEql(' OR t.id = :caller');
+  });
+});
+
+
+/* =============================================================================================
+ * S-027 · EL JOIN FIJO DE LA FICHA Y LAS DOS FORMAS NUEVAS DEL RECORTE
+ *
+ * TODO SOBRE FICHAS SINTÉTICAS y no sobre `attachments` ni `files`: lo que se verifica es la
+ * CAPACIDAD GENÉRICA del motor, y `engine/` no conoce ningún recurso. Un test que usara la ficha
+ * real congelaría la abstracción al revés.
+ *
+ * LOS TESTS SON DE FORMA, no de filas, y la división es deliberada: un test de forma atrapa el
+ * PARÉNTESIS FALTANTE, que un test de filas sin filtro adicional NO atrapa —el resultado es el
+ * mismo hasta que hay un filtro encima—.
+ * =========================================================================================== */
+
+/** `:p0`, `:p7`, … se normalizan a `:p` para poder afirmar sobre fragmentos completos. */
+function normalize(sql: string): string {
+  return sql.replace(/:p\d+/g, ':p');
+}
+
+const PERMITTED_SQL = '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+
+describe('queries/engine/build-sql — el JOIN fijo de la ficha (S-027, Task 2)', () => {
+  const JOIN_BASE: Record<string, BaseSpec> = {
+    id: { column: 'id' },
+    fileId: { column: 'file_id' },
+    // EL CAMPO APLANADO: sale de la tabla unida y se proyecta al MISMO NIVEL, no anidado.
+    fileName: { column: 'file_name', from: 'f' },
+    createdAt: { column: 'created_at' },
+  };
+
+  const JOIN_FILTERABLE: Record<string, FilterableSpec> = {
+    fileId: { column: 'file_id', kind: 'integer' },
+    // El filtro que NO vive en la tabla del recurso: la titularidad es del archivo (H-1).
+    uploadedBy: { column: 'uploaded_by', from: 'f', kind: 'string' },
+  };
+
+  const SPEC_WITH_JOIN: ResourceSpec = {
+    name: 'links',
+    table: 'links',
+    joins: [{ table: 'files', alias: 'f', on: 'f.id = t.file_id', kind: 'INNER' }],
+    where: "t.deleted_at IS NULL AND f.retention_status = 'active'",
+    base: JOIN_BASE,
+    baseNames: Object.keys(JOIN_BASE),
+    includable: {},
+    includableNames: [],
+    fieldNames: Object.keys(JOIN_BASE),
+    filterable: JOIN_FILTERABLE,
+    filterableNames: Object.keys(JOIN_FILTERABLE),
+    sortable: { createdAt: { column: 'created_at' }, id: { column: 'id' } },
+    sortableNames: ['createdAt', 'id'],
+    defaults: { sort: ['createdAt'] },
+    enums: {},
+    truncatable: [],
+    externalScope: { kind: 'column', projectColumn: 'project_id' },
+  };
+
+  const JOIN_SQL = 'INNER JOIN files f ON f.id = t.file_id';
+
+  function rows(payload: unknown, ctx: QueryContext = INTERNAL): SqlPlan {
+    const validated = validateList(SPEC_WITH_JOIN, payload) as { value: ValidatedListQuery };
+    return buildRowsSql(SPEC_WITH_JOIN, validated.value, ctx);
+  }
+
+  it('TS-9 · el SQL de filas emite el JOIN declarado por la ficha', () => {
+    rows({}).sql.should.containEql(JOIN_SQL);
+  });
+
+  it('TS-10 · un campo base con `from` se califica con el alias de la tabla unida', () => {
+    const { sql } = rows({ fields: ['fileName'] });
+
+    sql.should.containEql('f.file_name AS "fileName"');
+    sql.should.not.containEql('t.file_name');
+  });
+
+  it('TS-11 · un campo base SIN `from` sigue saliendo de la tabla del recurso', () => {
+    rows({ fields: ['fileId'] }).sql.should.containEql('t.file_id AS "fileId"');
+  });
+
+  it('TS-12 · EL COUNT EMITE EL MISMO JOIN (H-7): sin él, `count: true` no compila', () => {
+    // `buildCountSql` arma sus joins desde `selectParts`, o sea SOLO los de las relaciones 1:1 del
+    // conjunto devuelto. Con `count: 'only'` no hay ninguno, y `resource.where` NOMBRA EL ALIAS:
+    // sin el JOIN fijo, PostgreSQL responde `missing FROM-clause entry for table "f"`. El default
+    // es `count: false`, así que el bug no aparecería hasta que alguien pidiera el total.
+    const validated = validateList(SPEC_WITH_JOIN, { count: 'only', fields: ['id'] }) as {
+      value: ValidatedListQuery;
+    };
+
+    buildCountSql(SPEC_WITH_JOIN, validated.value, INTERNAL).sql.should.containEql(JOIN_SQL);
+  });
+
+  it('TS-13 · el `get` emite el mismo JOIN y el campo aplanado', () => {
+    const validated = validateGet(SPEC_WITH_JOIN, { id: 1, fields: ['fileName'] }) as {
+      value: ValidatedGetQuery;
+    };
+    const { sql } = buildGetSql(SPEC_WITH_JOIN, validated.value, INTERNAL);
+
+    sql.should.containEql(JOIN_SQL);
+    sql.should.containEql('f.file_name AS "fileName"');
+  });
+
+  it('TS-14 · un filtro con `from` se resuelve contra el alias, y el valor va en `replacements`', () => {
+    const { sql, replacements } = rows({ filter: { uploadedBy: 'u-x' } });
+
+    sql.should.containEql('f.uploaded_by = :p0');
+    sql.should.not.containEql('t.uploaded_by');
+    param(replacements, 'p0').should.equal('u-x');
+  });
+
+  it('TS-15 · `resource.where` puede nombrar el alias del JOIN, y va en LOS TRES SQL', () => {
+    const expected = "t.deleted_at IS NULL AND f.retention_status = 'active'";
+    const validatedList = validateList(SPEC_WITH_JOIN, {}) as { value: ValidatedListQuery };
+    const validatedGet = validateGet(SPEC_WITH_JOIN, { id: 1 }) as { value: ValidatedGetQuery };
+
+    rows({}).sql.should.containEql(expected);
+    buildCountSql(SPEC_WITH_JOIN, validatedList.value, INTERNAL).sql.should.containEql(expected);
+    buildGetSql(SPEC_WITH_JOIN, validatedGet.value, INTERNAL).sql.should.containEql(expected);
+  });
+
+  it('TS-16 · REGRESIÓN: una ficha SIN `joins` produce el SQL de siempre, carácter por carácter', () => {
+    const validated = validateList(tasksSpec, {
+      filter: { projectId: 12 },
+      fields: ['id', 'title'],
+      sort: ['-createdAt'],
+    }) as { value: ValidatedListQuery };
+
+    buildRowsSql(tasksSpec, validated.value, INTERNAL).sql.should.equal(
+      'SELECT t.id AS "id", t.title AS "title", t.created_at AS "__k0", t.id AS "__k1"\n' +
+        'FROM objectives t\n' +
+        'WHERE t.project_id = :p0\n' +
+        'ORDER BY t.created_at DESC, t.id DESC\n' +
+        'LIMIT 51'
+    );
+  });
+
+  it('TS-17 · el orden y el keyset siguen contra la tabla del recurso, nunca contra la unida', () => {
+    // `SortableSpec` NO TIENE `from` a propósito: ordenar por una columna de la tabla unida haría
+    // que el keyset dejara de usar el índice del recurso, que es lo único que lo hace barato.
+    const { sql } = rows({ sort: ['-createdAt'] });
+
+    sql.should.containEql('ORDER BY t.created_at DESC, t.id DESC');
+    sql.should.not.containEql('ORDER BY f.');
+  });
+});
+
+describe('queries/engine/build-sql — el recorte POLIMÓRFICO y el PUENTE (S-027, Task 3)', () => {
+  const EXTERNAL = ctxWith('external', EXTERNAL_CALLER);
+
+  /**
+   * Las CINCO ramas, con las tres formas que el emisor tiene que cubrir:
+   *   - `project`: SIN visibilidad y recortando por su PROPIA `id`.
+   *   - `requirement` / `objective`: con visibilidad y con el proyecto en columna propia.
+   *   - `*_comment`: CON SALTO al dueño y con LAS DOS visibilidades.
+   */
+  const BRANCHES: Readonly<Record<string, AttachmentOwner>> = {
+    project: { table: 'projects', key: 'id', projectColumn: 'id' },
+    requirement: {
+      table: 'requirements',
+      key: 'id',
+      projectColumn: 'project_id',
+      visibility: { column: 'visibility_level', value: 'public' },
+    },
+    requirement_comment: {
+      table: 'requirement_activity',
+      key: 'id',
+      ownVisibility: { column: 'visibility_level', value: 'public' },
+      owner: { table: 'requirements', foreignKey: 'requirement_id', key: 'id' },
+      projectColumn: 'project_id',
+      visibility: { column: 'visibility_level', value: 'public' },
+    },
+    objective: {
+      table: 'objectives',
+      key: 'id',
+      projectColumn: 'project_id',
+      visibility: { column: 'visibility_level', value: 'public' },
+    },
+    objective_comment: {
+      table: 'objective_activity',
+      key: 'id',
+      ownVisibility: { column: 'visibility_level', value: 'public' },
+      owner: { table: 'objectives', foreignKey: 'objective_id', key: 'id' },
+      projectColumn: 'project_id',
+      visibility: { column: 'visibility_level', value: 'public' },
+    },
+  };
+
+  const POLY: PolymorphicExternalScope = {
+    kind: 'polymorphic',
+    typeColumn: 'entity_type',
+    idColumn: 'entity_id',
+    branches: BRANCHES,
+  };
+
+  const POLY_BASE: Record<string, BaseSpec> = {
+    id: { column: 'id' },
+    entityType: { column: 'entity_type' },
+    entityId: { column: 'entity_id' },
+    fileId: { column: 'file_id' },
+  };
+
+  const SPEC_POLY: ResourceSpec = {
+    name: 'links',
+    table: 'links',
+    base: POLY_BASE,
+    baseNames: Object.keys(POLY_BASE),
+    includable: {},
+    includableNames: [],
+    fieldNames: Object.keys(POLY_BASE),
+    filterable: { fileId: { column: 'file_id', kind: 'integer' } },
+    filterableNames: ['fileId'],
+    sortable: { id: { column: 'id' } },
+    sortableNames: ['id'],
+    defaults: { sort: ['id'] },
+    enums: {},
+    truncatable: [],
+    externalScope: POLY,
+  };
+
+  const BRIDGE_BASE: Record<string, BaseSpec> = {
+    id: { column: 'id' },
+    uploadedBy: { column: 'uploaded_by' },
+  };
+
+  const SPEC_BRIDGE: ResourceSpec = {
+    name: 'blobs',
+    table: 'blobs',
+    base: BRIDGE_BASE,
+    baseNames: Object.keys(BRIDGE_BASE),
+    includable: {},
+    includableNames: [],
+    fieldNames: Object.keys(BRIDGE_BASE),
+    filterable: {},
+    filterableNames: [],
+    sortable: { id: { column: 'id' } },
+    sortableNames: ['id'],
+    defaults: { sort: ['id'] },
+    enums: {},
+    truncatable: [],
+    externalScope: {
+      kind: 'bridge',
+      table: 'attachments',
+      foreignKey: 'file_id',
+      localKey: 'id',
+      liveWhere: 'br_.deleted_at IS NULL',
+      through: POLY,
+      orOrphanColumn: 'uploaded_by',
+    },
+  };
+
+  /** La MISMA ficha sin la rama huérfana: solo la (A), igual de parentizada. */
+  const SPEC_BRIDGE_NO_ORPHAN: ResourceSpec = {
+    ...SPEC_BRIDGE,
+    externalScope: {
+      kind: 'bridge',
+      table: 'attachments',
+      foreignKey: 'file_id',
+      localKey: 'id',
+      liveWhere: 'br_.deleted_at IS NULL',
+      through: POLY,
+    },
+  };
+
+  function rowsFor(spec: ResourceSpec, ctx: QueryContext, payload: unknown = {}): SqlPlan {
+    const validated = validateList(spec, payload) as { value: ValidatedListQuery };
+    return buildRowsSql(spec, validated.value, ctx);
+  }
+
+  function getFor(spec: ResourceSpec, ctx: QueryContext, payload: unknown = { id: 4 }): SqlPlan {
+    const validated = validateGet(spec, payload) as { value: ValidatedGetQuery };
+    return buildGetSql(spec, validated.value, ctx);
+  }
+
+  it('TS-18 · `polymorphic` emite UNA RAMA POR VALOR, en un grupo parentizado', () => {
+    const { sql } = rowsFor(SPEC_POLY, EXTERNAL);
+
+    // El grupo abre el WHERE y cada rama va parentizada adentro.
+    normalize(sql).should.match(/^[\s\S]*WHERE \(\(t\.entity_type = :p AND EXISTS \(/);
+    (sql.match(/t\.entity_type = :p\d+ AND EXISTS \(/g) || []).length.should.equal(5);
+    // Cuatro uniones para cinco ramas: ninguna quedó fuera del grupo.
+    (sql.match(/\) OR \(/g) || []).length.should.equal(4);
+  });
+
+  it('TS-19 · una rama SIN salto es un solo `EXISTS` sobre la tabla alcanzada', () => {
+    const { sql } = rowsFor(SPEC_POLY, EXTERNAL);
+
+    normalize(sql).should.containEql(
+      'EXISTS (SELECT 1 FROM requirements scope_ WHERE scope_.id = t.entity_id' +
+        ` AND scope_.project_id IN ${PERMITTED_SQL}` +
+        ' AND scope_.visibility_level = :p)'
+    );
+  });
+
+  it('TS-20 · la rama de `project` NO emite visibilidad y recorta por su PROPIA `id`', () => {
+    const { sql } = rowsFor(SPEC_POLY, EXTERNAL);
+
+    // La ausencia es del ESQUEMA —`projects` no tiene `visibility_level`— y no un olvido. La forma
+    // uniforme la absorbe: el día que la gane, se agrega al mapa y el emisor no cambia.
+    normalize(sql).should.containEql(
+      'EXISTS (SELECT 1 FROM projects scope_ WHERE scope_.id = t.entity_id' +
+        ` AND scope_.id IN ${PERMITTED_SQL})`
+    );
+  });
+
+  it('TS-21 · una rama CON salto emite el JOIN al dueño y LAS DOS visibilidades', () => {
+    const { sql } = rowsFor(SPEC_POLY, EXTERNAL);
+
+    // Sin `ownVisibility`, un comentario INTERNO sobre una tarea PÚBLICA se ve desde el portal de
+    // clientes: el default de `objective_activity.visibility_level` es `internal`.
+    normalize(sql).should.containEql(
+      'EXISTS (SELECT 1 FROM objective_activity scope_' +
+        ' JOIN objectives scope_owner_ ON scope_owner_.id = scope_.objective_id' +
+        ' WHERE scope_.id = t.entity_id' +
+        ' AND scope_.visibility_level = :p' +
+        ` AND scope_owner_.project_id IN ${PERMITTED_SQL}` +
+        ' AND scope_owner_.visibility_level = :p)'
+    );
+  });
+
+  it('TS-22 · EL RECORTE POLIMÓRFICO VA PARENTIZADO: el `OR` no se come el filtro', () => {
+    const { sql } = rowsFor(SPEC_POLY, EXTERNAL, { filter: { fileId: 4 } });
+
+    // `A OR B AND C` se lee `A OR (B AND C)` y EL RECORTE DEJA DE RECORTAR. No se nota sin filtro
+    // adicional —que es el caso que uno prueba primero— y ahí un externo recibe filas ajenas.
+    sql.should.containEql(') AND t.file_id = :p0');
+    normalize(sql).should.match(/WHERE \(\(t\.entity_type/);
+  });
+
+  it('TS-23 · `bridge` emite las DOS ramas, con la negativa ACOTADA por `NOT EXISTS`', () => {
+    const { sql } = getFor(SPEC_BRIDGE, EXTERNAL);
+    const live = 'SELECT 1 FROM attachments br_ WHERE br_.file_id = t.id AND br_.deleted_at IS NULL';
+
+    // (A) alguna fila puente VIVA cuya entidad es visible.
+    normalize(sql).should.containEql(`EXISTS (${live} AND ((br_.entity_type = :p AND EXISTS (`);
+    // (B) NINGUNA fila puente viva Y la fila es del caller. NO es `orSelfColumn`, que entra
+    // SIEMPRE: con esa semántica un archivo con vínculo vivo a una entidad ajena se le filtraría
+    // a quien lo subió (CA-12).
+    sql.should.containEql(`OR (NOT EXISTS (${live}) AND t.uploaded_by = :caller)`);
+  });
+
+  it('TS-23 · la condición de "viva" es LA MISMA en las dos subconsultas', () => {
+    const { sql } = getFor(SPEC_BRIDGE, EXTERNAL);
+
+    // Si difirieran, existiría una fila que no pasa la (A) y tampoco la (B).
+    (sql.match(/br_\.file_id = t\.id AND br_\.deleted_at IS NULL/g) || []).length.should.equal(2);
+  });
+
+  it('TS-24 · EL `bridge` COMPLETO VA PARENTIZADO, y el predicado del recurso queda fuera', () => {
+    const spec: ResourceSpec = { ...SPEC_BRIDGE, where: "t.retention_status = 'active'" };
+    const { sql } = getFor(spec, EXTERNAL);
+
+    normalize(sql).should.match(/WHERE \(EXISTS \(/);
+    sql.should.containEql(") AND t.retention_status = 'active' AND t.id = :p0");
+  });
+
+  it('TS-24 · sin `orOrphanColumn`, `bridge` emite SOLO la rama (A), igual de parentizada', () => {
+    const { sql } = getFor(SPEC_BRIDGE_NO_ORPHAN, EXTERNAL);
+
+    sql.should.not.containEql('NOT EXISTS');
+    sql.should.not.containEql('t.uploaded_by = :caller');
+    normalize(sql).should.match(/WHERE \(EXISTS \(/);
+  });
+
+  it('TS-25 · el emisor polimórfico se REUSA: el mismo predicado, con otro alias', () => {
+    // UN SOLO LUGAR decide qué entidad es visible (CA-17). Con dos copias, agregar un sexto tipo
+    // arreglaría un recurso y dejaría el otro roto, sin ningún síntoma.
+    const poly = normalize(rowsFor(SPEC_POLY, EXTERNAL).sql);
+    const bridge = normalize(getFor(SPEC_BRIDGE, EXTERNAL).sql);
+
+    const fragment = poly.slice(poly.indexOf('((t.entity_type'), poly.indexOf('\nORDER BY'));
+    bridge.should.containEql(fragment.replace(/\bt\.entity_type/g, 'br_.entity_type')
+      .replace(/= t\.entity_id/g, '= br_.entity_id'));
+  });
+
+  it('TS-26 · caller INTERNO: ninguna de las dos formas emite una línea', () => {
+    for (const spec of [SPEC_POLY, SPEC_BRIDGE]) {
+      const { sql, replacements } = rowsFor(spec, ctxWith('internal'));
+
+      sql.should.not.containEql('user_project_permissions');
+      sql.should.not.containEql(':caller');
+      replacements.should.not.have.property('caller');
+    }
+  });
+
+  it('TS-27 · caller CONECTOR: ídem', () => {
+    for (const spec of [SPEC_POLY, SPEC_BRIDGE]) {
+      const { sql } = rowsFor(spec, ctxWith('connector'));
+
+      sql.should.not.containEql('user_project_permissions');
+      sql.should.not.containEql(':caller');
+    }
+  });
+
+  it('TS-28 · los valores de tipo y de visibilidad viajan en `replacements`, no concatenados', () => {
+    const { sql, replacements } = rowsFor(SPEC_POLY, EXTERNAL);
+
+    // Ni los cinco tipos ni el `'public'` aparecen como literal en el SQL.
+    sql.should.not.containEql("'public'");
+    for (const type of Object.keys(BRANCHES)) {
+      sql.should.not.containEql(`'${type}'`);
+      Object.values(replacements).should.containEql(type);
+    }
+    // Seis visibilidades emitidas: dos propias (los comentarios) y cuatro de la tabla portadora.
+    Object.values(replacements).filter((value) => value === 'public').length.should.equal(6);
+    // Y por el CONTADOR del builder, así que ninguna rama pisa a la otra ni al filtro.
+    Object.keys(replacements)
+      .filter((name) => name !== 'caller')
+      .forEach((name) => name.should.match(/^p\d+$/));
+  });
+
+  it('las dos formas nuevas van también en el COUNT: un total sin recorte es una fuga', () => {
+    // Test EXTRA, no un TS del plan: el TS-29 (`deniesAllRows` sigue `false` para las dos) vive en
+    // `spec.test.ts`. Este cubre la otra mitad de la propiedad — sin el recorte, el COUNT
+    // devolvería el total REAL y filtraría exactamente la información que el recorte esconde.
+    const validated = validateList(SPEC_POLY, {}) as { value: ValidatedListQuery };
+
+    buildCountSql(SPEC_POLY, validated.value, EXTERNAL).sql.should.containEql(
+      'FROM user_project_permissions WHERE user_id = :caller'
+    );
   });
 });
