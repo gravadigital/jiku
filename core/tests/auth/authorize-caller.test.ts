@@ -6,9 +6,15 @@ import sinon from 'sinon';
 import { Sequelize } from 'sequelize-typescript';
 import { Client, File, User } from '@jiku/models';
 import { ErrorCode, querySubject, success } from '@jiku/nats-protocol';
-import { ROLE_METHODS, rolesAuthorize } from '../../src/authorize-caller';
+import {
+  ROLE_METHODS,
+  authorizeWithRoles,
+  readCallerRoles,
+  rolesAuthorize,
+} from '../../src/authorize-caller';
 import { Dispatcher } from '../../src/bus/dispatcher';
 import { registry } from '../../src/commands';
+import { getTrustedPublisherId } from '../../src/config';
 import { matchesPattern } from '../../src/commands/registry';
 import logger from '../../src/logger';
 import { sequelize } from '../../src/models';
@@ -575,31 +581,70 @@ describe('la compuerta de autorización · plano de consultas', () => {
     sinon.restore();
   });
 
-  it('TS-39 · el caller exento pasa las 6 consultas SIN tocar la base', async () => {
-    const findByPk = sinon.spy(User, 'findByPk');
-
+  /**
+   * TS-39 CAMBIA EN S-023, Y ES UNO DE LOS TRES CAMBIOS DE ASERCIÓN DE TODA ESA STORY.
+   *
+   * Hasta S-022 este test afirmaba que el caller exento atravesaba las 6 consultas SIN TOCAR LA
+   * BASE (`findByPk === 0`), porque la única compuerta del plano era la del MÉTODO y su exención
+   * cortocircuitaba antes de leer. Desde S-023 hay una SEGUNDA compuerta —la de la CLASE del
+   * caller— que responde otra pregunta ("¿qué le recorto?") y NO EXIME A NADIE, la api incluida
+   * (CA-8): en consultas el exento también paga el `SELECT`.
+   *
+   * La consecuencia se parte en dos casos, y los dos se afirman acá:
+   *
+   *   SIN fila -> pasa la compuerta 1 por exención y FALLA la 2 con `unknown_caller`. Es el
+   *               escenario real de producción cuando se pierde el evento de autenticación de la
+   *               api (NATS sin JetStream), y es exactamente lo que CA-8 y CA-9 describen.
+   *   CON fila -> las atraviesa las 6, igual que siempre.
+   *
+   * Su contraparte del plano de COMANDOS —TS-33, "el camino EXENTO no loguea nada y no toca la
+   * base"— NO cambia y sigue verde: allá la exención corta antes del lookup porque no hay clase
+   * que resolver. Esa asimetría ES el diseño de la story: dos preguntas, dos compuertas.
+   */
+  it('TS-39 · CA-8/CA-9: el caller exento SIN fila pasa la compuerta 1 y falla la 2', async () => {
     for (const query of QUERIES) {
       const reply = await dispatchQuery(query, {});
 
-      if (WITH_CONTRACT.includes(query)) {
-        // DESDE S-022 estas dos TIENEN contrato: la prueba de que la compuerta las dejó pasar ya
-        // no es el stub sino que la respuesta viene DEL OTRO LADO de ella. `tasks.list` con `{}`
-        // devuelve la colección; `tasks.get` con `{}` devuelve `invalid_fields` porque le falta
-        // el `id` — las dos son respuestas del contrato, y ninguna es `caller_not_authorized`,
-        // que es lo único que este test afirma. La otra mitad sigue siendo `findByPk === 0`.
-        reply.errorCode?.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
-        reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
-      } else {
-        // Las otras cuatro llegan al stub sin contrato, que es la misma prueba de siempre.
-        reply.status.should.equal('failure', query);
-        reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
-        reply.errorMessage!.should.equal(
-          `La consulta ${query} todavía no tiene contrato definido`,
-          query
-        );
-      }
+      // NUNCA `caller_not_authorized`: la compuerta 1 lo dejó pasar por exención. Y nunca
+      // `items: []`, que se leería como "no hay datos".
+      reply.status.should.equal('failure', query);
+      reply.errorCode!.should.equal(ErrorCode.UNKNOWN_CALLER, query);
+      reply.errorCode!.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
     }
-    findByPk.callCount.should.equal(0);
+  });
+
+  it('TS-39b · con fila, el caller exento atraviesa las 6 consultas', async () => {
+    await User.create({
+      id: getTrustedPublisherId(),
+      name: 'Publicador Confiable',
+      username: 'trusted-auth-q',
+      email: 'trusted-auth-q@test.local',
+      roles: ['internal-app'],
+    });
+    try {
+      for (const query of QUERIES) {
+        const reply = await dispatchQuery(query, {});
+
+        if (WITH_CONTRACT.includes(query)) {
+          // DESDE S-022 estas dos TIENEN contrato: la prueba de que las compuertas las dejaron
+          // pasar es que la respuesta viene DEL OTRO LADO de ellas. `tasks.list` con `{}` devuelve
+          // la colección; `tasks.get` con `{}` devuelve `invalid_fields` porque le falta el `id`.
+          reply.errorCode?.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
+          reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_CALLER, query);
+          reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
+        } else {
+          // Las otras cuatro llegan al stub sin contrato, que es la misma prueba de siempre.
+          reply.status.should.equal('failure', query);
+          reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
+          reply.errorMessage!.should.equal(
+            `La consulta ${query} todavía no tiene contrato definido`,
+            query
+          );
+        }
+      }
+    } finally {
+      await User.destroy({ where: { id: getTrustedPublisherId() } });
+    }
   });
 
   it('TS-40 · CA-12: external-publisher NO consulta, en ninguna de las 6', async () => {
@@ -675,5 +720,121 @@ describe('la compuerta de autorización · plano de consultas', () => {
 
     executed.should.be.true();
     reply.status.should.equal('success');
+  });
+});
+
+/**
+ * S-023 · Las dos mitades de la compuerta, por separado.
+ *
+ * El refactor de la Tarea 1 existe para que el plano de CONSULTAS pueda hacer UN SOLO `SELECT`
+ * (CA-5) y alimentar con él las dos compuertas: la de método (S-017) y la de clase (S-023). Acá
+ * se ejercitan las dos piezas nuevas en aislamiento; que `authorizeCaller` siga comportándose
+ * exactamente igual lo prueban los tests de arriba, que NO se tocaron.
+ */
+describe('S-023 · readCallerRoles / authorizeWithRoles — la lectura y la decisión, separadas', () => {
+  const ROLES_ROW = 'sub-s023-roles';
+  const ROLES_RAROS = 'sub-s023-jsonb-raro';
+
+  before(async () => {
+    await User.bulkCreate([
+      {
+        id: ROLES_ROW,
+        name: 'Con Roles',
+        username: 'roles-s023',
+        email: 'roles-s023@test.local',
+        roles: ['admin', 'user'],
+      },
+      {
+        id: ROLES_RAROS,
+        name: 'Roles Raros',
+        username: 'raros-s023',
+        email: 'raros-s023@test.local',
+      },
+    ]);
+  });
+
+  after(async () => {
+    await User.destroy({ where: { id: [ROLES_ROW, ROLES_RAROS] } });
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('`readCallerRoles` devuelve los roles de la fila, tal cual', async () => {
+    (await readCallerRoles(ROLES_ROW)).should.deepEqual(['admin', 'user']);
+  });
+
+  it('`readCallerRoles` de un caller SIN fila devuelve `[]`, no null', async () => {
+    (await readCallerRoles(SIN_FILA)).should.deepEqual([]);
+  });
+
+  it('`readCallerRoles` con un `roles` que NO es array devuelve `[]` (falla cerrada)', async () => {
+    // La columna es JSONB sin CHECK y la tabla es escribible por SQL: el caso es alcanzable.
+    await sequelize.query(`UPDATE users SET roles = '{"a":1}'::jsonb WHERE id = :id`, {
+      replacements: { id: ROLES_RAROS },
+    });
+
+    (await readCallerRoles(ROLES_RAROS)).should.deepEqual([]);
+
+    await User.update({ roles: [] }, { where: { id: ROLES_RAROS } });
+  });
+
+  it('`readCallerRoles` NO captura: un fallo del pool SUBE a quien la llama', async () => {
+    // Quien la invoca decide qué hacer con el fallo, y en los dos planos ese "quien" ya tiene su
+    // try/catch. Capturar acá devolvería `[]` y convertiría una base caída en un rechazo mudo.
+    sinon.stub(User, 'findByPk').rejects(new Error('pool agotado'));
+    let thrown: Error | null = null;
+
+    try {
+      await readCallerRoles(ROLES_ROW);
+    } catch (error) {
+      thrown = error as Error;
+    }
+
+    (thrown === null).should.be.false();
+    thrown!.message.should.equal('pool agotado');
+  });
+
+  it('`authorizeWithRoles` NO toca la base: la lectura ya la hizo quien la llama', () => {
+    const findByPk = sinon.spy(User, 'findByPk');
+
+    authorizeWithRoles(ROLES_ROW, ['admin'], 'tasks.list', 'queries');
+
+    findByPk.callCount.should.equal(0);
+  });
+
+  it('`authorizeWithRoles` conserva la exención del publicador confiable, con roles vacíos', () => {
+    // La exención se vuelve a evaluar acá —una comparación de strings, no una lectura— para que
+    // siga siendo una propiedad de la COMPUERTA y no del orden de las llamadas.
+    (authorizeWithRoles(getTrustedPublisherId(), [], 'clients.new', 'commands') === null)
+      .should.be.true();
+    (authorizeWithRoles(getTrustedPublisherId(), [], 'tasks.list', 'queries') === null)
+      .should.be.true();
+  });
+
+  it('`authorizeWithRoles` devuelve el MISMO rechazo de siempre cuando ningún rol autoriza', () => {
+    const denied = authorizeWithRoles('otro', [], 'clients.new', 'commands');
+
+    denied!.should.deepEqual({
+      status: 'failure',
+      errorCode: 'caller_not_authorized',
+      errorMessage: 'El caller no está autorizado a ejecutar este método',
+    });
+  });
+
+  it('`authorizeWithRoles` autoriza cuando un rol alcanza, y loguea SOLO en el rechazo', () => {
+    const warn = sinon.spy(logger, 'warn');
+
+    (authorizeWithRoles(ROLES_ROW, ['admin'], 'tasks.list', 'queries') === null).should.be.true();
+    warn.called.should.be.false();
+
+    authorizeWithRoles(ROLES_ROW, ['admin'], 'clients.new', 'commands');
+
+    warn.callCount.should.equal(1);
+    const message = String(warn.firstCall.args[0]);
+    message.should.startWith('[auth]');
+    message.should.containEql(ROLES_ROW);
+    message.should.containEql('clients.new');
   });
 });

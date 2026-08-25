@@ -1,9 +1,11 @@
 import 'mocha';
 import 'should';
+import { Sequelize } from 'sequelize-typescript';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
 import { buildCountSql, buildGetSql, buildRowsSql } from '../../src/queries/engine/build-sql';
 import { validateGet, validateList } from '../../src/queries/engine/validate-query';
 import { SqlPlan, ValidatedGetQuery, ValidatedListQuery } from '../../src/queries/engine/types';
+import { CallerClass, QueryContext } from '../../src/queries/types';
 
 /**
  * El SQL generado, leído como texto.
@@ -14,9 +16,24 @@ import { SqlPlan, ValidatedGetQuery, ValidatedListQuery } from '../../src/querie
  * de la ficha y los VALORES nunca aparecen en el string.
  */
 
-function plan(payload: unknown, keys?: unknown[]): SqlPlan {
+const EXTERNAL_CALLER = 'sub-q-external';
+
+/**
+ * El contexto que los builders necesitan desde S-023, para saber si recortan.
+ *
+ * `db` va como objeto vacío a propósito: `build-sql.ts` NO EJECUTA NADA, solo arma texto. Si
+ * alguna vez tocara la conexión, este doble lo haría estallar.
+ */
+function ctxWith(callerClass: CallerClass, caller = 'sub-q-user'): QueryContext {
+  return { caller, callerClass, db: {} as unknown as Sequelize };
+}
+
+/** El contexto por defecto de los tests de forma: INTERNO, o sea SIN recorte. */
+const INTERNAL = ctxWith('internal');
+
+function plan(payload: unknown, keys?: unknown[], ctx: QueryContext = INTERNAL): SqlPlan {
   const validated = validateList(tasksSpec, payload) as { value: ValidatedListQuery };
-  return buildRowsSql(tasksSpec, validated.value, keys);
+  return buildRowsSql(tasksSpec, validated.value, ctx, keys);
 }
 
 /** Un `replacements` es `Record<string, unknown>`: este helper le pone tipo a la aserción. */
@@ -24,9 +41,14 @@ function param(replacements: Record<string, unknown>, name: string): any {
   return replacements[name];
 }
 
-function countPlan(payload: unknown): SqlPlan {
+function countPlan(payload: unknown, ctx: QueryContext = INTERNAL): SqlPlan {
   const validated = validateList(tasksSpec, payload) as { value: ValidatedListQuery };
-  return buildCountSql(tasksSpec, validated.value);
+  return buildCountSql(tasksSpec, validated.value, ctx);
+}
+
+function getPlan(payload: unknown, ctx: QueryContext = INTERNAL): SqlPlan {
+  const validated = validateGet(tasksSpec, payload) as { value: ValidatedGetQuery };
+  return buildGetSql(tasksSpec, validated.value, ctx);
 }
 
 describe('queries/engine/build-sql — la traducción y las dos reglas duras', () => {
@@ -279,11 +301,7 @@ describe('queries/engine/build-sql — include, count y get', () => {
   });
 
   it('un `get` resuelve por PK, con LIMIT 1 y sin keyset', () => {
-    const validated = validateGet(tasksSpec, { id: 8140, include: ['project'] }) as {
-      value: ValidatedGetQuery;
-    };
-
-    const { sql, replacements } = buildGetSql(tasksSpec, validated.value);
+    const { sql, replacements } = getPlan({ id: 8140, include: ['project'] });
 
     sql.should.containEql('WHERE t.id = :p0');
     sql.should.containEql('LIMIT 1');
@@ -299,5 +317,102 @@ describe('queries/engine/build-sql — include, count y get', () => {
     // estar es en el WHERE, que es donde S-023 va a agregar el recorte.
     where.should.not.containEql('visibility_level');
     where.should.equal('WHERE t.project_id = :p0\n');
+  });
+});
+
+
+/**
+ * EL RECORTE DEL MODO EXTERNO, leído en el SQL (S-023).
+ *
+ * Se lee el TEXTO y no solo las filas, por la misma razón que el resto del archivo: una
+ * implementación que agregara el recorte al objeto `filter` en vez de al SQL devolvería las mismas
+ * filas en el caso feliz y sería pisable por una clave del payload. La verificación desde el
+ * COMPORTAMIENTO —que es la que atrapa el recorte puesto en el lugar equivocado— está en
+ * `tasks-external-scope.test.ts`.
+ */
+describe('queries/engine/build-sql — el recorte del modo externo (S-023)', () => {
+  const EXTERNAL = ctxWith('external', EXTERNAL_CALLER);
+  const SCOPE_PROJECTS =
+    't.project_id IN (SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+  const SCOPE_VISIBILITY = 't.visibility_level = :externalVisibility';
+
+  it('TS-22 · modo INTERNO: el SQL no lleva recorte', () => {
+    const { sql } = plan({ filter: { projectId: 12 } }, undefined, ctxWith('internal'));
+
+    // El modo interno no recorta NADA a nivel de fila, y es una decisión explícita de la v1.
+    sql.should.not.containEql('user_project_permissions');
+    sql.should.not.containEql('visibility_level =');
+  });
+
+  it('TS-23 · modo CONECTOR: el SQL no lleva recorte', () => {
+    const { sql } = plan({ filter: { projectId: 12 } }, undefined, ctxWith('connector'));
+
+    // El conector autoriza por su cuenta, que es lo que hace la api con `validateProjectPermissions`.
+    sql.should.not.containEql('user_project_permissions');
+    sql.should.not.containEql('visibility_level =');
+  });
+
+  it('TS-24 · modo EXTERNO: el recorte está en el SQL y los valores en `replacements`', () => {
+    const { sql, replacements } = plan({}, undefined, EXTERNAL);
+
+    sql.should.containEql(SCOPE_PROJECTS);
+    sql.should.containEql(SCOPE_VISIBILITY);
+    // NI EL CALLER NI EL VALOR DE VISIBILIDAD SE CONCATENAN: las dos reglas duras del módulo
+    // valen también para el recorte.
+    sql.should.not.containEql(EXTERNAL_CALLER);
+    sql.should.not.containEql("'public'");
+    param(replacements, 'caller').should.equal(EXTERNAL_CALLER);
+    param(replacements, 'externalVisibility').should.equal('public');
+  });
+
+  it('TS-25 · el recorte va ANTES del filtro del caller, y se unen con AND', () => {
+    const { sql } = plan({ filter: { state: 'activo' } }, undefined, EXTERNAL);
+    const where = sql.slice(sql.indexOf('WHERE'), sql.indexOf('ORDER BY'));
+
+    // El filtro del caller se aplica ENCIMA del conjunto ya recortado: pedir algo restringido da
+    // cero filas, no un error.
+    where.indexOf(SCOPE_PROJECTS).should.be.below(where.indexOf('t.state = :p0'));
+    where.should.equal(
+      `WHERE ${SCOPE_PROJECTS} AND ${SCOPE_VISIBILITY} AND t.state = :p0\n`
+    );
+  });
+
+  it('TS-25b · el keyset de la página siguiente NO desplaza al recorte', () => {
+    const { sql } = plan({}, ['2026-08-01T00:00:00.000Z', 9001], EXTERNAL);
+    const where = sql.slice(sql.indexOf('WHERE'), sql.indexOf('ORDER BY'));
+
+    // El WHERE se vuelve a armar ENTERO en cada página, así que el recorte se REAPLICA: el cursor
+    // no puede congelar un conjunto que ya no corresponde.
+    where.indexOf(SCOPE_PROJECTS).should.be.below(where.indexOf('(t.created_at, t.id) <'));
+  });
+
+  it('TS-26 · el COUNT lleva el MISMO recorte', () => {
+    // Sin esto, `count: true` devolvería el total real y filtraría exactamente la información que
+    // el recorte esconde. Es el error más fácil de cometer de toda la tarea.
+    const external = countPlan({}, EXTERNAL);
+    const internal = countPlan({});
+
+    external.sql.should.containEql(SCOPE_PROJECTS);
+    external.sql.should.containEql(SCOPE_VISIBILITY);
+    internal.sql.should.not.containEql('user_project_permissions');
+  });
+
+  it('TS-27 · el `get` lleva el recorte junto al `id`, unidos con AND', () => {
+    const { sql, replacements } = getPlan({ id: 9002 }, EXTERNAL);
+    const where = sql.slice(sql.indexOf('WHERE'), sql.indexOf('LIMIT'));
+
+    where.should.equal(`WHERE ${SCOPE_PROJECTS} AND ${SCOPE_VISIBILITY} AND t.id = :p0\n`);
+    // Los nombres del recorte son FIJOS y no pasan por el contador de `Params`, así que no pueden
+    // colisionar con los `p0`, `p1`… del filtro.
+    param(replacements, 'p0').should.equal(9002);
+    param(replacements, 'caller').should.equal(EXTERNAL_CALLER);
+  });
+
+  it('el modo externo NO cambia el SQL de los otros dos: byte a byte el de S-022', () => {
+    const connector = plan({ filter: { projectId: 12 } }, undefined, ctxWith('connector'));
+    const internal = plan({ filter: { projectId: 12 } }, undefined, ctxWith('internal'));
+
+    connector.sql.should.equal(internal.sql);
+    connector.replacements.should.deepEqual(internal.replacements);
   });
 });

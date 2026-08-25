@@ -31,6 +31,11 @@ through would turn a database outage into an authorisation bypass.
 cache, and the read goes out through the **owner** connection even on the query plane —
 `models/read.ts` deliberately registers no models, so the ORM is not available there.
 
+**Since S-023 it is the composition of `readCallerRoles` + `authorizeWithRoles`**, with its
+signature and its behaviour unchanged. The **command** plane still calls it; the **query** plane
+chains the two halves itself, because it needs those same `roles` a second time to resolve the
+caller's class with a single `SELECT`.
+
 **Signature:**
 ```ts
 type Plane = 'commands' | 'queries';
@@ -42,6 +47,98 @@ function authorizeCaller(caller: string, method: string, plane: Plane): Promise<
 const denied = await authorizeCaller(callerFromSubject(subject), name, 'commands');
 if (denied) {
   return denied;
+}
+```
+
+## readCallerRoles
+
+**Location:** `core/src/authorize-caller.ts`
+
+**Description:** **The read, on its own.** Extracted in S-023 so the query plane can pay a **single
+`SELECT`** and feed the **two** gates with it: the method gate (`authorizeWithRoles`) and the caller
+class gate (`resolveCallerClass`). Implemented naively those would be two reads per request.
+
+`roles` is `JSONB` **without a CHECK** and the table is writable by SQL, so a value that is not an
+array is reachable. The guard turns that into *"no roles"* rather than an `internal_error`: fail
+closed here too.
+
+**It does not catch, and that is deliberate** — the caller decides what to do with the failure, and
+on both planes that caller already has its own `try/catch`. Catching here would return `[]`, i.e. a
+mute refusal, and would lose the distinction between *"not authorised"* and *"the database is not
+answering"*.
+
+**Signature:**
+```ts
+function readCallerRoles(caller: string): Promise<readonly string[]>
+```
+
+**Usage:**
+```ts
+const roles = await readCallerRoles(caller);          // ONE SELECT
+const denied = authorizeWithRoles(caller, roles, method, 'queries');
+const callerClass = resolveCallerClass(roles);        // the same roles, no second read
+```
+
+## authorizeWithRoles
+
+**Location:** `core/src/authorize-caller.ts`
+
+**Description:** **The decision, on its own:** may this caller run this method on this plane? It
+**does not touch the database** — it receives the roles already read.
+
+It **re-compares against `getTrustedPublisherId()`** even when the caller already did so before
+reading. That is not redundant: the earlier comparison exists **not to read**, this one exists **to
+decide**. Keeping it here makes the exemption a property of the **gate** rather than of the order in
+which somebody chains the calls — and the query plane, which always reads, keeps it without
+reimplementing it.
+
+On refusal it logs the single `[auth]` `warn` (caller and method, never the payload) and returns the
+`caller_not_authorized` failure with the shared message. The authorised path logs nothing.
+
+**Signature:**
+```ts
+function authorizeWithRoles(
+  caller: string,
+  roles: readonly string[],
+  method: string,
+  plane: Plane
+): Reply<never> | null
+```
+
+## resolveCallerClass
+
+**Location:** `core/src/queries/caller-class.ts`
+
+**Description:** **The second gate of the query plane:** *"what do I clip for this caller?"*. Maps
+the caller's roles to a `CallerClass`, or `null` when no role produces one.
+
+Kept **separate from `ROLE_METHODS`** on purpose: that map answers *"may it run this method?"* and
+returns a permission; this one returns a **class**. Fusing them — or deriving this table from that
+one — would let a permissions change silently move a data clip.
+
+**The most restrictive class wins**, with precedence `external` > `internal` > `connector`, and the
+result **does not depend on the input array's order**: the implementation walks the precedence list,
+not the roles. Someone holding `['user','external-user']` is an external person who was also given
+an internal role; if `internal` won, the lower-privilege role would *widen* access.
+
+`admin` and `user` are **the same class**: in v1 the internal mode clips **nothing** at row level
+(RF-23), and fine-grained per-role authorisation stays with the api over HTTP.
+
+`external-publisher`, `core` and `bus-observer` are **absent from the table** — they have no class
+because they do not query, and leaving them out is how that is said. Pure, with no cache and no
+state; a test gate reads the source to keep it that way.
+
+**Signature:**
+```ts
+type CallerClass = 'connector' | 'internal' | 'external';
+function resolveCallerClass(roles: readonly string[]): CallerClass | null
+```
+
+**Usage:**
+```ts
+const resolved = resolveCallerClass(roles);
+if (!resolved) {
+  return failure(ErrorCode.UNKNOWN_CALLER, UNKNOWN_CALLER_MESSAGE);   // never `items: []`
 }
 ```
 

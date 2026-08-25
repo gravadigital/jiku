@@ -206,6 +206,27 @@ control over that column half the ordering tests would prove nothing.
 test go through `readDb` with explicit SQL.** That asymmetry is the point: if the engine used the
 ORM, there would not be two paths to compare.
 
+**Since S-023 `createWorld()` also seeds the trusted publisher's row** with
+`roles: ['internal-app']`, and `destroyWorld()` removes it. That is a **fixture** change, not an
+assertion one: `dispatchQuery()` uses that id as its default caller, and the query plane's second
+gate — the caller **class** — exempts nobody, so without the row every dispatch of these files would
+answer `unknown_caller`. `internal-app` puts it in the **connector** class, i.e. **no clip**, which
+is the behaviour those tests already assumed and the one the api has in production. The id comes
+from `getTrustedPublisherId()` rather than a literal, so `core/.env.test` stays the single source.
+
+**The query callers and the project permissions** (S-023) are separate helpers because only the
+files that exercise the gates and the external clip need them:
+
+| Constant | `roles` | Class |
+|---|---|---|
+| `Q_INTERNAL` | `['user']` | internal |
+| `Q_ADMIN` | `['admin']` | internal |
+| `Q_EXTERNAL` | `['external-user']` | external |
+| `Q_MIXED` | `['user','external-user']` | external (the most restrictive wins) |
+| `Q_CONNECTOR` | `['internal-app']` | — (cut by the method gate: it is not the exempt caller) |
+| `Q_EMPTY` | `[]` | — (cut by the method gate) |
+| `Q_NO_ROW` | no row at all | — (cut by the method gate) |
+
 **Signature:**
 ```ts
 function createWorld(projects?: number[]): Promise<void>;   // requirement hangs off projects[0]
@@ -215,4 +236,16 @@ function assignPerson(objectiveId: number, personId: number,
                       options: { isLeader: boolean; active: boolean }): Promise<void>;
 function subscribe(objectiveId: number, userId?: string): Promise<void>;
 function destroyWorld(): Promise<void>;
+
+// S-023 — the query callers and their project permissions
+function createQueryCallers(): Promise<void>;
+function destroyQueryCallers(): Promise<void>;   // permissions first, then the users (FK)
+function grantProjects(userId: string, projectIds: number[]): Promise<void>;
 ```
+
+`grantProjects` has **no `revoke` counterpart** on purpose: the one that clears the permissions is
+`destroyQueryCallers()`, which has to do it anyway before deleting the callers. A second helper that
+deleted the same rows would just be a way to forget the order.
+
+**Teardown order matters:** `user_project_permissions.user_id` references `users.id`, so
+`destroyWorld()` (which clears the permissions) runs **before** `destroyQueryCallers()`.

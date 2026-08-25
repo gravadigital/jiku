@@ -2,6 +2,19 @@ import { Sequelize } from 'sequelize-typescript';
 import { Reply } from '@jiku/nats-protocol';
 
 /**
+ * LA CLASE DEL CALLER: qué le recorta el servicio a nivel de fila.
+ *
+ * Vive acá y no en `caller-class.ts` porque `QueryContext` la lleva y este es el archivo de tipos
+ * del plano de consultas; el mapa rol → clase y la precedencia viven allá. UNA SOLA DEFINICIÓN en
+ * el repo, y el módulo que la resuelve la importa de acá.
+ *
+ *   connector -> nada. El caller autoriza por su cuenta (hoy, la api con `validateProjectPermissions`)
+ *   internal  -> nada a nivel de fila. Decisión explícita de la v1 (RF-23)
+ *   external  -> lo que declare la ficha del recurso (`ResourceSpec.externalScope`)
+ */
+export type CallerClass = 'connector' | 'internal' | 'external';
+
+/**
  * Contexto de una consulta.
  *
  * NO tiene `transaction`, y la ausencia es el contrato: el despachador de consultas no abre
@@ -16,6 +29,14 @@ import { Reply } from '@jiku/nats-protocol';
 export interface QueryContext {
   /** Servicio que publicó el mensaje, leído del subject. */
   caller: string;
+  /**
+   * Qué le recorta el servicio a este caller. Se resuelve UNA SOLA VEZ en el despachador, desde
+   * `users.roles`, y viaja acá: NINGUNA ficha vuelve a consultar `users` para saberla (CA-4).
+   *
+   * OBLIGATORIA, y la obligatoriedad es el contrato: un contexto sin clase sería un contexto sin
+   * recorte, o sea el fallo abierto que esta story existe para no tener.
+   */
+  callerClass: CallerClass;
   /** Conexión de SOLO LECTURA. Se inyecta para que el módulo no importe `models/read`. */
   db: Sequelize;
   /**
@@ -165,19 +186,28 @@ export interface SortableSpec {
 /**
  * El recorte del modo externo: proyectos permitidos MÁS `visibilityLevel = public`.
  *
- * Se DECLARA acá y NO SE APLICA en esta story: quien lo enchufa al motor es S-023, junto con la
- * clase del caller. Mientras tanto el motor construye SQL sin recorte de filas, y por eso S-022 y
- * S-023 no se despliegan por separado a un entorno con callers `external-user`.
+ * DECLARAR EL RECORTE ES APLICARLO, y por eso no hay ningún booleano acá. Hasta S-023 esta ficha
+ * llevaba un `applied` que el motor no miraba, y esa forma tiene un problema que no es de estilo:
+ * mientras exista, un recurso puede declarar su recorte y desactivarlo con un `false` olvidado, y
+ * los 17 recursos que vienen después (S-024 a S-028) lo copian de `tasks`. Sacando el campo, el
+ * estado peligroso deja de ser REPRESENTABLE.
+ *
+ * LOS DOS NOMBRES SON COLUMNAS DE LA BASE, no campos del contrato: al SQL solo llegan nombres que
+ * la ficha declara como columnas (ADR-004), así que el motor no tiene que resolver
+ * `visibilityLevel` contra `base`/`filterable` en tiempo de armado — una búsqueda que puede
+ * fallar y que solo fallaría en producción.
+ *
+ * DEUDA ANOTADA: los recursos SIN ACCESO externo (`worked-times`, `unworked-times`,
+ * `week-assigned-times`, `settings`) llegan en S-026 y S-028 y necesitan otra forma de
+ * declararse —resuelven en `items: []` sin ejecutar SQL—. No se inventa acá: esta story tiene un
+ * solo recurso con recorte, y agregar una variante sin caso de uso es adivinar el contrato de
+ * otra story. Desaparece cuando esas fichas existan.
  */
 export interface ExternalScopeSpec {
-  /** Siempre `false` en esta story. S-023 lo pasa a `true` cuando el recorte existe. */
-  readonly applied: boolean;
-  /** La story que lo aplica. */
-  readonly appliedBy: string;
   /** Columna del recurso que tiene que estar entre los proyectos permitidos del caller. */
   readonly projectColumn: string;
-  /** Campo del contrato y valor que el caller externo puede ver. */
-  readonly visibility: { readonly field: string; readonly value: string };
+  /** Columna de visibilidad y el ÚNICO valor que un caller externo puede ver. */
+  readonly visibility: { readonly column: string; readonly value: string };
 }
 
 /** La ficha de un recurso: todo lo que el motor necesita saber, como dato. */

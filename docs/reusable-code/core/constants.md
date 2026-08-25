@@ -27,6 +27,46 @@ test enforces it. The 9 subjects of `external-publisher` are enumerated **here a
 with nothing technical keeping them in sync — **adding a command for the external connector is two
 changes, not one, and they go in the same commit.**
 
+## CLASS_BY_ROLE
+
+**Location:** `core/src/queries/caller-class.ts`
+
+**Description:** The role → **class** map of the query plane, and the precedence that resolves a
+caller holding several roles. **Closed and deny-by-default** (ADR-008): a role that is not in it
+produces no class, and without a class there is no query — the dispatcher answers `unknown_caller`,
+never an empty list.
+
+**Deliberately not derived from `ROLE_METHODS`.** That map answers *"may it run this method?"*; this
+one answers *"what do I clip for it?"*. Coupling them would make a permissions change silently move
+a data clip.
+
+```ts
+const PRECEDENCE: readonly CallerClass[] = ['external', 'internal', 'connector'];
+
+const CLASS_BY_ROLE = {
+  'external-user': 'external',
+  user: 'internal',
+  admin: 'internal',
+  'internal-app': 'connector',
+};
+```
+
+| Role | Class | What the service clips |
+|---|---|---|
+| `internal-app` | `connector` | Nothing. The caller authorises on its own |
+| `user`, `admin` | `internal` | Nothing at row level (explicit v1 decision, RF-23) |
+| `external-user` | `external` | Whatever the resource's spec declares |
+| `external-publisher`, `core`, `bus-observer`, unknown, `[]` | — | No class: they do not query |
+
+**The most restrictive wins**, and the input array's order does not decide: the resolver walks
+`PRECEDENCE`, not the roles.
+
+**Today the method gate shadows this one for every non-exempt caller.** The only roles with
+`queries: ALL` are `admin`, `user` and `external-user`, and all three *have* a class; any other
+caller is cut earlier with `caller_not_authorized`. The one path that reaches `unknown_caller` is the
+`CORE_TRUSTED_PUBLISHER_ID`, which passes gate 1 by exemption and arrives here with no usable roles —
+exactly what happens in production when the api's authentication event is lost.
+
 ## loadConfig / getTrustedPublisherId
 
 **Location:** `core/src/config.ts`

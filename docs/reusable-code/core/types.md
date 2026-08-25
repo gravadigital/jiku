@@ -84,8 +84,7 @@ export const tasksGet: Query<ValidatedGetQuery> = {
 
 **Location:** `core/src/queries/types.ts`
 
-**Description:** What a query receives besides its payload. **Two members, and the two absences are
-the contract:**
+**Description:** What a query receives besides its payload. **The two absences are the contract:**
 
 - **No `transaction`.** The query dispatcher opens none (RF-9). A read does not need atomicity, and a
   transaction per request would take and hold a snapshot for every query. A query that needs
@@ -102,11 +101,20 @@ against another connection.
 provider — the shape S-013 shipped — produces exactly the context it always did, and the engine
 resolves the absence with `DEFAULT_PAYLOAD_BUDGET_BYTES`.
 
+`callerClass` (S-023) is **mandatory**, and the mandate is the point: a context without a class
+would be a context without a clip, i.e. the open failure the external-mode clip exists to prevent.
+It is resolved **once per request** in the dispatcher from `users.roles`, so **no resource spec ever
+queries `users` again** to find out what to clip.
+
 **Interface:**
 ```ts
+type CallerClass = 'connector' | 'internal' | 'external';
+
 interface QueryContext {
   /** Service that published the message, read from the subject. */
   caller: string;
+  /** What the service clips for this caller. Resolved ONCE, in the dispatcher. */
+  callerClass: CallerClass;
   /** READ-ONLY connection. Injected so the module never imports `models/read`. */
   db: Sequelize;
   /** Page byte budget, resolved per request. Absent when no provider was wired. */
@@ -248,13 +256,54 @@ interface ResourceSpec {
   readonly defaults: { sort: readonly string[] };
   readonly enums: Record<string, readonly string[]>;
   readonly truncatable: readonly string[];               // unbounded text the budget may cut
-  readonly externalScope: ExternalScopeSpec;             // declared here, applied by S-023
+  readonly externalScope: ExternalScopeSpec;             // declaring it IS applying it (S-023)
   readonly notFoundCode: string;
   readonly notFoundMessage: string;
 }
 ```
 
 **Usage:** adding a resource is writing one of these — see `core/src/queries/tasks/tasks-spec.ts`.
+
+## CallerClass / ExternalScopeSpec
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** The two types the external-mode clip is made of.
+
+`CallerClass` says **what the service clips** for a caller: `connector` clips nothing (the caller
+authorises on its own, which is what the api does with `validateProjectPermissions` before reading),
+`internal` clips nothing at row level (an explicit v1 decision, RF-23), and `external` clips whatever
+the resource's spec declares. It is resolved from `users.roles` by `resolveCallerClass`.
+
+`ExternalScopeSpec` is that declaration, and **declaring the clip is applying it**: there is no
+boolean. Until S-023 the spec carried an `applied` flag the engine never read, and that shape has a
+problem that is not stylistic — while it exists, a resource can declare its clip and switch it off
+with a forgotten `false`, and the 17 resources that follow copy the shape from `tasks`. Removing the
+field makes the dangerous state **unrepresentable**.
+
+Both of its names are **database columns**, not contract fields: only names the spec declares as
+columns may reach the SQL (ADR-004), so the engine never has to resolve `visibilityLevel` against
+`base`/`filterable` at build time — a lookup that could only fail in production.
+
+**Interface:**
+```ts
+type CallerClass = 'connector' | 'internal' | 'external';
+
+interface ExternalScopeSpec {
+  /** Resource column that must be among the caller's permitted projects. */
+  readonly projectColumn: string;
+  /** Visibility column and the ONLY value an external caller may see. */
+  readonly visibility: { readonly column: string; readonly value: string };
+}
+```
+
+**Usage:**
+```ts
+const EXTERNAL_SCOPE: ExternalScopeSpec = {
+  projectColumn: 'project_id',
+  visibility: { column: 'visibility_level', value: 'public' },
+};
+```
 
 ## ValidatedListQuery / ValidatedGetQuery / SqlPlan
 

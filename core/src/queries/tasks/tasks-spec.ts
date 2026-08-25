@@ -241,17 +241,15 @@ const SORTABLE: Record<string, SortableSpec> = {
 };
 
 /**
- * El recorte del modo externo: DECLARADO ACÁ, APLICADO EN S-023.
+ * EL RECORTE DEL MODO EXTERNO de `tasks`: proyectos permitidos Y `visibility_level = 'public'`.
  *
- * Hasta que S-023 lo enchufe, el motor construye SQL SIN recorte de filas, y `ROLE_METHODS` ya
- * autoriza `queries: ALL` a `external-user`. Por eso S-022 y S-023 no se despliegan por separado
- * a un entorno con callers externos: no es una diferencia de diseño, es una de despliegue.
+ * DECLARARLO ES APLICARLO (S-023): el motor lo antepone al `WHERE` de los tres SQL —filas, COUNT
+ * y get— cuando `ctx.callerClass === 'external'`, y no hay ningún interruptor en la ficha para
+ * desactivarlo. Los dos nombres son COLUMNAS DE LA BASE, que es lo único que puede llegar al SQL.
  */
 const EXTERNAL_SCOPE: ExternalScopeSpec = {
-  applied: false,
-  appliedBy: 'S-023',
   projectColumn: 'project_id',
-  visibility: { field: 'visibilityLevel', value: 'public' },
+  visibility: { column: 'visibility_level', value: 'public' },
 };
 
 export const tasksSpec: ResourceSpec = {
