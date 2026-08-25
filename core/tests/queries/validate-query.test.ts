@@ -4,6 +4,7 @@ import { Reply } from '@jiku/nats-protocol';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
 import { validateGet, validateList } from '../../src/queries/engine/validate-query';
 import { ValidatedGetQuery, ValidatedListQuery } from '../../src/queries/engine/types';
+import { ResourceSpec } from '../../src/queries/types';
 
 /**
  * El validador de la gramática CONTRA LA FICHA.
@@ -415,5 +416,182 @@ describe('queries/engine/validate-query — el hash del cursor', () => {
   it('sin `sort`, el scope es el del default resuelto', () => {
     [...ok(list({})).scope.sort].should.deepEqual(['-createdAt', '-id']);
     [...ok(list({ sort: ['-createdAt'] })).scope.sort].should.deepEqual(['-createdAt', '-id']);
+  });
+});
+
+/**
+ * EL CAMPO CALCULADO EN LA PROYECCIÓN (S-024, Task 1).
+ *
+ * Lo que se verifica es una AUSENCIA: un calculado NO entra en `relations`, así que
+ * `attachCollections()` lo ignora. Se cumple solo con la condición actual `kind === 'relation'`,
+ * y por eso hay test: una capacidad que funciona "porque el código de al lado casualmente la
+ * excluye" se rompe la primera vez que alguien toca ese código.
+ */
+describe('queries/engine/validate-query — el campo calculado (S-024)', () => {
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    includable: {
+      ...tasksSpec.includable,
+      totalMinutes: { kind: 'computed', expr: 'SELECT 1', transform: (raw) => Number(raw) },
+    },
+    includableNames: [...tasksSpec.includableNames, 'totalMinutes'],
+    fieldNames: [...tasksSpec.fieldNames, 'totalMinutes'],
+  };
+
+  it('un calculado entra en `fields` y NO en `relations`', () => {
+    const value = (validateList(SPEC, { include: ['totalMinutes', 'comments'] }) as {
+      value: ValidatedListQuery;
+    }).value;
+
+    value.fields.should.containEql('totalMinutes');
+    // Solo `comments` es relación: el calculado no se resuelve por lote.
+    [...value.relations].should.deepEqual(['comments']);
+  });
+
+  it('un calculado se puede pedir por `fields` como cualquier otro campo', () => {
+    const value = (validateGet(SPEC, { id: 88, fields: ['totalMinutes'] }) as {
+      value: ValidatedGetQuery;
+    }).value;
+
+    [...value.fields].should.deepEqual(['id', 'totalMinutes']);
+    [...value.relations].should.deepEqual([]);
+  });
+});
+
+/**
+ * EL FILTRO DE CONTENCIÓN `jsonb` CON FORMA PROPIA (S-024, Task 2).
+ *
+ * El filtro `tag` recibe `{"key": "modulo", "value": "facturacion"}` —un OBJETO—, y sin esta rama
+ * `parseCondition` lo leería como un mapa de OPERADORES y respondería *no conoce el operador
+ * "key"*. La forma del par la declara la ficha, no el motor.
+ */
+describe('queries/engine/validate-query — el filtro de contención (S-024)', () => {
+  const SHAPE = ['key', 'value'];
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    filterable: {
+      ...tasksSpec.filterable,
+      tag: { contains: { column: 'tags', shape: SHAPE } },
+    },
+    filterableNames: [...tasksSpec.filterableNames, 'tag'],
+  };
+
+  const contains = (raw: unknown) => validateList(SPEC, { filter: { tag: raw } });
+
+  it('un par acepta y normaliza en el ORDEN DE `shape`', () => {
+    // Las claves vienen al revés a propósito: el valor del parámetro es un STRING, así que dos
+    // requests con el mismo par y las claves en otro orden tienen que producir el mismo texto.
+    const value = ok(contains({ value: 'facturacion', key: 'modulo' }));
+    const condition = value.filter.conditions[0];
+
+    condition.field.should.equal('tag');
+    condition.operator.op.should.equal('contains');
+    (condition.operator as { values: readonly unknown[] }).values.should.deepEqual([
+      { key: 'modulo', value: 'facturacion' },
+    ]);
+  });
+
+  it('una LISTA de pares acepta y conserva el orden', () => {
+    const value = ok(
+      contains([
+        { key: 'modulo', value: 'facturacion' },
+        { key: 'cliente', value: 'acme' },
+      ])
+    );
+
+    (value.filter.conditions[0].operator as { values: readonly unknown[] }).values.should.deepEqual([
+      { key: 'modulo', value: 'facturacion' },
+      { key: 'cliente', value: 'acme' },
+    ]);
+  });
+
+  it('TS-28 · un string, un par incompleto y un par con clave de más son `invalid_fields`', () => {
+    for (const hostile of ['facturacion', { key: 'modulo' }, { key: 'm', value: 'f', extra: 1 }]) {
+      const error = bad(contains(hostile));
+
+      error.errorCode!.should.equal('invalid_fields');
+      error.errorDetails!.field!.should.equal('filter.tag');
+      (error.errorDetails!.allowed as string[]).should.deepEqual(SHAPE);
+    }
+  });
+
+  it('TS-28 · un valor que no es texto dentro del par es `invalid_fields`', () => {
+    const error = bad(contains({ key: 'modulo', value: 12 }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.tag');
+  });
+
+  it('una lista VACÍA es `invalid_fields`: un contains sin pares no filtra nada', () => {
+    const error = bad(contains([]));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.tag');
+  });
+
+  it('el contains funciona igual DENTRO de una rama de `or`', () => {
+    const value = ok(
+      validateList(SPEC, {
+        filter: { or: [{ tag: { key: 'modulo', value: 'facturacion' } }, { state: 'activo' }] },
+      })
+    );
+
+    value.filter.or!.should.have.length(2);
+    value.filter.or![0].conditions[0].operator.op.should.equal('contains');
+  });
+});
+
+/**
+ * EL DESEMPATE POR `id` QUE NO SE DUPLICA (S-024, Task 3).
+ *
+ * `tasks` no declara `id` ordenable, y por eso hasta acá el push incondicional alcanzaba.
+ * `requirements` SÍ lo declara, y sin la guarda `sort: ["id"]` produce `ORDER BY t.id, t.id`: dos
+ * claves idénticas en el cursor y dos alias sobre la misma columna.
+ */
+describe('queries/engine/validate-query — el desempate por `id` (S-024)', () => {
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    sortable: { ...tasksSpec.sortable, id: { column: 'id' } },
+    sortableNames: [...tasksSpec.sortableNames, 'id'],
+  };
+
+  const sorted = (payload: unknown) =>
+    (validateList(SPEC, payload) as { value: ValidatedListQuery }).value;
+
+  it('TS-46 · `sort: ["id"]` produce UN SOLO criterio, ascendente', () => {
+    const value = sorted({ sort: ['id'] });
+
+    value.sort.map((criterion) => criterion.field).should.deepEqual(['id']);
+    value.sort[0].dir.should.equal('ASC');
+    [...value.scope.sort].should.deepEqual(['id']);
+  });
+
+  it('`sort: ["-id"]` conserva la dirección QUE PIDIÓ EL CALLER', () => {
+    const value = sorted({ sort: ['-id'] });
+
+    value.sort.map((criterion) => criterion.field).should.deepEqual(['id']);
+    value.sort[0].dir.should.equal('DESC');
+  });
+
+  it('`id` declarado en medio del orden tampoco se duplica', () => {
+    const value = sorted({ sort: ['-createdAt', 'id'] });
+
+    value.sort.map((criterion) => criterion.field).should.deepEqual(['createdAt', 'id']);
+  });
+
+  it('sin `id` en el orden, el desempate se agrega como siempre y hereda la última dirección', () => {
+    sorted({ sort: ['createdAt'] }).sort.map((c) => `${c.field}:${c.dir}`).should.deepEqual([
+      'createdAt:ASC',
+      'id:ASC',
+    ]);
+    sorted({ sort: ['-createdAt'] }).sort.map((c) => `${c.field}:${c.dir}`).should.deepEqual([
+      'createdAt:DESC',
+      'id:DESC',
+    ]);
+    // Sin `sort`, el default de la ficha más el desempate.
+    sorted({}).sort.map((c) => `${c.field}:${c.dir}`).should.deepEqual([
+      'createdAt:DESC',
+      'id:DESC',
+    ]);
   });
 });

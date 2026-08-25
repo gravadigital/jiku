@@ -55,14 +55,22 @@ cuando exista el primero.
 | 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
 | 3.4 · Segunda compuerta: la clase del caller (`unknown_caller`) | Implementado | S-023 |
 | 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
-| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks` | S-023 |
+| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects` y `requirements` | S-023 (mecanismo), S-024 (las tres formas) |
 | 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
 | 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
 | 8 · El caller recorre la colección | Implementado | S-022 |
 
-**Recursos con contrato:** `tasks` (`list` y `get`), desde S-022. Los otros cuatro endpoints
-registrados —`projects.list/get` y `comments.list/get`— siguen respondiendo `unknown_command` desde
-`core/src/queries/pending.ts` hasta S-024 y S-025.
+**Recursos con contrato:** `tasks` desde S-022, y `clients`, `projects` y `requirements` desde
+S-024 —los cuatro con `list` y `get`—. Los dos endpoints que quedan —`comments.list/get`— siguen
+respondiendo `unknown_command` desde `core/src/queries/pending.ts` hasta S-025; ese archivo se
+elimina en S-028.
+
+**Las tres formas del recorte del Paso 5 existen desde S-024**, y son las que la tabla de recortes
+de más abajo necesita para los 18 recursos: la fila **lleva** el proyecto en una columna (con
+visibilidad, como `requirements` y `tasks`, o sin ella, como `projects`), o la fila es
+**alcanzable** desde una tabla que sí lo lleva (`clients`, que no tiene columna de proyecto). La
+tercera —**sin acceso** externo, que resuelve en `items: []` sin ejecutar SQL— la necesitan
+`worked-times`, `unworked-times`, `week-assigned-times` y `settings`, y llega con S-026 y S-028.
 
 > **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** hasta S-023 el Paso 5 estaba
 > declarado en la ficha y **no aplicado**, así que `tasks.list` **no recortaba filas** mientras
@@ -352,7 +360,10 @@ SELECT … FROM objectives
 |---|---|
 | `tasks` | tabla `objectives` |
 | `priority` (enum) + `priorityValue` (entero) | `objectives.priority` `INTEGER` 0-5 |
-| `properties` `[{code,value}]` | `projects.key_value_pairs` |
+| `properties` `[{code,value}]` | `projects.key_value_pairs` (`JSON`, **incluible y no filtrable**) |
+| `tag` `{key,value}` (contains de `jsonb`, lista con AND) | `requirements.tags` `JSONB` |
+| `q` de **solo dígitos** → igualdad por `id` | — (regla del contrato de `requirements`) |
+| `totalMinutes` | dos subconsultas sobre `worked_times`: las del requisito **más** las de sus tareas |
 | `body` | `objective_activity.new_value` / `requirement_activity.new_value` |
 | `authorId` | `changed_by` |
 | `taskId` | `worked_times.objective_id` |

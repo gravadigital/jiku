@@ -61,3 +61,26 @@ export function propertiesToKeyValuePairs(
   }
   return out;
 }
+
+/**
+ * Convierte el objeto de la columna a la lista del protocolo. La INVERSA de
+ * `propertiesToKeyValuePairs`, y vive ACÁ y no en la ficha de consultas porque la convención
+ * `contract-translation` dice que una traducción vive en UN helper del módulo: dos copias del
+ * mismo mapa en dos planos es exactamente la divergencia que esa convención previene.
+ *
+ * UNA COLUMNA `NULL` DEVUELVE `[]` Y NO `null`: el contrato declara `properties` como lista, y un
+ * consumidor que haga `.map()` sobre `null` rompe. La asimetría con `propertiesToKeyValuePairs`
+ * —que sí devuelve `undefined` para un campo ausente— es deliberada: allá el `undefined` es lo que
+ * hace funcionar la edición parcial, y acá no hay edición parcial que preservar.
+ *
+ * NO FILTRA POR `ALLOWED_CODES`: la lista blanca de códigos es una regla de ESCRITURA. Aplicarla
+ * al leer escondería, sin decirlo, cualquier clave que haya quedado en la columna.
+ */
+export function keyValuePairsToProperties(
+  raw: Record<string, string | null> | null | undefined
+): Property[] {
+  if (!raw || typeof raw !== 'object') {
+    return [];
+  }
+  return Object.entries(raw).map(([code, value]) => ({ code, value: value ?? null }));
+}

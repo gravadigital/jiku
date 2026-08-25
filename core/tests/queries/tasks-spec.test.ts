@@ -3,7 +3,7 @@ import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { TASK_PRIORITY_VALUES, TaskPriority } from '../../src/commands/tasks/priority';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
-import { OneRelationSpec, ManyRelationSpec } from '../../src/queries/types';
+import { ColumnExternalScope, OneRelationSpec, ManyRelationSpec } from '../../src/queries/types';
 
 /**
  * TS-53 · LA FICHA ES UN DATO, legible por otro código sin ejecutar nada.
@@ -194,16 +194,22 @@ describe('queries/tasks — la ficha como DATO (CA-30)', () => {
   it('TS-44 · el recorte del modo externo se declara con COLUMNAS, y declararlo es aplicarlo', () => {
     // S-023 le sacó a la ficha el par `applied`/`appliedBy`: mientras existiera, un recurso podía
     // declarar un recorte y desactivarlo con un booleano, y los 17 que vienen después lo iban a
-    // copiar de acá. El estado peligroso deja de ser REPRESENTABLE.
-    tasksSpec.externalScope.projectColumn.should.equal('project_id');
-    tasksSpec.externalScope.visibility.should.deepEqual({
+    // copiar de acá. El estado peligroso deja de ser REPRESENTABLE, y la unión discriminada que
+    // S-024 le puso encima conserva esa propiedad: ninguna variante significa "no recortes".
+    const scope = tasksSpec.externalScope as ColumnExternalScope;
+
+    // `kind: 'column'` — la fila LLEVA el proyecto. La variante indirecta (`exists`) la estrena
+    // `clients`, cuyo recurso no tiene columna de proyecto.
+    scope.kind.should.equal('column');
+    scope.projectColumn.should.equal('project_id');
+    scope.visibility!.should.deepEqual({
       // COLUMNA y no campo del contrato: al SQL solo llegan nombres que la ficha declara como
       // columnas, y el motor no tiene que resolver `visibilityLevel` contra `base` en tiempo de
       // armado —una búsqueda que puede fallar—.
       column: 'visibility_level',
       value: 'public',
     });
-    Object.keys(tasksSpec.externalScope).sort().should.deepEqual(['projectColumn', 'visibility']);
+    Object.keys(scope).sort().should.deepEqual(['kind', 'projectColumn', 'visibility']);
   });
 
   it('el código de "no encontrado" es `task_not_found`, con la CONSTANTE', () => {

@@ -169,11 +169,10 @@ describe('queries/tasks — el contrato del recurso', () => {
       (reply.errorCode === undefined).should.be.true();
     });
 
-    it('TS-2 · los otros cuatro SIGUEN en `pendingContract`', async () => {
-      // `projects` llega con S-024 y `comments` con S-025. `pending.ts` no se elimina en S-022.
+    it('TS-2 · los dos de `comments` SIGUEN en `pendingContract`', async () => {
+      // S-024 le dio contrato a `clients`, `projects` y `requirements`; `comments` llega con S-025
+      // y `pending.ts` se elimina recién en S-028, cuando no quede ninguno.
       for (const [method, payload] of [
-        ['projects.list', {}],
-        ['projects.get', { id: 1 }],
         ['comments.list', {}],
         ['comments.get', { id: 1 }],
       ] as [string, unknown][]) {

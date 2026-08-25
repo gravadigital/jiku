@@ -248,6 +248,10 @@ const SORTABLE: Record<string, SortableSpec> = {
  * desactivarlo. Los dos nombres son COLUMNAS DE LA BASE, que es lo único que puede llegar al SQL.
  */
 const EXTERNAL_SCOPE: ExternalScopeSpec = {
+  // `kind: 'column'` — la fila LLEVA el proyecto en una columna propia. Es la variante que S-024
+  // le puso nombre al agregar la indirecta (`kind: 'exists'`, para `clients`); el SQL que produce
+  // es idéntico, carácter por carácter, al de S-023.
+  kind: 'column',
   projectColumn: 'project_id',
   visibility: { column: 'visibility_level', value: 'public' },
 };

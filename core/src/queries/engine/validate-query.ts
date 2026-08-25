@@ -257,6 +257,53 @@ function parseCondition(
     return { condition: { field, spec, operator: { op: 'search', text: raw } } };
   }
 
+  // CONTENCIÓN SOBRE `jsonb`: el filtro tiene FORMA PROPIA y la declara la ficha.
+  //
+  // VA ANTES DE LA RAMA DE OBJETO-COMO-OPERADORES, y el orden no es cosmético: sin esta rama,
+  // `{"key": "modulo", "value": "facturacion"}` se leería como un mapa de operadores y la
+  // respuesta sería *el filtro no conoce el operador "key"*.
+  if (spec.contains) {
+    const { shape } = spec.contains;
+    const raws = Array.isArray(raw) ? raw : [raw];
+    const values: Record<string, unknown>[] = [];
+
+    for (const entry of raws) {
+      const keys = isPlainObject(entry) ? Object.keys(entry) : [];
+      // TODAS las claves de `shape`, NINGUNA de más, y todas con valor de texto. Un par
+      // incompleto filtraría por menos de lo que el caller cree, que es datos de más.
+      const wellFormed =
+        isPlainObject(entry) &&
+        keys.length === shape.length &&
+        shape.every((key) => typeof entry[key] === 'string');
+      if (!wellFormed) {
+        return invalid(`El filtro "${field}" espera un par ${shape.join('/')} de texto`, {
+          field: `filter.${field}`,
+          value: entry,
+          allowed: shape,
+        });
+      }
+
+      // NORMALIZADO EN EL ORDEN DE `shape`, no en el que vino: al contains de `jsonb` no le
+      // importa el orden de las claves, pero el valor del parámetro SÍ es un string, y una
+      // request con las claves al revés produciría otro texto para el mismo par.
+      const normalized: Record<string, unknown> = {};
+      for (const key of shape) {
+        normalized[key] = (entry as Record<string, unknown>)[key];
+      }
+      values.push(normalized);
+    }
+
+    if (values.length === 0) {
+      return invalid(`El filtro "${field}" espera al menos un par ${shape.join('/')}`, {
+        field: `filter.${field}`,
+        value: raw,
+        allowed: shape,
+      });
+    }
+
+    return { condition: { field, spec, operator: { op: 'contains', values } } };
+  }
+
   if (raw === null) {
     return { condition: { field, spec, operator: { op: 'isNull' } } };
   }
@@ -451,9 +498,16 @@ function parseSort(
   // LA DIRECCIÓN ES LA DEL ÚLTIMO CRITERIO, y no siempre ASC: los índices compuestos de S-021
   // llevan `(…, created_at DESC, id DESC)`, y un `id ASC` detrás de un `created_at DESC` NO usa
   // el índice — degrada a Sort, que es exactamente lo que el keyset existe para evitar.
-  const lastDir = sort.length > 0 ? sort[sort.length - 1].dir : 'DESC';
-  // `id` es la PK: nunca es NULL, y por eso el desempate siempre cierra la recursión.
-  sort.push({ field: 'id', column: 'id', dir: lastDir, nullable: false });
+  //
+  // SOLO SI NO ESTÁ YA: `tasks` no declara `id` ordenable y por eso hasta S-024 el push
+  // incondicional alcanzaba. `requirements` SÍ lo declara, y sin esta guarda `sort: ["id"]`
+  // produce `ORDER BY t.id ASC, t.id ASC`, dos claves idénticas en el cursor y dos alias sobre la
+  // misma columna. Cuando el caller lo pidió, LA DIRECCIÓN QUE GANA ES LA SUYA.
+  if (!sort.some((criterion) => criterion.field === 'id')) {
+    const lastDir = sort.length > 0 ? sort[sort.length - 1].dir : 'DESC';
+    // `id` es la PK: nunca es NULL, y por eso el desempate siempre cierra la recursión.
+    sort.push({ field: 'id', column: 'id', dir: lastDir, nullable: false });
+  }
 
   // Los tokens EFECTIVOS —ya con el default resuelto y el desempate agregado— son los que se
   // hashean en el cursor: dos requests con el mismo ORDER BY comparten cursor aunque una lo haya

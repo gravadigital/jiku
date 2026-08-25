@@ -44,7 +44,10 @@ export function projectRow(
       continue;
     }
 
-    if (includable.kind === 'field') {
+    // COLUMNA Y EXPRESIÓN SE PROYECTAN IGUAL: en los dos casos el SELECT ya dejó el valor bajo el
+    // alias del campo del contrato, y lo único que queda es la traducción de lectura. Un
+    // calculado la necesita más que una columna: `SUM(integer)` vuelve como STRING (`bigint`).
+    if (includable.kind === 'field' || includable.kind === 'computed') {
       const raw = row[name];
       item[name] = includable.transform ? includable.transform(raw) : raw;
       continue;

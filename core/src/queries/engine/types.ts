@@ -17,7 +17,15 @@ export type FilterOperator =
   /** `"campo": {"gte": a, "lte": b}` — los cuatro comparadores son combinables entre sí. */
   | { readonly op: 'range'; readonly bounds: Readonly<Partial<Record<RangeKey, unknown>>> }
   /** `"q": "texto"` — búsqueda sobre las columnas que declara la ficha. */
-  | { readonly op: 'search'; readonly text: string };
+  | { readonly op: 'search'; readonly text: string }
+  /**
+   * `"tag": {"key": "modulo", "value": "facturacion"}` — contención sobre una columna `jsonb`.
+   *
+   * Los objetos vienen YA NORMALIZADOS en el orden de `shape`: el valor que llega al SQL es un
+   * string JSON, y dos requests con el mismo par y las claves al revés tienen que producir el
+   * mismo texto.
+   */
+  | { readonly op: 'contains'; readonly values: readonly Record<string, unknown>[] };
 
 export type RangeKey = 'gt' | 'gte' | 'lt' | 'lte';
 

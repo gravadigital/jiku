@@ -56,6 +56,16 @@ class Params {
   }
 }
 
+/**
+ * Alias FIJO de la subconsulta del recorte indirecto. Del motor, nunca de la ficha ni del payload,
+ * y elegido para no colisionar con `t`, `rel_*`, `r` ni `j`.
+ */
+const SCOPE = 'scope_';
+
+/** La lista de proyectos permitidos del caller. Una sola vez, para las dos variantes del recorte. */
+const PERMITTED_PROJECTS =
+  '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+
 /** `t.created_at`. La columna ya viene de la ficha; acá solo se califica con el alias. */
 function column(spec: { column: string }): string {
   return `${MAIN}.${spec.column}`;
@@ -97,13 +107,28 @@ function externalScopeSql(
 
   const scope = resource.externalScope;
   params.set('caller', ctx.caller);
-  params.set('externalVisibility', scope.visibility.value);
 
-  return (
-    `${MAIN}.${scope.projectColumn} IN ` +
-    '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)' +
-    ` AND ${MAIN}.${scope.visibility.column} = :externalVisibility`
-  );
+  if (scope.kind === 'exists') {
+    // EL RECORTE INDIRECTO: la fila NO LLEVA el proyecto. Un actor no tiene `project_id`; su
+    // visibilidad depende de TENER AL MENOS UN PROYECTO PERMITIDO. Es un EXISTS sobre la tabla que
+    // sí lo lleva, y NO un `IN` sobre una columna del propio recurso — que es el error que la
+    // simetría con los otros recortes invita a cometer.
+    return (
+      `EXISTS (SELECT 1 FROM ${scope.table} ${SCOPE} ` +
+      `WHERE ${SCOPE}.${scope.foreignKey} = ${MAIN}.${scope.localKey} ` +
+      `AND ${SCOPE}.${scope.projectColumn} IN ${PERMITTED_PROJECTS})`
+    );
+  }
+
+  const parts = [`${MAIN}.${scope.projectColumn} IN ${PERMITTED_PROJECTS}`];
+  if (scope.visibility) {
+    // LA AUSENCIA DE `visibility` SIGNIFICA "este recurso no tiene columna de visibilidad", NO
+    // "no recortes": el predicado de proyectos permitidos se emite siempre. `projects` es el
+    // caso — un proyecto no tiene `visibility_level`, y su recorte es su propia `id`.
+    params.set('externalVisibility', scope.visibility.value);
+    parts.push(`${MAIN}.${scope.visibility.column} = :externalVisibility`);
+  }
+  return parts.join(' AND ');
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -136,6 +161,27 @@ function conditionSql(condition: FilterCondition, params: Params): string {
     }
   }
 
+  // CONTENCIÓN SOBRE `jsonb`: un predicado POR PAR, unidos con AND (RF-7). Es lo que usa el
+  // índice GIN de la columna.
+  if (spec.contains) {
+    const contains = spec.contains;
+    if (operator.op !== 'contains') {
+      return 'FALSE';
+    }
+    const parts = operator.values.map((value) => {
+      // `CAST(... AS jsonb)` Y NUNCA `:pN::jsonb`: Sequelize parsea `:nombre` como reemplazo, y
+      // `:p0::jsonb` le es ambiguo. El `::` de PostgreSQL y el `:` de los reemplazos no conviven
+      // en el mismo token.
+      //
+      // `JSON.stringify([value])` Y NO `JSON.stringify(value)`: la columna guarda un ARRAY de
+      // pares, y `tags @> '{"key":"m"}'` compara un objeto contra un array y no matchea nunca.
+      const name = params.add(JSON.stringify([value]));
+      return `${MAIN}.${contains.column} @> CAST(:${name} AS jsonb)`;
+    });
+    // AND, NO OR: "los que tienen ESTE par Y ESTE OTRO", no "cualquiera de los dos".
+    return `(${parts.join(' AND ')})`;
+  }
+
   // Búsqueda libre: `ILIKE` sobre las columnas que declara la ficha, unidas con OR entre ellas.
   // Los `%` van EN EL SQL y el texto en el parámetro: concatenarlo acá sería la inyección que
   // este módulo entero existe para no tener.
@@ -143,6 +189,19 @@ function conditionSql(condition: FilterCondition, params: Params): string {
     if (operator.op !== 'search') {
       return 'FALSE';
     }
+
+    // EL DESVÍO NUMÉRICO: si la ficha lo declara y el texto es SOLO DÍGITOS, el predicado es una
+    // igualdad sobre esa columna y no un `ILIKE`. Viene de cómo se usa la pantalla: pegar un
+    // número de requisito en el buscador es el caso más frecuente.
+    //
+    // LA COTA DE NUEVE DÍGITOS NO ES ARBITRARIA: la columna es INTEGER (int4). Un texto de veinte
+    // dígitos por esta rama hace que PostgreSQL falle con "value out of range" -> internal_error.
+    // Nueve dígitos entran siempre; con más, cae en el `ILIKE`, que además es la lectura correcta
+    // ("eso no es un id").
+    if (spec.searchNumericColumn && /^\d{1,9}$/.test(operator.text)) {
+      return `${MAIN}.${spec.searchNumericColumn} = :${params.add(Number(operator.text))}`;
+    }
+
     const name = params.add(operator.text);
     const parts = spec.search.map(
       (col) => `${MAIN}.${col} ILIKE '%' || :${name} || '%'`
@@ -335,6 +394,13 @@ function selectParts(
     }
     if (includable.kind === 'field') {
       columns.push(`${MAIN}.${includable.column} AS "${name}"`);
+      continue;
+    }
+    // EL CAMPO CALCULADO: una expresión por fila, con el alias del campo del contrato. NO GENERA
+    // JOIN —no hay tabla que unir— y la expresión sale de la ficha, nunca del payload: es la
+    // misma regla que gobierna `ManyRelationSpec.where`.
+    if (includable.kind === 'computed') {
+      columns.push(`(${includable.expr}) AS "${name}"`);
       continue;
     }
     if (includable.cardinality === 'one') {
