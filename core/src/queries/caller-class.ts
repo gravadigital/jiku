@@ -19,19 +19,25 @@ import { CallerClass } from './types';
  * no puede ver otro— sigue siendo de la api sobre HTTP, que es donde viven las reglas de negocio.
  * Distinguirlos acá sería mover esas reglas a core sin traer las reglas.
  *
- * `external-publisher`, `core` Y `bus-observer` NO ESTÁN EN LA TABLA, y el instinto va a ser
- * "completarla". No tienen clase porque NO CONSULTAN (`queries: []` en `ROLE_METHODS`), y dejarlos
- * afuera es la forma de decirlo: agregarlos con una clase les daría un recorte a callers que
- * nunca llegan hasta acá, y el día que alguno consultara heredaría el acceso sin decisión.
+ * `core` Y `bus-observer` NO ESTÁN EN LA TABLA, y el instinto va a ser "completarla". No tienen
+ * clase porque NO CONSULTAN (`queries: []` en `ROLE_METHODS`), y dejarlos afuera es la forma de
+ * decirlo: agregarlos con una clase les daría un recorte a callers que nunca llegan hasta acá, y
+ * el día que alguno consultara heredaría el acceso sin decisión. (`external-publisher` estaba en
+ * esta misma lista y ya no: el rol se eliminó del producto.)
  *
- * HOY LA COMPUERTA 1 ENSOMBRECE A ESTA PARA TODO CALLER NO EXENTO, y conviene saberlo antes de
- * debuggear: los únicos roles con `queries: ALL` son `admin`, `user` y `external-user`, y los tres
- * TIENEN clase. Cualquier otro rol —y la lista vacía, y un rol inventado— es cortado antes por
- * `authorizeWithRoles` con `caller_not_authorized`, así que `resolveCallerClass` nunca llega a
- * devolverles `null`. El único camino que hoy produce `unknown_caller` es el del
- * `CORE_TRUSTED_PUBLISHER_ID`, que pasa la compuerta 1 por exención y llega a esta sin roles
- * utilizables — que es exactamente el escenario de CA-8 (la api perdió su fila). El día que
- * `ROLE_METHODS` le dé consultas a `internal-app`, el camino se abre también para los conectores.
+ * LA COMPUERTA 1 YA NO ENSOMBRECE A ESTA PARA LOS CONECTORES, y ese día llegó: `internal-app`
+ * pasó a tener `queries: ALL`, así que una identidad con ese rol atraviesa la compuerta 1 y
+ * ATERRIZA ACÁ, en la clase `connector` — la que NO RECORTA NINGUNA FILA. Es la consecuencia
+ * central de haberlo convertido en el único rol de conector: cualquier identidad `internal-app`
+ * lee los 16 recursos completos, sin el recorte del modo externo.
+ *
+ * Los roles con `queries: ALL` son ahora CUATRO —`internal-app`, `admin`, `user` y
+ * `external-user`— y los cuatro TIENEN clase. Cualquier otro rol —y la lista vacía, y un rol
+ * inventado— sigue cortado antes por `authorizeWithRoles` con `caller_not_authorized`, así que
+ * `resolveCallerClass` nunca llega a devolverles `null`. Los caminos que producen
+ * `unknown_caller` son dos: el `CORE_TRUSTED_PUBLISHER_ID` que pasa la compuerta 1 por exención y
+ * llega sin roles utilizables (CA-8: la api perdió su fila), y una identidad `internal-app` cuya
+ * fila todavía no existe.
  *
  * SIN CACHE Y SIN ESTADO (CA-17): es una función pura sobre una tabla congelada, y hay un gate en
  * los tests que lo verifica leyendo este archivo.

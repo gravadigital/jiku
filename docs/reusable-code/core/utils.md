@@ -124,7 +124,7 @@ an internal role; if `internal` won, the lower-privilege role would *widen* acce
 `admin` and `user` are **the same class**: in v1 the internal mode clips **nothing** at row level
 (RF-23), and fine-grained per-role authorisation stays with the api over HTTP.
 
-`external-publisher`, `core` and `bus-observer` are **absent from the table** — they have no class
+`core` and `bus-observer` are **absent from the table** — they have no class
 because they do not query, and leaving them out is how that is said. Pure, with no cache and no
 state; a test gate reads the source to keep it that way.
 
@@ -164,7 +164,8 @@ function rolesAuthorize(roles: readonly string[], method: string, plane: Plane):
 
 **Description:** Does a method name match a pattern with `{param}` segments? Extracted from
 `CommandRegistry.resolve()` in S-017 because the authorisation gate needs the **same** matching
-without resolving the command — five of the nine patterns of `external-publisher` carry a `{param}`.
+without resolving the command, for any role whose `commands` is an enumerated list rather than
+the `'*'` sentinel.
 The map and the registry **must** match identically, or a caller would end up authorised for a
 pattern the registry resolves differently. Do not replace it with a regex: matching is by segment
 because a `.` inside a value breaks a naive one.

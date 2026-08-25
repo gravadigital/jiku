@@ -109,13 +109,16 @@ sequenceDiagram
 
   | # | `match` | `type` | Plantilla |
   |---|---|---|---|
-  | 1 | `external-publisher` | `service` | `templates/external-publisher.yaml` |
-  | 2 | `internal-app` | `service` | `templates/api.yaml` |
-  | 3 | `core` | `service` | `templates/core.yaml` |
-  | 4 | `bus-observer` | `service` | `templates/observer.yaml` |
-  | 5 | `admin` | `person` | `templates/person.yaml` *(desde S-018)* |
-  | 6 | `user` | `person` | `templates/person.yaml` *(desde S-018)* |
-  | 7 | `external-user` | `person` | `templates/person.yaml` *(desde S-018)* |
+  | 1 | `internal-app` | `service` | `templates/api.yaml` |
+  | 2 | `core` | `service` | `templates/core.yaml` |
+  | 3 | `bus-observer` | `service` | `templates/observer.yaml` |
+  | 4 | `admin` | `person` | `templates/person.yaml` *(desde S-018)* |
+  | 5 | `user` | `person` | `templates/person.yaml` *(desde S-018)* |
+  | 6 | `external-user` | `person` | `templates/person.yaml` *(desde S-018)* |
+
+  **Eran siete.** La primera era `external-publisher`, con `templates/external-publisher.yaml`;
+  el rol se eliminó del producto porque nunca existió en Zitadel, y un servicio externo lleva
+  ahora `internal-app`.
 
   **Las de persona van últimas a propósito:** si un token llegara con un rol de servicio **y** uno de
   producto, tiene que caer en la de servicio, que es la que tiene el permiso correcto para lo que ese
@@ -300,7 +303,7 @@ de esa autenticación**.
 |---|---|---|---|
 | Persona con rol `user` | `["user"]` | `person` | su dirección, **nunca `NULL`** |
 | Persona con rol `admin` | `["admin"]` | `person` | su dirección, **nunca `NULL`** |
-| Conector externo | `["external-publisher"]` | `service` | **`NULL`** (salvo que Zitadel declare una) |
+| Conector externo | `["internal-app"]` | `service` | **`NULL`** (salvo que Zitadel declare una) |
 | Service user de la `api` | `["internal-app"]` | `service` | **`NULL`** |
 | Service user de `core` | `["core"]` | `service` | **`NULL`** |
 

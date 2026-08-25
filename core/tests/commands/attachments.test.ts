@@ -35,14 +35,16 @@ describe('attachments', () => {
     // `files.uploaded_by` es FK a `users.id`: el actor tiene que existir antes que el archivo.
     await User.bulkCreate([
       { id: UPLOADER_A, name: 'Usuario A', username: 'usuario-a-att', email: 'a-att@test.local' },
-      // `roles` desde S-017: `attachments.{id}.delete` es uno de los 9 subjects que
-      // `external-publisher` autoriza. Sin la lista la compuerta lo rechazaría (CA-10).
+      // `roles` desde S-017: `internal-app` es el rol de conector y autoriza todo comando,
+      // `attachments.{id}.delete` entre ellos. Sin la lista la compuerta lo rechazaría (CA-10).
+      // Es un conector que NO es la api: su `sub` no es el exento, así que va por la rama
+      // externa de `resolveActor`.
       {
         id: EXTERNAL,
-        name: 'Externo',
+        name: 'Conector',
         username: 'externo-att',
         email: 'externo-att@test.local',
-        roles: ['external-publisher'],
+        roles: ['internal-app'],
       },
     ]);
     p1 = await Project.create({

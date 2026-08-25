@@ -80,13 +80,22 @@ describe('queries/S-026 — la matriz clase × recurso del recorte externo', () 
   });
 
   it('la clase CONECTOR tampoco recorta: el caller autoriza por su cuenta', async () => {
-    // `Q_CONNECTOR` tiene `internal-app` SIN ser el publicador confiable: `ROLE_METHODS` le da
-    // `queries: []`, así que la compuerta 1 lo corta ANTES de llegar a la clase (CA-18 de S-023).
-    // El conector real es el publicador confiable, que es el caller por defecto de `dispatchQuery`.
-    const cut: any = await dispatchQuery('worked-times.list', {}, Q_CONNECTOR);
-    cut.status.should.equal('failure');
-    cut.errorCode.should.equal('caller_not_authorized');
+    // `Q_CONNECTOR` tiene `internal-app` SIN ser el publicador confiable, y ESO YA NO LO CORTA:
+    // el rol pasó a autorizar los dos planos completos, así que atraviesa la compuerta 1, la 2
+    // le resuelve la clase `connector` y llega a la consulta.
+    //
+    // ES EL ENSANCHAMIENTO MÁS SERIO DEL CAMBIO, y por eso se afirma sobre los SEIS recursos:
+    // `worked-times`, `unworked-times` y `week-assigned-times` declaran "sin acceso externo" —a
+    // un caller externo le devuelven `items: []` sin ejecutar SQL— y un conector los ve
+    // ENTEROS. Horas, ausencias y planificación de capacidad de todo el equipo.
+    for (const method of ALL_SIX) {
+      const reply: any = await dispatchQuery(method, { count: 'only' }, Q_CONNECTOR);
+      reply.status.should.equal('success', `${method}: ${JSON.stringify(reply)}`);
+      reply.data.page.total.should.be.above(0, method);
+    }
 
+    // Y el publicador confiable —el caller por defecto de `dispatchQuery`— sigue igual: la
+    // exención del `sub` lo lleva a la misma clase por otro camino.
     for (const method of ALL_SIX) {
       const reply: any = await dispatchQuery(method, { count: 'only' });
       reply.data.page.total.should.be.above(0, method);

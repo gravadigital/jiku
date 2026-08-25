@@ -87,12 +87,12 @@ describe('events/auth/user-sync', () => {
       name: 'External Connector',
       username: 'external-connector',
       email: 'connector@grava.digital',
-      roles: ['external-publisher'],
+      roles: ['internal-app'],
       identity_type: 'service',
     });
 
     const service = (await User.findByPk(SERVICE_ID))!;
-    service.roles.should.deepEqual(['external-publisher']);
+    service.roles.should.deepEqual(['internal-app']);
     service.identityType.should.equal('service');
     // La fila de la persona NO se tocó: el espejado es por PK.
     const person = (await User.findByPk(PERSON_ID))!;
@@ -164,7 +164,7 @@ describe('events/auth/user-sync', () => {
       name: 'External Connector',
       username: 'external-connector',
       email: 'connector@grava.digital',
-      roles: ['external-publisher'],
+      roles: ['internal-app'],
       identity_type: 'service',
     });
 
@@ -180,7 +180,7 @@ describe('events/auth/user-sync', () => {
       name: 'External Connector',
       username: 'external-connector',
       email: 'connector@grava.digital',
-      roles: ['external-publisher'],
+      roles: ['internal-app'],
       identity_type: 'service',
     });
 
@@ -189,7 +189,7 @@ describe('events/auth/user-sync', () => {
       id: SERVICE_ID,
       name: 'External Connector',
       username: 'external-connector',
-      roles: ['external-publisher'],
+      roles: ['internal-app'],
       identity_type: 'service',
     };
     delete withoutEmail.email;
@@ -235,7 +235,7 @@ describe('events/auth/user-sync', () => {
       name: 'External Connector',
       username: 'external-connector',
       email: 'connector@grava.digital',
-      roles: ['external-publisher'],
+      roles: ['internal-app'],
       identityType: IdentityType.Service,
     } as any);
     const warn = sinon.spy(logger, 'warn');

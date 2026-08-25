@@ -520,19 +520,27 @@ To enable one:
 
 1. In Zitadel, create a **machine user** with **Access Token Type = JWT** (the default `Bearer`
    issues opaque tokens the callout rejects).
-2. Grant it the **`external-publisher`** role on the `GESTION_ZITADEL_PROJECT_ID` project.
+2. Grant it the **`internal-app`** role on the `GESTION_ZITADEL_PROJECT_ID` project.
 3. Give it a JSON key and hand that to the service.
 
 Nothing in `deploy/` needs changing: the rule and the template
-([nats/auth-callout/templates/external-publisher.yaml](nats/auth-callout/templates/external-publisher.yaml))
-are already versioned.
+([nats/auth-callout/templates/api.yaml](nats/auth-callout/templates/api.yaml)) are already
+versioned.
 
-**Its permissions are narrower than the api's, on purpose.** The api publishes under two
-prefixes, `jiku-commands.v1.>` and `jiku-queries.v1.>` — everything, writes and reads. An external
-publisher gets an explicit list of nine subjects under `jiku-commands.v1` only: the two `files.*`
-commands, the domain commands that accept `fileIds`, and `attachments.*.delete`. No query
-permission at all. Adding a new command to that list is a deliberate decision, which is the point:
-an outside service should not gain access to a new command just because the protocol grew one.
+> **`external-publisher` used to be the role here, and it is gone.** It enumerated nine subjects
+> with a template of its own, and it **never existed in Zitadel** — the channel was never used and
+> the two enumerations (template and core's role → method map) were dead configuration that had to
+> be kept in sync by hand. An external service now carries `internal-app`, like the api.
+
+**Mind how much this grants: everything.** `internal-app` publishes under both prefixes,
+`jiku-commands.v1.>` and `jiku-queries.v1.>`, and core's role → method map authorises **every
+command and every query** for it. It also resolves to the `connector` caller class, which applies
+**no row-level trimming** to reads — an external service sees every project, every requirement and
+every hour, unclipped.
+
+That is a real widening over what `external-publisher` granted (nine write subjects, zero
+queries), and it is deliberate. **If you need a narrower connector, it is a new role**, with its
+own template here and its own entry in `core/src/authorize-caller.ts` — not a variant of this one.
 
 **The client must set `inboxPrefix` when it connects.** Replies come back on
 `_INBOX.<hash-of-user-id>.>`, and that is the only inbox the template authorises. A client that

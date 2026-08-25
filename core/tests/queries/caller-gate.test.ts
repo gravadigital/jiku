@@ -108,20 +108,27 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
     const vacio = await dispatchQuery('tasks.list', {}, Q_EMPTY);
     const sinFila = await dispatchQuery('tasks.list', {}, Q_NO_ROW);
 
-    // Los únicos roles con `queries: ALL` son `admin`, `user` y `external-user`, y los tres TIENEN
-    // clase: cualquier otro caller muere antes, en la compuerta 1.
+    // Los roles con `queries: ALL` son `internal-app`, `admin`, `user` y `external-user`, y los
+    // cuatro TIENEN clase: un caller sin roles útiles muere antes, en la compuerta 1.
     vacio.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
     sinFila.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
     vacio.errorCode!.should.not.equal(ErrorCode.UNKNOWN_CALLER);
     sinFila.errorCode!.should.not.equal(ErrorCode.UNKNOWN_CALLER);
   });
 
-  it('TS-14 · CA-18: un `internal-app` que NO es el exento tampoco llega a la clase', async () => {
+  it('TS-14 · un `internal-app` que NO es el exento SÍ consulta, y en clase conector', async () => {
     const reply = await dispatchQuery('tasks.list', {}, Q_CONNECTOR);
 
-    // `ROLE_METHODS['internal-app'].queries` es `[]` y NO SE TOCA: habilitar un segundo conector
-    // es un cambio deliberado en dos archivos y merece su propio requerimiento.
-    reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+    // ESTE TEST AFIRMABA LO CONTRARIO. `ROLE_METHODS['internal-app'].queries` era `[]`, así que
+    // un segundo conector se comía un `caller_not_authorized` en la compuerta 1 y NUNCA llegaba
+    // a la 2. Ahora pasa las dos y aterriza en la clase `connector`.
+    //
+    // LA CONSECUENCIA A TENER PRESENTE: `connector` NO RECORTA NINGUNA FILA. Cualquier identidad
+    // con este rol lee los 16 recursos completos — proyectos, requisitos, horas — sin el recorte
+    // del modo externo. Es el precio de haberlo hecho el rol de conector.
+    reply.status.should.equal('success');
+    (reply.errorCode === ErrorCode.CALLER_NOT_AUTHORIZED).should.be.false();
+    (reply.errorCode === ErrorCode.UNKNOWN_CALLER).should.be.false();
   });
 
   it('TS-15 · un `roles` que NO es array falla CERRADA en la compuerta 2', async () => {

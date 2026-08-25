@@ -9,23 +9,30 @@ absent from it authorises nothing.
 
 | Role | Commands | Queries |
 | --- | --- | --- |
-| `internal-app` | — | — |
-| `external-publisher` | the 9 of its callout template | none |
+| `internal-app` | **all (`'*'`)** | **all (`'*'`)** |
 | `admin` · `user` · `external-user` | none | all (`'*'`) |
 | `core` · `bus-observer` | none | none |
 
-`internal-app`, `core` and `bus-observer` are listed with **empty lists** rather than absent.
-They authorise the same thing (nothing), but listing them makes this the **complete table** of the
-roles that may connect to the bus — which is what somebody reads to audit it. And there is a case
-where the difference shows: if the api's service-user `sub` rotated and `CORE_TRUSTED_PUBLISHER_ID`
-went stale, the api would fall down the non-exempt branch, find its row with `roles:
-['internal-app']` and be **refused** — the correct default.
+**`internal-app` is the connector role**, and it authorises both planes in full. It used to
+authorise *nothing* — the api passed on the `sub` exemption alone — which meant a **second**
+identity with that role connected to the bus, published (its callout template allows it) and got a
+`caller_not_authorized` on every method. The two layers disagreed and only the exemption hid it.
 
-The sentinel `'*'` is **valid only on the query plane**: write access is always enumerated, and a
-test enforces it. The 9 subjects of `external-publisher` are enumerated **here and in
-`deploy/nats/auth-callout/templates/external-publisher.yaml`**, in two grammars (`{fileId}` vs `*`),
-with nothing technical keeping them in sync — **adding a command for the external connector is two
-changes, not one, and they go in the same commit.**
+**The `sub` exemption stays, and is not redundant:** it covers the caller with **no row** in
+`users` (a lost authentication event, NATS core without retry), where there are no roles to read.
+Without it that case is a silent total write outage. The role is the net below it.
+
+`core` and `bus-observer` are listed with **empty lists** rather than absent: they authorise the
+same thing (nothing), but listing them makes this the **complete table** of the roles that may
+connect to the bus, which is what somebody reads to audit it.
+
+> **`external-publisher` was removed**, and with it the invariant that the sentinel `'*'` was
+> **forbidden on the command plane** ("write access is always enumerated", guarded by a test).
+> That role enumerated 9 subjects here **and** in a callout template of its own, in two grammars,
+> with nothing keeping them in sync — and it **never existed in Zitadel**, so the channel was
+> never used. What was given up along with it: **a new command is authorised for every
+> `internal-app` identity without anybody deciding**, and no test says so. A narrower connector is
+> a new role, with its own list and its own template.
 
 ## CLASS_BY_ROLE
 
@@ -56,7 +63,7 @@ const CLASS_BY_ROLE = {
 | `internal-app` | `connector` | Nothing. The caller authorises on its own |
 | `user`, `admin` | `internal` | Nothing at row level (explicit v1 decision, RF-23) |
 | `external-user` | `external` | Whatever the resource's spec declares |
-| `external-publisher`, `core`, `bus-observer`, unknown, `[]` | — | No class: they do not query |
+| `core`, `bus-observer`, unknown, `[]` | — | No class: they do not query |
 
 **The most restrictive wins**, and the input array's order does not decide: the resolver walks
 `PRECEDENCE`, not the roles.

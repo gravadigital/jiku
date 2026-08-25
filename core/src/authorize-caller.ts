@@ -47,53 +47,61 @@ import logger from './logger';
 /** Los dos planos con caller en el subject. El de eventos no tiene: no hay a quién autorizar. */
 export type Plane = 'commands' | 'queries';
 
-/** TODOS los métodos del plano. SOLO VÁLIDO EN `queries` — ver el comentario del mapa. */
+/** TODOS los métodos del plano. Válido en los DOS planos — ver el comentario del mapa. */
 const ALL = '*';
 
 interface RolePermissions {
-  /** Patrones de comando autorizados. NUNCA `ALL`: la escritura se enumera, siempre. */
-  readonly commands: readonly string[];
+  /**
+   * Patrones de comando autorizados, o `ALL`.
+   *
+   * `ALL` ERA UNA INVARIANTE Y DEJÓ DE SERLO, DELIBERADAMENTE. Hasta que `internal-app` pasó a
+   * ser el único rol de conector, este campo era `readonly string[]` a secas y un test lo
+   * protegía: *"la escritura se enumera, siempre"*, para que agregar el comando 21 al registry no
+   * lo autorizara solo. Se cambió a propósito y hay que saber qué se resignó:
+   *
+   *   UN COMANDO NUEVO QUEDA AUTORIZADO PARA TODA IDENTIDAD `internal-app` SIN QUE NADIE LO
+   *   DECIDA, y no hay ningún test que lo delate.
+   *
+   * Lo que lo hace tolerable es que la superficie que gobierna hoy es la MISMA que ya autoriza
+   * la plantilla del callout: `templates/api.yaml` publica sobre `jiku-commands.v1.>`, un comodín
+   * que también cubre el comando 21. Enumerar acá mientras allá hay un `>` era una asimetría que
+   * solo el rol difunto `external-publisher` justificaba, porque su plantilla SÍ enumeraba.
+   */
+  readonly commands: readonly string[] | typeof ALL;
   /** Patrones de consulta autorizados, o `ALL`. */
   readonly queries: readonly string[] | typeof ALL;
 }
-
-/**
- * LOS NUEVE SUBJECTS DEL CONECTOR EXTERNO, espejo de
- * `deploy/nats/auth-callout/templates/external-publisher.yaml` y en su mismo orden.
- *
- * ATENCIÓN, ESTA ES LA REGLA MÁS FÁCIL DE OLVIDAR DE TODO EL SERVICIO: los nueve están
- * enumerados en DOS archivos —esa plantilla y esta constante— y no hay nada técnico que los
- * mantenga sincronizados. Es el precio asumido de la defensa en profundidad.
- *
- *   AGREGAR UN COMANDO AL CONECTOR EXTERNO SON DOS CAMBIOS, NO UNO, Y VAN EN EL MISMO COMMIT.
- *
- * La plantilla escribe `files.*.request-download` (gramática de subjects de NATS, donde un token
- * no puede llevar llaves); acá va `files.{fileId}.request-download` (gramática de patrones del
- * registry). Es el mismo agujero en dos idiomas, y se compara contra el MÉTODO RESUELTO, así que
- * manda la forma del registry.
- */
-const EXTERNAL_PUBLISHER_COMMANDS: readonly string[] = [
-  'files.request-upload',
-  'files.{fileId}.request-download',
-  'requirements.new',
-  'requirements.{id}.edit',
-  'requirements.{id}.comment',
-  'tasks.new',
-  'tasks.{id}.edit',
-  'tasks.{id}.comment',
-  'attachments.{id}.delete',
-];
 
 /**
  * EL MAPA ROL → MÉTODO. Cerrado y DENY-BY-DEFAULT (ADR-008): sin coincidencia, no se autoriza.
  *
  * | Rol                             | Comandos | Consultas | Por qué                                  |
  * |---------------------------------|----------|-----------|------------------------------------------|
- * | internal-app                    |    —     |     —     | EXENTO por `sub`, no por rol (ver abajo) |
- * | external-publisher              |  los 9   |  ninguna  | Espeja el permiso del callout            |
+ * | internal-app                    |  todos   |   todas   | EL ROL DE CONECTOR (ver abajo)           |
  * | admin · user · external-user    | ninguno  |   todas   | Las reglas de negocio viven en la api    |
  * | core · bus-observer             | ninguno  |  ninguna  | Core no se llama; el observador no publica|
  * | (lista vacía o rol desconocido) | ninguno  |  ninguna  | Sin coincidencia, no se autoriza         |
+ *
+ * `internal-app` ES AHORA EL ÚNICO ROL DE CONECTOR, y autoriza los DOS planos enteros.
+ *
+ * Antes autorizaba NADA y la api pasaba solo por la exención del `sub`. La consecuencia era que
+ * una SEGUNDA identidad con ese rol —un conector nuevo, o el service user de la api si su `sub`
+ * rotara— conectaba al bus, publicaba (la plantilla del callout se lo permite) y se comía un
+ * `caller_not_authorized` de core en cada método. Las dos capas decían cosas distintas y solo la
+ * exención lo tapaba.
+ *
+ * LA EXENCIÓN DEL `sub` SIGUE, y no es redundante: es lo que mantiene viva la escritura del
+ * producto cuando la api NO TIENE FILA en `users` —evento de autenticación perdido, NATS core sin
+ * reintento—. Sin exención ese caso es una caída total y silenciosa de escritura; con ella, la
+ * api ni siquiera lee la base. El rol es la red de abajo, para todo caller que no sea la api.
+ *
+ * EL ROL `external-publisher` SE ELIMINÓ. Enumeraba 9 subjects y espejaba una plantilla propia
+ * del callout, para el canal que REQ-001 RF-11 definió: un servicio externo que sube archivos y
+ * los vincula sin pasar por la api. Ese rol NUNCA EXISTIÓ EN ZITADEL, así que el canal jamás se
+ * usó y las dos enumeraciones eran configuración muerta que había que mantener sincronizada a
+ * mano. La CAPACIDAD no desaparece —un servicio externo lleva `internal-app`— pero **cambia de
+ * tamaño**: donde antes recibía 9 subjects enumerados, ahora recibe los dos planos completos.
+ * Reducirlo otra vez es crear un rol de conector acotado, con su plantilla y su entrada acá.
  *
  * LOS ROLES DE PRODUCTO NO AUTORIZAN NINGÚN COMANDO, Y ES EL CRITERIO QUE ALGUIEN VA A QUERER
  * "ARREGLAR" (CA-4). `core` no tiene las reglas de negocio que dependen del usuario final: están
@@ -103,26 +111,20 @@ const EXTERNAL_PUBLISHER_COMMANDS: readonly string[] = [
  * SALTEARÍA TRES REGLAS que no tienen dónde vivir del lado del escritor. Habilitar comandos para
  * personas es un requerimiento propio (FG-4), no un renglón acá.
  *
- * `internal-app`, `core` Y `bus-observer` FIGURAN CON LISTAS VACÍAS en vez de estar ausentes.
- * Autorizan lo mismo (nada), pero así este mapa es la TABLA COMPLETA de los roles que pueden
- * conectar al bus, que es lo que alguien va a leer para auditarlo. Y hay un caso donde la
- * diferencia se ve: si el `sub` del service user de la api rotara y `CORE_TRUSTED_PUBLISHER_ID`
- * quedara viejo, la api caería por la rama NO exenta, encontraría su fila con
- * `roles: ['internal-app']` y sería RECHAZADA. Es el default correcto, y esta línea lo dice.
+ * `core` Y `bus-observer` FIGURAN CON LISTAS VACÍAS en vez de estar ausentes. Autorizan lo mismo
+ * (nada), pero así este mapa es la TABLA COMPLETA de los roles que pueden conectar al bus, que es
+ * lo que alguien va a leer para auditarlo.
  *
  * `queries: ALL` PARA LOS TRES ROLES DE PRODUCTO, y lo autoriza el contrato: `docs/apis/core.yaml`
  * dice "the product roles get EVERY QUERY and no command". La consecuencia —una consulta futura
  * queda autorizada para esos tres sin tocar este mapa— ES la intención de "todas las consultas".
- * EN EL PLANO DE COMANDOS EL SENTINELA ESTÁ PROHIBIDO, y hay un test que lo verifica: ahí está el
- * valor que se protege.
  *
  * UN ROL NUEVO CON ACCESO AL BUS DEBE DECLARARSE ACÁ **Y** EN SU PLANTILLA DEL CALLOUT. Un rol
  * ausente no autoriza nada, que es el default correcto — pero el síntoma es "le di el rol y no
  * puede hacer nada", así que conviene saber dónde mirar.
  */
 export const ROLE_METHODS: Readonly<Record<string, RolePermissions>> = {
-  'internal-app': { commands: [], queries: [] },
-  'external-publisher': { commands: EXTERNAL_PUBLISHER_COMMANDS, queries: [] },
+  'internal-app': { commands: ALL, queries: ALL },
   admin: { commands: [], queries: ALL },
   user: { commands: [], queries: ALL },
   'external-user': { commands: [], queries: ALL },
@@ -143,8 +145,10 @@ const DENIED_MESSAGE = 'El caller no está autorizado a ejecutar este método';
  *
  * UNIÓN, NO PRECEDENCIA: alcanza con que UN rol lo autorice. Difiere a propósito de `rules.yaml`
  * del callout, que evalúa las reglas EN ORDEN y gana la primera que matchea. Acá un rol es un
- * permiso, no una clase, así que `['external-publisher','admin']` puede publicar los 9 y
- * consultar las 6.
+ * permiso, no una clase, así que `['internal-app','external-user']` publica todos los comandos:
+ * el rol de MENOR privilegio no puede recortar lo que otro ya autorizó. Ojo con la asimetría — la
+ * CLASE del caller (`queries/caller-class.ts`) resuelve al revés, con el más restrictivo ganando,
+ * porque ahí la pregunta es cuánto recortar y no qué permitir.
  *
  * Un rol que no está en el mapa se SALTEA (no autoriza y no rompe): es el deny-by-default de
  * ADR-008, y es lo que hace aceptable guardar `roles` sin validar contra ningún catálogo — un rol

@@ -23,7 +23,8 @@ commands — a hole in the map the suite would keep open.
 **What to know:** a test that **forgets** its caller now lands on the **exempt** branch, not the
 external one. The half that mattered is preserved — tests of the external branch still pass their
 caller explicitly, because they assert on it, and their `users` fixtures carry
-`roles: ['external-publisher']`.
+`roles: ['internal-app']` — a connector that is **not** the api, which is what sends it down
+`resolveActor`'s external branch. (It used to be `external-publisher`, a role since removed.)
 
 The value comes from `getTrustedPublisherId()` and not a literal, so `core/.env.test` stays the only
 source of it.

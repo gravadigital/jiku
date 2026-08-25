@@ -84,14 +84,18 @@ describe('files', () => {
       { id: UPLOADER_A, name: 'Usuario A', username: 'usuario-a', email: 'a@test.local' },
       // `roles` desde S-017: la compuerta de autorización lee ESTA lista, no el claim del token,
       // y sin ella este caller sería rechazado con `caller_not_authorized` antes de llegar al
-      // comando. `external-publisher` es el rol que autoriza los 9 subjects de la plantilla del
-      // callout, entre ellos los dos de archivos que este archivo ejercita.
+      // comando. `internal-app` es EL rol de conector y autoriza los dos planos completos.
+      //
+      // ES UN CONECTOR QUE NO ES LA API, y esa distinción es la que este archivo ejercita: su
+      // `sub` no coincide con `CORE_TRUSTED_PUBLISHER_ID`, así que pasa por la rama NO exenta y
+      // `resolveActor` lo resuelve por la rama externa. (Antes el vehículo era el rol
+      // `external-publisher`, eliminado del producto.)
       {
         id: EXTERNAL,
-        name: 'Externo',
+        name: 'Conector',
         username: 'externo',
         email: 'externo@test.local',
-        roles: ['external-publisher'],
+        roles: ['internal-app'],
       },
       // `TRUSTED` NO lleva roles: su fila existe solo porque `files.uploaded_by` es FK a
       // `users.id`, y la compuerta lo exime por `sub`. Para la autorización es dato, no compuerta.

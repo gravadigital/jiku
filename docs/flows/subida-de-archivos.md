@@ -206,14 +206,15 @@ Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
 **Es el mismo comando, sin ruta alternativa** (RF-11, CA-4). El servicio externo no atraviesa la
 `api` en ningún momento: ni para pedir el ticket ni para subir el byte.
 
-> El servicio externo **ya tiene su propia plantilla de auth-callout**
-> (`deploy/nats/auth-callout/templates/external-publisher.yaml`, con su regla en `rules.yaml`), y su
-> permiso **no es un prefijo con `>`**: **enumera 9 subjects**, uno por comando que puede publicar.
-> Un comando fuera de esa lista se rechaza, incluidos todos los que no tienen nada que ver con
-> archivos. Tampoco tiene permiso de consultas.
+> El servicio externo **lleva el rol `internal-app`, el mismo que la api**, y comparte su
+> plantilla (`deploy/nats/auth-callout/templates/api.yaml`): **dos prefijos con `>`**, el de
+> comandos y el de consultas.
 >
-> La de la `api` (`deploy/nats/auth-callout/templates/api.yaml`) **sí cambió** con el rename a
-> `jiku-commands`: ahora autoriza **dos** prefijos con `>`, el de comandos y el de consultas.
+> **Tenía una plantilla propia y un rol propio —`external-publisher`— que enumeraba 9 subjects
+> y ninguna consulta. Los dos se eliminaron**: el rol nunca existió en Zitadel, así que el canal
+> jamás se usó. El servicio externo **sigue funcionando igual en este flujo**, pero su permiso es
+> ahora mucho más ancho: todos los comandos, todas las consultas, y sin recorte de filas al leer.
+> Acotarlo otra vez es crear un rol nuevo.
 
 ---
 

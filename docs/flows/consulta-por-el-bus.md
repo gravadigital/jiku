@@ -296,7 +296,9 @@ Responde *"¿puede ejecutar este método?"*.
 - El `CORE_TRUSTED_PUBLISHER_ID` **pasa sin consultar la base** — exención intacta, y es lo que evita
   una caída total y silenciosa de **escritura** si se pierde el evento de autenticación de la api.
 - `ROLE_METHODS` es cerrado y **deny-by-default** (ADR-008): `admin`, `user` y `external-user` tienen
-  `queries: ALL`; `internal-app`, `core`, `bus-observer` y `external-publisher`, ninguna.
+  `queries: ALL`, **y `internal-app` también** —es el rol de conector, y con él llega a la clase
+  `connector`, que NO recorta ninguna fila—; `core` y `bus-observer`, ninguna. (El rol
+  `external-publisher` estaba en esta lista y se eliminó del producto.)
 - Sin autorización → `failure` **`caller_not_authorized`**.
 
 **3.4 — Segunda compuerta: la clase del caller** (REQ-006, S-023). Responde *"¿qué le recorto?"*.

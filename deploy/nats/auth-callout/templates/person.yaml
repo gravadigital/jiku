@@ -46,23 +46,25 @@
 #
 # ES EL PERMISO MÁS CHICO DEL DIRECTORIO, Y ES INTENCIONAL
 #   api.yaml abre DOS prefijos enteros con `>`: el de las escrituras y el de las lecturas.
-#   external-publisher.yaml enumera nueve subjects de escritura y ninguna consulta.
-#   Esta plantilla es la inversa exacta del publicador externo: UNA sola línea de
-#   publicación —el prefijo de consultas— y CERO escrituras.
+#   Esta plantilla es su inversa exacta: UNA sola línea de publicación —el prefijo de
+#   consultas— y CERO escrituras.
 #
-#   De los cinco tipos de caller de este directorio, la persona es el ÚNICO QUE PUBLICA Y
-#   NO PUEDE ESCRIBIR: los otros tres que publican —api, core y publicador externo— pueden
-#   los tres. El observador tampoco escribe, pero porque no publica NADA (`pub.allow: []`),
-#   y es un rol de diagnóstico local, no un caller del producto.
+#   De los cuatro tipos de caller de este directorio, la persona es el ÚNICO QUE PUBLICA Y
+#   NO PUEDE ESCRIBIR: los otros dos que publican —api y core— pueden los dos. El
+#   observador tampoco escribe, pero porque no publica NADA (`pub.allow: []`), y es un rol
+#   de diagnóstico local, no un caller del producto.
 #
-#   Contando permisos, esta plantilla tiene DOS y es la más chica de las cinco:
-#   api 3, observer 5, core 6, publicador externo 10. El inbox propio como única
-#   suscripción NO es exclusivo suyo —api y publicador externo tienen el mismo—: lo
-#   distintivo es la combinación de ese inbox con cero escrituras.
+#   Contando permisos, esta plantilla tiene DOS y es la más chica de las cuatro:
+#   api 3, observer 5, core 6. El inbox propio como única suscripción NO es exclusivo suyo
+#   —api tiene el mismo—: lo distintivo es la combinación de ese inbox con cero escrituras.
+#
+#   AQUÍ SE CONTABAN CINCO. La quinta era external-publisher.yaml, que enumeraba nueve
+#   subjects de escritura y ninguna consulta; el rol se eliminó del producto porque nunca
+#   existió en Zitadel, y con él su plantilla.
 #
 # LAS TRES COSAS QUE NO ESTÁN, Y POR QUÉ
 #   1. NINGUNA ESCRITURA. El prefijo de comandos del protocolo —el que api.yaml abre con
-#      `>` y external-publisher.yaml enumera subject por subject— NO aparece en
+#      `>`— NO aparece en
 #      `pub.allow`, y agregarlo "por adelantado" sería una AMPLIACIÓN REAL de la superficie
 #      de escritura. api.yaml se autorizó las consultas por adelantado y lo justificó
 #      diciendo que "un permiso sobre un subject sin suscriptores no hace absolutamente

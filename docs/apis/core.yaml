@@ -68,10 +68,19 @@ info:
                                               row, no role allows the method -> caller_not_authorized
     ```
 
-    The map of role → method is closed and **deny-by-default** (ADR-008): `external-publisher`
-    gets the 9 subjects its callout template enumerates and no queries; the product roles
-    (`admin`, `user`, `external-user`) get **every query and no command**; anything absent from the
-    map authorises nothing.
+    The map of role → method is closed and **deny-by-default** (ADR-008): `internal-app` — **the
+    connector role** — gets **every command and every query**; the product roles (`admin`, `user`,
+    `external-user`) get **every query and no command**; anything absent from the map authorises
+    nothing.
+
+    > **`external-publisher` was removed.** It enumerated the 9 subjects of a callout template of
+    > its own, for the channel REQ-001 RF-11 defined — an outside service that uploads files and
+    > links them without going through the api. **The role never existed in Zitadel**, so the
+    > channel was never used and the two enumerations were dead configuration kept in sync by
+    > hand. The capability survives — an outside service now carries `internal-app` — but its
+    > size changed: **from 9 enumerated write subjects to both planes in full**, plus the
+    > `connector` caller class, which applies **no row-level trimming** to reads. A narrower
+    > connector is a new role, with its own template and its own entry in the map.
 
     **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there
     is a **silent total write outage**: if the api connects to the bus before core is subscribed,

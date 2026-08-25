@@ -69,7 +69,7 @@ Total: 17
 
 Total: 8
 
-- **ROLE_METHODS** (`core/src/authorize-caller.ts`) - The role → method map of the bus: closed, deny-by-default and the complete table of the roles that may connect. Mirrors the 9 subjects of the external connector's callout template.
+- **ROLE_METHODS** (`core/src/authorize-caller.ts`) - The role → method map of the bus: closed, deny-by-default and the complete table of the roles that may connect. `internal-app` is THE connector role and carries the `'*'` sentinel on BOTH planes; the removed `external-publisher` was the only role that enumerated, and with it went the invariant that the sentinel was forbidden on commands.
 - **CLASS_BY_ROLE** (`core/src/queries/caller-class.ts`) - The role → class map of the query plane plus its precedence (`external` > `internal` > `connector`). Closed and deny-by-default, and deliberately NOT derived from `ROLE_METHODS`: coupling them would let a permissions change silently move a data clip.
 - **Config accessors** (`core/src/config.ts`) - `loadConfig()` / `getTrustedPublisherId()`: startup validation and access to `CORE_TRUSTED_PUBLISHER_ID`.
 - **ENTITY_TYPES / ENTITY_TABLES** (`core/src/queries/entity-type.ts`) - The `entityType` translation, in ONE place: `task` / `requirement` → activity table, subscription table, entity column, owner table and the comment's `attachments.entity_type`. It goes BOTH WAYS (RF-25) and it is DATA, not functions, so `meta.describe` can project the contract without running a translation. Documents the database's own asymmetry: the task table is PLURAL (`objectives_subscriptors`) and the requirement one SINGULAR (`requirement_subscriptors`). S-027 (`attachments.list`) consumes this same map.

@@ -51,7 +51,8 @@ status: Draft - Importado desde código existente
   rutas — su alta queda pendiente de FG-1.
   - `roles` guarda el array del token **tal cual viene**, sin filtrar ni validar. Puede contener
     roles de producto (`admin`, `user`, `external-user`) y roles de bus (`internal-app`, `core`,
-    `external-publisher`, `bus-observer`), o estar vacío.
+    `bus-observer`), o estar vacío. (`external-publisher` fue eliminado: nunca existió en
+    Zitadel, y un conector externo lleva `internal-app`.)
   - **Dos planos de autorización sobre la misma entidad.** La autorización HTTP sigue saliendo del
     claim del token que la api valida contra Zitadel (no consulta esta columna). La autorización de
     los callers del bus distintos de la api —conectores externos y personas que llamen a `core` por

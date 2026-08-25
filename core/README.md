@@ -97,11 +97,22 @@ The map of role → method lives in `src/authorize-caller.ts`, is a module const
 
 | Role                            | Commands | Queries | Why                                        |
 | ------------------------------- | -------- | ------- | ------------------------------------------ |
-| `internal-app`                  | —        | —       | **exempt by `sub`, not by role** (see below) |
-| `external-publisher`            | the 9    | none    | mirrors its callout template                |
+| `internal-app`                  | **all**  | **all** | **the connector role** (see below)          |
 | `admin` · `user` · `external-user` | none  | all     | the business rules live in the api          |
 | `core` · `bus-observer`         | none     | none    | core does not call itself; the observer does not publish |
 | *(empty list, or unknown role)* | none     | none    | no match, no authorisation                  |
+
+**`internal-app` is the connector role**, for the api and for any other service that talks to core
+over the bus. It used to authorise *nothing*, with the api passing on the `sub` exemption alone —
+so a **second** identity with that role connected, published (its template allows it) and got a
+`caller_not_authorized` on every method. **Mind the size of what it grants:** both planes in full,
+plus the `connector` caller class, which applies **no row-level trimming** to reads.
+
+> **`external-publisher` was removed.** It enumerated 9 subjects with a callout template of its
+> own, for the channel REQ-001 RF-11 defined, and it **never existed in Zitadel** — the channel was
+> never used and the two enumerations were dead configuration kept in sync by hand. An outside
+> service now carries `internal-app`. A narrower connector is a **new role**, with its own template
+> and its own entry in the map.
 
 **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there is a
 **silent total write outage**: if the api connects to the bus before core is subscribed, its
@@ -126,10 +137,12 @@ roles until that identity authenticates again, and established connections are n
 
 **A new role with bus access is TWO changes, not one:** this map **and** its `auth-callout`
 template. A role missing from the map authorises nothing — the correct default — but the symptom is
-"I gave them the role and they can do nothing", so it helps to know where to look. The same goes the
-other way: the 9 subjects of `external-publisher` are enumerated in the map **and** in
-`deploy/nats/auth-callout/templates/external-publisher.yaml`, with nothing technical keeping them in
-sync. That is the accepted price of defence in depth.
+"I gave them the role and they can do nothing", so it helps to know where to look.
+
+**The sentinel `'*'` used to be forbidden on the command plane** — "write access is always
+enumerated" — and a test guarded it. That went away with `external-publisher`, the only role that
+enumerated. The consequence to know: **a new command is authorised for every `internal-app`
+identity without anybody deciding**, and no test says so.
 
 **A rejection answers `caller_not_authorized` (403 in the api) and logs one `warn` prefixed
 `[auth]`** with the caller and the method — never the payload. The **same** code and the **same**
@@ -177,12 +190,12 @@ More on the design in [documentation/README.md](../documentation/README.md).
 The `pattern` has to match the subject in the protocol document. Variable segments go in
 braces: `clients.{id}.edit`.
 
-**A new command is NOT authorised for the external connector just by existing.** Only the api's
-channel is exempt from the gate; every other caller is authorised against the role → method map. To
-let the external connector publish a new command, add it in **two** places — `ROLE_METHODS` in
-`src/authorize-caller.ts` **and** `deploy/nats/auth-callout/templates/external-publisher.yaml` — and
-**in the same commit**. Adding it to only one of the two gives a rejection in the transport or a
-`caller_not_authorized` from the gate, depending on which one you forgot.
+**A new command IS authorised for every connector just by existing**, and that is a deliberate
+resignation rather than a property. `internal-app` carries the `'*'` sentinel on both planes and
+its callout template publishes with `>`, so command 21 is reachable by any identity with that role
+the moment it is registered. While `external-publisher` existed, its 9 subjects were enumerated in
+`ROLE_METHODS` **and** in its template, and adding one was two changes in the same commit. If a
+bounded connector is ever needed again, that is the shape to bring back.
 
 **Query patterns never take braces.** `projects.list`, `tasks.get` — the resource id travels **in
 the payload**, not in the subject. That is a performance decision, not an oversight: the server

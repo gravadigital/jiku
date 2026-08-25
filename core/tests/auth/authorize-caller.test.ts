@@ -76,66 +76,41 @@ describe('matchesPattern — el matcher por segmentos extraído del registry', (
 describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
   /** Un patrón con `{param}` no es un método: se sustituye por un token concreto. */
   const asMethod = (pattern: string): string => pattern.replace(/\{[^}]+\}/g, '7');
-  /** La forma del patrón en la gramática de subjects de NATS, que es la de la plantilla. */
-  const asSubjectToken = (pattern: string): string => pattern.replace(/\{[^}]+\}/g, '*');
 
   const COMMANDS = registry.patterns();
   const QUERIES = queryRegistry.patterns();
 
-  /**
-   * Los nueve subjects LEÍDOS DE LA PLANTILLA DEL CALLOUT, no escritos a mano.
+  /*
+   * ACÁ VIVÍA `templateSubjects()`, que leía los nueve subjects de
+   * `templates/external-publisher.yaml` en vez de escribirlos a mano. Era la única mitigación
+   * del riesgo que S-017 registró sin mitigación técnica —los nueve enumerados en DOS archivos,
+   * sin nada que los sincronizara— y desapareció con el rol: ya no hay dos enumeraciones que
+   * puedan divergir, porque `internal-app` autoriza con `'*'` y su plantilla publica con `>`.
    *
-   * Es la única mitigación posible del riesgo alto que la story registra sin mitigación técnica:
-   * los nueve están enumerados en DOS archivos y nada los mantiene sincronizados. Leer la
-   * plantilla convierte esa desincronización en un test rojo. Precedente en esta misma suite:
-   * `models/read.test.ts` lee `deploy/.env.dist` para verificar los statement_timeout.
+   * Si vuelve a existir un rol de conector ACOTADO, este helper es el patrón a recuperar.
    */
-  const templateSubjects = (): string[] => {
-    const template = fs.readFileSync(
-      path.join(__dirname, '../../../deploy/nats/auth-callout/templates/external-publisher.yaml'),
-      'utf8'
-    );
-    const prefix = '{{instance}}.{{user_id}}.jiku-commands.v1.';
-    return template
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith('- "') && line.includes(prefix))
-      .map((line) => line.slice(3, -1).replace(prefix, ''));
-  };
 
-  it('TS-11 · external-publisher autoriza LOS 9 de la plantilla del callout, uno por uno', () => {
-    const fromTemplate = templateSubjects();
-    // Si la plantilla ganó o perdió un subject, este test es el que se pone rojo.
-    fromTemplate.length.should.equal(9);
-    ROLE_METHODS['external-publisher'].commands.length.should.equal(9);
-    // El mapa y la plantilla dicen lo mismo, cada uno en su gramática.
-    [...ROLE_METHODS['external-publisher'].commands]
-      .map(asSubjectToken)
-      .should.deepEqual(fromTemplate);
-
-    for (const pattern of ROLE_METHODS['external-publisher'].commands) {
-      rolesAuthorize(['external-publisher'], asMethod(pattern), 'commands').should.be.true();
+  it('TS-11 · internal-app autoriza LOS 20 comandos registrados, uno por uno', () => {
+    // Los 20 salen de `registry.patterns()` y no de una lista a mano.
+    COMMANDS.length.should.equal(20);
+    for (const pattern of COMMANDS) {
+      rolesAuthorize(['internal-app'], asMethod(pattern), 'commands').should.be.true();
     }
   });
 
-  it('TS-12 · external-publisher NO autoriza los 11 comandos restantes', () => {
-    const nine = new Set<string>(ROLE_METHODS['external-publisher'].commands);
-    // Los 20 salen de `registry.patterns()` y no de una lista a mano: así un comando 21 que
-    // nadie clasifique rompe este test, que es exactamente lo que se quiere.
-    const rest = COMMANDS.filter((pattern) => !nine.has(pattern));
-    rest.length.should.equal(11);
-
-    for (const pattern of rest) {
-      rolesAuthorize(['external-publisher'], asMethod(pattern), 'commands').should.be.false();
-    }
-    // `clients.new` es el ejemplo literal de CA-8.
-    rolesAuthorize(['external-publisher'], 'clients.new', 'commands').should.be.false();
+  it('TS-12 · internal-app autoriza el comando 21 SIN QUE NADIE LO DECIDA', () => {
+    // ES EL COSTO EXPLÍCITO DEL SENTINELA, y este test existe para que esté escrito y no se
+    // descubra en producción. Antes `commands` era una lista y agregar un comando al registry
+    // NO lo autorizaba solo: había que sumarlo al mapa en el mismo commit. Con `'*'` eso ya no
+    // pasa, ni para `internal-app` ni para ningún conector futuro con ese rol.
+    //
+    // Si algún día hay que volver a acotarlo, es un rol nuevo con su lista y su plantilla.
+    rolesAuthorize(['internal-app'], 'comando.que.no.existe.todavia', 'commands').should.be.true();
   });
 
-  it('TS-13 · external-publisher NO autoriza ninguna de las consultas registradas', () => {
-    // Espeja la plantilla: "un publicador externo publica comandos, no lee".
+  it('TS-13 · internal-app autoriza TODAS las consultas registradas', () => {
     for (const query of QUERIES) {
-      rolesAuthorize(['external-publisher'], query, 'queries').should.be.false();
+      rolesAuthorize(['internal-app'], query, 'queries').should.be.true();
     }
   });
 
@@ -162,9 +137,20 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
     }
   });
 
-  it('TS-16 · internal-app no autoriza nada POR SU ROL: el paso de la api es por sub', () => {
-    rolesAuthorize(['internal-app'], 'clients.new', 'commands').should.be.false();
-    rolesAuthorize(['internal-app'], 'tasks.list', 'queries').should.be.false();
+  it('TS-16 · internal-app autoriza POR SU ROL, y la exención del `sub` ya no es lo único', () => {
+    // ERA EL TEST INVERSO: hasta que `internal-app` pasó a ser el rol de conector, autorizaba
+    // NADA y la api pasaba solo por la exención del `sub`. La consecuencia era que un SEGUNDO
+    // conector con ese rol conectaba al bus, publicaba —la plantilla se lo permite— y se comía
+    // un `caller_not_authorized` en cada método.
+    rolesAuthorize(['internal-app'], 'clients.new', 'commands').should.be.true();
+    rolesAuthorize(['internal-app'], 'tasks.list', 'queries').should.be.true();
+  });
+
+  it('TS-16b · la exención del `sub` sigue siendo necesaria, y no por el rol', () => {
+    // Lo que la exención cubre es el caller SIN FILA en `users` —evento de autenticación
+    // perdido, NATS core sin reintento—, donde no hay roles que leer. El rol es la red de
+    // abajo; la exención es la que evita la caída total y silenciosa de escritura.
+    rolesAuthorize([], 'clients.new', 'commands').should.be.false();
   });
 
   it('TS-17 · roles: [] no autoriza nada', () => {
@@ -179,30 +165,45 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
   });
 
   it('TS-19 · varios roles son una UNIÓN, no una precedencia', () => {
-    const both = ['external-publisher', 'admin'];
+    // El de MENOR privilegio no recorta lo que el otro autoriza: es lo contrario de cómo
+    // resuelve la CLASE del caller, que elige la más restrictiva. Dos preguntas distintas.
+    const both = ['external-user', 'internal-app'];
     rolesAuthorize(both, 'files.request-upload', 'commands').should.be.true();
+    rolesAuthorize(both, 'clients.new', 'commands').should.be.true();
     rolesAuthorize(both, 'tasks.list', 'queries').should.be.true();
-    // La unión no inventa permisos: `clients.new` no está en ninguno de los dos.
-    rolesAuthorize(both, 'clients.new', 'commands').should.be.false();
+
+    // La unión no inventa permisos: dos roles que no escriben siguen sin escribir.
+    const neither = ['external-user', 'bus-observer'];
+    rolesAuthorize(neither, 'clients.new', 'commands').should.be.false();
   });
 
-  it('TS-20 · (gate) el mapa declara EXACTAMENTE 7 roles y ningún sentinela en commands', () => {
+  it('TS-20 · (gate) el mapa declara EXACTAMENTE 6 roles', () => {
     Object.keys(ROLE_METHODS)
       .sort()
       .should.deepEqual([
         'admin',
         'bus-observer',
         'core',
-        'external-publisher',
         'external-user',
         'internal-app',
         'user',
       ]);
-    // El sentinela `'*'` está PROHIBIDO en el plano de comandos: la escritura se enumera,
-    // siempre. Un rol agregado sin decisión rompe este test, que es el punto.
-    Object.values(ROLE_METHODS)
-      .every((permissions) => Array.isArray(permissions.commands))
-      .should.be.true();
+  });
+
+  it('TS-20c · (gate) el sentinela en commands lo tiene SOLO internal-app', () => {
+    // ACÁ HABÍA UN GATE MÁS FUERTE: `'*'` estaba PROHIBIDO en el plano de comandos —"la
+    // escritura se enumera, siempre"— y se resignó al hacer de `internal-app` el rol de
+    // conector. Lo que queda es acotar el daño: que el sentinela no se filtre a ningún OTRO rol
+    // sin que alguien lo vea, y en particular a ninguno de los tres de PRODUCTO, que es donde
+    // convertiría a cualquier persona en escritora del bus.
+    const withSentinel = Object.entries(ROLE_METHODS)
+      .filter(([, permissions]) => !Array.isArray(permissions.commands))
+      .map(([role]) => role);
+    withSentinel.should.deepEqual(['internal-app']);
+
+    for (const role of ['admin', 'user', 'external-user', 'core', 'bus-observer']) {
+      Array.isArray(ROLE_METHODS[role].commands).should.be.true();
+    }
   });
 
   it('TS-20b · (gate) el mapa NO tiene cache ni estado', () => {
@@ -280,7 +281,9 @@ describe('la compuerta de autorización · plano de comandos', () => {
           name: 'Conector',
           username: 'conector-auth',
           email: 'conector-auth@test.local',
-          roles: ['external-publisher'],
+          // UN CONECTOR QUE NO ES LA API: su `sub` no es el `CORE_TRUSTED_PUBLISHER_ID`, así
+          // que no lo exime nada y su autorización sale ENTERAMENTE de esta lista.
+          roles: ['internal-app'],
         },
         {
           id: ADM,
@@ -339,14 +342,18 @@ describe('la compuerta de autorización · plano de comandos', () => {
       reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
     });
 
-    it('TS-24 · CA-8: con fila y external-publisher, un comando fuera de los 9 se rechaza', async () => {
+    it('TS-24 · un conector que NO es la api pasa en CUALQUIER comando', async () => {
       const before = await Client.count();
 
-      // AUNQUE EL CALLOUT HAYA ACEPTADO SU CONEXIÓN: las dos capas son independientes a propósito.
-      const reply = await dispatch('clients.new', { name: 'X' }, EXT);
+      // ESTE TEST AFIRMABA LO CONTRARIO, y el cambio es el ensanchamiento que hay que ver:
+      // `clients.new` estaba FUERA de los 9 subjects que enumeraba el rol `external-publisher`
+      // y se rechazaba con `caller_not_authorized`. Con `internal-app` como único rol de
+      // conector, todo comando queda autorizado para cualquier identidad que lo lleve.
+      const reply = await dispatch<{ id: number }>('clients.new', { name: 'X' }, EXT);
 
-      reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
-      (await Client.count()).should.equal(before);
+      reply.status.should.equal('success');
+      (await Client.count()).should.equal(before + 1);
+      await Client.destroy({ where: { id: reply.data!.id } });
     });
 
     it('TS-25 · CA-10: con fila y roles vacíos, todo se rechaza', async () => {
@@ -372,7 +379,7 @@ describe('la compuerta de autorización · plano de comandos', () => {
       reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
     });
 
-    it('TS-27 · CA-11: con external-publisher, uno de los 9 PASA leyendo los roles de la base', async () => {
+    it('TS-27 · CA-11: un conector PASA leyendo sus roles de la base, no por exención', async () => {
       const reply = await dispatch<{ id: number }>('files.request-upload', uploadPayload, EXT);
 
       reply.status.should.equal('success');
@@ -401,8 +408,10 @@ describe('la compuerta de autorización · plano de comandos', () => {
     });
 
     it('TS-30 · CA-9: los dos casos devuelven errorCode Y errorMessage idénticos', async () => {
+      // El caller "con fila y sin permiso" es ahora `ADM`: `admin` no autoriza NINGÚN comando.
+      // Era `EXT`, que con el rol de conector pasa a autorizar todo y dejó de servir acá.
       const sinFila = await dispatch('clients.new', { name: 'X' }, SIN_FILA);
-      const rolSinPermiso = await dispatch('clients.new', { name: 'X' }, EXT);
+      const rolSinPermiso = await dispatch('clients.new', { name: 'X' }, ADM);
 
       // Si el MENSAJE difiriera, el mensaje sería el oráculo de existencia que el código evita.
       sinFila.errorCode!.should.equal(rolSinPermiso.errorCode!);
@@ -514,7 +523,7 @@ describe('la compuerta de autorización · plano de comandos', () => {
       const antes = await dispatch('files.request-upload', uploadPayload, MUTABLE);
       antes.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
 
-      await User.update({ roles: ['external-publisher'] }, { where: { id: MUTABLE } });
+      await User.update({ roles: ['internal-app'] }, { where: { id: MUTABLE } });
 
       const despues = await dispatch<{ id: number }>(
         'files.request-upload',
@@ -583,7 +592,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
         name: 'Conector',
         username: 'conector-q',
         email: 'conector-q@test.local',
-        roles: ['external-publisher'],
+        roles: ['internal-app'],
       },
       {
         id: ADM,
@@ -681,13 +690,19 @@ describe('la compuerta de autorización · plano de consultas', () => {
     }
   });
 
-  it('TS-40 · CA-12: external-publisher NO consulta, en ninguna de las registradas', async () => {
+  it('TS-40 · un conector SÍ consulta, en TODAS las registradas', async () => {
     for (const query of QUERIES) {
       const reply = await dispatchQuery(query, {}, EXT);
 
-      // El callout ya se lo impide en el transporte; la compuerta lo dice OTRA VEZ, y eso es
-      // exactamente lo que "defensa en profundidad" significa.
-      reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+      // ESTE TEST AFIRMABA LO CONTRARIO: el rol `external-publisher` no leía NADA —"publica
+      // comandos, no lee"— y la compuerta lo repetía después del transporte. `internal-app`
+      // consulta los 16 recursos, y además cae en la clase `connector`, que NO RECORTA FILAS.
+      //
+      // Lo que se afirma acá es que la compuerta 1 lo deja pasar: el reply puede ser un
+      // `invalid_fields` del contrato (un payload vacío no sirve para todas), pero NUNCA un
+      // `caller_not_authorized`.
+      (reply.errorCode === ErrorCode.CALLER_NOT_AUTHORIZED).should.be.false(query);
+      (reply.errorCode === ErrorCode.UNKNOWN_CALLER).should.be.false(query);
     }
   });
 

@@ -18,7 +18,7 @@ import {
  * SOBRE EL `caller` DE `dispatch()`: desde S-017 su default ES `CORE_TRUSTED_PUBLISHER_ID`. La
  * compuerta de autorización rechaza a todo caller sin fila en `users`, y el default anterior
  * (`'api'`) no la tenía. Los tests de la rama EXTERNA siguen pasando su caller explícitamente
- * —afirman sobre él— y sus filas de fixture llevan `roles: ['external-publisher']`; lo que se
+ * —afirman sobre él— y sus filas de fixture llevan `roles: ['internal-app']`; lo que se
  * perdió es que un test que OLVIDE su caller ahora cae en la rama exenta y no en la externa.
  */
 

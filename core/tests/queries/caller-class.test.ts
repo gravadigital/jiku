@@ -50,8 +50,9 @@ describe('queries/caller-class — el mapa rol → clase, puro y sin base', () =
   });
 
   it('TS-8 · los roles SIN clase no producen clase', () => {
-    // Los tres que existen en `ROLE_METHODS` y no consultan, más uno inventado.
-    for (const role of ['wizard', 'external-publisher', 'core', 'bus-observer']) {
+    // Los dos que existen en `ROLE_METHODS` y no consultan, más uno inventado. Eran tres: el
+    // rol `external-publisher` estaba en esta lista y se eliminó del producto.
+    for (const role of ['wizard', 'core', 'bus-observer']) {
       (resolveCallerClass([role]) === null).should.be.true();
     }
   });

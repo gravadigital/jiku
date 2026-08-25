@@ -414,13 +414,17 @@ describe('requirements — vinculación de archivos (S-003)', () => {
 
   before(async () => {
     // `roles` desde S-017, y SOLO para los dos callers externos: la compuerta de autorización lee
-    // esta lista, y `external-publisher` autoriza los tres subjects de requisitos que este archivo
-    // ejercita por la rama externa. `ADMIN` NO lleva roles a propósito: acá es un autor DECLARADO
-    // EN EL CUERPO, nunca un `caller`, y darle `['admin']` sugeriría que su rol influye en algo —
-    // lo contrario de lo que afirma `TS-13: sin excepción por rol`.
+    // esta lista, y `internal-app` —el rol de conector— autoriza todo comando, incluidos los tres
+    // subjects de requisitos que este archivo ejercita por la rama externa. Los dos son conectores
+    // que NO son la api: sus `sub` no coinciden con `CORE_TRUSTED_PUBLISHER_ID`, que es lo que los
+    // manda por la rama externa de `resolveActor`.
+    //
+    // `ADMIN` NO lleva roles a propósito: acá es un autor DECLARADO EN EL CUERPO, nunca un
+    // `caller`, y darle `['admin']` sugeriría que su rol influye en algo — lo contrario de lo que
+    // afirma `TS-13: sin excepción por rol`.
     const ROLES_BY_ID: Record<string, string[]> = {
-      [EXTERNAL]: ['external-publisher'],
-      [EXTERNAL_B]: ['external-publisher'],
+      [EXTERNAL]: ['internal-app'],
+      [EXTERNAL_B]: ['internal-app'],
     };
     for (const [id, username] of [
       [UPLOADER_A, 'uploader-a-s3'], [UPLOADER_B, 'uploader-b-s3'],
