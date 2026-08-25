@@ -19,6 +19,9 @@ import workedTimesList from './worked-times/worked-times-list';
 import unworkedTimesList from './unworked-times/unworked-times-list';
 import weekAssignedTimesList from './week-assigned-times/week-assigned-times-list';
 import projectPermissionsList from './project-permissions/project-permissions-list';
+import requirementsTags from './requirements/requirements-tags';
+import settingsList from './settings/settings-list';
+import metaDescribe from './meta/meta-describe';
 
 /**
  * Registro único de consultas, en el orden de la tabla del contrato. Agregar una es sumarla acá.
@@ -57,8 +60,19 @@ import projectPermissionsList from './project-permissions/project-permissions-li
  * externo recibe `items: []` sin que se ejecute una sola consulta. No es un error, y la diferencia
  * es de contrato.
  *
- * NINGÚN ENDPOINT REGISTRADO USA YA `pendingContract`. El archivo `pending.ts` sobrevive igual
- * hasta S-028, que es la story que cierra el contrato y lo elimina.
+ *   - `requirements.tags`, `settings.list` y `meta.describe` lo responden desde S-028, y son LOS
+ *     TRES CON FORMA PROPIA: ninguno encaja del todo en el molde `list`/`get` del resto. El primero
+ *     es el ÚNICO AGREGADO del contrato —una excepción declarada y acotada a "las agregaciones
+ *     quedan fuera de la v1"—, el segundo sirve una LISTA BLANCA CERRADA de claves y no la tabla, y
+ *     el tercero devuelve EL CONTRATO EN DATOS, derivado de las mismas fichas que validan.
+ *
+ * EL CONTRATO ESTÁ CERRADO: los 23 patrones de este registro son los 23 endpoints del REQ-006, y
+ * TODOS TIENEN FICHA. `core/src/queries/pending.ts` —el stub que respondía `unknown_command`
+ * "todavía no tiene contrato definido"— ESTÁ ELIMINADO desde S-028: mientras quedara un endpoint sin
+ * contrato el stub tenía que existir, y en cuanto no quedó ninguno tenía que dejar de existir.
+ *
+ * `docs/apis/core-queries.yaml` ES LA FUENTE DE VERDAD de este contrato, con el mismo criterio que
+ * `core.yaml` para los comandos: ante discrepancia con el código, manda el documento.
  */
 export const queryRegistry = new QueryRegistry().registerAll([
   clientsList,
@@ -83,6 +97,12 @@ export const queryRegistry = new QueryRegistry().registerAll([
   unworkedTimesList,
   weekAssignedTimesList,
   projectPermissionsList,
+  // LOS TRES DE S-028, AL FINAL Y EN EL ORDEN EN QUE EL REQ LOS ENUMERA. `requirements.tags` NO se
+  // intercala junto a `requirements.get` aunque parezca más prolijo: el criterio ya establecido es
+  // que `CONTRACT_PATTERNS` sigue al código, y reordenar rompería el listado congelado sin ganancia.
+  requirementsTags,
+  settingsList,
+  metaDescribe,
 ]);
 
 export default queryRegistry;

@@ -533,12 +533,14 @@ describe('la compuerta de autorización · plano de consultas', () => {
   const QUERIES = queryRegistry.patterns();
   /**
    * Las consultas que YA TIENEN CONTRATO: `tasks` desde S-022, `clients`, `projects` y
-   * `requirements` desde S-024, `comments`, `activity` y `subscriptions` desde S-025, y los seis
-   * de S-026 —`people`, `users`, los tres de tiempo y `project-permissions`—.
+   * `requirements` desde S-024, `comments`, `activity` y `subscriptions` desde S-025, los seis
+   * de S-026 —`people`, `users`, los tres de tiempo y `project-permissions`—, los dos de S-027, y
+   * los TRES CON FORMA PROPIA de S-028.
    *
-   * SON TODAS, y por eso el array es el registro entero: desde S-025 ningún patrón registrado cae
-   * en el stub sin contrato. Se conserva como lista explícita —y no como `QUERIES`— porque lo que
-   * afirma es lo que el CONTRATO promete, no lo que el registro contiene.
+   * SON LAS VEINTITRÉS, y por eso el array es el registro entero: desde S-028 ningún patrón
+   * registrado cae en un stub sin contrato —el stub ya no existe—. Se conserva como lista explícita
+   * —y no como `QUERIES`— porque lo que afirma es lo que el CONTRATO promete, no lo que el registro
+   * contiene.
    */
   const WITH_CONTRACT = [
     'clients.list',
@@ -563,6 +565,13 @@ describe('la compuerta de autorización · plano de consultas', () => {
     'unworked-times.list',
     'week-assigned-times.list',
     'project-permissions.list',
+    // LOS TRES DE S-028, que cierran el contrato. QUEDAN AUTORIZADOS SIN TOCAR `ROLE_METHODS`, y es
+    // intencional: `admin`, `user` y `external-user` tienen `queries: ALL`, y la consecuencia —una
+    // consulta nueva queda autorizada para los tres sin tocar el mapa— ES la intención de "todas las
+    // consultas" que declara `docs/apis/core.yaml`.
+    'requirements.tags',
+    'settings.list',
+    'meta.describe',
   ];
   const USER_ROLE = 'sub-persona-user';
   const EXTERNAL_USER_ROLE = 'sub-persona-external-user';
@@ -660,14 +669,11 @@ describe('la compuerta de autorización · plano de consultas', () => {
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_CALLER, query);
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
         } else {
-          // RAMA MUERTA DESDE S-025 y se deja a propósito: un recurso nuevo registrado sin
-          // contrato volvería a caer acá, y esta es la aserción que lo diría.
-          reply.status.should.equal('failure', query);
-          reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
-          reply.errorMessage!.should.equal(
-            `La consulta ${query} todavía no tiene contrato definido`,
-            query
-          );
+          // RAMA INALCANZABLE DESDE S-028 y se deja a propósito: el registro tiene los 23 del
+          // contrato y ninguno más. Un patrón registrado que NO estuviera en `WITH_CONTRACT` caería
+          // acá, y como el stub ya no existe la aserción falla — que es exactamente lo que se
+          // quiere: registrar un endpoint sin ficha tiene que ser ruidoso.
+          throw new Error(`${query} está registrada y no figura en el contrato`);
         }
       }
     } finally {

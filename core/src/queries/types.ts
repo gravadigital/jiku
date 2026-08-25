@@ -551,6 +551,28 @@ export type ExternalScopeSpec =
   | BridgeExternalScope;
 
 /**
+ * UNA ENTRADA DE ENUM: el valor del contrato y, OPCIONALMENTE, su etiqueta para mostrar.
+ *
+ * LAS DOS FORMAS CONVIVEN A PROPÓSITO. Un enum que solo declara valores —`readonly string[]`, la
+ * forma que traían las fichas de S-022 a S-027— sigue siendo válido y no cambia un carácter; el que
+ * necesita etiqueta declara `{ value, label }` en la MISMA posición.
+ *
+ * LA ETIQUETA VIVE PEGADA AL VALOR Y NO EN UN MAPA APARTE, y es la decisión central de S-028: un
+ * `ENUM_LABELS` paralelo se desincroniza en silencio y `meta.describe` —que se DERIVA de esta misma
+ * estructura— pasaría a mentir. Con la etiqueta en la ficha no hay dos copias que mantener.
+ *
+ * `errorDetails.allowed` SIGUE SIENDO UNA LISTA DE STRINGS: el validador proyecta a `value` en el
+ * punto donde arma el detalle (`enumValues()`), y el contrato de un rechazo no cambia.
+ *
+ * SIN ETIQUETA, `meta.describe` CAE AL VALOR CRUDO. Un `label: undefined` en la respuesta sería
+ * peor que el valor: obligaría a cada consumidor a manejar el caso.
+ */
+export type EnumEntry = string | { readonly value: string; readonly label: string };
+
+/** Un enum de la ficha: sus entradas EN EL ORDEN que viaja en `errorDetails.allowed`. */
+export type EnumSpec = readonly EnumEntry[];
+
+/**
  * UNA VARIANTE DEL RECURSO: lo que cambia cuando el discriminador cambia.
  *
  * Sobreescribe SOLO lo que depende de la TABLA. `name`, `defaults`, `sortable`, `truncatable` y los
@@ -565,7 +587,7 @@ export interface ResourceVariant {
   readonly base?: Readonly<Record<string, BaseSpec>>;
   readonly includable?: Readonly<Record<string, IncludableSpec>>;
   readonly filterable?: Readonly<Record<string, FilterableSpec>>;
-  readonly enums?: Readonly<Record<string, readonly string[]>>;
+  readonly enums?: Readonly<Record<string, EnumSpec>>;
   readonly externalScope?: ExternalScopeSpec;
 }
 
@@ -637,7 +659,7 @@ export interface ResourceSpec {
   readonly sortable: Readonly<Record<string, SortableSpec>>;
   readonly sortableNames: readonly string[];
   readonly defaults: { readonly sort: readonly string[] };
-  readonly enums: Readonly<Record<string, readonly string[]>>;
+  readonly enums: Readonly<Record<string, EnumSpec>>;
   /** Campos de texto SIN COTA que el presupuesto de bytes puede truncar (RF-14). */
   readonly truncatable: readonly string[];
   readonly externalScope: ExternalScopeSpec;

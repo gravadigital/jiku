@@ -227,3 +227,68 @@ entityType: { column: 'entity_type', transform: (raw) => ATTACHMENT_ENTITY_CONTR
 externalScope: { kind: 'polymorphic', typeColumn: 'entity_type', idColumn: 'entity_id',
                  branches: ATTACHMENT_ENTITY_OWNERS },
 ```
+
+## RESOURCE_SPECS / RESOURCES_BY_NAME / RESOURCE_NAMES
+
+**Location:** `core/src/queries/resources.ts`
+
+**Description:** The registry of the **sixteen** resource specs, in contract order.
+
+**It is the piece that makes `meta.describe` derived.** Until S-028 nothing listed the specs:
+`queries/index.ts` lists the **queries**, and a query does not expose its spec — the engine receives
+it by parameter and nobody publishes it. Without this file the describer would have had to write its
+own list of resources, which is exactly the parallel structure the story exists to avoid: it desyncs
+on the first new resource and the description starts lying.
+
+**Sixteen, not eighteen.** The "18 resources" the documentation carried came from counting the
+sections of the analysis document's *Recursos* chapter, which counted `requirements.tags` and
+`meta.describe` as if they were resources. They are not: the first is an **operation** of
+`requirements` — no base set, no includables, no sortables of its own — and the second is the
+describer. The **endpoint** count is exact at 23.
+
+**It lives in `src/queries/`, NOT in `src/queries/engine/`.** The genericity gate forbids the
+**engine** from naming resources; the resource registry is precisely the file whose job is to name
+them, like `index.ts`.
+
+`RESOURCES_BY_NAME` is a `Map` and not an object literal because the keys carry hyphens
+(`worked-times`) and a literal would invite writing each key twice — the key and the spec's `name` —
+with the possibility that they differ. Here the key **comes from** the `name`, so they cannot.
+
+**Interface:**
+```ts
+const RESOURCE_SPECS: readonly ResourceSpec[];
+const RESOURCES_BY_NAME: ReadonlyMap<string, ResourceSpec>;
+const RESOURCE_NAMES: readonly string[];   // in contract order; travels in errorDetails.allowed
+```
+
+**Usage:**
+```ts
+// core/src/queries/meta/meta-describe.ts
+const specs = payload.resources
+  ? payload.resources.map((name) => RESOURCES_BY_NAME.get(name)!)
+  : RESOURCE_SPECS;
+```
+
+## PERMITTED_PROJECTS
+
+**Location:** `core/src/queries/engine/build-sql.ts`
+
+**Description:** The permitted-projects subquery, as **one** constant, shared by both variants of
+the external clip and — since S-028 — by `requirements.tags`, which builds its own SQL because it is
+an aggregate that collapses rows and does not fit the engine's mould.
+
+Two copies of the permissions list is the kind of divergence that gets discovered in production: the
+one that was not updated returns rows of projects the caller cannot see.
+
+**Interface:**
+```ts
+const PERMITTED_PROJECTS =
+  '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+```
+
+**Usage:**
+```ts
+// core/src/queries/requirements/requirements-tags.ts
+where.push(`t.${scope.projectColumn} IN ${PERMITTED_PROJECTS}`);
+replacements.caller = ctx.caller;
+```

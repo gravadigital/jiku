@@ -23,7 +23,7 @@ import { tasksSpec } from './tasks-spec';
  * El payload de `tasks.list` DESPUÉS de validar, que es lo que recibe `execute`.
  *
  * Es un ALIAS del tipo genérico del motor, no una interfaz escrita a mano, y la desviación
- * respecto de la convención `_base` es deliberada: la gramática de `list` es LA MISMA para los 18
+ * respecto de la convención `_base` es deliberada: la gramática de `list` es LA MISMA para los 16
  * recursos —lo que cambia entre ellos es la ficha, no la forma del payload—, así que una copia por
  * recurso sería exactamente la divergencia que la ficha-como-dato existe para evitar. El alias
  * conserva el nombre que la convención pide y no duplica nada.

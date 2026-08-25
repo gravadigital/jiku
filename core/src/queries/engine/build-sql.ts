@@ -81,8 +81,15 @@ const SCOPE_OWNER = 'scope_owner_';
 /** Alias de la FILA PUENTE del recorte `bridge`. Del motor, con el mismo criterio. */
 const BRIDGE = 'br_';
 
-/** La lista de proyectos permitidos del caller. Una sola vez, para las dos variantes del recorte. */
-const PERMITTED_PROJECTS =
+/**
+ * La lista de proyectos permitidos del caller. Una sola vez, para las dos variantes del recorte.
+ *
+ * SE EXPORTA DESDE S-028 porque `requirements.tags` arma su propio SQL —es un agregado que colapsa
+ * filas y no entra en el molde del motor— y necesita EXACTAMENTE esta subconsulta. Dos copias de la
+ * lista de permisos es el tipo de divergencia que se descubre en producción: la que se olvidó de
+ * actualizar devuelve filas de proyectos que el caller no puede ver.
+ */
+export const PERMITTED_PROJECTS =
   '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
 
 /* ---------------------------------------------------------------------------------------------

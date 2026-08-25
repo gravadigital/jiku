@@ -2,7 +2,7 @@
 id: consulta-por-el-bus
 title: Consulta por el bus — el recorrido completo de una lectura de jiku-queries
 type: feature
-status: Draft
+status: Active
 created: 2026-08-24
 last_updated: 2026-08-25
 stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
@@ -11,7 +11,7 @@ stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
 # Consulta por el Bus
 
 **Tipo:** Feature
-**Status:** Draft
+**Status:** Active
 **Creado:** 2026-08-24
 **Última actualización:** 2026-08-25
 **Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028
@@ -42,11 +42,11 @@ razones que no se reconstruyen leyendo el código:
 > ejercitan los tests y la verificación manual con `nats req`. Es una decisión de alcance, no un
 > descuido.
 
-### Estado de implementación
+### Estado de implementación — CERRADO
 
-Este documento describe el recorrido **completo**, que se termina de implementar recién en S-028. El
-`status` sigue en **Draft** por eso: pasa a `Active` cuando todos sus pasos existan en el código, no
-cuando exista el primero.
+Este documento describe el recorrido **completo**, y desde **S-028 todos sus pasos existen en el
+código**. Por eso el `status` pasó de `Draft` a **`Active`**: la condición era que el recorrido
+entero estuviera implementado, no que existiera el primer paso.
 
 | Paso | Estado | Story |
 |---|---|---|
@@ -55,18 +55,38 @@ cuando exista el primero.
 | 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
 | 3.4 · Segunda compuerta: la clase del caller (`unknown_caller`) | Implementado | S-023 |
 | 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
-| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects`, `requirements`, `comments`, `activity`, `subscriptions`, `people`, `users`, `worked-times`, `unworked-times`, `week-assigned-times` y `project-permissions` | S-023 (mecanismo), S-024 (las tres primeras formas), S-025 (las dos siguientes), S-026 (la quinta: **sin acceso**, y la cláusula "más él mismo") |
+| 5 · Recorte del modo externo | Implementado para **los 16 recursos** | S-023 (mecanismo), S-024, S-025, S-026, S-027, S-028 (`settings`) |
 | 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
 | 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
 | 8 · El caller recorre la colección | Implementado | S-022 |
 
-**Recursos con contrato:** `tasks` desde S-022; `clients`, `projects` y `requirements` desde S-024
-—los cuatro con `list` y `get`—; `comments` (`list` y `get`), `activity` (`list`) y
-`subscriptions` (`list`) desde **S-025**; `people`, `users`, `worked-times`, `unworked-times`,
-`week-assigned-times` y `project-permissions` —los seis **solo `list`**— desde **S-026**; y
-`attachments` (**solo `list`**) y `files` (**solo `get`**) desde **S-027**. Son **veinte patrones
-registrados**, y **ninguno responde ya `unknown_command` por falta de contrato**:
-`core/src/queries/pending.ts` quedó **sin consumidores** en S-025 y se **elimina en S-028**.
+**Los 23 endpoints del contrato están registrados y todos tienen ficha.** `tasks` desde S-022;
+`clients`, `projects` y `requirements` desde S-024 —los cuatro con `list` y `get`—; `comments`
+(`list` y `get`), `activity` (`list`) y `subscriptions` (`list`) desde **S-025**; `people`, `users`,
+`worked-times`, `unworked-times`, `week-assigned-times` y `project-permissions` —los seis **solo
+`list`**— desde **S-026**; `attachments` (**solo `list`**) y `files` (**solo `get`**) desde
+**S-027**; y `requirements.tags`, `settings.list` y `meta.describe` desde **S-028**.
+
+**`core/src/queries/pending.ts` ya no existe.** Quedó sin consumidores en S-025 y **se eliminó en
+S-028**, la story que cerró el contrato: mientras quedara un endpoint sin ficha el stub tenía que
+existir, y en cuanto no quedó ninguno tenía que dejar de existir. **Ningún endpoint responde
+`unknown_command` "todavía no tiene contrato definido"**, y `nats micro info jiku-queries` lista los
+**23**.
+
+### Los tres endpoints que NO recorren estos pasos igual que el resto
+
+Los tres que agregó S-028 tienen **forma propia**, y por eso van juntos: ninguno encaja del todo en
+el molde `list`/`get`.
+
+| Endpoint | Qué pasos recorre |
+|---|---|
+| `settings.list` | **Todos.** Es un `list` sobre el motor; lo único propio es que su lista blanca de claves vive en el predicado fijo de la ficha, así que se aplica ANTES del filtro y también en el `COUNT` |
+| `requirements.tags` | Los pasos 1-5, pero **arma su propio SQL**: es un agregado que COLAPSA filas y devuelve una lista sin paginar, así que no hay keyset, ni cursor, ni presupuesto de bytes (pasos 6 y 7). Sí usa el mismo ejecutor, para que un `statement_timeout` siga siendo `query_timeout`, y el mismo recorte de la ficha de `requirements` |
+| `meta.describe` | Los pasos 1-4 y nada más: **no toca la base**. Se deriva de estructuras en memoria —las mismas fichas que validan— y es la única consulta del contrato que no depende de PostgreSQL. Tampoco pasa por el paso 5: describe el CONTRATO, no los datos, y es idéntica para todos los callers |
+
+**El contrato del plano de consultas es [`docs/apis/core-queries.yaml`](../apis/core-queries.yaml)**,
+y `meta.describe` es su reflejo en datos: compararlos es una verificación mecánica de que el código y
+la spec no divergieron.
 
 **`get` existe solo donde hay pantalla de detalle** (RF-2): ninguno de los seis recursos de S-026 lo
 tiene, y traer varios por id es `list` + `filter.id: [1,2,3]`. Publicar `people.get` responde
@@ -84,7 +104,7 @@ porque resuelven contra **dos tablas cuyos ids se pisan**: el `id` 1234 existe e
 su ausencia es `invalid_fields`.
 
 **Las formas del recorte del Paso 5 son siete**, y son las que la tabla de recortes de más abajo
-necesita para los 20 recursos:
+necesita para los 16 recursos:
 
 1. la fila **lleva** el proyecto en una columna, con visibilidad (`requirements`, `tasks`) o sin
    ella (`projects`) — S-024;
@@ -305,7 +325,7 @@ Responde *"¿puede ejecutar este método?"*.
 **Destino:** (interno)
 **Tipo:** Interno
 
-Cada uno de los **20 recursos** declara, **como dato**, cuatro listas blancas más su default de orden
+Cada uno de los **16 recursos** declara, **como dato**, cuatro listas blancas más su default de orden
 y su recorte externo: `base`, `includable` (con `kind: field|relation` y el tope de las colecciones),
 `filterable`, `sortable`.
 

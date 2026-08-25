@@ -17,8 +17,16 @@ package: null
 
 ## Cuándo aplica
 
-Cualquier comando que toque uno de los cuatro conceptos de abajo. Y al agregar un campo nuevo: la
-decisión de si el nombre del contrato coincide con el de la columna se toma una vez, acá.
+Cualquier comando que toque uno de los cuatro conceptos de abajo, **y cualquier ficha de consulta que
+toque uno de los seis de la sección "Las traducciones de solo lectura"**. Y al agregar un campo
+nuevo: la decisión de si el nombre del contrato coincide con el de la columna se toma una vez, acá.
+
+> **Dos familias, y conviene no mezclarlas.** Las traducciones de ESCRITURA viven en un comando o en
+> un helper de su módulo, y las reglas de esta convención que hablan de `pickPresent` y de la edición
+> parcial son de ellas. Las de LECTURA viven en la **ficha** del recurso (`ResourceSpec`), que es un
+> dato declarativo sin edición parcial: ahí la traducción es un `transform` de salida o un mapa
+> `values` de entrada. Lo que aplica a las dos —y es lo único que hay que recordar si uno se olvida
+> de todo lo demás— es que **la traducción vive en `core` y NO se filtra a `@jiku/models`**.
 
 ## El criterio
 
@@ -123,6 +131,51 @@ Solo cambia el nombre del campo del payload; las tablas intermedias (`person_obj
 `person_requirements`) usan `personId`. El **orden de la lista es información**: el primero queda
 `isLeader`.
 
+## Las traducciones de SOLO LECTURA
+
+Existen desde REQ-006 y viven en las **fichas** de `src/queries/`, no en comandos. Ninguna es nueva
+al escribir: son campos que la base ya tenía con otro nombre y que el contrato de consultas publica
+con el del producto.
+
+| Contrato | Base | Dónde | Forma |
+|---|---|---|---|
+| `body` | `new_value` | ficha de `comments` | `BaseFieldSpec.column` |
+| `authorId` | `changed_by` | ficha de `comments` | `BaseFieldSpec.column` |
+| `taskId` | `objective_id` | fichas de `comments` / `activity` / `subscriptions`, por variante | columna de la variante |
+| `task_comment` ↔ `objective_comment` | `attachments.entity_type` | `queries/entity-type.ts` | mapa, en LAS DOS direcciones |
+| `priorityValue` | `objectives.priority` (entero crudo) | ficha de `tasks` | campo paralelo, transitorio |
+| `hours-per-day` | `system_settings.key = 'hours_per_day'` | ficha de `settings` | `transform` de salida + `values` de entrada |
+
+**Ninguna de estas traducciones se filtra a `@jiku/models`**, que describe la base tal como es. Es
+literalmente una Implementation Rule de ADR-004 y aplica igual a las dos familias.
+
+### `entity-type.ts` es DATO, no funciones
+
+La traducción de `entityType` —qué tabla mirar para cada tipo de entidad— vive en **un solo lugar** y
+está escrita como estructuras de datos, no como funciones. Es deliberado: así `meta.describe` puede
+proyectar el contrato sin ejecutar una traducción, y las dos direcciones —del contrato a la base y de
+vuelta— salen del mismo mapa. Si los nombres de tabla estuvieran escritos a mano en cada ficha, las
+dos direcciones podrían divergir sin que nada lo diga, y la que se equivoca **devuelve las filas de
+la otra entidad**.
+
+### `hours-per-day` y la clave con guiones bajos
+
+La única de las seis que se decidió en REQ-006 y no venía de antes. `system_settings` tiene seis
+claves en la lista blanca del contrato de consultas: cinco se llaman igual en las dos puntas y la
+sexta —la más vieja, de febrero— existe en la base como **`hours_per_day`**, con guiones bajos,
+mientras que el contrato la publica como **`hours-per-day`**.
+
+**El contrato gana y la ficha traduce**, en las dos direcciones: un `transform` en `base.key` para la
+salida y el mapa `values` de `filterable.key` para la entrada. La alternativa —publicar el nombre de
+la columna— dejaría al contrato de consultas hablando en nombres de base, que es lo que ADR-004
+prohíbe; y escribir la lista blanca con el nombre del contrato sin traducir haría que la clave **no
+apareciera nunca**, un bug silencioso porque `items: []` es indistinguible de "no está declarada".
+
+> **La traducción va en la FICHA, no en el archivo del endpoint.** Resolverla reescribiendo el
+> payload antes de validar la sacaría de lo que `meta.describe` proyecta, y la propiedad que hace
+> confiable a la descripción —"todo lo que declara funciona"— dejaría de ser verificable para ese
+> recurso.
+
 ## Dónde NO hay traducción, y podría parecer que sí
 
 | Concepto | Estado |
@@ -139,8 +192,9 @@ Solo cambia el nombre del campo del payload; las tablas intermedias (`person_obj
 2. Si el nombre del producto difiere del de la columna, la traducción va en un helper del módulo
    (como `properties.ts` o `priority.ts`), no repetida en cada comando.
 3. El helper devuelve `undefined` cuando el campo está ausente, para no romper la edición parcial.
-4. **Documentalo en `docs/apis/core.yaml`**, en la descripción del campo. Una traducción indocumentada
-   es un bug esperando: quien lea la base no va a encontrar el nombre del contrato.
+4. **Documentalo en la spec del plano que corresponda**: `docs/apis/core.yaml` si es un campo de un
+   comando, **`docs/apis/core-queries.yaml`** si es de una ficha de consulta. Una traducción
+   indocumentada es un bug esperando: quien lea la base no va a encontrar el nombre del contrato.
 5. Si la traducción es transitoria, el comentario dice **cuándo desaparece**.
 
 ## Reglas
@@ -151,7 +205,12 @@ Solo cambia el nombre del campo del payload; las tablas intermedias (`person_obj
 - Un campo cuyo nombre difiere entre el bus y la base **no puede ir por `pickPresent`**: se agrega a
   mano al objeto de cambios, con `hasOwnProperty`.
 - No renombres los modelos de `@jiku/models`: los comparte `api`.
-- Toda traducción está documentada en `docs/apis/core.yaml`.
+- Toda traducción está documentada en la spec de su plano: `docs/apis/core.yaml` para los comandos,
+  `docs/apis/core-queries.yaml` para las consultas.
+- **Ninguna traducción se filtra a `@jiku/models`**: el paquete describe la base tal como es, y lo
+  comparten los dos servicios. Vale para las de escritura y para las de lectura por igual.
+- Una traducción de LECTURA vive en la ficha del recurso, no en el archivo del endpoint: fuera de la
+  ficha queda fuera de lo que `meta.describe` proyecta.
 - No construyas nada nuevo sobre `priorityValue`: es un escape con fecha de vencimiento.
 - Un campo nuevo usa el mismo nombre en las dos puntas salvo que haya una razón que se pueda
   escribir en una línea.
@@ -161,4 +220,5 @@ Solo cambia el nombre del campo del payload; las tablas intermedias (`person_obj
 - **[`commands`](./commands.md)**: por qué un campo traducido no puede ir por `pickPresent`.
 - **[`validation`](./validation.md)**: los esquemas validan el nombre del **contrato**, no el de la
   columna.
-- **[`orm`](./orm.md)**: los modelos usan los nombres de la base.
+- **[`orm`](./orm.md)**: los modelos usan los nombres de la base, y el plano de consultas no los usa
+  en absoluto: arma SQL explícito contra su conexión de solo lectura.

@@ -87,6 +87,19 @@ describe('queries/unworked-times.list — la ficha, el enum y el orden ascendent
     reply.errorDetails.allowed.should.deepEqual(REASONS);
   });
 
+  it('TS-4 (S-028) · `allowed` sigue siendo una lista de STRINGS, no de objetos', async () => {
+    // La ficha declara `reason` con ETIQUETAS desde S-028 (`{ value, label }`). El catálogo de
+    // errores NO cambia de forma por eso: el validador proyecta a `value` en el punto donde arma el
+    // detalle. Si `allowed` empezara a llevar objetos, cada consumidor del catálogo tendría que
+    // enterarse de un cambio que no le concierne.
+    const reply: any = await dispatchQuery('unworked-times.list', { filter: { reason: 'feriado' } });
+
+    reply.errorDetails.allowed.should.matchEach((value: unknown) => {
+      (typeof value).should.equal('string');
+    });
+    reply.errorDetails.allowed.should.deepEqual(REASONS);
+  });
+
   it('TS-56 · `person` es el único incluible', async () => {
     const ok: any = await dispatchQuery('unworked-times.list', {
       filter: { id: UT_MEDICO },

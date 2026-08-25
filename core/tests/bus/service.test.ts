@@ -53,9 +53,9 @@ function specFor(
 const QUERIES_DESCRIPTION = 'Consultas de lectura de Jiku: proyectos, tareas y comentarios';
 
 /**
- * Los 18 endpoints de consulta, COPIADOS de la tabla del contrato, no recalculados. Ninguno lleva
- * `{param}`, así que ningún subject lleva `*`: es una decisión de performance (el cache de
- * subjects de 1024 entradas del server), no un olvido.
+ * Los 23 endpoints de consulta —EL CONTRATO COMPLETO desde S-028—, COPIADOS de la tabla del
+ * contrato, no recalculados. Ninguno lleva `{param}`, así que ningún subject lleva `*`: es una
+ * decisión de performance (el cache de subjects de 1024 entradas del server), no un olvido.
  */
 const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
   ['clients-list', 'clients.list'],
@@ -83,6 +83,11 @@ const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
   ['unworked-times-list', 'unworked-times.list'],
   ['week-assigned-times-list', 'week-assigned-times.list'],
   ['project-permissions-list', 'project-permissions.list'],
+  // LOS TRES DE S-028, que cierran el contrato: `nats micro info jiku-queries` pasa a listar 23
+  // endpoints y ninguno responde `unknown_command` "todavía no tiene contrato definido".
+  ['requirements-tags', 'requirements.tags'],
+  ['settings-list', 'settings.list'],
+  ['meta-describe', 'meta.describe'],
 ];
 
 /**

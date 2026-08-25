@@ -38,7 +38,8 @@ export function failure(errorCode: string, errorMessage: string): Reply<never>;
 { "status": "failure", "errorCode": "project_not_found", "errorMessage": "Project not found" }
 ```
 
-Igual para los 17 comandos. **Se construye siempre con los helpers**, nunca a mano.
+Igual para los 20 comandos, y para las 23 consultas: el envelope es UNO SOLO, compartido por los dos
+planos. **Se construye siempre con los helpers**, nunca a mano.
 
 ## El `status` decide la transacción
 

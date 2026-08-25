@@ -499,3 +499,103 @@ if (deniesAllRows(spec, ctx)) {
   return success({ items: [], page });
 }
 ```
+
+## enumValues
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+**Description:** The VALUES of a spec's enum, in order.
+
+It exists because since S-028 a spec may declare its enum entries in **two shapes** — a plain
+string, or `{ value, label }` — and `errorDetails.allowed` has to keep being a list of **strings**.
+Without this projection, `allowed` would have started carrying objects, and every consumer of the
+shared error catalog would have had to learn about a shape change that does not concern it.
+
+It returns a **new array**, not the spec's list by reference. That is the one place where the
+"the list travels by reference" contract is relaxed, and in exchange the spec does not have to keep
+two lists of the same enum — which is exactly the parallel structure S-028 exists to avoid.
+
+**Signature:**
+```ts
+function enumValues(entries: EnumSpec | undefined): string[];
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/validate-query.ts
+const allowed = enumValues(enums[spec.enum]);
+if (typeof raw !== 'string' || !allowed.includes(raw)) {
+  return invalid(`El filtro "${field}" no acepta ese valor`, { field, value: raw, allowed });
+}
+```
+
+## enumLabeled
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+**Description:** The same enum as `{ value, label }[]`, with **the raw value as the label's
+fallback**. It is what `meta.describe` projects.
+
+The fallback is not laziness: a `label: undefined` in the response would force every consumer to
+handle the case, and the raw value is always a legitimate label — it is what the api displayed
+before labels existed.
+
+**Signature:**
+```ts
+function enumLabeled(entries: EnumSpec | undefined): { value: string; label: string }[];
+```
+
+**Usage:**
+```ts
+// core/src/queries/meta/describe-spec.ts
+for (const name of Object.keys(spec.enums)) {
+  enums[name] = enumLabeled(spec.enums[name]);
+}
+// -> [{ value: 'tramite', label: 'Trámite' }, …]  for a spec that declares labels
+// -> [{ value: 'backlog', label: 'backlog' }, …]  for one that does not
+```
+
+## describeResource
+
+**Location:** `core/src/queries/meta/describe-spec.ts`
+
+**Description:** Projects a `ResourceSpec` to the shape `meta.describe` publishes — **the contract
+as data**, derived from the very structures the validator reads to reject names.
+
+**It names no resource**, with the same criterion that keeps `engine/spec.ts` generic: it takes a
+spec and returns its description, so adding resource 17 does not touch a line of it.
+
+**What it publishes and what it drops** is the whole point, because the spec carries both halves —
+the contract's name and the database's — and this function keeps only the first (ADR-004):
+
+| Origin | Published | **Dropped** |
+|---|---|---|
+| `BaseFieldSpec` | the name, `kind: 'field'` | `column`, `from`, `transform` |
+| `BaseConstantSpec` | the name, `kind: 'constant'` | the value |
+| `IncludableComputedSpec` | the name, `kind: 'computed'` | **`expr`** (raw SQL) |
+| `OneRelationSpec` | `cardinality`, the field NAMES, `optional` | `table`, `localKey`, `targetKey` |
+| `ManyRelationSpec` | idem + `cap`, `truncatedFlag`, `scalar` | `table`, `parentKey`, `join`, `where`, `order` |
+| `FilterableSpec` | `kind`, the enum name, `search` / `searchNumeric` / `contains.shape` | `column`, `from`, `via`, the search columns, `contains.column` |
+| `SortableSpec` | the name | `column`, `nullable` |
+| `ExternalScopeSpec` | **nothing** | everything |
+| `where` / `table` / `joins` | **nothing** | everything |
+
+A resource **with a discriminator** is described **per variant**, built with `resolveVariant()` —
+the same function the engine calls before validating, which is what makes the description and the
+validator read literally the same structure. Describing the union would declare a `type` that half
+the variants answer `invalid_fields` to.
+
+**Signature:**
+```ts
+function describeResource(resource: ResourceSpec): ResourceDescription;
+```
+
+**Usage:**
+```ts
+// core/src/queries/meta/meta-describe.ts
+const resources: Record<string, ResourceDescription> = {};
+for (const spec of specs) {
+  resources[spec.name] = describeResource(spec);
+}
+return Promise.resolve(success({ resources }));
+```

@@ -1,4 +1,11 @@
-import { BaseSpec, IncludableSpec, QueryContext, RelationSpec, ResourceSpec } from '../types';
+import {
+  BaseSpec,
+  EnumSpec,
+  IncludableSpec,
+  QueryContext,
+  RelationSpec,
+  ResourceSpec,
+} from '../types';
 
 /**
  * LA RESOLUCIÓN DE LA FICHA: la variante del recurso y el spec de un nombre.
@@ -92,6 +99,39 @@ export function specFor(
  */
 export function isRelation(spec: BaseSpec | IncludableSpec | undefined): spec is RelationSpec {
   return spec !== undefined && 'kind' in spec && spec.kind === 'relation';
+}
+
+/**
+ * LOS VALORES DE UN ENUM DE LA FICHA, en orden.
+ *
+ * ES LA PROYECCIÓN QUE MANTIENE EL CONTRATO DE `errorDetails.allowed`: la ficha puede declarar sus
+ * entradas como strings o como `{ value, label }` (S-028), y el rechazo por enum sigue devolviendo
+ * una lista de STRINGS. Sin esta función, `allowed` habría pasado a llevar objetos y cada consumidor
+ * del catálogo de errores tendría que enterarse de un cambio de forma que no le concierne.
+ *
+ * DEVUELVE UN ARRAY NUEVO, no la lista de la ficha por referencia. Es el único punto donde el
+ * contrato "la lista viaja por referencia" se relaja, y a cambio la ficha no necesita mantener dos
+ * listas del mismo enum — que es exactamente la estructura paralela que S-028 existe para evitar.
+ */
+export function enumValues(entries: EnumSpec | undefined): string[] {
+  return (entries ?? []).map((entry) => (typeof entry === 'string' ? entry : entry.value));
+}
+
+/**
+ * EL ENUM COMPLETO: valor y etiqueta, con el VALOR CRUDO de fallback.
+ *
+ * Es lo que `meta.describe` proyecta (CA-10). El fallback no es un default perezoso: un
+ * `label: undefined` en la respuesta obligaría a cada consumidor a manejar el caso, y el valor crudo
+ * es siempre una etiqueta legítima —es lo que la api mostraba antes de que existieran las etiquetas.
+ */
+export function enumLabeled(
+  entries: EnumSpec | undefined
+): { value: string; label: string }[] {
+  return (entries ?? []).map((entry) =>
+    typeof entry === 'string'
+      ? { value: entry, label: entry }
+      : { value: entry.value, label: entry.label }
+  );
 }
 
 /**

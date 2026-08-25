@@ -18,8 +18,11 @@ language: node
 #     cosa: esto es request/reply sincrónico y sin persistencia
 #   - commands: la unidad de trabajo del servicio —validar y escribir— con el registry, la
 #     interfaz Command y la semántica de edición parcial
-#   - contract-translation: las cuatro traducciones contrato <-> base (task/objective,
-#     properties/keyValuePairs, priority enum/entero, responsiblePersonIds/personIds)
+#   - contract-translation: las traducciones contrato <-> base. CUATRO DE ESCRITURA
+#     (task/objective, properties/keyValuePairs, priority enum/entero,
+#     responsiblePersonIds/personIds) y, desde REQ-006, SEIS DE SOLO LECTURA que viven en las
+#     fichas de `src/queries/` (body/new_value, authorId/changed_by, taskId/objective_id,
+#     task_comment/objective_comment, priorityValue, y hours-per-day/hours_per_day)
 #
 # NO se declara `http-server`: este servicio no expone HTTP. No hay puerto, ni endpoints, ni
 # verbos, ni framework web. Es la diferencia estructural con `api`.
@@ -31,7 +34,7 @@ conventions:
   - _base                  # strict: true, un archivo por comando, imports relativos, comentarios del por qué
   - bus-consumer           # NATS request/reply: queue group, inbox hasheado, drain al cerrar
   - commands               # la interfaz Command, el registry por segmentos, la edición parcial
-  - contract-translation   # los cuatro nombres que difieren entre el bus y la base
+  - contract-translation   # los nombres que difieren entre el bus y la base: 4 de escritura + 6 de lectura
   - orm                    # Sequelize con el usuario DUEÑO, modelos en paquete compartido
   - validation             # Joi por comando, un esquema por archivo
   - error-handling         # Reply de falla, el catálogo de códigos, el despachador nunca lanza
@@ -41,9 +44,22 @@ conventions:
   - dockerfile             # multi-stage con contexto en la raíz del monorepo
   - ci-github              # CI, imágenes dev y release en GitHub Actions
 
+# LA LISTA DE MÓDULOS YA NO DESCRIBE SOLO `src/commands/`, y desde REQ-006 hay que decirlo.
+#
+# Los siete primeros son carpetas de comandos bajo `src/commands/`, una por entidad. El octavo
+# —`queries`— NO es una carpeta de comandos: es la SUPERFICIE DE LECTURA COMPLETA y vive en
+# `src/queries/`. Agregarlo a la misma lista sin esta aclaración dejaría a un lector buscando
+# `src/commands/queries/`, que no existe.
+#
+# `queries` son 23 endpoints sobre 16 recursos, servidos por un MOTOR GENÉRICO más una ficha por
+# recurso: la ficha es un DATO —las cinco listas blancas del recurso— y el motor sabe cómo servirla.
+# Su contrato es `docs/apis/core-queries.yaml`.
 modules:
   - clients
   - projects
   - tasks
   - requirements
   - times
+  - attachments            # `attachments.{id}.delete`: el borrado lógico del vínculo
+  - files                  # las dos firmas contra S3. La api NO tiene credenciales de S3
+  - queries                # ← `src/queries/`, NO `src/commands/`: la superficie de LECTURA

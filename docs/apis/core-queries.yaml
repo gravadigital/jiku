@@ -1,0 +1,1457 @@
+asyncapi: '2.6.0'
+
+# Messaging contract of `core` — the 23 read endpoints it serves over NATS as the `jiku-queries`
+# micro service.
+#
+# WHY AsyncAPI AND NOT OpenAPI
+#   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
+#   request/reply over NATS. An OpenAPI spec would have to invent routes that do not exist. Same
+#   format and same reason as `docs/apis/core.yaml`, which is the contract of the 20 COMMANDS.
+#
+# THIS FILE IS THE SOURCE OF TRUTH
+#   Where the code and this file disagree, the file wins — the same rule `core.yaml` states for
+#   the commands.
+#
+#   It was written by reading the resource sheets in `core/src/queries/*/`, so it describes what
+#   core actually accepts. Where the analysis documents of REQ-006 (`bus-api-consultas-ref.md` and
+#   friends) disagreed with the code, THE CODE was transcribed — those documents were INPUT, not
+#   contract, and can be archived now that this file exists.
+#
+# THE MECHANICAL CROSS-CHECK
+#   `meta.describe` returns this same contract AS DATA, derived from the very sheets that validate.
+#   Comparing its response against the five whitelists below is a mechanical verification that the
+#   code and this spec still agree. It is not automated, and it is worth running by hand whenever a
+#   resource changes:
+#
+#     nats req 'dev.<user-id>.jiku-queries.v1.meta.describe' '{}' | jq .data.resources
+#
+#   That is the only mitigation of "the YAML and the sheets diverge", and it is cheap to run and
+#   expensive to reconstruct.
+
+info:
+  title: Jiku core — NATS query contract (`jiku-queries`)
+  version: 1.0.0
+  description: |
+    `core` serves the product's reads over the bus, as a second micro service registered on the
+    **same connection** as `jiku-commands` but with **its own queue group** and **its own
+    read-only connection to PostgreSQL** (`core/src/models/read.ts`, a role without
+    `INSERT`/`UPDATE`/`DELETE`, its own pool and its own `statement_timeout`).
+
+    **23 endpoints over 16 resources.** Every one of them has a resource sheet; none of them
+    answers `unknown_command`.
+
+    > **16 resources, not 18.** REQ-006's prose says "18 resources" because it counted the
+    > sections of the *Recursos* chapter of the analysis document, which listed `requirements.tags`
+    > and `meta.describe` as if they were resources. They are not: `requirements.tags` is an
+    > OPERATION of `requirements` — it has no base set, no includables and no sortables of its own —
+    > and `meta.describe` is the describer. **The endpoint count is exact at 23**; the resource
+    > count is 16, and this document is where that is corrected.
+
+    ## The three layers
+
+    ```
+    NATS ──> bus/service.ts ──> QueryDispatcher ──> Query.validate ──> Query.execute ──> engine ──> readDb
+                               (2 gates, 1 SELECT)  (never touches      (delegates to
+                                                     the database)       the engine)
+    ```
+
+    **The query dispatcher opens NO transaction, and the absence is the contract** (RF-9). A read
+    needs no atomicity, and one transaction per request would take and hold a snapshot for every
+    query. Deliberate contrast with the command dispatcher, which opens one per message (ADR-003).
+
+    **The dispatcher never throws.** Any unexpected error becomes a `failure` reply: on the other
+    side there is a request waiting, and a thrown exception would become a mute bus timeout.
+
+    ## Two gates, one SELECT
+
+    A single `SELECT` over `users` feeds both, before resolving the method:
+
+    1. **`authorizeWithRoles(caller, roles, method, 'queries')`** — *"may this caller run this
+       method?"*. Refusal: `caller_not_authorized`.
+    2. **`resolveCallerClass(roles)`** — *"what do I trim for them?"*. Refusal: `unknown_caller`.
+
+    The two are **different questions** and merging their codes would be a bug: the first is about
+    permission, the second about who the caller *is*. A caller with no row in `users` gets an
+    **error**, never an empty list — an empty list would read as "there is no data".
+
+    **The three caller classes** (`core/src/queries/caller-class.ts`; the most restrictive wins):
+
+    | Class | Roles | Row-level trimming |
+    |---|---|---|
+    | `connector` | the api's service user (`CORE_TRUSTED_PUBLISHER_ID`), `internal-app` | none. The caller authorises on its own |
+    | `internal` | `admin`, `user` | none at row level. Explicit v1 decision (RF-23) |
+    | `external` | `external-user` | whatever the resource sheet declares in its external scope |
+
+    **The three product roles have `queries: ALL`**, so a NEW query is authorised for all three
+    without touching `ROLE_METHODS` — and that consequence **is** the intent of "every query",
+    stated in `docs/apis/core.yaml`.
+
+    ## The caller comes from the subject and only from the subject
+
+    `{instance}.{user-id}.jiku-queries.v1.{resource}.{operation}` — the caller is the **second
+    token**, and the auth-callout only authorises publishing under one's own id, so that token is
+    unforgeable and the body is not. **Identity names are forbidden in the payload**, as a closed
+    list: `userId`, `user_id`, `user`, `caller`, `callerId`, `caller_id`, `sub`, `identity`,
+    `actor`, `principal`, `onBehalfOf`. Any of them is `invalid_fields`.
+
+    > An IGNORED identity field would be worse than a rejected one: it would suggest that the
+    > caller may ask on somebody else's behalf and that the service simply did not listen this time.
+
+    ## Deny-by-default, as five whitelists per resource
+
+    Every resource declares five closed lists — **base set**, **includables**, **filterables**,
+    **sortables**, and its **external scope**. **A name that is not declared does not exist**: it is
+    `invalid_fields` with `errorDetails`, never a silently ignored lever. An ignored filter returns
+    **more** data than asked for, which is the worst failure mode of a read contract.
+
+    That is also the structural mitigation against injection: a name that is not in the sheet never
+    reaches the SQL, and values always travel as `replacements`.
+
+    ## `meta.describe` is this document, as data
+
+    `meta.describe` projects **the same structures the validator reads** to reject names. The
+    property this buys is verifiable and is tested as such: **every name it declares in `sortable` /
+    `filterable` / `includable` works, and one it does not declare answers `invalid_fields`**. There
+    is no second copy to keep in sync — which is why the description cannot go stale.
+
+    It describes the **contract**, not the data, so it is **identical for every caller**, external
+    ones included. Knowing that an includable `email` exists grants access to no email: row trimming
+    and the field whitelist still operate on every query.
+
+    ## Not in scope of REQ-006, and it is declared
+
+    - **`bus.query()` still has no caller.** None of the api's 28 `GET` routes migrates in REQ-006,
+      so **nothing exercises these 23 endpoints in production except the tests**. That is a scope
+      decision, not an oversight — it avoids shipping the contract and the migration of 28 routes in
+      the same jump — and the counterpart is that test coverage is the only safety net.
+    - **`GET /unworked-times/reasons` is NOT removed.** `meta.describe` replaces it functionally
+      (same nine values, same labels, same order), but the HTTP route has consumers in both
+      frontends.
+    - **`api/lib/utils/bus/protocol.ts` is untouched.** The five codes REQ-006 adds are not mapped
+      to HTTP: with no caller, the map would be dead code. The HTTP column in the error table below
+      is **documentation, not code**.
+    - **Aggregations stay out of v1**, with exactly one declared exception: `requirements.tags`.
+      See its channel.
+  license:
+    name: Apache-2.0
+  contact:
+    name: Grava Digital
+
+defaultContentType: application/json
+
+servers:
+  dev:
+    url: nats://localhost:4222
+    protocol: nats
+    description: Development instance. `NATS_INSTANCE=dev`.
+  prod:
+    url: nats://nats:4222
+    protocol: nats
+    description: Production instance. `NATS_INSTANCE=prod`.
+
+# ---------------------------------------------------------------------------
+# Subject grammar
+# ---------------------------------------------------------------------------
+#
+#   {instance}.{user-id}.jiku-queries.{version}.{resource}.{operation}
+#   dev.323332022539911171.jiku-queries.v1.tasks.list
+#
+#   instance   deployment: dev / prod                (NATS_INSTANCE)
+#   user-id    WHO asks: the token's `sub`, RAW. THE ONLY SOURCE OF IDENTITY
+#   svc        jiku-queries                          (NATS_QUERY_SERVICE)
+#   version    protocol version: `v1`                (NATS_PROTOCOL_VERSION)
+#   resource   tasks, requirements, meta, ...
+#   operation  list | get | tags | describe
+#
+# `methodFromSubject()` slices the first four tokens, so the method of the subject above is
+# `tasks.list`.
+#
+# NO QUERY PATTERN CARRIES `{param}`, so NO SUBJECT CARRIES `*`. A `get` takes its `id` in the
+# PAYLOAD, not in the subject, and that is a performance decision rather than an oversight: the
+# NATS server caches 1024 subjects, and one wildcard endpoint per resource would evict that cache
+# with per-id subjects. It also keeps every endpoint's `$SRV` counters meaningful.
+#
+# EVERY CHANNEL IS A MICRO ENDPOINT, derived from the pattern by `endpointName()` /
+# `endpointSubject()` of `@jiku/nats-protocol` — nothing is written by hand, so registering the
+# 24th query registers its endpoint too. This is the table `nats micro info jiku-queries` shows:
+#
+#   #   query pattern                    endpoint subject                 endpoint name
+#   1   clients.list                     clients.list                     clients-list
+#   2   clients.get                      clients.get                      clients-get
+#   3   projects.list                    projects.list                    projects-list
+#   4   projects.get                     projects.get                     projects-get
+#   5   requirements.list                requirements.list                requirements-list
+#   6   requirements.get                 requirements.get                 requirements-get
+#   7   tasks.list                       tasks.list                       tasks-list
+#   8   tasks.get                        tasks.get                        tasks-get
+#   9   comments.list                    comments.list                    comments-list
+#   10  comments.get                     comments.get                     comments-get
+#   11  activity.list                    activity.list                    activity-list
+#   12  subscriptions.list               subscriptions.list               subscriptions-list
+#   13  attachments.list                 attachments.list                 attachments-list
+#   14  files.get                        files.get                        files-get
+#   15  people.list                      people.list                      people-list
+#   16  users.list                       users.list                       users-list
+#   17  worked-times.list                worked-times.list                worked-times-list
+#   18  unworked-times.list              unworked-times.list              unworked-times-list
+#   19  week-assigned-times.list         week-assigned-times.list         week-assigned-times-list
+#   20  project-permissions.list         project-permissions.list         project-permissions-list
+#   21  requirements.tags                requirements.tags                requirements-tags
+#   22  settings.list                    settings.list                    settings-list
+#   23  meta.describe                    meta.describe                    meta-describe
+#
+# THE ABSENCES ARE THE CONTRACT, not gaps to fill:
+#   - `get` exists ONLY where there is a detail screen (RF-2). `activity`, `subscriptions`,
+#     `attachments`, `people`, `users`, the three time resources, `project-permissions` and
+#     `settings` have none. Fetching several by id is `list` + `filter.id: [1,2,3]`.
+#   - `attachments` has no `get` (there is no detail screen for a link) and `files` has no `list`
+#     (files are listed BY THEIR LINK).
+#   - `meta` has no `list` and is not a resource: it does not appear in `meta.describe`'s own output.
+#   Publishing any of them answers `unknown_command` WITHOUT A CODE OF ITS OWN: the pattern is
+#   simply not in the registry.
+#
+# The `channels` below are named after the METHOD, not the full subject: the prefix is the same for
+# all of them and depends on the deployment. Same convention as `core.yaml`.
+
+channels:
+
+  # -------------------------------------------------------------------------
+  # clients
+  # -------------------------------------------------------------------------
+
+  clients.list:
+    description: 'Paginated collection of actors. Whitelists: `#/x-resources/clients`.'
+    publish:
+      operationId: clientsList
+      summary: List actors
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  clients.get:
+    description: 'One actor by id. Whitelists: `#/x-resources/clients`.'
+    publish:
+      operationId: clientsGet
+      summary: Get one actor
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # projects
+  # -------------------------------------------------------------------------
+
+  projects.list:
+    description: 'Paginated collection of projects. Whitelists: `#/x-resources/projects`.'
+    publish:
+      operationId: projectsList
+      summary: List projects
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  projects.get:
+    description: 'One project by id. Whitelists: `#/x-resources/projects`.'
+    publish:
+      operationId: projectsGet
+      summary: Get one project
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # requirements
+  # -------------------------------------------------------------------------
+
+  requirements.list:
+    description: |
+      Paginated collection of requirements. Whitelists: `#/x-resources/requirements`.
+
+      **`filter.q` searches BY ID when the text is all digits.** Searching `"2026"` returns
+      requirement 2026 and no text match. It is a contract rule, not an engine heuristic, and it
+      comes from how the screen is used — pasting a requirement number into the search box is the
+      most frequent case. `meta.describe` exposes it as `searchNumeric: true`.
+
+      **`filter.tag` is a containment filter over `jsonb`**, with a shape of its own: an object
+      `{key, value}` or a LIST of them, and the list is combined with **AND** — "the ones that have
+      THIS pair AND THAT one", not "any of them" (RF-7). It resolves with `jsonb @>`, which is what
+      uses the `idx_requirements_tags_gin` index.
+    publish:
+      operationId: requirementsList
+      summary: List requirements
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  requirements.get:
+    description: 'One requirement by id. Whitelists: `#/x-resources/requirements`.'
+    publish:
+      operationId: requirementsGet
+      summary: Get one requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # tasks
+  # -------------------------------------------------------------------------
+
+  tasks.list:
+    description: |
+      Paginated collection of tasks. Whitelists: `#/x-resources/tasks`.
+
+      **`tasks` is `objectives` in the database** (ADR-004: the product vocabulary lives in the
+      contract). So is `taskId` ← `objective_id` wherever it appears.
+    publish:
+      operationId: tasksList
+      summary: List tasks
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  tasks.get:
+    description: 'One task by id. Whitelists: `#/x-resources/tasks`.'
+    publish:
+      operationId: tasksGet
+      summary: Get one task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # comments
+  # -------------------------------------------------------------------------
+
+  comments.list:
+    description: |
+      Paginated collection of comments. Whitelists: `#/x-resources/comments`.
+
+      **`entityType` is MANDATORY and is a discriminator, not a filter with a default.** The ids of
+      the two activity tables OVERLAP: a default would make `comments.get {id: 1234}` return "some"
+      comment with that id, and the bug would be SILENT AND INTERMITTENT — it works until both
+      tables grow enough. In a `list` it travels inside `filter`; in a `get`, as a TOP-LEVEL key.
+
+      **`attachments` is in the BASE set, not in `include`** — the declared exception to RF-17. A
+      comment without its attachments is not a comment: the screen always shows them.
+    publish:
+      operationId: commentsList
+      summary: List comments
+      tags:
+        - name: comments
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  comments.get:
+    description: |
+      One comment by id. Whitelists: `#/x-resources/comments`.
+
+      `entityType` is MANDATORY here too, as a top-level key of the payload.
+    publish:
+      operationId: commentsGet
+      summary: Get one comment
+      tags:
+        - name: comments
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # activity
+  # -------------------------------------------------------------------------
+
+  activity.list:
+    description: |
+      Paginated collection of history entries. Whitelists: `#/x-resources/activity`.
+
+      **`activity` is the SAME table as `comments`, without the fixed predicate.** All the
+      difference between the two resources is `type_of_activity = 'comment'`: `activity` returns
+      field changes AND comments.
+
+      **The `type` enum is DIFFERENT PER VARIANT**, and that is why it is described per variant:
+      the union would declare values that half the variants reject with `invalid_fields`.
+    publish:
+      operationId: activityList
+      summary: List history entries
+      tags:
+        - name: activity
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # subscriptions
+  # -------------------------------------------------------------------------
+
+  subscriptions.list:
+    description: |
+      Paginated collection of subscriptions. Whitelists: `#/x-resources/subscriptions`.
+
+      **Its external trimming is `owner`**: an external caller sees ONLY their own subscriptions.
+      Not "the ones on entities they can see" — who else follows a requirement is not information of
+      the requirement.
+    publish:
+      operationId: subscriptionsList
+      summary: List subscriptions
+      tags:
+        - name: subscriptions
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # attachments
+  # -------------------------------------------------------------------------
+
+  attachments.list:
+    description: |
+      Paginated collection of file LINKS. Whitelists: `#/x-resources/attachments`.
+
+      **Two permanent exclusions, in the resource's fixed predicate**: a deleted link
+      (`deleted_at IS NOT NULL`) and a file that is not retained (`retention_status <> 'active'`).
+      They are not filters — a filter can be overridden from the payload and these cannot.
+
+      **ZERO MINTED URLS.** This endpoint never signs anything: downloading is still the command
+      `files.{fileId}.request-download`, which is where the effect of signing lives. A read
+      endpoint that minted URLs would turn a listing into an authorisation.
+
+      **`entityType` translates in BOTH directions** over the same map `comments` uses:
+      `task_comment` ↔ `objective_comment`, `task` ↔ `objective`.
+    publish:
+      operationId: attachmentsList
+      summary: List attachments
+      tags:
+        - name: attachments
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # files
+  # -------------------------------------------------------------------------
+
+  files.get:
+    description: |
+      One file by id. Whitelists: `#/x-resources/files`.
+
+      **`files` has NO `list`, and the absence is the contract**: files are listed BY THEIR LINK,
+      with `attachments.list`. Its external trimming is `bridge`: a file is visible to an external
+      caller if it has a live link to something they can see, OR if they uploaded it themselves.
+    publish:
+      operationId: filesGet
+      summary: Get one file
+      tags:
+        - name: files
+      message:
+        $ref: '#/components/messages/GetQuery'
+
+  # -------------------------------------------------------------------------
+  # people
+  # -------------------------------------------------------------------------
+
+  people.list:
+    description: 'Paginated collection of people. Whitelists: `#/x-resources/people`.'
+    publish:
+      operationId: peopleList
+      summary: List people
+      tags:
+        - name: people
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # users
+  # -------------------------------------------------------------------------
+
+  users.list:
+    description: |
+      Paginated collection of users. Whitelists: `#/x-resources/users`.
+
+      **`email` is INCLUDABLE, not base**: it is personal data and does not travel unless asked for.
+      `roles` is **not exposed at all** — it is the input of the authorisation gate, and publishing
+      it would hand a caller the map of what everyone can do.
+    publish:
+      operationId: usersList
+      summary: List users
+      tags:
+        - name: users
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # worked-times / unworked-times / week-assigned-times
+  # -------------------------------------------------------------------------
+
+  worked-times.list:
+    description: |
+      Paginated collection of charged hours. Whitelists: `#/x-resources/worked-times`.
+
+      **NO EXTERNAL ACCESS AT ALL**: an external caller gets `items: []` **without a single query
+      reaching the database**. It is not an error, and the difference is contractual: a
+      `caller_not_authorized` would say "the resource exists and is barred to you"; `items: []` says
+      "there is nothing here for you".
+    publish:
+      operationId: workedTimesList
+      summary: List worked times
+      tags:
+        - name: worked-times
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  unworked-times.list:
+    description: |
+      Paginated collection of absences. Whitelists: `#/x-resources/unworked-times`.
+
+      **NO EXTERNAL ACCESS**, and here the reason is stronger than "the portal has no business
+      knowing": `reason` includes `medico` and `enfermedad`, which are **health data**. It is also
+      why the sheet does not grow in surface — no free-text search, no includables beyond the
+      person, no `get`.
+
+      **It sorts ASCENDING by default** (`["date"]`), unlike its sibling `worked-times`: an absence
+      is read from the oldest to the newest.
+
+      **Its `reason` enum carries LABELS**, identical to those of `GET /unworked-times/reasons`, and
+      `meta.describe` publishes them. That HTTP route is functionally replaced but **not removed**.
+    publish:
+      operationId: unworkedTimesList
+      summary: List absences
+      tags:
+        - name: unworked-times
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  week-assigned-times.list:
+    description: |
+      Paginated collection of weekly assignments. Whitelists:
+      `#/x-resources/week-assigned-times`.
+
+      **NO EXTERNAL ACCESS.** Capacity planning is not information of the client portal.
+    publish:
+      operationId: weekAssignedTimesList
+      summary: List weekly assignments
+      tags:
+        - name: week-assigned-times
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # project-permissions
+  # -------------------------------------------------------------------------
+
+  project-permissions.list:
+    description: |
+      Paginated collection of project permissions. Whitelists:
+      `#/x-resources/project-permissions`.
+
+      **The resource that trims itself with its own table.** `user_project_permissions` is the very
+      table the external trimming reads, so an external caller sees the permission rows of the
+      projects they are permitted on — including other people's.
+    publish:
+      operationId: projectPermissionsList
+      summary: List project permissions
+      tags:
+        - name: project-permissions
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # requirements.tags — THE ONE AGGREGATION
+  # -------------------------------------------------------------------------
+
+  requirements.tags:
+    description: |
+      The `{key, values[]}` pairs that ALREADY EXIST in the requirements of a project, grouped by
+      key. It feeds the tag selector of the requirements screen.
+
+      **This is the ONLY aggregation in the contract, and it is a DECLARED, BOUNDED EXCEPTION** to
+      "aggregations stay out of v1" (RF-37). It exists because there is no way to derive it from
+      `requirements.list` without pulling EVERY requirement of the project to group them client-side.
+
+      > **It is not a precedent.** The shape reserved for v2 — general aggregations, `*.summary`
+      > with closed `groupBy` and `metrics` — **stays out**. This endpoint has a name of its own, a
+      > single response shape, and a MANDATORY `filter.projectId`, and those three things are what
+      > keep it bounded. The next aggregated resource does not get to cite this one.
+
+      **Payload — one lever only: `filter`.** `sort`, `page`, `fields`, `include` and `count` are
+      `invalid_fields`. Inside `filter`, exactly two names:
+
+      | Name | Required | Meaning |
+      |---|---|---|
+      | `projectId` | **yes** | The project. Its absence is `invalid_fields` with `errorDetails.field = 'filter.projectId'` |
+      | `key` | no | PARTIAL, case-insensitive match on the key (`ILIKE`). `LIKE` wildcards written by the caller are LITERAL |
+
+      **`filter.projectId` is what prevents the table scan.** Without it the aggregate would unnest
+      the `jsonb` of every requirement in the product.
+
+      **The response carries NO `page`, and the absence is the contract**: it is not a paginated
+      collection. Adding `page` "for symmetry" would promise a cursor that does not exist.
+
+      ```jsonc
+      // request
+      { "filter": { "projectId": 12, "key": "modulo" } }
+      // response
+      { "status": "success",
+        "data": { "items": [ { "key": "modulo", "values": ["facturacion", "reportes"] } ] } }
+      ```
+
+      **External trimming: the FULL scope of the `requirements` sheet** — permitted projects **and**
+      `visibility_level = 'public'`. CA-6 of the story only names "permitted projects", but this
+      endpoint reads rows OF `requirements`: an external caller who cannot see an `internal`
+      requirement through `requirements.list` must not be able to deduce its tags here either. Half
+      the trimming would be a side channel, and one of the worst kind — nobody looks for it in an
+      aggregate.
+
+      **It never answers `*_not_found`**: a project with no tags, or one that does not exist, gets
+      `items: []`. It is not a `get`.
+
+      **Values are deduplicated** (`ARRAY_AGG(DISTINCT ...)`) and both keys and values come back in
+      a deterministic order. A requirement whose `tags` is `NULL`, `[]`, or not an array at all
+      contributes nothing and breaks nothing.
+
+      Uses the **GIN** index `idx_requirements_tags_gin` created by S-021.
+    publish:
+      operationId: requirementsTags
+      summary: Existing tag pairs of a project
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/TagsQuery'
+
+  # -------------------------------------------------------------------------
+  # settings — A CLOSED WHITELIST OF KEYS
+  # -------------------------------------------------------------------------
+
+  settings.list:
+    description: |
+      A **closed whitelist of configuration keys**, not the `system_settings` table. Whitelists:
+      `#/x-resources/settings`.
+
+      **A key that exists in the table and is not declared DOES NOT EXIST FOR THIS API**, and asking
+      for it explicitly returns `items: []`, **not an error**. The whitelist applies **before** the
+      filter, with the same mechanics as a trimming. `system_settings` is the product's operational
+      configuration: a key added by SQL for an experiment **must not** appear in a public contract
+      just because it exists. This is ADR-008 (deny-by-default) applied to configuration data.
+
+      **The six keys, and the one translation:**
+
+      | Contract key | Database `key` | Origin |
+      |---|---|---|
+      | `hours-per-day` | **`hours_per_day`** ⚠️ | `20260206_01_system_settings.js` |
+      | `upload-url-ttl-seconds` | `upload-url-ttl-seconds` | `20260819_05_harden_attachments_schema.js` |
+      | `download-url-ttl-seconds` | `download-url-ttl-seconds` | idem |
+      | `file-max-size-bytes` | `file-max-size-bytes` | idem |
+      | `file-allowed-extensions` | `file-allowed-extensions` | idem |
+      | `file-allowed-mime-types` | `file-allowed-mime-types` | idem |
+
+      > ⚠️ **`hours_per_day` has UNDERSCORES in the database and the other five have hyphens.** The
+      > old key was created in February with underscores; the five file ones in August with hyphens.
+      > **The contract publishes `hours-per-day` and `core` translates**, which is literally ADR-004:
+      > the product vocabulary lives in the contract, the database is not touched. Publishing
+      > `hours_per_day` raw would leave the query contract speaking in column names. Writing the
+      > whitelist with the contract name and NOT translating would make `settings.list` return FIVE
+      > keys with `hours-per-day` never appearing — a silent bug, because `items: []` for that key is
+      > indistinguishable from "not declared".
+      >
+      > A KNOWN AND ACCEPTED CONSEQUENCE of resolving this with the sheet's value map: filtering by
+      > the raw column name `hours_per_day` also matches, and returns the same row **under its
+      > contract name**. The alias grants access to nothing undeclared and leaks no schema in the
+      > response.
+
+      **`value` is ALWAYS a string.** The column is `TEXT`; no key is parsed into a number.
+      `file-allowed-mime-types` is a comma-separated list and `hours-per-day` is `'6'`.
+
+      **NO EXTERNAL ACCESS** (`items: []`, zero SQL): the product's operational configuration is not
+      information of the client portal.
+
+      **`settings` has no `get`** — six rows are listed. **Writing `system_settings` is still SQL
+      only**: this contract exposes it in READ, and only what is declared. The entity stops being
+      opaque to consumers without becoming administrable.
+    publish:
+      operationId: settingsList
+      summary: List the whitelisted configuration keys
+      tags:
+        - name: settings
+      message:
+        $ref: '#/components/messages/ListQuery'
+
+  # -------------------------------------------------------------------------
+  # meta.describe — THE CONTRACT AS DATA
+  # -------------------------------------------------------------------------
+
+  meta.describe:
+    description: |
+      **This document, as data**, derived from the same resource sheets the validator reads.
+
+      **Derived, not maintained.** That is the difference between a description that can lie and one
+      that cannot: if it declares a `sortable`, sorting by it **cannot** answer `invalid_fields`; and
+      a name it does not declare **must** answer it. There is no second copy to keep in sync.
+
+      **It does not touch the database.** The cheapest query in the contract and the only one that
+      does not depend on PostgreSQL.
+
+      **It is identical for every caller** — it describes the CONTRACT, not the data.
+
+      **Payload — one lever only: `resources`, optional.**
+
+      ```jsonc
+      { "resources": ["tasks"] }   // omit it to describe ALL SIXTEEN
+      ```
+
+      - An unknown name is `invalid_fields`, with `errorDetails.allowed` = the sixteen names.
+      - One valid name next to an invalid one rejects the WHOLE query — a partial response with one
+        resource missing and no word about which is indistinguishable from a resource that ceased to
+        exist.
+      - **`resources: []` is `invalid_fields`, not "all"**: an empty array accepted silently would
+        return sixteen resources to someone who asked for zero. For "all", the key is omitted.
+
+      **What it returns per resource:**
+
+      | Key | Content |
+      |---|---|
+      | `base` | the default returned set, each entry with its `kind` |
+      | `includable` | the includables, each with `kind` (`field` / `computed` / `relation`), and for a collection with a cap, its `cap` and `truncatedFlag` |
+      | `filterable` | each filter with its `kind`, the name of its `enum`, and whether it does `search` / `searchNumeric` / `contains` |
+      | `sortable` | the list of names, IN THE ORDER that travels in `errorDetails.allowed` |
+      | `defaults` | `{ sort, limit: 50, maxLimit: 200 }` |
+      | `enums` | each enum as `[{ value, label }]`. **The label falls back to the raw value** when the sheet does not declare one |
+
+      A resource **with a discriminator** is described **per variant** (`discriminator` + `variants`),
+      because its sheet is not complete until the variant is resolved. `sortable` and `defaults` sit
+      at the resource level: a variant cannot override them.
+
+      **What it does NOT return, ever:** the external scope, the fixed `where`, the table, the fixed
+      joins, any column name, the SQL of a computed includable, or the value of a constant. All of
+      those are SCHEMA, and this endpoint publishes CONTRACT. There is a test that serialises the
+      whole response and greps it for real table and column names.
+
+      **`maxLimit` is there on purpose**: a `page.limit` above the cap **is silently clamped** — it
+      is `success`, not `failure` — so without that number a consumer asks for 500, receives 200, and
+      has no signal why.
+
+      **`meta` is not a resource**: it does not appear in its own output, and `meta.list` answers
+      `unknown_command`.
+    publish:
+      operationId: metaDescribe
+      summary: Describe the contract
+      tags:
+        - name: meta
+      message:
+        $ref: '#/components/messages/DescribeQuery'
+
+components:
+
+  messages:
+
+    ListQuery:
+      name: ListQuery
+      title: '{resource}.list'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ListPayload'
+      x-reply:
+        $ref: '#/components/schemas/CollectionReply'
+      x-error-codes: [invalid_fields, invalid_cursor, caller_not_authorized, unknown_caller, query_timeout, internal_error]
+
+    GetQuery:
+      name: GetQuery
+      title: '{resource}.get'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/GetPayload'
+      x-reply:
+        $ref: '#/components/schemas/ItemReply'
+      # The `*_not_found` of each resource is declared in its `#/x-resources/{name}` block. A `list`
+      # NEVER answers one: a filter that matches nothing is an empty collection, not an absence.
+      x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, query_timeout, internal_error, '{resource}_not_found']
+
+    TagsQuery:
+      name: TagsQuery
+      title: requirements.tags
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TagsPayload'
+      x-reply:
+        $ref: '#/components/schemas/TagsReply'
+      x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, query_timeout, internal_error]
+
+    DescribeQuery:
+      name: DescribeQuery
+      title: meta.describe
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DescribePayload'
+      x-reply:
+        $ref: '#/components/schemas/DescribeReply'
+      # NO `query_timeout`: it does not touch the database.
+      x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, internal_error]
+
+  schemas:
+
+    ListPayload:
+      type: object
+      additionalProperties: false
+      description: |
+        The grammar of a `list`. **Six levers and no more**: any other top-level key is
+        `invalid_fields`, and so is any of the eleven forbidden identity names.
+
+        The NAMES inside `filter`, `sort`, `fields` and `include` are decided by the resource sheet
+        — see `#/x-resources`. A name that is not declared does not exist.
+      properties:
+        filter:
+          type: object
+          additionalProperties: true
+          description: |
+            Conditions, ANDed together. **The operator is decided by the SHAPE of the value**, which
+            is the grammar of the contract:
+
+            | Value shape | Meaning |
+            |---|---|
+            | scalar | equality |
+            | array | `IN` |
+            | `{ "not": <scalar or array> }` | negation |
+            | `{ "gte": x, "lte": y }` | range (`gt`, `gte`, `lt`, `lte`) |
+            | `{ "key": ..., "value": ... }` | containment, only where the sheet declares `contains` |
+
+            An enum filter validates against the sheet's enum and answers `invalid_fields` with
+            `errorDetails.allowed` = the list of VALUES (strings, never objects — labels live only
+            in `meta.describe`).
+        sort:
+          type: array
+          items:
+            type: string
+          description: |
+            Ordered list of criteria. `-name` is descending, `name` ascending. Only names declared
+            in the sheet's `sortable`.
+
+            **The engine always adds `id` as the last tie-breaker**, because the keyset cursor needs
+            a total order. A sheet that declares `id` itself avoids it being added twice.
+        page:
+          type: object
+          additionalProperties: false
+          description: |
+            `{ limit, cursor }`. **Keyset pagination, never `OFFSET`**: the cursor carries the last
+            key of the page plus a hash of the filter and the sort, so reordering the keys of the
+            same filter does not invalidate it.
+
+            **A `limit` above `maxLimit` is CLAMPED SILENTLY**: it is `success`, not `failure`. A
+            consumer that needs to know the cap reads it from `meta.describe`.
+
+            A cursor that does not decode, or whose scope does not match the current query, is
+            `invalid_cursor`.
+          properties:
+            limit:
+              type: integer
+              default: 50
+              maximum: 200
+            cursor:
+              type: string
+        fields:
+          type: array
+          items:
+            type: string
+          description: |
+            Restricts the returned set. Only names from `base ∪ includable`. **`id` is always
+            returned**, whether it was asked for or not.
+        include:
+          type: array
+          items:
+            type: string
+          description: |
+            Adds includables to the returned set. Only names from the sheet's `includable`.
+
+            **A collection includable with a `cap` returns at most `cap` items per row**, and marks
+            the row with its `truncatedFlag` — a SIBLING key of the collection
+            (`commentsTruncated`), not a nested field.
+        count:
+          description: |
+            `false` (default), `true` (collection + total) or `"only"` (total, and **the rows query
+            is not executed**). Any other value is `invalid_fields`.
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: [only]
+
+    GetPayload:
+      type: object
+      additionalProperties: false
+      description: |
+        The grammar of a `get`. **`filter`, `sort`, `page` and `count` are an ERROR here, not an
+        ignorable extra** (RF-3): a `get` asks about one identified resource, and accepting `filter`
+        in silence would let the caller believe something was trimmed.
+
+        A resource with a discriminator accepts it as a FOURTH top-level key, and
+        `errorDetails.allowed` says so.
+      required: [id]
+      properties:
+        id:
+          type: integer
+        fields:
+          type: array
+          items:
+            type: string
+        include:
+          type: array
+          items:
+            type: string
+        entityType:
+          type: string
+          description: 'Only on `comments`. Mandatory there: see the channel.'
+
+    TagsPayload:
+      type: object
+      additionalProperties: false
+      description: 'The grammar of `requirements.tags`. One lever: `filter`.'
+      required: [filter]
+      properties:
+        filter:
+          type: object
+          additionalProperties: false
+          required: [projectId]
+          properties:
+            projectId:
+              type: integer
+            key:
+              type: string
+      example:
+        filter:
+          projectId: 12
+          key: modulo
+
+    DescribePayload:
+      type: object
+      additionalProperties: false
+      description: 'The grammar of `meta.describe`. One optional lever: `resources`.'
+      properties:
+        resources:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: 'Omit for all sixteen. An EMPTY array is `invalid_fields`, not "all".'
+      example:
+        resources:
+          - tasks
+
+    Reply:
+      type: object
+      description: |
+        The envelope, **shared with the commands** and defined in `@jiku/nats-protocol`. See
+        `docs/apis/core.yaml` for the full description of each field.
+
+        On a `failure` the envelope travels in the BODY; the `Nats-Service-Error` headers are added,
+        never a replacement for it.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success, failure]
+        errorCode:
+          $ref: '#/components/schemas/QueryErrorCode'
+        errorMessage:
+          type: string
+          description: |
+            Free text, in Spanish. **Never structured data** — that is what `errorDetails` is for —
+            and **never the full subject**, which carries the user id. It also never carries SQL or
+            column names: a `query_timeout` logs the detail and sends a generic message.
+        errorDetails:
+          type: object
+          additionalProperties: true
+          description: |
+            **The query plane uses it from day one.** A rejected name comes back as
+            `{ field, value, allowed }`, where `allowed` is **the sheet's list BY REFERENCE** — which
+            is precisely what makes `meta.describe` verifiable against it.
+
+            What goes in here is CONTRACT data: which field, which value, what was accepted. Never
+            stack traces, never database column names, never SQL fragments.
+        data:
+          type: object
+
+    CollectionReply:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            The reply of a `list`: `items` plus `page`.
+
+            **The ABSENCE of `page.cursor` is the only end-of-collection signal.** There is no
+            `hasMore` boolean: two ways of saying the same thing eventually disagree.
+
+            **`page.total` appears only with `count`.** Counting is opt-in because it costs a second
+            query over the whole universe of the filter, and most screens do not need it.
+
+            **The page can come back with fewer items than `limit` because of the BYTE BUDGET**
+            (`floor(max_payload * 0.5)`, 524288 by default): the engine cuts the page before the
+            reply exceeds what NATS accepts, and emits the cursor at the cut. A truncated reply that
+            NATS rejects would be an error with no explanation.
+          properties:
+            data:
+              type: object
+              required: [items, page]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                page:
+                  type: object
+                  required: [limit, returned]
+                  properties:
+                    limit:
+                      type: integer
+                      description: The EFFECTIVE limit, with the default and the silent cap applied.
+                    returned:
+                      type: integer
+                    cursor:
+                      type: string
+                      description: Absent on the last page.
+                    total:
+                      type: integer
+                      description: 'Only with `count: true` or `count: "only"`.'
+          example:
+            status: success
+            data:
+              items:
+                - id: 7
+                  title: Alta de facturación
+              page:
+                limit: 50
+                returned: 1
+
+    ItemReply:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            The reply of a `get`: the item, flat under `data`.
+
+            **The `*_not_found` codes do NOT distinguish "does not exist" from "you cannot see it".**
+            Answering a permission error would confirm to an external caller that the resource
+            exists.
+          example:
+            status: success
+            data:
+              id: 7
+              title: Alta de facturación
+
+    TagsReply:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: 'The reply of `requirements.tags`. **No `page`**: it is not paginated.'
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [key, values]
+                    properties:
+                      key:
+                        type: string
+                      values:
+                        type: array
+                        items:
+                          type: string
+          example:
+            status: success
+            data:
+              items:
+                - key: modulo
+                  values:
+                    - facturacion
+                    - reportes
+
+    DescribeReply:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: 'The reply of `meta.describe`: `data.resources`, keyed by contract name.'
+          properties:
+            data:
+              type: object
+              required: [resources]
+              properties:
+                resources:
+                  type: object
+                  additionalProperties: true
+          example:
+            status: success
+            data:
+              resources:
+                unworked-times:
+                  base:
+                    id:
+                      kind: field
+                    reason:
+                      kind: field
+                  includable:
+                    person:
+                      kind: relation
+                      cardinality: one
+                      fields: [id, firstName, lastName]
+                      optional: false
+                  filterable:
+                    reason:
+                      kind: enum
+                      enum: reason
+                  sortable: [date, id]
+                  defaults:
+                    sort: [date]
+                    limit: 50
+                    maxLimit: 200
+                  enums:
+                    reason:
+                      - value: tramite
+                        label: Trámite
+
+    QueryErrorCode:
+      type: string
+      description: |
+        The error catalog of the query plane. **It is the SAME shared catalog** as the commands'
+        (`@jiku/nats-protocol`), not one per plane — which is why `docs/apis/core.yaml` also lists
+        the five codes REQ-006 added.
+
+        | Code | Emitter | HTTP once a consumer exists |
+        |---|---|---|
+        | `invalid_fields` | the validator of any query | **400** |
+        | `invalid_cursor` | the keyset cursor | **400** |
+        | `caller_not_authorized` | gate 1 (`ROLE_METHODS`) | **403** |
+        | `unknown_caller` | gate 2 (caller class) | **403** |
+        | `unknown_command` | the registry, when the pattern does not exist | **500** |
+        | `query_timeout` | the engine, on PostgreSQL `statement_timeout` (8000 ms) | **504** |
+        | `internal_error` | the dispatcher's `catch` | **500** |
+        | `client_not_found` | `clients.get` | **404** |
+        | `project_not_found` | `projects.get` | **404** |
+        | `requirement_not_found` | `requirements.get` | **404** |
+        | `task_not_found` | `tasks.get` | **404** |
+        | `comment_not_found` | `comments.get` | **404** |
+        | `file_not_found` | `files.get` | **404** |
+
+        > **THE HTTP COLUMN IS DOCUMENTATION, NOT CODE.** REQ-006 does not implement
+        > `httpStatusForQuery` and does not touch `api/lib/utils/bus/protocol.ts`: with `bus.query()`
+        > having no caller, none of these ever reaches an HTTP response. That map belongs to the
+        > requirement that migrates the `GET` routes.
+
+        > **`query_timeout` is the invariant made visible.**
+        > `POSTGRESQL_STATEMENT_TIMEOUT_MS (8000) < NATS_QUERY_TIMEOUT_MS (10000)`: the database cuts
+        > first, the engine names it, and the caller gets a reply that explains what happened instead
+        > of a mute bus timeout. **The detection is BY POSTGRES CODE (`57014`), never by the message
+        > text**, which changes with the server version and locale.
+
+        > **`unknown_caller` is NOT `caller_not_authorized`.** Two questions, two gates, in this
+        > order. Merging them would erase the rule that **a caller with no row gets an ERROR, never
+        > an empty list**.
+
+        > **The three endpoints of the last story emit NO new code.** `requirements.tags`,
+        > `settings.list` and `meta.describe` answer `invalid_fields`, which already exists, and
+        > **none of them answers a `*_not_found`** — none of them is a `get`.
+
+        > **`items: []` IS NOT AN ERROR.** External trimming, the `settings` whitelist and a filter
+        > that matches nothing all produce an empty collection with `status: success`. The difference
+        > is contractual: an error would say "the resource exists and is barred to you"; the empty
+        > collection says "there is nothing here for you".
+
+# ---------------------------------------------------------------------------
+# LAS CINCO LISTAS BLANCAS, POR RECURSO
+# ---------------------------------------------------------------------------
+#
+# Son DIECISEIS bloques y son el grueso de este documento. Cada uno declara lo mismo, en el
+# mismo orden, para que un hueco sea evidente:
+#
+#   base            lo que devuelve un `list` o un `get` SIN pedir nada
+#   includable      lo que `include` puede sumar
+#   filterable      lo que `filter` puede nombrar
+#   sortable        lo que `sort` puede nombrar, MAS su orden por defecto
+#   externalScope   que ve un caller de clase `external`
+#
+# TRANSCRITAS DESDE EL CODIGO, no desde los documentos de analisis de REQ-006: aquellos fueron
+# el insumo y las fichas son lo que corre. A partir de aca manda ESTE documento.
+#
+# `meta.describe` devuelve exactamente esto, como dato. Compararlos es la verificacion mecanica
+# de que el codigo y la spec no divergieron.
+
+x-resources:
+
+  clients:
+    endpoints: [clients.list, clients.get]
+    note: >-
+      `description` es incluible y truncable: es el único texto sin cota del recurso. El recorte
+      externo es INDIRECTO —un actor no lleva `project_id`—: se ve si tiene al menos un proyecto
+      permitido.
+    base: [id, name, createdAt, updatedAt]
+    includable: [description]
+    filterable: [id, name, createdAt, q]
+    sortable: [name, createdAt, updatedAt]
+    defaultSort: [name]
+    truncatable: [description]
+    externalScope: "EXISTS sobre `projects` (`id` entre los permitidos)"
+    notFound: client_not_found
+
+  projects:
+    endpoints: [projects.list, projects.get]
+    note: >-
+      El recorte externo compara la PROPIA `id` del proyecto contra los permitidos. `properties`
+      del contrato es `key_value_pairs` en la base (ADR-004).
+    base: [id, code, name, type, status, clientId, originId, createdBy, createdAt, updatedAt]
+    includable: [description, properties, initDate, endDate, priority, client, origin]
+    filterable: [id, code, name, type, status, clientId, originId, priority, createdBy, initDate, endDate, createdAt, updatedAt, q]
+    enums:
+      type: [interno, comercial, investigacion, propuesta]
+      status: [analisis, activo, inactivo, finalizado, cancelado]
+    sortable: [name, code, status, priority, initDate, endDate, createdAt, updatedAt]
+    defaultSort: [-createdAt]
+    truncatable: [description]
+    externalScope: "`id` entre los proyectos permitidos"
+    notFound: project_not_found
+
+  requirements:
+    endpoints: [requirements.list, requirements.get, requirements.tags]
+    note: >-
+      La ficha más grande del contrato. `q` se DESVÍA A `id` cuando el texto es solo dígitos;
+      `tag` es contención sobre `jsonb` con forma propia y usa el índice GIN. `totalMinutes` es un
+      incluible CALCULADO —dos subconsultas sobre `worked_times`—, no una columna.
+    base: [id, title, type, priority, state, estimatedFinishDate, tags, projectId, createdBy, visibilityLevel, createdAt, updatedAt]
+    includable: [description, scope, technicalSolution, acceptanceCriteria, resolutionComment, resolutionType, resolutionConclusion, scheduledAt, inProgressAt, inReviewAt, finishedAt, totalMinutes, project, responsiblePersons, comments, subscriptors, attachments]
+    filterable: [id, projectId, type, state, priority, createdBy, visibilityLevel, responsiblePersonId, tag, estimatedFinishDate, finishedAt, createdAt, updatedAt, q]
+    enums:
+      type: [funcionalidad, mejora, incidencia, otro]
+      priority: [sin_prioridad, baja, media, alta, urgente]
+      state: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+      visibilityLevel: [public, internal]
+    sortable: [id, title, state, priority, estimatedFinishDate, createdAt, updatedAt, finishedAt]
+    defaultSort: [-createdAt]
+    truncatable: [description, scope, technicalSolution, acceptanceCriteria, resolutionComment, resolutionConclusion]
+    externalScope: "`project_id` entre los proyectos permitidos **y** `visibility_level = 'public'`"
+    notFound: requirement_not_found
+
+  tasks:
+    endpoints: [tasks.list, tasks.get]
+    note: >-
+      `tasks` es `objectives` en la base. `priorityValue` es el entero crudo de la columna y es un
+      ESCAPE TRANSITORIO (ADR-004): se elimina cuando la web mande nombres de prioridad.
+      `priority` es la traducción con nombre, y el filtro por `'urgente'` matchea 4 Y 5 porque los
+      dos se leen igual.
+    base: [id, title, state, area, priority, priorityValue, estimatedFinishDate, finishedAt, visibilityLevel, projectId, requirementId, createdBy, createdAt, updatedAt]
+    includable: [description, project, requirement, responsiblePersons, comments, subscriptors]
+    filterable: [id, projectId, requirementId, state, area, priority, priorityValue, visibilityLevel, createdBy, estimatedFinishDate, responsiblePersonId, finishedAt, createdAt, updatedAt, q]
+    enums:
+      state: [backlog, activo, en_revision, finalizado, cancelado]
+      area: [diseño, desarrollo, gestion, investigacion]
+      priority: [sin_prioridad, baja, media, alta, urgente]
+      visibilityLevel: [public, internal]
+    sortable: [title, state, priority, finishedAt, createdAt, updatedAt]
+    defaultSort: [-createdAt]
+    truncatable: [description]
+    externalScope: "`project_id` entre los proyectos permitidos **y** `visibility_level = 'public'`"
+    notFound: task_not_found
+
+  comments:
+    endpoints: [comments.list, comments.get]
+    note: >-
+      `entityType` es OBLIGATORIO: los ids de las dos tablas de actividad SE PISAN. `body` es
+      `new_value` y `authorId` es `changed_by` en la base. `attachments` está en el conjunto BASE,
+      no en incluibles: la excepción declarada a RF-17.
+    discriminator:
+      field: entityType
+      values: [task, requirement]
+      mandatory: true
+    variants:
+      task:
+        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, createdAt, updatedAt]
+        includable: [author]
+        filterable: [entityType, entityId, authorId, visibilityLevel, createdAt, q]
+        enums:
+          visibilityLevel: [public, internal]
+      requirement:
+        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, createdAt, updatedAt]
+        includable: [author]
+        filterable: [entityType, entityId, authorId, visibilityLevel, createdAt, q]
+        enums:
+          visibilityLevel: [public, internal]
+    sortable: [createdAt, updatedAt]
+    defaultSort: [createdAt]
+    truncatable: [body]
+    externalScope: "EXISTS sobre `__variante_sin_resolver__` (`project_id` entre los permitidos)"
+    notFound: comment_not_found
+
+  activity:
+    endpoints: [activity.list]
+    note: >-
+      La MISMA tabla que `comments`, sin el predicado `type_of_activity = 'comment'`. El enum
+      `type` se pisa ENTERO por variante, y por eso se describe por variante y no como unión.
+    discriminator:
+      field: entityType
+      values: [task, requirement]
+      mandatory: true
+    variants:
+      task:
+        base: [id, entityType, entityId, type, previousValue, newValue, authorId, visibilityLevel, createdAt, updatedAt]
+        includable: [author]
+        filterable: [entityType, entityId, type, authorId, visibilityLevel, createdAt]
+        enums:
+          visibilityLevel: [public, internal]
+          type: [state, area, comment, title, person, priority, estimatedFinishDate, description, stageId]
+      requirement:
+        base: [id, entityType, entityId, type, previousValue, newValue, authorId, visibilityLevel, createdAt, updatedAt]
+        includable: [author]
+        filterable: [entityType, entityId, type, authorId, visibilityLevel, createdAt]
+        enums:
+          visibilityLevel: [public, internal]
+          type: [state, comment, type, priority, estimatedFinishDate, tag, resolution, title, description]
+    sortable: [createdAt, id]
+    defaultSort: [createdAt]
+    truncatable: [previousValue, newValue]
+    externalScope: "EXISTS sobre `__variante_sin_resolver__` (`project_id` entre los permitidos)"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  subscriptions:
+    endpoints: [subscriptions.list]
+    note: >-
+      Recorte `owner`: un externo ve SOLO las suyas. Quién más sigue un requisito no es
+      información del requisito.
+    discriminator:
+      field: entityType
+      values: [task, requirement]
+      mandatory: true
+    variants:
+      task:
+        base: [id, entityType, entityId, userId, createdAt]
+        includable: [user]
+        filterable: [entityType, entityId, userId]
+      requirement:
+        base: [id, entityType, entityId, userId, createdAt]
+        includable: [user]
+        filterable: [entityType, entityId, userId]
+    sortable: [id]
+    defaultSort: [id]
+    externalScope: "la fila ES del caller (`undefined`)"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  attachments:
+    endpoints: [attachments.list]
+    note: >-
+      Dos exclusiones PERMANENTES en el predicado fijo: el vínculo borrado y el archivo no
+      retenido. `entityType` traduce en LAS DOS DIRECCIONES (`task_comment` <->
+      `objective_comment`). CERO URLS MINTEADAS.
+    base: [id, entityType, entityId, fileId, fileName, mimeType, fileSize, uploadedBy, byteStatus, createdAt]
+    includable: []
+    filterable: [entityType, entityId, fileId, uploadedBy]
+    enums:
+      entityType: [project, requirement, requirement_comment, task, task_comment]
+    sortable: [createdAt, id]
+    defaultSort: [createdAt]
+    externalScope: "el tipo de la fila decide qué tabla mirar (5 ramas); un tipo no contemplado NO pasa ninguna"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  files:
+    endpoints: [files.get]
+    note: >-
+      SIN `list`. `checksum` es incluible y no base: no lo necesita ninguna pantalla y agranda la
+      respuesta.
+    base: [id, fileName, fileSize, mimeType, byteStatus, retentionStatus, uploadedBy, createdAt]
+    includable: [checksum]
+    filterable: []
+    sortable: []
+    defaultSort: [createdAt]
+    externalScope: "visible por sus vínculos vivos, o si el caller lo subió"
+    notFound: file_not_found
+
+  people:
+    endpoints: [people.list]
+    note: >-
+      El recorte externo pasa por `projects_persons`: una persona se ve si trabaja en un proyecto
+      permitido.
+    base: [id, firstName, lastName, enabled, userId, createdAt, updatedAt]
+    includable: [mustChargeWorkedTime, initDate, endDate, user]
+    filterable: [id, enabled, mustChargeWorkedTime, userId, projectId, q]
+    sortable: [lastName, firstName, initDate, id]
+    defaultSort: [lastName, firstName]
+    externalScope: "EXISTS sobre `projects_persons` (`project_id` entre los permitidos)"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  users:
+    endpoints: [users.list]
+    note: >-
+      `email` es INCLUIBLE, no base: es dato personal. `roles` NO SE EXPONE en absoluto — es el
+      insumo de la compuerta de autorización.
+    base: [id, name, username, createdAt, updatedAt]
+    includable: [email, person]
+    filterable: [id, username, email, q]
+    sortable: [name, username]
+    defaultSort: [name]
+    externalScope: "EXISTS sobre `user_project_permissions` (`project_id` entre los permitidos)"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  worked-times:
+    endpoints: [worked-times.list]
+    note: >-
+      SIN ACCESO EXTERNO. Ordena DESCENDENTE por fecha, al revés que su hermano `unworked-times`.
+    base: [id, date, minutes, projectId, personId, taskId, requirementId, createdAt, updatedAt]
+    includable: [person, project, task, requirement]
+    filterable: [id, personId, projectId, taskId, requirementId, date]
+    sortable: [date, minutes, id]
+    defaultSort: [-date]
+    externalScope: "SIN ACCESO — `items: []`, cero SQL"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  unworked-times:
+    endpoints: [unworked-times.list]
+    note: >-
+      SIN ACCESO EXTERNO, y `reason` incluye `medico` y `enfermedad`, que son DATO DE SALUD.
+      Ordena ASCENDENTE. Es el ÚNICO enum del contrato con etiquetas declaradas, y son las de `GET
+      /unworked-times/reasons`.
+    base: [id, date, minutes, reason, personId, createdAt, updatedAt]
+    includable: [person]
+    filterable: [id, personId, reason, date]
+    enums:
+      reason: [tramite, corte_servicios, vacaciones, dia_no_laborable, personal, medico, estudio, enfermedad, otro]
+    sortable: [date, id]
+    defaultSort: [date]
+    externalScope: "SIN ACCESO — `items: []`, cero SQL"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  week-assigned-times:
+    endpoints: [week-assigned-times.list]
+    note: >-
+      SIN ACCESO EXTERNO. La planificación de capacidad no es información del portal.
+    base: [id, dateFrom, dateTo, internal, minutes, projectId, personId, createdAt, updatedAt]
+    includable: [person, project]
+    filterable: [personId, projectId, internal, dateFrom]
+    sortable: [dateFrom, personId]
+    defaultSort: [dateFrom]
+    externalScope: "SIN ACCESO — `items: []`, cero SQL"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  project-permissions:
+    endpoints: [project-permissions.list]
+    note: >-
+      El recurso que se recorta con SU PROPIA tabla: un externo ve las filas de permiso de los
+      proyectos en los que tiene permiso, incluidas las de otras personas.
+    base: [id, userId, projectId, createdAt]
+    includable: [user, project]
+    filterable: [projectId, userId]
+    sortable: [id]
+    defaultSort: [id]
+    externalScope: "`project_id` entre los proyectos permitidos"
+    notFound: ~   # sin `get`: no declara ninguno
+
+  settings:
+    endpoints: [settings.list]
+    note: >-
+      LISTA BLANCA CERRADA de seis claves, aplicada ANTES del filtro. `hours-per-day` (contrato)
+      resuelve contra `hours_per_day` (columna). `value` SIEMPRE string. SIN ACCESO EXTERNO. Sin
+      `get`.
+    base: [id, key, value]
+    includable: []
+    filterable: [key]
+    sortable: [key, id]
+    defaultSort: [key]
+    externalScope: "SIN ACCESO — `items: []`, cero SQL"
+    notFound: ~   # sin `get`: no declara ninguno
+

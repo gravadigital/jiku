@@ -2,8 +2,12 @@ import 'mocha';
 import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { Sequelize } from 'sequelize-typescript';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   deniesAllRows,
+  enumLabeled,
+  enumValues,
   isRelation,
   resolveVariant,
   specFor,
@@ -14,6 +18,8 @@ import { filesSpec } from '../../src/queries/files/files-spec';
 import { commentsSpec } from '../../src/queries/comments/comments-spec';
 import { subscriptionsSpec } from '../../src/queries/subscriptions/subscriptions-spec';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
+import { unworkedTimesSpec } from '../../src/queries/unworked-times/unworked-times-spec';
+import { TASK_PRIORITY_VALUES } from '../../src/commands/tasks/priority';
 import { runGet } from '../../src/queries/engine/run';
 import { validateGet } from '../../src/queries/engine/validate-query';
 import { ValidatedGetQuery } from '../../src/queries/engine/types';
@@ -476,5 +482,111 @@ describe('queries/engine/run — el corte SIN ACCESO en `get` (S-026, Task 1)', 
     reply.status.should.equal('failure');
     (reply as any).errorCode.should.equal(ErrorCode.TASK_NOT_FOUND);
     calls.should.deepEqual([]);
+  });
+});
+
+/**
+ * LAS ETIQUETAS DE ENUM EN LA FICHA (S-028, Task 1, CA-10 y CA-13).
+ *
+ * `ResourceSpec.enums` admite desde S-028 dos formas por entrada: el valor solo —lo que traían las
+ * fichas de S-022 a S-027— o `{ value, label }`. Lo que estos tests fijan es que la forma nueva NO
+ * ROMPE NADA de lo que ya funcionaba: ni el orden de los valores, ni `errorDetails.allowed`, ni el
+ * enum DERIVADO de `tasks`, ni el enum PISADO POR VARIANTE de `activity`.
+ *
+ * LA ALTERNATIVA QUE SE DESCARTÓ era un mapa `ENUM_LABELS` aparte. Es exactamente la estructura
+ * paralela que el riesgo principal de la story describe: se desincroniza y `meta.describe` —que se
+ * DERIVA de estas mismas fichas— pasa a mentir.
+ */
+describe('queries/spec — las etiquetas de enum en la ficha (S-028, Task 1)', () => {
+  it('TS-1 · las NUEVE razones de `unworked-times` están completas, con etiqueta y en orden', () => {
+    enumLabeled(unworkedTimesSpec.enums.reason).should.deepEqual([
+      { value: 'tramite', label: 'Trámite' },
+      { value: 'corte_servicios', label: 'Cortes de servicios' },
+      { value: 'vacaciones', label: 'Vacaciones' },
+      { value: 'dia_no_laborable', label: 'Día no laborable' },
+      { value: 'personal', label: 'Personal' },
+      { value: 'medico', label: 'Médico' },
+      { value: 'estudio', label: 'Estudio' },
+      { value: 'enfermedad', label: 'Enfermedad' },
+      { value: 'otro', label: 'Otro' },
+    ]);
+  });
+
+  it('TS-2 · las etiquetas coinciden CARÁCTER POR CARÁCTER con las de la api', () => {
+    // El archivo de la api se lee del disco y no se importa: `core` no depende de `api`, y hacerlo
+    // invertiría la dirección de la dependencia del producto. Lo que el test verifica es que la
+    // COPIA deliberada siga siendo fiel — que es la única forma de que `meta.describe` reemplace
+    // funcionalmente a `GET /unworked-times/reasons` (CA-13).
+    const source = readFileSync(
+      join(__dirname, '..', '..', '..', 'api', 'lib', 'routes', 'unworked-times-reasons-get.ts'),
+      'utf8'
+    );
+
+    const fromApi = [...source.matchAll(/\{\s*value:\s*'([^']+)',\s*label:\s*'([^']+)'\s*\}/g)].map(
+      ([, value, label]) => ({ value, label })
+    );
+
+    fromApi.should.have.length(9);
+    enumLabeled(unworkedTimesSpec.enums.reason).should.deepEqual(fromApi);
+  });
+
+  it('TS-3 · el ORDEN DE LOS VALORES no cambió para el validador', () => {
+    enumValues(unworkedTimesSpec.enums.reason).should.deepEqual([
+      'tramite',
+      'corte_servicios',
+      'vacaciones',
+      'dia_no_laborable',
+      'personal',
+      'medico',
+      'estudio',
+      'enfermedad',
+      'otro',
+    ]);
+  });
+
+  it('TS-5 · un enum SIN etiquetas declaradas cae al valor crudo, no a `undefined`', () => {
+    // Un `label: undefined` en la respuesta sería peor que el valor: obligaría a cada consumidor a
+    // manejar el caso, y el valor crudo es siempre una etiqueta legítima.
+    enumValues(tasksSpec.enums.state).should.deepEqual([
+      'backlog',
+      'activo',
+      'en_revision',
+      'finalizado',
+      'cancelado',
+    ]);
+    enumLabeled(tasksSpec.enums.state).should.deepEqual([
+      { value: 'backlog', label: 'backlog' },
+      { value: 'activo', label: 'activo' },
+      { value: 'en_revision', label: 'en_revision' },
+      { value: 'finalizado', label: 'finalizado' },
+      { value: 'cancelado', label: 'cancelado' },
+    ]);
+  });
+
+  it('TS-6 · el enum DERIVADO de `tasks.priority` sigue saliendo de la constante compartida', () => {
+    enumValues(tasksSpec.enums.priority).should.deepEqual([...TASK_PRIORITY_VALUES]);
+    // Y la ficha no lo literalizó: es la MISMA referencia que exporta el módulo de prioridad.
+    (tasksSpec.enums.priority as unknown as object).should.equal(TASK_PRIORITY_VALUES);
+  });
+
+  it('TS-7 · el enum POR VARIANTE de `activity` se sigue pisando entero', () => {
+    const task = resolveVariant(activitySpec, 'task');
+    const requirement = resolveVariant(activitySpec, 'requirement');
+
+    // Dos listas DISTINTAS, cada una la de su entidad. Describir la unión sería mentir: declararía
+    // un `type` que en la mitad de las variantes es `invalid_fields`.
+    enumValues(task.enums.type).should.not.deepEqual(enumValues(requirement.enums.type));
+    enumValues(task.enums.type).length.should.be.above(0);
+    enumValues(requirement.enums.type).length.should.be.above(0);
+
+    // Y lo que NO depende de la variante queda idéntico en las dos.
+    enumValues(task.enums.visibilityLevel).should.deepEqual(
+      enumValues(requirement.enums.visibilityLevel)
+    );
+  });
+
+  it('un enum ausente proyecta la lista vacía en las dos direcciones', () => {
+    enumValues(undefined).should.deepEqual([]);
+    enumLabeled(undefined).should.deepEqual([]);
   });
 });
