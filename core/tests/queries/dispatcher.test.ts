@@ -3,11 +3,16 @@ import 'should';
 import * as sinon from 'sinon';
 import { Sequelize } from 'sequelize-typescript';
 import { User } from '@jiku/models';
-import { Reply, success } from '@jiku/nats-protocol';
+import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { sequelize } from '../../src/models';
 import { readDb } from '../../src/models/read';
 import logger from '../../src/logger';
-import { QueryDispatcher } from '../../src/queries/dispatcher';
+import { BusHost } from '../../src/bus/host';
+import {
+  DEFAULT_PAYLOAD_BUDGET_BYTES,
+  QueryDispatcher,
+  budgetFrom,
+} from '../../src/queries/dispatcher';
 import { QueryRegistry } from '../../src/queries/registry';
 import { Query, QueryContext } from '../../src/queries/types';
 
@@ -21,7 +26,10 @@ function testQuery(
   pattern: string,
   execute: Query['execute'] = (): Promise<Reply> => Promise.resolve(success())
 ): Query {
-  return { pattern, execute };
+  // `validate` PERMISIVO: desde S-022 la interfaz `Query` lo exige, igual que `Command`. Este
+  // stub no tiene contrato que validar, así que deja pasar el payload TAL CUAL — que es lo que
+  // las aserciones de abajo siguen verificando.
+  return { pattern, validate: (payload: unknown) => ({ value: payload }), execute };
 }
 
 describe('queries/registry', () => {
@@ -193,5 +201,160 @@ describe('queries/dispatcher', () => {
     const reply = await dispatcher.dispatch(SUBJECT, {});
 
     reply.errorCode!.should.equal('internal_error');
+  });
+});
+
+/**
+ * S-022 · `validate()` y el presupuesto de bytes.
+ *
+ * Va en un `describe` propio y NO toca los de arriba: lo que S-013 fijó sobre este despachador
+ * —sin transacción, contexto mínimo, nunca lanza— sigue valiendo exactamente igual, y esos tests
+ * son los que lo prueban.
+ */
+describe('queries/dispatcher — validate() y el presupuesto (CA-31)', () => {
+  before(async () => {
+    await User.create({
+      id: 'sub-validate',
+      name: 'Validate',
+      username: 'validate-q',
+      email: 'validate-q@test.local',
+      roles: ['admin'],
+    });
+  });
+
+  after(async () => {
+    await User.destroy({ where: { id: 'sub-validate' } });
+  });
+
+  const SUBJECT_OK = 'dev.sub-validate.jiku-queries.v1.tasks.list';
+
+  it('TS-54 · `validate()` se llama UNA VEZ y ANTES de `execute`', async () => {
+    const calls: string[] = [];
+    const dispatcher = new QueryDispatcher(
+      new QueryRegistry().register({
+        pattern: 'tasks.list',
+        validate: (payload: unknown) => {
+          calls.push('validate');
+          return { value: payload };
+        },
+        execute: () => {
+          calls.push('execute');
+          return Promise.resolve(success());
+        },
+      }),
+      readDb
+    );
+
+    await dispatcher.dispatch(SUBJECT_OK, {});
+
+    calls.should.deepEqual(['validate', 'execute']);
+  });
+
+  it('TS-54 · si `validate()` devuelve error, `execute` NO se invoca y el reply es ESE error', async () => {
+    let executed = false;
+    const rejection = failure(ErrorCode.INVALID_FIELDS, 'mal', { field: 'sort' });
+    const dispatcher = new QueryDispatcher(
+      new QueryRegistry().register({
+        pattern: 'tasks.list',
+        validate: () => ({ error: rejection }),
+        execute: () => {
+          executed = true;
+          return Promise.resolve(success());
+        },
+      }),
+      readDb
+    );
+
+    const reply = await dispatcher.dispatch(SUBJECT_OK, { sort: ['x'] });
+
+    executed.should.be.false();
+    // TAL CUAL, incluido su `errorDetails`: el despachador no lo reescribe.
+    reply.should.deepEqual(rejection);
+  });
+
+  it('TS-54 · un payload inválido NO llega a tocar la base', async () => {
+    const query = sinon.spy(readDb, 'query');
+    const writeTx = sinon.spy(sequelize, 'transaction');
+    const readTx = sinon.spy(readDb, 'transaction');
+    try {
+      const dispatcher = new QueryDispatcher(
+        new QueryRegistry().register({
+          pattern: 'tasks.list',
+          validate: () => ({ error: failure(ErrorCode.INVALID_FIELDS, 'mal') }),
+          execute: () => Promise.resolve(success()),
+        }),
+        readDb
+      );
+
+      await dispatcher.dispatch(SUBJECT_OK, {});
+
+      query.callCount.should.equal(0);
+      // Y ninguna transacción, en ninguna de las dos conexiones: la propiedad de S-013 intacta.
+      writeTx.callCount.should.equal(0);
+      readTx.callCount.should.equal(0);
+    } finally {
+      query.restore();
+      writeTx.restore();
+      readTx.restore();
+    }
+  });
+
+  it('el presupuesto se EVALÚA EN CADA dispatch, no se cachea al construir', async () => {
+    const budgets: (number | undefined)[] = [];
+    let next = 1000;
+    const dispatcher = new QueryDispatcher(
+      new QueryRegistry().register(
+        testQuery('tasks.list', (_payload, ctx) => {
+          budgets.push(ctx.budgetBytes);
+          return Promise.resolve(success());
+        })
+      ),
+      readDb,
+      () => next
+    );
+
+    await dispatcher.dispatch(SUBJECT_OK, {});
+    // Una reconexión a un server con otro `max_payload` cambia el número: cachearlo mediría
+    // contra el server viejo.
+    next = 2000;
+    await dispatcher.dispatch(SUBJECT_OK, {});
+
+    budgets.should.deepEqual([1000, 2000]);
+  });
+
+  it('sin proveedor, el contexto es el MISMO que entregó S-013', async () => {
+    let captured: QueryContext | null = null;
+    const dispatcher = new QueryDispatcher(
+      new QueryRegistry().register(
+        testQuery('tasks.list', (_payload, ctx) => {
+          captured = ctx;
+          return Promise.resolve(success());
+        })
+      ),
+      readDb
+    );
+
+    await dispatcher.dispatch(SUBJECT_OK, {});
+
+    // Sin `budgetBytes`: el motor resuelve la ausencia con su default. Es lo que permite que la
+    // forma del contexto no cambie para quien no lo necesita.
+    Object.keys(captured as unknown as QueryContext).sort().should.deepEqual(['caller', 'db']);
+  });
+
+  it('`budgetFrom` es la mitad del `max_payload`, y 524288 cuando no hay conexión', () => {
+    budgetFrom(1048576).should.equal(524288);
+    budgetFrom(2097152).should.equal(1048576);
+    // 1 MiB es el `max_payload` por defecto de NATS; su mitad es el default de acá.
+    budgetFrom(undefined).should.equal(DEFAULT_PAYLOAD_BUDGET_BYTES);
+    DEFAULT_PAYLOAD_BUDGET_BYTES.should.equal(524288);
+    // Un valor absurdo del server no puede producir un presupuesto de cero.
+    budgetFrom(0).should.equal(DEFAULT_PAYLOAD_BUDGET_BYTES);
+    budgetFrom(-1).should.equal(DEFAULT_PAYLOAD_BUDGET_BYTES);
+  });
+
+  it('`BusHost.maxPayload()` devuelve undefined antes de `start()`', () => {
+    const host = new BusHost();
+
+    (host.maxPayload() === undefined).should.be.true();
   });
 });

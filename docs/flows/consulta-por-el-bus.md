@@ -42,6 +42,34 @@ razones que no se reconstruyen leyendo el código:
 > ejercitan los tests y la verificación manual con `nats req`. Es una decisión de alcance, no un
 > descuido.
 
+### Estado de implementación
+
+Este documento describe el recorrido **completo**, que se termina de implementar recién en S-028. El
+`status` sigue en **Draft** por eso: pasa a `Active` cuando todos sus pasos existan en el código, no
+cuando exista el primero.
+
+| Paso | Estado | Story |
+|---|---|---|
+| 1 · El caller publica la consulta | Implementado | S-013 (subjects), S-022 (contrato) |
+| 2 · `bus/service.ts` decodifica y delega | Implementado | S-013 |
+| 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
+| **3.4 · Segunda compuerta: la clase del caller (`unknown_caller`)** | **Pendiente** | **S-023** |
+| 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
+| **5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`)** | **Declarado en la ficha, NO aplicado** | **S-023** |
+| 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
+| 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
+| 8 · El caller recorre la colección | Implementado | S-022 |
+
+**Recursos con contrato:** `tasks` (`list` y `get`), desde S-022. Los otros cuatro endpoints
+registrados —`projects.list/get` y `comments.list/get`— siguen respondiendo `unknown_command` desde
+`core/src/queries/pending.ts` hasta S-024 y S-025.
+
+> **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** con el Paso 5 declarado y no
+> aplicado, `tasks.list` **no recorta filas**, y `ROLE_METHODS` ya autoriza `queries: ALL` a
+> `external-user`. **S-022 y S-023 se despliegan juntas** a cualquier entorno donde exista un caller
+> externo conectado al bus. La separación entre las dos es de desarrollo y verificación, no de
+> despliegue independiente.
+
 ## Servicios Involucrados
 
 | Servicio | Rol | Tipo de Participación |

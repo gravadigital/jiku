@@ -71,3 +71,23 @@ SETTING_KEYS                     // the five key names; part of the contract wit
 **Description:** `'grava-gestion'`, the historical default of `STORAGE_S3_KEY_PREFIX`. Changing it
 on an installation with data makes every existing file unreachable, since the keys already persisted
 in `files.storage_key` still point at the old prefix.
+
+## Query grammar limits
+
+**Location:** `core/src/queries/engine/validate-query.ts`, `core/src/queries/engine/cursor.ts`,
+`core/src/queries/dispatcher.ts`
+
+**Description:** The numbers of the query contract. They are constants and not literals scattered
+through the engine because every one of them is a promise the contract makes to the caller.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `DEFAULT_PAGE_LIMIT` | `50` | Used when `page.limit` is absent **or `0`** — `0` means "use the default", not "give me nothing" |
+| `MAX_PAGE_LIMIT` | `200` | A larger request is **silently capped**: it is `success`, and the effective value travels back in `page.limit` |
+| `CURSOR_VERSION` | `1` | A cursor with any other `v` is `invalid_cursor`: its `k` may mean something else |
+| `DEFAULT_PAYLOAD_BUDGET_BYTES` | `524288` | Half of NATS' default 1 MiB `max_payload`; used when the connection announces nothing |
+
+`IDENTITY_PAYLOAD_FIELDS` (same file) is the **closed** list of identity names a payload may not
+carry — `userId`, `caller`, `sub`, … The identity comes from the **second token of the subject and
+only from there** (RF-19). Ignoring such a field would be worse than rejecting it: it would suggest a
+caller can ask on someone else's behalf and the service just did not listen this time.

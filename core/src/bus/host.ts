@@ -146,6 +146,20 @@ export class BusHost {
     })();
   }
 
+  /**
+   * El `max_payload` que anuncia el server, o `undefined` si el host todavía no arrancó.
+   *
+   * Existe para el presupuesto de bytes de las páginas de consulta, que es
+   * `floor(max_payload * 0.5)` y SE RESUELVE POR REQUEST: una reconexión a un server con otra
+   * configuración cambia el número, así que cachearlo al arranque mediría contra el server viejo.
+   *
+   * NO se agrega la conexión a `ServiceSpec`: esa firma la comparte `jiku-commands`, que esta
+   * story declara intacto. Lo que viaja es este número, por un proveedor perezoso.
+   */
+  maxPayload(): number | undefined {
+    return this.connection?.info?.max_payload;
+  }
+
   /** Para los servicios y drena para que los mensajes en vuelo terminen antes de cerrar. */
   async stop(): Promise<void> {
     this.stopTokenRefresh?.();

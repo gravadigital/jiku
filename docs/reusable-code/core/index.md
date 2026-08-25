@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-24 (S-017)
+**Last updated:** 2026-08-24 (S-022)
 
 ## Utils
 
@@ -21,40 +21,46 @@ Total: 9
 
 ## Services
 
-Total: 7
+Total: 8
 
 - **StorageSigner** (`core/src/commands/files/storage.ts`) - Lazily built S3 signer exposing exactly two local (no-network) operations: sign a PutObject and sign a GetObject.
-- **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. Takes the specs as varargs, so mounting a second service is adding one element. `withEventConsumer()` adds a FLAT subscription (with queue group) on the same connection, drained between the services and the connection.
+- **BusHost** (`core/src/bus/host.ts`) - Opens ONE NATS connection and registers N micro services on it, in series, with an ordered shutdown. `maxPayload()` exposes the server's `max_payload` for the query page byte budget. Takes the specs as varargs, so mounting a second service is adding one element. `withEventConsumer()` adds a FLAT subscription (with queue group) on the same connection, drained between the services and the connection.
 - **registerService** (`core/src/bus/service.ts`) - Registers a micro service from a `ServiceSpec` on an existing connection: one endpoint per command pattern, own queue group, and a duplicate-subject check that fails startup.
 - **readDb** (`core/src/models/read.ts`) - The READ-ONLY Sequelize connection of the query service, built WITHOUT registering the models on purpose: registering them in the same process would reassign the `@jiku/models` classes and break ADR-001 with no symptom. Own pool ceiling and own `statement_timeout`.
 - **QueryRegistry** (`core/src/queries/registry.ts`) - Maps a query method to the query that serves it. Exact `Map` matching, not segment matching: query patterns carry no `{param}`. Registering a duplicate pattern throws.
-- **QueryDispatcher** (`core/src/queries/dispatcher.ts`) - Translates a bus subject into a query execution WITHOUT opening a transaction, injecting the read-only connection into the context. Never throws: it always resolves to a `Reply`.
+- **QueryDispatcher** (`core/src/queries/dispatcher.ts`) - Translates a bus subject into a query execution WITHOUT opening a transaction, injecting the read-only connection into the context. Calls `validate()` before `execute` and resolves the page byte budget per request from a lazy provider. Never throws: it always resolves to a `Reply`.
+- **The query engine** (`core/src/queries/engine/`) - ONE generic engine that serves any resource with a `ResourceSpec`: grammar validation against the spec, keyset cursor, explicit SQL builder, projection with contract translation, batched `include`, byte budget and the PostgreSQL timeout capture. A new read endpoint is a spec plus two ~5-line files.
 - **EventDispatcher** (`core/src/events/dispatcher.ts`) - Translates a bus EVENT into the execution of its handler: guards (`instance`, `type`, `version`, the four required fields) with Joi `.unknown(true)`, then the transaction, and an `outcome` instead of a `reply.status` to decide commit/rollback. Resolves to `void` and never rejects — a rejection would kill the subscription's `for await`.
 
 ## Types
 
-Total: 6
+Total: 9
 
 - **ServiceSpec** (`core/src/bus/service.ts`) - What a micro service needs to be registered: bus name, description, the command patterns, and a `handle` that never throws.
-- **Query** (`core/src/queries/types.ts`) - A read endpoint: a `pattern` without `{param}` and an `execute(payload, ctx)` that resolves to a `Reply`. No `validate()` yet — there is no query contract to validate against.
-- **QueryContext** (`core/src/queries/types.ts`) - What a query receives: the `caller` read from the subject and the read-only `db` connection. It has NO `transaction` and NO `params`, and both absences are the contract.
+- **Query** (`core/src/queries/types.ts`) - A read endpoint: a `pattern` without `{param}`, a `validate(payload)` in the same shape as `Command` (never touches the database) and an `execute(payload, ctx)` that resolves to a `Reply`.
+- **QueryContext** (`core/src/queries/types.ts`) - What a query receives: the `caller` read from the subject, the read-only `db` connection and the optional per-request `budgetBytes`. It has NO `transaction` and NO `params`, and both absences are the contract.
+- **ResourceSpec** (`core/src/queries/types.ts`) - A resource as DATA, not code: table translation, base set, includables, filterables, sortables, defaults, enums and the declared-but-not-applied external scope. The validator reads these very lists, and `meta.describe` (S-028) derives from them without a second copy.
+- **ValidatedListQuery / ValidatedGetQuery / SqlPlan** (`core/src/queries/engine/types.ts`) - The query after validation — names resolved, values typed, operators decided — and a ready-to-run statement with the string on one side and the values on the other.
 - **EventSpec** (`core/src/bus/host.ts`) - What a flat event consumer needs: the LITERAL subject and a `handle(payload)`. No `queue` (that is read by `start()`), and it is NOT a `ServiceSpec`: an event has nobody to answer.
 - **EventContext** (`core/src/events/types.ts`) - What an event handler receives: `transaction` and NOTHING else. No `caller` (the 3-segment subject does not carry one), no `params` (the subject is literal), no `commit`/`rollback` (ADR-003).
 - **EventHandler / EventOutcome** (`core/src/events/types.ts`) - An event handler takes the validated payload plus the context and resolves to `'applied'` or `'discarded'` — the discriminant that replaces `reply.status` when there is no reply.
 
 ## Constants
 
-Total: 2
+Total: 3
 
 - **ROLE_METHODS** (`core/src/authorize-caller.ts`) - The role → method map of the bus: closed, deny-by-default and the complete table of the roles that may connect. Mirrors the 9 subjects of the external connector's callout template.
 - **Config accessors** (`core/src/config.ts`) - `loadConfig()` / `getTrustedPublisherId()`: startup validation and access to `CORE_TRUSTED_PUBLISHER_ID`.
+- **Query grammar limits** (`core/src/queries/engine/`, `core/src/queries/dispatcher.ts`) - `DEFAULT_PAGE_LIMIT` (50), `MAX_PAGE_LIMIT` (200, silently capped), `CURSOR_VERSION` (1), `DEFAULT_PAYLOAD_BUDGET_BYTES` (524288) and the closed list of identity field names a payload may not carry.
 
 ## Test Helpers
 
-Total: 6
+Total: 8
 
 - **dispatch** (`core/tests/helpers/dispatch.ts`) - Dispatches a command as if it had arrived on the bus, building the full subject. Its default caller is the trusted publisher, since S-017.
 - **dispatchQuery** (`core/tests/helpers/dispatch.ts`) - Same for the QUERY plane: `jiku-queries` subject, the real `QueryDispatcher` over `readDb`, no transaction.
+- **setQueryBudget / resetQueryBudget** (`core/tests/helpers/dispatch.ts`) - Injects the page byte budget `dispatchQuery()` runs with, so the budget-cut and truncation tests do not depend on a real server's `max_payload`.
+- **Task query fixtures** (`core/tests/queries/task-fixtures.ts`) - The fixture world of the query-engine tests: projects, requirement, people, tasks with a controlled `created_at`, comments, assignments and subscriptions. Written through the WRITE connection; read back through `readDb`.
 - **S3Double** (`core/tests/helpers/s3-double.ts`) - Test double for the S3 signer: records the signing calls and never touches the network.
 - **fakeMsg** (`core/tests/helpers/micro-double.ts`) - Test double for a micro `ServiceMsg`: records `respond()` and `respondError()` without transforming the arguments, and `json()` throws on a malformed body just like the real one.
 - **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()` and `subscribe()`: records the service configs, groups and endpoints created plus the flat subscriptions opened, and shares one ordering trace with the service and the subscription so shutdown order can be asserted.

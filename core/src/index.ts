@@ -9,7 +9,7 @@ import { loadConfig } from './config';
 import { BusHost } from './bus/host';
 import { Dispatcher } from './bus/dispatcher';
 import { registry } from './commands';
-import { QueryDispatcher } from './queries/dispatcher';
+import { QueryDispatcher, budgetFrom } from './queries/dispatcher';
 import { queryRegistry } from './queries';
 import { EventDispatcher } from './events/dispatcher';
 import { syncUser } from './events/auth/user-sync';
@@ -20,7 +20,17 @@ const dispatcher = new Dispatcher(registry);
 // testear el módulo con otra conexión, lo que hace que el import de `read.ts` —y con él la
 // construcción de su Sequelize, que lee `process.env` al importarse— ocurra DESPUÉS de dotenv, y
 // lo que mantiene a `queries/` sin ninguna referencia al ORM.
-const queries = new QueryDispatcher(queryRegistry, readDb);
+//
+// El tercer argumento es el PROVEEDOR PEREZOSO del presupuesto de bytes de la página. Es una
+// closure y no un número: se invoca en CADA dispatch, así que una reconexión a un server con
+// otro `max_payload` cambia el presupuesto sin reiniciar el proceso. La closure referencia
+// `host`, que se declara más abajo: es válido porque se INVOCA después de `start()`, nunca
+// durante la evaluación de este módulo.
+// El tipo va explícito porque la closure de abajo referencia `host`, que a su vez referencia a
+// `queries`: sin la anotación, TypeScript no puede inferir el tipo de ninguno de los dos.
+const queries: QueryDispatcher = new QueryDispatcher(queryRegistry, readDb, () =>
+  budgetFrom(host.maxPayload())
+);
 
 // El despachador de eventos: su propio objeto, con su propia validación y su propia transacción.
 // Se construye al nivel del módulo igual que los otros dos, que es lo que permite pasarle el
@@ -30,7 +40,7 @@ const events = new EventDispatcher(syncUser);
 // Un spec por servicio del bus, sobre la MISMA conexión: `nc.services.add()` no tiene singleton,
 // así que cada uno se anuncia por separado en `$SRV`, con su queue group y sus contadores. El
 // orden es el del contrato: comandos primero, consultas después.
-const host = new BusHost(
+const host: BusHost = new BusHost(
   {
     name: COMMAND_SERVICE,
     description: 'Comandos de dominio de Jiku: la única vía de escritura a la base',

@@ -1,19 +1,34 @@
 import { Query } from '../types';
-import { pendingContract } from '../pending';
+import { runGet } from '../engine/run';
+import { ValidatedGetQuery } from '../engine/types';
+import { validateGet } from '../engine/validate-query';
+import { tasksSpec } from './tasks-spec';
 
 /**
  * Una tarea.
  *
- * TRANSITORIO: sin contrato (RF-10 de REQ-004), este endpoint existe, es descubrible y contesta
- * un `failure` bien formado. El stub desaparece cuando el REQ del contrato de consultas defina
- * el payload y los campos del recurso; su insumo es `bus-api-consultas.md`.
+ * El id viaja EN EL PAYLOAD y no en el subject: el patrón no lleva `{id}` y no puede llevarlo
+ * —el cache de subjects de 1024 entradas del server es la razón—.
  *
- * Cuando eso pase, acá va:
- *   `tasks` es la tabla `objectives` (ADR-004), y `priority` es un ENTERO en tareas (enum en
- *   requisitos). El id de la tarea viaja EN EL PAYLOAD, no en el subject: el patrón no lleva
- *   `{id}` y no puede llevarlo (el cache de subjects del server es la razón).
- *   La lectura usa `ctx.db.query<TaskRow>(sql, { type: QueryTypes.SELECT, replacements })`:
- *   SQL explícito, sin ORM; nombres desde LISTAS BLANCAS y valores como parámetros.
+ * `data` ES EL RECURSO, sin envoltorio de colección: un `get` no tiene `items` ni `page`. Y las
+ * cuatro palancas de `list` (`filter`, `sort`, `page`, `count`) son un ERROR acá, no un extra que
+ * se ignora: aceptarlas en silencio dejaría creer que recortaron algo.
+ *
+ * Un id inexistente responde `task_not_found`, mientras que el mismo filtro por `tasks.list`
+ * respondería `items: []`. La asimetría es intencional y está explicada en `engine/run.ts`.
  */
-export const tasksGet: Query = pendingContract('tasks.get');
+/**
+ * El payload de `tasks.get` DESPUÉS de validar. Alias del tipo del motor por la misma razón que
+ * `TasksListPayload`: la forma de un `get` es idéntica para los 18 recursos.
+ */
+export type TasksGetPayload = ValidatedGetQuery;
+
+export const tasksGet: Query<TasksGetPayload> = {
+  pattern: 'tasks.get',
+
+  validate: (payload: unknown) => validateGet(tasksSpec, payload),
+
+  execute: (payload, ctx) => runGet(tasksSpec, payload, ctx),
+};
+
 export default tasksGet;
