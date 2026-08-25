@@ -1,5 +1,13 @@
 import { Sequelize } from 'sequelize-typescript';
 import { Reply } from '@jiku/nats-protocol';
+import { AttachmentOwner } from './entity-type';
+
+/**
+ * SE RE-EXPORTA para que `engine/` lo importe DESDE ACÁ y no del archivo del mapa: el motor
+ * consume tipos del plano, no datos de un recurso. `entity-type.ts` es quien lo declara, porque
+ * es un DATO del plano de consultas y ese archivo no importa nada del motor.
+ */
+export { AttachmentOwner };
 
 /**
  * LA CLASE DEL CALLER: qué le recorta el servicio a nivel de fila.
@@ -89,8 +97,53 @@ export type FieldKind = 'integer' | 'string' | 'enum' | 'date' | 'boolean';
 export interface BaseFieldSpec {
   /** Columna real de la tabla. Es lo ÚNICO que puede llegar al SQL. */
   readonly column: string;
+  /**
+   * ALIAS DE LA TABLA DE LA QUE SALE LA COLUMNA. Su ausencia es "la tabla del recurso", NUNCA
+   * "no sé de dónde".
+   *
+   * Es lo que hace posible un campo del contrato APLANADO sobre la fila del recurso pero guardado
+   * en otra tabla: `attachments.fileName` sale de `files.file_name` y se proyecta al mismo nivel
+   * que `entityId`, no anidado bajo una clave. Una `OneRelationSpec` los traería ANIDADOS, que es
+   * otro contrato.
+   *
+   * Tiene que ser el `alias` de uno de los `joins` de la ficha. NO SE VALIDA en runtime: un alias
+   * inexistente produce un SQL que PostgreSQL rechaza al primer request, que es ruidoso e
+   * inmediato — el mismo criterio del placeholder `__variante_sin_resolver__` de S-025.
+   */
+  readonly from?: string;
   /** Traducción columna -> valor del contrato. Sin ella, el valor viaja tal cual. */
   readonly transform?: (raw: any) => unknown;
+}
+
+/**
+ * UN JOIN FIJO DE LA FICHA: la tabla del recurso NO LLEVA TODOS LOS CAMPOS DEL CONTRATO.
+ *
+ * `attachments` es el primer caso: el vínculo lleva `entity_type`, `entity_id` y `file_id`, y el
+ * contrato pide además el NOMBRE, el TAMAÑO y el TIPO del archivo —APLANADOS sobre el vínculo, no
+ * como una relación anidada—. Una `OneRelationSpec` los traería, pero bajo una clave (`file`), que
+ * es otro contrato.
+ *
+ * NO ES UNA RELACIÓN Y NO SE PROYECTA: no aparece en `base` ni en `includable`, no tiene campos
+ * propios y no produce ninguna clave en el item. Es SOLO una tabla más en el `FROM`, para que los
+ * campos que la nombran con `from` puedan salir de ella.
+ *
+ * `on` Y `alias` SALEN DE LA FICHA, JAMÁS DEL PAYLOAD — la misma regla que ya gobierna
+ * `ManyRelationSpec.where` e `IncludableComputedSpec.expr`, y por eso llegan al SQL sin escaparse.
+ *
+ * VA EN LOS TRES SQL. Olvidarlo en el COUNT es el modo de falla real: `resource.where` puede
+ * nombrar el alias, y un COUNT sin el JOIN falla con `missing FROM-clause entry`. El default es
+ * `count: false`, así que el bug no aparece hasta que alguien pide el total.
+ *
+ * EL ALIAS NO PUEDE SER `t`, `rel_*`, `r`, `j`, `scope_`, `scope_owner_` NI `br_`: son los del
+ * motor.
+ */
+export interface FixedJoinSpec {
+  readonly table: string;
+  readonly alias: string;
+  /** Condición del JOIN, con los alias `t` y el propio. De la ficha. */
+  readonly on: string;
+  /** `INNER` cuando la fila del otro lado siempre existe; `LEFT` si puede faltar. */
+  readonly kind: 'INNER' | 'LEFT';
 }
 
 /** Un campo incluible que es una columna más de la tabla del recurso. */
@@ -202,6 +255,16 @@ export type IncludableSpec = IncludableFieldSpec | IncludableComputedSpec | Rela
 export interface FilterableSpec {
   /** Columna real de la tabla del recurso. */
   readonly column?: string;
+  /**
+   * ALIAS DE LA TABLA DE LA QUE SALE LA COLUMNA, igual que en `BaseFieldSpec`.
+   *
+   * `attachments.uploadedBy` es el caso: la tabla `attachments` NO TIENE `uploaded_by` —la
+   * titularidad es del ARCHIVO—, así que el filtro se resuelve contra el JOIN fijo. Sin esto,
+   * PostgreSQL responde `column t.uploaded_by does not exist` en la primera request que lo use.
+   *
+   * Solo aplica a la rama de COLUMNA: `via`, `search` y `contains` declaran su propia tabla.
+   */
+  readonly from?: string;
   readonly kind?: FieldKind;
   /** Nombre del enum de `enums` cuyos valores acepta. */
   readonly enum?: string;
@@ -252,8 +315,16 @@ export interface FilterableSpec {
   };
 }
 
+/**
+ * Lo ordenable.
+ *
+ * NO TIENE `from`, Y LA AUSENCIA ES DELIBERADA: ordenar por una columna de una tabla unida haría
+ * que el keyset comparara contra ella, y con eso el recorrido dejaría de usar el índice de la
+ * tabla del recurso —que es lo único que hace barata la paginación—. Un recurso que necesite
+ * ordenar por un campo de otra tabla necesita ese campo en la suya, no un `from` acá.
+ */
 export interface SortableSpec {
-  /** Columna real por la que se ordena. Puede no coincidir con el campo del contrato. */
+  /** Columna real por la que se ordena. SIEMPRE de la tabla del recurso. */
   readonly column: string;
   /**
    * La columna admite NULL.
@@ -403,11 +474,81 @@ export interface NoneExternalScope {
   readonly kind: 'none';
 }
 
+/**
+ * LA FILA APUNTA A UNA ENTIDAD CUYO TIPO DECIDE CONTRA QUÉ TABLA MIRAR.
+ *
+ * `attachments` es el caso, y es el recorte más difícil del contrato: la tabla es POLIMÓRFICA y
+ * SIN FK —`entity_type` + `entity_id` y nada más—, así que la entidad dueña de una fila NO SE SABE
+ * hasta leer la fila. `ExistsExternalScope` tiene UNA `table`; acá hacen falta cinco.
+ *
+ * NO ES UN DISCRIMINADOR. Un `DiscriminatorSpec` elige LA TABLA DEL RECURSO y es obligatorio en el
+ * payload; acá la tabla del recurso es siempre la misma (`attachments`) y el tipo es una COLUMNA
+ * cuyo valor varía POR FILA. Confundirlos llevaría a exigir `entityType` en el payload, y CA-13
+ * pide explícitamente el caso "sin filtro".
+ *
+ * SE EMITE COMO UNA DISYUNCIÓN PARENTIZADA. El valor de retorno de `externalScopeSql` se antepone
+ * al resto del `WHERE` y se une con AND: `A OR B AND C` se lee `A OR (B AND C)` y EL RECORTE DEJA
+ * DE RECORTAR. Es la misma lección que dejó escrita `orSelfColumn`, y tampoco se nota sin un
+ * filtro encima.
+ *
+ * UN TIPO QUE NO ESTÁ EN `branches` NO PASA NINGUNA RAMA, o sea que la fila no se ve. Es
+ * deny-by-default (ADR-008): las filas legado y los tipos que el contrato no declara desaparecen
+ * del modo externo por construcción, sin una línea que los excluya.
+ */
+export interface PolymorphicExternalScope {
+  readonly kind: 'polymorphic';
+  /** Columna del recurso con el tipo de la entidad (`entity_type`). */
+  readonly typeColumn: string;
+  /** Columna del recurso con el id de la entidad (`entity_id`). */
+  readonly idColumn: string;
+  /** Una rama por valor DE LA BASE del tipo. El orden del objeto es el del SQL. */
+  readonly branches: Readonly<Record<string, AttachmentOwner>>;
+}
+
+/**
+ * LA FILA ES VISIBLE POR SUS FILAS PUENTE, Y SI NO TIENE NINGUNA VIVA, POR SER SUYA.
+ *
+ * `files` es el caso. Un archivo no lleva proyecto ni visibilidad: lo que decide si un caller
+ * externo puede verlo son sus VÍNCULOS, que son polimórficos. Y un archivo con CERO vínculos vivos
+ * es un estado válido (REQ-001: 0..N adjuntos) que sigue teniendo que ser consultable por quien lo
+ * subió, o el flujo de subida se rompe — un externo sube un archivo y no puede consultarlo hasta
+ * vincularlo.
+ *
+ * LA RAMA HUÉRFANA NO ES `orSelfColumn`, Y LA DIFERENCIA ES DE SEGURIDAD. `orSelfColumn` entra
+ * SIEMPRE; esta entra SOLO SI NO HAY NINGUNA FILA PUENTE VIVA. Con la semántica de `orSelfColumn`,
+ * un archivo con un vínculo vivo a una entidad que el caller NO ve sería visible para quien lo
+ * subió — y CA-12 dice lo contrario: si ninguna de sus entidades dueñas es visible,
+ * `file_not_found`.
+ *
+ * `liveWhere` SALE DE LA FICHA y es lo que define "viva": para `attachments`, `deleted_at IS NULL`.
+ * Aparece en LAS DOS SUBCONSULTAS —la positiva y la negativa— y tiene que ser LA MISMA en las dos:
+ * si difirieran, existiría un archivo que no pasa la rama (A) y tampoco la (B).
+ *
+ * SE EMITE PARENTIZADO, por la misma razón que `polymorphic`.
+ */
+export interface BridgeExternalScope {
+  readonly kind: 'bridge';
+  /** Tabla puente (`attachments`). */
+  readonly table: string;
+  /** Columna de la puente que apunta al recurso (`file_id`). */
+  readonly foreignKey: string;
+  /** Columna del recurso a la que apunta `foreignKey` (`id`). */
+  readonly localKey: string;
+  /** Qué hace "viva" a una fila puente. De la ficha, con el alias del puente (`br_`) explícito. */
+  readonly liveWhere?: string;
+  /** El recorte que se aplica a la FILA PUENTE. El mismo emisor, otro alias. */
+  readonly through: PolymorphicExternalScope;
+  /** LA RAMA HUÉRFANA: sin fila puente viva, la fila entra si esta columna es el caller. */
+  readonly orOrphanColumn?: string;
+}
+
 export type ExternalScopeSpec =
   | ColumnExternalScope
   | ExistsExternalScope
   | OwnerExternalScope
-  | NoneExternalScope;
+  | NoneExternalScope
+  | PolymorphicExternalScope
+  | BridgeExternalScope;
 
 /**
  * UNA VARIANTE DEL RECURSO: lo que cambia cuando el discriminador cambia.
@@ -475,6 +616,16 @@ export interface ResourceSpec {
    * operan siempre sobre una `ResourceSpec` común y no saben que hubo variantes.
    */
   readonly discriminator?: DiscriminatorSpec;
+  /**
+   * LOS JOIN FIJOS DE LA FICHA. Ver `FixedJoinSpec`.
+   *
+   * SE EMITEN EN LOS TRES SQL —filas, COUNT y `get`— y ANTES de los JOIN de relaciones 1:1, en el
+   * orden declarado: `resource.where` puede nombrar sus alias, y un COUNT sin el JOIN falla con
+   * `missing FROM-clause entry` (que es el bug que solo aparece cuando alguien pide el total).
+   *
+   * OPCIONAL: una ficha sin `joins` produce EXACTAMENTE el mismo SQL de siempre.
+   */
+  readonly joins?: readonly FixedJoinSpec[];
   readonly base: Readonly<Record<string, BaseSpec>>;
   readonly baseNames: readonly string[];
   readonly includable: Readonly<Record<string, IncludableSpec>>;

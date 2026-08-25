@@ -62,23 +62,29 @@ cuando exista el primero.
 
 **Recursos con contrato:** `tasks` desde S-022; `clients`, `projects` y `requirements` desde S-024
 —los cuatro con `list` y `get`—; `comments` (`list` y `get`), `activity` (`list`) y
-`subscriptions` (`list`) desde **S-025**; y `people`, `users`, `worked-times`, `unworked-times`,
-`week-assigned-times` y `project-permissions` —los seis **solo `list`**— desde **S-026**. Son
-**dieciocho patrones registrados**, y **ninguno responde ya `unknown_command` por falta de
-contrato**: `core/src/queries/pending.ts` quedó **sin consumidores** en S-025 y se **elimina en
-S-028**.
+`subscriptions` (`list`) desde **S-025**; `people`, `users`, `worked-times`, `unworked-times`,
+`week-assigned-times` y `project-permissions` —los seis **solo `list`**— desde **S-026**; y
+`attachments` (**solo `list`**) y `files` (**solo `get`**) desde **S-027**. Son **veinte patrones
+registrados**, y **ninguno responde ya `unknown_command` por falta de contrato**:
+`core/src/queries/pending.ts` quedó **sin consumidores** en S-025 y se **elimina en S-028**.
 
 **`get` existe solo donde hay pantalla de detalle** (RF-2): ninguno de los seis recursos de S-026 lo
 tiene, y traer varios por id es `list` + `filter.id: [1,2,3]`. Publicar `people.get` responde
 `unknown_command` **sin código propio**: el patrón simplemente no está en el registro.
+
+**Y la simetría inversa también es el contrato** (S-027): `attachments` **no tiene `get`** —no hay
+pantalla de detalle de un vínculo, y la pantalla de un archivo se llega **desde** su vínculo— y
+`files` **no tiene `list`** —los archivos se listan **por su vínculo**, y traer varios por id es
+`attachments.list` con `filter.fileId: [1,2,3]`—. Publicar `attachments.get` o `files.list` responde
+`unknown_command`, también sin código propio.
 
 **Los tres recursos de S-025 exigen `entityType` en `filter` —y `comments.get` en el payload—**
 porque resuelven contra **dos tablas cuyos ids se pisan**: el `id` 1234 existe en
 `objective_activity` y en `requirement_activity` y son filas distintas. No es un filtro con default:
 su ausencia es `invalid_fields`.
 
-**Las formas del recorte del Paso 5 son cinco**, y son las que la tabla de recortes de más abajo
-necesita para los 18 recursos:
+**Las formas del recorte del Paso 5 son siete**, y son las que la tabla de recortes de más abajo
+necesita para los 20 recursos:
 
 1. la fila **lleva** el proyecto en una columna, con visibilidad (`requirements`, `tasks`) o sin
    ella (`projects`) — S-024;
@@ -94,6 +100,21 @@ necesita para los 18 recursos:
    vedado"; `items: []` dice "no hay nada para vos", que es lo único que no filtra la existencia del
    recurso. El corte ocurre **después de validar** —un nombre no declarado sigue siendo
    `invalid_fields`— y **antes de armar el SQL**.
+
+6. la fila apunta a una entidad **cuyo tipo decide contra qué tabla mirar** (`attachments`) —
+   **S-027**. La tabla del vínculo es **polimórfica y sin FK**, así que la entidad dueña no se sabe
+   hasta leer la fila: el recorte es **una rama por valor declarado**, cada una con la forma que ya
+   conocen las otras (tabla alcanzada, salto opcional al dueño, visibilidad propia y del dueño), y
+   **el grupo entero parentizado**. Un tipo fuera del mapa **no pasa ninguna rama**, que es
+   deny-by-default (ADR-008) sin una línea que lo excluya;
+7. la fila es visible **por sus filas puente**, y si **no tiene ninguna viva**, por ser suya
+   (`files`) — **S-027**. Un archivo no lleva proyecto ni visibilidad: lo que decide si un caller
+   externo puede verlo son **sus vínculos**, que son polimórficos, y un archivo con **cero vínculos
+   vivos** —un estado válido desde REQ-001— sigue teniendo que ser consultable **por quien lo
+   subió**, o el flujo de subida se rompe. **La rama huérfana no es `orSelfColumn`**: esa entra
+   *siempre*, y con esa semántica un archivo con vínculo vivo a una entidad que el caller **no ve**
+   se le filtraría a quien lo subió. Entra **solo** cuando el `EXISTS` de la primera rama está
+   vacío.
 
 **Y una cláusula que no es una forma sino un agregado de la segunda** (S-026): un
 `ExistsExternalScope` puede declarar `orSelfColumn`, *"la fila cuya columna es el caller entra
@@ -284,7 +305,7 @@ Responde *"¿puede ejecutar este método?"*.
 **Destino:** (interno)
 **Tipo:** Interno
 
-Cada uno de los **18 recursos** declara, **como dato**, cuatro listas blancas más su default de orden
+Cada uno de los **20 recursos** declara, **como dato**, cuatro listas blancas más su default de orden
 y su recorte externo: `base`, `includable` (con `kind: field|relation` y el tope de las colecciones),
 `filterable`, `sortable`.
 

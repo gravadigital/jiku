@@ -9,6 +9,8 @@ import {
   specFor,
 } from '../../src/queries/engine/spec';
 import { activitySpec } from '../../src/queries/activity/activity-spec';
+import { attachmentsSpec } from '../../src/queries/attachments/attachments-spec';
+import { filesSpec } from '../../src/queries/files/files-spec';
 import { commentsSpec } from '../../src/queries/comments/comments-spec';
 import { subscriptionsSpec } from '../../src/queries/subscriptions/subscriptions-spec';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
@@ -20,6 +22,7 @@ import {
   CallerClass,
   ExternalScopeSpec,
   ManyRelationSpec,
+  PolymorphicExternalScope,
   QueryContext,
   ResourceSpec,
   ResourceVariant,
@@ -274,6 +277,95 @@ describe('queries/engine/spec — las tres fichas de S-025, resueltas (TS-94)', 
   });
 });
 
+/**
+ * LAS DOS FICHAS SIN DISCRIMINADOR DE S-027 (Tasks 5, 6 y 7).
+ *
+ * ES UN BUCLE HERMANO al de S-025 y no una extensión de aquel: `attachments` y `files` NO TIENEN
+ * VARIANTES —la tabla de cada uno es una sola—, así que el bucle sobre `['task', 'requirement']`
+ * no aplica. Lo que sí aplica es la propiedad que `meta.describe` (S-028) va a necesitar: los
+ * cinco arrays de nombres son EXACTAMENTE las claves de sus mapas.
+ */
+describe('queries/engine/spec — las dos fichas planas de S-027 (TS-97 a TS-100)', () => {
+  const SPECS: [string, ResourceSpec][] = [
+    ['attachments', attachmentsSpec],
+    ['files', filesSpec],
+  ];
+
+  it('TS-97 · los cinco arrays de nombres se DERIVAN de sus mapas', () => {
+    // El validador los devuelve POR REFERENCIA en `errorDetails.allowed`: una copia escrita a mano
+    // divergiría del contrato sin fallar al compilar.
+    for (const [name, spec] of SPECS) {
+      [...spec.baseNames].should.deepEqual(Object.keys(spec.base), name);
+      [...spec.includableNames].should.deepEqual(Object.keys(spec.includable), name);
+      [...spec.filterableNames].should.deepEqual(Object.keys(spec.filterable), name);
+      [...spec.sortableNames].should.deepEqual(Object.keys(spec.sortable), name);
+      [...spec.fieldNames].should.deepEqual(
+        [...Object.keys(spec.base), ...Object.keys(spec.includable)],
+        name
+      );
+    }
+  });
+
+  it('TS-98 · ninguna de las dos declara discriminador, y `resolveVariant` es la identidad', () => {
+    for (const [name, spec] of SPECS) {
+      (spec.discriminator === undefined).should.be.true(name);
+      // LA MISMA REFERENCIA, no una copia: es lo que hace que el resto del motor no se entere.
+      resolveVariant(spec).should.equal(spec, name);
+      resolveVariant(spec, 'lo-que-sea').should.equal(spec, name);
+    }
+  });
+
+  it('TS-99 · CA-7: los cuatro nombres prohibidos NO APARECEN en ninguna de las dos fichas', () => {
+    // NO SE "EXCLUYEN": NO SE ESCRIBEN. La lista blanca es el mecanismo, e `invalid_fields` es la
+    // consecuencia automática. Publicar la clave del storage es publicar la estructura del bucket,
+    // y con ella un acceso directo que saltea el comando de descarga y su auditoría.
+    const forbidden = [
+      'storage_key',
+      'storageKey',
+      'storage_bucket',
+      'storageBucket',
+      'storage_region',
+      'storageRegion',
+      'ticket_slug',
+      'ticketSlug',
+    ];
+
+    for (const [name, spec] of SPECS) {
+      const serialized = JSON.stringify(spec);
+      for (const term of forbidden) {
+        serialized.includes(term).should.be.false(`${name} contiene "${term}"`);
+      }
+    }
+  });
+
+  it('TS-100 · CA-8: ninguna de las dos fichas contiene nada con forma de URL', () => {
+    // Mintear una prefirmada es un EFECTO, con vencimiento y con auditoría, y ya tiene su comando
+    // (`files.{fileId}.request-download`). Una consulta es idempotente y sin efectos.
+    for (const [name, spec] of SPECS) {
+      const serialized = JSON.stringify(spec).toLowerCase();
+      for (const term of ['http', 'url', 'signed', 'presigned', 'disposition']) {
+        serialized.includes(term).should.be.false(`${name} contiene "${term}"`);
+      }
+    }
+  });
+
+  it('la ficha de `attachments` declara `include` VACÍO y la de `files` solo `checksum`', () => {
+    // `include: ninguno` es el contrato de CA-2: los datos del archivo ya vienen APLANADOS, y la
+    // entidad dueña es polimórfica sin FK. `checksum` es incluible y no base (RF-17): 64
+    // caracteres por fila que nadie mira salvo que los pida, Y LO DECLARA QUIEN SUBE — nadie lo
+    // verifica.
+    [...attachmentsSpec.includableNames].should.deepEqual([]);
+    [...filesSpec.includableNames].should.deepEqual(['checksum']);
+  });
+
+  it('`attachments` NO declara "no encontrado" y `files` SÍ: es la diferencia de tener `get`', () => {
+    (attachmentsSpec.notFoundCode === undefined).should.be.true();
+    (attachmentsSpec.notFoundMessage === undefined).should.be.true();
+    filesSpec.notFoundCode!.should.equal(ErrorCode.FILE_NOT_FOUND);
+    filesSpec.notFoundMessage!.should.equal('No existe un archivo con ese id');
+  });
+});
+
 /** Se exporta para que los tests del motor reusen la MISMA ficha de prueba y no inventen otra. */
 export { VARIANT_SPEC, BASE as VARIANT_BASE };
 
@@ -285,6 +377,14 @@ export { VARIANT_SPEC, BASE as VARIANT_BASE };
  * `external`— es lo que fija que la única combinación verdadera sea `(none, external)`.
  */
 describe('queries/engine/spec — el corte SIN ACCESO (S-026, Task 1)', () => {
+  /** Las SEIS formas del recorte. Las dos últimas las agrega S-027 y ninguna vacía el conjunto. */
+  const POLY: PolymorphicExternalScope = {
+    kind: 'polymorphic',
+    typeColumn: 'entity_type',
+    idColumn: 'entity_id',
+    branches: { project: { table: 'projects', key: 'id', projectColumn: 'id' } },
+  };
+
   const SCOPES: [string, ExternalScopeSpec][] = [
     ['none', { kind: 'none' }],
     ['column', { kind: 'column', projectColumn: 'project_id' }],
@@ -293,6 +393,21 @@ describe('queries/engine/spec — el corte SIN ACCESO (S-026, Task 1)', () => {
       { kind: 'exists', table: 'projects', foreignKey: 'id', localKey: 'project_id', projectColumn: 'id' },
     ],
     ['owner', { kind: 'owner', userColumn: 'user_id' }],
+    // TS-29 · las dos de S-027: ACOTAN el conjunto, no lo vacían. `deniesAllRows` sigue siendo
+    // verdadero SOLO para `none`, y por eso las dos fichas nuevas nunca cortan antes de consultar.
+    ['polymorphic', POLY],
+    [
+      'bridge',
+      {
+        kind: 'bridge',
+        table: 'attachments',
+        foreignKey: 'file_id',
+        localKey: 'id',
+        liveWhere: 'br_.deleted_at IS NULL',
+        through: POLY,
+        orOrphanColumn: 'uploaded_by',
+      },
+    ],
   ];
 
   function ctxWith(callerClass: CallerClass): QueryContext {

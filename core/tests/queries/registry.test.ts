@@ -26,6 +26,11 @@ const CONTRACT_PATTERNS = [
   'comments.get',
   'activity.list',
   'subscriptions.list',
+  // LOS DOS DE S-027, donde el contrato los pone (11 y 12 de la tabla del REQ). `attachments` NO
+  // TIENE `get` y `files` NO TIENE `list`, y las dos ausencias SON el contrato (CA-14): no hay
+  // pantalla de detalle de un vínculo, y los archivos se listan POR SU VÍNCULO.
+  'attachments.list',
+  'files.get',
   // Los SEIS de S-026, al final y en el orden de la tabla del contrato. NINGUNO tiene `get`.
   'people.list',
   'users.list',
@@ -75,7 +80,35 @@ describe('queries/index — el registry poblado', () => {
     queryRegistry.patterns().should.deepEqual(CONTRACT_PATTERNS);
   });
 
-  it('TS-14 · ningún patrón de consulta lleva {param}, y por eso NO hay * en los subjects', () => {
+  it('TS-94 / TS-107 · son VEINTE patrones desde S-027, y es lo que anuncia el arranque', () => {
+    // `nats micro info jiku-queries` deriva sus endpoints de esta misma lista, y el log de
+    // arranque de `src/index.ts` imprime `${queryRegistry.patterns().length} registered queries`.
+    queryRegistry.patterns().length.should.equal(20);
+    queryRegistry.patterns().should.containEql('attachments.list');
+    queryRegistry.patterns().should.containEql('files.get');
+  });
+
+  it('TS-92 · CA-14: `attachments.get` NO EXISTE, y responde `unknown_command`', async () => {
+    // NO HAY CÓDIGO QUE LO IMPLEMENTE: el registro hace match EXACTO por `Map`, y un patrón que no
+    // está simplemente no se resuelve. La ausencia ES el contrato.
+    const dispatcher = new QueryDispatcher(queryRegistry, readDb);
+    const reply = await dispatcher.dispatch('dev.api.jiku-queries.v1.attachments.get', { id: 1 });
+
+    reply.status.should.equal('failure', JSON.stringify(reply));
+    reply.errorCode!.should.equal('unknown_command');
+  });
+
+  it('TS-93 · CA-14: `files.list` tampoco', async () => {
+    // Traer varios archivos por id no es `files.list`: es `attachments.list` con
+    // `filter.fileId: [1,2,3]`.
+    const dispatcher = new QueryDispatcher(queryRegistry, readDb);
+    const reply = await dispatcher.dispatch('dev.api.jiku-queries.v1.files.list', {});
+
+    reply.status.should.equal('failure', JSON.stringify(reply));
+    reply.errorCode!.should.equal('unknown_command');
+  });
+
+  it('TS-14 / TS-95 · ningún patrón lleva {param}, y por eso NO hay * en los subjects', () => {
     for (const pattern of queryRegistry.patterns()) {
       pattern.should.not.containEql('{');
       pattern.should.not.containEql('}');
@@ -85,6 +118,13 @@ describe('queries/index — el registry poblado', () => {
       endpointSubject(pattern).should.equal(pattern);
       endpointName(pattern).should.equal(pattern.replace('.', '-'));
     }
+  });
+
+  it('TS-96 · `PENDING_PATTERNS` SIGUE VACÍO, y el array no se borra', () => {
+    // Se queda vacío y no se borra: el bucle de TS-19 sigue siendo la forma de verificar la
+    // propiedad, y un recurso nuevo SIN contrato volvería a poblarlo. `pending.ts` sigue sin
+    // consumidores y se elimina en S-028, no acá.
+    PENDING_PATTERNS.should.deepEqual([]);
   });
 
   it('TS-19 · los endpoints sin contrato contestan un failure BIEN FORMADO, con cualquier payload', async () => {

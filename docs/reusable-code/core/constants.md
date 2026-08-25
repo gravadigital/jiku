@@ -174,3 +174,56 @@ by hand.
 const tables = ENTITY_TABLES[entity];
 return { table: tables.activityTable, base: { entityId: { column: tables.entityColumn } }, … };
 ```
+
+`EntityTables` also carries `entityAttachmentType` since S-027 — the `attachments.entity_type` of
+the **entity itself**, not of its comment. Mind the number there too: the table is `objectives`
+(plural) and the type is `objective` (singular), so it is declared and not derived by stripping an
+`s`.
+
+---
+
+## ATTACHMENT_ENTITY_TYPES / ATTACHMENT_ENTITY_DB / ATTACHMENT_ENTITY_CONTRACT / ATTACHMENT_DB_TYPES / ATTACHMENT_ENTITY_OWNERS
+
+**Location:** `core/src/queries/entity-type.ts`
+
+**Description:** The `attachments.entity_type` translation, in the **same one place** as the map
+above (S-027, CA-17). `comments` translates TWO values because it resolves against two tables;
+`attachments` translates **FIVE** because it is polymorphic: its `entity_type` can point at a
+project, a requirement, a task or a comment of either. The table is always the same, so this is
+**not** a discriminator: it is a **filter with a translation**.
+
+**It goes BOTH WAYS, and that is the story's whole point.** Translating the filter is obvious;
+returning the translated value is the half that gets forgotten, and the symptom is a consumer that
+filters by `task_comment` and receives a value it cannot use as a filter again.
+
+| Contract | Database |
+|---|---|
+| `project` | `project` |
+| `requirement` | `requirement` |
+| `requirement_comment` | `requirement_comment` |
+| `task` | *(the objective name)* |
+| `task_comment` | *(the objective comment name)* |
+
+**Four of the five are DERIVED from `ENTITY_TABLES`**, and that derivation *is* CA-17: two copies of
+this table diverge the day a sixth entity type is added, and the bug then shows up in only one of
+the two paths. `ATTACHMENT_ENTITY_CONTRACT` is derived from `ATTACHMENT_ENTITY_DB` with
+`Object.entries`, so the two are inverse **by construction**, not by review.
+
+- **`ATTACHMENT_ENTITY_TYPES`** — the five contract values, in the order that travels in
+  `errorDetails.allowed`. The `AttachmentEntityType` union is derived from the array.
+- **`ATTACHMENT_DB_TYPES`** — the five database values, derived and in the same order. It is the
+  **allow-list** of the resource's fixed predicate: the column has twelve values in the model and
+  legacy rows the `20260729_01` migration left behind, and none of the other seven has a contract
+  translation, so they **do not appear**. Deny-by-default (ADR-008), not a bug.
+- **`ATTACHMENT_ENTITY_OWNERS`** — per **database** value, the descriptor of its owning entity:
+  reached table, match column, own visibility, optional jump to the owner, project column and the
+  owner's visibility. It is **data, not a predicate** — the engine builds the SQL. Both the
+  polymorphic clip of `attachments` and the bridge clip of `files` consume this one map.
+
+**Usage:**
+```ts
+// core/src/queries/attachments/attachments-spec.ts
+entityType: { column: 'entity_type', transform: (raw) => ATTACHMENT_ENTITY_CONTRACT[raw] },
+externalScope: { kind: 'polymorphic', typeColumn: 'entity_type', idColumn: 'entity_id',
+                 branches: ATTACHMENT_ENTITY_OWNERS },
+```

@@ -70,6 +70,10 @@ const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
   ['comments-get', 'comments.get'],
   ['activity-list', 'activity.list'],
   ['subscriptions-list', 'subscriptions.list'],
+  // Los dos de S-027: `registerService` los deriva del registro, así que sumar la ficha alcanzó
+  // para que el endpoint exista y `nats micro info jiku-queries` los liste.
+  ['attachments-list', 'attachments.list'],
+  ['files-get', 'files.get'],
   // Los seis de S-026. `endpointName('worked-times.list')` es `'worked-times-list'`: el guion del
   // nombre del recurso NO es un separador de subject, y `String.replace` con un string reemplaza
   // la PRIMERA ocurrencia — los patrones tienen un solo punto.

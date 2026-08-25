@@ -453,7 +453,16 @@ describe('queries/comments — el contrato del recurso (S-025)', () => {
     comment.entityType!.should.equal('requirement');
   });
 
-  it('TS-22 · los adjuntos NUNCA traen datos de almacenamiento ni URL', async () => {
+  /**
+   * TS-103 de S-027 · LA REGRESIÓN DE LOS ADJUNTOS EMBEBIDOS.
+   *
+   * S-027 agregó al motor el JOIN fijo de la ficha y dos formas nuevas de recorte, y `comments`
+   * NO CAMBIÓ una línea: sigue trayendo sus adjuntos como RELACIÓN DE COLECCIÓN por lote, con las
+   * mismas cinco claves y las mismas tres condiciones de seguridad. Lo que las dos comparten es
+   * EL MAPA de `entityType`, y nada más — acoplar los dos contratos haría que un cambio en uno
+   * moviera el otro en silencio.
+   */
+  it('TS-22 / TS-103 · los adjuntos NUNCA traen datos de almacenamiento ni URL', async () => {
     const reply = await dispatchQuery<Collection>('comments.list', { filter: TASK_FILTER });
     const serialized = JSON.stringify(items(reply));
 
