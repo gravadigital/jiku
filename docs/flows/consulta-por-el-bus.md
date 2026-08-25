@@ -55,16 +55,22 @@ cuando exista el primero.
 | 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
 | 3.4 · Segunda compuerta: la clase del caller (`unknown_caller`) | Implementado | S-023 |
 | 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
-| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects`, `requirements`, `comments`, `activity` y `subscriptions` | S-023 (mecanismo), S-024 (las tres primeras formas), S-025 (las dos nuevas) |
+| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects`, `requirements`, `comments`, `activity`, `subscriptions`, `people`, `users`, `worked-times`, `unworked-times`, `week-assigned-times` y `project-permissions` | S-023 (mecanismo), S-024 (las tres primeras formas), S-025 (las dos siguientes), S-026 (la quinta: **sin acceso**, y la cláusula "más él mismo") |
 | 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
 | 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
 | 8 · El caller recorre la colección | Implementado | S-022 |
 
 **Recursos con contrato:** `tasks` desde S-022; `clients`, `projects` y `requirements` desde S-024
-—los cuatro con `list` y `get`—; y `comments` (`list` y `get`), `activity` (`list`) y
-`subscriptions` (`list`) desde **S-025**. Son **doce patrones registrados**, y **ninguno responde ya
-`unknown_command` por falta de contrato**: `core/src/queries/pending.ts` quedó **sin consumidores**
-en S-025 y se **elimina en S-028**, cuando el registro tenga los 18 recursos.
+—los cuatro con `list` y `get`—; `comments` (`list` y `get`), `activity` (`list`) y
+`subscriptions` (`list`) desde **S-025**; y `people`, `users`, `worked-times`, `unworked-times`,
+`week-assigned-times` y `project-permissions` —los seis **solo `list`**— desde **S-026**. Son
+**dieciocho patrones registrados**, y **ninguno responde ya `unknown_command` por falta de
+contrato**: `core/src/queries/pending.ts` quedó **sin consumidores** en S-025 y se **elimina en
+S-028**.
+
+**`get` existe solo donde hay pantalla de detalle** (RF-2): ninguno de los seis recursos de S-026 lo
+tiene, y traer varios por id es `list` + `filter.id: [1,2,3]`. Publicar `people.get` responde
+`unknown_command` **sin código propio**: el patrón simplemente no está en el registro.
 
 **Los tres recursos de S-025 exigen `entityType` en `filter` —y `comments.get` en el payload—**
 porque resuelven contra **dos tablas cuyos ids se pisan**: el `id` 1234 existe en
@@ -82,8 +88,17 @@ necesita para los 18 recursos:
    tiene que ser `public` — S-025;
 4. la fila **es del caller** (`subscriptions`): `user_id = :caller` y **nada más**, sin el predicado
    de proyectos permitidos — S-025;
-5. **sin acceso** externo, que resuelve en `items: []` sin ejecutar SQL: la necesitan
-   `worked-times`, `unworked-times`, `week-assigned-times` y `settings`, y llega con S-026 y S-028.
+5. **sin acceso** externo, que resuelve en `items: []` **sin ejecutar SQL**: la usan
+   `worked-times`, `unworked-times` y `week-assigned-times` desde **S-026**, y `settings` la reusa
+   en S-028. **No es un error**: un `caller_not_authorized` diría "el recurso existe y te está
+   vedado"; `items: []` dice "no hay nada para vos", que es lo único que no filtra la existencia del
+   recurso. El corte ocurre **después de validar** —un nombre no declarado sigue siendo
+   `invalid_fields`— y **antes de armar el SQL**.
+
+**Y una cláusula que no es una forma sino un agregado de la segunda** (S-026): un
+`ExistsExternalScope` puede declarar `orSelfColumn`, *"la fila cuya columna es el caller entra
+siempre, aunque el `EXISTS` no la alcance"*. `users` es su único consumidor: sin ella, un caller
+externo sin ningún permiso de proyecto **no podría ni resolver su propio nombre**.
 
 > **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** hasta S-023 el Paso 5 estaba
 > declarado en la ficha y **no aplicado**, así que `tasks.list` **no recortaba filas** mientras

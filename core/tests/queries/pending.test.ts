@@ -47,6 +47,13 @@ describe('queries/pending — el stub sin consumidores (S-025, CA-17)', () => {
       ['comments', ['comments-list.ts', 'comments-get.ts']],
       ['activity', ['activity-list.ts']],
       ['subscriptions', ['subscriptions-list.ts']],
+      // Las seis de S-026. NINGUNA tiene `get`: `get` existe solo donde hay pantalla de detalle.
+      ['people', ['people-list.ts', 'people-spec.ts']],
+      ['users', ['users-list.ts', 'users-spec.ts']],
+      ['worked-times', ['worked-times-list.ts', 'worked-times-spec.ts']],
+      ['unworked-times', ['unworked-times-list.ts', 'unworked-times-spec.ts']],
+      ['week-assigned-times', ['week-assigned-times-list.ts', 'week-assigned-times-spec.ts']],
+      ['project-permissions', ['project-permissions-list.ts', 'project-permissions-spec.ts']],
     ] as const) {
       for (const file of files) {
         const source = readFileSync(join(QUERIES_DIR, folder, file), 'utf8');
@@ -78,7 +85,7 @@ describe('queries/pending — el stub sin consumidores (S-025, CA-17)', () => {
     }
   });
 
-  it('TS-82 · el registro tiene los DOCE patrones esperados, en el orden del contrato', () => {
+  it('TS-82 · el registro tiene los DIECIOCHO patrones esperados, en el orden del contrato', () => {
     queryRegistry.patterns().should.deepEqual([
       'clients.list',
       'clients.get',
@@ -92,6 +99,13 @@ describe('queries/pending — el stub sin consumidores (S-025, CA-17)', () => {
       'comments.get',
       'activity.list',
       'subscriptions.list',
+      // Los seis de S-026, al final. Ninguno tiene `get` (CA-15).
+      'people.list',
+      'users.list',
+      'worked-times.list',
+      'unworked-times.list',
+      'week-assigned-times.list',
+      'project-permissions.list',
     ]);
   });
 });
@@ -114,6 +128,15 @@ describe('queries/engine — la genericidad del motor (S-024, S-025)', () => {
     // necesitar la traducción de `entityType` y S-028 deriva `meta.describe` de estas fichas.
     'activity',
     'subscriptions',
+    // LOS SEIS DE S-026, Y ESTE ES EL ÚNICO GATE QUE SE ROMPE POR OMISIÓN: sin agregarlos, el gate
+    // sigue VERDE y el motor podría nombrar `worked-times` sin que nadie se entere. Los cuatro
+    // listados congelados fallan ruidosamente en cuanto se registra un endpoint; este no.
+    'people',
+    'users',
+    'worked-times',
+    'unworked-times',
+    'week-assigned-times',
+    'project-permissions',
   ];
 
   it('TS-83 · ninguna línea del motor nombra un recurso', () => {
@@ -147,7 +170,7 @@ describe('queries/engine — la genericidad del motor (S-024, S-025)', () => {
       // La ficha llega SIEMPRE por parámetro (`resource: ResourceSpec`): un import de un recurso
       // concreto sería la misma rotura por otra puerta.
       source.should.not.match(
-        /from '\.\.\/(clients|projects|requirements|tasks|comments|activity|subscriptions)\//
+        /from '\.\.\/(clients|projects|requirements|tasks|comments|activity|subscriptions|people|users|worked-times|unworked-times|week-assigned-times|project-permissions)\//
       );
     }
   });

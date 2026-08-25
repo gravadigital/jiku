@@ -533,7 +533,8 @@ describe('la compuerta de autorización · plano de consultas', () => {
   const QUERIES = queryRegistry.patterns();
   /**
    * Las consultas que YA TIENEN CONTRATO: `tasks` desde S-022, `clients`, `projects` y
-   * `requirements` desde S-024, y `comments`, `activity` y `subscriptions` desde S-025.
+   * `requirements` desde S-024, `comments`, `activity` y `subscriptions` desde S-025, y los seis
+   * de S-026 —`people`, `users`, los tres de tiempo y `project-permissions`—.
    *
    * SON TODAS, y por eso el array es el registro entero: desde S-025 ningún patrón registrado cae
    * en el stub sin contrato. Se conserva como lista explícita —y no como `QUERIES`— porque lo que
@@ -552,6 +553,13 @@ describe('la compuerta de autorización · plano de consultas', () => {
     'comments.get',
     'activity.list',
     'subscriptions.list',
+    // Los seis de S-026: `queries: ALL` ya los autoriza, así que `ROLE_METHODS` no cambió.
+    'people.list',
+    'users.list',
+    'worked-times.list',
+    'unworked-times.list',
+    'week-assigned-times.list',
+    'project-permissions.list',
   ];
   const USER_ROLE = 'sub-persona-user';
   const EXTERNAL_USER_ROLE = 'sub-persona-external-user';

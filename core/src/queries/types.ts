@@ -267,7 +267,7 @@ export interface SortableSpec {
 }
 
 /**
- * EL RECORTE DEL MODO EXTERNO, en sus DOS FORMAS.
+ * EL RECORTE DEL MODO EXTERNO, en sus CUATRO FORMAS.
  *
  * DECLARAR EL RECORTE ES APLICARLO, y por eso no hay ningún booleano acá. Hasta S-023 esta ficha
  * llevaba un `applied` que el motor no miraba, y esa forma tiene un problema que no es de estilo:
@@ -281,11 +281,10 @@ export interface SortableSpec {
  * `visibilityLevel` contra `base`/`filterable` en tiempo de armado — una búsqueda que puede
  * fallar y que solo fallaría en producción.
  *
- * DEUDA ANOTADA: los recursos SIN ACCESO externo (`worked-times`, `unworked-times`,
- * `week-assigned-times`, `settings`) llegan en S-026 y S-028 y necesitan una TERCERA variante
- * —resuelven en `items: []` sin ejecutar SQL—. No se inventa acá: no hay caso de uso todavía, y
- * adivinar el contrato de otra story es exactamente lo que esta nota pide no hacer. Desaparece
- * cuando esas fichas existan.
+ * LA CUARTA FORMA NO ES UN PREDICADO: `none` VACÍA el conjunto en vez de acotarlo, y por eso el
+ * motor CORTA ANTES DE CONSULTAR (`deniesAllRows` en `engine/spec.ts`) en vez de armar un SQL que
+ * no puede devolver nada. Conserva la misma propiedad que las otras tres: declararla es aplicarla,
+ * no tiene ningún campo que la desactive, y ninguna variante significa "no recortes".
  */
 
 /**
@@ -346,6 +345,25 @@ export interface ExistsExternalScope {
    * de visibilidad", jamás "no recortes".
    */
   readonly ownVisibility?: { readonly column: string; readonly value: string };
+  /**
+   * LA FILA DEL PROPIO CALLER ENTRA SIEMPRE, aunque el EXISTS no la alcance.
+   *
+   * `users` es el caso, y es CA-14 de S-026: el recorte es "usuarios con permiso sobre algún
+   * proyecto que veo, MÁS YO MISMO". Sin esta mitad, un caller externo sin ningún permiso de
+   * proyecto no puede ni resolver SU PROPIO NOMBRE — que es el estado de un cliente recién dado de
+   * alta, no un caso raro.
+   *
+   * ES UNA CLÁUSULA CON NOMBRE Y NO UNA COMPOSICIÓN ABIERTA DE RECORTES, y la diferencia importa:
+   * `OR` es un operador AMPLIADOR. Un `any: [scopeA, scopeB]` genérico haría representable un
+   * recorte que ENSANCHA el acceso, y la propiedad que S-023 dejó sentada es que el estado
+   * peligroso no sea representable. Acotada a "la fila del caller", no lo es.
+   *
+   * Es un nombre de COLUMNA DEL PROPIO RECURSO, como todos los de `ExternalScopeSpec`.
+   *
+   * OJO CON LOS PARÉNTESIS al emitirla: el recorte se une al resto del WHERE con AND, y un OR de
+   * primer nivel se lo come por precedencia. Ver `externalScopeSql`.
+   */
+  readonly orSelfColumn?: string;
 }
 
 /**
@@ -365,7 +383,31 @@ export interface OwnerExternalScope {
   readonly userColumn: string;
 }
 
-export type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope | OwnerExternalScope;
+/**
+ * SIN ACCESO EXTERNO: el recorte que NO es un predicado.
+ *
+ * Las otras tres formas acotan el conjunto; esta lo VACÍA, y por eso el motor CORTA ANTES DE
+ * CONSULTAR en vez de armar un SQL que no puede devolver nada. `worked-times`, `unworked-times` y
+ * `week-assigned-times` son los tres primeros casos y `settings` (S-028) el cuarto.
+ *
+ * NO ES UN ERROR, Y LA DIFERENCIA ES DEL CONTRATO: un `caller_not_authorized` acá diría "el recurso
+ * existe y te está vedado" y un `unknown_caller` diría "no existís"; `items: []` dice "no hay nada
+ * para vos", que es lo que el portal de clientes tiene que escuchar y lo único que no filtra la
+ * existencia del recurso. Además evita que el consumidor tenga que ramificar por clase de caller
+ * para saber si `[]` significa "vacío" o "prohibido".
+ *
+ * SIN NINGÚN CAMPO: no hay nada que parametrizar, y no haberlo es la propiedad. Un `enabled` o un
+ * `except` harían representable un "sin acceso" que sí da acceso.
+ */
+export interface NoneExternalScope {
+  readonly kind: 'none';
+}
+
+export type ExternalScopeSpec =
+  | ColumnExternalScope
+  | ExistsExternalScope
+  | OwnerExternalScope
+  | NoneExternalScope;
 
 /**
  * UNA VARIANTE DEL RECURSO: lo que cambia cuando el discriminador cambia.

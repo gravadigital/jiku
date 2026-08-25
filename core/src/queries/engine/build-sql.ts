@@ -109,6 +109,14 @@ function externalScopeSql(
   const scope = resource.externalScope;
   params.set('caller', ctx.caller);
 
+  if (scope.kind === 'none') {
+    // DEFENSA EN PROFUNDIDAD, NO EL MECANISMO. El mecanismo es el corte de `runList`/`runGet`
+    // (`deniesAllRows`), que no llega hasta acá. Esto existe para que un camino NUEVO que se
+    // saltee el corte tampoco devuelva filas: sin esta rama, olvidárselo publica la tabla entera
+    // al portal de clientes, y el bug NO TIENE SÍNTOMA hasta que alguien lo mira.
+    return 'FALSE';
+  }
+
   if (scope.kind === 'owner') {
     // LA FILA ES DEL CALLER: el recorte es su propia identidad, y NADA MÁS. Sin
     // `user_project_permissions` a propósito (ver `OwnerExternalScope`): agregarlo "por simetría"
@@ -132,11 +140,23 @@ function externalScopeSql(
       params.set('externalVisibility', scope.visibility.value);
       inner.push(`${SCOPE}.${scope.visibility.column} = :externalVisibility`);
     }
+    const existsSql = `EXISTS (SELECT 1 FROM ${scope.table} ${SCOPE} WHERE ${inner.join(' AND ')})`;
+    // LA CLÁUSULA PROPIA, PARENTIZADA. El valor de retorno de esta función se antepone al resto del
+    // `WHERE` y se une con AND: `A OR B AND C` se lee `A OR (B AND C)` y EL RECORTE DEJA DE
+    // RECORTAR —cualquier filtro del caller pasaría a "ampliar" el conjunto—. Las otras tres ramas
+    // devuelven conjunciones y por eso nunca necesitaron paréntesis; esta sí.
+    //
+    // No se nota en el caso SIN filtro adicional, que es el que uno prueba primero: el resultado es
+    // el mismo. Aparece con un filtro encima, y ahí un externo recibe filas que no debería ver.
     const parts = [
-      `EXISTS (SELECT 1 FROM ${scope.table} ${SCOPE} WHERE ${inner.join(' AND ')})`,
+      scope.orSelfColumn
+        ? `(${existsSql} OR ${MAIN}.${scope.orSelfColumn} = :caller)`
+        : existsSql,
     ];
     if (scope.ownVisibility) {
-      // …Y LA PROPIA FILA TAMBIÉN (H-8 del plan de S-025). `objective_activity.visibility_level`
+      // …Y LA PROPIA FILA TAMBIÉN (H-8 del plan de S-025). VA DESPUÉS DEL `OR` y se combina con
+      // AND contra el grupo ya parentizado: la visibilidad propia acota, no amplía. Hoy ninguna
+      // ficha combina las dos y la precedencia queda declarada para que no sea interpretable. `objective_activity.visibility_level`
       // existe exactamente para esto y su default es `internal`: sin esta mitad, un comentario
       // interno sobre una tarea pública se ve desde el portal de clientes.
       params.set('externalOwnVisibility', scope.ownVisibility.value);
