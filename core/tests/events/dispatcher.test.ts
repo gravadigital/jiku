@@ -125,6 +125,9 @@ describe('events/dispatcher', () => {
   it('TS-5 · falta un obligatorio → descarta SIN crear fila parcial (4 casos)', async () => {
     const dispatcher = new EventDispatcher(applied);
 
+    // `email` SIGUE ACÁ, y es el punto: los cuatro obligatorios lo son PARA UNA PERSONA. Que
+    // `identity_type: 'service'` lo vuelva opcional no aflojó nada de este lado — la guarda es
+    // condicional, no se removió.
     for (const field of ['id', 'name', 'username', 'email']) {
       const warn = sinon.spy(logger, 'warn');
       const event = validEvent();
@@ -139,6 +142,52 @@ describe('events/dispatcher', () => {
       (await User.count({ where: { id: PERSON_ID } })).should.equal(0);
       warn.restore();
     }
+  });
+
+  it('TS-5b · una PERSONA sin email sigue siendo descarte en las TRES formas', async () => {
+    const dispatcher = new EventDispatcher(applied);
+
+    // Ausente, `null` y cadena vacía. Las tres tienen que descartar para una persona: una
+    // persona SÍ tiene dirección de correo, así que las tres significan que el emisor está mal
+    // configurado (`CALLOUT_IDP_ENRICH` ausente es el caso real), y ese diagnóstico es el que
+    // el `warn` conserva. Inventarle un valor taparía el problema.
+    const shapes: Record<string, unknown>[] = [
+      (() => {
+        const e = validEvent();
+        delete e.email;
+        return e;
+      })(),
+      { ...validEvent(), email: null },
+      { ...validEvent(), email: '' },
+    ];
+
+    for (const event of shapes) {
+      const warn = sinon.spy(logger, 'warn');
+
+      await dispatcher.dispatch(event);
+
+      warn.callCount.should.equal(1);
+      String(warn.firstCall.args[0]).should.containEql('email');
+      (await User.count({ where: { id: PERSON_ID } })).should.equal(0);
+      warn.restore();
+    }
+  });
+
+  it('TS-5c · identity_type AUSENTE sin email descarta: el default es `person`', async () => {
+    const warn = sinon.spy(logger, 'warn');
+    const dispatcher = new EventDispatcher(applied);
+    const event = validEvent();
+    delete event.identity_type;
+    delete event.email;
+
+    await dispatcher.dispatch(event);
+
+    // La excepción se apoya en `identity_type === 'service'`, y su ausencia cae en el default
+    // `person`. Un emisor que dejara de mandar `identity_type` NO abre la puerta a filas sin
+    // email: falla del lado seguro.
+    warn.callCount.should.equal(1);
+    String(warn.firstCall.args[0]).should.containEql('email');
+    (await User.count({ where: { id: PERSON_ID } })).should.equal(0);
   });
 
   it('TS-6 · un cuerpo que no es un objeto no rompe la guarda', async () => {

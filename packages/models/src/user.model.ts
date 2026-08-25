@@ -50,11 +50,24 @@ export default class User extends Model {
   })
     username!: string;
 
+  /**
+   * ACEPTA NULL, y la excepción es de las IDENTIDADES DE SERVICIO.
+   *
+   * Un machine user de Zitadel no tiene dirección de correo: `userinfo` no devuelve el claim,
+   * así que el evento de autenticación llega sin él y la fila no se puede espejar contra un
+   * NOT NULL. Ver `20260825_01_users_email_nullable.js`, que tiene el argumento completo.
+   *
+   * PARA UNA PERSONA SIGUE SIENDO OBLIGATORIO, pero eso NO lo enforcea esta columna: lo enforcea
+   * el esquema Joi de `core/src/events/dispatcher.ts`, que exige `email` salvo con
+   * `identity_type === 'service'`. La restricción es condicional y la columna no puede
+   * expresarla — una CHECK podría, y se descartó: dejaría la regla en dos lugares, y el que
+   * decide cuándo puede faltar es el consumidor del evento.
+   */
   @Column({
     type: DataType.STRING,
-    allowNull: false,
+    allowNull: true,
   })
-    email!: string;
+    email!: string | null;
 
   @Column({
     type: DataType.JSONB,

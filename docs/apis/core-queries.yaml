@@ -473,6 +473,12 @@ channels:
       **`email` is INCLUDABLE, not base**: it is personal data and does not travel unless asked for.
       `roles` is **not exposed at all** — it is the input of the authorisation gate, and publishing
       it would hand a caller the map of what everyone can do.
+
+      **`email` CAN COME BACK `null`, and only for a service identity.** A Zitadel machine user has
+      no e-mail address —`userinfo` returns no such claim— so the mirrored `users` row leaves the
+      column empty. It is never `null` for a person: the event consumer discards a person's event
+      without one, so that row never exists. Filtering by `email` simply does not match those rows
+      (`ILIKE` over `NULL` is never true), and neither does `q`.
     publish:
       operationId: usersList
       summary: List users
@@ -1379,7 +1385,9 @@ x-resources:
     endpoints: [users.list]
     note: >-
       `email` es INCLUIBLE, no base: es dato personal. `roles` NO SE EXPONE en absoluto — es el
-      insumo de la compuerta de autorización.
+      insumo de la compuerta de autorización. `email` PUEDE VENIR `null`, y solo para una identidad
+      de servicio: un machine user de Zitadel no tiene dirección de correo. Nunca es `null` para
+      una persona.
     base: [id, name, username, createdAt, updatedAt]
     includable: [email, person]
     filterable: [id, username, email, q]

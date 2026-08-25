@@ -28,6 +28,12 @@ export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<Eve
   const fields = {
     name: event.name,
     username: event.username,
+    // PUEDE SER `null`, y solo para una identidad de servicio: el esquema del despachador ya
+    // normalizó ahí las tres formas de "no hay email", y para una persona ya descartó el evento.
+    // Acá no hay nada que decidir — si hubiera un `?? algo`, sería el lugar equivocado.
+    //
+    // El reemplazo total aplica igual: un service user que deja de declarar su dirección en
+    // Zitadel deja de tenerla en la fila. Es la misma semántica que ya tiene `roles`.
     email: event.email,
     roles: event.roles,
     // EL ÚNICO MAPEO DE NOMBRE del handler: el payload es `snake_case` (así llega del callout) y

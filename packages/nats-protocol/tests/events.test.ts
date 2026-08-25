@@ -113,7 +113,7 @@ describe('nats-protocol · el tipo del payload del evento', () => {
     e.instance.should.equal('prod');
     e.name.should.equal('Ana Pérez');
     e.username.should.equal('ana@grava.digital');
-    e.email.should.equal('ana@grava.digital');
+    e.email!.should.equal('ana@grava.digital');
 
     // `identity_type` es `string`, NO el enum de @jiku/models: un valor fuera del enum es un
     // evento INVÁLIDO —que el esquema Joi de core descarta— no un tipo imposible. Si acá
@@ -126,6 +126,32 @@ describe('nats-protocol · el tipo del payload del evento', () => {
     // literales volvería intipeable la rama de descarte.
     const otro: AuthEvent = { ...e, type: 'deauthenticated', version: 2 };
     otro.version.should.equal(2);
+  });
+
+  it('TS-67b: `email` acepta `null`, que es la forma de una identidad de servicio', () => {
+    // Un machine user de Zitadel no tiene dirección de correo: `userinfo` no devuelve el claim,
+    // así que el callout omite la clave y el esquema Joi de core la normaliza a `null`. Que el
+    // tipo lo admita es lo que permite espejar esa identidad — sin fila en `users`, las dos
+    // compuertas del bus la rechazan con `caller_not_authorized` y `unknown_caller`.
+    const service: AuthEvent = {
+      type: 'authenticated',
+      version: 1,
+      instance: 'prod',
+      id: '387842544790142978',
+      name: 'Jiku API',
+      username: 'jiku-api',
+      email: null,
+      roles: ['internal-app'],
+      identity_type: 'service',
+    };
+
+    (service.email === null).should.be.true();
+    service.identity_type.should.equal('service');
+
+    // Y sigue admitiendo un string: la excepción es "PUEDE no tener", no "no tiene". Un service
+    // user con dirección declarada en Zitadel la conserva.
+    const conEmail: AuthEvent = { ...service, email: 'connector@grava.digital' };
+    conEmail.email!.should.equal('connector@grava.digital');
   });
 
   it('TS-68: AuthEvent no es un símbolo de runtime', () => {

@@ -242,14 +242,19 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
       source.should.startWith("'use strict';");
       EXPECTED_INDEXES.should.have.length(18);
 
-      // "Exactamente una" migración de índices de consulta, y el conteo total en 103. Es la
-      // aserción que rompe si alguien agrega un segundo `*_query_indexes.js` en vez de editar
-      // este, o si el archivo se renombra sin actualizar la documentación (TS-24).
+      // "Exactamente una" migración de índices de consulta, y el conteo total. Es la aserción
+      // que rompe si alguien agrega un segundo `*_query_indexes.js` en vez de editar este, o si
+      // el archivo se renombra sin actualizar la documentación (TS-24).
+      //
+      // EL CONTEO SUBE CUANDO SE AGREGA UNA MIGRACIÓN LEGÍTIMA, y actualizarlo es parte del
+      // cambio: 103 -> 104 con `20260825_01_users_email_nullable.js`. Que rompa es el punto —
+      // obliga a mirar si la migración nueva era la que se quería. Al tocarlo, actualizá también
+      // el "Cantidad" de `docs/db-schemas/jiku.md`.
       const migrations = readdirSync(MIGRATIONS_DIR);
       migrations.filter((name) => name.includes('query_indexes')).should.be.eql([
         '20260824_02_query_indexes.js',
       ]);
-      migrations.should.have.length(103);
+      migrations.should.have.length(104);
     });
 
     it('TS-2: solo crea índices — ni ALTER, ni columnas, ni tipos, ni datos', () => {

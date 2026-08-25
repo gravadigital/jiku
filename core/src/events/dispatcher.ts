@@ -41,7 +41,30 @@ const schema = joi
     id: joi.string().max(100).required(),
     name: joi.string().required(),
     username: joi.string().required(),
-    email: joi.string().required(),
+    // OBLIGATORIO PARA UNA PERSONA, OPCIONAL PARA UNA IDENTIDAD DE SERVICIO, y la condición es
+    // la regla entera: un machine user de Zitadel NO TIENE dirección de correo —`userinfo` no
+    // devuelve el claim ni con `CALLOUT_IDP_ENRICH=profile`, así que el callout omite la clave—
+    // y con `email` obligatorio su evento se descartaba con `"email" is required`. Sin fila en
+    // `users`, las dos compuertas del bus lo rechazan: `caller_not_authorized` en todo comando y
+    // `unknown_caller` en toda consulta.
+    //
+    // LAS TRES FORMAS DE "NO HAY" SE NORMALIZAN A `null` —ausente, `null` y cadena vacía—, así
+    // el handler no distingue tres ausencias que significan lo mismo. La cadena vacía no es
+    // teórica: es la forma que toma el evento si `CALLOUT_IDP_ENRICH` no está configurado, y el
+    // compose lo documenta.
+    //
+    // PARA UNA PERSONA LAS TRES SIGUEN SIENDO DESCARTE, y esa mitad importa tanto como la otra:
+    // ahí el faltante no es una propiedad de la identidad sino un emisor mal configurado, y el
+    // `warn` es el único diagnóstico que hay. Inventarle un valor taparía el problema.
+    //
+    // La condición se apoya en `identity_type`, que se declara DESPUÉS en este objeto: Joi
+    // resuelve la dependencia y aplica su `.default('person')` antes de evaluar este `when`, así
+    // que un evento SIN `identity_type` cae en la rama obligatoria. Falla del lado seguro.
+    email: joi.string().when('identity_type', {
+      is: IdentityType.Service,
+      then: joi.string().allow(null).empty('').default(null),
+      otherwise: joi.string().required(),
+    }),
     // Ausente o vacío -> lista vacía, Y NO ES UN DESCARTE. Es un evento válido con una lista
     // vacía: la consecuencia (esa identidad no queda autorizada a nada en el bus) la produce la
     // compuerta de autorización, no este consumidor.

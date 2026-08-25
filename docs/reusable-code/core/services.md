@@ -310,6 +310,14 @@ Four properties are load-bearing:
   rule, and it has to: the emitter's schema lives in **another repo** and can grow, so a new field
   cannot take the consumer down. The nine declared fields are the ones core reads; the six ignored
   ones pass through and **`client_ip` and `session` are never persisted**.
+- **`email` is required for a PERSON and optional for a SERVICE IDENTITY**, and the condition is
+  the whole guard. A Zitadel machine user has no e-mail address — `userinfo` returns no such claim
+  even with `CALLOUT_IDP_ENRICH=profile` — so the callout omits the key. While `email` was
+  required for everyone, **every service event was discarded** and no service identity ever got a
+  row, which left both bus gates refusing it. The three ways of saying "none" — absent, `null` and
+  the empty string — normalise to `null`. For a person all three stay a discard: there the absence
+  means the emitter is misconfigured, and that diagnosis is worth keeping. The condition reads
+  `identity_type`, whose default is `person`, so an event without it falls in the required branch.
 - **The transaction opens after all the guards**, so an invalid payload never takes a pool
   connection — the same criterion by which a command's validation runs before the transaction.
 - **It never rejects.** `'applied'` commits; anything else, including an exception, rolls back and

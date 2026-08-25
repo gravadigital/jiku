@@ -48,7 +48,7 @@ describe('events/auth/user-sync', () => {
     user.id.should.equal(PERSON_ID);
     user.name.should.equal('Ana Pérez');
     user.username.should.equal('ana@grava.digital');
-    user.email.should.equal('ana@grava.digital');
+    user.email!.should.equal('ana@grava.digital');
     user.roles.should.deepEqual(['user']);
     user.identityType.should.equal('person');
     info.callCount.should.equal(1);
@@ -72,7 +72,7 @@ describe('events/auth/user-sync', () => {
     const user = (await User.findByPk(PERSON_ID))!;
     user.name.should.equal('Ana Gómez');
     user.username.should.equal('agomez@grava.digital');
-    user.email.should.equal('agomez@grava.digital');
+    user.email!.should.equal('agomez@grava.digital');
     user.roles.should.deepEqual(['user', 'admin']);
     info.callCount.should.equal(1);
     String(info.firstCall.args[0]).should.equal(`[events] ${PERSON_ID}: updated`);
@@ -98,6 +98,106 @@ describe('events/auth/user-sync', () => {
     const person = (await User.findByPk(PERSON_ID))!;
     person.name.should.equal('Ana Pérez');
     person.identityType.should.equal('person');
+  });
+
+  it('TS-17b · un service user SIN email se espeja igual, con `email` en NULL', async () => {
+    const info = sinon.spy(logger, 'info');
+    const event: Record<string, unknown> = {
+      ...validEvent(),
+      id: SERVICE_ID,
+      name: 'Jiku API',
+      username: 'jiku-api',
+      roles: ['internal-app'],
+      identity_type: 'service',
+    };
+    // Zitadel no devuelve el claim `email` en `userinfo` para un machine user, así que el
+    // callout OMITE la clave. Es el evento tal cual llega en producción.
+    delete event.email;
+
+    await dispatcher().dispatch(event);
+
+    const service = (await User.findByPk(SERVICE_ID))!;
+    // La fila EXISTE, que es lo único que las dos compuertas del bus miran. Sin ella, este
+    // service user recibe `caller_not_authorized` en todo comando y `unknown_caller` en toda
+    // consulta.
+    (service.email === null).should.be.true();
+    service.name.should.equal('Jiku API');
+    service.username.should.equal('jiku-api');
+    service.roles.should.deepEqual(['internal-app']);
+    service.identityType.should.equal('service');
+    String(info.firstCall.args[0]).should.equal(`[events] ${SERVICE_ID}: created`);
+  });
+
+  it('TS-17c · las tres formas de "no hay email" dejan la MISMA fila', async () => {
+    const service = (): Record<string, unknown> => ({
+      ...validEvent(),
+      id: SERVICE_ID,
+      name: 'Jiku API',
+      username: 'jiku-api',
+      roles: ['internal-app'],
+      identity_type: 'service',
+    });
+
+    // Ausente. El callout omite la clave cuando `userinfo` no trae el claim.
+    const absent = service();
+    delete absent.email;
+    await dispatcher().dispatch(absent);
+    ((await User.findByPk(SERVICE_ID))!.email === null).should.be.true();
+
+    // Cadena vacía. Es la forma que toma el evento si `CALLOUT_IDP_ENRICH` no está configurado
+    // — el compose lo documenta: "sin esta línea los eventos llegan con los dos campos vacíos".
+    await dispatcher().dispatch({ ...service(), email: '' });
+    ((await User.findByPk(SERVICE_ID))!.email === null).should.be.true();
+
+    // `null` explícito, por si el emisor cambia de forma de decirlo.
+    await dispatcher().dispatch({ ...service(), email: null });
+    ((await User.findByPk(SERVICE_ID))!.email === null).should.be.true();
+
+    // Una sola fila en las tres: el espejado es por PK y es idempotente.
+    (await User.count({ where: { id: SERVICE_ID } })).should.equal(1);
+  });
+
+  it('TS-17d · un service user CON email conserva el valor, no se anula', async () => {
+    await dispatcher().dispatch({
+      ...validEvent(),
+      id: SERVICE_ID,
+      name: 'External Connector',
+      username: 'external-connector',
+      email: 'connector@grava.digital',
+      roles: ['external-publisher'],
+      identity_type: 'service',
+    });
+
+    // La excepción es "puede no tener", no "no tiene". Un service user con dirección declarada
+    // en Zitadel la conserva: el reemplazo total no la pisa con `null`.
+    (await User.findByPk(SERVICE_ID))!.email!.should.equal('connector@grava.digital');
+  });
+
+  it('TS-17e · un service user que PIERDE el email lo deja en NULL (reemplazo total)', async () => {
+    await dispatcher().dispatch({
+      ...validEvent(),
+      id: SERVICE_ID,
+      name: 'External Connector',
+      username: 'external-connector',
+      email: 'connector@grava.digital',
+      roles: ['external-publisher'],
+      identity_type: 'service',
+    });
+
+    const withoutEmail: Record<string, unknown> = {
+      ...validEvent(),
+      id: SERVICE_ID,
+      name: 'External Connector',
+      username: 'external-connector',
+      roles: ['external-publisher'],
+      identity_type: 'service',
+    };
+    delete withoutEmail.email;
+    await dispatcher().dispatch(withoutEmail);
+
+    // El handler es REEMPLAZO TOTAL, no edición parcial: si Zitadel deja de declarar la
+    // dirección, la fila deja de tenerla. Es la misma semántica que ya tiene `roles`.
+    ((await User.findByPk(SERVICE_ID))!.email === null).should.be.true();
   });
 
   it('TS-18 · roles se REEMPLAZA ENTERO, no se mergea (la trampa del JSONB)', async () => {
@@ -181,7 +281,7 @@ describe('events/auth/user-sync', () => {
     const user = (await User.findByPk(PERSON_ID))!;
     user.name.should.equal('Ana Pérez');
     user.username.should.equal('ana@grava.digital');
-    user.email.should.equal('ana@grava.digital');
+    user.email!.should.equal('ana@grava.digital');
     user.roles.should.deepEqual(['user']);
     user.identityType.should.equal('person');
   });

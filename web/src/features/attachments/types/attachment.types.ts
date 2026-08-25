@@ -36,7 +36,14 @@ export interface Attachment {
   readonly uploader: {
     readonly id: string;
     readonly name: string;
-    readonly email: string;
+    /**
+     * `null` cuando quien subió es una identidad de servicio: un machine user de Zitadel no
+     * tiene dirección de correo. Es una posición alcanzable de verdad — el publicador externo
+     * sube archivos por el bus desde REQ-001.
+     *
+     * Ningún componente lo renderiza; se declara para que el tipo no mienta.
+     */
+    readonly email: string | null;
   };
 }
 

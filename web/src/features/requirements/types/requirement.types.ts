@@ -51,7 +51,12 @@ export interface RequirementResponsiblePerson {
 export interface RequirementActivityUser {
   id: string;
   name: string;
-  email: string;
+  /**
+   * `null` para una identidad de servicio: un machine user de Zitadel no tiene direccion de
+   * correo. Es exactamente la misma superficie que `identityType: 'service'` marca.
+   * Ningun componente lo renderiza; se declara para que el tipo no mienta.
+   */
+  email: string | null;
   /** Marca de identidad automatica. Ausente contra una api vieja: no marca nada. */
   identityType?: IdentityType;
 }
@@ -59,7 +64,8 @@ export interface RequirementActivityUser {
 export interface RequirementCreator {
   id: string;
   name: string;
-  email: string;
+  /** `null` para una identidad de servicio. Ver `RequirementActivityUser.email`. */
+  email: string | null;
   /** Marca de identidad automatica. Ausente contra una api vieja: no marca nada. */
   identityType?: IdentityType;
 }

@@ -4,7 +4,7 @@ title: Sincronización de identidades desde el evento de autenticación
 type: event
 status: Draft
 created: 2026-08-24
-last_updated: 2026-08-24
+last_updated: 2026-08-25
 stories: [S-016, S-018, S-023]
 ---
 
@@ -13,7 +13,7 @@ stories: [S-016, S-018, S-023]
 **Tipo:** Evento
 **Status:** Draft
 **Creado:** 2026-08-24
-**Última actualización:** 2026-08-24
+**Última actualización:** 2026-08-25
 **Stories:** S-016, S-018
 
 ## Descripción
@@ -205,8 +205,18 @@ comandos.
 | `type` | `=== 'authenticated'` | descarta + `warn` |
 | `version` | `=== 1` | descarta + `warn` |
 | `instance` | `=== INSTANCE` del consumidor | descarta + `warn` **con los dos valores** |
-| obligatorios | `id`, `name`, `username`, `email` presentes | descarta **sin crear fila parcial** |
+| obligatorios | `id`, `name`, `username` presentes, y `email` **solo si `identity_type` no es `service`** | descarta **sin crear fila parcial** |
 
+- **`email` es obligatorio para una PERSONA y opcional para un SERVICE USER**, y la condición es
+  la guarda entera. Un machine user de Zitadel **no tiene dirección de correo**: `userinfo` no
+  devuelve el claim ni con `CALLOUT_IDP_ENRICH=profile`, así que el callout **omite la clave**.
+  Mientras `email` fue obligatorio para todos, **todo evento de servicio se descartaba** con
+  `"email" is required` y ninguna identidad de servicio llegaba a tener fila — con lo que las dos
+  compuertas del bus la rechazaban. Las **tres formas de decir "no hay"** —ausente, `null` y
+  cadena vacía— se normalizan a `null`. Para una persona las tres siguen siendo descarte, porque
+  ahí el faltante significa que el emisor está mal configurado y ese diagnóstico hay que
+  conservarlo. La condición se apoya en `identity_type`, cuyo default es `person`: un evento sin
+  ese campo cae en la rama obligatoria, que es fallar del lado seguro.
 - **`.unknown(true)` es deliberado:** el schema del callout vive en otro repo y puede crecer. **Un
   campo nuevo no puede tirar el consumidor.**
 - **Recién después de las guardas** abre `sequelize.transaction()` — mismo criterio con que la
@@ -232,7 +242,7 @@ comandos.
 | `id` | `id` | `id` | `VARCHAR(100)` PK — es el `sub` de Zitadel |
 | `name` | `name` | `name` | `VARCHAR` NOT NULL |
 | `username` | `username` | `username` | `VARCHAR` NOT NULL |
-| `email` | `email` | `email` | `VARCHAR` NOT NULL |
+| `email` | `email` | `email` | `VARCHAR` **NULL** — vacío para una identidad de servicio |
 | `roles` | `roles` | `roles` | `JSONB` NOT NULL DEFAULT `'[]'` |
 | `identity_type` | `identityType` | `identity_type` | ENUM `identity_type` NOT NULL DEFAULT `'person'` |
 
@@ -265,13 +275,15 @@ y la convención `logging` prohíbe datos de negocio fuera de `LOG_COMMANDS`.
 | Cuerpo no-JSON | `warn` + descarte. **No hay reply que mandar** | línea de `warn` en `core` |
 | `type` ≠ `authenticated` o `version` ≠ `1` | descarta sin escribir | `warn` en `core` |
 | `instance` ≠ la del consumidor | descarta sin escribir, **con los dos valores en el log** | `warn` con los dos valores |
-| Falta `id`, `name`, `username` o `email` | descarta **sin crear fila parcial** | `warn` en `core` |
+| Falta `id`, `name` o `username` | descarta **sin crear fila parcial** | `warn` en `core` |
+| Falta `email` **y es una persona** | descarta **sin crear fila parcial** | `warn` en `core` nombrando `email` |
+| Falta `email` **y es un service user** | **No es un descarte.** Fila creada/actualizada con `email` en `NULL` | fila con `email = NULL` |
 | `roles` ausente o `[]` | **No es un descarte.** Fila creada/actualizada con `roles: []` | fila con `roles = '[]'` |
 | Campo desconocido en el payload | se ignora, el evento se procesa | ninguno |
 | Excepción en `create` / `update` | `rollback` + `error`. **Evento perdido** | `error` en `core` |
 | `templates/core.yaml` sin el permiso | **`core` no recibe nada.** Arranca y atiende comandos | violación de permisos en el log **del servidor NATS** |
 | `NATS_INSTANCE` desalineado | ídem, o **todos los eventos descartados** por la guarda | `warn` con los dos valores, o **nada** |
-| `CALLOUT_IDP_ENRICH` ausente | `name` y `email` vacíos → **todos los eventos descartados** | `warn` de campos obligatorios, en cada evento |
+| `CALLOUT_IDP_ENRICH` ausente | `name` y `email` vacíos → **los eventos de PERSONA se descartan** (los de servicio no: sin `name` sí, pero `email` vacío ya no los corta) | `warn` de campos obligatorios, en cada evento |
 | **`core` caído o reiniciando** | **El evento se pierde. Sin reintento, sin reconciliación, sin registro** | **ninguno.** La fila queda desactualizada |
 
 > **Tres causas, un síntoma.** *"No llega ni un evento"* puede ser el permiso de la plantilla, el
@@ -284,13 +296,13 @@ y la convención `logging` prohíbe datos de negocio fuera de `LOG_COMMANDS`.
 **Estado final:** la fila de `users` refleja la identidad **tal como Zitadel la conoce en el momento
 de esa autenticación**.
 
-| Identidad | `roles` | `identity_type` |
-|---|---|---|
-| Persona con rol `user` | `["user"]` | `person` |
-| Persona con rol `admin` | `["admin"]` | `person` |
-| Conector externo | `["external-publisher"]` | `service` |
-| Service user de la `api` | `["internal-app"]` | `service` |
-| Service user de `core` | `["core"]` | `service` |
+| Identidad | `roles` | `identity_type` | `email` |
+|---|---|---|---|
+| Persona con rol `user` | `["user"]` | `person` | su dirección, **nunca `NULL`** |
+| Persona con rol `admin` | `["admin"]` | `person` | su dirección, **nunca `NULL`** |
+| Conector externo | `["external-publisher"]` | `service` | **`NULL`** (salvo que Zitadel declare una) |
+| Service user de la `api` | `["internal-app"]` | `service` | **`NULL`** |
+| Service user de `core` | `["core"]` | `service` | **`NULL`** |
 
 **Y lo que ese estado habilita:**
 

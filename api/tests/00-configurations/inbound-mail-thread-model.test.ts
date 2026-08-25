@@ -231,7 +231,7 @@ describe('S-062: inbound_mail_threads, projects.ticket_slug y usuario mail-bot',
       (user === null).should.be.false();
       user!.name.should.equal('Mail Bot');
       user!.username.should.equal('mail-bot');
-      user!.email.should.equal('mail-bot@example.invalid');
+      user!.email!.should.equal('mail-bot@example.invalid');
     });
   });
 

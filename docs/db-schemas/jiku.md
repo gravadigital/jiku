@@ -3,7 +3,7 @@
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
 **Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
-compartido — y de las 103 migraciones de `api/db-upgrade/migrations/`.
+compartido — y de las 104 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -107,11 +107,26 @@ Espejo del proveedor de identidad. **No la escribe el producto.**
 | `id` | `VARCHAR(100)` | PK. Es el `sub` de Zitadel |
 | `name` | `VARCHAR` | NOT NULL |
 | `username` | `VARCHAR` | NOT NULL |
-| `email` | `VARCHAR` | NOT NULL |
+| `email` | `VARCHAR` | **NULL** desde `20260825_01` — ver la nota de abajo |
 | `roles` | `JSONB` | NOT NULL, default `'[]'::jsonb` — lista de strings, sin CHECK ni validación de contenido |
 | `identity_type` | `ENUM` `identity_type` | NOT NULL, default `'person'` — `person`, `service` |
 | `created_at`, `updated_at` | `TIMESTAMP` | |
 
+- **`email` acepta `NULL` desde `20260825_01`, y la excepción es de las identidades de servicio.**
+  Un machine user de Zitadel **no tiene dirección de correo**: `userinfo` no devuelve el claim
+  aunque `CALLOUT_IDP_ENRICH=profile` esté puesto, así que el evento de autenticación llega sin
+  la clave. Con la columna en `NOT NULL` el consumidor no podía escribir esa fila y la descartaba
+  con `"email" is required`; sin fila, **las dos compuertas del bus rechazan a esa identidad** —
+  `caller_not_authorized` en todo comando y `unknown_caller` en toda consulta—, lo que dejaba
+  muerto el canal del publicador externo, el plano de consultas para la api, el `INSERT` de
+  `files.uploaded_by` (FK `RESTRICT`) y la marca de identidad de S-019.
+  **Para una persona sigue siendo obligatorio, y eso NO lo enforcea la columna**: lo enforcea el
+  esquema Joi de `core/src/events/dispatcher.ts`, que lo vuelve opcional solo con
+  `identity_type = 'service'`. La restricción es condicional y una columna no puede expresarla;
+  se descartó una CHECK porque dejaría la regla en dos lugares.
+  Se evaluó completar un valor sintético (`{id}@service.invalid`), con precedente en este mismo
+  esquema —`system@mail.com` y `mail-bot@example.invalid`—, y **se descartó**: `users` es un
+  espejo, y `NULL` dice *"no tiene"* mientras un placeholder dice *"tiene esto"*.
 - **`identity_type` es un ENUM nativo en la base pero el modelo lo declara `DataType.STRING`.** Es
   la misma divergencia deliberada de `byte_status` / `retention_status` y por la misma razón:
   declararlo `ENUM` en el modelo haría que `sync()` cree el tipo con la convención de nombre de
@@ -599,7 +614,7 @@ Table users {
   id varchar(100) [pk, note: 'sub de Zitadel']
   name varchar [not null]
   username varchar [not null]
-  email varchar [not null]
+  email varchar [note: 'NULL para una identidad de servicio: un machine user no tiene direccion de correo']
   roles jsonb [not null, default: `'[]'::jsonb`, note: 'lista de strings, sin validacion de contenido']
   identity_type identity_type [not null, default: 'person', note: 'el modelo lo declara DataType.STRING a proposito']
   created_at timestamp
@@ -977,7 +992,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **103** |
+| Cantidad | **104** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`
@@ -985,7 +1000,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 > ### Las migraciones no construyen el esquema desde cero
 >
-> **Las 103 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
+> **Las 104 asumen un esquema existente.** La más antigua modifica `objectives`, y **ninguna la
 > crea**. Contra una base vacía la api falla al arrancar:
 >
 > ```
@@ -1003,6 +1018,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
+| `20260825_01_users_email_nullable` | `users.email` deja de ser `NOT NULL`, para que una **identidad de servicio** pueda espejarse: un machine user de Zitadel no tiene dirección de correo y su evento se descartaba con `"email" is required`, dejándolo sin fila y por lo tanto rechazado por las dos compuertas del bus. Cambio de **catálogo**, sin reescritura de tabla y sin backfill. **El `down` no es incondicional**: restaurar el `NOT NULL` falla si ya existe alguna fila de servicio, y se deja fallar a propósito |
 | `20260824_02_query_indexes` | Creó los 18 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. El de `user_project_permissions(user_id)` es condicional por catálogo y **contra una base migrada no se crea**, porque `uk_user_project_permissions` ya lo cubre. **No borra** `idx_projects_client_id` ni `idx_worked_times_requirement_id`. Ver "Los índices del keyset" abajo |
 | `20260824_01_users_roles_identity_type` | Agrega `users.roles` (`JSONB`) e `users.identity_type`: el espejo de identidad de REQ-005 y, desde REQ-006, **el control de acceso efectivo de toda la lectura por el bus** |
 | `20260820_01_drop_external_integration` | Da de baja la integración con sistemas externos: borra las 3 tablas `external_*`, las 9 columnas de `objectives` y `objective_activity` (incluida `last_synced_at`, la única sin el prefijo) y el índice único parcial `uk_objective_activity_external_comment` |

@@ -2621,7 +2621,19 @@ components:
       properties:
         id: { type: string }
         name: { type: string }
-        email: { type: string, format: email }
+        email:
+          type: [string, 'null']
+          format: email
+          description: |
+            **`null` para una identidad de servicio.** Un machine user de Zitadel no tiene
+            dirección de correo —`userinfo` no devuelve el claim—, así que la fila espejada de
+            `users` la deja vacía. Ver la nota de `users.email` en `docs/db-schemas/jiku.md`.
+
+            **Para una persona nunca es `null`**: el consumidor del evento descarta un evento de
+            persona sin email, así que esa fila no llega a existir.
+
+            Ningún frontend lo renderiza hoy — lo único que se muestra es el email de la sesión
+            propia, que siempre es de una persona.
         username: { type: string }
 
     AuthorUser:
@@ -2648,7 +2660,12 @@ components:
       properties:
         id: { type: string }
         name: { type: string }
-        email: { type: string, format: email }
+        email:
+          type: [string, 'null']
+          format: email
+          description: |
+            **`null` para una identidad de servicio**, que es exactamente la que `identityType`
+            marca: los dos campos describen la misma distinción desde dos ángulos. Ver `User.email`.
         identityType:
           type: string
           enum: [person, service]

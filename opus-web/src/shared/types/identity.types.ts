@@ -16,6 +16,14 @@ export type IdentityType = 'person' | 'service';
 export interface AuthorUser {
   id: string;
   name: string;
-  email: string;
+  /**
+   * `null` para una identidad de servicio: un machine user de Zitadel no tiene direccion de
+   * correo, asi que la fila espejada la deja vacia. Es la MISMA superficie que `identityType`
+   * marca, y por eso los dos campos viven juntos.
+   *
+   * Ningun componente lo renderiza —lo unico que se muestra es el email de la SESION PROPIA,
+   * que siempre es una persona—, asi que se declara para que el tipo no mienta.
+   */
+  email: string | null;
   identityType?: IdentityType;
 }

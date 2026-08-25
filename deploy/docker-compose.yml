@@ -87,6 +87,12 @@ services:
       # `profile email`: un access token no es un ID token y esos claims viven en userinfo. Sin
       # esta línea los eventos llegan con los dos campos vacíos. Se cachea por identidad (5
       # min), así que una flota que reconecta cuesta una llamada por usuario, no por conexión.
+      #
+      # CON LA LÍNEA PUESTA, UN MACHINE USER SIGUE SIN `email`, y no es un problema de config:
+      # una identidad de servicio de Zitadel no tiene dirección de correo, así que `userinfo`
+      # tampoco devuelve el claim y el callout OMITE la clave. `core` lo contempla — `email` es
+      # obligatorio solo para `identity_type: person` — y espeja la fila con la columna en NULL.
+      # Ver `docs/flows/sincronizacion-de-identidades.md`, paso 5.
       - CALLOUT_IDP_ENRICH=profile
       #
       # NO HAY CALLOUT_EVENTS_STREAM, Y ES DELIBERADO. Esa variable no nombra un stream: elige

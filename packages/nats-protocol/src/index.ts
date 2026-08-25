@@ -434,7 +434,19 @@ export interface AuthEvent {
   id: string;
   name: string;
   username: string;
-  email: string;
+  /**
+   * `null` SOLO para una identidad de servicio: un machine user de Zitadel no tiene dirección de
+   * correo y `userinfo` no devuelve el claim, así que el callout omite la clave.
+   *
+   * El tipo NO es `string | undefined`: el esquema Joi de core normaliza las tres formas de
+   * decir "no hay" —ausente, `null` y cadena vacía— a `null` antes de que el handler lo vea, con
+   * la misma lógica por la que `roles` e `identity_type` llegan siempre con valor. Un
+   * `undefined` acá obligaría a cada consumidor a distinguir dos ausencias que significan lo
+   * mismo.
+   *
+   * PARA UNA PERSONA NUNCA ES `null`: el esquema lo exige, y su falta descarta el evento.
+   */
+  email: string | null;
   /** Tal cual vienen, sin filtrar ni validar contra ningún catálogo. */
   roles: string[];
   /** Sale del `type` de la regla de `rules.yaml` que matcheó, no de una heurística. */
