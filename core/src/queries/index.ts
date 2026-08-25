@@ -11,6 +11,12 @@ import commentsList from './comments/comments-list';
 import commentsGet from './comments/comments-get';
 import activityList from './activity/activity-list';
 import subscriptionsList from './subscriptions/subscriptions-list';
+import peopleList from './people/people-list';
+import usersList from './users/users-list';
+import workedTimesList from './worked-times/worked-times-list';
+import unworkedTimesList from './unworked-times/unworked-times-list';
+import weekAssignedTimesList from './week-assigned-times/week-assigned-times-list';
+import projectPermissionsList from './project-permissions/project-permissions-list';
 
 /**
  * Registro único de consultas, en el orden de la tabla del contrato. Agregar una es sumarla acá.
@@ -26,8 +32,17 @@ import subscriptionsList from './subscriptions/subscriptions-list';
  *     OBLIGATORIO: son la familia de las dos tablas cuyos ids se pisan, y el discriminador es lo
  *     que hace que un id tenga significado.
  *
- * `activity` y `subscriptions` NO TIENEN `get`, y la ausencia es el contrato: no hay pantalla de
- * detalle de una entrada de historial ni de una suscripción.
+ *   - `people`, `users`, `worked-times`, `unworked-times`, `week-assigned-times` y
+ *     `project-permissions` lo responden desde S-026: la mitad operativa del producto —el equipo,
+ *     la carga de horas y la asignación semanal— resuelta por el bus.
+ *
+ * NINGUNO de los seis de S-026 tiene `get`, ni `activity` ni `subscriptions` tampoco, y la ausencia
+ * es el contrato: `get` existe solo donde hay pantalla de detalle (RF-2). Traer varios por id es
+ * `list` + `filter.id: [1,2,3]`.
+ *
+ * TRES DE LOS SEIS DE S-026 —los de tiempo— NO TIENEN ACCESO EXTERNO EN ABSOLUTO: un caller en modo
+ * externo recibe `items: []` sin que se ejecute una sola consulta. No es un error, y la diferencia
+ * es de contrato.
  *
  * NINGÚN ENDPOINT REGISTRADO USA YA `pendingContract`. El archivo `pending.ts` sobrevive igual
  * hasta S-028, que es la story que cierra el contrato y lo elimina.
@@ -45,6 +60,12 @@ export const queryRegistry = new QueryRegistry().registerAll([
   commentsGet,
   activityList,
   subscriptionsList,
+  peopleList,
+  usersList,
+  workedTimesList,
+  unworkedTimesList,
+  weekAssignedTimesList,
+  projectPermissionsList,
 ]);
 
 export default queryRegistry;

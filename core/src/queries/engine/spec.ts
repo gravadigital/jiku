@@ -1,4 +1,4 @@
-import { BaseSpec, IncludableSpec, RelationSpec, ResourceSpec } from '../types';
+import { BaseSpec, IncludableSpec, QueryContext, RelationSpec, ResourceSpec } from '../types';
 
 /**
  * LA RESOLUCIÓN DE LA FICHA: la variante del recurso y el spec de un nombre.
@@ -92,6 +92,23 @@ export function specFor(
  */
 export function isRelation(spec: BaseSpec | IncludableSpec | undefined): spec is RelationSpec {
   return spec !== undefined && 'kind' in spec && spec.kind === 'relation';
+}
+
+/**
+ * ¿ESTE CALLER NO PUEDE VER NINGUNA FILA DE ESTE RECURSO?
+ *
+ * Es la pregunta que `runList` y `runGet` hacen ANTES de armar nada. Vive acá y no en `run.ts`
+ * porque es RESOLUCIÓN DE LA FICHA, igual que `resolveVariant`: el motor pregunta y no interpreta.
+ *
+ * El recorte `none` es el único que no es un predicado: las otras tres formas ACOTAN el conjunto y
+ * esta lo VACÍA. Devolver `true` acá es lo que hace que el corte sea de CERO SQL, y no un
+ * `WHERE FALSE` que pagaría un round-trip a la base por cada request de un portal que no tiene por
+ * qué leer nada.
+ *
+ * NO NOMBRA NINGÚN RECURSO, y ese es el criterio que decide si la abstracción quedó bien.
+ */
+export function deniesAllRows(resource: ResourceSpec, ctx: QueryContext): boolean {
+  return ctx.callerClass === 'external' && resource.externalScope.kind === 'none';
 }
 
 export default resolveVariant;

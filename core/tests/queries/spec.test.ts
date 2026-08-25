@@ -1,14 +1,26 @@
 import 'mocha';
 import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
-import { isRelation, resolveVariant, specFor } from '../../src/queries/engine/spec';
+import { Sequelize } from 'sequelize-typescript';
+import {
+  deniesAllRows,
+  isRelation,
+  resolveVariant,
+  specFor,
+} from '../../src/queries/engine/spec';
 import { activitySpec } from '../../src/queries/activity/activity-spec';
 import { commentsSpec } from '../../src/queries/comments/comments-spec';
 import { subscriptionsSpec } from '../../src/queries/subscriptions/subscriptions-spec';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
+import { runGet } from '../../src/queries/engine/run';
+import { validateGet } from '../../src/queries/engine/validate-query';
+import { ValidatedGetQuery } from '../../src/queries/engine/types';
 import {
   BaseFieldSpec,
+  CallerClass,
+  ExternalScopeSpec,
   ManyRelationSpec,
+  QueryContext,
   ResourceSpec,
   ResourceVariant,
 } from '../../src/queries/types';
@@ -264,3 +276,90 @@ describe('queries/engine/spec — las tres fichas de S-025, resueltas (TS-94)', 
 
 /** Se exporta para que los tests del motor reusen la MISMA ficha de prueba y no inventen otra. */
 export { VARIANT_SPEC, BASE as VARIANT_BASE };
+
+/**
+ * TS-2 · `deniesAllRows` — LA PREGUNTA QUE `runList` Y `runGet` HACEN ANTES DE ARMAR NADA (S-026).
+ *
+ * Vive en `engine/spec.ts` porque es RESOLUCIÓN DE LA FICHA, igual que `resolveVariant`: el motor
+ * pregunta y no interpreta. La tabla completa —`none` × las tres clases y las otras tres formas ×
+ * `external`— es lo que fija que la única combinación verdadera sea `(none, external)`.
+ */
+describe('queries/engine/spec — el corte SIN ACCESO (S-026, Task 1)', () => {
+  const SCOPES: [string, ExternalScopeSpec][] = [
+    ['none', { kind: 'none' }],
+    ['column', { kind: 'column', projectColumn: 'project_id' }],
+    [
+      'exists',
+      { kind: 'exists', table: 'projects', foreignKey: 'id', localKey: 'project_id', projectColumn: 'id' },
+    ],
+    ['owner', { kind: 'owner', userColumn: 'user_id' }],
+  ];
+
+  function ctxWith(callerClass: CallerClass): QueryContext {
+    return { caller: 'sub-q-external', callerClass, db: {} as unknown as Sequelize };
+  }
+
+  function specWith(externalScope: ExternalScopeSpec): ResourceSpec {
+    return { ...tasksSpec, externalScope };
+  }
+
+  it('TS-2 · es verdadero SOLO con `none` + clase externa', () => {
+    for (const [label, scope] of SCOPES) {
+      for (const callerClass of ['external', 'internal', 'connector'] as CallerClass[]) {
+        const expected = label === 'none' && callerClass === 'external';
+
+        deniesAllRows(specWith(scope), ctxWith(callerClass)).should.equal(
+          expected,
+          `${label} × ${callerClass}`
+        );
+      }
+    }
+  });
+
+  it('TS-2 · no nombra ningún recurso: la respuesta depende SOLO de la ficha y de la clase', () => {
+    // La misma ficha con dos recortes distintos da dos respuestas distintas; el `name` no
+    // interviene. Es el criterio que decide si la abstracción quedó bien (TS-76).
+    const external = ctxWith('external');
+
+    deniesAllRows({ ...tasksSpec, name: 'cualquiera', externalScope: { kind: 'none' } }, external)
+      .should.be.true();
+    deniesAllRows({ ...tasksSpec, name: 'worked-times' }, external).should.be.false();
+  });
+});
+
+/**
+ * TS-11 · EL CORTE TAMBIÉN EN `runGet`: "sin acceso" NUNCA TOCA LA BASE.
+ *
+ * Hoy no es alcanzable —ninguna ficha `none` tiene `get` registrado— y se verifica igual: la
+ * propiedad que el contrato promete es que no se consulta, y tiene que valer en TODOS los caminos
+ * y no solo en el que hoy tiene consumidor.
+ */
+describe('queries/engine/run — el corte SIN ACCESO en `get` (S-026, Task 1)', () => {
+  it('TS-11 · devuelve el `notFoundCode` de la ficha con CERO llamadas a `ctx.db.query`', async () => {
+    const calls: unknown[] = [];
+    const db = {
+      query: (...args: unknown[]) => {
+        calls.push(args);
+        return Promise.resolve([]);
+      },
+    } as unknown as Sequelize;
+
+    const spec: ResourceSpec = {
+      ...tasksSpec,
+      externalScope: { kind: 'none' },
+      notFoundCode: ErrorCode.TASK_NOT_FOUND,
+      notFoundMessage: 'No existe una tarea con ese id',
+    };
+    const validated = validateGet(spec, { id: 1 }) as { value: ValidatedGetQuery };
+
+    const reply = await runGet(spec, validated.value, {
+      caller: 'sub-q-external',
+      callerClass: 'external',
+      db,
+    });
+
+    reply.status.should.equal('failure');
+    (reply as any).errorCode.should.equal(ErrorCode.TASK_NOT_FOUND);
+    calls.should.deepEqual([]);
+  });
+});

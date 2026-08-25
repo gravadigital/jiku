@@ -364,3 +364,50 @@ await createActivityTasks();
 await createObjectiveActivity([{ id: 4001, objectiveId: TASK_MAIN, newValue: 'Hola' }]);
 await createCommentAttachments();
 ```
+
+## Team query fixtures
+
+**Location:** `core/tests/queries/team-fixtures.ts`
+
+The fixture world of the **team, the times and the permissions** (S-026). Reuses `task-fixtures.ts`
+for the minimal world — creator, trusted publisher, projects, requirement and the two inherited
+people — and adds only what makes this story's decisions **observable**.
+
+**What it builds, and why each piece exists:**
+
+- **Five people whose SURNAMES decide the expected order.** The default sort of `people` is
+  `lastName, firstName`, so the ids the order tests assert come out of these names:
+  Acuña < Benítez < Gómez < Molina < Pérez < Rivas < Zapata.
+- **The person WITH a user and the person WITHOUT.** `user_id: null` is written **explicitly and not
+  omitted**: the absence *is* the property under test — a person with no `Usuario` (someone on the
+  team who never logged in) is a valid, frequent state, and the contract answers `user: null`.
+- **A service identity with NO row in `people`.** The other half of the same criterion: the domain
+  rule "a service identity does not represent anyone on the team" is enforced **by the model**, not
+  by a filter someone can forget, so the fixture's job is to make the absence real.
+- **A person with no `projects_persons` row.** Without it the reachable clip is untestable: every
+  person would be visible to every permitted caller and the test would pass with no clip at all.
+- **An external caller with NO project permission** (`Q_LONELY`). It is the caller of "plus myself":
+  it has to see **exactly its own row** in `users.list`. **Granting it a permission invalidates that
+  test.**
+- **Four worked-time rows exercising the mutual exclusion in BOTH directions:** one charged only to a
+  task, one only to a requirement, one to neither. It is what makes the `items: []` of asking for
+  both **significant** and not a false positive over an empty table.
+- **The one row whose `date` is pinned with raw SQL to a time other than midnight.** It cannot be
+  created through the model: the write command validates `date` against `/^\d{4}-\d{2}-\d{2}$/`, so
+  everything the product writes lands on `00:00:00`. That row stands for the historical or
+  hand-loaded datum, and it is what makes the `TIMESTAMP` / `DATE` asymmetry between `worked_times`
+  and `unworked_times` observable.
+
+**Written through the WRITE connection** with the `@jiku/models` classes; the reads under test go
+through `readDb` with explicit SQL. That asymmetry is what makes the test worth running.
+
+**Usage:**
+```ts
+await createWorld();
+await createQueryCallers();
+await createTeamWorld();
+// …
+await destroyTeamWorld();
+await destroyQueryCallers();
+await destroyWorld();
+```

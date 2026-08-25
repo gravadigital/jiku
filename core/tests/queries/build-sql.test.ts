@@ -927,3 +927,109 @@ describe('queries/engine/build-sql — el recorte con visibilidades y el `owner`
     ]);
   });
 });
+
+/**
+ * S-026 · LAS DOS CAPACIDADES NUEVAS DEL MOTOR, sobre fichas de LABORATORIO.
+ *
+ * Las fichas son locales y no las de `worked-times` ni `users` A PROPÓSITO: lo que se verifica es
+ * la CAPACIDAD GENÉRICA del motor, y acoplar estos tests a la ficha de un recurso haría que un
+ * cambio del contrato de ese recurso rompiera tests que no hablan de él (mismo criterio que
+ * `spec.test.ts`).
+ */
+describe('queries/engine/build-sql — el recorte SIN ACCESO y la cláusula propia (S-026)', () => {
+  const EXTERNAL = ctxWith('external', EXTERNAL_CALLER);
+  const PERMITTED = '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+
+  /** Ficha SIN ACCESO externo: el recorte que no es un predicado (Task 1). */
+  const NONE_SPEC: ResourceSpec = {
+    ...tasksSpec,
+    externalScope: { kind: 'none' },
+  };
+
+  /** Ficha con la cláusula "más él mismo" del recorte alcanzable (Task 2). */
+  const SELF_SPEC: ResourceSpec = {
+    ...tasksSpec,
+    externalScope: {
+      kind: 'exists',
+      table: 'user_project_permissions',
+      foreignKey: 'user_id',
+      localKey: 'id',
+      projectColumn: 'project_id',
+      orSelfColumn: 'id',
+    },
+  };
+
+  /** La MISMA ficha sin la cláusula: la regresión de `clients` (TS-13). */
+  const SELF_LESS_SPEC: ResourceSpec = {
+    ...tasksSpec,
+    externalScope: {
+      kind: 'exists',
+      table: 'user_project_permissions',
+      foreignKey: 'user_id',
+      localKey: 'id',
+      projectColumn: 'project_id',
+    },
+  };
+
+  function rowsFor(spec: ResourceSpec, ctx: QueryContext, payload: unknown = {}): SqlPlan {
+    const validated = validateList(spec, payload) as { value: ValidatedListQuery };
+    return buildRowsSql(spec, validated.value, ctx);
+  }
+
+  it('TS-1 · `kind: none` en clase externa emite `FALSE` como PRIMER predicado del WHERE', () => {
+    const { sql } = rowsFor(NONE_SPEC, EXTERNAL);
+
+    // DEFENSA EN PROFUNDIDAD, no el mecanismo: el mecanismo es el corte de `runList`, que no
+    // llega hasta acá. Sin esta rama, un camino futuro que se saltee el corte PUBLICA LA TABLA.
+    sql.should.match(/WHERE FALSE/);
+    sql.should.not.containEql('user_project_permissions');
+  });
+
+  it('TS-1 · el `FALSE` va también en el COUNT y en el `get`: el total sin recorte es una fuga', () => {
+    const validatedList = validateList(NONE_SPEC, {}) as { value: ValidatedListQuery };
+    const validatedGet = validateGet(NONE_SPEC, { id: 1 }) as { value: ValidatedGetQuery };
+
+    buildCountSql(NONE_SPEC, validatedList.value, EXTERNAL).sql.should.containEql('WHERE FALSE');
+    buildGetSql(NONE_SPEC, validatedGet.value, EXTERNAL).sql.should.containEql('FALSE');
+  });
+
+  it('TS-1 · en clase interna y conector la ficha `none` no recorta nada', () => {
+    for (const callerClass of ['internal', 'connector'] as CallerClass[]) {
+      const { sql } = rowsFor(NONE_SPEC, ctxWith(callerClass));
+      sql.should.not.containEql('FALSE');
+    }
+  });
+
+  it('TS-12 · `orSelfColumn` emite el OR PARENTIZADO y el filtro queda FUERA del grupo', () => {
+    const { sql, replacements } = rowsFor(SELF_SPEC, EXTERNAL, { filter: { state: 'activo' } });
+
+    // `A OR B AND C` se lee `A OR (B AND C)`: sin los paréntesis el recorte DEJA DE RECORTAR.
+    sql.should.containEql(
+      `(EXISTS (SELECT 1 FROM user_project_permissions scope_ WHERE scope_.user_id = t.id ` +
+        `AND scope_.project_id IN ${PERMITTED}) OR t.id = :caller)`
+    );
+    // Y el AND del filtro, FUERA del grupo.
+    sql.should.containEql(') AND t.state = :p0');
+    param(replacements, 'caller').should.equal(EXTERNAL_CALLER);
+  });
+
+  it('TS-12 · la cláusula propia también viaja en el COUNT y en el `get`', () => {
+    const validatedList = validateList(SELF_SPEC, {}) as { value: ValidatedListQuery };
+    const validatedGet = validateGet(SELF_SPEC, { id: 1 }) as { value: ValidatedGetQuery };
+
+    buildCountSql(SELF_SPEC, validatedList.value, EXTERNAL).sql.should.containEql(
+      'OR t.id = :caller)'
+    );
+    buildGetSql(SELF_SPEC, validatedGet.value, EXTERNAL).sql.should.containEql('OR t.id = :caller)');
+  });
+
+  it('TS-13 · SIN `orSelfColumn` el `exists` no cambia: ningún OR (regresión de `clients`)', () => {
+    const { sql } = rowsFor(SELF_LESS_SPEC, EXTERNAL, { filter: { state: 'activo' } });
+
+    sql.should.containEql(
+      `EXISTS (SELECT 1 FROM user_project_permissions scope_ WHERE scope_.user_id = t.id ` +
+        `AND scope_.project_id IN ${PERMITTED})`
+    );
+    sql.should.not.containEql(' OR t.id = :caller');
+  });
+});

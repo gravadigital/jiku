@@ -313,12 +313,32 @@ clips the flow declares — and S-025 added a third variant plus two optional fi
   in a project they no longer see would stop seeing their own subscription, with no error and no
   log. And the other way round: knowing **who else** is subscribed to a requirement is internal-team
   information, which is why the clip is "mine" and not "the ones in projects I can see".
+- **`'none'`** (S-026) — **no external access at all**, and the only variant that is **not a
+  predicate**: the other three **narrow** the set and this one **empties** it. The engine therefore
+  **cuts before querying** (`deniesAllRows`) instead of building SQL that cannot return anything, so
+  the answer costs **zero SQL**. `worked-times`, `unworked-times` and `week-assigned-times` are the
+  first three cases and `settings` (S-028) the fourth. **It is not an error, and the difference is
+  contractual**: a `caller_not_authorized` would say *"the resource exists and is barred to you"* and
+  an `unknown_caller` *"you do not exist"*; `items: []` says *"there is nothing for you"* — the only
+  one that does not leak the resource's existence, and the one that spares the consumer branching by
+  caller class to tell "empty" from "forbidden". It **carries no field**, and not carrying one is the
+  property: an `enabled` or an `except` would make a "no access" that does grant access
+  representable. `externalScopeSql` still emits `FALSE` for it as **defence in depth** — not the
+  mechanism, but what keeps a future path that skips the cut from publishing the whole table.
+
+**S-026 also gave `ExistsExternalScope` an `orSelfColumn`**: *"the row whose column is the caller
+always enters, even when the `EXISTS` does not reach it"*. `users` is its only consumer and it is
+CA-14 of that story — without it an external caller holding no project permission, which is the state
+of a client just created, could not even resolve **their own name**. It is a **named clause and not
+an open composition of clips** because `OR` is a **widening** operator: an `any: [scopeA, scopeB]`
+would make a clip that *broadens* access representable, and the property S-023 established is that
+the dangerous state stays unrepresentable. **The engine emits the group parenthesised**: the clip is
+joined to the rest of the `WHERE` with `AND`, and a top-level `OR` is swallowed by precedence —
+`A OR B AND C` reads `A OR (B AND C)` and the clip stops clipping. It does not show in the case
+without an extra filter, which is the one tried first; it appears with a filter on top.
 
 The union preserves the property the flag removal bought: **no variant means "do not clip"** and no
-optional field disables the gate. The third variant the flow needs — resources with **no external
-access**, which resolve to `items: []` without running SQL — is deliberately **not** invented yet:
-those specs arrive with S-026 and S-028, and guessing another story's contract is the debt this note
-exists to avoid.
+optional field disables the gate.
 
 **Interface:**
 ```ts
@@ -342,9 +362,30 @@ interface ExistsExternalScope {
   readonly localKey: string;
   /** Column of `table` that must be among the permitted projects (`id`). */
   readonly projectColumn: string;
+  /** Visibility on the REACHED table. Optional. */
+  readonly visibility?: { readonly column: string; readonly value: string };
+  /** Visibility on the resource's OWN row, required on top of the owner's. Optional. */
+  readonly ownVisibility?: { readonly column: string; readonly value: string };
+  /** S-026: the caller's own row always enters. Emitted PARENTHESISED. */
+  readonly orSelfColumn?: string;
 }
 
-type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope;
+interface OwnerExternalScope {
+  readonly kind: 'owner';
+  /** Resource column holding the id of the row's owning user. */
+  readonly userColumn: string;
+}
+
+/** S-026: no external access. Carries no field, and that is the property. */
+interface NoneExternalScope {
+  readonly kind: 'none';
+}
+
+type ExternalScopeSpec =
+  | ColumnExternalScope
+  | ExistsExternalScope
+  | OwnerExternalScope
+  | NoneExternalScope;
 ```
 
 **Usage:**
@@ -367,6 +408,19 @@ const CLIENTS_SCOPE: ExternalScopeSpec = {
   localKey: 'id',
   projectColumn: 'id',
 };
+
+// users (S-026) — the ones in projects I can see, PLUS MYSELF
+const USERS_SCOPE: ExternalScopeSpec = {
+  kind: 'exists',
+  table: 'user_project_permissions',
+  foreignKey: 'user_id',
+  localKey: 'id',
+  projectColumn: 'project_id',
+  orSelfColumn: 'id',
+};
+
+// worked-times / unworked-times / week-assigned-times (S-026) — no external access at all
+const WORKED_TIMES_SCOPE: ExternalScopeSpec = { kind: 'none' };
 ```
 
 ## ValidatedListQuery / ValidatedGetQuery / SqlPlan

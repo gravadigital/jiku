@@ -462,3 +462,40 @@ function isRelation(spec: BaseSpec | IncludableSpec | undefined): spec is Relati
 // core/src/queries/engine/validate-query.ts
 const relations = selected.filter((name) => isRelation(specFor(resource, name)));
 ```
+
+## deniesAllRows
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+Answers the question `runList` and `runGet` ask **before building anything**: can this caller see no
+row at all of this resource?
+
+`true` **if and only if** the caller class is `external` and the spec's `externalScope.kind` is
+`'none'`. It is the mechanism behind the fourth clip shape (S-026), the only one that is not a
+predicate: the other three **narrow** the set and this one **empties** it, so the engine answers
+`items: []` with **zero SQL** instead of a `WHERE FALSE` that would return the same rows and still
+pay a round-trip to the database on every request of a portal that has no business reading anything.
+
+Lives next to `resolveVariant` because it is **spec resolution**, not execution: the engine asks and
+does not interpret. It **names no resource**, which is the criterion that decides whether the
+abstraction held.
+
+The cut runs **after** `validate()`, which runs in the dispatcher: the grammar is the same for the
+three caller classes, so an undeclared name is still `invalid_fields` and never `items: []`.
+
+**Signature:**
+```ts
+function deniesAllRows(resource: ResourceSpec, ctx: QueryContext): boolean
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/run.ts
+if (deniesAllRows(spec, ctx)) {
+  const page: Record<string, unknown> = { limit: query.limit, returned: 0 };
+  if (query.count !== false) {
+    page.total = 0;
+  }
+  return success({ items: [], page });
+}
+```

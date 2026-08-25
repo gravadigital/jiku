@@ -7,7 +7,7 @@ import { selectRows } from './execute-sql';
 import { attachCollections } from './include';
 import { paginate } from './paginate';
 import { projectRow } from './project';
-import { resolveVariant } from './spec';
+import { deniesAllRows, resolveVariant } from './spec';
 import { ValidatedGetQuery, ValidatedListQuery } from './types';
 
 /**
@@ -39,6 +39,29 @@ export async function runList(
   // El presupuesto llega POR EL CONTEXTO, resuelto por request desde `nc.info.max_payload`. El
   // motor no conoce la conexión, y el default cubre al despachador construido sin proveedor.
   const budgetBytes = ctx.budgetBytes ?? DEFAULT_PAYLOAD_BUDGET_BYTES;
+
+  // EL CORTE DE "SIN ACCESO": cero SQL, cero filas, cero error.
+  //
+  // VA ANTES DE TODO LO DEMÁS —del `count`, del cursor y del SQL de filas— porque la propiedad que
+  // el contrato promete es que NO SE CONSULTA. Un `WHERE FALSE` daría el mismo resultado y pagaría
+  // un round-trip a la base por cada request de un portal que no tiene por qué leer nada.
+  //
+  // Y VA DESPUÉS DE `validate()`, que corre en el despachador: la gramática es la MISMA para las
+  // tres clases, así que un nombre no declarado sigue siendo `invalid_fields` y no `items: []`.
+  //
+  // NO ES UN ERROR, y la diferencia es del contrato: un `caller_not_authorized` diría "el recurso
+  // existe y te está vedado"; `items: []` dice "no hay nada para vos".
+  if (deniesAllRows(spec, ctx)) {
+    // `limit` es el EFECTIVO, ya con el default y el tope silencioso de 200 aplicados. NUNCA se
+    // emite `cursor`: la ausencia es la única señal de fin de colección.
+    const page: Record<string, unknown> = { limit: query.limit, returned: 0 };
+    if (query.count !== false) {
+      // `count: true` y `count: 'only'` devuelven `total: 0`, coherentemente: el conjunto vacío
+      // tiene cardinal cero.
+      page.total = 0;
+    }
+    return success({ items: [], page });
+  }
 
   // `count: 'only'` NO EJECUTA LA CONSULTA DE FILAS. Es la razón de existir del tercer valor: un
   // caller que solo quiere el total no tiene por qué pagar el scan de la página.
@@ -128,6 +151,20 @@ export async function runGet(
   // TABLA se resuelve el id, y los ids de las dos tablas de actividad SE PISAN.
   const spec = resolveVariant(resource, query.variant);
   const label = `${spec.name}.get`;
+
+  // EL MISMO CORTE QUE EN `runList`, SIN TOCAR LA BASE.
+  //
+  // HOY NO ES ALCANZABLE —ninguna ficha que declara "sin acceso" tiene `get` registrado— y existe
+  // igual para que la propiedad "sin acceso nunca toca la base" valga en TODOS los caminos y no
+  // solo en el que hoy tiene consumidor. La respuesta es la misma que la de un id inexistente:
+  // decir "no existe" no filtra que el recurso sí exista y le esté vedado.
+  if (deniesAllRows(spec, ctx)) {
+    return failure(
+      spec.notFoundCode ?? ErrorCode.INTERNAL_ERROR,
+      spec.notFoundMessage ?? 'No existe un recurso con ese id'
+    );
+  }
+
   const plan = buildGetSql(spec, query, ctx);
   const selected = await selectRows<Record<string, unknown>>(ctx, plan, label);
   if ('error' in selected) {

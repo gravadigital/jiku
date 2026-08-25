@@ -26,6 +26,13 @@ const CONTRACT_PATTERNS = [
   'comments.get',
   'activity.list',
   'subscriptions.list',
+  // Los SEIS de S-026, al final y en el orden de la tabla del contrato. NINGUNO tiene `get`.
+  'people.list',
+  'users.list',
+  'worked-times.list',
+  'unworked-times.list',
+  'week-assigned-times.list',
+  'project-permissions.list',
 ];
 
 /**
