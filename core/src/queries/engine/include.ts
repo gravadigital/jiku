@@ -1,6 +1,7 @@
 import { Reply } from '@jiku/nats-protocol';
 import { ManyRelationSpec, QueryContext, ResourceSpec } from '../types';
 import { selectRows } from './execute-sql';
+import { specFor } from './spec';
 
 /**
  * Resolución de las relaciones de COLECCIÓN, por lote de la página.
@@ -46,8 +47,10 @@ export async function attachCollections(
   const ids = items.map((item) => item.id);
 
   for (const name of relations) {
-    const spec = resource.includable[name];
-    if (!spec || spec.kind !== 'relation' || spec.cardinality !== 'many') {
+    // EN LOS DOS MAPAS: `comments.attachments` vive en el conjunto BASE (CA-6 de S-025), y un
+    // lookup que solo mirara `includable` la dejaría en `[]` sin error ni log.
+    const spec = specFor(resource, name);
+    if (!spec || !('kind' in spec) || spec.kind !== 'relation' || spec.cardinality !== 'many') {
       continue;
     }
     const relation = spec as ManyRelationSpec;

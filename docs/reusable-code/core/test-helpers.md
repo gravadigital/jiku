@@ -319,3 +319,48 @@ after(async () => {
 `people_requirements`) go before `requirements`, and the surviving projects **release their client**
 with an `UPDATE` before the clients are deleted — `projects.client_id` references `clients.id`, and
 projects 12 and 13 belong to `task-fixtures`, which deletes them later.
+
+## Activity query fixtures
+
+**Location:** `core/tests/queries/activity-fixtures.ts`
+
+The fixture world of the **two-table family** (comments, activity, subscriptions). Reuses
+`task-fixtures.ts` for the minimal world and `domain-fixtures.ts` for the requirements; it adds only
+what the three resources need.
+
+**What it builds, and why each piece exists:**
+
+- **The three tasks of the external-clip matrix.** `TASK_MAIN` (permitted project, `public`),
+  `TASK_INTERNAL` (permitted project, `internal`) and `TASK_FOREIGN` (`public`, project with no
+  permission). With those three plus a `public` and an `internal` comment on `TASK_MAIN`, all four
+  rows of the clip matrix are covered by construction.
+- **`SHARED_ID = 1234` in BOTH activity tables, with different bodies.** It is the fixture that
+  exists for the test that catches the bug the whole story prevents: the id only means something
+  together with its `entityType`.
+- **The THREE deliberately fabricated attachments:** one live, one with a deleted **link**, and one
+  whose **file** is not retained. **With two, the test passes with only one exclusion
+  implemented** — and there are two, both permanent and non-configurable (RF-26). A fourth row uses
+  the same `entity_id` with a different `entity_type`, because `attachments` is polymorphic and has
+  no FK.
+- **A second external caller** (`Q_EXTERNAL_2`), created here and not in `createQueryCallers()` so
+  the helper shared by S-022…S-024 stays untouched. Its permissions are deleted **before** the user:
+  the FK points at `users.id`.
+
+**Every activity row is created with an EXPLICIT id**, because after inserting explicit ids into an
+`increment` table the sequence does not advance, and mixing both forms would make the tests depend
+on which file ran first.
+
+**`created_at` is pinned with raw SQL**, never on insert: Sequelize overwrites timestamps on save,
+and the default order of `comments` and `activity` is by that column. Without control over it **no
+order test of this story proves anything** — and here it matters more than in S-024, because the
+default is **ascending** and copying the `-createdAt` of the rest of the contract produces exactly
+the reverse order, which at a glance "also sorts".
+
+**Usage:**
+```ts
+await createWorld([PROJECT_MAIN, PROJECT_OTHER]);
+await createDomainWorld();
+await createActivityTasks();
+await createObjectiveActivity([{ id: 4001, objectiveId: TASK_MAIN, newValue: 'Hola' }]);
+await createCommentAttachments();
+```

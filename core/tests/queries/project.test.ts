@@ -177,3 +177,52 @@ describe('queries/engine/project — el campo calculado (S-024)', () => {
     Array.isArray(item.totalMinutes).should.be.false();
   });
 });
+
+/**
+ * LAS TRES FORMAS DEL CONJUNTO BASE (S-025, Task 2).
+ *
+ * Hasta S-024 una entrada de `base` era SIEMPRE una columna, y `projectRow` lo asumía. Desde
+ * S-025 puede ser además un valor CONSTANTE (`entityType`) o una RELACIÓN (`attachments`).
+ */
+describe('queries/engine/project — el constante y la relación en la base (S-025)', () => {
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    base: {
+      ...tasksSpec.base,
+      entityType: { constant: 'task' },
+      attachments: {
+        kind: 'relation',
+        cardinality: 'many',
+        table: 'attachments',
+        parentKey: 'entity_id',
+        order: [{ expr: 'r.id', dir: 'ASC' }],
+        fields: { id: 'r.id' },
+      },
+    },
+    baseNames: [...tasksSpec.baseNames, 'entityType', 'attachments'],
+    fieldNames: [...tasksSpec.fieldNames, 'entityType', 'attachments'],
+  };
+
+  it('TS-90 · el campo constante se resuelve SIN mirar la fila', () => {
+    // La fila trae un valor distinto bajo el mismo alias: el que gana es el de la FICHA, porque
+    // la columna no existe y el SELECT nunca la pidió.
+    const { item } = projectRow(SPEC, ['id', 'entityType'], 0, row({ entityType: 'objective' }));
+
+    item.entityType!.should.equal('task');
+  });
+
+  it('TS-91 · una relación de colección en la base deja el placeholder `[]`', () => {
+    const { item } = projectRow(SPEC, ['id', 'attachments'], 0, row());
+
+    // Se completa POR LOTE en `include.ts`; la clave se deja para que el orden del item sea el del
+    // conjunto devuelto y no dependa de cuándo llegó el lote.
+    item.attachments!.should.deepEqual([]);
+  });
+
+  it('el conjunto base completo mezcla las tres formas sin perder ninguna', () => {
+    const { item } = projectRow(SPEC, ['id', 'title', 'entityType', 'attachments'], 0, row());
+
+    Object.keys(item).should.deepEqual(['id', 'title', 'entityType', 'attachments']);
+    item.title!.should.equal('Una tarea');
+  });
+});

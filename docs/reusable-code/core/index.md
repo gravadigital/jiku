@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-24 (S-024)
+**Last updated:** 2026-08-25 (S-025)
 
 ## Utils
 
-Total: 13
+Total: 16
 
 - **authorizeCaller** (`core/src/authorize-caller.ts`) - The authorisation gate of both dispatchers: exempts the api's channel by `sub`, otherwise reads `users.roles` and authorises the caller against a closed deny-by-default map. Never throws and fails closed. Since S-023 it is the composition of `readCallerRoles` + `authorizeWithRoles`, with unchanged behaviour.
 - **readCallerRoles** (`core/src/authorize-caller.ts`) - The read on its own: `User.findByPk(caller)` plus the `Array.isArray` guard for the unchecked `JSONB`. Extracted so the query plane can feed BOTH gates with a single `SELECT`. Does not catch: the caller decides.
@@ -21,6 +21,9 @@ Total: 13
 - **readFileSettings** (`core/src/commands/files/settings.ts`) - Reads the five file-policy keys from `system_settings` with code-level defaults, inside the command's transaction.
 - **buildStorageKey** (`core/src/commands/files/storage.ts`) - Builds the storage object key `{prefix}/f/{uuid}{ext}`; the uploader never chooses where the file is stored.
 - **contentDisposition** (`core/src/commands/files/storage.ts`) - Builds an escaped `Content-Disposition` header value safe to carry a user-supplied file name.
+- **resolveVariant** (`core/src/queries/engine/spec.ts`) - Resolves a resource VARIANT into a complete, effective `ResourceSpec`: merges the variant's `base` / `includable` / `filterable` / `enums` overrides and RE-DERIVES the four name arrays with `Object.keys`. A spec without a discriminator returns the same reference; an unknown value THROWS, so a table is never resolved by omission. This is what lets the rest of the engine keep operating on a single `ResourceSpec` with no per-variant branch.
+- **specFor** (`core/src/queries/engine/spec.ts`) - Resolves a name of the returned set against BOTH maps (`base` and `includable`) in one call. Exists because that lookup lived in four places — `selectParts`, `projectRow`, `attachCollections`, `parseProjection` — and the one that forgets a new shape does not fail to compile: it returns the field empty.
+- **isRelation** (`core/src/queries/engine/spec.ts`) - Narrows a `BaseSpec | IncludableSpec` to a `RelationSpec` by checking `kind`, so a base-set relation is recognised wherever it is declared. Uses `'kind' in spec` and not a cast: a cast would switch off exactly the check the three base-set shapes need.
 - **keyValuePairsToProperties** (`core/src/commands/projects/properties.ts`) - The READ half of the `properties` ↔ `key_value_pairs` translation: turns the column's flat object into the contract's `[{code, value}]` list. An absent or `NULL` column yields `[]`, never `null`, and it does NOT filter by the write-side allow-list. Lives next to its inverse so the two planes share one map.
 
 ## Services
@@ -38,13 +41,15 @@ Total: 8
 
 ## Types
 
-Total: 11
+Total: 13
 
 - **ServiceSpec** (`core/src/bus/service.ts`) - What a micro service needs to be registered: bus name, description, the command patterns, and a `handle` that never throws.
 - **Query** (`core/src/queries/types.ts`) - A read endpoint: a `pattern` without `{param}`, a `validate(payload)` in the same shape as `Command` (never touches the database) and an `execute(payload, ctx)` that resolves to a `Reply`.
 - **QueryContext** (`core/src/queries/types.ts`) - What a query receives: the `caller` read from the subject, the mandatory `callerClass` resolved once in the dispatcher, the read-only `db` connection and the optional per-request `budgetBytes`. It has NO `transaction` and NO `params`, and both absences are the contract.
-- **CallerClass / ExternalScopeSpec** (`core/src/queries/types.ts`) - What the service clips for a caller, and the resource's declaration of the external-mode clip. Since S-024 `ExternalScopeSpec` is a union discriminated by `kind`: `'column'` when the row CARRIES the project (with optional `visibility`) and `'exists'` when the row is only REACHABLE from a table that carries it. Declaring the clip IS applying it: no variant means "do not clip" and no optional field disables the gate, so the dangerous state stays unrepresentable. All of its names are database columns, not contract fields.
+- **CallerClass / ExternalScopeSpec** (`core/src/queries/types.ts`) - What the service clips for a caller, and the resource's declaration of the external-mode clip. `ExternalScopeSpec` is a union discriminated by `kind`: `'column'` when the row CARRIES the project (with optional `visibility`), `'exists'` when the row is only REACHABLE from a table that carries it — since S-025 with an optional `visibility` on the reached table AND an `ownVisibility` on the resource's own row, both required for `comments` and `activity` — and `'owner'` (S-025) when the row IS the caller's: `user_id = :caller` and nothing else, WITHOUT the permitted-projects predicate, because adding it "for symmetry" would hide a caller's own subscriptions. Declaring the clip IS applying it: no variant means "do not clip" and no optional field disables the gate, so the dangerous state stays unrepresentable. All of its names are database columns, not contract fields.
 - **ResourceSpec** (`core/src/queries/types.ts`) - A resource as DATA, not code: table translation, base set, includables, filterables, sortables, defaults, enums and the external scope, which the engine applies. The validator reads these very lists, and `meta.describe` (S-028) derives from them without a second copy.
+- **DiscriminatorSpec / ResourceVariant** (`core/src/queries/types.ts`) - A resource that resolves against MORE THAN ONE TABLE, chosen by a mandatory contract field (S-025). The variant may override only what depends on the table — `table`, `where`, `base`, `includable`, `filterable`, `enums`, `externalScope` — and deliberately NOT `name`, `defaults`, `sortable`, `truncatable` or the not-found pair, which belong to the resource. There is NO `default` in the type: with two tables whose ids overlap, a default would return "some" row and the bug would be silent and intermittent, so the dangerous state is unrepresentable.
+- **BaseSpec / BaseConstantSpec** (`core/src/queries/types.ts`) - The base set has THREE shapes since S-025: a column, a CONSTANT whose value the spec fixes (`entityType`, resolved in the projection so no literal reaches the SQL), and a RELATION (the declared exception to RF-17: `comments.attachments` ships in the base because a comment with an attachment and no reference renders wrong).
 - **IncludableComputedSpec** (`core/src/queries/types.ts`) - The THIRD shape of includable (S-024): neither a column nor a relation but a per-row SQL EXPRESSION, declared by the spec and aliased with the contract's field name. Generates no JOIN and never reaches the COUNT. Its `transform` is not a convenience: `SUM(integer)` comes back from `pg` as a string.
 - **FilterableSpec.contains / .searchNumericColumn** (`core/src/queries/types.ts`) - Two filter shapes any spec can declare (S-024): containment over a `jsonb` column with the pair shape the spec names — one predicate per pair, ANDed, rendered as `CAST(:p AS jsonb)` because `::` collides with Sequelize's `:name` parser — and the numeric detour that turns a digits-only free-text search into an equality on the declared column, guarded to nine digits so an int4 column cannot overflow.
 - **ValidatedListQuery / ValidatedGetQuery / SqlPlan** (`core/src/queries/engine/types.ts`) - The query after validation — names resolved, values typed, operators decided — and a ready-to-run statement with the string on one side and the values on the other.
@@ -54,16 +59,17 @@ Total: 11
 
 ## Constants
 
-Total: 4
+Total: 5
 
 - **ROLE_METHODS** (`core/src/authorize-caller.ts`) - The role → method map of the bus: closed, deny-by-default and the complete table of the roles that may connect. Mirrors the 9 subjects of the external connector's callout template.
 - **CLASS_BY_ROLE** (`core/src/queries/caller-class.ts`) - The role → class map of the query plane plus its precedence (`external` > `internal` > `connector`). Closed and deny-by-default, and deliberately NOT derived from `ROLE_METHODS`: coupling them would let a permissions change silently move a data clip.
 - **Config accessors** (`core/src/config.ts`) - `loadConfig()` / `getTrustedPublisherId()`: startup validation and access to `CORE_TRUSTED_PUBLISHER_ID`.
+- **ENTITY_TYPES / ENTITY_TABLES** (`core/src/queries/entity-type.ts`) - The `entityType` translation, in ONE place: `task` / `requirement` → activity table, subscription table, entity column, owner table and the comment's `attachments.entity_type`. It goes BOTH WAYS (RF-25) and it is DATA, not functions, so `meta.describe` can project the contract without running a translation. Documents the database's own asymmetry: the task table is PLURAL (`objectives_subscriptors`) and the requirement one SINGULAR (`requirement_subscriptors`). S-027 (`attachments.list`) consumes this same map.
 - **Query grammar limits** (`core/src/queries/engine/`, `core/src/queries/dispatcher.ts`) - `DEFAULT_PAGE_LIMIT` (50), `MAX_PAGE_LIMIT` (200, silently capped), `CURSOR_VERSION` (1), `DEFAULT_PAYLOAD_BUDGET_BYTES` (524288) and the closed list of identity field names a payload may not carry.
 
 ## Test Helpers
 
-Total: 11
+Total: 12
 
 - **dispatch** (`core/tests/helpers/dispatch.ts`) - Dispatches a command as if it had arrived on the bus, building the full subject. Its default caller is the trusted publisher, since S-017.
 - **dispatchQuery** (`core/tests/helpers/dispatch.ts`) - Same for the QUERY plane: `jiku-queries` subject, the real `QueryDispatcher` over `readDb`, no transaction.
@@ -72,6 +78,7 @@ Total: 11
 - **createQueryCallers / destroyQueryCallers** (`core/tests/queries/task-fixtures.ts`) - The six query callers with their exact roles, one per class plus the two that the method gate cuts. Teardown removes their project permissions first: the FK points at `users.id`.
 - **grantProjects** (`core/tests/queries/task-fixtures.ts`) - Seeds `user_project_permissions` rows, the table that sustains the client portal's isolation and the one the external-mode clip subqueries on every request. Its teardown counterpart is `destroyQueryCallers()`, which has to clear them anyway before deleting the callers.
 - **Domain query fixtures** (`core/tests/queries/domain-fixtures.ts`) - The fixture world of the domain core: the four clients (including the one with NO project, which is what makes the indirect external clip observable), the origin, the projects with their `key_value_pairs` and the one without a client, and the eight requirements with tags, 25 comments, responsible people, subscriptors, polymorphic attachments and worked time on BOTH the requirement and one of its tasks. Reuses `task-fixtures.ts` instead of duplicating the world; `created_at` is pinned with raw SQL because Sequelize overwrites timestamps on save.
+- **Activity query fixtures** (`core/tests/queries/activity-fixtures.ts`) - The fixture world of the two-table family: the three tasks of the external-clip matrix (permitted+public, permitted+internal, foreign), comments in BOTH activity tables INCLUDING THE SAME ID IN BOTH with different bodies, an activity row that is not a comment, the THREE deliberately fabricated attachments (live, deleted link, non-retained file) plus a polymorphic one of the entity, subscriptions in both tables and a second external caller for "only my own". Every activity row is created with an EXPLICIT id and its `created_at` pinned with raw SQL, because the default order of `comments` and `activity` is ASCENDING by that column.
 - **S3Double** (`core/tests/helpers/s3-double.ts`) - Test double for the S3 signer: records the signing calls and never touches the network.
 - **fakeMsg** (`core/tests/helpers/micro-double.ts`) - Test double for a micro `ServiceMsg`: records `respond()` and `respondError()` without transforming the arguments, and `json()` throws on a malformed body just like the real one.
 - **fakeConnection** (`core/tests/helpers/micro-double.ts`) - Test double for a `NatsConnection` with `services.add()` and `subscribe()`: records the service configs, groups and endpoints created plus the flat subscriptions opened, and shares one ordering trace with the service and the subscription so shutdown order can be asserted.

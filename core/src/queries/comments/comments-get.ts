@@ -1,24 +1,30 @@
 import { Query } from '../types';
-import { pendingContract } from '../pending';
+import { runGet } from '../engine/run';
+import { ValidatedGetQuery } from '../engine/types';
+import { validateGet } from '../engine/validate-query';
+import { commentsSpec } from './comments-spec';
 
 /**
  * Un comentario.
  *
- * TRANSITORIO: sin contrato (RF-10 de REQ-004), este endpoint existe, es descubrible y contesta
- * un `failure` bien formado. El stub desaparece cuando el REQ del contrato de consultas defina
- * el payload y los campos del recurso; su insumo es `bus-api-consultas.md`.
+ * NECESITA `id` **Y** `entityType`, y esa es la razón de existir de la story: el id 1234 existe en
+ * `objective_activity` y en `requirement_activity`, y son DOS FILAS DISTINTAS. Un `get` sin
+ * `entityType` devolvería "algún" comentario con ese id y el bug sería SILENCIOSO E INTERMITENTE
+ * —funciona hasta que las dos tablas crecen lo suficiente—, así que su ausencia es
+ * `invalid_fields` y no un default.
  *
- * Cuando eso pase, acá va:
- *   `comments` NO ES UNA TABLA (ADR-004). Son las filas de `objective_activity` y
- *   `requirement_activity` con `type_of_activity = 'comment'`; el texto vive en `new_value` y
- *   `visibility_level` (`public` / `internal`) decide qué se puede exponer.
- *
- *   Y un detalle que el REQ del contrato tiene que decidir PRIMERO: un comentario NO TIENE PK
- *   PROPIA. Se identifica por la tabla de actividad MÁS su `id`, así que el payload necesita las
- *   dos cosas. Descubrirlo entonces cuesta más que leerlo ahora.
- *
- *   La lectura usa `ctx.db.query<CommentRow>(sql, { type: QueryTypes.SELECT, replacements })`:
- *   SQL explícito, sin ORM; nombres desde LISTAS BLANCAS y valores como parámetros.
+ * Un id inexistente **o no visible** responde `comment_not_found`, con la MISMA respuesta en los
+ * dos casos (CA-13): distinguirlos le confirmaría a un caller externo que el comentario existe.
  */
-export const commentsGet: Query = pendingContract('comments.get');
+/** El payload de `comments.get` DESPUÉS de validar. Alias del tipo del motor. */
+export type CommentsGetPayload = ValidatedGetQuery;
+
+export const commentsGet: Query<CommentsGetPayload> = {
+  pattern: 'comments.get',
+
+  validate: (payload: unknown) => validateGet(commentsSpec, payload),
+
+  execute: (payload, ctx) => runGet(commentsSpec, payload, ctx),
+};
+
 export default commentsGet;

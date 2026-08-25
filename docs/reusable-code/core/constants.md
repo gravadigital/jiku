@@ -131,3 +131,46 @@ through the engine because every one of them is a promise the contract makes to 
 carry — `userId`, `caller`, `sub`, … The identity comes from the **second token of the subject and
 only from there** (RF-19). Ignoring such a field would be worse than rejecting it: it would suggest a
 caller can ask on someone else's behalf and the service just did not listen this time.
+
+## ENTITY_TYPES / ENTITY_TABLES
+
+**Location:** `core/src/queries/entity-type.ts`
+
+The `entityType` translation, **in one place**.
+
+`entityType` is not a filter: it is what makes an **id mean something**. The ids of
+`objective_activity` and `requirement_activity` **overlap** — 1234 exists in both and they are
+different things — so without it a `comments.get {id: 1234}` would return "some" comment and the
+bug would be silent and intermittent: it works until both tables grow enough.
+
+**It goes BOTH WAYS** (RF-25): the query hits `objective_activity` and the item comes back with
+`entityType: "task"`. In S-025 the return trip shows up in the embedded attachments — the query
+filters `attachments.entity_type = 'objective_comment'` and the comment returns as `"task"` — and
+S-027 (`attachments.list`) exercises the whole thing again. **That is why it lives here and not
+inside a spec:** two copies of this table can diverge with nothing to say so.
+
+**It is DATA, not functions.** The specs read these names as they are built, so `meta.describe`
+(S-028) can project the contract without running a translation.
+
+| | `task` | `requirement` |
+|---|---|---|
+| `activityTable` | `objective_activity` | `requirement_activity` |
+| `subscriptionTable` | `objectives_subscriptors` | `requirement_subscriptors` |
+| `entityColumn` | `objective_id` | `requirement_id` |
+| `ownerTable` | `objectives` | `requirements` |
+| `commentAttachmentType` | `objective_comment` | `requirement_comment` |
+
+**Mind the plural.** The task subscription table is **plural** and the requirement one is
+**singular**. The asymmetry belongs to the database, not to the contract, and copying one for the
+other breaks the SQL — with nothing saying so until the query runs.
+
+`ENTITY_TYPES` is `['task', 'requirement']` and **the order is part of the contract**: it is what
+travels in `errorDetails.allowed`. The `EntityType` union is derived from the array, never written
+by hand.
+
+**Usage:**
+```ts
+// core/src/queries/comments/comments-spec.ts
+const tables = ENTITY_TABLES[entity];
+return { table: tables.activityTable, base: { entityId: { column: tables.entityColumn } }, … };
+```

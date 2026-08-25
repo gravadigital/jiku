@@ -1,6 +1,7 @@
 import joi from 'joi';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { FilterableSpec, ResourceSpec } from '../types';
+import { isRelation, resolveVariant, specFor } from './spec';
 import {
   FilterCondition,
   FilterGroup,
@@ -32,8 +33,19 @@ export const MAX_PAGE_LIMIT = 200;
 
 /** Las palancas que acepta un `list`. Cualquier otra clave de primer nivel se rechaza. */
 const LIST_KEYS = ['filter', 'sort', 'page', 'fields', 'include', 'count'];
-/** Las palancas que acepta un `get`. `filter`, `sort`, `page` y `count` NO aplican (RF-3). */
+/**
+ * Las palancas que acepta un `get`. `filter`, `sort`, `page` y `count` NO aplican (RF-3).
+ *
+ * ES LA BASE, NO LA LISTA FINAL: un recurso con discriminador acepta además ESE campo como cuarta
+ * clave de primer nivel, y la lista efectiva la arma `getKeys()` desde la ficha. Se deriva y no se
+ * escribe a mano porque `errorDetails.allowed` ES esta lista: una copia divergiría del contrato.
+ */
 const GET_KEYS = ['id', 'fields', 'include'];
+
+/** Las palancas de un `get` de ESTE recurso: las tres de siempre más el discriminador, si lo hay. */
+function getKeys(resource: ResourceSpec): string[] {
+  return resource.discriminator ? [...GET_KEYS, resource.discriminator.field] : [...GET_KEYS];
+}
 /** Las cuatro palancas de `list` que en un `get` son un error, no un extra ignorable. */
 const GET_FORBIDDEN_KEYS = ['filter', 'sort', 'page', 'count'];
 
@@ -376,16 +388,39 @@ function parseCondition(
   return { condition: { field, spec, operator: { op: 'eq', values: coerced.values } } };
 }
 
-/** Un grupo de condiciones unidas con AND. `allowOr: false` es lo que corta el anidamiento. */
+/**
+ * Un grupo de condiciones unidas con AND. `allowOr: false` es lo que corta el anidamiento.
+ *
+ * `skip` es el nombre del DISCRIMINADOR, y solo se pasa EN EL NIVEL DE ARRIBA: ahí ya lo consumió
+ * `pickDiscriminator` —la tabla de la variante ES el predicado, y emitir además
+ * `entityType = 'task'` sobre una columna que no existe rompería el SQL—. Dentro de una rama de
+ * `or` NO se saltea, así que cae en el rechazo de `pickDiscriminator`: el discriminador va en el
+ * nivel de arriba y ahí sigue faltando.
+ */
 function parseGroup(
   resource: ResourceSpec,
   raw: Record<string, unknown>,
-  allowOr: boolean
+  allowOr: boolean,
+  skip?: string
 ): { group: FilterGroup; or?: FilterGroup[] } | Invalid {
   const conditions: FilterCondition[] = [];
   let or: FilterGroup[] | undefined;
 
   for (const key of Object.keys(raw)) {
+    if (key === skip) {
+      // YA CONSUMIDA por `pickDiscriminator`: la variante la resolvió eligiendo la tabla.
+      continue;
+    }
+    if (resource.discriminator && key === resource.discriminator.field) {
+      // ACÁ NO SELECCIONA NADA. Llegar hasta este punto significa que el discriminador apareció
+      // DENTRO DE UN `or` —el nivel de arriba se saltea con `skip`—, y ahí no elige tabla: la
+      // variante ya quedó fija. Además la ficha lo declara filtrable sin columna (es un dato del
+      // contrato, no una columna real), así que dejarlo pasar produciría `t.undefined` en el SQL.
+      return invalid(
+        `El campo "${key}" va en el nivel de arriba del filtro, no dentro de un "or"`,
+        { field: `filter.${key}`, value: key, allowed: resource.discriminator.values }
+      );
+    }
     if (key === 'or') {
       if (!allowOr) {
         // UN SOLO NIVEL (CA-4): un `or` adentro de un `or` no se traduce a un SQL que el keyset
@@ -420,10 +455,24 @@ function parseGroup(
     }
 
     if (IDENTITY_PAYLOAD_FIELDS.includes(key)) {
-      return invalid(
-        `El campo "${key}" no se acepta: quién pregunta sale del subject, no del cuerpo`,
-        { field: 'filter', value: key }
-      );
+      // LA EXCEPCIÓN, Y ES ANGOSTA A PROPÓSITO: si la FICHA declara este nombre como filtro, no
+      // está diciendo QUIÉN PREGUNTA —eso sale del subject y solo de ahí (RF-19)— está diciendo
+      // POR QUIÉN SE FILTRA. `subscriptions.userId` es el caso, y en modo externo el recorte
+      // `user_id = :caller` se aplica ANTES y con AND, así que pedir las de otro devuelve
+      // `items: []` y NO acceso.
+      //
+      // NO SE LEVANTA EN LAS CLAVES DE PRIMER NIVEL del payload (`checkTopLevelKeys`): ahí un
+      // `userId` no puede significar otra cosa que "pregunto en nombre de".
+      //
+      // Que un nombre esté en `filterable` es una decisión EXPLÍCITA de la ficha, revisada, y el
+      // recorte del modo externo es INDEPENDIENTE del filtro: `filter.userId` no alimenta ni a
+      // `ctx.caller` ni al recorte.
+      if (!Object.prototype.hasOwnProperty.call(resource.filterable, key)) {
+        return invalid(
+          `El campo "${key}" no se acepta: quién pregunta sale del subject, no del cuerpo`,
+          { field: 'filter', value: key }
+        );
+      }
     }
 
     if (!Object.prototype.hasOwnProperty.call(resource.filterable, key)) {
@@ -445,18 +494,70 @@ function parseGroup(
   return { group: { conditions }, or };
 }
 
-function parseFilter(resource: ResourceSpec, raw: unknown): Valid<ParsedFilter> | Invalid {
+function parseFilter(
+  resource: ResourceSpec,
+  raw: unknown,
+  skip?: string
+): Valid<ParsedFilter> | Invalid {
   if (raw === undefined || raw === null) {
     return { value: { conditions: [] } };
   }
   if (!isPlainObject(raw)) {
     return invalid('El filtro espera un objeto', { field: 'filter', value: raw });
   }
-  const parsed = parseGroup(resource, raw, true);
+  const parsed = parseGroup(resource, raw, true, skip);
   if ('error' in parsed) {
     return parsed;
   }
   return { value: { conditions: parsed.group.conditions, or: parsed.or } };
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * El discriminador
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * EL DISCRIMINADOR, RESUELTO ANTES QUE TODO LO DEMÁS.
+ *
+ * No es "un filtro más con un default": es lo que hace que un id TENGA SIGNIFICADO. Los ids de las
+ * dos tablas de actividad SE PISAN, y un default devolvería "algún" comentario con ese id — un bug
+ * silencioso e intermitente que aparece recién cuando las dos tablas crecen.
+ *
+ * ES UN SOLO VALOR DE LA LISTA, siempre: una variante es UNA TABLA, no un conjunto. Un array, un
+ * `null`, un objeto de operadores o un valor de fuera de la lista son `invalid_fields`, igual que
+ * la ausencia.
+ *
+ * `prefix` es lo que hace que el `errorDetails.field` diga dónde se lo esperaba: `filter.entityType`
+ * en un `list` y `entityType` en un `get`.
+ */
+function pickDiscriminator(
+  resource: ResourceSpec,
+  container: unknown,
+  prefix: string
+): { value?: string } | Invalid {
+  const discriminator = resource.discriminator;
+  if (!discriminator) {
+    return {};
+  }
+
+  const { field, values } = discriminator;
+  const where = `${prefix}${field}`;
+  const raw = isPlainObject(container) ? container[field] : undefined;
+
+  if (raw === undefined) {
+    return invalid(
+      `El campo "${field}" es obligatorio en este recurso: sin él el id no tiene significado`,
+      { field: where, allowed: values }
+    );
+  }
+  if (typeof raw !== 'string' || !values.includes(raw)) {
+    return invalid(`El campo "${field}" acepta un solo valor de la lista`, {
+      field: where,
+      value: raw,
+      allowed: values,
+    });
+  }
+  return { value: raw };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -625,10 +726,9 @@ function parseProjection(
     selected.unshift('id');
   }
 
-  const relations = selected.filter((name) => {
-    const includable = resource.includable[name];
-    return includable !== undefined && includable.kind === 'relation';
-  });
+  // LA RELACIÓN PUEDE VIVIR EN EL CONJUNTO BASE: `comments.attachments` es la excepción declarada
+  // a RF-17 (CA-6 de S-025), y `specFor` es el único lugar que sabe dónde mirar.
+  const relations = selected.filter((name) => isRelation(specFor(resource, name)));
 
   return { fields: selected, relations };
 }
@@ -671,11 +771,19 @@ export function validateList(
     return shapeError;
   }
 
-  const filter = parseFilter(resource, raw.filter);
+  // LA VARIANTE, PRIMERO: de acá en adelante TODO se valida contra `spec`, la ficha EFECTIVA. Es
+  // lo que hace que el enum de `activity.type` sea el de ESA entidad y no la unión de los dos.
+  const picked = pickDiscriminator(resource, raw.filter, 'filter.');
+  if ('error' in picked) {
+    return picked;
+  }
+  const spec = resolveVariant(resource, picked.value);
+
+  const filter = parseFilter(spec, raw.filter, resource.discriminator?.field);
   if ('error' in filter) {
     return filter;
   }
-  const sort = parseSort(resource, raw.sort);
+  const sort = parseSort(spec, raw.sort);
   if ('error' in sort) {
     return sort;
   }
@@ -683,7 +791,7 @@ export function validateList(
   if ('error' in page) {
     return page;
   }
-  const projection = parseProjection(resource, raw.fields, raw.include);
+  const projection = parseProjection(spec, raw.fields, raw.include);
   if ('error' in projection) {
     return projection;
   }
@@ -695,6 +803,7 @@ export function validateList(
   return {
     value: {
       kind: 'list',
+      ...(picked.value !== undefined ? { variant: picked.value } : {}),
       filter: filter.value,
       sort: sort.sort,
       limit: page.limit,
@@ -730,21 +839,38 @@ export function validateGet(
   // LAS CUATRO PALANCAS DE `list` SON UN ERROR EN UN `get`, no un extra que se ignora (RF-3): un
   // `get` pregunta por UN recurso identificado, y aceptar `filter` en silencio dejaría creer que
   // recortó algo.
+  // LAS CLAVES PERMITIDAS SE DERIVAN DE LA FICHA: un recurso con discriminador acepta ese campo
+  // como cuarta clave, y `errorDetails.allowed` tiene que decirlo.
+  const allowedKeys = getKeys(resource);
+
   for (const key of GET_FORBIDDEN_KEYS) {
     if (Object.prototype.hasOwnProperty.call(raw, key)) {
       return invalid(`El campo "${key}" no aplica a una consulta por id`, {
         field: 'payload',
         value: key,
-        allowed: GET_KEYS,
+        allowed: allowedKeys,
       });
     }
   }
 
-  const keysError = checkTopLevelKeys(raw, GET_KEYS);
+  const keysError = checkTopLevelKeys(raw, allowedKeys);
   if (keysError) {
     return keysError;
   }
-  const shapeError = checkShape(getShape, raw);
+  // EL DISCRIMINADOR VA ANTES DE JOI: la forma exterior de un `get` no lo declara, y declararlo
+  // en `getShape` obligaría a un esquema por recurso. Se valida acá, con su propio mensaje, y se
+  // saca del objeto que ve Joi.
+  const picked = pickDiscriminator(resource, raw, '');
+  if ('error' in picked) {
+    return picked;
+  }
+  const spec = resolveVariant(resource, picked.value);
+
+  const withoutVariant = { ...raw };
+  if (resource.discriminator) {
+    delete withoutVariant[resource.discriminator.field];
+  }
+  const shapeError = checkShape(getShape, withoutVariant);
   if (shapeError) {
     return shapeError;
   }
@@ -755,7 +881,7 @@ export function validateGet(
     return invalid('La consulta por id necesita un id entero', { field: 'id', value: rawId });
   }
 
-  const projection = parseProjection(resource, raw.fields, raw.include);
+  const projection = parseProjection(spec, raw.fields, raw.include);
   if ('error' in projection) {
     return projection;
   }
@@ -763,6 +889,7 @@ export function validateGet(
   return {
     value: {
       kind: 'get',
+      ...(picked.value !== undefined ? { variant: picked.value } : {}),
       id: numericId,
       fields: projection.fields,
       relations: projection.relations,

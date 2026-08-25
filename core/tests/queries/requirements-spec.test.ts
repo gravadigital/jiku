@@ -2,12 +2,19 @@ import 'mocha';
 import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { requirementsSpec } from '../../src/queries/requirements/requirements-spec';
-import {
-  ColumnExternalScope,
-  IncludableComputedSpec,
-  ManyRelationSpec,
-  OneRelationSpec,
-} from '../../src/queries/types';
+import { BaseFieldSpec, ColumnExternalScope, IncludableComputedSpec, ManyRelationSpec, OneRelationSpec } from '../../src/queries/types';
+
+/**
+ * Un campo del conjunto base, ESTRECHADO A COLUMNA.
+ *
+ * `ResourceSpec.base` pasó a ser `BaseSpec` en S-025 —una columna, un valor CONSTANTE o una
+ * RELACIÓN—, y esta ficha declara solo columnas. El estrechamiento se hace UNA VEZ acá en vez de
+ * repartir `as` por las aserciones, que es lo que apagaría la verificación en las fichas nuevas.
+ */
+function baseField(name: string): BaseFieldSpec {
+  return requirementsSpec.base[name] as BaseFieldSpec;
+}
+
 
 /**
  * LA FICHA DE `requirements` COMO DATO (TS-68), y las tres trampas que copiar la de `tasks`
@@ -41,8 +48,8 @@ describe('queries/requirements — la ficha como dato (S-024)', () => {
       'updatedAt',
       'visibilityLevel',
     ]);
-    requirementsSpec.base.estimatedFinishDate.column.should.equal('estimated_finish_date');
-    requirementsSpec.base.visibilityLevel.column.should.equal('visibility_level');
+    baseField('estimatedFinishDate').column.should.equal('estimated_finish_date');
+    baseField('visibilityLevel').column.should.equal('visibility_level');
   });
 
   it('CA-8 · `priorityValue` NO EXISTE en ninguna lista de este recurso', () => {
@@ -63,7 +70,7 @@ describe('queries/requirements — la ficha como dato (S-024)', () => {
     requirementsSpec.filterable.priority.enum!.should.equal('priority');
     // En esta tabla el nombre del enum ES el valor de la columna: no hay nada que traducir.
     (requirementsSpec.filterable.priority.values === undefined).should.be.true();
-    (requirementsSpec.base.priority.transform === undefined).should.be.true();
+    (baseField('priority').transform === undefined).should.be.true();
   });
 
   it('CA-8 · `estimatedFinishDate` está en las DOS listas: filtrable Y ordenable', () => {
@@ -190,6 +197,6 @@ describe('queries/requirements — la ficha como dato (S-024)', () => {
 
   it('el orden por defecto es `-createdAt` y el código de "no encontrado" es la CONSTANTE', () => {
     [...requirementsSpec.defaults.sort].should.deepEqual(['-createdAt']);
-    requirementsSpec.notFoundCode.should.equal(ErrorCode.REQUIREMENT_NOT_FOUND);
+    requirementsSpec.notFoundCode!.should.equal(ErrorCode.REQUIREMENT_NOT_FOUND);
   });
 });

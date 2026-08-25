@@ -1,5 +1,6 @@
 import { OneRelationSpec, ResourceSpec } from '../types';
 import { relationFieldAlias, sortKeyAlias } from './build-sql';
+import { specFor } from './spec';
 
 /**
  * Proyección: de la fila cruda de PostgreSQL al item del contrato.
@@ -32,17 +33,28 @@ export function projectRow(
   const item: Record<string, unknown> = {};
 
   for (const name of fields) {
-    const base = resource.base[name];
-    if (base) {
-      const raw = row[name];
-      item[name] = base.transform ? base.transform(raw) : raw;
+    // LA MISMA RESOLUCIÓN QUE `selectParts`, y por eso el mismo helper: las dos ramas tienen que
+    // coincidir campo por campo, y con dos búsquedas separadas la que se olvida NO FALLA AL
+    // COMPILAR — devuelve el campo vacío.
+    const spec = specFor(resource, name);
+    if (!spec) {
       continue;
     }
 
-    const includable = resource.includable[name];
-    if (!includable) {
+    // EL CAMPO CONSTANTE SE RESUELVE SIN MIRAR LA FILA: el valor lo decide la ficha —o sea, la
+    // variante— y la columna no existe.
+    if ('constant' in spec) {
+      item[name] = spec.constant;
       continue;
     }
+
+    if (!('kind' in spec)) {
+      const raw = row[name];
+      item[name] = spec.transform ? spec.transform(raw) : raw;
+      continue;
+    }
+
+    const includable = spec;
 
     // COLUMNA Y EXPRESIÓN SE PROYECTAN IGUAL: en los dos casos el SELECT ya dejó el valor bajo el
     // alias del campo del contrato, y lo único que queda es la traducción de lectura. Un
@@ -71,7 +83,8 @@ export function projectRow(
     }
 
     // Relación de colección: se completa por lote. Se deja la clave para que el orden del item
-    // sea el del conjunto devuelto y no dependa de cuándo llegó el lote.
+    // sea el del conjunto devuelto y no dependa de cuándo llegó el lote. Vale igual esté declarada
+    // en `includable` o en `base` (`comments.attachments`).
     item[name] = [];
   }
 

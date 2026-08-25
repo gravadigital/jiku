@@ -3,7 +3,19 @@ import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { TASK_PRIORITY_VALUES, TaskPriority } from '../../src/commands/tasks/priority';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
-import { ColumnExternalScope, OneRelationSpec, ManyRelationSpec } from '../../src/queries/types';
+import { BaseFieldSpec, ColumnExternalScope, ManyRelationSpec, OneRelationSpec } from '../../src/queries/types';
+
+/**
+ * Un campo del conjunto base, ESTRECHADO A COLUMNA.
+ *
+ * `ResourceSpec.base` pasó a ser `BaseSpec` en S-025 —una columna, un valor CONSTANTE o una
+ * RELACIÓN—, y esta ficha declara solo columnas. El estrechamiento se hace UNA VEZ acá en vez de
+ * repartir `as` por las aserciones, que es lo que apagaría la verificación en las fichas nuevas.
+ */
+function baseField(name: string): BaseFieldSpec {
+  return tasksSpec.base[name] as BaseFieldSpec;
+}
+
 
 /**
  * TS-53 · LA FICHA ES UN DATO, legible por otro código sin ejecutar nada.
@@ -41,16 +53,16 @@ describe('queries/tasks — la ficha como DATO (CA-30)', () => {
   });
 
   it('TS-53 · cada campo base declara SU COLUMNA, que es lo único que puede llegar al SQL', () => {
-    tasksSpec.base.createdAt.column.should.equal('created_at');
-    tasksSpec.base.projectId.column.should.equal('project_id');
-    tasksSpec.base.visibilityLevel.column.should.equal('visibility_level');
-    tasksSpec.base.estimatedFinishDate.column.should.equal('estimated_finish_date');
+    baseField('createdAt').column.should.equal('created_at');
+    baseField('projectId').column.should.equal('project_id');
+    baseField('visibilityLevel').column.should.equal('visibility_level');
+    baseField('estimatedFinishDate').column.should.equal('estimated_finish_date');
     // `priority` y `priorityValue` son LA MISMA COLUMNA leída de dos formas (CA-21).
-    tasksSpec.base.priority.column.should.equal('priority');
-    tasksSpec.base.priorityValue.column.should.equal('priority');
+    baseField('priority').column.should.equal('priority');
+    baseField('priorityValue').column.should.equal('priority');
     // Y solo una de las dos traduce.
-    (typeof tasksSpec.base.priority.transform).should.equal('function');
-    (tasksSpec.base.priorityValue.transform === undefined).should.be.true();
+    (typeof baseField('priority').transform).should.equal('function');
+    (baseField('priorityValue').transform === undefined).should.be.true();
   });
 
   it('TS-53 · los incluibles declaran su `kind`, y las colecciones su tope y su marca', () => {
@@ -213,9 +225,9 @@ describe('queries/tasks — la ficha como DATO (CA-30)', () => {
   });
 
   it('el código de "no encontrado" es `task_not_found`, con la CONSTANTE', () => {
-    tasksSpec.notFoundCode.should.equal(ErrorCode.TASK_NOT_FOUND);
+    tasksSpec.notFoundCode!.should.equal(ErrorCode.TASK_NOT_FOUND);
     // `objective_not_found` se queda en los comandos.
-    tasksSpec.notFoundCode.should.not.equal(ErrorCode.OBJECTIVE_NOT_FOUND);
+    tasksSpec.notFoundCode!.should.not.equal(ErrorCode.OBJECTIVE_NOT_FOUND);
   });
 
   it('`fieldNames` es `base ∪ includable`: lo que `fields` puede nombrar', () => {

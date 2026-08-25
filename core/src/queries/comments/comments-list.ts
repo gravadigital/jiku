@@ -1,21 +1,29 @@
 import { Query } from '../types';
-import { pendingContract } from '../pending';
+import { runList } from '../engine/run';
+import { ValidatedListQuery } from '../engine/types';
+import { validateList } from '../engine/validate-query';
+import { commentsSpec } from './comments-spec';
 
 /**
  * Colección paginada de comentarios.
  *
- * TRANSITORIO: sin contrato (RF-10 de REQ-004), este endpoint existe, es descubrible y contesta
- * un `failure` bien formado. El stub desaparece cuando el REQ del contrato de consultas defina
- * filtros, paginación y campos; su insumo es `bus-api-consultas.md`.
+ * `filter.entityType` es OBLIGATORIO y no es un filtro más: un comentario es una fila de
+ * `objective_activity` o de `requirement_activity`, y LOS IDS DE LAS DOS SE PISAN. Sin él, el
+ * motor no tiene forma de saber contra qué tabla resolver, y un default devolvería "algún"
+ * comentario. Toda la traducción vive en la ficha (ADR-004), no acá y no en `@jiku/models`.
  *
- * Cuando eso pase, acá va:
- *   `comments` NO ES UNA TABLA (ADR-004: la traducción vive en core). Son las filas de
- *   `objective_activity` y `requirement_activity` con `type_of_activity = 'comment'`; el texto
- *   del comentario vive en `new_value`, y `visibility_level` (`public` / `internal`) decide qué
- *   se puede exponer.
- *   La lectura usa `ctx.db.query<CommentRow>(sql, { type: QueryTypes.SELECT, replacements })`:
- *   SQL explícito, sin ORM; nombres de tabla/columna/orden desde LISTAS BLANCAS y valores como
- *   parámetros. Las dos tablas de actividad obligan a un UNION, no a un join.
+ * ESTE ARCHIVO ES DELIBERADAMENTE DECLARATIVO: la ficha dice QUÉ se puede pedir y el motor sabe
+ * CÓMO servirlo. Si alguna vez hace falta armar SQL acá, el arreglo va en el motor o en la ficha.
  */
-export const commentsList: Query = pendingContract('comments.list');
+/** El payload de `comments.list` DESPUÉS de validar. Alias del tipo del motor, como en `tasks`. */
+export type CommentsListPayload = ValidatedListQuery;
+
+export const commentsList: Query<CommentsListPayload> = {
+  pattern: 'comments.list',
+
+  validate: (payload: unknown) => validateList(commentsSpec, payload),
+
+  execute: (payload, ctx) => runList(commentsSpec, payload, ctx),
+};
+
 export default commentsList;

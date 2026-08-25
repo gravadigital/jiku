@@ -595,3 +595,202 @@ describe('queries/engine/validate-query — el desempate por `id` (S-024)', () =
     ]);
   });
 });
+
+/**
+ * EL DISCRIMINADOR: EL CAMPO OBLIGATORIO QUE ELIGE LA TABLA (S-025, Task 1).
+ *
+ * LA FICHA DE PRUEBA ES LOCAL, no `commentsSpec`: lo que se verifica acá es la GRAMÁTICA genérica.
+ * El ejercicio contra base real de `comments`, `activity` y `subscriptions` vive en sus suites.
+ */
+describe('queries/engine/validate-query — el discriminador (S-025)', () => {
+  const VARIANT: ResourceSpec = {
+    ...tasksSpec,
+    name: 'things',
+    discriminator: {
+      field: 'entityType',
+      values: ['task', 'requirement'],
+      variants: {
+        task: { table: 'objective_things', filterable: { ...tasksSpec.filterable } },
+        requirement: { table: 'requirement_things', filterable: { ...tasksSpec.filterable } },
+      },
+    },
+    filterable: { ...tasksSpec.filterable, entityType: { column: 'kind', kind: 'string' } },
+    filterableNames: [...tasksSpec.filterableNames, 'entityType'],
+  };
+
+  const vList = (payload: unknown) => validateList(VARIANT, payload);
+  const vGet = (payload: unknown) => validateGet(VARIANT, payload);
+
+  it('TS-29/TS-30/TS-31 · sin el discriminador en `filter`, `invalid_fields` con su `allowed`', () => {
+    const error = bad(vList({ filter: { projectId: 12 } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.entityType');
+    (error.errorDetails!.allowed as string[]).should.deepEqual(['task', 'requirement']);
+    // El mensaje tiene que decir que es OBLIGATORIO, no solo que no se aceptó.
+    error.errorMessage!.should.containEql('obligatorio');
+  });
+
+  it('TS-32 · sin `filter` en absoluto: nunca `success` con la tabla por defecto', () => {
+    const error = bad(vList({}));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.entityType');
+  });
+
+  it('TS-35 · un valor fuera de la lista es `invalid_fields`, con el valor ofensor', () => {
+    for (const value of ['objective', 'project', 'Task', '']) {
+      const error = bad(vList({ filter: { entityType: value } }));
+      error.errorDetails!.value!.should.equal(value);
+      (error.errorDetails!.allowed as string[]).should.deepEqual(['task', 'requirement']);
+    }
+  });
+
+  it('TS-36 · varios valores, `null` o un operador: la variante es UNA TABLA, no un conjunto', () => {
+    for (const value of [['task', 'requirement'], { not: 'task' }, null, 7, true] as unknown[]) {
+      bad(vList({ filter: { entityType: value } })).errorCode!.should.equal('invalid_fields');
+    }
+  });
+
+  it('TS-37 · dentro de un `or` no selecciona variante: el de arriba sigue faltando', () => {
+    const error = bad(
+      vList({ filter: { or: [{ entityType: 'task' }, { entityType: 'requirement' }] } })
+    );
+
+    error.errorDetails!.field!.should.equal('filter.entityType');
+  });
+
+  it('el discriminador NO produce un `FilterCondition`: la tabla ES el predicado', () => {
+    // Emitir además `entityType = 'task'` sobre una columna que la variante no tiene rompería el
+    // SQL, y sobre una que sí la tiene filtraría dos veces por lo mismo.
+    const value = ok(vList({ filter: { entityType: 'task', projectId: 12 } }));
+
+    value.variant!.should.equal('task');
+    value.filter.conditions.map((c) => c.field).should.deepEqual(['projectId']);
+  });
+
+  it('el valor elegido viaja en `variant` y el filtro CRUDO —con él— va al scope del cursor', () => {
+    // Es lo que ata el cursor a la variante SIN código nuevo: un cursor emitido con `task` falla
+    // el hash contra una página pedida con `requirement`.
+    const value = ok(vList({ filter: { entityType: 'requirement' } }));
+
+    value.variant!.should.equal('requirement');
+    (value.scope.filter as Record<string, unknown>).entityType!.should.equal('requirement');
+  });
+
+  it('TS-33 · en un `get` el discriminador viaja en el PRIMER NIVEL y es obligatorio', () => {
+    const error = bad(vGet({ id: 1234 }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    // Sin el prefijo `filter.`: en un `get` no hay filtro.
+    error.errorDetails!.field!.should.equal('entityType');
+    (error.errorDetails!.allowed as string[]).should.deepEqual(['task', 'requirement']);
+  });
+
+  it('TS-78 · `GET_KEYS` se DERIVA de la ficha: el discriminador entra en `allowed`', () => {
+    const error = bad(vGet({ id: 1, entityType: 'task', filter: {} }));
+
+    (error.errorDetails!.allowed as string[]).should.deepEqual([
+      'id',
+      'fields',
+      'include',
+      'entityType',
+    ]);
+  });
+
+  it('un `get` con el discriminador válido resuelve y lo deja en `variant`', () => {
+    const result = vGet({ id: 1234, entityType: 'requirement' });
+    ('value' in result).should.be.true(JSON.stringify(result));
+
+    const value = (result as { value: ValidatedGetQuery }).value;
+    value.variant!.should.equal('requirement');
+    value.id.should.equal(1234);
+  });
+
+  it('una ficha SIN discriminador no exige nada y sigue aceptando las tres palancas de siempre', () => {
+    // La regresión de las cuatro fichas de S-022 y S-024.
+    ok(list({})).should.have.property('kind', 'list');
+    const value = (get({ id: 1 }) as { value: ValidatedGetQuery }).value;
+    (value.variant === undefined).should.be.true();
+    (bad(get({ id: 1, filter: {} })).errorDetails!.allowed as string[]).should.deepEqual([
+      'id',
+      'fields',
+      'include',
+    ]);
+  });
+});
+
+/**
+ * LA EXCEPCIÓN DE IDENTIDAD DENTRO DE `filter` (S-025, Task 7 · H-6).
+ *
+ * `subscriptions` declara `userId` filtrable y `IDENTITY_PAYLOAD_FIELDS` lo prohíbe también dentro
+ * de `filter`. Los dos no se contradicen: QUIÉN PREGUNTA sale del subject y solo de ahí (RF-19);
+ * POR QUIÉN SE FILTRA es un dato del dominio.
+ */
+describe('queries/engine/validate-query — identidad y filtro declarado (S-025)', () => {
+  const WITH_USER_ID: ResourceSpec = {
+    ...tasksSpec,
+    filterable: { ...tasksSpec.filterable, userId: { column: 'user_id', kind: 'string' } },
+    filterableNames: [...tasksSpec.filterableNames, 'userId'],
+  };
+
+  it('TS-53 · un nombre de identidad QUE LA FICHA DECLARA se acepta dentro de `filter`', () => {
+    const result = validateList(WITH_USER_ID, { filter: { userId: 'sub-q-user' } });
+    ('value' in result).should.be.true(JSON.stringify(result));
+
+    const value = (result as { value: ValidatedListQuery }).value;
+    value.filter.conditions.map((c) => c.field).should.deepEqual(['userId']);
+  });
+
+  it('TS-54 · en las claves de PRIMER NIVEL la prohibición NO se levanta', () => {
+    const error = bad(validateList(WITH_USER_ID, { userId: 'otro', filter: {} }));
+
+    error.errorMessage!.should.containEql('quién pregunta sale del subject, no del cuerpo');
+    error.errorDetails!.field!.should.equal('payload');
+  });
+
+  it('TS-55 · un nombre de identidad que la ficha NO declara sigue rechazado dentro de `filter`', () => {
+    for (const key of ['caller', 'sub', 'principal', 'onBehalfOf']) {
+      const error = bad(validateList(WITH_USER_ID, { filter: { [key]: 'otro' } }));
+      error.errorMessage!.should.containEql('quién pregunta sale del subject, no del cuerpo');
+      error.errorDetails!.field!.should.equal('filter');
+      error.errorDetails!.value!.should.equal(key);
+    }
+    // Y en una ficha que NO declara `userId`, `userId` sigue siendo identidad.
+    bad(list({ filter: { userId: 'otro' } })).errorMessage!.should.containEql(
+      'quién pregunta sale del subject, no del cuerpo'
+    );
+  });
+});
+
+/**
+ * EL DISCRIMINADOR NO SE CUELA POR UNA RAMA DE `or` (S-025, Task 1).
+ *
+ * La ficha lo declara filtrable —es un dato del contrato que `meta.describe` proyecta— pero SIN
+ * columna, porque no es una columna: es lo que elige la tabla. Dejarlo llegar a `conditionSql`
+ * produciría `t.undefined` en el SQL.
+ */
+describe('queries/engine/validate-query — el discriminador dentro de un `or` (S-025)', () => {
+  const VARIANT: ResourceSpec = {
+    ...tasksSpec,
+    name: 'things',
+    discriminator: {
+      field: 'entityType',
+      values: ['task', 'requirement'],
+      variants: { task: { table: 'a_things' }, requirement: { table: 'b_things' } },
+    },
+    // Filtrable Y SIN COLUMNA, exactamente como lo declaran las tres fichas de S-025.
+    filterable: { ...tasksSpec.filterable, entityType: {} },
+    filterableNames: [...tasksSpec.filterableNames, 'entityType'],
+  };
+
+  it('con la variante ya elegida arriba, repetirlo en un `or` es `invalid_fields`', () => {
+    const error = bad(
+      validateList(VARIANT, { filter: { entityType: 'task', or: [{ entityType: 'requirement' }] } })
+    );
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.entityType');
+    error.errorMessage!.should.containEql('nivel de arriba');
+  });
+});

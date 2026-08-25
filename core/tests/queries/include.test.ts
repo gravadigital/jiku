@@ -4,7 +4,7 @@ import * as sinon from 'sinon';
 import { Sequelize } from 'sequelize-typescript';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
 import { attachCollections } from '../../src/queries/engine/include';
-import { QueryContext } from '../../src/queries/types';
+import { QueryContext, ResourceSpec } from '../../src/queries/types';
 
 /**
  * Las relaciones de COLECCIÓN, por lote.
@@ -135,5 +135,72 @@ describe('queries/engine/include — resolución por lote (CA-11)', () => {
     await attachCollections(tasksSpec, ['subscriptors'], [item], ctx, 'tasks.list');
 
     item.subscriptors!.should.deepEqual([]);
+  });
+});
+
+/**
+ * LA RELACIÓN DECLARADA EN EL CONJUNTO BASE (S-025, Task 2).
+ *
+ * `comments.attachments` es la excepción declarada a RF-17: viene en la base y no en `include`,
+ * porque un comentario con adjunto sin la referencia se muestra mal. Un lookup que solo mirara
+ * `includable` la dejaría en `[]` sin error ni log.
+ */
+describe('queries/engine/include — la relación en el conjunto base (S-025)', () => {
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    base: {
+      ...tasksSpec.base,
+      attachments: {
+        kind: 'relation',
+        cardinality: 'many',
+        table: 'attachments',
+        parentKey: 'entity_id',
+        join: { table: 'files', on: 'j.id = r.file_id' },
+        where:
+          "r.entity_type = 'objective_comment' AND r.deleted_at IS NULL" +
+          " AND j.retention_status = 'active'",
+        order: [{ expr: 'r.id', dir: 'ASC' }],
+        fields: { id: 'r.id', fileId: 'r.file_id', fileName: 'j.file_name' },
+      },
+    },
+    baseNames: [...tasksSpec.baseNames, 'attachments'],
+    fieldNames: [...tasksSpec.fieldNames, 'attachments'],
+  };
+
+  it('`attachCollections` la resuelve aunque viva en `base` y no en `includable`', async () => {
+    const { ctx, query } = contextWith([]);
+
+    await attachCollections(SPEC, ['attachments'], [{ id: 4001 }], ctx, 'comments.list');
+
+    query.callCount.should.equal(1);
+    const sql = String(query.firstCall.args[0]);
+    sql.should.containEql('FROM attachments r');
+    sql.should.containEql('INNER JOIN files j ON j.id = r.file_id');
+    // LAS DOS EXCLUSIONES SON PERMANENTES Y NO CONFIGURABLES (RF-26).
+    sql.should.containEql("r.deleted_at IS NULL");
+    sql.should.containEql("j.retention_status = 'active'");
+    // Y la traducción de `entity_type`, que es lo que impide que se cuelen los adjuntos de la
+    // ENTIDAD con el mismo `entity_id`.
+    sql.should.containEql("r.entity_type = 'objective_comment'");
+  });
+
+  it('un item SIN filas del lote queda con `[]` y no con `null`', async () => {
+    const { ctx } = contextWith([]);
+    const item: Record<string, unknown> = { id: 4002 };
+
+    await attachCollections(SPEC, ['attachments'], [item], ctx, 'comments.list');
+
+    item.attachments!.should.deepEqual([]);
+  });
+
+  it('UN SOLO LOTE para toda la página, no uno por item', async () => {
+    const items = Array.from({ length: 20 }, (_, index) => ({ id: index + 1 }));
+    const { ctx, query } = contextWith([]);
+
+    await attachCollections(SPEC, ['attachments'], items, ctx, 'comments.list');
+
+    // 1 consulta, no 20: con `limit: 200` la diferencia sería 1 contra 200.
+    query.callCount.should.equal(1);
+    (query.firstCall.args[1] as any).replacements.ids.length.should.equal(20);
   });
 });
