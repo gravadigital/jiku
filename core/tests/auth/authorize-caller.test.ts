@@ -525,6 +525,12 @@ describe('la compuerta de autorización · plano de comandos', () => {
 
 describe('la compuerta de autorización · plano de consultas', () => {
   const QUERIES = queryRegistry.patterns();
+  /**
+   * Las consultas que YA TIENEN CONTRATO (S-022). Las otras cuatro siguen en `pendingContract`
+   * hasta S-024 (`projects`) y S-025 (`comments`), y cuando no quede ninguna este array deja de
+   * hacer falta.
+   */
+  const WITH_CONTRACT = ['tasks.list', 'tasks.get'];
   const USER_ROLE = 'sub-persona-user';
   const EXTERNAL_USER_ROLE = 'sub-persona-external-user';
 
@@ -575,10 +581,23 @@ describe('la compuerta de autorización · plano de consultas', () => {
     for (const query of QUERIES) {
       const reply = await dispatchQuery(query, {});
 
-      // Llegan al stub sin contrato, que es la prueba de que la compuerta las dejó pasar.
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND);
-      reply.errorMessage!.should.equal(`La consulta ${query} todavía no tiene contrato definido`);
+      if (WITH_CONTRACT.includes(query)) {
+        // DESDE S-022 estas dos TIENEN contrato: la prueba de que la compuerta las dejó pasar ya
+        // no es el stub sino que la respuesta viene DEL OTRO LADO de ella. `tasks.list` con `{}`
+        // devuelve la colección; `tasks.get` con `{}` devuelve `invalid_fields` porque le falta
+        // el `id` — las dos son respuestas del contrato, y ninguna es `caller_not_authorized`,
+        // que es lo único que este test afirma. La otra mitad sigue siendo `findByPk === 0`.
+        reply.errorCode?.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
+        reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
+      } else {
+        // Las otras cuatro llegan al stub sin contrato, que es la misma prueba de siempre.
+        reply.status.should.equal('failure', query);
+        reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
+        reply.errorMessage!.should.equal(
+          `La consulta ${query} todavía no tiene contrato definido`,
+          query
+        );
+      }
     }
     findByPk.callCount.should.equal(0);
   });
@@ -597,7 +616,10 @@ describe('la compuerta de autorización · plano de consultas', () => {
     for (const caller of [ADM, USER_ROLE, EXTERNAL_USER_ROLE]) {
       const reply = await dispatchQuery('tasks.get', {}, caller);
 
-      reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND);
+      // DESDE S-022 `tasks.get` tiene contrato, así que un payload sin `id` ya no muere en el
+      // stub sino en la validación del contrato. Lo que este test afirma no cambia: que la
+      // compuerta los DEJÓ PASAR, y `invalid_fields` solo se emite del otro lado de ella.
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
       reply.errorCode!.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
     }
   });
@@ -639,6 +661,8 @@ describe('la compuerta de autorización · plano de consultas', () => {
     const dispatcher = new QueryDispatcher(
       new QueryRegistry().register({
         pattern: 'tasks.list',
+        // `validate` permisivo: la interfaz lo exige desde S-022 y este doble no valida nada.
+        validate: (payload: unknown) => ({ value: payload }),
         execute: () => {
           executed = true;
           return Promise.resolve(success());

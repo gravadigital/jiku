@@ -1,0 +1,419 @@
+import 'mocha';
+import 'should';
+import { Reply } from '@jiku/nats-protocol';
+import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
+import { validateGet, validateList } from '../../src/queries/engine/validate-query';
+import { ValidatedGetQuery, ValidatedListQuery } from '../../src/queries/engine/types';
+
+/**
+ * El validador de la gramática CONTRA LA FICHA.
+ *
+ * Lo que se verifica acá no es "rechaza lo inválido": es que NUNCA IGNORA EN SILENCIO. Un filtro
+ * ignorado devuelve datos de más, que es el peor modo de falla de un contrato de lectura, y es
+ * también la mitad estructural de la mitigación de inyección (CA-29): un nombre que no está en la
+ * ficha no llega al SQL porque muere acá.
+ */
+
+function ok(result: unknown): ValidatedListQuery {
+  ('value' in (result as object)).should.be.true(JSON.stringify(result));
+  return (result as { value: ValidatedListQuery }).value;
+}
+
+function bad(result: unknown): Reply<never> {
+  ('error' in (result as object)).should.be.true(JSON.stringify(result));
+  return (result as { error: Reply<never> }).error;
+}
+
+const list = (payload: unknown) => validateList(tasksSpec, payload);
+const get = (payload: unknown) => validateGet(tasksSpec, payload);
+
+describe('queries/engine/validate-query — nombres (CA-22)', () => {
+  it('TS-41 · un nombre inventado en `filter` NO se ignora', () => {
+    const error = bad(list({ filter: { nombreInventado: 1 } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter');
+    error.errorDetails!.value!.should.equal('nombreInventado');
+    (error.errorDetails!.allowed as string[]).should.containEql('projectId');
+    (error.errorDetails!.allowed as string[]).should.containEql('state');
+    (error.errorDetails!.allowed as string[]).should.containEql('q');
+    (error.errorDetails!.allowed as string[]).should.not.containEql('nombreInventado');
+  });
+
+  it('TS-42 · un nombre inventado en `sort`', () => {
+    const error = bad(list({ sort: ['nombreInventado'] }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('sort');
+    error.errorDetails!.value!.should.equal('nombreInventado');
+  });
+
+  it('TS-43 · un nombre inventado en `fields`', () => {
+    const error = bad(list({ fields: ['id', 'nombreInventado'] }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('fields');
+    error.errorDetails!.value!.should.equal('nombreInventado');
+  });
+
+  it('TS-44 · un nombre inventado en `include`, con el `allowed` exacto', () => {
+    const error = bad(list({ include: ['nombreInventado'] }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('include');
+    error.errorDetails!.value!.should.equal('nombreInventado');
+    (error.errorDetails!.allowed as string[]).should.deepEqual([
+      'description',
+      'project',
+      'requirement',
+      'responsiblePersons',
+      'comments',
+      'subscriptors',
+    ]);
+  });
+
+  it('TS-13 · `estimatedFinishDate` es filtrable pero NO ordenable', () => {
+    const error = bad(list({ sort: ['estimatedFinishDate'] }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.should.deepEqual({
+      field: 'sort',
+      value: 'estimatedFinishDate',
+      allowed: ['title', 'state', 'priority', 'finishedAt', 'createdAt', 'updatedAt'],
+    });
+
+    // Y el MISMO nombre en `filter` pasa: las dos listas son independientes.
+    ok(list({ filter: { estimatedFinishDate: '2026-08-01' } }));
+  });
+
+  it('CA-2 · el `allowed` es LA MISMA lista de la ficha, no una copia', () => {
+    // Identidad, no igualdad: es lo que hace que `meta.describe` (S-028) no pueda desincronizarse,
+    // porque no hay una segunda copia que mantener.
+    const sortError = bad(list({ sort: ['inventado'] }));
+    ((sortError.errorDetails!.allowed as unknown) === (tasksSpec.sortableNames as unknown))
+      .should.be.true();
+
+    const filterError = bad(list({ filter: { inventado: 1 } }));
+    ((filterError.errorDetails!.allowed as unknown) === (tasksSpec.filterableNames as unknown))
+      .should.be.true();
+
+    const includeError = bad(list({ include: ['inventado'] }));
+    ((includeError.errorDetails!.allowed as unknown) === (tasksSpec.includableNames as unknown))
+      .should.be.true();
+  });
+
+  it('ningún mensaje de error lleva el subject, columnas de la base ni SQL', () => {
+    for (const payload of [
+      { filter: { inventado: 1 } },
+      { sort: ['inventado'] },
+      { page: { limit: -1 } },
+      { count: 'quizas' },
+    ]) {
+      const error = bad(list(payload));
+      const message = error.errorMessage!;
+      message.should.not.containEql('jiku-queries');
+      message.should.not.containEql('objectives');
+      message.should.not.containEql('SELECT');
+      message.should.not.containEql('created_at');
+    }
+  });
+});
+
+describe('queries/engine/validate-query — los seis operadores (CA-3)', () => {
+  it('escalar es igualdad, lista es IN, null es IS NULL', () => {
+    ok(list({ filter: { state: 'activo' } })).filter.conditions[0].operator.should.deepEqual({
+      op: 'eq',
+      values: ['activo'],
+    });
+    ok(list({ filter: { state: ['backlog', 'activo'] } })).filter.conditions[0].operator
+      .should.deepEqual({ op: 'eq', values: ['backlog', 'activo'] });
+    ok(list({ filter: { requirementId: null } })).filter.conditions[0].operator
+      .should.deepEqual({ op: 'isNull' });
+  });
+
+  it('`{not}` es distinto y `{gte, lte}` es un rango COMBINABLE', () => {
+    ok(list({ filter: { state: { not: 'cancelado' } } })).filter.conditions[0].operator
+      .should.deepEqual({ op: 'not', values: ['cancelado'] });
+
+    const range = ok(list({ filter: { createdAt: { gt: '2026-08-01', lt: '2026-08-10' } } }));
+    range.filter.conditions[0].operator.should.deepEqual({
+      op: 'range',
+      bounds: { gt: '2026-08-01', lt: '2026-08-10' },
+    });
+  });
+
+  it('`q` es búsqueda y solo acepta texto', () => {
+    ok(list({ filter: { q: 'motor' } })).filter.conditions[0].operator.should.deepEqual({
+      op: 'search',
+      text: 'motor',
+    });
+    bad(list({ filter: { q: 5 } })).errorDetails!.field!.should.equal('filter.q');
+  });
+
+  it('una clave de operador desconocida es invalid_fields, no se ignora', () => {
+    const error = bad(list({ filter: { createdAt: { like: 'x' } } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.createdAt');
+    error.errorDetails!.value!.should.equal('like');
+    (error.errorDetails!.allowed as string[]).should.containEql('not');
+    (error.errorDetails!.allowed as string[]).should.containEql('gte');
+  });
+
+  it('`not` no se combina con un rango: no hay una lectura obvia y no se adivina', () => {
+    bad(list({ filter: { createdAt: { not: '2026-08-01', gte: '2026-01-01' } } }))
+      .errorCode!.should.equal('invalid_fields');
+  });
+
+  it('un valor fuera del enum se rechaza, con los valores aceptados', () => {
+    const error = bad(list({ filter: { state: 'inventado' } }));
+
+    error.errorDetails!.field!.should.equal('filter.state');
+    (error.errorDetails!.allowed as string[]).should.containEql('backlog');
+  });
+
+  it('CA-21 · filtrar por `priority` con nombre expande a los enteros que se leen así', () => {
+    // `urgente` matchea el 4 Y el 5: el filtro no puede mentir respecto de lo que se proyecta.
+    ok(list({ filter: { priority: 'urgente' } })).filter.conditions[0].operator
+      .should.deepEqual({ op: 'eq', values: [4, 5] });
+    // `priorityValue` va con el entero crudo, sobre la MISMA columna.
+    ok(list({ filter: { priorityValue: 5 } })).filter.conditions[0].operator
+      .should.deepEqual({ op: 'eq', values: [5] });
+  });
+
+  it('un entero que no lo es se rechaza', () => {
+    bad(list({ filter: { projectId: 'doce' } })).errorDetails!.field!.should.equal(
+      'filter.projectId'
+    );
+  });
+});
+
+describe('queries/engine/validate-query — `filter.or` de UN nivel (CA-4)', () => {
+  it('un `or` de primer nivel se parsea como grupos', () => {
+    const value = ok(
+      list({
+        filter: {
+          responsiblePersonId: 77,
+          or: [{ state: 'activo' }, { state: 'finalizado', finishedAt: { gt: '2026-08-16' } }],
+        },
+      })
+    );
+
+    value.filter.conditions.length.should.equal(1);
+    value.filter.or!.length.should.equal(2);
+    value.filter.or![1].conditions.length.should.equal(2);
+  });
+
+  it('TS-10 · un `or` DENTRO de otro `or` se rechaza', () => {
+    const error = bad(list({ filter: { or: [{ state: 'activo' }, { or: [{ state: 'backlog' }] }] } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('filter.or');
+  });
+
+  it('un `or` que no es una lista de objetos se rechaza', () => {
+    bad(list({ filter: { or: 'activo' } })).errorDetails!.field!.should.equal('filter.or');
+    bad(list({ filter: { or: ['activo'] } })).errorDetails!.field!.should.equal('filter.or');
+  });
+});
+
+describe('queries/engine/validate-query — orden (CA-5, CA-6)', () => {
+  it('TS-11 · sin `sort` se usa el default de la ficha, con `id` de desempate', () => {
+    const value = ok(list({}));
+
+    value.sort.should.deepEqual([
+      { field: 'createdAt', column: 'created_at', dir: 'DESC', nullable: false },
+      { field: 'id', column: 'id', dir: 'DESC', nullable: false },
+    ]);
+  });
+
+  it('TS-12 · `sort` explícito respeta orden y dirección, y `id` va al final', () => {
+    const value = ok(list({ sort: ['-priority', 'title'] }));
+
+    value.sort.should.deepEqual([
+      { field: 'priority', column: 'priority', dir: 'DESC', nullable: false },
+      { field: 'title', column: 'title', dir: 'ASC', nullable: false },
+      // La dirección del desempate es la del ÚLTIMO criterio: un `id ASC` detrás de un
+      // `created_at DESC` no usa el índice compuesto.
+      { field: 'id', column: 'id', dir: 'ASC', nullable: false },
+    ]);
+  });
+
+  it('la nulabilidad del criterio SALE DE LA FICHA, no se adivina', () => {
+    // Es lo que decide si el keyset puede usar la comparación de tuplas o necesita la rama
+    // consciente de los NULL. `finishedAt` es la única columna ordenable NULL-able de `tasks`.
+    ok(list({ sort: ['-finishedAt'] })).sort[0].nullable.should.be.true();
+    ok(list({ sort: ['title'] })).sort[0].nullable.should.be.false();
+  });
+
+  it('el desempate hereda la dirección del último criterio', () => {
+    ok(list({ sort: ['title', '-createdAt'] })).sort[2].dir.should.equal('DESC');
+  });
+
+  it('un campo repetido en `sort` se rechaza: rompería el keyset', () => {
+    bad(list({ sort: ['title', '-title'] })).errorDetails!.field!.should.equal('sort');
+  });
+});
+
+describe('queries/engine/validate-query — `page.limit` (CA-16)', () => {
+  it('TS-23 · ausente usa el default 50', () => {
+    ok(list({})).limit.should.equal(50);
+  });
+
+  it('TS-24 · `0` significa "usá el default"', () => {
+    ok(list({ page: { limit: 0 } })).limit.should.equal(50);
+  });
+
+  it('TS-25 · `500` se recorta a 200 SIN AVISAR: es success, no un failure', () => {
+    ok(list({ page: { limit: 500 } })).limit.should.equal(200);
+  });
+
+  it('TS-26 · negativo se rechaza', () => {
+    const error = bad(list({ page: { limit: -1 } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('page.limit');
+    error.errorDetails!.value!.should.equal(-1);
+  });
+
+  it('TS-27 · no entero se rechaza', () => {
+    const error = bad(list({ page: { limit: 10.5 } }));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('page.limit');
+  });
+
+  it('una clave inventada dentro de `page` se rechaza', () => {
+    bad(list({ page: { offset: 10 } })).errorDetails!.field!.should.equal('page');
+  });
+
+  it('`cursor: null` es "primera página", no un cursor inválido', () => {
+    (ok(list({ page: { limit: 10, cursor: null } })).cursor === undefined).should.be.true();
+  });
+});
+
+describe('queries/engine/validate-query — conjunto devuelto (CA-9)', () => {
+  it('sin `fields` ni `include`, el conjunto es la base', () => {
+    ok(list({})).fields.should.deepEqual(tasksSpec.baseNames);
+  });
+
+  it('TS-15 · `( fields ?? base ) ∪ include ∪ { id }`, con `id` SIEMPRE', () => {
+    const value = ok(list({ fields: ['title', 'project'], include: ['description'] }));
+
+    [...value.fields].sort().should.deepEqual(['description', 'id', 'project', 'title']);
+    // `id` aparece aunque no se lo pidió.
+    value.fields.should.containEql('id');
+    value.relations.should.deepEqual(['project']);
+  });
+
+  it('`fields` puede nombrar una relación, e `include` no la duplica', () => {
+    const value = ok(list({ fields: ['id', 'project'], include: ['project'] }));
+
+    value.fields.should.deepEqual(['id', 'project']);
+    value.relations.should.deepEqual(['project']);
+  });
+});
+
+describe('queries/engine/validate-query — `count` (CA-19)', () => {
+  it('acepta ausente, false, true y "only"', () => {
+    ok(list({})).count.should.equal(false);
+    ok(list({ count: false })).count.should.equal(false);
+    ok(list({ count: true })).count.should.equal(true);
+    ok(list({ count: 'only' })).count.should.equal('only');
+  });
+
+  it('cualquier otro valor es invalid_fields', () => {
+    for (const value of ['si', 1, {}, 'ONLY']) {
+      const error = bad(list({ count: value }));
+      error.errorCode!.should.equal('invalid_fields');
+      error.errorDetails!.field!.should.equal('count');
+    }
+  });
+});
+
+describe('queries/engine/validate-query — identidad y forma (CA-23, CA-24)', () => {
+  it('TS-45 · un campo de identidad en el payload se rechaza, en `list` y en `get`', () => {
+    const onList = bad(list({ userId: 'u-creator', filter: { projectId: 12 } }));
+    onList.errorCode!.should.equal('invalid_fields');
+    onList.errorDetails!.value!.should.equal('userId');
+
+    const onGet = bad(get({ id: 8140, caller: 'u-creator' }));
+    onGet.errorCode!.should.equal('invalid_fields');
+    onGet.errorDetails!.value!.should.equal('caller');
+  });
+
+  it('la identidad tampoco se acepta DENTRO del filtro', () => {
+    bad(list({ filter: { sub: 'u-creator' } })).errorDetails!.value!.should.equal('sub');
+  });
+
+  it('una clave de primer nivel inventada se rechaza con la lista de palancas', () => {
+    const error = bad(list({ inventado: 1 }));
+
+    error.errorDetails!.value!.should.equal('inventado');
+    (error.errorDetails!.allowed as string[]).should.deepEqual([
+      'filter',
+      'sort',
+      'page',
+      'fields',
+      'include',
+      'count',
+    ]);
+  });
+
+  it('TS-46 · un `get` sin `id` se rechaza', () => {
+    const error = bad(get({}));
+
+    error.errorCode!.should.equal('invalid_fields');
+    error.errorDetails!.field!.should.equal('id');
+  });
+
+  it('TS-47 · un `get` con las palancas de `list` se rechaza, nombrando la ofensora', () => {
+    const cases: [string, unknown][] = [
+      ['filter', { id: 8140, filter: { state: 'activo' } }],
+      ['sort', { id: 8140, sort: ['title'] }],
+      ['page', { id: 8140, page: { limit: 10 } }],
+      ['count', { id: 8140, count: true }],
+    ];
+
+    for (const [lever, payload] of cases) {
+      const error = bad(get(payload));
+      error.errorCode!.should.equal('invalid_fields', lever);
+      error.errorDetails!.value!.should.equal(lever);
+    }
+  });
+
+  it('un `get` acepta `fields` e `include`, con la misma fórmula', () => {
+    const value = (get({ id: 8140, fields: ['title'], include: ['project'] }) as {
+      value: ValidatedGetQuery;
+    }).value;
+
+    [...value.fields].sort().should.deepEqual(['id', 'project', 'title']);
+    value.id.should.equal(8140);
+  });
+
+  it('un payload que no es objeto se rechaza sin lanzar', () => {
+    bad(list('hola')).errorCode!.should.equal('invalid_fields');
+    bad(list([1, 2])).errorCode!.should.equal('invalid_fields');
+  });
+
+  it('cuerpo vacío (`{}`, null, undefined) es una consulta legítima', () => {
+    ok(list({})).limit.should.equal(50);
+    ok(list(null)).limit.should.equal(50);
+    ok(list(undefined)).limit.should.equal(50);
+  });
+});
+
+describe('queries/engine/validate-query — el hash del cursor', () => {
+  it('el `scope` lleva el filtro CRUDO y los tokens EFECTIVOS del orden', () => {
+    const value = ok(list({ filter: { projectId: 12 }, sort: ['-priority'] }));
+
+    (value.scope.filter as object).should.deepEqual({ projectId: 12 });
+    // Con el desempate por `id` incluido: dos requests con el mismo ORDER BY comparten cursor.
+    [...value.scope.sort].should.deepEqual(['-priority', '-id']);
+  });
+
+  it('sin `sort`, el scope es el del default resuelto', () => {
+    [...ok(list({})).scope.sort].should.deepEqual(['-createdAt', '-id']);
+    [...ok(list({ sort: ['-createdAt'] })).scope.sort].should.deepEqual(['-createdAt', '-id']);
+  });
+});

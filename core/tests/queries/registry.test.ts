@@ -22,6 +22,14 @@ const CONTRACT_PATTERNS = [
   'comments.get',
 ];
 
+/**
+ * Los que SIGUEN SIN CONTRATO después de S-022.
+ *
+ * S-022 le dio contrato a `tasks.list` y `tasks.get`; `projects` llega con S-024 y `comments` con
+ * S-025. `src/queries/pending.ts` se elimina recién en S-028, cuando este array quede vacío.
+ */
+const PENDING_PATTERNS = ['projects.list', 'projects.get', 'comments.list', 'comments.get'];
+
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 
 describe('queries/index — el registry poblado', () => {
@@ -61,10 +69,10 @@ describe('queries/index — el registry poblado', () => {
     }
   });
 
-  it('TS-19 · los seis endpoints contestan un failure BIEN FORMADO, con cualquier payload', async () => {
+  it('TS-19 · los endpoints sin contrato contestan un failure BIEN FORMADO, con cualquier payload', async () => {
     const dispatcher = new QueryDispatcher(queryRegistry, readDb);
 
-    for (const pattern of CONTRACT_PATTERNS) {
+    for (const pattern of PENDING_PATTERNS) {
       for (const payload of [{}, { id: 7, limit: 50 }]) {
         const reply = await dispatcher.dispatch(
           `dev.api.jiku-queries.v1.${pattern}`,
@@ -86,18 +94,24 @@ describe('queries/index — el registry poblado', () => {
 
   it('TS-20 · ningún archivo de queries/ importa el ORM ni la conexión', () => {
     // Es lo que hace que la inyección de la conexión sea real y que CA-7 valga para el módulo
-    // entero, no solo para `read.ts`.
+    // entero, no solo para `read.ts`. ESTE CANDADO NO SE AFLOJA NUNCA: es ADR-001 y ADR-005, y
+    // el motor de S-022 lee con SQL explícito sobre la conexión que le llega por el contexto.
     for (const forbidden of [/@jiku\/models/, /models\/read/, /from '\.\.\/models/]) {
       matchesInCode(forbidden).should.deepEqual([]);
     }
   });
 
-  it('sin contrato no hay esquema, ni SQL, ni lectura de process.env en queries/', () => {
-    // El candado del alcance: si aparece algo acá, la story se corrió a escribir el contrato que
-    // RF-10 deja para el REQ siguiente.
-    for (const forbidden of [/\bjoi\b/, /\bQueryTypes\b/, /process\.env/]) {
-      matchesInCode(forbidden).should.deepEqual([]);
-    }
+  it('queries/ no lee process.env: todo lo variable llega inyectado', () => {
+    // LO QUE QUEDA DEL CANDADO DE ALCANCE DE S-013. Aquel test también prohibía `joi` y
+    // `QueryTypes`, y era correcto MIENTRAS no hubiera contrato: su comentario decía que su
+    // aparición significaría que la story se corrió a escribir el contrato que RF-10 dejaba para
+    // el REQ siguiente. S-022 ES ese REQ, así que las dos prohibiciones se retiran acá —Joi valida
+    // la forma exterior y `QueryTypes.SELECT` es cómo se ejecuta el SQL explícito—.
+    //
+    // `process.env` SIGUE PROHIBIDO, y esa mitad no tiene fecha de vencimiento: el presupuesto de
+    // bytes y la conexión llegan por el contexto, y leerlos del entorno acá volvería a atar el
+    // módulo a un arranque en vez de a una request.
+    matchesInCode(/process\.env/).should.deepEqual([]);
   });
 });
 

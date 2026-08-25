@@ -161,3 +161,58 @@ await host.stop();   // drains: 'subscription.drain' lands between the services 
 
 **It has no methods no test looks at** (`getReceived`, `getMax`, `getPending`). The file's criterion
 is minimal: what `BusHost` uses and what the test asserts.
+
+## setQueryBudget / resetQueryBudget
+
+**Location:** `core/tests/helpers/dispatch.ts`
+
+**Description:** Injects the **page byte budget** that `dispatchQuery()` will use. The tests for the
+budget cut and for the item that alone does not fit need a small, predictable number; depending on a
+real server's `max_payload` would make them fragile *and* would force a bus to be up in order to test
+a rule that is not about the bus.
+
+The dispatcher's budget provider is evaluated on **every** dispatch, so changing the variable between
+two calls changes the second one without rebuilding anything. Default: `DEFAULT_PAYLOAD_BUDGET_BYTES`.
+
+**Signature:**
+```ts
+function setQueryBudget(bytes: number): void;
+function resetQueryBudget(): void;
+```
+
+**Usage:**
+```ts
+afterEach(() => resetQueryBudget());
+
+it('the budget cuts the page', async () => {
+  setQueryBudget(2048);
+  const reply = await dispatchQuery('tasks.list', { page: { limit: 100 } });
+  reply.data.page.returned.should.be.below(100);
+});
+```
+
+## Task query fixtures
+
+**Location:** `core/tests/queries/task-fixtures.ts`
+
+**Description:** The fixture world the query-engine tests hang off: user, projects, requirement,
+people, tasks with a **controlled `created_at`**, comments, assignments and subscriptions.
+
+`created_at` is set with a SQL `UPDATE` rather than at insert time: Sequelize overwrites the
+timestamp columns on save, and the default sort of `tasks` is precisely `-createdAt` — without
+control over that column half the ordering tests would prove nothing.
+
+**Writing fixtures goes through the WRITE connection and the `@jiku/models` classes; the reads under
+test go through `readDb` with explicit SQL.** That asymmetry is the point: if the engine used the
+ORM, there would not be two paths to compare.
+
+**Signature:**
+```ts
+function createWorld(projects?: number[]): Promise<void>;   // requirement hangs off projects[0]
+function createTasks(seeds: TaskSeed[]): Promise<void>;
+function createComments(objectiveId: number, count: number): Promise<void>;
+function assignPerson(objectiveId: number, personId: number,
+                      options: { isLeader: boolean; active: boolean }): Promise<void>;
+function subscribe(objectiveId: number, userId?: string): Promise<void>;
+function destroyWorld(): Promise<void>;
+```

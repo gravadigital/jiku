@@ -4,10 +4,35 @@ import { registry } from '../../src/commands';
 import { getTrustedPublisherId } from '../../src/config';
 import { readDb } from '../../src/models/read';
 import { queryRegistry } from '../../src/queries';
-import { QueryDispatcher } from '../../src/queries/dispatcher';
+import { DEFAULT_PAYLOAD_BUDGET_BYTES, QueryDispatcher } from '../../src/queries/dispatcher';
 
 const dispatcher = new Dispatcher(registry);
-const queries = new QueryDispatcher(queryRegistry, readDb);
+
+/**
+ * El presupuesto de bytes de la página, INYECTABLE.
+ *
+ * Los tests del corte por presupuesto (CA-14) y del item que solo no entra (CA-15) necesitan un
+ * número chico y predecible. Depender del `max_payload` real de un server NATS haría el test
+ * frágil —y obligaría a levantar un bus para probar una regla que no es del bus—, así que el
+ * proveedor perezoso que el despachador acepta desde S-022 lee esta variable.
+ *
+ * El default es el mismo `DEFAULT_PAYLOAD_BUDGET_BYTES` del código: 524288, la mitad del
+ * `max_payload` por defecto de NATS.
+ */
+let queryBudgetBytes = DEFAULT_PAYLOAD_BUDGET_BYTES;
+
+/** Fija el presupuesto para el resto del test. Acordate de `resetQueryBudget()` en el `after`. */
+export function setQueryBudget(bytes: number): void {
+  queryBudgetBytes = bytes;
+}
+
+export function resetQueryBudget(): void {
+  queryBudgetBytes = DEFAULT_PAYLOAD_BUDGET_BYTES;
+}
+
+// El proveedor se evalúa EN CADA dispatch, así que cambiar la variable entre dos despachos
+// cambia el presupuesto del segundo sin reconstruir nada.
+const queries = new QueryDispatcher(queryRegistry, readDb, () => queryBudgetBytes);
 
 /**
  * Despacha un comando como si hubiera llegado por el bus, armando el subject completo.

@@ -98,6 +98,14 @@ promises, and `drain()`/`close()` may run before the dispatcher finishes writing
 `msg.respond()`. **This is pre-existing behavior**, verified identical in the `consumer.ts` this
 replaced. Closing the gap means tracking the in-flight promises and awaiting them before the drain.
 
+### `maxPayload()` (S-022)
+
+`BusHost` also exposes `maxPayload(): number | undefined`, reading `max_payload` off its live
+connection (`undefined` before `start()`). It exists for the query page byte budget, which is
+`floor(max_payload * 0.5)` and is resolved **per request**: caching it at startup would measure
+against the old server after a reconnection. The connection is **not** added to `ServiceSpec` — that
+signature is shared with `jiku-commands`.
+
 ## registerService
 
 **Location:** `core/src/bus/service.ts`
@@ -253,17 +261,27 @@ Three properties are load-bearing:
 It uses `methodFromSubject()`, not the deprecated `commandFromSubject()`: with two services on the
 bus the fifth segment is a method, not always a command.
 
+Since S-022 it also **calls `validate()` before `execute`** — inside the same `try/catch`, and
+without touching the database — and resolves the **page byte budget**. The budget comes from an
+optional third argument: a **lazy provider** invoked on **every** `dispatch()`, never cached at
+construction, because a reconnection to a server with a different `max_payload` changes the number.
+Without a provider the context carries no `budgetBytes` at all and the engine falls back to
+`DEFAULT_PAYLOAD_BUDGET_BYTES`.
+
 **Interface:**
 ```ts
 class QueryDispatcher {
-  constructor(registry: QueryRegistry, db: Sequelize);
+  constructor(registry: QueryRegistry, db: Sequelize, payloadBudget?: () => number);
   dispatch(subject: string, raw: unknown): Promise<Reply>; // never rejects
 }
+
+/** floor(maxPayload * 0.5), or DEFAULT_PAYLOAD_BUDGET_BYTES when the server announces nothing. */
+function budgetFrom(maxPayload: number | undefined): number;
 ```
 
-**Usage:**
+**Usage:** the provider is a closure over the host, so it reads the live connection:
 ```ts
-const queries = new QueryDispatcher(queryRegistry, readDb);
+const queries = new QueryDispatcher(queryRegistry, readDb, () => budgetFrom(host.maxPayload()));
 const host = new BusHost(commandsSpec, {
   name: QUERY_SERVICE,
   description: 'Consultas de lectura de Jiku: proyectos, tareas y comentarios',
@@ -319,3 +337,30 @@ const host = new BusHost(commandsSpec, queriesSpec).withEventConsumer({
   handle: (payload) => events.dispatch(payload),
 });
 ```
+
+## The query engine (`core/src/queries/engine/`)
+
+**Location:** `core/src/queries/engine/` — `validate-query.ts`, `cursor.ts`, `build-sql.ts`,
+`project.ts`, `include.ts`, `paginate.ts`, `execute-sql.ts`, `run.ts`
+
+**Description:** **One** generic engine that serves **any** resource that has a `ResourceSpec`. A new
+read endpoint is a spec plus two ~5-line files; if a resource ever needs logic *here* to work, the
+spec came up short — the fix goes in the spec or in the engine, never in the resource's file.
+
+| Function | File | What it does |
+|---|---|---|
+| `runList(spec, query, ctx)` / `runGet(spec, query, ctx)` | `run.ts` | The engine's executable form: the whole pipeline, returning the contract envelope |
+| `validateList(spec, payload)` / `validateGet(spec, payload)` | `validate-query.ts` | Raw payload → validated query, or `invalid_fields` with `{ field, value, allowed }`. The gate that stops an undeclared name from ever reaching the SQL |
+| `encodeCursor(keys, scope)` / `decodeCursor(cursor, scope, n)` | `cursor.ts` | The opaque keyset cursor, bound to its filter+sort by a hash of their **normalised** form. Never throws: a malformed cursor is `invalid_cursor`, not `internal_error` |
+| `buildRowsSql` / `buildCountSql` / `buildGetSql` | `build-sql.ts` | Validated query → explicit SQL. **Names come only from the spec, values always as `replacements`** |
+| `projectRow(spec, fields, sortLength, row)` | `project.ts` | Raw row → contract item: column renames, `priority` in its double form, 1:1 relations from the JOIN |
+| `attachCollections(spec, relations, items, ctx, label)` | `include.ts` | Collection relations **by page batch** — one query per relation regardless of item count (RF-36), with a window function for the per-item cap |
+| `paginate(entries, options)` | `paginate.ts` | Byte budget, page assembly and cursor emission. An item that alone does not fit is returned **truncated and flagged** — never an empty page with a cursor |
+| `selectRows(ctx, plan, label)` | `execute-sql.ts` | Runs the SQL on the injected connection and turns PostgreSQL's `57014` into `query_timeout` |
+
+**Two hard rules run through all of it (the SQL-injection mitigation is structural, not defensive):**
+names of table, column and sort direction come **exclusively** from the spec; values **always** travel
+in `replacements`. `build-sql.ts` has no escaping of payload strings — if it needed any, that would be
+the signal that a name arrived from the message body.
+
+**Usage:** see `core/src/queries/tasks/tasks-list.ts`; the whole resource is three declarations.

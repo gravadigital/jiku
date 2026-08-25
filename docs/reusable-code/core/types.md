@@ -55,27 +55,28 @@ traffic is the higher-volume one, and a new subject per id consulted would make 
 Because of that, `endpointSubject(pattern) === pattern` for every query, and no query subject
 contains a `*`.
 
-There is **no `validate()` yet**, and the absence is deliberate: without a query contract
-(RF-10 of REQ-004) a Joi schema would invent exactly what the requirement left out of scope. The
-requirement that defines the contract adds it, in the same shape as `Command`.
+Since S-022 it also has **`validate()`**, in the **same shape as `Command`** (`validation`
+convention): it returns `{ value }` or `{ error: Reply<never> }`, never throws, and **never touches
+the database**. The dispatcher calls it before `execute`, for the same reason it runs before opening
+the transaction on the command plane: an invalid payload must not cost a connection from the pool.
 
 **Interface:**
 ```ts
-interface Query<TData = unknown> {
+interface Query<TPayload = any, TData = unknown> {
   /** Method pattern, WITHOUT `{param}`: `projects.list`, `tasks.get`. */
   readonly pattern: string;
-  execute(payload: unknown, ctx: QueryContext): Promise<Reply<TData>>;
+  validate(payload: unknown): { value: TPayload } | { error: Reply<never> };
+  execute(payload: TPayload, ctx: QueryContext): Promise<Reply<TData>>;
 }
 ```
 
-**Usage:**
+**Usage:** a resource with a contract is almost entirely declarative — the spec says *what* can be
+asked for, the engine knows *how* to serve it:
 ```ts
-export const tasksGet: Query<TaskDetail> = {
+export const tasksGet: Query<ValidatedGetQuery> = {
   pattern: 'tasks.get',
-  execute: async (payload, ctx) => {
-    const rows = await ctx.db.query<TaskRow>(sql, { type: QueryTypes.SELECT, replacements });
-    return success(toDetail(rows));
-  },
+  validate: (payload: unknown) => validateGet(tasksSpec, payload),
+  execute: (payload, ctx) => runGet(tasksSpec, payload, ctx),
 };
 ```
 
@@ -96,6 +97,11 @@ the contract:**
 free of any reference to the ORM or to `models/read`, and what lets the tests run the dispatcher
 against another connection.
 
+`budgetBytes` (S-022) is the **page byte budget**, resolved **per request** from
+`nc.info.max_payload`. It is **optional on purpose**: a `QueryDispatcher` built without a budget
+provider — the shape S-013 shipped — produces exactly the context it always did, and the engine
+resolves the absence with `DEFAULT_PAYLOAD_BUDGET_BYTES`.
+
 **Interface:**
 ```ts
 interface QueryContext {
@@ -103,6 +109,8 @@ interface QueryContext {
   caller: string;
   /** READ-ONLY connection. Injected so the module never imports `models/read`. */
   db: Sequelize;
+  /** Page byte budget, resolved per request. Absent when no provider was wired. */
+  budgetBytes?: number;
 }
 ```
 
@@ -205,5 +213,67 @@ export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<Eve
   const existing = await User.findByPk(event.id, { transaction: ctx.transaction });
   // ... create or update, always with { transaction: ctx.transaction }
   return 'applied';
+}
+```
+
+## ResourceSpec
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** The shape of a **resource spec** — the data structure that describes everything the
+query engine needs to know about one resource. It is the central design decision of REQ-006: the
+spec is **data, not imperative code**, so the 17 remaining resources are specs that get *written*,
+not engines that get *reimplemented*, and `meta.describe` (S-028) can be derived from the very same
+allow-lists that validate the queries. If the spec were code, that guarantee would not be verifiable.
+
+It declares: `table` (the contract ↔ database translation, ADR-004), `base`, `includable` (each entry
+with `kind: 'field' | 'relation'`, and collections with their cap and truncation flag), `filterable`,
+`sortable`, `defaults`, `enums`, `truncatable`, `externalScope` and `notFoundCode`.
+
+Each allow-list exists **twice**: the map (`filterable`) to resolve a name, and the name array
+(`filterableNames`) to answer it in `errorDetails.allowed`. The array is **derived from the map with
+`Object.keys`**, not written by hand — so it is *the same list*, and the validator can return it by
+reference instead of a copy that drifts.
+
+**Interface (abridged):**
+```ts
+interface ResourceSpec {
+  readonly name: string;        // `tasks` — the contract name
+  readonly table: string;       // `objectives` — the real table
+  readonly base: Record<string, BaseFieldSpec>;
+  readonly includable: Record<string, IncludableSpec>;   // field | one-relation | many-relation
+  readonly filterable: Record<string, FilterableSpec>;   // column | via (subquery) | search
+  readonly sortable: Record<string, SortableSpec>;
+  readonly baseNames / includableNames / fieldNames / filterableNames / sortableNames: string[];
+  readonly defaults: { sort: readonly string[] };
+  readonly enums: Record<string, readonly string[]>;
+  readonly truncatable: readonly string[];               // unbounded text the budget may cut
+  readonly externalScope: ExternalScopeSpec;             // declared here, applied by S-023
+  readonly notFoundCode: string;
+  readonly notFoundMessage: string;
+}
+```
+
+**Usage:** adding a resource is writing one of these — see `core/src/queries/tasks/tasks-spec.ts`.
+
+## ValidatedListQuery / ValidatedGetQuery / SqlPlan
+
+**Location:** `core/src/queries/engine/types.ts`
+
+**Description:** The query **after validation**: names resolved against the spec, values typed,
+operators decided. It is the only thing the SQL builder receives, and it is the structural reason a
+name from the payload **cannot** reach the SQL — by this point it has already been rejected.
+
+`ValidatedListQuery` carries the parsed `filter` (AND conditions plus one level of `or` groups), the
+`sort` (in order, always ending in `id`), the **effective** `limit`, the returned field set, the
+relations to resolve, `count`, and the `scope` that the cursor hash is computed over.
+
+`SqlPlan` is a ready-to-run statement: **the string on one side, the values on the other. Always.**
+
+**Interface:**
+```ts
+interface SqlPlan {
+  readonly sql: string;
+  readonly replacements: Record<string, unknown>;
 }
 ```
