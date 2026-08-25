@@ -131,7 +131,10 @@ describe('GET /api/attachments/:id/download', () => {
         res.headers['x-content-type-options'].should.equal('nosniff');
         fakeBus.sent.length.should.equal(1);
         (fakeBus.last as any).command.should.equal(`files.${fileOk.id}.request-download`);
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'attachment' });
+        (fakeBus.last as any).payload.should.deepEqual({
+          disposition: 'attachment',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
       });
   });
 

@@ -183,3 +183,33 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
     });
   });
 });
+
+/**
+ * Test de DOCUMENTACIÓN, no de código, y por eso vale la pena: CA-15 se enuncia sobre EL CONTRATO
+ * —"`Actor` está descrito una sola vez, en `components/schemas/Actor` de `core.yaml`, y no
+ * repetido en los 20 canales"—, así que este es el único control que impide que alguien borre la
+ * nota del sobre al editar el spec por otra razón. El contenido ya está escrito: esto lo sostiene.
+ *
+ * Mismo molde que el bloque de arriba: se lee el archivo y se busca con expresiones regulares, sin
+ * sumar un parser de YAML que no es dependencia declarada de la api.
+ */
+describe('docs/apis/api.yaml — el sobre de identidad (S-029)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+
+  it('declara la clave reservada `actor` con sus cinco campos y remite a core.yaml', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+
+    spec.should.match(/EL SOBRE DE IDENTIDAD/);
+    spec.should.match(/\{ id, roles, name\?, username\?, email\? \}/);
+    // La referencia, no la copia: repetir el schema acá es exactamente lo que CA-15 prohíbe.
+    spec.should.match(/components\/schemas\/Actor/);
+  });
+
+  it('deja dicho que el sobre sale del claim y no de una lectura a `users`', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+
+    // Es la mitad exigente de CA-14, y la que un "arreglo" bienintencionado rompe primero.
+    spec.should.match(/CON EL CLAIM YA VERIFICADO y no con una\n#\s+lectura a `users`/);
+    spec.should.match(/[Ss]olo el publicador de confianza puede transportarla/);
+  });
+});

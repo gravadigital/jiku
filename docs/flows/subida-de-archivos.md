@@ -4,8 +4,8 @@ title: Subida de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-23
-stories: [S-002, S-004, S-006, S-007, S-014]
+last_updated: 2026-08-25
+stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034]
 ---
 
 # Subida de Archivos
@@ -13,8 +13,18 @@ stories: [S-002, S-004, S-006, S-007, S-014]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-19
-**Stories:** S-002, S-004, S-006, S-007
+**Última actualización:** 2026-08-25
+**Stories:** S-002, S-004, S-006, S-007, S-014, S-029, S-034
+
+> ## REQ-007 — cambio acotado
+>
+> | Qué | Cómo queda | Story |
+> |---|---|---|
+> | El payload | Gana la clave reservada **`actor`** — **ya aplicado** | S-029 |
+> | `resolveActor` | Gana **la rama del sobre**: con sobre manda `actor.id`; sin sobre, todo sigue igual | S-029 |
+> | **Los límites (C-50)** | **NO SE MUEVEN: ya están en `core`.** `file-max-size-bytes` (`file_too_large`), la **doble lista blanca** de extensión y MIME (`file_type_not_allowed`) leídas de `system_settings` en caliente —paso 5—, y `maxItems: 10` **ya es del contrato del bus**. Lo que cambia es la columna *"Aplicado en"* del PRD | S-034 |
+> | La api | **`- ELIMINADO`** el residuo de validación de límites que todavía tenga | S-034 |
+
 
 > **Estado de implementación (2026-08-19).** **El flujo está completo y pasa a `Active`.** El lado
 > de `core` (S-002), el de la **`api` (S-004)**, el de **`web` (S-006)** y el de **`opus-web`
@@ -174,6 +184,7 @@ La `api` valida el JWT y la forma con Joi. **No valida tipo ni tamaño** —eso 
 **Payload (`FilesRequestUploadPayload`):**
 ```json
 {
+  "actor": { "id": "IdentityUserId — el zitadel sub del claim ya verificado", "roles": ["user"] },
   "uploader": "IdentityUserId — el zitadel sub del usuario final autenticado por JWT",
   "fileName": "string",
   "mimeType": "string",
@@ -183,6 +194,17 @@ La `api` valida el JWT y la forma con Joi. **No valida tipo ni tamaño** —eso 
 ```
 
 Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
+
+> **El sobre de identidad (S-029, entregado).** Todo comando que publica la api lleva además la
+> clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
+> api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
+> arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
+> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+>
+> **`uploader` NO desaparece, y vale lo mismo que `actor.id`.** Es dato de dominio —termina en
+> `files.uploaded_by`— y los dos salen del token del usuario final, así que nadie pierde la
+> capacidad de vincular después lo que subió. Que difieran sería un error del publicador, y `core`
+> lo rechaza con `invalid_fields`.
 
 > **`uploader` es opcional a propósito**: es la palanca de D-26. Un publicador externo **lo omite**,
 > y si lo mandara **se ignora** — `core` resuelve el actor del `caller` del subject. Ver paso 5.

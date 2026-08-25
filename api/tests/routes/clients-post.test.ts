@@ -66,6 +66,7 @@ describe('POST /api/clients', () => {
         fakeBus.last!.payload.should.deepEqual({
           name: 'Adistal',
           description: 'Un cliente',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
         });
 
         response.body.id.should.equal(42);

@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import validateBodyFields from '../utils/validate-body-fields';
-import { sendCommand, actor } from '../utils/bus/send-command';
+import { sendCommand, actorId } from '../utils/bus/send-command';
 import { UploadTicketReply, toUploadTicket } from '../utils/bus/upload-ticket';
 
 const router: Router = Router();
@@ -58,7 +58,7 @@ async function requestUpload(req: Request, res: Response) {
     // caería en la rama del canal externo, `uploaded_by` quedaría siendo el service user de la
     // api y NINGÚN usuario podría vincular después lo que subió — con `file_not_owned` como
     // único síntoma, muy lejos de su causa.
-    uploader: actor(req),
+    uploader: actorId(req),
     fileName,
     mimeType,
     fileSize,

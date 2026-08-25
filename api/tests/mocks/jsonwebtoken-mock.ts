@@ -58,6 +58,29 @@ const internalTokens: Record<string, DecodedToken> = {
       }
     }
   },
+  // S-029: el único token del mock CON claims de perfil. Existe para probar que los tres viajan en
+  // el sobre y que `preferred_username` se mapea a `username`; los otros cuatro NO SE TOCAN, porque
+  // su ausencia de perfil es justamente el otro caso que hay que cubrir (CA-11).
+  token_05_user_profile: {
+    aud: [
+      IDENTITY_CLIENT_ID,
+      '275672248377933829'
+    ],
+    exp: 1720959138,
+    iat: 1720887138,
+    iss: IDENTITY_ISSUER,
+    jti: '275802564547575005',
+    nbf: 1720887138,
+    sub: 'zitadel-sub-05',
+    name: 'Ana Pérez',
+    preferred_username: 'ana@grava.digital',
+    email: 'ana@grava.digital',
+    'urn:zitadel:iam:org:project:roles': {
+      'user': {
+        '275648673470218245': 'grava.id.grava.io'
+      }
+    }
+  },
   token_04_external_user: {
     aud: [
       IDENTITY_CLIENT_ID,

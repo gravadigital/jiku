@@ -123,7 +123,9 @@ describe('DELETE /api/attachments/:id', () => {
         res.body.should.have.property('message');
         fakeBus.sent.length.should.equal(1);
         (fakeBus.last as any).command.should.equal(`attachments.${link1.id}.delete`);
-        (fakeBus.last as any).payload.should.deepEqual({});
+        (fakeBus.last as any).payload.should.deepEqual({
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
       });
   });
 

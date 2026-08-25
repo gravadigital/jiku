@@ -137,7 +137,10 @@ describe('GET /api/opus/attachments/:id/preview', () => {
         res.headers['location'].should.equal(DOWNLOAD_URL);
         res.headers['x-content-type-options'].should.equal('nosniff');
         (fakeBus.last as any).command.should.equal(`files.${fileComment.id}.request-download`);
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'inline' });
+        (fakeBus.last as any).payload.should.deepEqual({
+          disposition: 'inline',
+          actor: { id: 'zitadel-sub-04', roles: ['external-user'] },
+        });
       });
   });
 

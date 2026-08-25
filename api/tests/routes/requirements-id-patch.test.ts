@@ -4,6 +4,7 @@ import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import { Attachment, AttachmentEntityType, File, Person, PersonRequirement, Project, Requirement, RequirementActivity, RetentionStatus, User } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
 
 describe('PATCH /api/requirements/:reqid', () => {
   let application: Application;
@@ -1528,5 +1529,24 @@ describe('PATCH /api/requirements/:reqid', () => {
           (foundRemoved === null).should.be.true();
         });
     });
+  });
+
+  // TS-13 (S-029, CA-6 y CA-7): `editor` sigue viajando —es DATO DE DOMINIO— y vale lo mismo que
+  // `actor.id`, que sale del `sub` del claim. Que coincidan es lo que evita que core rechace el
+  // comando por CA-6: dos identidades distintas en un mismo comando son un error del publicador,
+  // no una elección. Vive acá y no en `actor-envelope.test.ts` porque el fixture del requisito ya
+  // existe: duplicarlo para repetir la misma aserción es trabajo sin cobertura nueva.
+  it('TS-13: `editor` y `actor.id` coinciden y core no rechaza el comando', () => {
+    return request(application)
+      .patch('/api/requirements/2')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Nuevo título' })
+      // El 200 ES la aserción de que no salió 400 `invalid_fields`.
+      .expect(200)
+      .then(() => {
+        const payload = (fakeBus.last as any).payload;
+        payload.editor.should.equal(payload.actor.id);
+        payload.actor.id.should.equal('zitadel-sub-01');
+      });
   });
 });

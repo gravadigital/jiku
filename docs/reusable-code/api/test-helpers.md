@@ -94,3 +94,39 @@ it('devuelve 504 cuando la respuesta del bus no llega a tiempo', () => {
 
 **Used by:** `attachments-post`, `attachments-delete`, `opus-attachments-post` and
 `requirements-post` (TS-2).
+
+## token_05_user_profile
+
+**Location:** `api/tests/mocks/jsonwebtoken-mock.ts`
+
+**Description:** The only mock token that carries the three OIDC profile claims: `name`
+(`'Ana Pérez'`), `preferred_username` and `email` (both `'ana@grava.digital'`), on
+`sub: 'zitadel-sub-05'` with the `user` role.
+
+It exists because the identity envelope (S-029) treats those three as optional — the access token
+carries them only if the Zitadel instance emits them with the `profile` / `email` scopes the two
+frontends request. The other four tokens carry none, which is the opposite case and the one worth
+keeping: an envelope without `name` must not wipe the name the `users` row already had.
+
+**Seed a `users` row for `zitadel-sub-05` before using it** — `validateToken` still answers `401
+user_not_found` for a `sub` with no row (that 401 goes away in S-034).
+
+**Usage example:**
+
+```ts
+await request(application)
+  .post('/api/clients')
+  .set('Authorization', 'Bearer token_05_user_profile')
+  .send({ name: 'Acme' })
+  .expect(201);
+
+(fakeBus.last as any).payload.actor.should.deepEqual({
+  id: 'zitadel-sub-05',
+  roles: ['user'],
+  name: 'Ana Pérez',
+  username: 'ana@grava.digital',   // `preferred_username` travels as `username`
+  email: 'ana@grava.digital',
+});
+```
+
+**Used by:** `actor-envelope.test.ts` (TS-8).

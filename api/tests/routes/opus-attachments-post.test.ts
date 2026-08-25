@@ -71,7 +71,10 @@ describe('POST /api/opus/attachments', () => {
       fileName: 'captura.png',
       mimeType: 'image/png',
       fileSize: 2048,
+      actor: { id: 'zitadel-sub-04', roles: ['external-user'] },
     });
+    // TS-11 para el `external-user`: el sobre lleva SUS roles, no los de la api.
+    (fakeBus.last as any).payload.uploader.should.equal((fakeBus.last as any).payload.actor.id);
 
     const file = await File.findByPk(res.body.fileId);
     (file !== null).should.be.true();
