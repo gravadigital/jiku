@@ -1,4 +1,5 @@
 import { OneRelationSpec, QueryContext, ResourceSpec } from '../types';
+import { specFor } from './spec';
 import {
   FilterCondition,
   ParsedFilter,
@@ -108,16 +109,40 @@ function externalScopeSql(
   const scope = resource.externalScope;
   params.set('caller', ctx.caller);
 
+  if (scope.kind === 'owner') {
+    // LA FILA ES DEL CALLER: el recorte es su propia identidad, y NADA MÁS. Sin
+    // `user_project_permissions` a propósito (ver `OwnerExternalScope`): agregarlo "por simetría"
+    // le escondería a un caller externo SUS PROPIAS suscripciones a entidades de proyectos que ya
+    // no ve — datos de menos, en silencio.
+    return `${MAIN}.${scope.userColumn} = :caller`;
+  }
+
   if (scope.kind === 'exists') {
-    // EL RECORTE INDIRECTO: la fila NO LLEVA el proyecto. Un actor no tiene `project_id`; su
-    // visibilidad depende de TENER AL MENOS UN PROYECTO PERMITIDO. Es un EXISTS sobre la tabla que
-    // sí lo lleva, y NO un `IN` sobre una columna del propio recurso — que es el error que la
-    // simetría con los otros recortes invita a cometer.
-    return (
-      `EXISTS (SELECT 1 FROM ${scope.table} ${SCOPE} ` +
-      `WHERE ${SCOPE}.${scope.foreignKey} = ${MAIN}.${scope.localKey} ` +
-      `AND ${SCOPE}.${scope.projectColumn} IN ${PERMITTED_PROJECTS})`
-    );
+    // EL RECORTE INDIRECTO: la fila NO LLEVA el proyecto. Un actor no tiene `project_id`, y una
+    // fila de actividad tampoco: su proyecto es el de la ENTIDAD DUEÑA. Es un EXISTS sobre la
+    // tabla que sí lo lleva, y NO un `IN` sobre una columna del propio recurso — que es el error
+    // que la simetría con los otros recortes invita a cometer.
+    const inner = [
+      `${SCOPE}.${scope.foreignKey} = ${MAIN}.${scope.localKey}`,
+      `${SCOPE}.${scope.projectColumn} IN ${PERMITTED_PROJECTS}`,
+    ];
+    if (scope.visibility) {
+      // La ENTIDAD DUEÑA tiene que ser pública. Su ausencia es "la tabla alcanzada no tiene
+      // columna de visibilidad" (`clients`), nunca "no recortes".
+      params.set('externalVisibility', scope.visibility.value);
+      inner.push(`${SCOPE}.${scope.visibility.column} = :externalVisibility`);
+    }
+    const parts = [
+      `EXISTS (SELECT 1 FROM ${scope.table} ${SCOPE} WHERE ${inner.join(' AND ')})`,
+    ];
+    if (scope.ownVisibility) {
+      // …Y LA PROPIA FILA TAMBIÉN (H-8 del plan de S-025). `objective_activity.visibility_level`
+      // existe exactamente para esto y su default es `internal`: sin esta mitad, un comentario
+      // interno sobre una tarea pública se ve desde el portal de clientes.
+      params.set('externalOwnVisibility', scope.ownVisibility.value);
+      parts.push(`${MAIN}.${scope.ownVisibility.column} = :externalOwnVisibility`);
+    }
+    return parts.join(' AND ');
   }
 
   const parts = [`${MAIN}.${scope.projectColumn} IN ${PERMITTED_PROJECTS}`];
@@ -383,15 +408,23 @@ function selectParts(
   const joins: string[] = [];
 
   for (const name of fields) {
-    const base = resource.base[name];
-    if (base) {
-      columns.push(`${MAIN}.${base.column} AS "${name}"`);
+    // UNA SOLA RESOLUCIÓN, y mira los DOS mapas: desde S-025 una relación y un valor constante
+    // pueden vivir en el conjunto base. Ver `specFor` en `engine/spec.ts`.
+    const spec = specFor(resource, name);
+    if (!spec) {
       continue;
     }
-    const includable = resource.includable[name];
-    if (!includable) {
+    // EL CAMPO CONSTANTE NO EMITE COLUMNA: su valor lo pone la proyección desde la ficha. Meter el
+    // literal en el SQL funcionaría, y la regla del módulo es que al SQL solo llegan NOMBRES.
+    if ('constant' in spec) {
       continue;
     }
+    // Sin `kind` es un campo del conjunto base: una columna con su alias del contrato.
+    if (!('kind' in spec)) {
+      columns.push(`${MAIN}.${spec.column} AS "${name}"`);
+      continue;
+    }
+    const includable = spec;
     if (includable.kind === 'field') {
       columns.push(`${MAIN}.${includable.column} AS "${name}"`);
       continue;
@@ -417,7 +450,7 @@ function selectParts(
       }
     }
     // Las relaciones de colección NO van en la consulta principal: se resuelven POR LOTE de la
-    // página, en `include.ts` (RF-36).
+    // página, en `include.ts` (RF-36). Vale igual estén en `includable` o en `base`.
   }
 
   // Las claves de orden, siempre: son lo que el cursor transporta, y el conjunto devuelto puede
@@ -448,6 +481,17 @@ export function buildRowsSql(
   const params = new Params();
   const { columns, joins } = selectParts(resource, query.fields, query.sort);
   const where = whereSql(query.filter, params);
+
+  // EL PREDICADO FIJO DEL RECURSO: `comments` es `objective_activity` con
+  // `type_of_activity = 'comment'`, y `activity` es LA MISMA tabla sin él. Sale de la ficha, jamás
+  // del payload, y por eso llega al SQL sin escaparse. VA EN LOS TRES SQL: olvidarlo en el COUNT
+  // haría que el total cuente filas que la colección no devuelve.
+  //
+  // AL FRENTE DEL FILTRO DEL CALLER (y detrás del recorte, que se antepone después): el orden
+  // dentro del AND no cambia la semántica, pero mantenerlo estable hace legibles los tests de SQL.
+  if (resource.where) {
+    where.unshift(resource.where);
+  }
 
   if (keys && keys.length > 0) {
     where.push(keysetSql(query.sort, keys, params));
@@ -488,6 +532,17 @@ export function buildCountSql(
   const { joins } = selectParts(resource, query.fields, query.sort);
   const where = whereSql(query.filter, params);
 
+  // EL PREDICADO FIJO DEL RECURSO: `comments` es `objective_activity` con
+  // `type_of_activity = 'comment'`, y `activity` es LA MISMA tabla sin él. Sale de la ficha, jamás
+  // del payload, y por eso llega al SQL sin escaparse. VA EN LOS TRES SQL: olvidarlo en el COUNT
+  // haría que el total cuente filas que la colección no devuelve.
+  //
+  // AL FRENTE DEL FILTRO DEL CALLER (y detrás del recorte, que se antepone después): el orden
+  // dentro del AND no cambia la semántica, pero mantenerlo estable hace legibles los tests de SQL.
+  if (resource.where) {
+    where.unshift(resource.where);
+  }
+
   // EL COUNT NO SE PUEDE OLVIDAR: sin el recorte devolvería el total REAL y filtraría exactamente
   // la información que el recorte esconde. Un total que no cuenta lo mismo que la colección es
   // peor que no tener total, y acá además es una fuga.
@@ -527,6 +582,18 @@ export function buildGetSql(
   // `{recurso}_not_found` de la ficha: "no existe" y "no lo podés ver" son INDISTINGUIBLES, porque
   // distinguirlos le confirmaría a un caller externo que el recurso existe.
   const where = [`${MAIN}.id = :${params.add(query.id)}`];
+
+  // EL PREDICADO FIJO DEL RECURSO: `comments` es `objective_activity` con
+  // `type_of_activity = 'comment'`, y `activity` es LA MISMA tabla sin él. Sale de la ficha, jamás
+  // del payload, y por eso llega al SQL sin escaparse. VA EN LOS TRES SQL: olvidarlo en el COUNT
+  // haría que el total cuente filas que la colección no devuelve.
+  //
+  // AL FRENTE DEL FILTRO DEL CALLER (y detrás del recorte, que se antepone después): el orden
+  // dentro del AND no cambia la semántica, pero mantenerlo estable hace legibles los tests de SQL.
+  if (resource.where) {
+    where.unshift(resource.where);
+  }
+
   const scope = externalScopeSql(resource, ctx, params);
   if (scope) {
     where.unshift(scope);

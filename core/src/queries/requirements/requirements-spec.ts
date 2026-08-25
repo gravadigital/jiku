@@ -189,7 +189,14 @@ const INCLUDABLE: Record<string, IncludableSpec> = {
     // EL `where` ES DE SEGURIDAD, NO DE PROLIJIDAD: `attachments` es POLIMÓRFICA y no tiene FK a
     // la entidad. Sin `entity_type = 'requirement'`, un requisito traería los adjuntos de la TAREA
     // con el mismo `entity_id`. Y sin `deleted_at IS NULL`, los vínculos borrados.
-    where: 'r.entity_type = \'requirement\' AND r.deleted_at IS NULL',
+    //
+    // `retention_status = 'active'` LO AGREGA S-025 (hallazgo H-7 de su plan): RF-26 declara las
+    // DOS exclusiones permanentes y no configurables, y este camino tenía solo una. El archivo no
+    // retenido no vuelve por ninguna puerta — ni acá, ni por los adjuntos embebidos de `comments`,
+    // ni por `attachments.list` (S-027). El `INNER JOIN files` ya estaba.
+    where:
+      'r.entity_type = \'requirement\' AND r.deleted_at IS NULL' +
+      ' AND j.retention_status = \'active\'',
     order: [{ expr: 'r.id', dir: 'ASC' }],
     fields: {
       id: 'r.id',

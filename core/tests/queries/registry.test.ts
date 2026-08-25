@@ -24,16 +24,22 @@ const CONTRACT_PATTERNS = [
   'tasks.get',
   'comments.list',
   'comments.get',
+  'activity.list',
+  'subscriptions.list',
 ];
 
 /**
- * Los que SIGUEN SIN CONTRATO después de S-024.
+ * Los que SIGUEN SIN CONTRATO después de S-025: NINGUNO.
  *
- * S-022 le dio contrato a `tasks`; S-024 a `clients`, `projects` y `requirements`. Quedan las dos
- * de `comments`, que llegan con S-025. `src/queries/pending.ts` se elimina recién en S-028, cuando
- * este array quede vacío.
+ * S-022 le dio contrato a `tasks`, S-024 a `clients`, `projects` y `requirements`, y S-025 a
+ * `comments`, `activity` y `subscriptions`. El array quedó vacío, y `src/queries/pending.ts` se
+ * elimina en S-028 —cuando el registro tenga los 18 recursos—, no acá: lo que esta story deja es
+ * un stub SIN CONSUMIDORES, que es otra cosa (CA-17).
+ *
+ * EL ARRAY SE QUEDA VACÍO Y NO SE BORRA: el bucle de TS-19 sigue siendo la forma de verificar la
+ * propiedad, y un recurso nuevo sin contrato volvería a poblarlo.
  */
-const PENDING_PATTERNS = ['comments.list', 'comments.get'];
+const PENDING_PATTERNS: string[] = [];
 
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 
@@ -77,6 +83,8 @@ describe('queries/index — el registry poblado', () => {
   it('TS-19 · los endpoints sin contrato contestan un failure BIEN FORMADO, con cualquier payload', async () => {
     const dispatcher = new QueryDispatcher(queryRegistry, readDb);
 
+    // Desde S-025 la lista está VACÍA y este bucle no itera: la aserción que queda viva es la de
+    // `pending.test.ts`, que verifica que NINGÚN patrón registrado responde ese mensaje.
     for (const pattern of PENDING_PATTERNS) {
       for (const payload of [{}, { id: 7, limit: 50 }]) {
         const reply = await dispatcher.dispatch(

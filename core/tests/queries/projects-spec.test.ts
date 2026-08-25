@@ -2,7 +2,19 @@ import 'mocha';
 import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { projectsSpec } from '../../src/queries/projects/projects-spec';
-import { ColumnExternalScope, OneRelationSpec } from '../../src/queries/types';
+import { BaseFieldSpec, ColumnExternalScope, OneRelationSpec } from '../../src/queries/types';
+
+/**
+ * Un campo del conjunto base, ESTRECHADO A COLUMNA.
+ *
+ * `ResourceSpec.base` pasó a ser `BaseSpec` en S-025 —una columna, un valor CONSTANTE o una
+ * RELACIÓN—, y esta ficha declara solo columnas. El estrechamiento se hace UNA VEZ acá en vez de
+ * repartir `as` por las aserciones, que es lo que apagaría la verificación en las fichas nuevas.
+ */
+function baseField(name: string): BaseFieldSpec {
+  return projectsSpec.base[name] as BaseFieldSpec;
+}
+
 
 /**
  * LA FICHA DE `projects` COMO DATO (TS-68), y las dos ausencias deliberadas del recurso.
@@ -33,9 +45,9 @@ describe('queries/projects — la ficha como dato (S-024)', () => {
       'createdAt',
       'updatedAt',
     ]);
-    projectsSpec.base.clientId.column.should.equal('client_id');
-    projectsSpec.base.originId.column.should.equal('origin_id');
-    projectsSpec.base.createdBy.column.should.equal('created_by');
+    baseField('clientId').column.should.equal('client_id');
+    baseField('originId').column.should.equal('origin_id');
+    baseField('createdBy').column.should.equal('created_by');
   });
 
   it('CA-6 · `ticketSlug` NO EXISTE para esta API, en ninguna de las cuatro listas', () => {
@@ -120,6 +132,6 @@ describe('queries/projects — la ficha como dato (S-024)', () => {
 
   it('el orden por defecto es `-createdAt` y el código de "no encontrado" es la CONSTANTE', () => {
     [...projectsSpec.defaults.sort].should.deepEqual(['-createdAt']);
-    projectsSpec.notFoundCode.should.equal(ErrorCode.PROJECT_NOT_FOUND);
+    projectsSpec.notFoundCode!.should.equal(ErrorCode.PROJECT_NOT_FOUND);
   });
 });

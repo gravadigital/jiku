@@ -53,7 +53,7 @@ function specFor(
 const QUERIES_DESCRIPTION = 'Consultas de lectura de Jiku: proyectos, tareas y comentarios';
 
 /**
- * Los 6 endpoints de consulta, COPIADOS de la tabla del contrato, no recalculados. Ninguno lleva
+ * Los 12 endpoints de consulta, COPIADOS de la tabla del contrato, no recalculados. Ninguno lleva
  * `{param}`, así que ningún subject lleva `*`: es una decisión de performance (el cache de
  * subjects de 1024 entradas del server), no un olvido.
  */
@@ -68,6 +68,8 @@ const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
   ['tasks-get', 'tasks.get'],
   ['comments-list', 'comments.list'],
   ['comments-get', 'comments.get'],
+  ['activity-list', 'activity.list'],
+  ['subscriptions-list', 'subscriptions.list'],
 ];
 
 /**

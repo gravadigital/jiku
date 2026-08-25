@@ -169,18 +169,18 @@ describe('queries/tasks — el contrato del recurso', () => {
       (reply.errorCode === undefined).should.be.true();
     });
 
-    it('TS-2 · los dos de `comments` SIGUEN en `pendingContract`', async () => {
-      // S-024 le dio contrato a `clients`, `projects` y `requirements`; `comments` llega con S-025
-      // y `pending.ts` se elimina recién en S-028, cuando no quede ninguno.
+    it('TS-2 · los dos de `comments` YA NO están en `pendingContract` (S-025)', async () => {
+      // S-024 le dio contrato a `clients`, `projects` y `requirements`; S-025 se lo dio a
+      // `comments` —con `entityType` OBLIGATORIO—, a `activity` y a `subscriptions`. `pending.ts`
+      // se elimina recién en S-028; lo que esta story dejó es un stub SIN CONSUMIDORES.
       for (const [method, payload] of [
-        ['comments.list', {}],
-        ['comments.get', { id: 1 }],
+        ['comments.list', { filter: { entityType: 'task', entityId: 8140 } }],
+        ['comments.get', { id: 8140, entityType: 'task' }],
       ] as [string, unknown][]) {
         const reply = await dispatchQuery(method, payload);
 
-        reply.status.should.equal('failure', method);
-        reply.errorCode!.should.equal('unknown_command', method);
-        reply.errorMessage!.should.containEql('todavía no tiene contrato definido');
+        JSON.stringify(reply).should.not.containEql('todavía no tiene contrato definido');
+        (reply.errorCode === 'unknown_command').should.be.false(method);
       }
     });
   });

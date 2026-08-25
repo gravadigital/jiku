@@ -1,4 +1,4 @@
-import { Reply, failure, success } from '@jiku/nats-protocol';
+import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { DEFAULT_PAYLOAD_BUDGET_BYTES } from '../dispatcher';
 import { QueryContext, ResourceSpec } from '../types';
 import { buildCountSql, buildGetSql, buildRowsSql } from './build-sql';
@@ -7,6 +7,7 @@ import { selectRows } from './execute-sql';
 import { attachCollections } from './include';
 import { paginate } from './paginate';
 import { projectRow } from './project';
+import { resolveVariant } from './spec';
 import { ValidatedGetQuery, ValidatedListQuery } from './types';
 
 /**
@@ -31,7 +32,10 @@ export async function runList(
   query: ValidatedListQuery,
   ctx: QueryContext
 ): Promise<Reply> {
-  const label = `${resource.name}.list`;
+  // LA VARIANTE, PRIMERO: de acá en adelante `spec` es la ficha EFECTIVA y el resto del motor no
+  // sabe que hubo variantes. Para un recurso sin discriminador es la identidad.
+  const spec = resolveVariant(resource, query.variant);
+  const label = `${spec.name}.list`;
   // El presupuesto llega POR EL CONTEXTO, resuelto por request desde `nc.info.max_payload`. El
   // motor no conoce la conexión, y el default cubre al despachador construido sin proveedor.
   const budgetBytes = ctx.budgetBytes ?? DEFAULT_PAYLOAD_BUDGET_BYTES;
@@ -39,7 +43,7 @@ export async function runList(
   // `count: 'only'` NO EJECUTA LA CONSULTA DE FILAS. Es la razón de existir del tercer valor: un
   // caller que solo quiere el total no tiene por qué pagar el scan de la página.
   if (query.count === 'only') {
-    const plan = buildCountSql(resource, query, ctx);
+    const plan = buildCountSql(spec, query, ctx);
     const counted = await selectRows<CountRow>(ctx, plan, label);
     if ('error' in counted) {
       return counted.error;
@@ -61,7 +65,7 @@ export async function runList(
     keys = decoded.keys;
   }
 
-  const rowsPlan = buildRowsSql(resource, query, ctx, keys);
+  const rowsPlan = buildRowsSql(spec, query, ctx, keys);
   const selected = await selectRows<Record<string, unknown>>(ctx, rowsPlan, label);
   if ('error' in selected) {
     return selected.error;
@@ -70,10 +74,10 @@ export async function runList(
   // La fila extra del `LIMIT limit + 1` NO SE DEVUELVE: solo dice que hay página siguiente.
   const hasMore = selected.rows.length > query.limit;
   const rows = hasMore ? selected.rows.slice(0, query.limit) : selected.rows;
-  const entries = rows.map((row) => projectRow(resource, query.fields, query.sort.length, row));
+  const entries = rows.map((row) => projectRow(spec, query.fields, query.sort.length, row));
 
   const failed = await attachCollections(
-    resource,
+    spec,
     query.relations,
     entries.map((entry) => entry.item),
     ctx,
@@ -86,7 +90,7 @@ export async function runList(
   const page = paginate(entries, {
     hasMore,
     budgetBytes,
-    truncatable: resource.truncatable,
+    truncatable: spec.truncatable,
     scope: query.scope,
   });
 
@@ -102,7 +106,7 @@ export async function runList(
   }
 
   if (query.count === true) {
-    const counted = await selectRows<CountRow>(ctx, buildCountSql(resource, query, ctx), label);
+    const counted = await selectRows<CountRow>(ctx, buildCountSql(spec, query, ctx), label);
     if ('error' in counted) {
       return counted.error;
     }
@@ -120,8 +124,11 @@ export async function runGet(
   query: ValidatedGetQuery,
   ctx: QueryContext
 ): Promise<Reply> {
-  const label = `${resource.name}.get`;
-  const plan = buildGetSql(resource, query, ctx);
+  // Ídem `runList`: la ficha efectiva primero. En un `get` la variante es lo que decide CONTRA QUÉ
+  // TABLA se resuelve el id, y los ids de las dos tablas de actividad SE PISAN.
+  const spec = resolveVariant(resource, query.variant);
+  const label = `${spec.name}.get`;
+  const plan = buildGetSql(spec, query, ctx);
   const selected = await selectRows<Record<string, unknown>>(ctx, plan, label);
   if ('error' in selected) {
     return selected.error;
@@ -131,12 +138,19 @@ export async function runGet(
     // LA ASIMETRÍA CON `list` ES INTENCIONAL: un `get` pregunta por UN recurso identificado y su
     // ausencia es un error; un `list` pregunta por un conjunto y el conjunto vacío es una
     // respuesta. Confundirlas haría que un filtro sin coincidencias pareciera un 404.
-    return failure(resource.notFoundCode, resource.notFoundMessage);
+    // EL FALLBACK NO ES UN CAMINO ALCANZABLE: un recurso sin `notFoundCode` es un recurso SIN
+    // `get` registrado (`activity`, `subscriptions`), así que nadie puede invocar esta función
+    // sobre él. Existe para que el tipo sea honesto —los dos campos son opcionales en la ficha— y
+    // no para cubrir un caso real.
+    return failure(
+      spec.notFoundCode ?? ErrorCode.INTERNAL_ERROR,
+      spec.notFoundMessage ?? 'No existe un recurso con ese id'
+    );
   }
 
-  const { item } = projectRow(resource, query.fields, 0, selected.rows[0]);
+  const { item } = projectRow(spec, query.fields, 0, selected.rows[0]);
 
-  const failed = await attachCollections(resource, query.relations, [item], ctx, label);
+  const failed = await attachCollections(spec, query.relations, [item], ctx, label);
   if (failed) {
     return failed;
   }

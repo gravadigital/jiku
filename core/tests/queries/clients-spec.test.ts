@@ -2,7 +2,19 @@ import 'mocha';
 import 'should';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { clientsSpec } from '../../src/queries/clients/clients-spec';
-import { ExistsExternalScope } from '../../src/queries/types';
+import { BaseFieldSpec, ExistsExternalScope } from '../../src/queries/types';
+
+/**
+ * Un campo del conjunto base, ESTRECHADO A COLUMNA.
+ *
+ * `ResourceSpec.base` pasó a ser `BaseSpec` en S-025 —una columna, un valor CONSTANTE o una
+ * RELACIÓN—, y esta ficha declara solo columnas. El estrechamiento se hace UNA VEZ acá en vez de
+ * repartir `as` por las aserciones, que es lo que apagaría la verificación en las fichas nuevas.
+ */
+function baseField(name: string): BaseFieldSpec {
+  return clientsSpec.base[name] as BaseFieldSpec;
+}
+
 
 /**
  * LA FICHA DE `clients` COMO DATO (TS-68).
@@ -36,9 +48,9 @@ describe('queries/clients — la ficha como dato (S-024)', () => {
   });
 
   it('cada campo declara SU columna real', () => {
-    clientsSpec.base.createdAt.column.should.equal('created_at');
-    clientsSpec.base.updatedAt.column.should.equal('updated_at');
-    clientsSpec.base.name.column.should.equal('name');
+    baseField('createdAt').column.should.equal('created_at');
+    baseField('updatedAt').column.should.equal('updated_at');
+    baseField('name').column.should.equal('name');
   });
 
   it('CA-3 · los filtros y los ordenables son los declarados, y son listas INDEPENDIENTES', () => {
@@ -79,7 +91,7 @@ describe('queries/clients — la ficha como dato (S-024)', () => {
   });
 
   it('el código de "no encontrado" es la CONSTANTE, no el literal', () => {
-    clientsSpec.notFoundCode.should.equal(ErrorCode.CLIENT_NOT_FOUND);
+    clientsSpec.notFoundCode!.should.equal(ErrorCode.CLIENT_NOT_FOUND);
   });
 
   it('CA-3 · `projects` NO es un incluible de un actor', () => {

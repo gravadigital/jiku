@@ -532,9 +532,12 @@ describe('la compuerta de autorización · plano de comandos', () => {
 describe('la compuerta de autorización · plano de consultas', () => {
   const QUERIES = queryRegistry.patterns();
   /**
-   * Las consultas que YA TIENEN CONTRATO: `tasks` desde S-022, y `clients`, `projects` y
-   * `requirements` desde S-024. Las DOS de `comments` siguen en `pendingContract` hasta S-025, y
-   * cuando no quede ninguna este array deja de hacer falta.
+   * Las consultas que YA TIENEN CONTRATO: `tasks` desde S-022, `clients`, `projects` y
+   * `requirements` desde S-024, y `comments`, `activity` y `subscriptions` desde S-025.
+   *
+   * SON TODAS, y por eso el array es el registro entero: desde S-025 ningún patrón registrado cae
+   * en el stub sin contrato. Se conserva como lista explícita —y no como `QUERIES`— porque lo que
+   * afirma es lo que el CONTRATO promete, no lo que el registro contiene.
    */
   const WITH_CONTRACT = [
     'clients.list',
@@ -545,6 +548,10 @@ describe('la compuerta de autorización · plano de consultas', () => {
     'requirements.get',
     'tasks.list',
     'tasks.get',
+    'comments.list',
+    'comments.get',
+    'activity.list',
+    'subscriptions.list',
   ];
   const USER_ROLE = 'sub-persona-user';
   const EXTERNAL_USER_ROLE = 'sub-persona-external-user';
@@ -622,7 +629,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
     }
   });
 
-  it('TS-39b · con fila, el caller exento atraviesa las 8 consultas', async () => {
+  it('TS-39b · con fila, el caller exento atraviesa las 12 consultas', async () => {
     await User.create({
       id: getTrustedPublisherId(),
       name: 'Publicador Confiable',
@@ -642,7 +649,8 @@ describe('la compuerta de autorización · plano de consultas', () => {
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_CALLER, query);
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
         } else {
-          // Las dos de `comments` llegan al stub sin contrato, que es la misma prueba de siempre.
+          // RAMA MUERTA DESDE S-025 y se deja a propósito: un recurso nuevo registrado sin
+          // contrato volvería a caer acá, y esta es la aserción que lo diría.
           reply.status.should.equal('failure', query);
           reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
           reply.errorMessage!.should.equal(
@@ -679,6 +687,8 @@ describe('la compuerta de autorización · plano de consultas', () => {
   });
 
   it('TS-42 · CA-7 en consultas: sin fila → rechazo, con el MISMO mensaje', async () => {
+    // El payload da igual: la compuerta corre ANTES de validar el contrato, y desde S-025
+    // `comments.list` tiene uno.
     const reply = await dispatchQuery('comments.list', {}, SIN_FILA);
 
     reply.should.deepEqual({

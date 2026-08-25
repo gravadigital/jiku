@@ -98,6 +98,21 @@ export interface IncludableFieldSpec extends BaseFieldSpec {
   readonly kind: 'field';
 }
 
+/**
+ * UN CAMPO DEL CONJUNTO BASE CUYO VALOR LO FIJA LA FICHA, no una columna.
+ *
+ * `entityType` es el caso: el valor lo decide LA VARIANTE y la fila no lo lleva. Se resuelve EN LA
+ * PROYECCIÓN y no en el SELECT a propósito: meter un literal en el SQL funcionaría, pero pondría
+ * un valor de la ficha en el string de la consulta sin necesidad, y la regla del módulo es que al
+ * SQL solo llegan NOMBRES de la ficha.
+ *
+ * DECLARARLO NO LO HACE FILTRABLE NI ORDENABLE: para eso tendría que estar además en
+ * `filterable` / `sortable`, que son listas INDEPENDIENTES.
+ */
+export interface BaseConstantSpec {
+  readonly constant: unknown;
+}
+
 /** Relación 1:1: se resuelve con JOIN en la consulta principal. */
 export interface OneRelationSpec {
   readonly kind: 'relation';
@@ -143,6 +158,16 @@ export interface ManyRelationSpec {
 }
 
 export type RelationSpec = OneRelationSpec | ManyRelationSpec;
+
+/**
+ * Las TRES formas de un campo del conjunto base.
+ *
+ * Hasta S-024 el conjunto base era siempre una columna, y cuatro lugares del motor lo asumían
+ * mirando `resource.base[name].column`. Desde S-025 puede ser además un VALOR CONSTANTE
+ * (`entityType`) o una RELACIÓN (`comments.attachments`, que CA-6 pone en la base y no en
+ * `include`). Los cuatro lugares resuelven el nombre por `specFor()` — ver `engine/spec.ts`.
+ */
+export type BaseSpec = BaseFieldSpec | BaseConstantSpec | RelationSpec;
 
 /**
  * Un incluible que NO es una columna ni una relación: una EXPRESIÓN evaluada por fila.
@@ -293,17 +318,92 @@ export interface ColumnExternalScope {
  */
 export interface ExistsExternalScope {
   readonly kind: 'exists';
-  /** Tabla que sí lleva el proyecto (`projects` para un actor). */
+  /** Tabla que sí lleva el proyecto (`projects` para un actor, `objectives` para un comentario). */
   readonly table: string;
-  /** Columna de `table` que apunta al recurso (`client_id`). */
+  /** Columna de `table` que apunta al recurso (`client_id`, `id`). */
   readonly foreignKey: string;
-  /** Columna del recurso a la que apunta `foreignKey` (`id`). */
+  /** Columna del recurso a la que apunta `foreignKey` (`id`, `objective_id`). */
   readonly localKey: string;
-  /** Columna de `table` que tiene que estar entre los proyectos permitidos (`id`). */
+  /** Columna de `table` que tiene que estar entre los proyectos permitidos (`id`, `project_id`). */
   readonly projectColumn: string;
+  /**
+   * Visibilidad EN LA TABLA ALCANZADA: la entidad dueña tiene que ser pública.
+   *
+   * OPCIONAL, y su ausencia significa "la tabla alcanzada NO TIENE columna de visibilidad", nunca
+   * "no recortes": el predicado de proyectos permitidos se emite siempre. `clients` es el caso —
+   * un proyecto alcanzado desde un actor no aporta visibilidad al actor.
+   */
+  readonly visibility?: { readonly column: string; readonly value: string };
+  /**
+   * Visibilidad EN LA FILA DEL PROPIO RECURSO, además de la de la entidad dueña.
+   *
+   * `comments` y `activity` son el caso y las dos se exigen (H-8 del plan de S-025):
+   * `objective_activity.visibility_level` existe exactamente para esto —el comentario es el único
+   * tipo de actividad cuya visibilidad ELIGE EL USUARIO— y su default es `internal`. Sin esta
+   * mitad, un comentario interno sobre una tarea pública se ve desde el portal de clientes.
+   *
+   * OPCIONAL con el mismo criterio que `visibility`: su ausencia es "este recurso no tiene columna
+   * de visibilidad", jamás "no recortes".
+   */
+  readonly ownVisibility?: { readonly column: string; readonly value: string };
 }
 
-export type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope;
+/**
+ * LA FILA ES DEL CALLER: el recorte es su propia identidad.
+ *
+ * `subscriptions` es el caso, y NO LLEVA PROYECTO A PROPÓSITO: saber a qué se suscribió uno mismo
+ * no depende de tener permiso sobre el proyecto de la entidad. Agregarle el predicado de proyectos
+ * permitidos "por simetría" ESCONDERÍA DATOS PROPIOS, que es un modo de falla tan malo como el
+ * contrario y bastante más difícil de notar —no hay error ni log: la fila simplemente no está—.
+ *
+ * Y AL REVÉS: saber QUIÉN MÁS está suscripto a un requisito es información del equipo interno, y
+ * por eso el recorte no es "las de los proyectos que veo" sino "las mías".
+ */
+export interface OwnerExternalScope {
+  readonly kind: 'owner';
+  /** Columna del recurso con el id del usuario dueño de la fila. */
+  readonly userColumn: string;
+}
+
+export type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope | OwnerExternalScope;
+
+/**
+ * UNA VARIANTE DEL RECURSO: lo que cambia cuando el discriminador cambia.
+ *
+ * Sobreescribe SOLO lo que depende de la TABLA. `name`, `defaults`, `sortable`, `truncatable` y los
+ * dos campos de "no encontrado" son del RECURSO y no están acá a propósito: si dos variantes
+ * pudieran declarar contratos distintos, `meta.describe` (S-028) tendría que describir dos recursos
+ * y el caller tendría que saber cuál le toca antes de preguntar.
+ */
+export interface ResourceVariant {
+  readonly table: string;
+  /** Predicado FIJO de la variante. Sale de la ficha, JAMÁS del payload. */
+  readonly where?: string;
+  readonly base?: Readonly<Record<string, BaseSpec>>;
+  readonly includable?: Readonly<Record<string, IncludableSpec>>;
+  readonly filterable?: Readonly<Record<string, FilterableSpec>>;
+  readonly enums?: Readonly<Record<string, readonly string[]>>;
+  readonly externalScope?: ExternalScopeSpec;
+}
+
+/**
+ * EL DISCRIMINADOR: el campo OBLIGATORIO que elige contra qué tabla se resuelve el recurso.
+ *
+ * NO ES UN FILTRO CON UN DEFAULT, y la diferencia no es de estilo: los ids de las dos tablas de
+ * actividad SE PISAN. Un default haría que `comments.get {id: 1234}` devolviera "algún" comentario
+ * con ese id, y el bug sería SILENCIOSO E INTERMITENTE — funciona hasta que las dos tablas crecen
+ * lo suficiente. Por eso no hay `default` en este tipo: el estado peligroso no es representable.
+ *
+ * En un `list` viaja dentro de `filter`; en un `get`, como CLAVE DE PRIMER NIVEL del payload. Su
+ * ausencia es `invalid_fields` en los dos casos.
+ */
+export interface DiscriminatorSpec {
+  /** El nombre EN EL CONTRATO (`entityType`). */
+  readonly field: string;
+  /** Los valores válidos, EN EL ORDEN que viaja en `errorDetails.allowed`. */
+  readonly values: readonly string[];
+  readonly variants: Readonly<Record<string, ResourceVariant>>;
+}
 
 /** La ficha de un recurso: todo lo que el motor necesita saber, como dato. */
 export interface ResourceSpec {
@@ -311,7 +411,29 @@ export interface ResourceSpec {
   readonly name: string;
   /** Tabla real (`objectives`). La traducción vive acá, no en `@jiku/models` (ADR-004). */
   readonly table: string;
-  readonly base: Readonly<Record<string, BaseFieldSpec>>;
+  /**
+   * EL PREDICADO FIJO DEL RECURSO. Sale de la ficha, JAMÁS del payload, y por eso llega al SQL sin
+   * escaparse — la misma regla que ya gobierna `ManyRelationSpec.where` e `IncludableComputedSpec.expr`.
+   *
+   * NO SE PUEDE RESOLVER CON UN FILTRO: un filtro se pisa desde el payload y el predicado del
+   * recurso no es negociable. `comments` es `objective_activity` con `type_of_activity = 'comment'`
+   * y `activity` es ESA MISMA TABLA sin el predicado: toda la diferencia entre los dos recursos es
+   * este campo.
+   *
+   * Se emite en LOS TRES SQL —filas, COUNT y get—: olvidarlo en el COUNT haría que el total cuente
+   * filas que la colección no devuelve, y olvidarlo en el `get` haría que `comments.get` resolviera
+   * una fila de `state`.
+   */
+  readonly where?: string;
+  /**
+   * El discriminador, si el recurso resuelve contra más de una tabla. Ver `DiscriminatorSpec`.
+   *
+   * La ficha efectiva de cada variante la arma `resolveVariant()` (`engine/spec.ts`) ANTES de que
+   * el resto del motor vea nada: `validate-query`, `build-sql`, `project`, `include` y `run`
+   * operan siempre sobre una `ResourceSpec` común y no saben que hubo variantes.
+   */
+  readonly discriminator?: DiscriminatorSpec;
+  readonly base: Readonly<Record<string, BaseSpec>>;
   readonly baseNames: readonly string[];
   readonly includable: Readonly<Record<string, IncludableSpec>>;
   readonly includableNames: readonly string[];
@@ -326,8 +448,14 @@ export interface ResourceSpec {
   /** Campos de texto SIN COTA que el presupuesto de bytes puede truncar (RF-14). */
   readonly truncatable: readonly string[];
   readonly externalScope: ExternalScopeSpec;
-  /** Código de "no encontrado" del recurso: `tasks` -> `task_not_found`, no `objective_not_found`. */
-  readonly notFoundCode: string;
+  /**
+   * Código de "no encontrado" del recurso: `tasks` -> `task_not_found`, no `objective_not_found`.
+   *
+   * OPCIONALES LOS DOS desde S-025: `activity` y `subscriptions` NO TIENEN `get` —no hay pantalla
+   * de detalle de una entrada de historial ni de una suscripción— y no tienen ningún código que
+   * declarar. Un recurso con `get` registrado los declara siempre; ver el fallback de `runGet`.
+   */
+  readonly notFoundCode?: string;
   /** Mensaje en español del "no encontrado". Va en la ficha para que el motor no conozca recursos. */
-  readonly notFoundMessage: string;
+  readonly notFoundMessage?: string;
 }

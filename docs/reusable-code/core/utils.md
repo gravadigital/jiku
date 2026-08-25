@@ -385,3 +385,80 @@ function keyValuePairsToProperties(
 // core/src/queries/projects/projects-spec.ts
 properties: { kind: 'field', column: 'key_value_pairs', transform: keyValuePairsToProperties },
 ```
+
+## resolveVariant
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+Resolves a resource **variant** into a complete, **effective** `ResourceSpec` — the piece that lets
+a resource read from more than one table without the rest of the engine knowing.
+
+`validate-query`, `build-sql`, `project`, `include` and `run` keep operating on a single
+`ResourceSpec` with **no per-variant branch**. The alternative — resolving the variant in the
+resource's own file, picking between two complete specs — would duplicate 90 % of the spec per
+variant and would leave "the discriminator is mandatory" outside the grammar, i.e. outside what
+`meta.describe` (S-028) projects.
+
+**The four name arrays are RE-DERIVED with `Object.keys`, never copied.** They are the very lists
+the validator returns by reference in `errorDetails.allowed`; writing them by hand would
+reintroduce inside the engine the divergence specs avoid.
+
+**An unknown value THROWS.** It is not a reachable path — the validator already rejected any value
+outside `values` — and throwing keeps the invariant visible: a table is **never** resolved by
+omission. A spec **without** a discriminator returns the same reference, which is why the four
+specs of S-022 and S-024 did not change a line.
+
+**Signature:**
+```ts
+function resolveVariant(resource: ResourceSpec, value?: string): ResourceSpec
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/run.ts
+const spec = resolveVariant(resource, query.variant);
+```
+
+## specFor
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+Resolves a name of the returned set against **both** maps — `base` and `includable` — in one call.
+
+**It exists because that lookup lived in four places** — `selectParts`, `projectRow`,
+`attachCollections` and `parseProjection` — each one checking one map on its own. When a relation
+became declarable in the base set the four had to change at once, and **the one that forgets does
+not fail to compile: it returns the field empty.** The helper leaves the resolution in one place,
+so the engine's next capability does not have to remember four files.
+
+**Signature:**
+```ts
+function specFor(resource: ResourceSpec, name: string): BaseSpec | IncludableSpec | undefined
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/project.ts
+const spec = specFor(resource, name);
+if ('constant' in spec) { item[name] = spec.constant; continue; }
+```
+
+## isRelation
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+Narrows a `BaseSpec | IncludableSpec` to a `RelationSpec`, wherever it is declared.
+
+Uses `'kind' in spec` and **not a cast**: `BaseFieldSpec` and `BaseConstantSpec` have no `kind`, and
+an `as` would switch off exactly the check the three base-set shapes need.
+
+**Signature:**
+```ts
+function isRelation(spec: BaseSpec | IncludableSpec | undefined): spec is RelationSpec
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/validate-query.ts
+const relations = selected.filter((name) => isRelation(specFor(resource, name)));
+```

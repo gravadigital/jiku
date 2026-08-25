@@ -70,6 +70,14 @@ export interface CursorScope {
 
 export interface ValidatedListQuery {
   readonly kind: 'list';
+  /**
+   * El valor del DISCRIMINADOR, si el recurso lo declara: qué variante —o sea, QUÉ TABLA— resuelve
+   * esta consulta. `runList` lo usa para pedir la ficha efectiva ANTES de armar nada.
+   *
+   * Opcional porque la mayoría de los recursos no tiene variantes. Un recurso QUE SÍ las tiene no
+   * puede llegar acá sin valor: el validador lo exige y su ausencia es `invalid_fields`.
+   */
+  readonly variant?: string;
   readonly filter: ParsedFilter;
   /** En orden, con `id` SIEMPRE como último criterio. */
   readonly sort: readonly SortCriterion[];
@@ -86,6 +94,8 @@ export interface ValidatedListQuery {
 
 export interface ValidatedGetQuery {
   readonly kind: 'get';
+  /** Ídem `ValidatedListQuery.variant`: en un `get` el discriminador viaja en el primer nivel. */
+  readonly variant?: string;
   readonly id: number;
   readonly fields: readonly string[];
   readonly relations: readonly string[];

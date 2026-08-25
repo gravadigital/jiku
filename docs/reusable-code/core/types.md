@@ -285,8 +285,8 @@ All of its names are **database columns**, not contract fields: only names the s
 columns may reach the SQL (ADR-004), so the engine never has to resolve `visibilityLevel` against
 `base`/`filterable` at build time — a lookup that could only fail in production.
 
-**Since S-024 it is a union discriminated by `kind`**, because one shape could not express the three
-clips the flow declares:
+**Since S-024 it is a union discriminated by `kind`**, because one shape could not express the
+clips the flow declares — and S-025 added a third variant plus two optional fields:
 
 - **`'column'`** — the row **carries** the project in one of its columns. `visibility` is
   **optional**, and its absence means *"this resource has no visibility column"*, never *"do not
@@ -297,6 +297,22 @@ clips the flow declares:
   `project_id`, its visibility depends on **having at least one permitted project**, so the SQL is an
   `EXISTS` over `projects` crossed with `user_project_permissions` — **not** an `IN` over a column of
   the actor itself, which does not exist.
+
+  **S-025 gave it two optional visibilities**, and `comments` and `activity` require **both**:
+  `visibility` goes **inside** the `EXISTS` (the owning entity has to be `public`) and
+  `ownVisibility` **outside** it (the row itself has to be `public`). The second half is not
+  decoration: `objective_activity.visibility_level` exists exactly for this — a comment is the only
+  activity type whose visibility the **user chooses** — and its default is `internal`. Without it,
+  an internal comment on a public task is visible from the client portal and the column serves no
+  purpose. Both are optional with the same rule as `ColumnExternalScope.visibility`: absence means
+  *"this table has no visibility column"*, never *"do not clip"*.
+- **`'owner'`** (S-025) — **the row belongs to the caller**: `user_id = :caller`, and nothing else.
+  `subscriptions` is the case, and it carries **no project predicate on purpose**: knowing what
+  *you* subscribed to does not depend on holding permission over the entity's project. Adding it
+  "for symmetry" would **hide the caller's own data** — an external caller subscribed to something
+  in a project they no longer see would stop seeing their own subscription, with no error and no
+  log. And the other way round: knowing **who else** is subscribed to a requirement is internal-team
+  information, which is why the clip is "mine" and not "the ones in projects I can see".
 
 The union preserves the property the flag removal bought: **no variant means "do not clip"** and no
 optional field disables the gate. The third variant the flow needs — resources with **no external
@@ -449,4 +465,103 @@ readonly searchNumericColumn?: string;
 // core/src/queries/requirements/requirements-spec.ts
 tag: { contains: { column: 'tags', shape: ['key', 'value'] } },
 q: { kind: 'string', search: ['title', 'description'], searchNumericColumn: 'id' },
+```
+
+
+## DiscriminatorSpec / ResourceVariant
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** A resource that resolves against **more than one table**, chosen by a mandatory
+contract field. Added by S-025 for `comments`, `activity` and `subscriptions`, and reused by S-027
+(`attachments.list`) and S-028 (`meta.describe`, which has to describe the variants).
+
+**It is NOT a filter with a default, and the difference is not stylistic.** The ids of
+`objective_activity` and `requirement_activity` **overlap**: 1234 exists in both and they are
+different rows. A default would make `comments.get {id: 1234}` return "some" comment, and the bug
+would be **silent and intermittent** — it works until both tables grow enough. That is why the type
+has **no `default` field**: the dangerous state is not representable.
+
+**A variant may override only what depends on the TABLE** — `table`, `where`, `base`, `includable`,
+`filterable`, `enums`, `externalScope`. `name`, `defaults`, `sortable`, `truncatable` and the two
+not-found fields are **deliberately absent**: if two variants could declare different contracts,
+`meta.describe` would have to describe two resources and the caller would need to know which one
+applies **before asking**.
+
+In a `list` the discriminator travels inside `filter`; in a `get`, as a **top-level key** of the
+payload. Its absence is `invalid_fields` in both, and the `get`'s allowed-keys list is **derived**
+from the spec so `errorDetails.allowed` says so.
+
+**Interface:**
+```ts
+export interface ResourceVariant {
+  readonly table: string;
+  readonly where?: string;
+  readonly base?: Readonly<Record<string, BaseSpec>>;
+  readonly includable?: Readonly<Record<string, IncludableSpec>>;
+  readonly filterable?: Readonly<Record<string, FilterableSpec>>;
+  readonly enums?: Readonly<Record<string, readonly string[]>>;
+  readonly externalScope?: ExternalScopeSpec;
+}
+
+export interface DiscriminatorSpec {
+  readonly field: string;
+  readonly values: readonly string[];
+  readonly variants: Readonly<Record<string, ResourceVariant>>;
+}
+```
+
+**Usage:**
+```ts
+// core/src/queries/comments/comments-spec.ts
+discriminator: {
+  field: 'entityType',
+  values: ENTITY_TYPES,
+  variants: { task: variantFor('task'), requirement: variantFor('requirement') },
+},
+```
+
+## BaseSpec / BaseConstantSpec / ResourceSpec.where
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** The three capabilities S-025 added to the base set and to the resource, all of them
+**generic** — no line of `src/queries/engine/` names a resource.
+
+**`ResourceSpec.where` — the resource's FIXED predicate.** `comments` is `objective_activity` with
+`type_of_activity = 'comment'`; `activity` is **that same table without it**, and the whole
+difference between the two resources is this one field. **It cannot be solved with a filter:** a
+filter can be overwritten from the payload and the resource's predicate is not negotiable. It is
+emitted in **all three** statements — rows, COUNT and get: forgetting it in the COUNT would make the
+total count rows the collection does not return, and forgetting it in the `get` would let
+`comments.get` resolve a `state` row. It comes from the spec, **never** from the payload, which is
+why it reaches the SQL unescaped — the same rule that already governs `ManyRelationSpec.where`.
+
+**`BaseConstantSpec` — a base field whose value the spec fixes.** `entityType` is the case: the
+value is decided by the **variant** and no column carries it. It is resolved **in the projection**
+and not in the SELECT on purpose: putting the literal in the SQL would work, but it would place a
+spec value inside the query string for no reason, and the module's rule is that only **names** reach
+the SQL. Declaring it does not make it filterable or sortable — those are independent lists.
+
+**A relation in the base set.** `comments.attachments` is the declared exception to RF-17: the
+attachments ship **in the base**, not in `include`, because a comment with an attachment and no
+reference renders wrong. Four places used to assume a `base` entry had `.column` — `selectParts`,
+`projectRow`, `attachCollections` and `parseProjection` — and now all four resolve the name through
+`specFor()`.
+
+**Interface:**
+```ts
+export interface BaseConstantSpec { readonly constant: unknown; }
+export type BaseSpec = BaseFieldSpec | BaseConstantSpec | RelationSpec;
+```
+
+**Usage:**
+```ts
+// core/src/queries/comments/comments-spec.ts (inside the variant)
+where: 't.type_of_activity = \'comment\'',
+base: {
+  entityType: { constant: entity },
+  entityId: { column: tables.entityColumn },
+  attachments: { kind: 'relation', cardinality: 'many', table: 'attachments', … },
+},
 ```

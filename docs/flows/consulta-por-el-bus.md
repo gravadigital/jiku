@@ -4,7 +4,7 @@ title: Consulta por el bus — el recorrido completo de una lectura de jiku-quer
 type: feature
 status: Draft
 created: 2026-08-24
-last_updated: 2026-08-24
+last_updated: 2026-08-25
 stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
 ---
 
@@ -13,7 +13,7 @@ stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-24
-**Última actualización:** 2026-08-24
+**Última actualización:** 2026-08-25
 **Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028
 
 ## Descripción
@@ -55,22 +55,35 @@ cuando exista el primero.
 | 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
 | 3.4 · Segunda compuerta: la clase del caller (`unknown_caller`) | Implementado | S-023 |
 | 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
-| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects` y `requirements` | S-023 (mecanismo), S-024 (las tres formas) |
+| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks`, `clients`, `projects`, `requirements`, `comments`, `activity` y `subscriptions` | S-023 (mecanismo), S-024 (las tres primeras formas), S-025 (las dos nuevas) |
 | 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
 | 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
 | 8 · El caller recorre la colección | Implementado | S-022 |
 
-**Recursos con contrato:** `tasks` desde S-022, y `clients`, `projects` y `requirements` desde
-S-024 —los cuatro con `list` y `get`—. Los dos endpoints que quedan —`comments.list/get`— siguen
-respondiendo `unknown_command` desde `core/src/queries/pending.ts` hasta S-025; ese archivo se
-elimina en S-028.
+**Recursos con contrato:** `tasks` desde S-022; `clients`, `projects` y `requirements` desde S-024
+—los cuatro con `list` y `get`—; y `comments` (`list` y `get`), `activity` (`list`) y
+`subscriptions` (`list`) desde **S-025**. Son **doce patrones registrados**, y **ninguno responde ya
+`unknown_command` por falta de contrato**: `core/src/queries/pending.ts` quedó **sin consumidores**
+en S-025 y se **elimina en S-028**, cuando el registro tenga los 18 recursos.
 
-**Las tres formas del recorte del Paso 5 existen desde S-024**, y son las que la tabla de recortes
-de más abajo necesita para los 18 recursos: la fila **lleva** el proyecto en una columna (con
-visibilidad, como `requirements` y `tasks`, o sin ella, como `projects`), o la fila es
-**alcanzable** desde una tabla que sí lo lleva (`clients`, que no tiene columna de proyecto). La
-tercera —**sin acceso** externo, que resuelve en `items: []` sin ejecutar SQL— la necesitan
-`worked-times`, `unworked-times`, `week-assigned-times` y `settings`, y llega con S-026 y S-028.
+**Los tres recursos de S-025 exigen `entityType` en `filter` —y `comments.get` en el payload—**
+porque resuelven contra **dos tablas cuyos ids se pisan**: el `id` 1234 existe en
+`objective_activity` y en `requirement_activity` y son filas distintas. No es un filtro con default:
+su ausencia es `invalid_fields`.
+
+**Las formas del recorte del Paso 5 son cinco**, y son las que la tabla de recortes de más abajo
+necesita para los 18 recursos:
+
+1. la fila **lleva** el proyecto en una columna, con visibilidad (`requirements`, `tasks`) o sin
+   ella (`projects`) — S-024;
+2. la fila es **alcanzable** desde una tabla que sí lo lleva (`clients`) — S-024;
+3. la fila es **alcanzable y las dos puntas llevan visibilidad** (`comments`, `activity`): la
+   entidad dueña tiene que estar en un proyecto permitido **y** ser `public`, **y la propia fila**
+   tiene que ser `public` — S-025;
+4. la fila **es del caller** (`subscriptions`): `user_id = :caller` y **nada más**, sin el predicado
+   de proyectos permitidos — S-025;
+5. **sin acceso** externo, que resuelve en `items: []` sin ejecutar SQL: la necesitan
+   `worked-times`, `unworked-times`, `week-assigned-times` y `settings`, y llega con S-026 y S-028.
 
 > **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** hasta S-023 el Paso 5 estaba
 > declarado en la ficha y **no aplicado**, así que `tasks.list` **no recortaba filas** mientras
@@ -306,12 +319,13 @@ directamente en el SQL, **antes** del filtro del caller y **combinado con AND**:
 |---|---|
 | `clients` | actores con al menos un proyecto permitido |
 | `projects` | solo proyectos con fila en `user_project_permissions` |
-| `requirements` · `tasks` · `comments` · `activity` | proyectos permitidos **y** `visibilityLevel = public` |
+| `requirements` · `tasks` | proyectos permitidos **y** `visibilityLevel = public` (columna propia) |
+| `comments` · `activity` | proyecto permitido **y** `visibilityLevel = public` **de la entidad dueña**, **y** `visibilityLevel = public` **de la propia fila** |
 | `people` | personas asignadas a proyectos permitidos |
 | `users` | usuarios con permiso sobre algún proyecto que el caller vea, **más él mismo** |
 | `attachments` | vínculos de entidades visibles |
 | `files` | archivos de entidades visibles; **sin vínculo, solo quien lo subió** |
-| `subscriptions` | solo las propias |
+| `subscriptions` | **solo las propias** (`user_id = :caller`), **sin** el predicado de proyectos permitidos |
 | `project-permissions` | solo filas de proyectos permitidos |
 | `requirements.tags` | tags de proyectos permitidos |
 | `worked-times` · `unworked-times` · `week-assigned-times` · `settings` | **sin acceso** → `items: []` |

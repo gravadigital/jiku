@@ -701,3 +701,229 @@ describe('queries/engine/build-sql — las tres formas del recorte externo (S-02
     where.indexOf('EXISTS (SELECT 1 FROM projects').should.be.below(where.indexOf('t.state = :p0'));
   });
 });
+
+/**
+ * EL PREDICADO FIJO DEL RECURSO Y EL CAMPO CONSTANTE (S-025, Task 2).
+ *
+ * `comments` es `objective_activity` CON `type_of_activity = 'comment'` y `activity` es esa misma
+ * tabla SIN él: toda la diferencia entre los dos recursos es un campo de la ficha. Y `entityType`
+ * no sale de ninguna columna: lo decide la variante y lo pega la proyección.
+ */
+describe('queries/engine/build-sql — el predicado fijo y el constante (S-025)', () => {
+  const WITH_WHERE: ResourceSpec = { ...tasksSpec, where: "t.type_of_activity = 'comment'" };
+
+  function all(spec: ResourceSpec, payload: unknown = {}, ctx: QueryContext = INTERNAL): SqlPlan[] {
+    const validatedList = validateList(spec, payload) as { value: ValidatedListQuery };
+    const validatedGet = validateGet(spec, { id: 1 }) as { value: ValidatedGetQuery };
+    return [
+      buildRowsSql(spec, validatedList.value, ctx),
+      buildCountSql(spec, validatedList.value, ctx),
+      buildGetSql(spec, validatedGet.value, ctx),
+    ];
+  }
+
+  it('TS-88 · el predicado fijo llega a LOS TRES SQL: filas, COUNT y get', () => {
+    for (const { sql } of all(WITH_WHERE)) {
+      // Olvidarlo en el COUNT haría que el total incluya filas que la colección no devuelve, y
+      // olvidarlo en el `get` haría que un `comments.get` resolviera una fila de `state`.
+      sql.should.containEql("t.type_of_activity = 'comment'");
+    }
+  });
+
+  it('TS-89 · una ficha SIN `where` no lo emite: la ausencia ES el contrato de `activity`', () => {
+    for (const { sql } of all(tasksSpec)) {
+      sql.should.not.containEql('type_of_activity');
+    }
+  });
+
+  it('el predicado se une con AND al filtro del caller y no lo pisa', () => {
+    const { sql } = all(WITH_WHERE, { filter: { state: 'activo' } })[0];
+    const where = sql.slice(sql.indexOf('WHERE'), sql.indexOf('ORDER BY'));
+
+    where.should.containEql("t.type_of_activity = 'comment'");
+    where.should.containEql('t.state = :p0');
+    where.should.containEql(' AND ');
+  });
+
+  it('TS-90 · el campo constante NO emite columna en el SELECT y sí valor en la proyección', () => {
+    const spec: ResourceSpec = {
+      ...tasksSpec,
+      base: { ...tasksSpec.base, entityType: { constant: 'task' } },
+      baseNames: [...tasksSpec.baseNames, 'entityType'],
+      fieldNames: [...tasksSpec.fieldNames, 'entityType'],
+    };
+    const validated = validateGet(spec, { id: 1, fields: ['id', 'entityType'] }) as {
+      value: ValidatedGetQuery;
+    };
+    const { sql } = buildGetSql(spec, validated.value, INTERNAL);
+
+    // El literal NO VIAJA AL SQL: al SQL solo llegan NOMBRES de la ficha.
+    sql.should.not.containEql('entityType');
+    sql.should.not.containEql("'task'");
+    sql.should.containEql('t.id AS "id"');
+  });
+
+  it('TS-91 · una relación de COLECCIÓN en el conjunto base no genera JOIN ni columna', () => {
+    const spec: ResourceSpec = {
+      ...tasksSpec,
+      base: {
+        ...tasksSpec.base,
+        attachments: {
+          kind: 'relation',
+          cardinality: 'many',
+          table: 'attachments',
+          parentKey: 'entity_id',
+          order: [{ expr: 'r.id', dir: 'ASC' }],
+          fields: { id: 'r.id' },
+        },
+      },
+      baseNames: [...tasksSpec.baseNames, 'attachments'],
+      fieldNames: [...tasksSpec.fieldNames, 'attachments'],
+    };
+    const validated = validateList(spec, {}) as { value: ValidatedListQuery };
+
+    // Entra en `relations` —se resuelve POR LOTE— y no en la consulta principal.
+    [...validated.value.relations].should.containEql('attachments');
+    const { sql } = buildRowsSql(spec, validated.value, INTERNAL);
+    sql.should.not.containEql('JOIN attachments');
+    sql.should.not.containEql('AS "attachments"');
+  });
+
+  it('una relación 1:1 declarada en `base` SÍ genera su JOIN, igual que en `includable`', () => {
+    const spec: ResourceSpec = {
+      ...tasksSpec,
+      base: {
+        ...tasksSpec.base,
+        author: {
+          kind: 'relation',
+          cardinality: 'one',
+          table: 'users',
+          localKey: 'created_by',
+          targetKey: 'id',
+          optional: false,
+          fields: { id: 'id', name: 'name' },
+        },
+      },
+      baseNames: [...tasksSpec.baseNames, 'author'],
+      fieldNames: [...tasksSpec.fieldNames, 'author'],
+    };
+    const validated = validateList(spec, {}) as { value: ValidatedListQuery };
+    const { sql } = buildRowsSql(spec, validated.value, INTERNAL);
+
+    sql.should.containEql('INNER JOIN users rel_author ON rel_author.id = t.created_by');
+    sql.should.containEql('rel_author.name AS "author__name"');
+  });
+});
+
+/**
+ * LAS DOS FORMAS NUEVAS DEL RECORTE EXTERNO (S-025, Task 3).
+ *
+ * `comments` y `activity` no llevan el proyecto —lo lleva la entidad dueña— y tienen DOS
+ * visibilidades en juego (H-8 del plan). `subscriptions` recorta por identidad y NADA MÁS.
+ */
+describe('queries/engine/build-sql — el recorte con visibilidades y el `owner` (S-025)', () => {
+  const EXTERNAL = ctxWith('external', EXTERNAL_CALLER);
+  const PERMITTED = '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)';
+
+  /** El recorte de `comments`/`activity`: EXISTS sobre la entidad dueña, con las DOS visibilidades. */
+  const OWNER_VISIBLE: ResourceSpec = {
+    ...tasksSpec,
+    externalScope: {
+      kind: 'exists',
+      table: 'objectives',
+      foreignKey: 'id',
+      localKey: 'objective_id',
+      projectColumn: 'project_id',
+      visibility: { column: 'visibility_level', value: 'public' },
+      ownVisibility: { column: 'visibility_level', value: 'public' },
+    },
+  };
+
+  /** El recorte de `subscriptions`: SOLO LAS PROPIAS. */
+  const OWN: ResourceSpec = {
+    ...tasksSpec,
+    externalScope: { kind: 'owner', userColumn: 'user_id' },
+  };
+
+  function rowsFor(spec: ResourceSpec, ctx: QueryContext, payload: unknown = {}): SqlPlan {
+    const validated = validateList(spec, payload) as { value: ValidatedListQuery };
+    return buildRowsSql(spec, validated.value, ctx);
+  }
+
+  it('TS-92 · el EXISTS lleva la visibilidad de la entidad dueña Y la de la propia fila', () => {
+    const { sql, replacements } = rowsFor(OWNER_VISIBLE, EXTERNAL);
+
+    sql.should.containEql(
+      'EXISTS (SELECT 1 FROM objectives scope_ WHERE scope_.id = t.objective_id' +
+        ` AND scope_.project_id IN ${PERMITTED}` +
+        ' AND scope_.visibility_level = :externalVisibility)'
+    );
+    // LA SEGUNDA MITAD, AFUERA DEL EXISTS: sin ella, un comentario interno sobre una tarea pública
+    // se ve desde el portal de clientes (H-8).
+    sql.should.containEql('t.visibility_level = :externalOwnVisibility');
+    param(replacements, 'caller').should.equal(EXTERNAL_CALLER);
+    param(replacements, 'externalVisibility').should.equal('public');
+    param(replacements, 'externalOwnVisibility').should.equal('public');
+  });
+
+  it('TS-93 · el recorte `owner` es la identidad del caller y NADA MÁS', () => {
+    const { sql, replacements } = rowsFor(OWN, EXTERNAL);
+
+    sql.should.containEql('t.user_id = :caller');
+    // SIN el predicado de proyectos permitidos, y no por olvido: con él, un caller externo
+    // suscripto a algo de un proyecto que ya no ve dejaría de ver SU PROPIA suscripción.
+    sql.should.not.containEql('user_project_permissions');
+    param(replacements, 'caller').should.equal(EXTERNAL_CALLER);
+  });
+
+  it('TS-93 · con `internal` o `connector` el `owner` no emite nada', () => {
+    for (const callerClass of ['internal', 'connector'] as CallerClass[]) {
+      const { sql, replacements } = rowsFor(OWN, ctxWith(callerClass));
+      sql.should.not.containEql('t.user_id = :caller');
+      replacements.should.not.have.property('caller');
+    }
+  });
+
+  it('el `owner` también aparece en el COUNT y en el `get`: el total sin recorte es una fuga', () => {
+    const validatedList = validateList(OWN, {}) as { value: ValidatedListQuery };
+    const validatedGet = validateGet(OWN, { id: 1 }) as { value: ValidatedGetQuery };
+
+    buildCountSql(OWN, validatedList.value, EXTERNAL).sql.should.containEql('t.user_id = :caller');
+    buildGetSql(OWN, validatedGet.value, EXTERNAL).sql.should.containEql('t.user_id = :caller');
+  });
+
+  it('un `exists` SIN las dos visibilidades produce el SQL de `clients` byte a byte (regresión)', () => {
+    const CLIENTS_SHAPED: ResourceSpec = {
+      ...tasksSpec,
+      externalScope: {
+        kind: 'exists',
+        table: 'projects',
+        foreignKey: 'client_id',
+        localKey: 'id',
+        projectColumn: 'id',
+      },
+    };
+    const { sql, replacements } = rowsFor(CLIENTS_SHAPED, EXTERNAL);
+
+    sql.should.containEql(
+      `EXISTS (SELECT 1 FROM projects scope_ WHERE scope_.client_id = t.id AND scope_.id IN ${PERMITTED})`
+    );
+    replacements.should.not.have.property('externalVisibility');
+    replacements.should.not.have.property('externalOwnVisibility');
+  });
+
+  it('los nombres del recorte NO colisionan con los del filtro', () => {
+    const { replacements } = rowsFor(OWNER_VISIBLE, EXTERNAL, {
+      filter: { state: ['backlog', 'activo'], projectId: 12 },
+    });
+
+    // El contador emite `p0`, `p1`, …; los del recorte pasan por `params.set()`, que no lo toca.
+    Object.keys(replacements).sort().should.deepEqual([
+      'caller',
+      'externalOwnVisibility',
+      'externalVisibility',
+      'p0',
+      'p1',
+    ]);
+  });
+});
