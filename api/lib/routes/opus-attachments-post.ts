@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
-import { sendCommand, actor } from '../utils/bus/send-command';
+import { sendCommand, actorId } from '../utils/bus/send-command';
 import { UploadTicketReply, toUploadTicket } from '../utils/bus/upload-ticket';
 
 const router: Router = Router();
@@ -52,7 +52,7 @@ async function requestUpload(req: Request, res: Response) {
   const data = await sendCommand<UploadTicketReply>(res, 'files.request-upload', {
     // Del token, nunca del cuerpo: es lo que hace que el `external-user` pueda vincular
     // después lo que subió.
-    uploader: actor(req),
+    uploader: actorId(req),
     fileName,
     mimeType,
     fileSize,

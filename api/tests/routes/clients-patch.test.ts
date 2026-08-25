@@ -52,6 +52,7 @@ describe('PATCH /api/clients/:id', () => {
         fakeBus.last!.payload.should.deepEqual({
           name: 'Editado',
           description: 'Nueva descripción',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
         });
 
         response.body.code.should.equal('client_updated');
@@ -66,7 +67,10 @@ describe('PATCH /api/clients/:id', () => {
       .send({ name: 'Solo el nombre' })
       .expect(200)
       .then(() => {
-        fakeBus.last!.payload.should.deepEqual({ name: 'Solo el nombre' });
+        fakeBus.last!.payload.should.deepEqual({
+          name: 'Solo el nombre',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
       });
   });
 

@@ -4,8 +4,8 @@ title: Alta de requisito desde el portal de clientes
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-23
-stories: [S-003, S-004, S-007, S-014]
+last_updated: 2026-08-25
+stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034]
 ---
 
 # Alta de Requisito desde el Portal de Clientes
@@ -13,8 +13,24 @@ stories: [S-003, S-004, S-007, S-014]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-19
-**Stories:** S-003, S-004, S-007
+**Última actualización:** 2026-08-25
+**Stories:** S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034
+
+> ## REQ-007 — la autorización por rol y por entidad se muda a `core`
+>
+> **Es el flujo donde la decisión D-4 del REQ se vuelve visible**: es el caso vivo del chequeo de
+> `user_project_permissions`, porque el portal es donde esa tabla está viva.
+>
+> | Paso | Qué cambia | Story |
+> |---|---|---|
+> | **4** — *"La api autoriza por rol y por entidad"* | **Se elimina de la api** y **reaparece en `core`** como compuerta de método + chequeo de entidad. El proyecto se resuelve **desde los 9 tipos de entidad** | S-030, S-034 |
+> | **4 (matiz que hay que leer)** | El chequeo de `user_project_permissions` se aplica **solo en modo externo**. Un `admin` o un `user` **no** tienen filas en esa tabla —`validateProjectPermissions` de la api hoy los deja pasar de largo— y aplicárselo rompería **toda** la escritura interna | S-030 |
+> | **5** | El payload gana la clave reservada **`actor`** — **ya aplicado** | S-029 |
+> | **6** | Gana la **validación de la transición de estado** contra la tabla declarada. El requisito nace en `analisis`, y la nota que dice que *"la secuencia posterior solo se valida en `web`"* **se invierte** | S-033 |
+>
+> **Los códigos:** `caller_not_authorized` (403) si el rol no habilita el método; **`access_denied`
+> (403), código nuevo del catálogo**, si el rol habilita pero la entidad no es suya.
+
 
 ## Descripción
 
@@ -176,6 +192,7 @@ requisitos en el proyecto de otro.
 **Payload:**
 ```json
 {
+  "actor": { "id": "323332022539911171", "roles": ["external-user"] },
   "creator": "323332022539911171",
   "title": "El reporte de horas no exporta las ausencias",
   "description": "Al exportar el CSV...",
@@ -189,11 +206,18 @@ requisitos en el proyecto de otro.
 }
 ```
 
+`actor` (Actor, opcional en el contrato — **siempre presente desde la api**) ·
 `creator` (IdentityUserId, **req**) · `title` (string, req) · `description` (string, req) ·
 `projectId` (integer, req) · `type` (enum|null) · `priority` (enum, default `sin_prioridad`) ·
 `state` (enum, default `analisis`) · `visibilityLevel` (enum, default `public`) ·
 `responsiblePersonIds` (integer[]) · `estimatedFinishDate` (date-time|null) · `tags` (Tag[]) ·
 `fileIds` (`FileIds`, integer[], `maxItems: 10`)
+
+> **El sobre de identidad (S-029, entregado).** Todo comando que publica la api lleva además la
+> clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
+> api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
+> arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
+> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
 
 > **`attachmentIds` pasó a `fileIds`, y `attachmentScope` desapareció del payload:** existía solo
 > para elegir el anclaje del draft, y no hay draft. El tope de 10 archivos deja de ser un límite de

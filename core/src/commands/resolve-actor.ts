@@ -5,10 +5,25 @@ import { getTrustedPublisherId } from '../config';
 /**
  * Resuelve QUIÉN es el actor de un comando, según por qué canal llegó.
  *
- *   si ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> el actor es el declarado en el cuerpo
- *   si no                                       -> el actor es ctx.caller
+ *   si hay sobre                                -> el actor es ctx.actor.id
+ *   si no, y ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> el actor es el declarado en el cuerpo
+ *   en cualquier otro caso                      -> el actor es ctx.caller
  *
- * POR QUÉ HAY DOS RAMAS: el `user-id` del subject es el `sub` del service user del SERVICIO
+ * LA ESCALERA ESTÁ COPIADA DEL CONTRATO, no reinventada: es la misma que declara
+ * `components/schemas/Actor` en `docs/apis/core.yaml` y el docblock de `Actor` en el paquete.
+ * Ante cualquier diferencia entre este comentario y el YAML, MANDA EL YAML.
+ *
+ * POR QUÉ LA DEL SOBRE VA PRIMERA (S-029): cuando el sobre viene, sus `roles` y su `id` salen del
+ * claim que la api YA VERIFICÓ criptográficamente contra Zitadel, y ese claim es MÁS FRESCO que
+ * cualquier cosa persistida. Consultar otra fuente sería resolver la identidad dos veces desde dos
+ * lugares, con la peor de las dos decidiendo.
+ *
+ * Y NO HAY `?? declaredActor` EN ESA RAMA, deliberadamente: si hay sobre, `actor.id` EXISTE —la
+ * guarda de forma del despachador lo garantizó antes de armar el contexto— y si además vino un
+ * campo de dominio, el despachador ya garantizó que ES EL MISMO VALOR o rechazó el comando (CA-6).
+ * Un fallback ahí sería código muerto que sugiere un tercer estado que no existe.
+ *
+ * POR QUÉ HAY DOS RAMAS MÁS: el `user-id` del subject es el `sub` del service user del SERVICIO
  * que publica, no el de la persona (ADR-007), y la api usa UN ÚNICO service user para todas
  * sus personas. Así que cuando publica la api, la única fuente de la identidad de la persona
  * es el cuerpo —la api ya la autenticó contra Zitadel por JWT—; y cuando publica un servicio
@@ -36,6 +51,14 @@ export function resolveActor(
   declaredActor: string | undefined,
   component: string
 ): string | undefined {
+  if (ctx.actor) {
+    // El claim que la api YA VERIFICÓ contra Zitadel, y que es MÁS FRESCO que la base.
+    //
+    // NO LOGUEA NADA, y es parte del criterio: el `warn` de abajo es de la rama externa y solo de
+    // ahí. Un log acá pondría en rojo a `attachments.test.ts`, que afirma `warn.called === false`.
+    return ctx.actor.id;
+  }
+
   if (ctx.caller === getTrustedPublisherId()) {
     // La api SIEMPRE lo manda (el contrato lo pone en `required`). Si llegara sin él,
     // devolver `undefined` deja que el comando responda `invalid_fields`, que es mucho más

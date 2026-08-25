@@ -122,7 +122,7 @@ function toUploadTicket(data: UploadTicketReply): UploadTicket
 
 ```ts
 const data = await sendCommand<UploadTicketReply>(res, 'files.request-upload', {
-  uploader: actor(req),
+  uploader: actorId(req),
   fileName,
   mimeType,
   fileSize,
@@ -134,3 +134,55 @@ return res.status(201).json(toUploadTicket(data));
 ```
 
 **Used by:** `attachments-post.ts` and `opus-attachments-post.ts`.
+
+## buildActor
+
+**Location:** `api/lib/utils/bus/actor.ts`
+
+**Description:** Builds the `Actor` envelope — the reserved top-level key of every command message
+— out of the JWT the api **already verified against Zitadel**: `id` from `decodedToken.sub`,
+`roles` from `decodedTokenRoles` (the `urn:zitadel:iam:org:project:roles` claim), plus the three
+optional profile claims.
+
+**It does not read `req.user`, and that is not an oversight.** The row is right there, loaded by
+`validateToken`, with all five fields and even with `roles`. Using it is a one-line change that
+*looks* like an improvement and introduces two sources of identity for the same thing, with the
+worse of the two deciding. ADR-007 forbids it verbatim: *"roles MUST NOT be stored in the database
+nor derived from another source"*. The claim is also **fresher** than the row — and it is core's
+identity mirror that makes the two converge.
+
+Two shape rules matter to the consumer:
+
+- A profile claim travels **only if it is a non-empty string**. An absent, empty or non-string
+  claim produces **no key at all** — not a key set to `undefined`: core's mirror distinguishes "it
+  was not sent" from "it was sent empty", and that is what keeps an envelope without `name` from
+  wiping the name the row already had.
+- `roles` is **mandatory** in the contract: with no claim it is `[]`, never `undefined`.
+
+It returns `undefined` when there is no verified token, which publishes the command **exactly as it
+behaved before the envelope existed** rather than failing. Unreachable today — the four lists in
+`config/public.ts` are empty — but it is the safe direction.
+
+`identityType` is deliberately **not** part of the envelope: core writes `'person'` as a literal.
+Sending it would give the api the ability to declare that a person is a service.
+
+**Signature:**
+
+```ts
+function buildActor(req: Request | undefined): Actor | undefined
+```
+
+**Usage example:**
+
+```ts
+// It is injected ONCE, in the funnel — never at the call sites.
+function withActor(res: Response, command: string, payload: unknown): unknown {
+  const actor = buildActor(res.req);
+  if (!actor) return payload;
+  return { ...payload, actor };   // the envelope goes AFTER the spread: the token always wins
+}
+```
+
+**Used by:** `sendCommand` (`api/lib/utils/bus/send-command.ts`), and through it every command the
+api publishes — `runCommand` included. `bus().query()` deliberately does **not** use it: the query
+plane resolves identity from the subject and only from there.

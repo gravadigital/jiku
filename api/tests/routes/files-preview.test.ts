@@ -84,7 +84,10 @@ describe('GET /api/files/:id/preview', () => {
         res.headers['x-content-type-options'].should.equal('nosniff');
         fakeBus.sent.length.should.equal(1);
         (fakeBus.last as any).command.should.equal(`files.${fileOrphan.id}.request-download`);
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'inline' });
+        (fakeBus.last as any).payload.should.deepEqual({
+          disposition: 'inline',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
       });
   });
 

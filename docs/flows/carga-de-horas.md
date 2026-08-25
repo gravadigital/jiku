@@ -4,8 +4,8 @@ title: Carga de horas trabajadas
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-23
-stories: [S-014]
+last_updated: 2026-08-25
+stories: [S-014, S-029, S-031, S-034, S-035]
 ---
 
 # Carga de Horas Trabajadas
@@ -13,8 +13,26 @@ stories: [S-014]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-18
-**Stories:** — (documentado desde el código, sin story de origen)
+**Última actualización:** 2026-08-25
+**Stories:** S-014, S-029, S-031, S-034, S-035
+
+> ## REQ-007 — este flujo deja de ser el ejemplo de reglas repartidas
+>
+> **La Descripción de abajo hay que leerla con esto delante, y reescribirla al implementar
+> S-031.** Hoy dice que el flujo *"es el mejor ejemplo de por qué las reglas de negocio están
+> repartidas entre `api` y `core`"*. **Deja de estarlo.**
+>
+> | Paso | Qué cambia | Story |
+> |---|---|---|
+> | **0 (nuevo)** | `core` **espeja la identidad** del sobre en `users`, en su propia transacción y **antes de autorizar** | S-029 |
+> | **2** — *"La api valida lo que core no puede saber"* | **DESAPARECE.** Sus tres validaciones —ventana de carga, rol para imputar a terceros, default de `personId`— y el `.oxor` de Joi se van al paso 4 | S-031, S-034 |
+> | **3** | El payload gana la clave reservada **`actor`** (**ya aplicado**, S-029) y **pierde `personId` como obligatorio** | S-029, S-031 |
+> | **4** | Gana **C-40** (ventana → `invalid_date_range`), **C-41** (imputar a terceros → `access_denied`), la **resolución del default de `personId`** desde el actor, y la **única definición** de la exclusión `taskId`/`requirementId` | S-031 |
+> | **rama nueva** | **Una persona publica `worked-times.new` directo al bus**, sin api. Ver `escritura-por-el-bus` | S-035 |
+>
+> **El contrato HTTP no cambia:** `invalid_date_range` sigue saliendo 400 y `access_denied` sigue
+> saliendo 403. Lo que cambia es quién los emite.
+
 
 ## Descripción
 
@@ -130,6 +148,7 @@ Además, Joi valida que `objectiveId` y `requirementId` sean **mutuamente excluy
 **Payload** (nótese la traducción `objectiveId` → `taskId`):
 ```json
 {
+  "actor": { "id": "323332022539911171", "roles": ["user"] },
   "date": "2026-08-18",
   "minutes": 120,
   "projectId": 12,
@@ -139,9 +158,16 @@ Además, Joi valida que `objectiveId` y `requirementId` sean **mutuamente excluy
 }
 ```
 
-`date` (DateOnly, req) · `minutes` (integer, min 1, req) · `projectId` (integer, req) ·
+`actor` (Actor, opcional en el contrato — **siempre presente desde la api**) · `date` (DateOnly,
+req) · `minutes` (integer, min 1, req) · `projectId` (integer, req) ·
 `personId` (integer, **req** — la api ya resolvió el default) · `taskId` (integer|null) ·
 `requirementId` (integer|null)
+
+> **El sobre de identidad (S-029, entregado).** Todo comando que publica la api lleva además la
+> clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
+> api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
+> arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
+> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
 
 > **`personId` es obligatorio en el bus** aunque sea opcional en HTTP: core no puede resolver "la
 > persona del usuario autenticado" porque no conoce al usuario final. La api resuelve el default

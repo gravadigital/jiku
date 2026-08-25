@@ -61,13 +61,19 @@ describe('POST /api/attachments', () => {
 
     fakeBus.sent.length.should.equal(1);
     (fakeBus.last as any).command.should.equal('files.request-upload');
+    // TS-11: el sobre CONVIVE con el campo de autoría de dominio, y los dos valen lo mismo.
+    // `uploader` es DATO DE DOMINIO —termina en `files.uploaded_by`— y por eso no desaparece
+    // (CA-7); `actor` es EL SOBRE, del transporte. Que sean iguales es lo que hace que core no
+    // rechace el comando por CA-6, y esta aserción es el único lugar donde eso queda afirmado.
     (fakeBus.last as any).payload.should.deepEqual({
       uploader: 'zitadel-sub-01',
       fileName: 'informe.pdf',
       mimeType: 'application/pdf',
       fileSize: 4194304,
       checksum: '9c1e5a',
+      actor: { id: 'zitadel-sub-01', roles: ['user'] },
     });
+    (fakeBus.last as any).payload.uploader.should.equal((fakeBus.last as any).payload.actor.id);
 
     // La fila la escribió CORE, no la api. `byte_status = 'pending'`: el byte todavía no subió.
     const file = await File.findByPk(res.body.fileId);

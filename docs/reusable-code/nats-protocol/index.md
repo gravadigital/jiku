@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-24 (S-020)
+**Last updated:** 2026-08-25 (S-029)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -33,9 +33,10 @@ Total: 7
 
 ## Types
 
-Total: 1
+Total: 2
 
 - **AuthEvent** (`packages/nats-protocol/src/index.ts`) - The payload of the authentication event as the `auth-callout` publishes it: **nine** of the fifteen fields the emitter sends, in `snake_case` verbatim, all required. `identity_type` is `string` and **not** the `IdentityType` enum of `@jiku/models` — the package keeps zero runtime dependencies. `client_ip` and `session` are not declared and never persisted (RF-12).
+- **Actor** (`packages/nats-protocol/src/index.ts`) - The identity envelope: **who acts** behind a command, as a reserved top-level key of the message (`{ actor?: Actor, ...domain payload }`). **Five** fields, `camelCase` — this product owns this contract. Only the trusted publisher (`CORE_TRUSTED_PUBLISHER_ID`) may send it; any other caller that does is rejected with `invalid_fields`. `id` and `roles` are **required** (they are the input of the authorization decision); `name`, `username` and `email` are optional. `email` is `string | undefined` and **not** `string | null` like `AuthEvent.email` — that asymmetry is the single parameterized difference of the mirror handler both share, and homogenizing them breaks it. `roles` is an **open** `string[]` (ADR-008), and there is no `identity_type`: the command mirror writes `'person'` as a literal. The package neither validates nor extracts it — that is `core`'s dispatcher.
 
 ## Test Helpers
 

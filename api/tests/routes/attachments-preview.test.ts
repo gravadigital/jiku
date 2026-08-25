@@ -163,7 +163,10 @@ describe('GET /api/attachments/:id/preview', () => {
         res.headers['x-content-type-options'].should.equal('nosniff');
         fakeBus.sent.length.should.equal(1);
         (fakeBus.last as any).command.should.equal(`files.${fileOk.id}.request-download`);
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'inline' });
+        (fakeBus.last as any).payload.should.deepEqual({
+          disposition: 'inline',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
         // El body va VACÍO: la api no movió un solo byte del archivo (CA-1).
         (res.text ?? '').should.be.empty();
         ((res.body as Buffer)?.length ?? 0).should.equal(0);
@@ -180,7 +183,10 @@ describe('GET /api/attachments/:id/preview', () => {
       .redirects(0)
       .expect(302)
       .then(() => {
-        (fakeBus.last as any).payload.should.deepEqual({ disposition: 'inline' });
+        (fakeBus.last as any).payload.should.deepEqual({
+          disposition: 'inline',
+          actor: { id: 'zitadel-sub-01', roles: ['user'] },
+        });
         Object.keys((fakeBus.last as any).payload).should.not.containEql('requester');
       });
   });

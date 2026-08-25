@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-08-19
 last_updated: 2026-08-25
-stories: [S-003, S-004, S-014, S-027]
+stories: [S-003, S-004, S-014, S-027, S-029, S-030, S-034]
 ---
 
 # Vinculación de Archivos a Entidades
@@ -14,7 +14,17 @@ stories: [S-003, S-004, S-014, S-027]
 **Status:** Draft
 **Creado:** 2026-08-19
 **Última actualización:** 2026-08-25
-**Stories:** S-003, S-004
+**Stories:** S-003, S-004, S-014, S-027, S-029, S-030, S-034
+
+> ## REQ-007 — la autorización por entidad se muda a `core`
+>
+> | Paso | Qué cambia | Story |
+> |---|---|---|
+> | **2** | El paso donde **la api autoriza por entidad** antes de publicar **se muda a `core`**, como chequeo del despachador y **solo en modo externo** | S-030, S-034 |
+> | **4** | `resolveActor` gana **la rama del sobre** | S-029 |
+> | El payload | Gana la clave reservada **`actor`** — **ya aplicado** | S-029 |
+> | **La titularidad del archivo** | **NO SE MUEVE: ya está en `core`** y se valida **sin excepción por rol** — quien subió un archivo es el único que puede vincularlo | S-034 |
+
 
 > **Estado de implementación (al cerrar el lado `core` de S-004):** los pasos **4 y 5**
 > —`resolveActor`, la validación de titularidad y el commit conjunto de entidad + vínculos— están
@@ -173,10 +183,21 @@ entidad sí existe.
 **Payload (fragmento):**
 ```json
 {
+  "actor": { "id": "IdentityUserId", "roles": ["user"] },
   "creator": "IdentityUserId",
   "fileIds": [1234, 1235, 1236]
 }
 ```
+
+> **El sobre de identidad (S-029, entregado).** Todo comando que publica la api lleva además la
+> clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
+> api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
+> arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
+> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+>
+> **La titularidad no cambia de valor.** `resolveActor` pasa a devolver `actor.id` en vez de
+> `payload.creator`, pero los dos salen del mismo token: es el mismo string, así que la regla de
+> RF-12 —solo quien subió el archivo puede vincularlo— sigue decidiendo igual.
 
 `attachmentScope` **desaparece** del payload: existía solo para elegir el anclaje del draft, y no hay
 draft.
