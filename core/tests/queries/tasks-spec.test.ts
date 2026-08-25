@@ -191,14 +191,19 @@ describe('queries/tasks — la ficha como DATO (CA-30)', () => {
     JSON.stringify(tasksSpec).should.not.containEql('ticket_slug');
   });
 
-  it('TS-53 · el recorte del modo externo está DECLARADO y marcado como NO APLICADO', () => {
-    tasksSpec.externalScope.applied.should.be.false();
-    tasksSpec.externalScope.appliedBy.should.equal('S-023');
+  it('TS-44 · el recorte del modo externo se declara con COLUMNAS, y declararlo es aplicarlo', () => {
+    // S-023 le sacó a la ficha el par `applied`/`appliedBy`: mientras existiera, un recurso podía
+    // declarar un recorte y desactivarlo con un booleano, y los 17 que vienen después lo iban a
+    // copiar de acá. El estado peligroso deja de ser REPRESENTABLE.
     tasksSpec.externalScope.projectColumn.should.equal('project_id');
     tasksSpec.externalScope.visibility.should.deepEqual({
-      field: 'visibilityLevel',
+      // COLUMNA y no campo del contrato: al SQL solo llegan nombres que la ficha declara como
+      // columnas, y el motor no tiene que resolver `visibilityLevel` contra `base` en tiempo de
+      // armado —una búsqueda que puede fallar—.
+      column: 'visibility_level',
       value: 'public',
     });
+    Object.keys(tasksSpec.externalScope).sort().should.deepEqual(['projectColumn', 'visibility']);
   });
 
   it('el código de "no encontrado" es `task_not_found`, con la CONSTANTE', () => {

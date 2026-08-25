@@ -53,9 +53,9 @@ cuando exista el primero.
 | 1 · El caller publica la consulta | Implementado | S-013 (subjects), S-022 (contrato) |
 | 2 · `bus/service.ts` decodifica y delega | Implementado | S-013 |
 | 3.1-3.3 · Identidad y compuerta de método (`caller_not_authorized`) | Implementado | S-017 |
-| **3.4 · Segunda compuerta: la clase del caller (`unknown_caller`)** | **Pendiente** | **S-023** |
+| 3.4 · Segunda compuerta: la clase del caller (`unknown_caller`) | Implementado | S-023 |
 | 4 · Validación contra las listas blancas del recurso | Implementado | S-022 |
-| **5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`)** | **Declarado en la ficha, NO aplicado** | **S-023** |
+| 5 · Recorte del modo externo (proyectos permitidos + `visibilityLevel`) | Implementado para `tasks` | S-023 |
 | 6 · SQL explícito sobre `readDb`, keyset y `LIMIT + 1` | Implementado | S-022 |
 | 7 · Proyección, presupuesto de bytes y emisión del cursor | Implementado | S-022 |
 | 8 · El caller recorre la colección | Implementado | S-022 |
@@ -64,11 +64,18 @@ cuando exista el primero.
 registrados —`projects.list/get` y `comments.list/get`— siguen respondiendo `unknown_command` desde
 `core/src/queries/pending.ts` hasta S-024 y S-025.
 
-> **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** con el Paso 5 declarado y no
-> aplicado, `tasks.list` **no recorta filas**, y `ROLE_METHODS` ya autoriza `queries: ALL` a
-> `external-user`. **S-022 y S-023 se despliegan juntas** a cualquier entorno donde exista un caller
-> externo conectado al bus. La separación entre las dos es de desarrollo y verificación, no de
-> despliegue independiente.
+> **CONSECUENCIA DE DESPLIEGUE, y es la más seria del requerimiento:** hasta S-023 el Paso 5 estaba
+> declarado en la ficha y **no aplicado**, así que `tasks.list` **no recortaba filas** mientras
+> `ROLE_METHODS` ya autorizaba `queries: ALL` a `external-user`. **S-022 y S-023 se despliegan
+> juntas** a cualquier entorno donde exista un caller externo conectado al bus. La separación entre
+> las dos es de desarrollo y verificación, no de despliegue independiente.
+
+> **CONSECUENCIA NUEVA DESDE S-023, aceptada y declarada:** la disponibilidad de la lectura por el
+> bus queda **acoplada a la sincronización de `users`**. La compuerta 3.4 **no exime a nadie**, así
+> que un evento de autenticación perdido —la entrega no es durable: NATS core, sin JetStream— deja
+> al caller sin fila y sus consultas devuelven `unknown_caller` hasta su próxima autenticación.
+> **Incluye al service user de la api, sin excepción por configuración.** Su exención sigue intacta
+> en la compuerta 3.3, que es otra pregunta: pasa la primera y falla la segunda.
 
 ## Servicios Involucrados
 
@@ -229,7 +236,8 @@ Responde *"¿puede ejecutar este método?"*.
   recibe `unknown_caller`.
 - La clase se resuelve **una sola vez** y viaja en `QueryContext.callerClass`.
 
-**Ref:** `core/src/authorize-caller.ts`, `core/src/queries/dispatcher.ts`,
+**Ref:** `core/src/authorize-caller.ts` (`readCallerRoles` / `authorizeWithRoles`),
+`core/src/queries/caller-class.ts` (`resolveCallerClass`), `core/src/queries/dispatcher.ts`,
 `docs/db-schemas/jiku.md` (tabla `users`)
 
 ---
@@ -301,7 +309,9 @@ directamente en el SQL, **antes** del filtro del caller y **combinado con AND**:
 | `worked-times` · `unworked-times` · `week-assigned-times` · `settings` | **sin acceso** → `items: []` |
 | `meta.describe` | igual para todos: describe el **contrato**, no los datos |
 
-**Ref:** `docs/db-schemas/jiku.md` (tabla `user_project_permissions`)
+**Ref:** `core/src/queries/engine/build-sql.ts` (`externalScopeSql`),
+`core/src/queries/types.ts` (`ExternalScopeSpec`), `docs/db-schemas/jiku.md`
+(tabla `user_project_permissions`)
 
 ---
 

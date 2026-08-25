@@ -3,7 +3,8 @@ import 'should';
 import * as sinon from 'sinon';
 import { Sequelize } from 'sequelize-typescript';
 import { User } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { ErrorCode, Reply, failure, querySubject, success } from '@jiku/nats-protocol';
+import { getTrustedPublisherId } from '../../src/config';
 import { sequelize } from '../../src/models';
 import { readDb } from '../../src/models/read';
 import logger from '../../src/logger';
@@ -78,6 +79,10 @@ describe('queries/dispatcher', () => {
     // llevan— así que lo que se agrega son las filas que la compuerta va a encontrar. `admin`
     // autoriza TODAS las consultas y NINGÚN comando, que es exactamente lo que estos tests
     // necesitan.
+    //
+    // Y DESDE S-023 hay una segunda compuerta —la de la CLASE del caller— que NO EXIME A NADIE:
+    // el publicador confiable también necesita su fila para consultar, y con `internal-app` entra
+    // en clase CONECTOR, que es la que TS-17 afirma.
     await User.bulkCreate([
       { id: 'api', name: 'Api', username: 'api-q', email: 'api-q@test.local', roles: ['admin'] },
       {
@@ -87,11 +92,20 @@ describe('queries/dispatcher', () => {
         email: 'persona-q@test.local',
         roles: ['admin'],
       },
+      {
+        id: getTrustedPublisherId(),
+        name: 'Publicador Confiable',
+        username: 'trusted-q',
+        email: 'trusted-q@test.local',
+        roles: ['internal-app'],
+      },
     ]);
   });
 
   after(async () => {
-    await User.destroy({ where: { id: ['api', '323332022539911171'] } });
+    await User.destroy({
+      where: { id: ['api', '323332022539911171', getTrustedPublisherId()] },
+    });
   });
 
   it('TS-15 · el despachador NO abre transacción, en ninguna de las dos conexiones', async () => {
@@ -133,14 +147,43 @@ describe('queries/dispatcher', () => {
     await dispatcher.dispatch('dev.323332022539911171.jiku-queries.v1.tasks.list', { a: 1 });
 
     const ctx = captured as unknown as QueryContext;
-    Object.keys(ctx).sort().should.deepEqual(['caller', 'db']);
+    // + `callerClass` desde S-023: la clase se resuelve UNA VEZ en el despachador y viaja acá,
+    // para que ninguna ficha vuelva a consultar `users` (CA-4).
+    Object.keys(ctx).sort().should.deepEqual(['caller', 'callerClass', 'db']);
     ctx.caller.should.equal('323332022539911171');
+    // `roles: ['admin']` -> clase INTERNA, que no recorta nada a nivel de fila (CA-15).
+    ctx.callerClass.should.equal('internal');
     ((ctx.db as unknown) === (fakeDb as unknown)).should.be.true();
     // Ni transacción ni params: la ausencia es el contrato (RF-9, y los patrones no llevan id).
     ((ctx as any).transaction === undefined).should.be.true();
     ((ctx as any).params === undefined).should.be.true();
     // El payload llega TAL CUAL, sin transformar.
     JSON.stringify(receivedPayload).should.equal('{"a":1}');
+  });
+
+  it('TS-17 (S-023) · el contexto del caller EXENTO lleva la clase CONECTOR', async () => {
+    let captured: QueryContext | null = null;
+    const fakeDb = { marker: 'fake' } as unknown as Sequelize;
+    const dispatcher = new QueryDispatcher(
+      new QueryRegistry().register(
+        testQuery('tasks.list', (_payload, ctx) => {
+          captured = ctx;
+          return Promise.resolve(success());
+        })
+      ),
+      fakeDb
+    );
+
+    await dispatcher.dispatch(querySubject('tasks.list', getTrustedPublisherId()), {});
+
+    const ctx = captured as unknown as QueryContext;
+    Object.keys(ctx).sort().should.deepEqual(['caller', 'callerClass', 'db']);
+    // `roles: ['internal-app']` -> CONECTOR: el caller autoriza por su cuenta y el servicio no le
+    // recorta nada, que es lo que la api hace hoy con `validateProjectPermissions` antes de leer.
+    ctx.callerClass.should.equal('connector');
+    // Ni transacción ni params: las dos ausencias siguen siendo el contrato (RF-9, ADR-003).
+    ((ctx as any).transaction === undefined).should.be.true();
+    ((ctx as any).params === undefined).should.be.true();
   });
 
   it('TS-17 · un método no registrado se CONTESTA, no se cuelga', async () => {
@@ -337,8 +380,11 @@ describe('queries/dispatcher — validate() y el presupuesto (CA-31)', () => {
     await dispatcher.dispatch(SUBJECT_OK, {});
 
     // Sin `budgetBytes`: el motor resuelve la ausencia con su default. Es lo que permite que la
-    // forma del contexto no cambie para quien no lo necesita.
-    Object.keys(captured as unknown as QueryContext).sort().should.deepEqual(['caller', 'db']);
+    // forma del contexto no cambie para quien no lo necesita. `callerClass`, en cambio, es
+    // OBLIGATORIA desde S-023: un contexto sin clase sería un contexto sin recorte.
+    Object.keys(captured as unknown as QueryContext)
+      .sort()
+      .should.deepEqual(['caller', 'callerClass', 'db']);
   });
 
   it('`budgetFrom` es la mitad del `max_payload`, y 524288 cuando no hay conexión', () => {

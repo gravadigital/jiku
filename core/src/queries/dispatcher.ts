@@ -6,10 +6,11 @@ import {
   failure,
   methodFromSubject,
 } from '@jiku/nats-protocol';
-import { authorizeCaller } from '../authorize-caller';
+import { authorizeWithRoles, readCallerRoles } from '../authorize-caller';
 import logger from '../logger';
+import { resolveCallerClass } from './caller-class';
 import { QueryRegistry } from './registry';
-import { QueryContext } from './types';
+import { CallerClass, QueryContext } from './types';
 
 /**
  * Presupuesto de bytes cuando la conexión no está disponible o no anuncia `max_payload`.
@@ -20,6 +21,18 @@ import { QueryContext } from './types';
  * framing del protocolo también ocupan.
  */
 export const DEFAULT_PAYLOAD_BUDGET_BYTES = 524288;
+
+/**
+ * El mensaje de `unknown_caller`.
+ *
+ * NO DICE SI LA FILA EXISTE, ni nombra al caller, ni al método, ni la tabla. Mismo criterio que el
+ * `DENIED_MESSAGE` de la compuerta de S-017: el mensaje no puede ser un oráculo de identidad.
+ *
+ * Y ES DISTINTO DEL DE ESA COMPUERTA A PROPÓSITO: son dos códigos y dos causas. Un mensaje
+ * compartido invitaría a fusionar los códigos, que es exactamente el bug que el comentario de
+ * `UNKNOWN_CALLER` en `@jiku/nats-protocol` pide no cometer.
+ */
+const UNKNOWN_CALLER_MESSAGE = 'No se pudo resolver la identidad del caller';
 
 /**
  * El presupuesto de una request a partir del `max_payload` que anuncia el server.
@@ -64,18 +77,61 @@ export class QueryDispatcher {
     // de la llamada a `execute`, y la compuerta lo necesita antes.
     const caller = callerFromSubject(subject);
 
-    // LA COMPUERTA VA ANTES DE RESOLVER EL MÉTODO (CA-6), igual que en el plano de comandos y por
-    // el mismo motivo. Acá no hay transacción que proteger —este despachador no abre ninguna, y
-    // la compuerta TAMPOCO, así que esa propiedad no se altera—: lo que se protege es no tocar
-    // `readDb` ni decirle a un caller no autorizado si la consulta existe.
+    // LAS DOS COMPUERTAS VAN ANTES DE RESOLVER EL MÉTODO (CA-6), igual que en el plano de comandos
+    // y por el mismo motivo. Acá no hay transacción que proteger —este despachador no abre
+    // ninguna, y las compuertas TAMPOCO, así que esa propiedad no se altera—: lo que se protege es
+    // no tocar `readDb` ni decirle a un caller no autorizado si la consulta existe.
     //
-    // EN UN DESPLIEGUE REAL EL CALLOUT YA RECHAZA ESTO EN EL TRANSPORTE (la plantilla del conector
-    // externo no le da permiso sobre `jiku-queries`). Esta línea es la SEGUNDA vez que se dice, y
-    // eso es exactamente lo que "defensa en profundidad" significa: un error en una plantilla no
+    // EN UN DESPLIEGUE REAL EL CALLOUT YA RECHAZA PARTE DE ESTO EN EL TRANSPORTE (la plantilla del
+    // conector externo no le da permiso sobre `jiku-queries`). Esta es la SEGUNDA vez que se dice,
+    // y eso es exactamente lo que "defensa en profundidad" significa: un error en una plantilla no
     // alcanza por sí solo para leer la base.
-    const denied = await authorizeCaller(caller, method, 'queries');
-    if (denied) {
-      return denied;
+    //
+    // EL `try` ES NUEVO Y ES OBLIGATORIO. Hasta S-023 acá se llamaba a `authorizeCaller()`, que
+    // trae su propio try/catch y por eso "nunca rechaza". Al inlinear las dos llamadas —para no
+    // pagar dos `SELECT`— esa protección hay que TRAERLA ACÁ: `getTrustedPublisherId()` lanza si
+    // `loadConfig()` no corrió y `readCallerRoles` puede rechazar (base caída, pool agotado), y
+    // los dos ocurrirían fuera del `try` de más abajo. "El despachador nunca lanza" (ADR-003) no
+    // admite un camino donde sí.
+    let callerClass: CallerClass;
+    try {
+      // UN SOLO `SELECT` (CA-5): el mismo `roles` alimenta a las DOS compuertas.
+      //
+      // ACÁ NO HAY EXENCIÓN DE LA LECTURA, y es la diferencia deliberada con el plano de comandos:
+      // la clase la necesita TODO caller, la api incluida (CA-8). En comandos el exento sigue sin
+      // tocar la base porque allá no hay clase que resolver.
+      const roles = await readCallerRoles(caller);
+
+      // COMPUERTA 1 (S-017) — "¿puede ejecutar este método?", con su exención por `sub` INTACTA.
+      const denied = authorizeWithRoles(caller, roles, method, 'queries');
+      if (denied) {
+        return denied;
+      }
+
+      // COMPUERTA 2 (S-023) — "¿qué le recorto?", y SIN exención para nadie.
+      //
+      // Son dos preguntas distintas y por eso son dos códigos: fusionarlas obligaría a mapear un
+      // mismo código a dos causas y, más grave, borraría el criterio de que sin identidad la
+      // respuesta tiene que ser un ERROR y nunca una lista vacía.
+      //
+      // HOY ESTE RECHAZO SOLO ES ALCANZABLE PARA EL CALLER EXENTO: cualquier otro caller sin clase
+      // ya fue cortado por la compuerta 1, porque los únicos roles con `queries: ALL` son los tres
+      // que SÍ tienen clase. Ver el comentario de `caller-class.ts`.
+      const resolved = resolveCallerClass(roles);
+      if (!resolved) {
+        logger.warn(`[auth] queries: caller sin clase: ${caller} -> ${method}`);
+        return failure(ErrorCode.UNKNOWN_CALLER, UNKNOWN_CALLER_MESSAGE);
+      }
+      callerClass = resolved;
+    } catch (error: any) {
+      // Igual que `authorizeCaller`: una compuerta que no puede decidir DENIEGA. Dejar pasar
+      // convertiría una base caída en un bypass de autorización.
+      //
+      // Prefijo `[auth]` y no `[query]` porque es un fallo de la COMPUERTA, no de la consulta: es
+      // lo que mantiene grepeable con una sola línea todo rechazo de autorización de los dos
+      // planos.
+      logger.error(`[auth] queries: no se pudo resolver el caller de ${method}: ${error.message}`);
+      return failure(ErrorCode.INTERNAL_ERROR, 'Internal error');
     }
 
     const query = this.registry.resolve(method);
@@ -97,7 +153,7 @@ export class QueryDispatcher {
         return validated.error;
       }
 
-      const ctx: QueryContext = { caller, db: this.db };
+      const ctx: QueryContext = { caller, callerClass, db: this.db };
       // La clave se agrega CONDICIONALMENTE: sin proveedor, el contexto es byte a byte el que
       // entregó S-013. Ver el comentario de `QueryContext.budgetBytes`.
       if (this.payloadBudget) {

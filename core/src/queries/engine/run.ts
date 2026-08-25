@@ -39,7 +39,7 @@ export async function runList(
   // `count: 'only'` NO EJECUTA LA CONSULTA DE FILAS. Es la razón de existir del tercer valor: un
   // caller que solo quiere el total no tiene por qué pagar el scan de la página.
   if (query.count === 'only') {
-    const plan = buildCountSql(resource, query);
+    const plan = buildCountSql(resource, query, ctx);
     const counted = await selectRows<CountRow>(ctx, plan, label);
     if ('error' in counted) {
       return counted.error;
@@ -61,7 +61,7 @@ export async function runList(
     keys = decoded.keys;
   }
 
-  const rowsPlan = buildRowsSql(resource, query, keys);
+  const rowsPlan = buildRowsSql(resource, query, ctx, keys);
   const selected = await selectRows<Record<string, unknown>>(ctx, rowsPlan, label);
   if ('error' in selected) {
     return selected.error;
@@ -102,7 +102,7 @@ export async function runList(
   }
 
   if (query.count === true) {
-    const counted = await selectRows<CountRow>(ctx, buildCountSql(resource, query), label);
+    const counted = await selectRows<CountRow>(ctx, buildCountSql(resource, query, ctx), label);
     if ('error' in counted) {
       return counted.error;
     }
@@ -121,7 +121,7 @@ export async function runGet(
   ctx: QueryContext
 ): Promise<Reply> {
   const label = `${resource.name}.get`;
-  const plan = buildGetSql(resource, query);
+  const plan = buildGetSql(resource, query, ctx);
   const selected = await selectRows<Record<string, unknown>>(ctx, plan, label);
   if ('error' in selected) {
     return selected.error;

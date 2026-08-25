@@ -1,4 +1,4 @@
-import { OneRelationSpec, ResourceSpec } from '../types';
+import { OneRelationSpec, QueryContext, ResourceSpec } from '../types';
 import {
   FilterCondition,
   ParsedFilter,
@@ -41,11 +41,69 @@ class Params {
     this.values[name] = value;
     return name;
   }
+
+  /**
+   * Un parámetro con NOMBRE FIJO, para los valores que no vienen del payload.
+   *
+   * NO TOCA EL CONTADOR, y por eso no puede colisionar con los del filtro: `add()` emite `p0`,
+   * `p1`, … y los nombres que pasan por acá son literales del motor (`caller`,
+   * `externalVisibility`). Los usa el recorte del modo externo, cuyos valores salen del contexto
+   * y de la ficha, nunca del cuerpo del mensaje.
+   */
+  set(name: string, value: unknown): string {
+    this.values[name] = value;
+    return name;
+  }
 }
 
 /** `t.created_at`. La columna ya viene de la ficha; acá solo se califica con el alias. */
 function column(spec: { column: string }): string {
   return `${MAIN}.${spec.column}`;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * EL RECORTE DEL MODO EXTERNO
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * EL RECORTE DEL MODO EXTERNO, sobre el SQL y NUNCA sobre el objeto `filter`.
+ *
+ * En el `filter` sería más corto y estaría MAL: cualquier clave del payload que colisione con
+ * `visibilityLevel` o `projectId` lo pisaría, y el aislamiento del portal de clientes dependería
+ * de que ninguna ficha futura declare un filtro con esos nombres.
+ *
+ * SE ANTEPONE AL RESTO DEL `WHERE` y se une con AND: el filtro del caller se aplica ENCIMA del
+ * conjunto ya recortado, así que pedir algo restringido da CERO FILAS, no un error. Un
+ * `filter.visibilityLevel = "internal"` se combina con AND contra `= 'public'` y no matchea nada.
+ *
+ * LOS NOMBRES DE PARÁMETRO SON FIJOS Y NO PASAN POR EL CONTADOR: ese emite `p0`, `p1`, …, así que
+ * `caller` y `externalVisibility` no pueden colisionar con ninguno del filtro.
+ *
+ * LOS NOMBRES DE COLUMNA SALEN DE LA FICHA, como todo el resto del módulo: `projectColumn` y
+ * `visibility.column` son columnas de la BASE, no campos del contrato, y por eso llegan al SQL sin
+ * ninguna resolución en el medio.
+ *
+ * SE REAPLICA EN CADA PÁGINA porque el `WHERE` se vuelve a armar entero: el cursor transporta la
+ * clave de orden y NO un conjunto congelado.
+ */
+function externalScopeSql(
+  resource: ResourceSpec,
+  ctx: QueryContext,
+  params: Params
+): string | null {
+  if (ctx.callerClass !== 'external') {
+    return null;
+  }
+
+  const scope = resource.externalScope;
+  params.set('caller', ctx.caller);
+  params.set('externalVisibility', scope.visibility.value);
+
+  return (
+    `${MAIN}.${scope.projectColumn} IN ` +
+    '(SELECT project_id FROM user_project_permissions WHERE user_id = :caller)' +
+    ` AND ${MAIN}.${scope.visibility.column} = :externalVisibility`
+  );
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -318,6 +376,7 @@ function selectParts(
 export function buildRowsSql(
   resource: ResourceSpec,
   query: ValidatedListQuery,
+  ctx: QueryContext,
   keys?: readonly unknown[]
 ): SqlPlan {
   const params = new Params();
@@ -326,6 +385,12 @@ export function buildRowsSql(
 
   if (keys && keys.length > 0) {
     where.push(keysetSql(query.sort, keys, params));
+  }
+
+  // AL FRENTE DEL `WHERE`, siempre: el filtro y el keyset del caller se aplican ENCIMA.
+  const scope = externalScopeSql(resource, ctx, params);
+  if (scope) {
+    where.unshift(scope);
   }
 
   const sql = [
@@ -348,10 +413,22 @@ export function buildRowsSql(
  * MISMO filtro y MISMOS joins que la consulta de filas: un total que no cuenta lo mismo que la
  * colección es peor que no tener total. Es exacto, no estimado, y por eso es opt-in.
  */
-export function buildCountSql(resource: ResourceSpec, query: ValidatedListQuery): SqlPlan {
+export function buildCountSql(
+  resource: ResourceSpec,
+  query: ValidatedListQuery,
+  ctx: QueryContext
+): SqlPlan {
   const params = new Params();
   const { joins } = selectParts(resource, query.fields, query.sort);
   const where = whereSql(query.filter, params);
+
+  // EL COUNT NO SE PUEDE OLVIDAR: sin el recorte devolvería el total REAL y filtraría exactamente
+  // la información que el recorte esconde. Un total que no cuenta lo mismo que la colección es
+  // peor que no tener total, y acá además es una fuga.
+  const scope = externalScopeSql(resource, ctx, params);
+  if (scope) {
+    where.unshift(scope);
+  }
 
   const sql = [
     'SELECT COUNT(*) AS total',
@@ -371,15 +448,29 @@ export function buildCountSql(resource: ResourceSpec, query: ValidatedListQuery)
  * No lleva keyset ni cursor —no hay página que continuar— y su `LIMIT` es 1: un id identifica una
  * fila. Lo que cambia respecto de un `list` es la RESPUESTA, no el SQL: `data` es el recurso.
  */
-export function buildGetSql(resource: ResourceSpec, query: ValidatedGetQuery): SqlPlan {
+export function buildGetSql(
+  resource: ResourceSpec,
+  query: ValidatedGetQuery,
+  ctx: QueryContext
+): SqlPlan {
   const params = new Params();
   const { columns, joins } = selectParts(resource, query.fields, []);
+
+  // EL `WHERE` SE ARMA COMO ARRAY, igual que en los otros dos, para que el recorte pueda ir al
+  // frente. Un `get` recortado que no matchea devuelve CERO FILAS, y `runGet` traduce eso al
+  // `{recurso}_not_found` de la ficha: "no existe" y "no lo podés ver" son INDISTINGUIBLES, porque
+  // distinguirlos le confirmaría a un caller externo que el recurso existe.
+  const where = [`${MAIN}.id = :${params.add(query.id)}`];
+  const scope = externalScopeSql(resource, ctx, params);
+  if (scope) {
+    where.unshift(scope);
+  }
 
   const sql = [
     `SELECT ${columns.join(', ')}`,
     `FROM ${resource.table} ${MAIN}`,
     ...joins,
-    `WHERE ${MAIN}.id = :${params.add(query.id)}`,
+    `WHERE ${where.join(' AND ')}`,
     'LIMIT 1',
   ]
     .filter((line) => line !== '')

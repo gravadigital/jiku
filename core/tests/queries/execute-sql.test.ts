@@ -20,6 +20,7 @@ const PLAN = { sql: 'SELECT 1', replacements: {} };
 function contextThatFails(error: unknown): QueryContext {
   return {
     caller: 'test',
+    callerClass: 'internal',
     db: { query: () => Promise.reject(error) } as unknown as Sequelize,
   };
 }
@@ -36,6 +37,7 @@ describe('queries/engine/execute-sql — la traducción de errores de PostgreSQL
   it('devuelve las filas tipadas cuando la base responde', async () => {
     const ctx: QueryContext = {
       caller: 'test',
+      callerClass: 'internal',
       db: { query: () => Promise.resolve([{ n: 1 }]) } as unknown as Sequelize,
     };
 
@@ -47,7 +49,11 @@ describe('queries/engine/execute-sql — la traducción de errores de PostgreSQL
 
   it('ejecuta con `QueryTypes.SELECT` y los valores en `replacements`', async () => {
     const query = sinon.stub().resolves([]);
-    const ctx: QueryContext = { caller: 'test', db: { query } as unknown as Sequelize };
+    const ctx: QueryContext = {
+      caller: 'test',
+      callerClass: 'internal',
+      db: { query } as unknown as Sequelize,
+    };
 
     await selectRows(ctx, { sql: 'SELECT :p0', replacements: { p0: 'x' } }, 'tasks.list');
 

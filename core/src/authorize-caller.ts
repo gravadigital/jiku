@@ -170,6 +170,70 @@ export function rolesAuthorize(roles: readonly string[], method: string, plane: 
 }
 
 /**
+ * LA LECTURA, SOLA. Extraída para que el plano de CONSULTAS pueda hacer UN SOLO SELECT y
+ * alimentar con él las DOS compuertas (S-023, CA-5): la de método —esta— y la de clase del
+ * caller, que vive en `queries/caller-class.ts` y responde otra pregunta.
+ *
+ * `roles` es JSONB SIN CHECK y la tabla es escribible por SQL, así que un valor que no sea un
+ * array es alcanzable. La guarda lo convierte en "sin roles" y no en un `internal_error`: fallar
+ * cerrado también acá.
+ *
+ * NO CAPTURA, y es deliberado: quien la llama decide qué hacer con el fallo. En los dos planos
+ * ese "quien" ya tiene su try/catch, y la compuerta que no puede decidir DENIEGA. Capturar acá
+ * devolvería `[]` —o sea, un rechazo mudo— y perdería la distinción entre "no autorizado" y "la
+ * base no contesta", que son `caller_not_authorized` e `internal_error`.
+ */
+export async function readCallerRoles(caller: string): Promise<readonly string[]> {
+  // SIN TRANSACCIÓN (ver el bloque de arriba) y POR PK, contra una tabla de decenas de filas.
+  const user = await User.findByPk(caller);
+  return Array.isArray(user?.roles) ? user.roles : [];
+}
+
+/**
+ * LA DECISIÓN, SOLA: ¿puede este caller ejecutar este método en este plano?
+ *
+ * NO TOCA LA BASE. Recibe los `roles` ya leídos, que es lo que permite que el despachador de
+ * consultas pague UN SOLO `SELECT` para las dos compuertas.
+ *
+ * VUELVE A COMPARAR CONTRA `getTrustedPublisherId()` aunque `authorizeCaller` ya lo hizo antes de
+ * leer. No es una repetición ociosa: son dos cosas distintas. La comparación de allá arriba
+ * existe para NO LEER; esta existe para DECIDIR. Manteniéndola acá, la exención es una propiedad
+ * de la COMPUERTA y no del orden en que alguien encadene las llamadas — y el plano de consultas,
+ * que lee SIEMPRE (CA-8), la conserva sin tener que reimplementarla.
+ *
+ * @returns `null` si está autorizado, o el `Reply` de falla que el despachador debe devolver.
+ */
+export function authorizeWithRoles(
+  caller: string,
+  roles: readonly string[],
+  method: string,
+  plane: Plane
+): Reply<never> | null {
+  if (caller === getTrustedPublisherId()) {
+    return null;
+  }
+
+  if (rolesAuthorize(roles, method, plane)) {
+    return null;
+  }
+
+  // UN SOLO CÓDIGO Y UN SOLO MENSAJE para "sin fila" y "rol sin permiso" (CA-9): distinguirlos
+  // le diría a un caller no autorizado si una identidad existe en la base, que es un oráculo
+  // gratis. `user_not_found` NO se reusa por eso mismo, y porque ya mapea a 404 en la api — el
+  // status equivocado para un rechazo de permisos.
+  //
+  // SE LOGUEAN EL CALLER Y EL MÉTODO, NUNCA EL PAYLOAD (que este módulo ni recibe). `warn` y no
+  // `error`: es entrada inválida que el servicio maneja bien, y un `failure` no es un error.
+  // Prefijo `[auth]` para que TODO rechazo de autorización de los dos planos se grepee con una
+  // sola línea.
+  //
+  // EL CAMINO AUTORIZADO NO LOGUEA NADA, y no es preferencia: `attachments.test.ts` afirma
+  // `warn.called === false` en un despacho de caller externo. Un log acá rompe esa aserción.
+  logger.warn(`[auth] ${plane}: caller no autorizado: ${caller} -> ${method}`);
+  return failure(ErrorCode.CALLER_NOT_AUTHORIZED, DENIED_MESSAGE);
+}
+
+/**
  * Autoriza —o no— al caller de un subject a ejecutar un método.
  *
  *   caller === CORE_TRUSTED_PUBLISHER_ID  -> pasa SIN consultar la base
@@ -178,6 +242,11 @@ export function rolesAuthorize(roles: readonly string[], method: string, plane: 
  *                                              con fila, ningún rol autoriza  -> el MISMO rechazo
  *
  * @returns `null` si está autorizado, o el `Reply` de falla que el despachador debe devolver.
+ *
+ * DESDE S-023 ES LA COMPOSICIÓN DE LAS DOS FUNCIONES DE ARRIBA, y su comportamiento no cambió ni
+ * en un carácter: el suite de comandos pasa sin tocar una sola aserción (CA-6). Quien la sigue
+ * usando es el plano de COMANDOS; el de consultas ahora encadena `readCallerRoles` +
+ * `authorizeWithRoles` por su cuenta, porque necesita esos mismos `roles` para resolver la clase.
  *
  * NUNCA RECHAZA, y no es una precaución: `getTrustedPublisherId()` lanza si `loadConfig()` no
  * corrió, y `findByPk` puede rechazar (base caída, pool agotado). Los dos ocurrirían ANTES del
@@ -199,6 +268,11 @@ export async function authorizeCaller(
     // LA EXENCIÓN DEL CANAL DE LA API (CA-1, CA-2). Una comparación de strings, sin base: es el
     // 100% del tráfico de hoy y no paga ni una consulta ni un milisegundo.
     //
+    // ESTE CORTOCIRCUITO ES EL QUE TIENE QUE QUEDAR ANTES DE LA LECTURA, y es la diferencia
+    // deliberada con el plano de consultas: allá la clase del caller la necesita TODO caller —la
+    // api incluida (CA-8)—, así que allá se lee siempre. Acá no hay clase que resolver, y leer
+    // sería pagar un SELECT por cada escritura del producto.
+    //
     // REUSA `getTrustedPublisherId()`, LA MISMA FUNCIÓN QUE `resolve-actor.ts` YA USA, sobre la
     // misma constante y con el mismo argumento (la api ya autenticó a la persona contra Zitadel
     // por JWT, y ya autorizó por rol con `hasAnyRole` ANTES de publicar). Consultar `users.roles`
@@ -215,32 +289,9 @@ export async function authorizeCaller(
       return null;
     }
 
-    // SIN TRANSACCIÓN (ver el bloque de arriba) y POR PK, contra una tabla de decenas de filas.
-    const user = await User.findByPk(caller);
+    const roles = await readCallerRoles(caller);
 
-    // `roles` es JSONB sin CHECK y la tabla es escribible por SQL, así que un valor que no sea un
-    // array es alcanzable. La guarda lo convierte en un RECHAZO en vez de un `internal_error`:
-    // fallar cerrado también acá.
-    const roles = Array.isArray(user?.roles) ? user.roles : [];
-
-    if (rolesAuthorize(roles, method, plane)) {
-      return null;
-    }
-
-    // UN SOLO CÓDIGO Y UN SOLO MENSAJE para "sin fila" y "rol sin permiso" (CA-9): distinguirlos
-    // le diría a un caller no autorizado si una identidad existe en la base, que es un oráculo
-    // gratis. `user_not_found` NO se reusa por eso mismo, y porque ya mapea a 404 en la api — el
-    // status equivocado para un rechazo de permisos.
-    //
-    // SE LOGUEAN EL CALLER Y EL MÉTODO, NUNCA EL PAYLOAD (que este módulo ni recibe). `warn` y no
-    // `error`: es entrada inválida que el servicio maneja bien, y un `failure` no es un error.
-    // Prefijo `[auth]` —nuevo— para que TODO rechazo de autorización de los dos planos se grepee
-    // con una sola línea.
-    //
-    // EL CAMINO AUTORIZADO NO LOGUEA NADA, y no es preferencia: `attachments.test.ts` afirma
-    // `warn.called === false` en un despacho de caller externo. Un log acá rompe esa aserción.
-    logger.warn(`[auth] ${plane}: caller no autorizado: ${caller} -> ${method}`);
-    return failure(ErrorCode.CALLER_NOT_AUTHORIZED, DENIED_MESSAGE);
+    return authorizeWithRoles(caller, roles, method, plane);
   } catch (error: any) {
     logger.error(`[auth] ${plane}: no se pudo autorizar ${method}: ${error.message}`);
     return failure(ErrorCode.INTERNAL_ERROR, 'Internal error');

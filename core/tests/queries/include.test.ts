@@ -16,7 +16,10 @@ import { QueryContext } from '../../src/queries/types';
 
 function contextWith(rows: Record<string, unknown>[]): { ctx: QueryContext; query: sinon.SinonStub } {
   const query = sinon.stub().resolves(rows);
-  return { ctx: { caller: 'test', db: { query } as unknown as Sequelize }, query };
+  return {
+    ctx: { caller: 'test', callerClass: 'internal', db: { query } as unknown as Sequelize },
+    query,
+  };
 }
 
 describe('queries/engine/include — resolución por lote (CA-11)', () => {
