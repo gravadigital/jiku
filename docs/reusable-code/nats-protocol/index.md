@@ -4,7 +4,7 @@
 > it is **not** a full scan of the package. Run `/service-update-reusable-code packages/nats-protocol`
 > to complete it.
 
-**Last updated:** 2026-08-25 (S-029)
+**Last updated:** 2026-08-25 (S-030)
 
 The whole package is reusable by definition: it is the single definition of the bus contract, shared
 by `api` (which publishes) and `core` (which serves). Everything lives in one file,
@@ -17,7 +17,7 @@ Total: 3
 
 - **COMMAND_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the commands service: `NATS_COMMAND_SERVICE || 'jiku-commands'`. Read once, at import time.
 - **QUERY_SERVICE** (`packages/nats-protocol/src/index.ts`) - The `{svc}` token of the queries service: `NATS_QUERY_SERVICE || 'jiku-queries'`. Read once, at import time.
-- **ErrorCode** (`packages/nats-protocol/src/index.ts`) - The catalog of protocol error codes as a frozen object (`as const`), 32 members. Use the constant, never the literal. The catalog is **not closed** and holds codes with no emitter on purpose (ADR-005). Adding a code is **three** changes — this file, the `enum` of `docs/apis/core.yaml` and the map of `api/lib/utils/bus/protocol.ts` — and without the third it falls through to a generic 500. The source of truth for the value is the contract, not this file. REQ-005 added `caller_not_authorized` (403), the first code emitted by **the dispatcher** and not by a command. REQ-006 added the **five** codes of the query plane — `unknown_caller`, `query_timeout`, `invalid_cursor`, `comment_not_found`, `task_not_found` — none of them emitted by a command, and each making only **two** of the three changes on purpose: their HTTP map belongs to the requirement that migrates the `GET` routes.
+- **ErrorCode** (`packages/nats-protocol/src/index.ts`) - The catalog of protocol error codes as a frozen object (`as const`), 33 members. Use the constant, never the literal. The catalog is **not closed** and holds codes with no emitter on purpose (ADR-005). Adding a code is **three** changes — this file, the `enum` of `docs/apis/core.yaml` and the map of `api/lib/utils/bus/protocol.ts` — and without the third it falls through to a generic 500. The source of truth for the value is the contract, not this file. REQ-005 added `caller_not_authorized` (403), the first code emitted by **the dispatcher** and not by a command. REQ-006 added the **five** codes of the query plane — `unknown_caller`, `query_timeout`, `invalid_cursor`, `comment_not_found`, `task_not_found` — none of them emitted by a command, and each making only **two** of the three changes on purpose: their HTTP map belongs to the requirement that migrates the `GET` routes. REQ-007 added `access_denied` (403), the first code where **all three** changes land in the same requirement — it answers _"can you touch THIS entity?"_ with the `user_project_permissions` row in front of it, only in external mode, and it is not `caller_not_authorized`, which answers _"does your role enable this method?"_. Its emitter is core's write gate (S-030).
 
 ## Utils
 

@@ -97,8 +97,8 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     PUBLIC_SURFACE.length.should.equal(18);
   });
 
-  it('TS-49: ErrorCode tiene 32 miembros', () => {
-    Object.keys(reload({}).ErrorCode).length.should.equal(32);
+  it('TS-49: ErrorCode tiene 33 miembros', () => {
+    Object.keys(reload({}).ErrorCode).length.should.equal(33);
   });
 
   it('TS-50: el envelope intacto', () => {
@@ -228,12 +228,12 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     ((E.USER_NOT_FOUND as string) === (E.CALLER_NOT_AUTHORIZED as string)).should.be.false();
   });
 
-  it('TS-72: los 32 valores del catálogo son únicos entre sí', () => {
+  it('TS-72: los 33 valores del catálogo son únicos entre sí', () => {
     // Atrapa el copy-paste que deja dos claves con el mismo valor: un fallo que ninguna otra
     // aserción ve, porque el catálogo se lee siempre por clave.
     const values = Object.values(reload({}).ErrorCode);
-    values.length.should.equal(32);
-    new Set(values).size.should.equal(32);
+    values.length.should.equal(33);
+    new Set(values).size.should.equal(33);
   });
 
   it('TS-73: el envelope de falla con el código nuevo', () => {
@@ -391,9 +391,104 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     }
 
     const delPaquete = Object.values(reload({}).ErrorCode) as string[];
-    values.length.should.equal(32);
-    delPaquete.length.should.equal(32);
+    values.length.should.equal(33);
+    delPaquete.length.should.equal(33);
     Array.from(new Set(values)).sort().should.eql(Array.from(new Set(delPaquete)).sort());
+  });
+
+  // ---------------------------------------------------------------------------------------
+  // REQ-007 / S-030 · UN código: access_denied.
+  //
+  // Al terminar esta story EXISTE Y NADIE LO EMITE, y está bien: es el vocabulario que la
+  // compuerta de core usa desde su primera línea. Sin él declarado, `ErrorCode.ACCESS_DENIED`
+  // no es un `undefined` en runtime: es un TS2339 que no compila.
+  //
+  // El tercer lugar —el mapa a HTTP de la api— es de S-030 (api), no de este paquete.
+  // ---------------------------------------------------------------------------------------
+
+  it('TS-98: ACCESS_DENIED tiene el valor exacto del contrato', () => {
+    // El valor cruza el bus y lo va a indexar el mapa de la api: un typo acá sale 500 en producción
+    // y ningún test de `core` lo atrapa, porque `core` usaría la misma constante equivocada.
+    reload({}).ErrorCode.ACCESS_DENIED.should.equal('access_denied');
+  });
+
+  it('TS-99: la clave es la traducción mecánica del valor', () => {
+    // Romper la simetría de los 32 que ya están haría que el próximo código se agregue mal.
+    const entries = Object.entries(reload({}).ErrorCode);
+    const found = entries.find(([, value]) => value === 'access_denied');
+    (found as [string, string])[0].should.equal('ACCESS_DENIED');
+  });
+
+  it('TS-100: access_denied y caller_not_authorized coexisten y son distintos', () => {
+    // Dos compuertas, una detrás de la otra: el mapa rol -> método responde "¿tu rol habilita este
+    // método?" -> caller_not_authorized; el chequeo de entidad responde "¿podés tocar ESTA
+    // entidad?" -> access_denied. Fusionarlos mandaría un código a dos causas.
+    const E = reload({}).ErrorCode;
+    E.ACCESS_DENIED.should.equal('access_denied');
+    E.CALLER_NOT_AUTHORIZED.should.equal('caller_not_authorized');
+    ((E.ACCESS_DENIED as string) === (E.CALLER_NOT_AUTHORIZED as string)).should.be.false();
+  });
+
+  it('TS-101: ErrorCodeValue incluye el valor nuevo sin editar el tipo', () => {
+    // La aserción fuerte es de COMPILACIÓN: antes del cambio esta línea es un TS2322. Y prueba que
+    // el `as const` sigue en su lugar — sin él el tipo sería `string`, compilaría igual, y el verde
+    // sería falso.
+    const code: ErrorCodeValue = 'access_denied';
+    code.should.equal('access_denied');
+  });
+
+  it('TS-102: el envelope de falla con el código nuevo', () => {
+    const p = reload({});
+    p.failure(p.ErrorCode.ACCESS_DENIED, 'No tenés permiso sobre esta entidad').should.eql({
+      status: 'failure',
+      errorCode: 'access_denied',
+      errorMessage: 'No tenés permiso sobre esta entidad',
+    });
+  });
+
+  it('TS-103: los 32 códigos anteriores siguen exactamente iguales', () => {
+    // Un `access_denied` agregado en el mismo diff que renombra otro código pasaría TS-89 —que
+    // compara conjuntos de 33 contra 33— y rompería a los dos consumidores. Esta es la red.
+    const PREVIOS: Record<string, string> = {
+      INVALID_FIELDS: 'invalid_fields',
+      INTERNAL_ERROR: 'internal_error',
+      UNKNOWN_COMMAND: 'unknown_command',
+      CALLER_NOT_AUTHORIZED: 'caller_not_authorized',
+      UNKNOWN_CALLER: 'unknown_caller',
+      QUERY_TIMEOUT: 'query_timeout',
+      INVALID_CURSOR: 'invalid_cursor',
+      COMMENT_NOT_FOUND: 'comment_not_found',
+      TASK_NOT_FOUND: 'task_not_found',
+      CLIENT_NOT_FOUND: 'client_not_found',
+      PROJECT_NOT_FOUND: 'project_not_found',
+      OBJECTIVE_NOT_FOUND: 'objective_not_found',
+      REQUIREMENT_NOT_FOUND: 'requirement_not_found',
+      USER_NOT_FOUND: 'user_not_found',
+      PERSON_NOT_FOUND: 'person_not_found',
+      INVALID_RESPONSIBLE_PERSON: 'invalid_responsible_person',
+      INVALID_ATTACHMENT_ID: 'invalid_attachment_id',
+      REQUIREMENT_PROJECT_MISMATCH: 'requirement_project_mismatch',
+      DAILY_LIMIT_EXCEEDED: 'daily_limit_exceeded',
+      INVALID_DATE_RANGE: 'invalid_date_range',
+      ALREADY_SUBSCRIBED: 'already_subscribed',
+      SUBSCRIPTION_NOT_FOUND: 'subscription_not_found',
+      INVALID_STATE_TRANSITION: 'invalid_state_transition',
+      STAGE_NOT_FOUND: 'stage_not_found',
+      RESOLUTION_REQUIRED: 'resolution_required',
+      WORKED_TIME_NOT_FOUND: 'worked_time_not_found',
+      UNWORKED_TIME_NOT_FOUND: 'unworked_time_not_found',
+      FILE_TYPE_NOT_ALLOWED: 'file_type_not_allowed',
+      FILE_TOO_LARGE: 'file_too_large',
+      FILE_NOT_OWNED: 'file_not_owned',
+      FILE_NOT_FOUND: 'file_not_found',
+      FILE_NOT_AVAILABLE: 'file_not_available',
+    };
+    Object.keys(PREVIOS).length.should.equal(32);
+
+    const actual = reload({}).ErrorCode as unknown as Record<string, string>;
+    Object.entries(PREVIOS).forEach(([key, value]) => {
+      actual[key].should.equal(value);
+    });
   });
 
   // Las dos aserciones negativas usan el cast a Record<string, unknown> y NO acceso tipado: con

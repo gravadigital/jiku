@@ -375,6 +375,37 @@ export const ErrorCode = {
   INVALID_STATE_TRANSITION: 'invalid_state_transition',
   STAGE_NOT_FOUND: 'stage_not_found',
   RESOLUTION_REQUIRED: 'resolution_required',
+
+  // REQ-007 / S-030 agrega UN código, y responde una pregunta DISTINTA de la de
+  // CALLER_NOT_AUTHORIZED. Los dos terminan en 403 y ahí se acaba el parecido:
+  //
+  //   caller_not_authorized  ->  "¿tu rol habilita este método?"    lo decide el mapa rol -> método,
+  //                                                                 ANTES de tocar el dominio
+  //   access_denied          ->  "¿podés tocar ESTA entidad?"       lo decide la compuerta CON LA
+  //                                                                 FILA DE user_project_permissions
+  //                                                                 DELANTE
+  //
+  // NO SE FUSIONAN. Fusionarlos obligaría a un futuro consumidor a mapear un código a dos causas,
+  // que es el mismo argumento ya escrito más arriba para unknown_caller vs caller_not_authorized.
+  //
+  // EL NOMBRE NO SE ELIGIÓ ACÁ, SE HEREDÓ: la api ya responde `{ code: 'access_denied' }` con 403
+  // desde `has-any-role.ts` y `validate-project-permission.ts`, y los dos frontends ya lo conocen.
+  // Cambiarle el nombre le cambiaría el contrato a la UI a cambio de nada.
+  //
+  // LO EMITE LA COMPUERTA DE CORE, NO UN COMANDO: el chequeo de entidad vive en el despachador y
+  // los execute() de los 20 comandos no se tocan. Y SOLO EN MODO EXTERNO: un admin o un user SIN
+  // FILA en user_project_permissions PASA — aplicar el chequeo a todo caller rompería toda la
+  // escritura interna, porque los usuarios internos no tienen filas.
+  //
+  // HOY NO LO EMITE NADIE. Su emisor llega en S-030 (core). Un código declarado sin emisor no
+  // rompe nada; uno emitido sin declarar obliga al literal a mano.
+  //
+  // LOS TRES LUGARES: este archivo, el `enum` de `docs/apis/core.yaml` (YA ESCRITO, y la fuente de
+  // verdad del valor) y `STATUS_BY_ERROR_CODE` de `api/lib/utils/bus/protocol.ts` -> 403, que es
+  // de S-030 (api). SIN EL TERCERO cae en el `|| 500` de httpStatusFor() y el frontend lo trata
+  // como error de servidor en vez de mostrar el mensaje.
+  ACCESS_DENIED: 'access_denied',
+
   WORKED_TIME_NOT_FOUND: 'worked_time_not_found',
   UNWORKED_TIME_NOT_FOUND: 'unworked_time_not_found',
 
