@@ -38,18 +38,24 @@ const CONTRACT_PATTERNS = [
   'unworked-times.list',
   'week-assigned-times.list',
   'project-permissions.list',
+  // LOS TRES DE S-028, que CIERRAN el contrato. Los tres tienen FORMA PROPIA y por eso van juntos:
+  // ninguno encaja del todo en el molde `list`/`get` del resto.
+  'requirements.tags',
+  'settings.list',
+  'meta.describe',
 ];
 
 /**
- * Los que SIGUEN SIN CONTRATO después de S-025: NINGUNO.
+ * Los que SIGUEN SIN CONTRATO después de S-028: NINGUNO, y ahora es DEFINITIVO.
  *
- * S-022 le dio contrato a `tasks`, S-024 a `clients`, `projects` y `requirements`, y S-025 a
- * `comments`, `activity` y `subscriptions`. El array quedó vacío, y `src/queries/pending.ts` se
- * elimina en S-028 —cuando el registro tenga los 18 recursos—, no acá: lo que esta story deja es
- * un stub SIN CONSUMIDORES, que es otra cosa (CA-17).
+ * S-022 le dio contrato a `tasks`, S-024 a `clients`, `projects` y `requirements`, S-025 a
+ * `comments`, `activity` y `subscriptions`, S-026 a los seis del equipo y los tiempos, S-027 a
+ * `attachments` y `files`, y S-028 a los tres con forma propia. Con el último, `src/queries/pending.ts`
+ * SE ELIMINÓ: el mecanismo del stub ya no existe.
  *
  * EL ARRAY SE QUEDA VACÍO Y NO SE BORRA: el bucle de TS-19 sigue siendo la forma de verificar la
- * propiedad, y un recurso nuevo sin contrato volvería a poblarlo.
+ * propiedad, y un recurso nuevo sin contrato volvería a poblarlo — solo que ya no habría un stub que
+ * lo atienda, así que el bucle fallaría, que es exactamente lo que se quiere.
  */
 const PENDING_PATTERNS: string[] = [];
 
@@ -80,12 +86,14 @@ describe('queries/index — el registry poblado', () => {
     queryRegistry.patterns().should.deepEqual(CONTRACT_PATTERNS);
   });
 
-  it('TS-94 / TS-107 · son VEINTE patrones desde S-027, y es lo que anuncia el arranque', () => {
+  it('TS-91 · son VEINTITRÉS patrones desde S-028, y es lo que anuncia el arranque (CA-1)', () => {
     // `nats micro info jiku-queries` deriva sus endpoints de esta misma lista, y el log de
     // arranque de `src/index.ts` imprime `${queryRegistry.patterns().length} registered queries`.
-    queryRegistry.patterns().length.should.equal(20);
+    // EL CONTEO PASA DE 6 A 23 A LO LARGO DE REQ-006, y esta es la línea que lo fija.
+    queryRegistry.patterns().length.should.equal(23);
     queryRegistry.patterns().should.containEql('attachments.list');
     queryRegistry.patterns().should.containEql('files.get');
+    queryRegistry.patterns().should.containEql('meta.describe');
   });
 
   it('TS-92 · CA-14: `attachments.get` NO EXISTE, y responde `unknown_command`', async () => {

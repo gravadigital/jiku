@@ -19,7 +19,7 @@ import { tasksSpec } from './tasks-spec';
  */
 /**
  * El payload de `tasks.get` DESPUÉS de validar. Alias del tipo del motor por la misma razón que
- * `TasksListPayload`: la forma de un `get` es idéntica para los 18 recursos.
+ * `TasksListPayload`: la forma de un `get` es idéntica para los 16 recursos.
  */
 export type TasksGetPayload = ValidatedGetQuery;
 

@@ -28,12 +28,16 @@ info:
     their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
     of this spec, and that is permanent** — this file stays the contract of the commands.
 
-    **REQ-006 defines that contract: 23 endpoints over 18 resources**, and it gets **its own spec**,
-    `docs/apis/core-queries.yaml` (AsyncAPI 2.6, same format, same "the document wins" rule),
-    written by the last story of that requirement. Until that story lands, the endpoints that have
-    no resource sheet yet are registered and discoverable and answer a well-formed `failure`
-    (`unknown_command`, "todavía no tiene contrato definido"); when it lands, `core/src/queries/pending.ts`
-    is deleted and `nats micro info jiku-queries` lists 23 endpoints with contract.
+    **That contract now EXISTS and lives in `docs/apis/core-queries.yaml`** (AsyncAPI 2.6, same
+    format, same "the document wins" rule), written by REQ-006: **23 endpoints over 16 resources**,
+    all of them with a resource sheet. `nats micro info jiku-queries` lists the 23 with their own
+    queue group, and none of them answers `unknown_command` — the transitional stub
+    (`core/src/queries/pending.ts`) was deleted by the last story of that requirement.
+
+    > **16 resources, not 18.** The "18" this file carried came from counting the sections of the
+    > *Recursos* chapter of the analysis document, which counted `requirements.tags` and
+    > `meta.describe` as if they were resources. They are not: the first is an OPERATION of
+    > `requirements` and the second is the describer. The ENDPOINT count is exact at 23.
 
     **What REQ-006 changes IN THIS FILE** is only what is shared with the commands: the `Reply`
     envelope gains the optional `errorDetails`, and `ErrorCode` gains five codes that **no command

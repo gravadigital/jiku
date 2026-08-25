@@ -13,7 +13,7 @@ import { ValidatedGetQuery, ValidatedListQuery } from './types';
 /**
  * EL MOTOR, en su forma ejecutable: dos funciones que sirven a CUALQUIER recurso con ficha.
  *
- * Es lo que hace que las 17 fichas que vienen después sean DATOS que se escriben y no motores que
+ * Es lo que hace que las 16 fichas del contrato sean DATOS que se escriben y no motores que
  * se reimplementan. Si un recurso necesitara agregar lógica acá para funcionar, la ficha se
  * quedó corta: el arreglo va en la ficha o en el motor, nunca en el archivo del recurso.
  */

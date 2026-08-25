@@ -735,3 +735,101 @@ const FILTERABLE = { uploadedBy: { column: 'uploaded_by', from: 'f', kind: 'stri
 ```
 
 A spec **without** `joins` produces exactly the same SQL as before, character for character.
+
+## EnumEntry / EnumSpec
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** An enum entry of a resource spec: a plain string, or `{ value, label }`.
+
+**The two shapes coexist on purpose.** A spec that declares only values — the shape every spec had
+from S-022 to S-027 — stays valid and does not change a character; the one that needs a label
+declares `{ value, label }` **in the same position**, so the order of the values, which is part of
+the contract's response, is untouched.
+
+**The label lives next to the value and not in a separate map**, and that is the central decision of
+S-028. An `ENUM_LABELS` map on the side is exactly the parallel structure the story's main risk
+describes: it desyncs in silence and `meta.describe` — which is DERIVED from this very structure —
+starts lying. With the label in the spec there are no two copies to keep in sync.
+
+`errorDetails.allowed` **is still a list of strings**: the validator projects to `value` at the point
+where it builds the detail (`enumValues()`), so the error catalog does not change shape.
+
+Without a label, `meta.describe` **falls back to the raw value**. A `label: undefined` in the
+response would be worse than the value: it would force every consumer to handle the case.
+
+**Interface:**
+```ts
+type EnumEntry = string | { readonly value: string; readonly label: string };
+type EnumSpec = readonly EnumEntry[];
+
+// in ResourceSpec and ResourceVariant
+readonly enums: Readonly<Record<string, EnumSpec>>;
+```
+
+**Usage:**
+```ts
+// core/src/queries/unworked-times/unworked-times-spec.ts — the only spec with declared labels
+const ENUMS = {
+  reason: [
+    { value: 'tramite', label: 'Trámite' },
+    { value: 'corte_servicios', label: 'Cortes de servicios' },
+    // …
+  ],
+} as const;
+
+// core/src/queries/tasks/tasks-spec.ts — values only, unchanged
+const ENUMS = { state: ['backlog', 'activo', 'en_revision', 'finalizado', 'cancelado'] } as const;
+```
+
+## FieldDescription / FilterDescription / ResourceDescription
+
+**Location:** `core/src/queries/meta/describe-spec.ts`
+
+**Description:** The shape of **the contract as data**: what `meta.describe` returns per resource.
+
+A resource with a discriminator is described **per variant** (`discriminator` + `variants`), because
+its spec is not complete until the variant is resolved: `activity.enums.type` is overridden whole per
+variant and `filterable.entityId` points at a different column in each. `sortable` and `defaults` sit
+at the **resource** level, because `ResourceVariant` cannot override them — publishing them per
+variant would suggest a freedom the spec does not have.
+
+**Interface:**
+```ts
+interface FieldDescription {
+  kind: 'field' | 'constant' | 'computed' | 'relation';
+  cardinality?: 'one' | 'many';
+  fields?: readonly string[];       // the NAMES of the relation's fields
+  optional?: boolean;
+  cap?: number;                     // only if the spec declares one
+  truncatedFlag?: string;
+  scalar?: string;
+}
+
+interface FilterDescription {
+  kind: string;                     // the spec's `kind`, defaulting to 'string'
+  enum?: string;                    // the name of the enum in `enums`
+  search?: boolean;                 // WHAT it does; never WHERE it searches
+  searchNumeric?: boolean;          // free text that is all digits searches BY ID
+  contains?: { shape: readonly string[] };
+}
+
+interface ResourceDescription extends Partial<VariantDescription> {
+  sortable: readonly string[];
+  defaults: { sort: readonly string[]; limit: number; maxLimit: number };
+  discriminator?: { field: string; values: readonly string[] };
+  variants?: Readonly<Record<string, VariantDescription>>;
+}
+```
+
+**Usage:**
+```jsonc
+// meta.describe { "resources": ["tasks"] }
+{ "base": { "id": { "kind": "field" }, … },
+  "includable": { "comments": { "kind": "relation", "cardinality": "many",
+                                "cap": 10, "truncatedFlag": "commentsTruncated" } },
+  "filterable": { "state": { "kind": "enum", "enum": "state" } },
+  "sortable": ["title", "state", "priority", "finishedAt", "createdAt", "updatedAt"],
+  "defaults": { "sort": ["-createdAt"], "limit": 50, "maxLimit": 200 },
+  "enums": { "state": [{ "value": "backlog", "label": "backlog" }, …] } }
+```

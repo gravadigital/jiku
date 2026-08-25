@@ -7,9 +7,10 @@ import { projectsSpec } from './projects-spec';
 /**
  * Colección paginada de proyectos.
  *
- * DEJÓ DE SER UN STUB EN S-024: hasta acá respondía `unknown_command` con el mensaje de
- * `pendingContract`. Ahora sirve el contrato sobre el motor de consulta, y el archivo es
- * declarativo — la ficha dice QUÉ se puede pedir, el motor sabe CÓMO servirlo.
+ * DEJÓ DE SER UN STUB EN S-024: hasta acá respondía `unknown_command` con el mensaje del contrato
+ * pendiente. Ahora sirve el contrato sobre el motor de consulta, y el archivo es declarativo — la
+ * ficha dice QUÉ se puede pedir, el motor sabe CÓMO servirlo. El mecanismo del stub no existe más:
+ * S-028 lo eliminó al cerrar el contrato.
  *
  * `properties` del contrato es `key_value_pairs` en la base (ADR-004): la traducción vive en
  * `commands/projects/properties.ts` y la ficha la referencia, no la copia.

@@ -146,7 +146,7 @@ Cinco partes, siempre en este orden: imports → interfaz del payload → esquem
 
 ## Orden dentro de `execute`
 
-El orden importa y es consistente en los 17 comandos:
+El orden importa y es consistente en los 20 comandos:
 
 1. **Buscar la entidad del `params`** y responder `*_not_found` si no está.
 2. **Validar las referencias del payload** (proyecto, personas, requisito) y responder su código.

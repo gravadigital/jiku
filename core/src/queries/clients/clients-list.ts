@@ -15,7 +15,7 @@ import { clientsSpec } from './clients-spec';
  */
 /**
  * El payload de `clients.list` DESPUÉS de validar. Alias del tipo genérico del motor: la gramática
- * de `list` es LA MISMA para los 18 recursos, y una copia por recurso sería la divergencia que la
+ * de `list` es LA MISMA para los 16 recursos, y una copia por recurso sería la divergencia que la
  * ficha-como-dato existe para evitar.
  */
 export type ClientsListPayload = ValidatedListQuery;

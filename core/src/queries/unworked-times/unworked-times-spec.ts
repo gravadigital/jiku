@@ -22,23 +22,37 @@ import {
 
 /**
  * Los nueve valores EXACTOS del DBML (`Enum unworked_reason`), en el orden que viaja en
- * `errorDetails.allowed`.
+ * `errorDetails.allowed`, CON SUS ETIQUETAS.
  *
  * `medico` Y `enfermedad` SON DATO DE SALUD. Además de que el recurso NO TIENE ACCESO EXTERNO
  * —que es la mitigación principal—, es la razón por la que esta ficha no crece en superficie: no
  * hay `q` sobre ningún texto, no hay incluibles más allá de la persona, y no hay `get`.
+ *
+ * LAS ETIQUETAS SON LAS DE `GET /unworked-times/reasons` DE LA API, carácter por carácter
+ * (`api/lib/routes/unworked-times-reasons-get.ts`), y esa igualdad es el contrato de S-028: es lo
+ * que hace que `meta.describe` REEMPLACE FUNCIONALMENTE a esa ruta (CA-13). La ruta HTTP no se
+ * elimina en REQ-006 —tiene consumidores en los dos frontends—, pero deja de ser el único lugar del
+ * producto donde vive esta traducción.
+ *
+ * NO SE IMPORTAN DE LA API, y no es una molestia evitable: `core` no depende de `api`, y hacerlo
+ * invertiría la dirección de la dependencia del producto. La copia es deliberada y el test que la
+ * compara contra el original es lo que la mantiene honesta (TS-2).
+ *
+ * ES EL ÚNICO ENUM DEL CONTRATO CON ETIQUETAS DECLARADAS, y también es deliberado: para el resto no
+ * hay una fuente —inventar `backlog` -> "Backlog" sería escribir traducciones que nadie acordó— y
+ * `meta.describe` cae al valor crudo, que es una etiqueta legítima.
  */
 const ENUMS = {
   reason: [
-    'tramite',
-    'corte_servicios',
-    'vacaciones',
-    'dia_no_laborable',
-    'personal',
-    'medico',
-    'estudio',
-    'enfermedad',
-    'otro',
+    { value: 'tramite', label: 'Trámite' },
+    { value: 'corte_servicios', label: 'Cortes de servicios' },
+    { value: 'vacaciones', label: 'Vacaciones' },
+    { value: 'dia_no_laborable', label: 'Día no laborable' },
+    { value: 'personal', label: 'Personal' },
+    { value: 'medico', label: 'Médico' },
+    { value: 'estudio', label: 'Estudio' },
+    { value: 'enfermedad', label: 'Enfermedad' },
+    { value: 'otro', label: 'Otro' },
   ],
 } as const;
 

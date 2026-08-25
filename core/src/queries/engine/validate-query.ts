@@ -1,7 +1,7 @@
 import joi from 'joi';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { FilterableSpec, ResourceSpec } from '../types';
-import { isRelation, resolveVariant, specFor } from './spec';
+import { enumValues, isRelation, resolveVariant, specFor } from './spec';
 import {
   FilterCondition,
   FilterGroup,
@@ -57,8 +57,13 @@ const GET_FORBIDDEN_KEYS = ['filter', 'sort', 'page', 'count'];
  * infalsificable y el cuerpo no lo es. Un campo de identidad IGNORADO sería peor que rechazado:
  * sugeriría que el caller puede preguntar en nombre de otro y que el servicio simplemente no lo
  * escuchó esta vez.
+ *
+ * SE EXPORTA DESDE S-028: los dos endpoints con forma propia —`requirements.tags` y `meta.describe`—
+ * validan su propia gramática y tienen que rechazar los MISMOS nombres. Reescribir la lista en cada
+ * uno sería dejar tres copias de una lista de seguridad, y la que se olvida de crecer es la que abre
+ * el agujero.
  */
-const IDENTITY_PAYLOAD_FIELDS = [
+export const IDENTITY_PAYLOAD_FIELDS = [
   'userId',
   'user_id',
   'user',
@@ -148,6 +153,42 @@ function checkShape(schema: joi.Schema, payload: unknown): Invalid | null {
  * ------------------------------------------------------------------------------------------- */
 
 /**
+ * LA TRADUCCIÓN VALOR DEL CONTRATO -> VALOR(ES) DE BASE, desde `FilterableSpec.values`.
+ *
+ * DEVUELVE UNA LISTA porque una traducción puede EXPANDIR: `priority: 'urgente'` matchea el 4 Y el
+ * 5, porque los dos se LEEN `urgente`. Sin la expansión, el filtro mentiría respecto de lo que la
+ * proyección muestra.
+ *
+ * SE APLICA TAMBIÉN A LOS FILTROS DE TEXTO, no solo a los enums, y la generalización es de S-028.
+ * La necesita el caso en que el nombre del contrato y el de la base difieren SIN que la lista de
+ * valores sea cerrada: un valor del mapa se traduce, y uno que NO está en el mapa VIAJA TAL CUAL.
+ * Esa segunda mitad es la que permite que un valor fuera del mapa se combine con el predicado fijo
+ * del recurso y devuelva la colección VACÍA, en vez de un `invalid_fields` — que es lo que un enum
+ * haría, y que sería el contrato equivocado para una lista blanca (CA-9 de S-028).
+ *
+ * `integer`, `date` y `boolean` NO PASAN POR ACÁ: el mapa se indexa por string, así que traducir un
+ * número o una fecha no puede significar nada, y hacerlo pasar igual dejaría una rama muerta que el
+ * próximo lector tendría que descartar a mano.
+ *
+ * UNA FICHA SIN `values` NO CAMBIA NADA: el valor sale como entró.
+ *
+ * LA BÚSQUEDA VA POR `hasOwnProperty` Y NO POR INDEXACIÓN DIRECTA, y no es defensivo de más: el
+ * valor viene DEL PAYLOAD, así que un `filter.key: "constructor"` o `"__proto__"` resolvería contra
+ * `Object.prototype` y devolvería una función. El spread de eso lanza, el despachador lo traduce a
+ * `internal_error`, y el caller recibe un 500 por haber escrito una palabra. Con la guarda, un
+ * nombre heredado simplemente no está en el mapa y viaja tal cual, que es la respuesta correcta.
+ */
+function translate(spec: FilterableSpec, value: unknown): unknown[] {
+  if (!spec.values || typeof value !== 'string') {
+    return [value];
+  }
+  if (!Object.prototype.hasOwnProperty.call(spec.values, value)) {
+    return [value];
+  }
+  return [...spec.values[value]];
+}
+
+/**
  * Valida UN valor escalar contra el tipo que declara la ficha y lo traduce a valor de base.
  *
  * Devuelve una LISTA porque una traducción puede expandir: `priority: 'urgente'` matchea el 4 Y
@@ -168,7 +209,9 @@ function coerceValue(
   }
 
   if (spec.enum) {
-    const allowed = enums[spec.enum] ?? [];
+    // LA LISTA SE PROYECTA A VALORES: la ficha puede declarar sus entradas con etiqueta desde
+    // S-028, y `errorDetails.allowed` tiene que seguir siendo una lista de STRINGS.
+    const allowed = enumValues(enums[spec.enum]);
     if (typeof raw !== 'string' || !allowed.includes(raw)) {
       return invalid(`El filtro "${field}" no acepta ese valor`, {
         field: `filter.${field}`,
@@ -176,8 +219,7 @@ function coerceValue(
         allowed,
       });
     }
-    const mapped = spec.values ? spec.values[raw] : undefined;
-    return { values: mapped ? [...mapped] : [raw] };
+    return { values: translate(spec, raw) };
   }
 
   switch (spec.kind) {
@@ -224,7 +266,7 @@ function coerceValue(
         value: raw,
       });
     }
-    return { values: [raw] };
+    return { values: translate(spec, raw) };
   }
   }
 }
