@@ -2,6 +2,7 @@ import 'mocha';
 import 'should';
 import { tasksSpec } from '../../src/queries/tasks/tasks-spec';
 import { projectRow } from '../../src/queries/engine/project';
+import { ResourceSpec } from '../../src/queries/types';
 
 /**
  * La proyección: de la fila cruda al item del contrato.
@@ -134,5 +135,45 @@ describe('queries/engine/project — la proyección (CA-8, CA-21)', () => {
     for (const forbidden of ['ticketSlug', 'ticket_slug', 'storageKey', 'storage_key']) {
       item.should.not.have.property(forbidden);
     }
+  });
+});
+
+/**
+ * LA PROYECCIÓN DE UN CAMPO CALCULADO (S-024, Task 1).
+ *
+ * La trampa que estos tests fijan es de TIPO: `SUM(integer)` en PostgreSQL devuelve `bigint` y el
+ * driver `pg` lo entrega como STRING. Sin `transform`, un campo que suma minutos viaja como
+ * `"180"` en vez de `180`, y el caller no tiene forma de saber cuál de los dos esperar.
+ */
+describe('queries/engine/project — el campo calculado (S-024)', () => {
+  const SPEC: ResourceSpec = {
+    ...tasksSpec,
+    includable: {
+      ...tasksSpec.includable,
+      totalMinutes: { kind: 'computed', expr: 'SELECT 1', transform: (raw) => Number(raw) },
+      rawComputed: { kind: 'computed', expr: 'SELECT 2' },
+    },
+    includableNames: [...tasksSpec.includableNames, 'totalMinutes', 'rawComputed'],
+    fieldNames: [...tasksSpec.fieldNames, 'totalMinutes', 'rawComputed'],
+  };
+
+  it('aplica el `transform` del calculado: el `bigint` string vuelve número', () => {
+    const { item } = projectRow(SPEC, ['id', 'totalMinutes'], 0, row({ totalMinutes: '180' }));
+
+    item.totalMinutes!.should.equal(180);
+    (typeof item.totalMinutes).should.equal('number');
+  });
+
+  it('un calculado SIN `transform` devuelve el valor crudo', () => {
+    const { item } = projectRow(SPEC, ['id', 'rawComputed'], 0, row({ rawComputed: '7' }));
+
+    item.rawComputed!.should.equal('7');
+  });
+
+  it('un calculado NO se proyecta como colección: no arranca en `[]`', () => {
+    const { item } = projectRow(SPEC, ['id', 'totalMinutes'], 0, row({ totalMinutes: '0' }));
+
+    item.totalMinutes!.should.equal(0);
+    Array.isArray(item.totalMinutes).should.be.false();
   });
 });

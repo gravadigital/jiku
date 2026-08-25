@@ -132,7 +132,7 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
     rolesAuthorize(['external-publisher'], 'clients.new', 'commands').should.be.false();
   });
 
-  it('TS-13 · external-publisher NO autoriza ninguna de las 6 consultas', () => {
+  it('TS-13 · external-publisher NO autoriza ninguna de las consultas registradas', () => {
     // Espeja la plantilla: "un publicador externo publica comandos, no lee".
     for (const query of QUERIES) {
       rolesAuthorize(['external-publisher'], query, 'queries').should.be.false();
@@ -532,11 +532,20 @@ describe('la compuerta de autorización · plano de comandos', () => {
 describe('la compuerta de autorización · plano de consultas', () => {
   const QUERIES = queryRegistry.patterns();
   /**
-   * Las consultas que YA TIENEN CONTRATO (S-022). Las otras cuatro siguen en `pendingContract`
-   * hasta S-024 (`projects`) y S-025 (`comments`), y cuando no quede ninguna este array deja de
-   * hacer falta.
+   * Las consultas que YA TIENEN CONTRATO: `tasks` desde S-022, y `clients`, `projects` y
+   * `requirements` desde S-024. Las DOS de `comments` siguen en `pendingContract` hasta S-025, y
+   * cuando no quede ninguna este array deja de hacer falta.
    */
-  const WITH_CONTRACT = ['tasks.list', 'tasks.get'];
+  const WITH_CONTRACT = [
+    'clients.list',
+    'clients.get',
+    'projects.list',
+    'projects.get',
+    'requirements.list',
+    'requirements.get',
+    'tasks.list',
+    'tasks.get',
+  ];
   const USER_ROLE = 'sub-persona-user';
   const EXTERNAL_USER_ROLE = 'sub-persona-external-user';
 
@@ -613,7 +622,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
     }
   });
 
-  it('TS-39b · con fila, el caller exento atraviesa las 6 consultas', async () => {
+  it('TS-39b · con fila, el caller exento atraviesa las 8 consultas', async () => {
     await User.create({
       id: getTrustedPublisherId(),
       name: 'Publicador Confiable',
@@ -626,14 +635,14 @@ describe('la compuerta de autorización · plano de consultas', () => {
         const reply = await dispatchQuery(query, {});
 
         if (WITH_CONTRACT.includes(query)) {
-          // DESDE S-022 estas dos TIENEN contrato: la prueba de que las compuertas las dejaron
-          // pasar es que la respuesta viene DEL OTRO LADO de ellas. `tasks.list` con `{}` devuelve
-          // la colección; `tasks.get` con `{}` devuelve `invalid_fields` porque le falta el `id`.
+          // ESTAS TIENEN contrato (S-022 y S-024): la prueba de que las compuertas las dejaron
+          // pasar es que la respuesta viene DEL OTRO LADO de ellas. Un `list` con `{}` devuelve la
+          // colección; un `get` con `{}` devuelve `invalid_fields` porque le falta el `id`.
           reply.errorCode?.should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_CALLER, query);
           reply.errorCode?.should.not.equal(ErrorCode.UNKNOWN_COMMAND, query);
         } else {
-          // Las otras cuatro llegan al stub sin contrato, que es la misma prueba de siempre.
+          // Las dos de `comments` llegan al stub sin contrato, que es la misma prueba de siempre.
           reply.status.should.equal('failure', query);
           reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND, query);
           reply.errorMessage!.should.equal(
@@ -647,7 +656,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
     }
   });
 
-  it('TS-40 · CA-12: external-publisher NO consulta, en ninguna de las 6', async () => {
+  it('TS-40 · CA-12: external-publisher NO consulta, en ninguna de las registradas', async () => {
     for (const query of QUERIES) {
       const reply = await dispatchQuery(query, {}, EXT);
 

@@ -249,3 +249,73 @@ deleted the same rows would just be a way to forget the order.
 
 **Teardown order matters:** `user_project_permissions.user_id` references `users.id`, so
 `destroyWorld()` (which clears the permissions) runs **before** `destroyQueryCallers()`.
+
+## Domain query fixtures
+
+**Location:** `core/tests/queries/domain-fixtures.ts`
+
+**Description:** The fixture world of the **domain core** — clients, origins, projects and
+requirements — that the S-024 suites read through `readDb`. It **reuses `task-fixtures.ts`** instead
+of duplicating the world: `createWorld()` still seeds the creator, the trusted publisher, the
+projects, a requirement and the two people, and `createQueryCallers()` / `grantProjects()` still seed
+the callers and their permissions. This module adds only what those helpers do not have.
+
+What it makes observable, and why each piece exists:
+
+- **Four clients.** One owns the permitted project, one owns **only** the forbidden one, one owns
+  **none at all**, and one exists with a description that no name contains. The orphan is the single
+  most valuable row of the module: it is what proves the **indirect** external clip runs, since an
+  actor has no `project_id`.
+- **Projects with and without an actor.** One carries `key_value_pairs` including a key whose value
+  is `null` (the translation must preserve it, not drop the key), one carries the column in `NULL`
+  (the translation must yield `[]`), and one has **no client and no origin** — which is what fails if
+  the 1:1 relations are joined with `INNER` instead of `LEFT`.
+- **Eight requirements** with staggered `created_at`, distinct tag pairs so *exact pair* and *AND of
+  a list* can be asserted independently, one whose title does **not** contain its own id (so the
+  numeric search detour is distinguishable from a text match), and the three visibility cases the
+  external clip needs: public in a permitted project, internal in a permitted project, public in a
+  forbidden one.
+- **25 comments** on one requirement and 3 plus 4 non-comment activity rows on another: without 25
+  the cap of 10 and the `commentsTruncated` flag are not observable, and without the non-comment rows
+  the relation's `where` is not being tested.
+- **Worked time in BOTH places** — on the requirement *and* on one of its tasks. This is the module's
+  quietest trap: a requirement with only its own hours passes with **half the formula** implemented.
+- **Three attachments over the same `entity_id`**: one of the requirement, one of a comment, one
+  deleted. `attachments` is polymorphic, so without the other two the relation's `where` proves
+  nothing.
+
+**`created_at` is pinned with raw SQL, not set on insert**: Sequelize overwrites the timestamp
+columns on save, and the default sort of `projects` and `requirements` is `-createdAt`. Without
+control over that column half the ordering and keyset tests prove nothing.
+
+**Signature:**
+```ts
+function createDomainWorld(): Promise<void>;    // clients + origins + projects + requirements + relations
+function createClients(): Promise<void>;
+function createProjects(): Promise<void>;
+function createRequirements(): Promise<void>;
+function createRequirementRelations(): Promise<void>;
+function destroyDomainWorld(): Promise<void>;   // reverse FK order; runs BEFORE destroyWorld()
+```
+
+**Usage:**
+```ts
+before(async () => {
+  await createWorld([PROJECT_MAIN, PROJECT_OTHER]);
+  await createQueryCallers();
+  await grantProjects(Q_EXTERNAL, [PROJECT_MAIN]);
+  await createDomainWorld();
+});
+
+after(async () => {
+  await destroyDomainWorld();
+  await destroyQueryCallers();
+  await destroyWorld();
+});
+```
+
+**Teardown order matters, and the module's own order is part of it:** the requirement's collections
+(`worked_times`, `attachments`, `requirement_activity`, `requirement_subscriptors`,
+`people_requirements`) go before `requirements`, and the surviving projects **release their client**
+with an `UPDATE` before the clients are deleted — `projects.client_id` references `clients.id`, and
+projects 12 and 13 belong to `task-fixtures`, which deletes them later.

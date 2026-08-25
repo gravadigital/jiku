@@ -281,27 +281,75 @@ problem that is not stylistic — while it exists, a resource can declare its cl
 with a forgotten `false`, and the 17 resources that follow copy the shape from `tasks`. Removing the
 field makes the dangerous state **unrepresentable**.
 
-Both of its names are **database columns**, not contract fields: only names the spec declares as
+All of its names are **database columns**, not contract fields: only names the spec declares as
 columns may reach the SQL (ADR-004), so the engine never has to resolve `visibilityLevel` against
 `base`/`filterable` at build time — a lookup that could only fail in production.
+
+**Since S-024 it is a union discriminated by `kind`**, because one shape could not express the three
+clips the flow declares:
+
+- **`'column'`** — the row **carries** the project in one of its columns. `visibility` is
+  **optional**, and its absence means *"this resource has no visibility column"*, never *"do not
+  clip"*: the permitted-projects predicate is emitted either way. `requirements` and `tasks` use it
+  with visibility; `projects` uses it without, clipping by its **own `id`**.
+- **`'exists'`** — the row does **not** carry the project and is only **reachable** from a table that
+  does. `clients` is the case, and it is the clip that is easiest to forget: an actor has no
+  `project_id`, its visibility depends on **having at least one permitted project**, so the SQL is an
+  `EXISTS` over `projects` crossed with `user_project_permissions` — **not** an `IN` over a column of
+  the actor itself, which does not exist.
+
+The union preserves the property the flag removal bought: **no variant means "do not clip"** and no
+optional field disables the gate. The third variant the flow needs — resources with **no external
+access**, which resolve to `items: []` without running SQL — is deliberately **not** invented yet:
+those specs arrive with S-026 and S-028, and guessing another story's contract is the debt this note
+exists to avoid.
 
 **Interface:**
 ```ts
 type CallerClass = 'connector' | 'internal' | 'external';
 
-interface ExternalScopeSpec {
+interface ColumnExternalScope {
+  readonly kind: 'column';
   /** Resource column that must be among the caller's permitted projects. */
   readonly projectColumn: string;
-  /** Visibility column and the ONLY value an external caller may see. */
-  readonly visibility: { readonly column: string; readonly value: string };
+  /** Visibility column and the ONLY value an external caller may see. Optional. */
+  readonly visibility?: { readonly column: string; readonly value: string };
 }
+
+interface ExistsExternalScope {
+  readonly kind: 'exists';
+  /** Table that DOES carry the project (`projects`, for an actor). */
+  readonly table: string;
+  /** Column of `table` pointing at the resource (`client_id`). */
+  readonly foreignKey: string;
+  /** Column of the resource that `foreignKey` points at (`id`). */
+  readonly localKey: string;
+  /** Column of `table` that must be among the permitted projects (`id`). */
+  readonly projectColumn: string;
+}
+
+type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope;
 ```
 
 **Usage:**
 ```ts
-const EXTERNAL_SCOPE: ExternalScopeSpec = {
+// requirements / tasks — the row carries the project, and has a visibility column
+const REQUIREMENTS_SCOPE: ExternalScopeSpec = {
+  kind: 'column',
   projectColumn: 'project_id',
   visibility: { column: 'visibility_level', value: 'public' },
+};
+
+// projects — the row IS the project, and there is no visibility column
+const PROJECTS_SCOPE: ExternalScopeSpec = { kind: 'column', projectColumn: 'id' };
+
+// clients — indirect: visible if at least one of its projects is permitted
+const CLIENTS_SCOPE: ExternalScopeSpec = {
+  kind: 'exists',
+  table: 'projects',
+  foreignKey: 'client_id',
+  localKey: 'id',
+  projectColumn: 'id',
 };
 ```
 
@@ -325,4 +373,80 @@ interface SqlPlan {
   readonly sql: string;
   readonly replacements: Record<string, unknown>;
 }
+```
+
+## IncludableComputedSpec
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** The **third** shape of includable, added by S-024. An includable used to be either
+one more column (`kind: 'field'`) or a relation (`kind: 'relation'`); a computed one is neither — it
+is a per-row **SQL expression** that the spec declares as data and the engine puts in the `SELECT`
+under the contract's field name.
+
+`expr` is written with the resource table's `t` alias and **comes from the spec, never from the
+payload** — the same rule that already governs `ManyRelationSpec.where`, and what lets it reach the
+SQL unescaped. It generates **no JOIN**, never enters `query.relations` (so the batch loader ignores
+it) and never reaches the `COUNT`, which projects no fields.
+
+`transform` is not a convenience: `SUM(integer)` in PostgreSQL returns `bigint`, and the `pg` driver
+hands it over as a **string**. Without it a minutes total travels as `"180"` instead of `180`.
+
+Declaring it includable does **not** make it filterable or sortable: those are independent lists, and
+a sortable computed field would force evaluating the expression over the whole universe rather than
+the page.
+
+**Interface:**
+```ts
+export interface IncludableComputedSpec {
+  readonly kind: 'computed';
+  /** SQL expression using the `t` alias. From the spec, NEVER from the payload. */
+  readonly expr: string;
+  readonly transform?: (raw: any) => unknown;
+}
+export type IncludableSpec = IncludableFieldSpec | IncludableComputedSpec | RelationSpec;
+```
+
+**Usage:**
+```ts
+// core/src/queries/requirements/requirements-spec.ts
+totalMinutes: { kind: 'computed', expr: TOTAL_MINUTES_EXPR, transform: Number },
+```
+
+## FilterableSpec.contains / FilterableSpec.searchNumericColumn
+
+**Location:** `core/src/queries/types.ts`
+
+**Description:** Two filter shapes any spec can declare, both added by S-024 and both generic.
+
+**`contains`** — containment over a `jsonb` column, with the pair shape the spec names. The payload
+accepts one object or a **list** of objects, and the list is combined with **`AND`** (RF-7): *"the
+ones that have THIS pair AND THAT one"*, not *"either of them"*. The validator requires every key of
+`shape`, no key outside it, and a string value for each, and normalises the object **in `shape`
+order** — containment does not care about key order, but the parameter value is a string, so a
+request with the keys reversed would otherwise produce different text.
+
+Two SQL details that are contract, not style: the value is `JSON.stringify([pair])` — an **array** of
+one element, because the column stores an array and `tags @> '{"key":"m"}'` never matches — and the
+cast is written **`CAST(:p AS jsonb)` and never `:p::jsonb`**, because Sequelize parses `:name` as a
+replacement and `:p0::jsonb` is ambiguous to its regex.
+
+**`searchNumericColumn`** — the column the free-text search **diverts to** when the text is digits
+only. Without it, searching `"8140"` runs `ILIKE '%8140%'` over the text columns and does **not**
+find record 8140, which is the most frequent use of a search box. The guard is `/^\d{1,9}$/`: an
+`INTEGER` column is int4, nine digits always fit, and longer text falls back to the `ILIKE` — which
+is also the correct reading (*"that is not an id"*). A spec that does not declare it behaves exactly
+as before it existed.
+
+**Interface:**
+```ts
+readonly contains?: { readonly column: string; readonly shape: readonly string[] };
+readonly searchNumericColumn?: string;
+```
+
+**Usage:**
+```ts
+// core/src/queries/requirements/requirements-spec.ts
+tag: { contains: { column: 'tags', shape: ['key', 'value'] } },
+q: { kind: 'string', search: ['title', 'description'], searchNumericColumn: 'id' },
 ```

@@ -346,3 +346,42 @@ strips control characters, escapes backslashes and double quotes, and adds the R
 ```ts
 function contentDisposition(disposition: 'inline' | 'attachment', fileName: string): string
 ```
+
+## keyValuePairsToProperties
+
+**Location:** `core/src/commands/projects/properties.ts`
+
+**Description:** The **read** half of the `properties` ↔ `key_value_pairs` translation (ADR-004).
+The column stores a flat object; the contract declares a list of pairs.
+
+```
+base:      { "documentacion": "https://…", "board_de_tareas": null }
+contract:  [ { "code": "documentacion", "value": "https://…" },
+             { "code": "board_de_tareas", "value": null } ]
+```
+
+It lives **next to its inverse** (`propertiesToKeyValuePairs`) and not in the query resource spec,
+because the `contract-translation` convention says a translation lives in **one** helper of the
+module: two copies of the same map in two planes is exactly the divergence that convention prevents.
+The query spec references it as the `transform` of the `properties` includable.
+
+**A `NULL` or absent column yields `[]`, never `null`.** The contract declares `properties` as a
+list, and a consumer calling `.map()` on `null` breaks. The asymmetry with
+`propertiesToKeyValuePairs` — which *does* return `undefined` for an absent field — is deliberate:
+there, `undefined` is what makes partial edit work; here there is no partial edit to preserve.
+
+**It does NOT filter by the allowed-codes list.** That allow-list is a **write** rule. Applying it on
+read would silently hide any key that remained in the column.
+
+**Signature:**
+```ts
+function keyValuePairsToProperties(
+  raw: Record<string, string | null> | null | undefined
+): Property[]
+```
+
+**Usage:**
+```ts
+// core/src/queries/projects/projects-spec.ts
+properties: { kind: 'field', column: 'key_value_pairs', transform: keyValuePairsToProperties },
+```

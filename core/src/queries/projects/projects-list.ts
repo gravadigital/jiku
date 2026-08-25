@@ -1,19 +1,28 @@
 import { Query } from '../types';
-import { pendingContract } from '../pending';
+import { runList } from '../engine/run';
+import { ValidatedListQuery } from '../engine/types';
+import { validateList } from '../engine/validate-query';
+import { projectsSpec } from './projects-spec';
 
 /**
  * Colección paginada de proyectos.
  *
- * TRANSITORIO: sin contrato (RF-10 de REQ-004), este endpoint existe, es descubrible y contesta
- * un `failure` bien formado. El stub desaparece cuando el REQ del contrato de consultas defina
- * filtros, paginación y campos; su insumo es `bus-api-consultas.md`.
+ * DEJÓ DE SER UN STUB EN S-024: hasta acá respondía `unknown_command` con el mensaje de
+ * `pendingContract`. Ahora sirve el contrato sobre el motor de consulta, y el archivo es
+ * declarativo — la ficha dice QUÉ se puede pedir, el motor sabe CÓMO servirlo.
  *
- * Cuando eso pase, acá va:
- *   `projects` es la tabla `projects` —sin traducción de nombre—, pero `properties` del contrato
- *   es `key_value_pairs` en la base (ADR-004: la traducción vive en core, no en el contrato).
- *   La lectura usa `ctx.db.query<ProjectRow>(sql, { type: QueryTypes.SELECT, replacements })`:
- *   SQL explícito, sin ORM; nombres de tabla/columna/orden desde LISTAS BLANCAS y valores como
- *   parámetros.
+ * `properties` del contrato es `key_value_pairs` en la base (ADR-004): la traducción vive en
+ * `commands/projects/properties.ts` y la ficha la referencia, no la copia.
  */
-export const projectsList: Query = pendingContract('projects.list');
+/** El payload de `projects.list` DESPUÉS de validar. Alias del tipo genérico del motor. */
+export type ProjectsListPayload = ValidatedListQuery;
+
+export const projectsList: Query<ProjectsListPayload> = {
+  pattern: 'projects.list',
+
+  validate: (payload: unknown) => validateList(projectsSpec, payload),
+
+  execute: (payload, ctx) => runList(projectsSpec, payload, ctx),
+};
+
 export default projectsList;

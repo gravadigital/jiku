@@ -143,7 +143,35 @@ export interface ManyRelationSpec {
 }
 
 export type RelationSpec = OneRelationSpec | ManyRelationSpec;
-export type IncludableSpec = IncludableFieldSpec | RelationSpec;
+
+/**
+ * Un incluible que NO es una columna ni una relación: una EXPRESIÓN evaluada por fila.
+ *
+ * Es la TERCERA forma de incluible, y existe porque hay campos del contrato que no viven en
+ * ninguna columna: `requirements.totalMinutes` son dos subconsultas correlacionadas sobre
+ * `worked_times`, y los tiempos de S-026 son el mismo género de cálculo.
+ *
+ * `expr` se escribe con el alias `t` de la tabla del recurso y SALE DE LA FICHA, nunca del
+ * payload: es la misma regla que ya gobierna `ManyRelationSpec.where`, y es lo que permite que
+ * llegue al SQL sin escaparse. Un dato del cuerpo del mensaje NO PUEDE llegar acá.
+ *
+ * `transform` NO ES OPCIONAL POR COMODIDAD: `SUM(integer)` en PostgreSQL devuelve `bigint`, y el
+ * driver `pg` lo entrega como STRING. Un campo calculado que suma minutos sin transform viaja
+ * como `"180"` en vez de `180`, y el caller no tiene forma de saber cuál de los dos esperar.
+ *
+ * DECLARARLO INCLUIBLE NO LO HACE FILTRABLE NI ORDENABLE: para eso tendría que estar además en
+ * `filterable` / `sortable`, que son listas INDEPENDIENTES. Un calculado que se ordenara
+ * obligaría a evaluar la expresión por fila del universo, no de la página.
+ */
+export interface IncludableComputedSpec {
+  readonly kind: 'computed';
+  /** Expresión SQL con el alias `t`. De la ficha, JAMÁS del payload. */
+  readonly expr: string;
+  /** Traducción del valor crudo al del contrato. Ver la nota del `bigint`. */
+  readonly transform?: (raw: any) => unknown;
+}
+
+export type IncludableSpec = IncludableFieldSpec | IncludableComputedSpec | RelationSpec;
 
 /** Filtro declarado. `column`, `via` o `search`: uno de los tres resuelve el `WHERE`. */
 export interface FilterableSpec {
@@ -167,6 +195,36 @@ export interface FilterableSpec {
   };
   /** Búsqueda libre: columnas sobre las que se hace `ILIKE`, unidas con `OR`. */
   readonly search?: readonly string[];
+  /**
+   * LA COLUMNA A LA QUE SE DESVÍA LA BÚSQUEDA cuando el texto es SOLO DÍGITOS.
+   *
+   * Sin esto, buscar `"8140"` hace `ILIKE '%8140%'` sobre las columnas de texto y NO encuentra el
+   * recurso 8140, que es el caso de uso más frecuente de un buscador: pegar un número de
+   * requisito. La regla es del CONTRATO —va a sorprender, y por eso se declara acá para que
+   * `meta.describe` la exponga— y no una heurística del motor.
+   *
+   * Solo tiene efecto junto a `search`. Una ficha que no lo declara se comporta exactamente igual
+   * que antes de existir.
+   */
+  readonly searchNumericColumn?: string;
+  /**
+   * CONTENCIÓN SOBRE UNA COLUMNA `jsonb`: el filtro tiene FORMA PROPIA, declarada por la ficha.
+   *
+   * `column` es la columna `jsonb` real; `shape` son las claves que el objeto del payload tiene
+   * que traer —todas, y ninguna de más—. El payload acepta un objeto o una LISTA de objetos, y la
+   * lista se combina con `AND` (RF-7): "los que tienen ESTE par Y ESTE OTRO", no "cualquiera".
+   *
+   * ES GENÉRICO Y NO DE UN RECURSO: `requirements.tags` es el primer caso, y cualquier recurso con
+   * una columna `jsonb` de pares lo declara igual. Sin esta forma, `parseCondition` leería el
+   * objeto del payload como un mapa de OPERADORES (`not`, `gt`, …) y respondería que no conoce el
+   * operador "key".
+   *
+   * Se resuelve con el contains de `jsonb`, que es lo que usa el índice GIN.
+   */
+  readonly contains?: {
+    readonly column: string;
+    readonly shape: readonly string[];
+  };
 }
 
 export interface SortableSpec {
@@ -184,31 +242,68 @@ export interface SortableSpec {
 }
 
 /**
- * El recorte del modo externo: proyectos permitidos MÁS `visibilityLevel = public`.
+ * EL RECORTE DEL MODO EXTERNO, en sus DOS FORMAS.
  *
  * DECLARAR EL RECORTE ES APLICARLO, y por eso no hay ningún booleano acá. Hasta S-023 esta ficha
  * llevaba un `applied` que el motor no miraba, y esa forma tiene un problema que no es de estilo:
  * mientras exista, un recurso puede declarar su recorte y desactivarlo con un `false` olvidado, y
- * los 17 recursos que vienen después (S-024 a S-028) lo copian de `tasks`. Sacando el campo, el
- * estado peligroso deja de ser REPRESENTABLE.
+ * los 17 recursos que vienen después lo copian del primero. Sacando el campo, el estado peligroso
+ * deja de ser REPRESENTABLE — y esa propiedad es lo que la unión de S-024 tiene que conservar:
+ * NINGUNA variante significa "no recortes", y ningún campo opcional desactiva la compuerta.
  *
- * LOS DOS NOMBRES SON COLUMNAS DE LA BASE, no campos del contrato: al SQL solo llegan nombres que
- * la ficha declara como columnas (ADR-004), así que el motor no tiene que resolver
+ * TODOS LOS NOMBRES SON COLUMNAS DE LA BASE, no campos del contrato: al SQL solo llegan nombres
+ * que la ficha declara como columnas (ADR-004), así que el motor no tiene que resolver
  * `visibilityLevel` contra `base`/`filterable` en tiempo de armado — una búsqueda que puede
  * fallar y que solo fallaría en producción.
  *
  * DEUDA ANOTADA: los recursos SIN ACCESO externo (`worked-times`, `unworked-times`,
- * `week-assigned-times`, `settings`) llegan en S-026 y S-028 y necesitan otra forma de
- * declararse —resuelven en `items: []` sin ejecutar SQL—. No se inventa acá: esta story tiene un
- * solo recurso con recorte, y agregar una variante sin caso de uso es adivinar el contrato de
- * otra story. Desaparece cuando esas fichas existan.
+ * `week-assigned-times`, `settings`) llegan en S-026 y S-028 y necesitan una TERCERA variante
+ * —resuelven en `items: []` sin ejecutar SQL—. No se inventa acá: no hay caso de uso todavía, y
+ * adivinar el contrato de otra story es exactamente lo que esta nota pide no hacer. Desaparece
+ * cuando esas fichas existan.
  */
-export interface ExternalScopeSpec {
+
+/**
+ * LA FILA LLEVA EL PROYECTO en una de sus columnas.
+ *
+ * `requirements` la usa con visibilidad (`project_id` permitido Y `visibility_level = 'public'`) y
+ * `projects` sin ella, recortando por su PROPIA `id`.
+ */
+export interface ColumnExternalScope {
+  readonly kind: 'column';
   /** Columna del recurso que tiene que estar entre los proyectos permitidos del caller. */
   readonly projectColumn: string;
-  /** Columna de visibilidad y el ÚNICO valor que un caller externo puede ver. */
-  readonly visibility: { readonly column: string; readonly value: string };
+  /**
+   * Columna de visibilidad y el ÚNICO valor que un caller externo puede ver.
+   *
+   * OPCIONAL, y su ausencia significa "este recurso NO TIENE columna de visibilidad", nunca "no
+   * recortes": el predicado de proyectos permitidos se emite siempre. `projects` es el caso — un
+   * proyecto no tiene `visibility_level`.
+   */
+  readonly visibility?: { readonly column: string; readonly value: string };
 }
+
+/**
+ * LA FILA NO LLEVA EL PROYECTO: es ALCANZABLE desde una tabla que sí lo lleva.
+ *
+ * `clients` es el caso, y es el recorte más fácil de olvidar de todos: un actor no tiene
+ * `project_id`, su visibilidad depende de TENER AL MENOS UN PROYECTO PERMITIDO. Es un `EXISTS`
+ * sobre la tabla que sí lo lleva, y NO un `IN` sobre una columna del propio recurso —que no
+ * existe—.
+ */
+export interface ExistsExternalScope {
+  readonly kind: 'exists';
+  /** Tabla que sí lleva el proyecto (`projects` para un actor). */
+  readonly table: string;
+  /** Columna de `table` que apunta al recurso (`client_id`). */
+  readonly foreignKey: string;
+  /** Columna del recurso a la que apunta `foreignKey` (`id`). */
+  readonly localKey: string;
+  /** Columna de `table` que tiene que estar entre los proyectos permitidos (`id`). */
+  readonly projectColumn: string;
+}
+
+export type ExternalScopeSpec = ColumnExternalScope | ExistsExternalScope;
 
 /** La ficha de un recurso: todo lo que el motor necesita saber, como dato. */
 export interface ResourceSpec {

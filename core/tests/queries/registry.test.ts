@@ -9,13 +9,17 @@ import { QueryDispatcher } from '../../src/queries/dispatcher';
 import { queryRegistry } from '../../src/queries';
 
 /**
- * Los 6 patrones, COPIADOS de la tabla del contrato (API Context del plan de S-013), no
+ * Los patrones, COPIADOS de la tabla del contrato (API Context de los planes de S-013 y S-024), no
  * recalculados con `endpointName`/`endpointSubject`. Recalcularlos verificaría que el paquete es
  * consistente consigo mismo; copiarlos verifica que el servicio expone lo que el contrato promete.
  */
 const CONTRACT_PATTERNS = [
+  'clients.list',
+  'clients.get',
   'projects.list',
   'projects.get',
+  'requirements.list',
+  'requirements.get',
   'tasks.list',
   'tasks.get',
   'comments.list',
@@ -23,12 +27,13 @@ const CONTRACT_PATTERNS = [
 ];
 
 /**
- * Los que SIGUEN SIN CONTRATO después de S-022.
+ * Los que SIGUEN SIN CONTRATO después de S-024.
  *
- * S-022 le dio contrato a `tasks.list` y `tasks.get`; `projects` llega con S-024 y `comments` con
- * S-025. `src/queries/pending.ts` se elimina recién en S-028, cuando este array quede vacío.
+ * S-022 le dio contrato a `tasks`; S-024 a `clients`, `projects` y `requirements`. Quedan las dos
+ * de `comments`, que llegan con S-025. `src/queries/pending.ts` se elimina recién en S-028, cuando
+ * este array quede vacío.
  */
-const PENDING_PATTERNS = ['projects.list', 'projects.get', 'comments.list', 'comments.get'];
+const PENDING_PATTERNS = ['comments.list', 'comments.get'];
 
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 
@@ -53,7 +58,7 @@ describe('queries/index — el registry poblado', () => {
     await User.destroy({ where: { id: 'api' } });
   });
 
-  it('TS-13 · los 6 patrones del registry, exactos y en el orden del contrato', () => {
+  it('TS-13 · los patrones del registry, exactos y en el orden del contrato', () => {
     queryRegistry.patterns().should.deepEqual(CONTRACT_PATTERNS);
   });
 

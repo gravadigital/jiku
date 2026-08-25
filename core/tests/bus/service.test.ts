@@ -58,8 +58,12 @@ const QUERIES_DESCRIPTION = 'Consultas de lectura de Jiku: proyectos, tareas y c
  * subjects de 1024 entradas del server), no un olvido.
  */
 const QUERY_CONTRACT_ENDPOINTS: [string, string][] = [
+  ['clients-list', 'clients.list'],
+  ['clients-get', 'clients.get'],
   ['projects-list', 'projects.list'],
   ['projects-get', 'projects.get'],
+  ['requirements-list', 'requirements.list'],
+  ['requirements-get', 'requirements.get'],
   ['tasks-list', 'tasks.list'],
   ['tasks-get', 'tasks.get'],
   ['comments-list', 'comments.list'],
@@ -558,7 +562,7 @@ describe('bus/service', () => {
       String(nc.created[0].group.subject).should.equal('dev.*.jiku-queries.v1');
     });
 
-    it('TS-23 · los 6 endpoints, con el par (nombre, subject) del contrato y SIN *', async () => {
+    it('TS-23 · un endpoint por patrón, con el par (nombre, subject) del contrato y SIN *', async () => {
       const nc = fakeConnection();
 
       await registerService(nc as unknown as NatsConnection, queriesSpecFor(handle));
@@ -566,7 +570,9 @@ describe('bus/service', () => {
       const registered = nc.created[0].group.endpoints.map(
         (endpoint) => [endpoint.name, endpoint.subject] as [string, string | undefined]
       );
-      registered.length.should.equal(6);
+      // UNO POR PATRÓN DEL REGISTRO: sumar una ficha nueva a `queries/index.ts` alcanza para que
+      // el endpoint exista, y por eso el número sale del registro y no de un literal.
+      registered.length.should.equal(queryRegistry.patterns().length);
       registered.should.deepEqual(QUERY_CONTRACT_ENDPOINTS);
 
       for (const [name, subject] of registered) {

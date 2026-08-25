@@ -2,6 +2,10 @@ import 'mocha';
 import 'should';
 import { Client, Project, User } from '@jiku/models';
 import { dispatch } from '../helpers/dispatch';
+import {
+  keyValuePairsToProperties,
+  propertiesToKeyValuePairs,
+} from '../../src/commands/projects/properties';
 
 const CREATOR = 'zitadel-sub-projects';
 
@@ -239,5 +243,56 @@ describe('projects', () => {
         reply.errorCode!.should.equal('project_not_found');
       });
     });
+  });
+});
+
+/**
+ * LA TRADUCCIÓN `properties` <-> `key_value_pairs`, EN LAS DOS DIRECCIONES (S-024).
+ *
+ * La de escritura existía desde el principio; la de LECTURA la agrega S-024 y vive en el MISMO
+ * helper del módulo, no en la ficha de consultas: la convención `contract-translation` dice que
+ * una traducción vive en un solo lugar, y dos copias del mismo mapa en dos planos es exactamente
+ * la divergencia que esa convención previene.
+ */
+describe('projects/properties — la traducción de lectura (S-024)', () => {
+  it('convierte el objeto de la columna a la lista del protocolo', () => {
+    keyValuePairsToProperties({
+      documentacion: 'https://d.local',
+      mattermost_group_name: 'jiku',
+    }).should.deepEqual([
+      { code: 'documentacion', value: 'https://d.local' },
+      { code: 'mattermost_group_name', value: 'jiku' },
+    ]);
+  });
+
+  it('una columna vacía devuelve `[]` y NUNCA `null` ni `undefined`', () => {
+    // El contrato declara `properties` como lista: un consumidor que haga `.map()` sobre `null`
+    // rompe. Es la asimetría deliberada con `propertiesToKeyValuePairs`, donde el `undefined` es
+    // lo que hace funcionar la edición parcial.
+    keyValuePairsToProperties(null).should.deepEqual([]);
+    keyValuePairsToProperties(undefined).should.deepEqual([]);
+    keyValuePairsToProperties({}).should.deepEqual([]);
+  });
+
+  it('preserva el `null` de una clave PRESENTE con valor nulo', () => {
+    keyValuePairsToProperties({ board_de_tareas: null }).should.deepEqual([
+      { code: 'board_de_tareas', value: null },
+    ]);
+  });
+
+  it('NO filtra por la lista blanca de códigos: esa regla es de ESCRITURA', () => {
+    // Aplicarla al leer escondería, sin decirlo, cualquier clave que haya quedado en la columna.
+    keyValuePairsToProperties({ clave_vieja: 'valor' }).should.deepEqual([
+      { code: 'clave_vieja', value: 'valor' },
+    ]);
+  });
+
+  it('el ida y vuelta conserva los pares', () => {
+    const properties = [
+      { code: 'documentacion', value: 'https://d.local' },
+      { code: 'board_de_tareas', value: null },
+    ];
+
+    keyValuePairsToProperties(propertiesToKeyValuePairs(properties)).should.deepEqual(properties);
   });
 });
