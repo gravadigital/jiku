@@ -399,6 +399,88 @@ export const ErrorCode = {
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**
+ * El sobre de identidad: QUIÉN ACTÚA detrás del comando.
+ *
+ * ES UNA CLAVE RESERVADA DE NIVEL SUPERIOR del mensaje de todo comando, y es opcional. El mensaje
+ * completo es `{ actor?: Actor, ...payload de dominio }`.
+ *
+ * SOLO EL PUBLICADOR DE CONFIANZA PUEDE MANDARLO (`CORE_TRUSTED_PUBLISHER_ID`, la api). Cualquier
+ * otro caller que lo incluya es rechazado con `invalid_fields`: para todos los demás la identidad
+ * ES el segundo token del subject —el que lee `callerFromSubject()`—, que el auth-callout hace
+ * infalsificable. Son dos identidades distintas y hacen falta las dos: el subject identifica al
+ * SERVICIO que publica, el sobre a la PERSONA que hay detrás.
+ *
+ * LO EXTRAE EL DESPACHADOR, del cuerpo, ANTES de `registry.resolve()` y ANTES de
+ * `sequelize.transaction()`. Por eso el esquema Joi de cada comando NUNCA LO VE y los `execute()`
+ * de los comandos no se tocan. EL SOBRE ES DEL TRANSPORTE, NO DEL DOMINIO.
+ *
+ * NO REEMPLAZA `creator` / `author` / `editor` / `uploader`. Esos son datos DE DOMINIO —van a
+ * `requirements.created_by`, al autor de la Actividad, a `files.uploaded_by`— y siguen en el
+ * contrato. Lo único que cambia es QUIÉN MANDA:
+ *
+ *     resolveActor(ctx, payload):
+ *       si hay sobre                                      -> actor.id
+ *       si no, y ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> payload.author/creator/editor/uploader
+ *       en cualquier otro caso                            -> ctx.caller
+ *
+ * Y el sobre y el campo de dominio QUE DIFIEREN son `invalid_fields` con
+ * `errorDetails: { field, value, expected }`, NO una elección del más probable: dos identidades
+ * distintas en un mismo comando son un error del publicador, y resolverlo en silencio es cómo se
+ * escribe a nombre de otro.
+ *
+ * NO LLEVA `identity_type`, Y NO ES UN OLVIDO: el espejo del comando escribe `'person'` como
+ * literal, porque la api autentica un JWT de usuario final y nunca de un machine user. Declararlo
+ * le daría a la api la capacidad de decir que una persona es un servicio, que es superficie de
+ * seguridad regalada a cambio de nada.
+ *
+ * ACÁ NO HAY VALIDACIÓN NI FUNCIONES. La extracción, la guarda del publicador, el espejo sobre
+ * `users` y `resolveActor` viven en core: este paquete es el contrato del cable, igual que con
+ * `AuthEvent`.
+ */
+export interface Actor {
+  /**
+   * El `sub` de Zitadel, y la PK de `users`.
+   *
+   * NO ES `personId`, que es un `number` de la tabla `persons`. Los dos conceptos conviven en
+   * `worked-times` y confundirlos es un bug silencioso.
+   */
+  id: string;
+  /**
+   * Del claim `urn:zitadel:iam:org:project:roles` que la api YA VERIFICÓ contra Zitadel.
+   *
+   * Obligatorio porque ES LA ENTRADA DE LA DECISIÓN DE AUTORIZACIÓN, y el rol que decide es este
+   * y no el del publicador.
+   *
+   * Va `string[]` ABIERTO y NO una unión de roles: un rol desconocido es un valor legítimo del
+   * cable que no autoriza nada (ADR-008), no un tipo imposible. El catálogo de roles vive en el
+   * mapa de core y en el `rules.yaml` del auth-callout, no acá.
+   */
+  roles: string[];
+  /**
+   * Opcional. Su falta loguea `warn`; si hay que CREAR la fila cae a `email` o al `sub`, porque
+   * `users.name` es NOT NULL.
+   */
+  name?: string;
+  /** Opcional. Mismo fallback que `name`: `users.username` también es NOT NULL. */
+  username?: string;
+  /**
+   * Opcional.
+   *
+   * `AuthEvent.email` ES `string | null` Y ESTE ES OPCIONAL: NO LOS HOMOGENEICES. La asimetría es
+   * deliberada y es LA ÚNICA DIFERENCIA PARAMETRIZADA del handler de espejo que los dos comparten.
+   *
+   * En `AuthEvent`, `null` es un valor NORMALIZADO por el esquema Joi de core y significa algo
+   * concreto —"es una identidad de servicio"—, y su falta en una persona DESCARTA el evento en vez
+   * de crear una fila parcial. Acá la ausencia es AUSENCIA: la api arma el sobre del claim, si el
+   * claim no lo trae la clave simplemente no está, no hay esquema que la normalice y del otro lado
+   * siempre hay una persona. Y el comando NO SE RECHAZA por esto: rechazar una escritura por un
+   * campo de perfil es desproporcionado, y un `CALLOUT_IDP_ENRICH` mal configurado dejaría el
+   * producto SIN ESCRITURA.
+   */
+  email?: string;
+}
+
+/**
  * El payload del evento de autenticación, tal como el auth-callout lo publica.
  *
  * SON LOS NUEVE CAMPOS QUE CORE LEE, de los quince que el emisor manda. Los otros seis
