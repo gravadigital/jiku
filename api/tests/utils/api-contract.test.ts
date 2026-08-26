@@ -213,3 +213,45 @@ describe('docs/apis/api.yaml — el sobre de identidad (S-029)', () => {
     spec.should.match(/[Ss]olo el publicador de confianza puede transportarla/);
   });
 });
+
+/**
+ * Test de DOCUMENTACIÓN, no de código, y por eso vale la pena: el contenido de REQ-007 en el spec
+ * YA ESTÁ ESCRITO —se actualizó de una sola vez durante el diseño—, así que este es el único
+ * control que impide que alguien borre el bloque al editar el spec por otra razón.
+ *
+ * El tercer test fija EL LÍMITE MÁS FÁCIL DE CRUZAR del requerimiento: las 28 rutas GET conservan
+ * `x-roles` como regla vigente. Quitárselo sin que nadie lo aplique del otro lado ABRIRÍA la
+ * lectura, y ninguna story de REQ-007 lo hace.
+ *
+ * Mismo molde que los bloques de arriba: se lee el archivo y se busca con expresiones regulares,
+ * sin sumar un parser de YAML que no es dependencia declarada de la api.
+ */
+describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+
+  it('TS-13: declara que `x-roles` cambió de significado y que NO se elimina del spec', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+
+    spec.should.match(/REQ-007 — LA API DEJA DE AUTORIZAR, Y `x-roles` CAMBIA DE SIGNIFICADO/);
+    spec.should.match(/`x-roles` NO SE ELIMINA DE ESTE SPEC/);
+    // El significado nuevo: documenta a quién autoriza CORE, no lo que la api verifica.
+    spec.should.match(/DOCUMENTACIÓN DE QUÉ ROL AUTORIZA `core` en su mapa rol -> comando/);
+  });
+
+  it('TS-14: declara el código nuevo, su status y la consecuencia de omitirlo', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+
+    spec.should.match(/UN CÓDIGO NUEVO EN `STATUS_BY_ERROR_CODE`: `access_denied` -> 403/);
+    // La consecuencia es la mitad que importa: sin la entrada cae en el fallback de
+    // `httpStatusFor` y el frontend trata un rechazo de permisos como error de servidor.
+    spec.should.match(/\|\| 500/);
+  });
+
+  it('TS-15: sigue diciendo que las 28 rutas GET conservan el rol', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+
+    spec.should.match(/28 rutas `GET` los CONSERVAN/);
+    // Y por qué: quitarles el rol sin que nadie lo aplique del otro lado abre la lectura.
+    spec.should.match(/ABRIRÍA LA LECTURA/);
+  });
+});

@@ -316,7 +316,9 @@ Responde *"¿puede ejecutar este método?"*.
 - La clase se resuelve **una sola vez** y viaja en `QueryContext.callerClass`.
 
 **Ref:** `core/src/authorize-caller.ts` (`readCallerRoles` / `authorizeWithRoles`),
-`core/src/queries/caller-class.ts` (`resolveCallerClass`), `core/src/queries/dispatcher.ts`,
+`core/src/caller-class.ts` (`resolveCallerClass` — subió de `queries/` a `src/` en S-030, porque
+desde esa story el plano de ESCRITURA resuelve la misma clase con la misma precedencia),
+`core/src/queries/dispatcher.ts`,
 `docs/db-schemas/jiku.md` (tabla `users`)
 
 ---

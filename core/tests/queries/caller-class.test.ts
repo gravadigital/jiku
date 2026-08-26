@@ -2,7 +2,7 @@ import 'mocha';
 import 'should';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CLASS_BY_ROLE, resolveCallerClass } from '../../src/queries/caller-class';
+import { CLASS_BY_ROLE, resolveCallerClass } from '../../src/caller-class';
 
 /**
  * LA CLASE DEL CALLER, EJERCITADA PURA: sin base, sin despachador y sin config cargada.
@@ -69,7 +69,7 @@ describe('queries/caller-class — el mapa rol → clase, puro y sin base', () =
 
   it('TS-43 · (gate) la resolución de clase NO tiene cache ni estado', () => {
     const source = fs.readFileSync(
-      path.join(__dirname, '../../src/queries/caller-class.ts'),
+      path.join(__dirname, '../../src/caller-class.ts'),
       'utf8'
     );
     // Mismo gate que TS-20b de S-017, y por el mismo criterio (CA-17): cachear reintroduce roles

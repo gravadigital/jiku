@@ -96,6 +96,32 @@ emits them**, which is the correct state for a shared package consumed compiled.
 
 **The HTTP column is documentation, not code** — see the exception to the three-changes rule above.
 
+**REQ-007 adds one code, and it is the first one where all three changes land in the same
+requirement** — the catalog goes from 32 to **33** members. `access_denied` answers *"can you touch
+THIS entity?"*, decided by core's write gate **with the `user_project_permissions` row in front of
+it**, and only in external mode: an `admin` or a `user` with **no row** passes, because internal
+users have no rows at all and applying the check to every caller would break all internal writes.
+It is **not** `caller_not_authorized`, which answers *"does your role enable this method?"* and is
+decided by the role -> method map before touching the domain. Merging them would map one code to two
+causes. The name was **inherited, not chosen**: the api already answers `{ code: 'access_denied' }`
+with 403 from `has-any-role.ts` and `validate-project-permission.ts`, so both frontends already know
+it — which is what keeps the HTTP contract unchanged. Its emitter lands with core's write gate
+(S-030); at the end of this story the code is declared and **nobody emits it**.
+
+**This is the case the exception above does not cover.** The five codes of REQ-006 make two of the
+three changes because they have no HTTP consumer. `access_denied` **does** have one, so —as the rule
+says— *"for any code that does have an HTTP consumer, all three steps apply as written"*:
+
+| Code | Emitter (story) | HTTP |
+|---|---|---|
+| `access_denied` | core's write gate, external mode only (S-030) | **403** |
+
+The three places for this one, and who closes each: the package (this file's constant, done in
+S-030 `packages/nats-protocol`), the `enum` of `docs/apis/core.yaml` (already written) and
+`STATUS_BY_ERROR_CODE` of `api/lib/utils/bus/protocol.ts` -> **403** (S-030 `api`). Without the
+third it falls through the `|| 500` and the frontend treats it as a server error instead of showing
+the message.
+
 Two distinctions the catalog encodes deliberately, and that must not be "cleaned up":
 
 - **`unknown_caller` is not `caller_not_authorized`.** Two gates, one behind the other:
@@ -112,7 +138,7 @@ const ErrorCode: {
   readonly INVALID_FIELDS: 'invalid_fields';
   readonly CALLER_NOT_AUTHORIZED: 'caller_not_authorized';
   readonly UNKNOWN_CALLER: 'unknown_caller';
-  // ...32 members in total
+  // ...33 members in total
 };
 type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 ```

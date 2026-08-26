@@ -8,7 +8,7 @@ import {
 } from '@jiku/nats-protocol';
 import { authorizeWithRoles, readCallerRoles } from '../authorize-caller';
 import logger from '../logger';
-import { resolveCallerClass } from './caller-class';
+import { resolveCallerClass } from '../caller-class';
 import { QueryRegistry } from './registry';
 import { CallerClass, QueryContext } from './types';
 

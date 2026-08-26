@@ -13,6 +13,7 @@ import {
   rolesAuthorize,
 } from '../../src/authorize-caller';
 import { Dispatcher } from '../../src/bus/dispatcher';
+import { CLASS_BY_ROLE } from '../../src/caller-class';
 import { registry } from '../../src/commands';
 import { getTrustedPublisherId } from '../../src/config';
 import { matchesPattern } from '../../src/commands/registry';
@@ -114,14 +115,120 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
     }
   });
 
-  it('TS-14 · admin, user y external-user: TODAS las consultas y NINGÚN comando', () => {
+  it('TS-14 · admin, user y external-user siguen autorizando TODAS las consultas', () => {
+    // LA MITAD DE COMANDOS DE ESTE TEST DESAPARECIÓ EN S-030 y su premisa con ella: hasta esa
+    // story el mapa decía "ningún comando" para los tres roles de producto. Ahora `admin` y
+    // `user` enumeran 18 (TS-1 / TS-2 de S-030) y `external-user` sigue sin ninguno POR EL BUS
+    // pero gana 6 POR EL SOBRE (TS-4 / TS-5). Lo que se conserva intacto es esta mitad.
     for (const role of ['admin', 'user', 'external-user']) {
       for (const query of QUERIES) {
         rolesAuthorize([role], query, 'queries').should.be.true();
       }
-      // CA-4, el criterio menos intuitivo del mapa: el rol `admin` tampoco escribe por el bus.
+    }
+  });
+
+  it('S-030 TS-1/TS-2 · admin y user autorizan LOS MISMOS 18 por el canal DIRECTO', () => {
+    // LOS DOS COMANDOS DE SUSCRIPTORES SON LA EXCEPCIÓN EN EL CANAL DIRECTO: sus endpoints
+    // declaran `hasAnyRole(['external-user'])`, así que un rol interno no puede suscribir a nadie
+    // por HTTP. Dárselos para publicar SOLO sería AMPLIAR, no migrar.
+    const SOLO_EXTERNAS = [
+      'requirements.{id}.subscriptors.new',
+      'requirements.{id}.subscriptors.{userId}.delete',
+    ];
+
+    for (const role of ['admin', 'user']) {
       for (const pattern of COMMANDS) {
-        rolesAuthorize([role], asMethod(pattern), 'commands').should.be.false();
+        const esperado = !SOLO_EXTERNAS.includes(pattern);
+        rolesAuthorize([role], asMethod(pattern), 'commands').should.equal(
+          esperado,
+          `${role} -> ${pattern}`
+        );
+      }
+    }
+  });
+
+  it('S-030 · `user` suma UN comando por el canal del SOBRE, y `admin` ninguno', () => {
+    // `requirements.{id}.subscriptors.new` es el comando SECUNDARIO de
+    // `POST /api/opus/requirements` (`['user','external-user']`): un `user` lo alcanza SOLO
+    // porque la api lo publica en su nombre al crear el requisito. Publicando directo al bus NO
+    // lo alcanza, y esa asimetría es de seguridad — ver `USER_ENVELOPE_COMMANDS`.
+    const SUSCRIBIR = 'requirements.{id}.subscriptors.new';
+
+    rolesAuthorize(['user'], asMethod(SUSCRIBIR), 'commands', 'envelope').should.be.true();
+    rolesAuthorize(['user'], asMethod(SUSCRIBIR), 'commands', 'direct').should.be.false();
+
+    // `admin` no lo tiene por NINGÚN canal: no alcanza ese endpoint.
+    rolesAuthorize(['admin'], asMethod(SUSCRIBIR), 'commands', 'envelope').should.be.false();
+    rolesAuthorize(['admin'], asMethod(SUSCRIBIR), 'commands', 'direct').should.be.false();
+
+    // Y el resto del canal del sobre de `user` es idéntico al directo.
+    for (const pattern of COMMANDS.filter((p) => p !== SUSCRIBIR)) {
+      rolesAuthorize(['user'], asMethod(pattern), 'commands', 'envelope').should.equal(
+        rolesAuthorize(['user'], asMethod(pattern), 'commands', 'direct'),
+        pattern
+      );
+    }
+  });
+
+  it('S-030 TS-4 · external-user NO autoriza NINGÚN comando por el canal DIRECTO', () => {
+    // ES LA SEGUNDA DE LAS DOS DEFENSAS INDEPENDIENTES que CA-3 del REQ exige, y sigue en pie
+    // aunque la plantilla del callout se equivocara y le diera permiso de publicación.
+    for (const pattern of COMMANDS) {
+      rolesAuthorize(['external-user'], asMethod(pattern), 'commands').should.be.false(pattern);
+      // El default del canal es `direct`, así que omitirlo tiene que dar lo mismo que pedirlo.
+      rolesAuthorize(['external-user'], asMethod(pattern), 'commands', 'direct').should.be.false(
+        pattern
+      );
+    }
+  });
+
+  it('S-030 TS-5 · external-user autoriza EXACTAMENTE 6 comandos por el canal del SOBRE', () => {
+    // Son los seis endpoints de la superficie opus que declaran `external-user` y publican un
+    // comando. Si esta lista cambia, un camino vivo del portal se abre o se rompe.
+    ROLE_METHODS['external-user'].envelopeCommands!.should.deepEqual([
+      'requirements.new',
+      'requirements.{id}.comment',
+      'requirements.{id}.subscriptors.new',
+      'requirements.{id}.subscriptors.{userId}.delete',
+      'files.request-upload',
+      'files.{fileId}.request-download',
+    ]);
+
+    for (const pattern of ROLE_METHODS['external-user'].envelopeCommands!) {
+      rolesAuthorize(['external-user'], asMethod(pattern), 'commands', 'envelope').should.be.true(
+        pattern
+      );
+    }
+  });
+
+  it('S-030 TS-11 · (gate) `envelopeCommands` lo declaran EXACTAMENTE dos roles', () => {
+    // LOS DOS POR LA MISMA RAZÓN: hay comandos que una persona alcanza SOLO porque la api los
+    // publica en su nombre, y que no tiene por qué poder publicar sola. Un TERCER rol con el
+    // campo significa que alguien resolvió otro conflicto copiando estos, y hay que verlo: el
+    // campo AMPLÍA lo que un rol puede hacer por el sobre, así que no se agrega sin decisión.
+    Object.entries(ROLE_METHODS)
+      .filter(([, permissions]) => permissions.envelopeCommands !== undefined)
+      .map(([role]) => role)
+      .sort()
+      .should.deepEqual(['external-user', 'user']);
+  });
+
+  it('S-030 TS-12 · (gate) `week-assigned-times.replace` NO está en el mapa', () => {
+    // El comando 21 nace en S-032, con su entrada propia (`admin` solamente, C-38).
+    JSON.stringify(ROLE_METHODS).includes('week-assigned-times').should.be.false();
+  });
+
+  it('S-030 · (gate) todo rol con comandos tiene clase en CLASS_BY_ROLE', () => {
+    // LAS DOS TABLAS SON DELIBERADAMENTE INDEPENDIENTES, y el despachador de comandos depende de
+    // que no se desincronicen: un rol con comandos y SIN clase revienta en la compuerta (falla
+    // cerrada, `internal_error`). Este gate lo delata acá en vez de en producción.
+    for (const [role, permissions] of Object.entries(ROLE_METHODS)) {
+      const escribe =
+        permissions.commands === '*' ||
+        (permissions.commands as readonly string[]).length > 0 ||
+        permissions.envelopeCommands !== undefined;
+      if (escribe) {
+        CLASS_BY_ROLE.should.have.property(role);
       }
     }
   });
@@ -156,6 +263,33 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
   it('TS-17 · roles: [] no autoriza nada', () => {
     rolesAuthorize([], 'clients.new', 'commands').should.be.false();
     rolesAuthorize([], 'tasks.list', 'queries').should.be.false();
+  });
+
+  it('S-030 TS-6 · una lista de roles VACÍA no autoriza nada EN NINGÚN CANAL', () => {
+    // Las dos mitades: sin el canal del sobre, un `roles: []` que llegara por el embudo de la api
+    // quedaría sin afirmación a nivel de mapa puro.
+    rolesAuthorize([], 'clients.new', 'commands').should.be.false();
+    rolesAuthorize([], 'clients.new', 'commands', 'envelope').should.be.false();
+    rolesAuthorize([], 'requirements.new', 'commands', 'envelope').should.be.false();
+    rolesAuthorize([], 'tasks.list', 'queries').should.be.false();
+  });
+
+  it('S-030 TS-7 · un rol desconocido no autoriza nada EN NINGÚN CANAL', () => {
+    rolesAuthorize(['wizard'], 'clients.new', 'commands').should.be.false();
+    rolesAuthorize(['wizard'], 'clients.new', 'commands', 'envelope').should.be.false();
+    rolesAuthorize(['wizard'], 'requirements.new', 'commands', 'envelope').should.be.false();
+  });
+
+  it('S-030 TS-8 · la UNIÓN se conserva: `["user","external-user"]` publica lo de `user`', () => {
+    // ES EL CALLER QUE HACE ALCANZABLE EL MODO EXTERNO POR EL CANAL DIRECTO: la unión lo autoriza
+    // en los 18 de `user`, y la PRECEDENCIA de `resolveCallerClass` lo pone en clase `external`.
+    // Las dos tablas responden preguntas distintas y resuelven al revés a propósito.
+    const mixto = ['user', 'external-user'];
+
+    rolesAuthorize(mixto, 'clients.new', 'commands').should.be.true();
+    rolesAuthorize(mixto, 'requirements.7.comment', 'commands').should.be.true();
+    // Y no le suma nada que `user` no tenga: la unión no inventa permisos.
+    rolesAuthorize(mixto, 'requirements.7.subscriptors.8.delete', 'commands').should.be.false();
   });
 
   it('TS-18 · un rol DESCONOCIDO no autoriza nada (deny-by-default)', () => {
@@ -365,18 +499,25 @@ describe('la compuerta de autorización · plano de comandos', () => {
       (await File.count()).should.equal(0);
     });
 
-    it('TS-26 · CA-4: con roles admin, un comando se rechaza', async () => {
-      // Es el criterio que alguien va a querer "arreglar": core no tiene las reglas de negocio
-      // que dependen del usuario final (la ventana de carga de horas, quién imputa a otro).
-      // Payload válido según el contrato (`WorkedTimesNewPayload`), a propósito: lo que se prueba
-      // es que la compuerta rechaza ANTES de Joi, no que Joi rechace.
+    it('TS-26 · S-030 invirtió este test: con roles admin, la COMPUERTA ya no rechaza', async () => {
+      // HASTA S-030 ESTE TEST AFIRMABA LO CONTRARIO —"con roles admin, un comando se rechaza"—
+      // porque el mapa decía "ningún comando" para los roles de producto. S-030 enumera los 18 de
+      // `admin`, así que la premisa desapareció y lo que queda por verificar es su INVERSO: la
+      // compuerta lo deja pasar.
+      //
+      // PUEDE FALLAR DESPUÉS POR UNA REGLA DE DOMINIO, Y ES OTRA COSA: la ventana de carga de
+      // horas y quién imputa a otra persona SIGUEN EN LA API hasta S-031, así que acá el comando
+      // llega al dominio y responde lo que corresponda. Lo único que se afirma es que el rechazo
+      // YA NO ES de la compuerta.
       const reply = await dispatch(
         'worked-times.new',
         { date: '2026-08-24', minutes: 480, projectId: 1, personId: 1 },
         ADM
       );
 
-      reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+      // Se compara el BOOLEANO: si el comando saliera exitoso no habría `errorCode` y
+      // `undefined.should` explotaría antes de afirmar nada.
+      (reply.errorCode === ErrorCode.CALLER_NOT_AUTHORIZED).should.be.false();
     });
 
     it('TS-27 · CA-11: un conector PASA leyendo sus roles de la base, no por exención', async () => {
@@ -408,10 +549,12 @@ describe('la compuerta de autorización · plano de comandos', () => {
     });
 
     it('TS-30 · CA-9: los dos casos devuelven errorCode Y errorMessage idénticos', async () => {
-      // El caller "con fila y sin permiso" es ahora `ADM`: `admin` no autoriza NINGÚN comando.
-      // Era `EXT`, que con el rol de conector pasa a autorizar todo y dejó de servir acá.
+      // El caller "con fila y sin permiso" es ahora `VACIO` (`roles: []`). Era `ADM` hasta S-030,
+      // que enumeró los 18 comandos de `admin` y lo dejó del lado de los que SÍ escriben; y antes
+      // era `EXT`, que con el rol de conector pasa a autorizar todo. Lo que el test afirma no
+      // cambió: "sin fila" y "con fila pero ningún rol autoriza" son INDISTINGUIBLES desde afuera.
       const sinFila = await dispatch('clients.new', { name: 'X' }, SIN_FILA);
-      const rolSinPermiso = await dispatch('clients.new', { name: 'X' }, ADM);
+      const rolSinPermiso = await dispatch('clients.new', { name: 'X' }, VACIO);
 
       // Si el MENSAJE difiriera, el mensaje sería el oráculo de existencia que el código evita.
       sinFila.errorCode!.should.equal(rolSinPermiso.errorCode!);
@@ -879,8 +1022,12 @@ describe('S-023 · readCallerRoles / authorizeWithRoles — la lectura y la deci
 
     (authorizeWithRoles(ROLES_ROW, ['admin'], 'tasks.list', 'queries') === null).should.be.true();
     warn.called.should.be.false();
+    // Desde S-030 `admin` TAMBIÉN autoriza `clients.new`, así que el caso autorizado tiene ahora
+    // dos ejemplos y el rechazo hay que buscarlo en un rol que de verdad no escriba.
+    (authorizeWithRoles(ROLES_ROW, ['admin'], 'clients.new', 'commands') === null).should.be.true();
+    warn.called.should.be.false();
 
-    authorizeWithRoles(ROLES_ROW, ['admin'], 'clients.new', 'commands');
+    authorizeWithRoles(ROLES_ROW, ['bus-observer'], 'clients.new', 'commands');
 
     warn.callCount.should.equal(1);
     const message = String(warn.firstCall.args[0]);

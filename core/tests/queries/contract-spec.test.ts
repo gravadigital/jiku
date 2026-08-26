@@ -136,10 +136,129 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
     source.should.containEql('this file stays the contract of the commands');
   });
 
-  it('TS-99 · los 20 canales de comandos siguen intactos (CA-16)', () => {
+  it('TS-99 · los canales de los 20 comandos registrados siguen intactos (CA-16)', () => {
+    const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+    const declared = keysUnder(source, 'channels');
+
+    // CA-16 es sobre lo que NO SE PIERDE: los canales de comando siguen todos declarados. El
+    // conteo fijo en 20 dejó de expresar eso cuando REQ-007 documentó `week-assigned-times.replace`
+    // —el comando 21, que la spec describe ANTES de que exista porque el comando nace en S-032—,
+    // así que la aserción pasa a decir lo que CA-16 quiso decir, y contra el registro real.
+    declared.should.containDeep(commandRegistry.patterns());
+
+    // Y lo único que puede estar declarado sin comando registrado es ese canal 21. Cualquier otro
+    // canal de más es la spec mintiendo por exceso, que es el desfasaje que este test atrapa.
+    declared
+      .filter((channel) => !commandRegistry.patterns().includes(channel))
+      .forEach((extra) => {
+        extra.should.equal('week-assigned-times.replace');
+      });
+  });
+
+  /**
+   * S-030 TS-80 · `access_denied` EN EL CONTRATO: en el `enum` de `ErrorCode` y POR CANAL.
+   *
+   * LA CONVENCIÓN `error-handling` EXIGE TRES LUGARES para un código nuevo: el paquete
+   * (`packages/nats-protocol`), este spec, y el mapa a HTTP de la api. Este gate cubre el
+   * segundo. EL TERCERO —`STATUS_BY_ERROR_CODE` → 403— es de `S-030.api.*` y SIGUE ABIERTO:
+   * sin él, `access_denied` cae en el `|| 500` de `httpStatusFor` y el frontend lo trata como
+   * error de servidor. El síntoma no es un error de compilación, y por eso hace falta un gate.
+   */
+  it('TS-80 · `access_denied` está en el `enum` de ErrorCode (S-030, CA-9)', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
 
-    keysUnder(source, 'channels').should.have.length(20);
+    source.should.containEql('- access_denied');
+  });
+
+  it('TS-80 · los 20 canales de comando listan `access_denied`, y el 21 NO (S-030)', () => {
+    const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+    const lines = source.split('\n');
+
+    // canal → mensaje. VARIOS CANALES COMPARTEN `EmptyBody` (los tres borrados sin cuerpo), así
+    // que el código se declara una vez y aplica a los tres: hay que resolver la referencia y no
+    // contar bloques de mensaje.
+    const channelToMessage = new Map<string, string>();
+    let channel: string | null = null;
+    let inChannels = false;
+    for (const line of lines) {
+      if (/^channels:\s*$/.test(line)) {
+        inChannels = true;
+        continue;
+      }
+      if (inChannels && /^\w+:\s*$/.test(line)) {
+        break;
+      }
+      if (!inChannels) {
+        continue;
+      }
+      const key = /^ {2}([^\s:][^:]*):\s*$/.exec(line);
+      if (key) {
+        channel = key[1].replace(/^['"]|['"]$/g, '');
+      }
+      const ref = /#\/components\/messages\/(\w+)/.exec(line);
+      if (ref && channel) {
+        channelToMessage.set(channel, ref[1]);
+      }
+    }
+
+    // mensaje → códigos declarados (las dos formas: `[a, b]` en línea y bloque con `- a`).
+    const codesByMessage = new Map<string, string[]>();
+    let message: string | null = null;
+    let inMessages = false;
+    for (const line of lines) {
+      if (/^ {2}messages:\s*$/.test(line)) {
+        inMessages = true;
+        continue;
+      }
+      if (inMessages && /^ {2}\w+:\s*$/.test(line)) {
+        break;
+      }
+      if (!inMessages) {
+        continue;
+      }
+      const name = /^ {4}(\w+):\s*$/.exec(line);
+      if (name) {
+        message = name[1];
+        codesByMessage.set(message, []);
+      }
+      if (!message) {
+        continue;
+      }
+      const inline = /^ {6}x-error-codes:\s*\[(.*)\]/.exec(line);
+      if (inline) {
+        codesByMessage.get(message)!.push(...inline[1].split(',').map((code) => code.trim()));
+      }
+      const item = /^ {8}- (\w+)\s*$/.exec(line);
+      if (item) {
+        codesByMessage.get(message)!.push(item[1]);
+      }
+    }
+
+    channelToMessage.size.should.equal(21);
+
+    const sinCodigo = [...channelToMessage.entries()]
+      .filter(([, msg]) => !(codesByMessage.get(msg) ?? []).includes('access_denied'))
+      .map(([name]) => name);
+
+    // EL CANAL 21 ES LA ÚNICA EXCEPCIÓN, y es deliberada: `week-assigned-times.replace` está en
+    // el spec pero su comando NO ESTÁ EN EL REGISTRY todavía. Su dueño es S-032.
+    sinCodigo.should.deepEqual(['week-assigned-times.replace']);
+  });
+
+  it('TS-80 · el bloque del `enum` dice que lo decide LA COMPUERTA, no el comando (CA-15)', () => {
+    const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+
+    source.should.containEql('decided by THE GATE with the row in front of');
+    source.should.not.containEql('decided by the command with the row in front of');
+  });
+
+  it('TS-80 · la prosa del mapa rol → método ya no dice "no command" (S-030, CA-1)', () => {
+    const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+
+    // Dejar la tabla vieja es PEOR que no tocar el archivo: alguien razonaría sobre seguridad con
+    // un mapa que dejó de ser cierto, y este spec es la fuente de verdad del contrato de `core`.
+    source.should.not.containEql('every query and no command');
+    source.should.containEql('the map distinguishes two');
   });
 });
 
