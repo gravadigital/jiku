@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-005 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code api` to complete it.
 
-**Last updated:** 2026-08-25 (S-029)
+**Last updated:** 2026-08-25 (S-031)
 
 ## Utils
 
@@ -24,8 +24,9 @@ Total: 3
 
 ## Test Helpers
 
-Total: 3
+Total: 4
 
+- **dayOffset / HOY / HOY_M10 / HOY_M11 / MANANA** (`api/tests/helpers/dates.ts`) - Dates relative to today, never literals, for the time-tracking test suites. Mirrors `core/tests/helpers/dates.ts` so both halves of the S-031 parity test spell the same boundary the same way. Uses `setUTCDate` + `toISOString`, never millisecond arithmetic (S-031).
 - **token_05_user_profile** (`api/tests/mocks/jsonwebtoken-mock.ts`) - The only mock token carrying the three OIDC profile claims (`name`, `preferred_username`, `email`). Use it to test what travels in the identity envelope when the Zitadel instance emits the profile scopes; the other four tokens cover the opposite case (S-029).
 - **fakeBus.failWithNoResponders()** (`api/tests/mocks/bus.ts`) - Simulates that nobody is subscribed to the subject, so a test does not have to build the `NatsError` by hand. The api answers `503 service_unavailable`.
 - **fakeBus.failWithTimeout()** (`api/tests/mocks/bus.ts`) - Simulates that the reply never arrived. The api answers `504 gateway_timeout`. A bare `new Error('timeout')` is **not** a timeout for the api: this is the only way to simulate one.

@@ -3,24 +3,19 @@ import 'should';
 import {start} from '../mocks/app';
 import request from 'supertest';
 import {Application} from 'express';
-import { Objective, Person, Project, Requirement, User, WorkedTime } from '@jiku/models';
-
-function getDateStr(daysOffset: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + daysOffset);
-  return date.toISOString().split('T')[0];
-}
+import { Objective, Person, Project, Requirement, UnworkedTime, User, WorkedTime } from '@jiku/models';
+import { dayOffset, HOY, HOY_M10, HOY_M11, MANANA } from '../helpers/dates';
+import { fakeBus } from '../mocks/bus';
 
 describe('POST /api/worked-times', () => {
   let application: Application;
 
-  const todayStr = getDateStr(0);
-  const twoDaysAgoStr = getDateStr(-2);
-  const threeDaysAgoStr = getDateStr(-3);
-  const fourDaysAgoStr = getDateStr(-4);
-  const fiveDaysAgoStr = getDateStr(-5);
-  const eightDaysAgoStr = getDateStr(-11);
-  const tomorrowStr = getDateStr(1);
+  const todayStr = HOY;
+  const twoDaysAgoStr = dayOffset(-2);
+  const threeDaysAgoStr = dayOffset(-3);
+  const fourDaysAgoStr = dayOffset(-4);
+  const fiveDaysAgoStr = dayOffset(-5);
+  const tomorrowStr = MANANA;
 
   before(function() {
     application = start();
@@ -49,6 +44,16 @@ describe('POST /api/worked-times', () => {
         name: 'External User 01',
         username: 'external01',
         email: 'external01@mail.com'
+      }),
+      // TS-11: el actor SIN Persona vinculada. `token_05_user_profile` ya existe en el mock con rol
+      // `user`, así que no hace falta tocarlo; lo único que falta es su fila en `users`, porque
+      // `validateToken` responde 401 `user_not_found` si no está y el test moriría antes de llegar
+      // a `person_not_found`. NO se le crea Persona: esa ausencia ES el caso.
+      User.create({
+        id: 'zitadel-sub-05',
+        name: 'Sin Persona',
+        username: 'sinpersona',
+        email: 'sinpersona@mail.com'
       }),
     ])
       .then(() => {
@@ -159,6 +164,8 @@ describe('POST /api/worked-times', () => {
 
   after(() => {
     return WorkedTime.destroy({where: {}})
+      // TS-16 (H-7) crea una ausencia para probar que el tope de horas NO la suma.
+      .then(() => UnworkedTime.destroy({where: {}}))
       .then(() => Objective.destroy({where: {}}))
       .then(() => Requirement.destroy({where: {}}))
       .then(() => Person.destroy({where: {}}))
@@ -468,7 +475,7 @@ describe('POST /api/worked-times', () => {
     return request(application)
       .post('/api/worked-times')
       .send({
-        date: eightDaysAgoStr,
+        date: HOY_M11,
         minutes: 60,
         projectId: 1
       })
@@ -614,5 +621,324 @@ describe('POST /api/worked-times', () => {
       .then((response) => {
         response.body.code.should.equal('access_denied');
       });
+  });
+  /**
+   * S-031 · LAS REGLAS QUE SE FUERON A `core`, EJERCIDAS POR HTTP.
+   *
+   * Ninguno de estos tests usa `reply()`: el `FakeBus` ejecuta CORE REAL contra la misma base, así
+   * que lo que se está verificando es la cadena completa —la api publica con el sobre, `core`
+   * decide, la api traduce el reply a HTTP—. Es la única forma de afirmar CA-12 desde acá: que el
+   * status y el `code` que ve el frontend son EXACTAMENTE los de antes, aunque ahora los decida
+   * otro servicio.
+   *
+   * Mocha corre los `it` propios de un `describe` ANTES que los de sus hijos, así que para cuando
+   * este bloque arranca la Persona 1 ya tiene 1440 minutos cargados en HOY por los tests de
+   * arriba. Por eso los escenarios que necesitan cupo usan otras fechas o la Persona 2.
+   */
+  describe('S-031 · las reglas mudadas a core', () => {
+    // TS-1: sin `personId`, core lo resuelve desde el actor (CA-5)
+    it('TS-1: crea la hora sin `personId`: core lo resuelve desde el actor', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 120, projectId: 1, objectiveId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(201)
+        .then((response) => {
+          response.body.should.have.property('id');
+          response.body.should.have.property('minutes', 120);
+          response.body.should.have.property('projectId', 1);
+          response.body.should.have.property('objectiveId', 1);
+          (response.body.requirementId === null).should.be.true();
+          response.body.project.should.have.property('name', 'Proyecto Alpha');
+          response.body.objective.should.have.property('title', 'Objetivo Test');
+          // Lo que prueba CA-5: la Persona salió del actor, no del cuerpo.
+          response.body.should.have.property('personId', 1);
+        });
+    });
+
+    // TS-2: CA-11 en el payload — la api ya no manda `personId` cuando el cuerpo no lo trae
+    it('TS-2: publica el comando SIN la clave `personId` y CON el sobre del actor', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1, objectiveId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(201)
+        .then(() => {
+          (fakeBus.last as any).command.should.equal('worked-times.new');
+          const payload = (fakeBus.last as any).payload;
+          // NO ALCANZA `payload.personId === undefined`: con `personId: undefined` explícito la
+          // clave EXISTIRÍA, y el `FakeBus` no serializa (el bus real sí, y la borraría). Lo que
+          // hace verdadera esta aserción es el spread condicional de la ruta (H-5).
+          ('personId' in payload).should.be.false();
+          payload.actor.id.should.equal('zitadel-sub-01');
+          payload.actor.roles.should.containEql('user');
+        });
+    });
+
+    // TS-3: CA-13 — la traducción `objectiveId` → `taskId` sobrevive
+    it('TS-3: conserva la traducción `objectiveId` → `taskId` (CA-13)', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1, objectiveId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(201)
+        .then(() => {
+          const payload = (fakeBus.last as any).payload;
+          payload.taskId.should.equal(1);
+          // El nombre del contrato HTTP no viaja al bus: es traducción, no alias.
+          ('objectiveId' in payload).should.be.false();
+          payload.date.should.equal(HOY_M10);
+        });
+    });
+
+    // TS-4: borde inferior DENTRO de la ventana (CA-1)
+    it('TS-4: acepta el borde inferior exacto de la ventana (hoy − 10)', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(201)
+        .then((response) => {
+          response.body.should.have.property('personId', 1);
+        });
+    });
+
+    // TS-5: borde inferior FUERA de la ventana (CA-1, CA-12)
+    it('TS-5: rechaza hoy − 11 con `invalid_date_range`, y el mensaje no cambia', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M11, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_date_range');
+          response.body.message.should.equal(
+            'Solo se pueden cargar horas del día actual y los 10 días previos'
+          );
+        });
+    });
+
+    // TS-6: borde superior DENTRO de la ventana (CA-1)
+    it('TS-6: acepta el día actual', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_02_user')
+        .expect(201)
+        .then((response) => {
+          response.body.should.have.property('personId', 2);
+        });
+    });
+
+    // TS-7: borde superior FUERA de la ventana (CA-2, CA-12)
+    it('TS-7: rechaza mañana con `invalid_date_range` (la ventana también corta hacia adelante)', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: MANANA, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_date_range');
+        });
+    });
+
+    // TS-8: C-41 — un `user` imputa a otra Persona (CA-3, CA-12)
+    it('TS-8: un `user` que imputa a otra Persona recibe 403 `access_denied`', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1, personId: 2 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(403)
+        .then((response) => {
+          response.body.code.should.equal('access_denied');
+          // El texto es el mismo que respondía la api: para el usuario final no cambió nada.
+          response.body.message.should.equal('Solo podés cargar tus propias horas');
+        });
+    });
+
+    // TS-9: CA-4 — un `admin` sí imputa a terceros
+    it('TS-9: un `admin` sí imputa a otra Persona, y el `personId` explícito viaja', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1, personId: 2 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_03_admin')
+        .expect(201)
+        .then((response) => {
+          response.body.should.have.property('personId', 2);
+          const payload = (fakeBus.last as any).payload;
+          payload.personId.should.equal(2);
+          payload.actor.roles.should.containEql('admin');
+        });
+    });
+
+    // TS-10: CA-6 — el `.oxor` de la api ya no existe
+    it('TS-10: publica los dos campos excluyentes y es CORE quien rechaza (CA-6)', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1, objectiveId: 1, requirementId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          // LA MITAD QUE IMPORTA: el comando SÍ SE PUBLICÓ. Si el `.oxor` siguiera en la api,
+          // `fakeBus.sent` estaría vacío y el test pasaría por la razón equivocada.
+          (fakeBus.last as any).command.should.equal('worked-times.new');
+          const payload = (fakeBus.last as any).payload;
+          payload.taskId.should.equal(1);
+          payload.requirementId.should.equal(1);
+        });
+    });
+
+    // TS-11: CA-5 — actor sin Persona vinculada (CA-12)
+    it('TS-11: un actor sin Persona vinculada recibe 400 `person_not_found`', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_05_user_profile')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('person_not_found');
+        });
+    });
+
+    // TS-12: el rol sigue cortando EN LA API (CA-15)
+    it('TS-12: `hasAnyRole` sigue cortando antes de publicar (CA-15)', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403)
+        .then((response) => {
+          response.body.code.should.equal('access_denied');
+          response.body.message.should.equal('Access denied');
+          fakeBus.sent.length.should.equal(0);
+        });
+    });
+
+    // TS-13: Joi de la api sigue validando la FORMA (CA-12, CA-15)
+    it('TS-13: la forma del input se sigue validando en el borde del sistema', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({})
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.message.should.startWith('Invalid field - ');
+          fakeBus.sent.length.should.equal(0);
+        });
+    });
+
+    // TS-14: sin token (CA-12)
+    it('TS-14: sin token responde 401 `unauthorized`', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .expect(401)
+        .then((response) => {
+          response.body.code.should.equal('unauthorized');
+        });
+    });
+
+    // TS-15: tope diario, con `remainingMinutes` recuperado del mensaje (CA-7, CA-12)
+    it('TS-15: el tope diario responde 400 con `remainingMinutes`', () => {
+      // Día propio: los tests de arriba ya llenaron HOY para la Persona 1, y HOY_M10 lo usan los
+      // escenarios de la ventana. Con 1200 previos, 300 más dejan `remainingMinutes: 240`.
+      const diaDelTope = dayOffset(-9);
+      return WorkedTime.create({
+        id: 900, date: diaDelTope, minutes: 1200, projectId: 1, personId: 1,
+      })
+        .then(() => {
+          return request(application)
+            .post('/api/worked-times')
+            .send({ date: diaDelTope, minutes: 300, projectId: 1 })
+            .set('Accept', 'application/json')
+            .set('Authorization', 'Bearer token_01_user')
+            .expect(400);
+        })
+        .then((response) => {
+          response.body.code.should.equal('daily_limit_exceeded');
+          // La api lo recupera con un regex sobre el mensaje de core (FG-4 migrará el consumo a
+          // `errorDetails`); mientras tanto, esto es lo que el frontend lee.
+          response.body.should.have.property('remainingMinutes', 240);
+        });
+    });
+
+    // TS-16: H-7 — el tope de HORAS no suma ausencias, y es correcto (CA-7)
+    it('TS-16: el tope de horas NO suma ausencias (asimetría deliberada, H-7)', () => {
+      // 1400 minutos de AUSENCIA para la Persona 2 en HOY. `worked-times.new` cuenta SOLO horas
+      // trabajadas —lo dice el contrato del bus—, así que 60 minutos más SE ACEPTAN. La dirección
+      // inversa (`unworked-times.new`, que sí suma las dos) es OTRA regla y está cubierta en
+      // `unworked-times-post.test.ts`.
+      return UnworkedTime.create({
+        id: 901, date: HOY, minutes: 1400, reason: 'vacaciones', personId: 2,
+      })
+        .then(() => {
+          return request(application)
+            .post('/api/worked-times')
+            .send({ date: HOY, minutes: 60, projectId: 1 })
+            .set('Accept', 'application/json')
+            .set('Authorization', 'Bearer token_02_user')
+            .expect(201);
+        })
+        .then((response) => {
+          response.body.should.have.property('personId', 2);
+        });
+    });
+
+    // TS-17: las referencias inexistentes siguen saliendo del reply de core (CA-12)
+    it('TS-17: un proyecto inexistente sigue saliendo 400 `project_not_found`', () => {
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY_M10, minutes: 60, projectId: 9999 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('project_not_found');
+        });
+    });
+
+    // TS-18: bus caído — la operación NO ocurrió (ADR-002, CA-12)
+    it('TS-18: sin suscriptores responde 503 `service_unavailable`', () => {
+      fakeBus.failWithNoResponders();
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(503)
+        .then((response) => {
+          response.body.code.should.equal('service_unavailable');
+        });
+    });
+
+    // TS-19: bus lento — la operación PUDO ocurrir (ADR-002, CA-12)
+    it('TS-19: un timeout responde 504 `gateway_timeout`', () => {
+      fakeBus.failWithTimeout();
+      return request(application)
+        .post('/api/worked-times')
+        .send({ date: HOY, minutes: 60, projectId: 1 })
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(504)
+        .then((response) => {
+          response.body.code.should.equal('gateway_timeout');
+        });
+    });
   });
 });

@@ -1069,17 +1069,43 @@ paths:
       description: |
         Publica `worked-times.new` (`objectiveId` viaja como `taskId`).
 
-        **Tres reglas que viven en la api**, porque core no conoce roles ni calendario:
-          - la fecha tiene que estar entre hoy y los 10 días previos (`invalid_date_range`)
-          - solo un `admin` puede imputar horas a otra persona (`access_denied`)
-          - si no viene `personId`, se resuelve desde el usuario autenticado (`person_not_found`
-            si no tiene persona vinculada)
+        > **REQ-007 (S-031) — `- ELIMINADO`: las cuatro reglas se mudaron a `core`.**
+        >
+        > Acá decía: *"**Tres reglas que viven en la api**, porque core no conoce roles ni
+        > calendario: la fecha tiene que estar entre hoy y los 10 días previos
+        > (`invalid_date_range`); solo un `admin` puede imputar horas a otra persona
+        > (`access_denied`); si no viene `personId`, se resuelve desde el usuario autenticado
+        > (`person_not_found` si no tiene persona vinculada)"*. **Core sí conoce roles y usuario
+        > final desde el sobre de S-029**, así que las tres se fueron, y con ellas el `.oxor`.
+        >
+        > - **`- ELIMINADO`** el middleware `validateDateRange`: la ventana de carga (C-40) la
+        >   aplica `core` y devuelve `invalid_date_range` → 400, **con el mismo mensaje**
+        > - **`- ELIMINADO`** el middleware `validatePersonPermission`: imputar a terceros (C-41)
+        >   lo decide `core` y devuelve `access_denied` → 403, **con el mismo mensaje**
+        > - **`- ELIMINADO`** el middleware `resolvePersonId`: el default de `personId` sale del
+        >   **actor** en `core` (`SELECT id FROM people WHERE user_id = {actor}`); sin Persona
+        >   vinculada, `person_not_found` → 400
+        > - **`- ELIMINADO`** el `.oxor('objectiveId','requirementId')` de Joi: la exclusión (C-42)
+        >   queda con **una sola definición**, la de `core`, que responde `invalid_fields` → 400.
+        >   El comando **sí se publica** y es `core` quien rechaza
+        >
+        > **`+ NUEVO` en el orden, no en el contrato:** cuando fallan dos reglas a la vez el
+        > código que se ve puede cambiar, porque todo lo mudado se evalúa **después** de lo que
+        > queda en la api y `core` evalúa permiso antes que referencias. Fecha fuera de ventana
+        > **y** proyecto inexistente sale ahora `project_not_found`; fecha fuera de ventana **y**
+        > `personId` ajeno sale `access_denied`.
+        >
+        > **`+ CONSERVADO`:** la traducción `objectiveId` → `taskId` (es contrato, no regla),
+        > `hasAnyRole(['user','admin'])`, la validación de la **forma** del input y la relectura
+        > con relaciones (ADR-001). **El contrato HTTP no cambia:** mismo verbo, mismo cuerpo,
+        > mismos status, mismos códigos.
 
-        `objectiveId` y `requirementId` son mutuamente excluyentes.
+        `objectiveId` y `requirementId` son mutuamente excluyentes — **lo valida `core`**.
 
         Core puede rechazar con `daily_limit_exceeded`, que sale 400 y **agrega
         `remainingMinutes`** al cuerpo — recuperado parseando el mensaje, porque el formato de
-        respuesta del bus no tiene dónde ponerlo.
+        respuesta del bus no tiene dónde ponerlo. (`core` ya emite además
+        `errorDetails.remainingMinutes`; migrar el consumo es de FG-4.)
       x-roles: [user, admin]
       x-bus-command: worked-times.new
       requestBody:
@@ -1097,7 +1123,11 @@ paths:
                 requirementId: { type: integer, nullable: true }
                 personId:
                   type: integer
-                  description: Default, la persona del usuario autenticado. Solo `admin` puede indicar otra
+                  description: |
+                    Opcional. Si no viene, **`core`** lo resuelve desde el actor del sobre. Si
+                    viene y difiere de la Persona del actor, solo un `admin` puede — **lo verifica
+                    `core`** (C-41), no la api. Cuando el cuerpo no lo trae, la api **no manda la
+                    clave** en el comando.
       responses:
         '201':
           description: Created
@@ -1105,7 +1135,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
         '400':
-          description: Validación, ventana de fechas, o un rechazo de core
+          description: |
+            Forma del input (la valida la api), o un rechazo de `core`: ventana de fechas
+            (`invalid_date_range`), exclusión tarea/requisito (`invalid_fields`), actor sin Persona
+            (`person_not_found`), tope diario o referencias inexistentes
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1121,7 +1154,9 @@ paths:
                     remainingMinutes: 120
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
-          description: Sin rol, o intento de cargar horas de otra persona sin ser `admin`
+          description: |
+            Sin rol (lo corta `hasAnyRole` **en la api**, sin publicar), o intento de cargar horas
+            de otra persona sin ser `admin` (lo rechaza **`core`** con C-41 y llega por reply)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1135,8 +1170,25 @@ paths:
       tags: [worked-times]
       summary: Borra un registro de horas
       description: |
-        Publica `worked-times.{id}.delete`. Valida la ventana de fechas y que el registro sea del
-        usuario, salvo `admin`.
+        Publica `worked-times.{id}.delete`.
+
+        > **REQ-007 (S-031) — `- ELIMINADO`: la titularidad y la ventana se mudaron a `core`.**
+        >
+        > Acá decía: *"Valida la ventana de fechas y que el registro sea del usuario, salvo
+        > `admin`"*. Ya no: hasta esta story `core` **"borraba lo que le decían"**, y ahora las dos
+        > reglas viven en el único servicio que escribe.
+        >
+        > - **`- ELIMINADO`** `validateDeleteDateRange` → `core` responde `invalid_date_range`
+        >   (**400**), con el mismo mensaje
+        > - **`- ELIMINADO`** `validateDeletePermission` → `core` responde `access_denied`
+        >   (**403**), con el mismo mensaje
+        > - **`+ CONSERVADO`** `loadWorkedTime`, **y no es un descuido**: es el **404** que este
+        >   contrato promete. `core`, para el mismo caso, responde `worked_time_not_found`, que la
+        >   api mapea a **400**. Sin ese middleware el 404 se convertiría en 400
+        >
+        > **`+ NUEVO` en el orden:** un registro **ajeno y fuera de ventana** sale ahora
+        > `access_denied` (403) donde antes salía `invalid_date_range` (400). `core` evalúa la
+        > titularidad primero porque es la que menos revela.
       x-roles: [user, admin]
       x-bus-command: worked-times.{id}.delete
       parameters:
@@ -1148,12 +1200,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
-          description: Fuera de la ventana de fechas, o el registro no existe
+          description: |
+            Fuera de la ventana de fechas — **llega del reply de `core`** (`invalid_date_range`),
+            no lo emite la api
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/AccessDenied' }
+        '403':
+          description: |
+            Sin rol (lo corta la api), o el registro es de otra Persona — esto último **llega del
+            reply de `core`** (`access_denied`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: access_denied, message: Solo podés eliminar tus propios registros }
+        '404':
+          description: |
+            El registro no existe. **Lo sigue dando la api** (`loadWorkedTime`): `core` responde
+            `worked_time_not_found`, que el mapa del servicio traduce a **400**
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: worked_time_not_found, message: Registro no encontrado }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
         '504': { $ref: '#/components/responses/GatewayTimeout' }
@@ -1298,7 +1367,22 @@ paths:
     post:
       tags: [unworked-times]
       summary: Registra horas no trabajadas
-      description: Publica `unworked-times.new`. Sin chequeo de rol.
+      description: |
+        Publica `unworked-times.new`. Sin chequeo de rol en la api.
+
+        > **REQ-007 (S-031) — `+ NUEVO`: `core` puede rechazar por titularidad.**
+        >
+        > - **`+ NUEVO`** cargar una ausencia **de otra Persona** sin ser `admin` lo rechaza
+        >   ahora `core` con `access_denied` → **403** (CA-10). Antes esta ruta no tenía la regla
+        >   por ningún lado
+        > - **`+ SIN CAMBIOS` en el código de la api:** esta ruta **no perdió ni una línea**, y es
+        >   deliberado. `UnworkedTimesNewPayload` de `docs/apis/core.yaml` mantiene
+        >   `required: [date, minutes, reason, personId]` — a diferencia de `worked-times.new`, en
+        >   ausencias **`personId` NO pasó a opcional**. Por eso la api conserva su
+        >   `resolvePersonId` y **el campo siempre viaja** en el comando. Borrarlo "para que quede
+        >   igual que en horas" haría que `core` respondiera `invalid_fields`
+        > - **`+ SIN CAMBIOS`** el tope diario compartido (horas trabajadas **+** ausencias): ya
+        >   vivía en `core`
       x-bus-command: unworked-times.new
       requestBody:
         required: true
@@ -1314,15 +1398,33 @@ paths:
                 personId:
                   type: integer
                   minimum: 1
-                  description: Default, la persona del usuario autenticado
+                  description: |
+                    Opcional en el contrato HTTP: si no viene, **la api** lo resuelve desde el
+                    usuario autenticado. **En el comando es obligatorio**, así que siempre viaja
+                    (a diferencia de `worked-times.new`). Que sea de otra Persona lo decide
+                    **`core`**: solo un `admin` puede.
       responses:
         '201':
           description: Created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/UnworkedTime' }
-        '400': { $ref: '#/components/responses/InvalidFields' }
+        '400':
+          description: |
+            Forma del input (la valida la api), o un rechazo de `core`: `person_not_found` o
+            `daily_limit_exceeded`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            La ausencia es de otra Persona y el actor no es `admin`. **Llega del reply de `core`**
+            (`access_denied`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: access_denied, message: Solo podés cargar tus propias ausencias }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
         '504': { $ref: '#/components/responses/GatewayTimeout' }
@@ -1332,7 +1434,29 @@ paths:
       tags: [unworked-times]
       summary: Borra un registro de horas no trabajadas
       description: |
-        Publica `unworked-times.{id}.delete`. Valida titularidad y un deadline propio de la api.
+        Publica `unworked-times.{id}.delete`.
+
+        > **REQ-007 (S-031) — `- ELIMINADO` la titularidad; `+ CONSERVADO` el deadline.**
+        >
+        > Acá decía: *"Valida titularidad y un deadline propio de la api"*. De los dos, **se fue
+        > uno solo**.
+        >
+        > - **`- ELIMINADO`** `validateDeletePermission`: la titularidad la aplica ahora `core` y
+        >   devuelve `access_denied` → **403**, con el mismo mensaje (CA-10)
+        > - **`+ CONSERVADO`** `validateDeadline`, **y no es un olvido**: NO es la ventana de
+        >   carga con otro nombre. Compara **`created_at`** (no `date`) y responde
+        >   **`deadline_exceeded`**, un código que **emite la api** y que por eso **no está en el
+        >   mapa de códigos del bus**. `docs/apis/core.yaml` lo confirma del otro lado:
+        >   `invalid_date_range` lo emite **solo** `worked-times.{id}.delete`. Mudarla exigiría un
+        >   código nuevo en el protocolo, y `core` decidió no tomarla. **Queda como deuda
+        >   declarada**
+        > - **`+ CONSERVADO`** `loadUnworkedTime`: da el **404** del path y además es lo que
+        >   alimenta a `validateDeadline`
+        >
+        > **`+ NUEVO` en el orden:** una ausencia **ajena y vencida** sale ahora
+        > `deadline_exceeded` (400) donde antes salía `access_denied` (403) — el deadline se quedó
+        > en la api y corre **antes** de publicar; la titularidad se fue a `core`, que corre
+        > después.
       x-bus-command: unworked-times.{id}.delete
       parameters:
         - $ref: '#/components/parameters/IdPath'
@@ -1343,12 +1467,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
-          description: Fuera del deadline, o el registro no existe
+          description: |
+            Fuera del deadline de creación. **Lo emite la api** (`deadline_exceeded`), que corta
+            sin publicar — no llega del reply de `core`
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+              example:
+                code: deadline_exceeded
+                message: Solo se pueden eliminar registros creados en los últimos 10 días
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/AccessDenied' }
+        '403':
+          description: |
+            El registro es de otra Persona. **Llega del reply de `core`** (`access_denied`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: access_denied, message: Solo podés eliminar tus propios registros }
+        '404':
+          description: |
+            El registro no existe. **Lo sigue dando la api** (`loadUnworkedTime`): `core` responde
+            `unworked_time_not_found`, que el mapa del servicio traduce a **400**
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                code: unworked_time_not_found
+                message: Registro de tiempo no trabajado no encontrado
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/BusUnavailable' }
         '504': { $ref: '#/components/responses/GatewayTimeout' }
