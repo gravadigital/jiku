@@ -1,5 +1,3 @@
-import { CallerClass } from './types';
-
 /**
  * LA CLASE DEL CALLER: "¿qué le recorto?".
  *
@@ -41,7 +39,35 @@ import { CallerClass } from './types';
  *
  * SIN CACHE Y SIN ESTADO (CA-17): es una función pura sobre una tabla congelada, y hay un gate en
  * los tests que lo verifica leyendo este archivo.
+ *
+ * SUBIÓ DE `queries/` A `src/` EN S-030, Y ES UN MOVIMIENTO PURO: ni una aserción cambió. La
+ * razón es que desde esa story el plano de ESCRITURA resuelve la MISMA clase con la MISMA
+ * precedencia —externo, interno, conector—, así que la tabla dejó de pertenecerle a las consultas.
+ * Importarla desde `bus/dispatcher.ts` dejándola en `queries/` habría acoplado el plano de
+ * comandos al módulo de consultas: exactamente el acoplamiento que `authorize-caller.ts` evitó
+ * subiendo un nivel, y por el mismo motivo que `config.ts` y `logger.ts` viven en `src/`.
+ *
+ * Y ES LA MITIGACIÓN DEL "RIESGO MEDIO" DE S-030, escrita: dos copias de una tabla de precedencia
+ * divergen con el tiempo, y el día que divergieran el aislamiento del portal tendría DOS
+ * definiciones en vez de una con tres puntos de aplicación. Hay un gate que verifica que
+ * `CLASS_BY_ROLE` y `PRECEDENCE` estén declarados UNA SOLA VEZ en todo `core/src/`.
  */
+
+/**
+ * LA CLASE DEL CALLER: qué le recorta —o qué le exige— el servicio a nivel de fila.
+ *
+ *   connector -> nada. El caller autoriza por su cuenta (la api con `validateProjectPermissions`)
+ *   internal  -> nada a nivel de fila. Decisión explícita de la v1 (RF-23), y en el plano de
+ *                ESCRITURA es literalmente H-3 de S-030: los usuarios internos NO TIENEN FILAS en
+ *                `user_project_permissions`, así que exigirles una rompería toda la escritura
+ *   external  -> lo que declare la ficha del recurso (`ResourceSpec.externalScope`) en el plano de
+ *                lectura, y la fila en `user_project_permissions` en el de escritura
+ *
+ * SE DECLARA ACÁ DESDE S-030 y ya no en `queries/types.ts`, por la misma razón por la que el
+ * archivo entero subió de nivel: el tipo lo llevan los DOS planos. `queries/types.ts` lo
+ * RE-EXPORTA para que ninguno de los archivos del plano de consultas cambie un import.
+ */
+export type CallerClass = 'connector' | 'internal' | 'external';
 
 /**
  * EL ORDEN ES LA PRECEDENCIA: gana la PRIMERA clase que alguno de los roles produzca.

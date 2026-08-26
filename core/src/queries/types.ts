@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize-typescript';
 import { Reply } from '@jiku/nats-protocol';
+import { CallerClass } from '../caller-class';
 import { AttachmentOwner } from './entity-type';
 
 /**
@@ -12,15 +13,19 @@ export { AttachmentOwner };
 /**
  * LA CLASE DEL CALLER: qué le recorta el servicio a nivel de fila.
  *
- * Vive acá y no en `caller-class.ts` porque `QueryContext` la lleva y este es el archivo de tipos
- * del plano de consultas; el mapa rol → clase y la precedencia viven allá. UNA SOLA DEFINICIÓN en
- * el repo, y el módulo que la resuelve la importa de acá.
+ * SE RE-EXPORTA, YA NO SE DECLARA ACÁ. Hasta S-030 la declaración vivía en este archivo porque
+ * `QueryContext` la lleva y este es el archivo de tipos del plano de consultas. Desde S-030 la
+ * MISMA clase la resuelve también el plano de ESCRITURA, así que el tipo se mudó junto con su
+ * tabla a `src/caller-class.ts` —un nivel arriba, como `config.ts` y `logger.ts`— y acá queda la
+ * re-exportación para que ninguno de los ~30 archivos de `queries/` cambie un import.
+ *
+ * SIGUE HABIENDO UNA SOLA DEFINICIÓN en el repo. Es lo único que importaba de la regla anterior.
  *
  *   connector -> nada. El caller autoriza por su cuenta (hoy, la api con `validateProjectPermissions`)
  *   internal  -> nada a nivel de fila. Decisión explícita de la v1 (RF-23)
  *   external  -> lo que declare la ficha del recurso (`ResourceSpec.externalScope`)
  */
-export type CallerClass = 'connector' | 'internal' | 'external';
+export type { CallerClass };
 
 /**
  * Contexto de una consulta.

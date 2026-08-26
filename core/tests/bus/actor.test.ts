@@ -445,8 +445,18 @@ describe('el sobre de identidad · el espejo sobre `users`', () => {
   it('TS-25 · el espejo corre ANTES de `registry.resolve()` y de la compuerta', async () => {
     const reply = await dispatch('widgets.explode', { actor: SOBRE });
 
-    reply.errorCode!.should.equal(ErrorCode.UNKNOWN_COMMAND);
-    // Un comando que NI SIQUIERA EXISTE ya espejó: es la prueba del orden.
+    // EL CÓDIGO CAMBIÓ EN S-030 Y EL SUJETO DE ESTE TEST NO. Hasta esa story el sobre venía del
+    // publicador de confianza, la compuerta lo eximía por su `sub`, y quien contestaba era el
+    // registry: `unknown_command`. Desde S-030 decide el rol DEL ACTOR (CA-2), y `['user']` no
+    // autoriza `widgets.explode`, así que la compuerta rechaza ANTES de resolver el comando.
+    //
+    // ES EL COMPORTAMIENTO CORRECTO Y ADEMÁS EL DE S-017 CA-6: un caller no autorizado no tiene
+    // por qué enterarse de si el comando existe.
+    reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+
+    // LO QUE ESTE TEST AFIRMA SIGUE INTACTO, Y AHORA MÁS FUERTE: un comando que ni siquiera
+    // existe, rechazado por la compuerta, YA ESPEJÓ. Es la prueba de que el espejo corre antes
+    // de las DOS cosas que el nombre nombra.
     ((await User.findByPk(ANA)) !== null).should.be.true();
   });
 

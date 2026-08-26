@@ -1,7 +1,16 @@
 asyncapi: '2.6.0'
 
-# Messaging contract of `core` — the 20 commands it serves over NATS as the `jiku-commands` micro
+# Messaging contract of `core` — the 21 commands it serves over NATS as the `jiku-commands` micro
 # service.
+#
+# REQ-007 — WRITES OPEN TO PEOPLE, AND THE RULES MOVE HERE
+#   Three things change in this contract and they are called out inline as "REQ-007":
+#     1. Every message accepts a reserved top-level key `actor` (see `components/schemas/Actor`),
+#        extracted by the dispatcher BEFORE validation. Only the trusted publisher may send it.
+#     2. `week-assigned-times.replace` is the 21st command: the weekly assignment grid stops being
+#        the only domain write that does not go through core.
+#     3. Rules that used to live in the api now live here: the submission window, who may log time
+#        for someone else, the requirement state workflow and the mandatory conclusion.
 #
 # WHY AsyncAPI AND NOT OpenAPI
 #   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
@@ -23,7 +32,7 @@ info:
     the api over NATS, validates the business rules and writes.
 
     **One process, two logical services on the bus.** Since REQ-004 the `core` process registers
-    **two NATS micro services over a single connection**: `jiku-commands`, the 20 write commands
+    **two NATS micro services over a single connection**: `jiku-commands`, the 21 write commands
     this spec describes, and `jiku-queries`, the read endpoints, with their own queue group and
     their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
     of this spec, and that is permanent** — this file stays the contract of the commands.
@@ -42,6 +51,26 @@ info:
     **What REQ-006 changes IN THIS FILE** is only what is shared with the commands: the `Reply`
     envelope gains the optional `errorDetails`, and `ErrorCode` gains five codes that **no command
     emits**. Both changes are additive; the 20 commands are unchanged.
+
+    **What REQ-007 changes in this file.** Every message accepts the reserved key `actor`
+    (`components/schemas/Actor`), the 21st command appears (`week-assigned-times.replace`), and
+    several channels gain business rules that used to be enforced by the api. `ErrorCode` gains
+    `access_denied`. **The `actor` key is described ONCE, here and in `Actor` — it is not repeated
+    on the 21 channels**, because it belongs to the transport and not to the domain: the
+    dispatcher extracts it before `registry.resolve()` and before `sequelize.transaction()`, so
+    the Joi schema of each command never sees it.
+
+    **Who may send `actor`.** Only the trusted publisher (`CORE_TRUSTED_PUBLISHER_ID`, the api). A
+    caller that is not the trusted publisher and sends `actor` is rejected with `invalid_fields`:
+    for everyone else the identity **is** the second token of the subject, which the auth-callout
+    makes unforgeable. It is the same doctrine `core-queries.yaml` already states for the read
+    plane.
+
+    **The identity mirror.** When `actor` arrives, core writes `users` (`INSERT … ON CONFLICT DO
+    UPDATE` over `name`, `username`, `email`, `roles`, `identity_type`) **in its own transaction
+    and BEFORE authorising**, so the row that authorises a direct bus caller is written by the
+    same claim that authorises the api's caller. `actor.id` and `actor.roles` are mandatory;
+    missing profile fields log a warning and do **not** reject the command.
 
     **Both services are discoverable.** `$SRV.PING` / `INFO` / `STATS` report, per endpoint,
     request count, mean latency and last error. One caveat worth knowing before building a
@@ -70,8 +99,50 @@ info:
 
     The map of role → method is closed and **deny-by-default** (ADR-008): `internal-app` — **the
     connector role** — gets **every command and every query**; the product roles (`admin`, `user`,
-    `external-user`) get **every query and no command**; anything absent from the map authorises
-    nothing.
+    `external-user`) get **every query**; anything absent from the map authorises nothing.
+
+    **Since REQ-007 / S-030 the product roles DO authorise commands, and the map distinguishes two
+    channels.** Until that story it said "no command" for all three, because the business rules
+    that depend on the end user lived in the api and had nowhere to live on the writer's side.
+
+    | Role | Commands published DIRECTLY to the bus | Commands published WITH AN ENVELOPE |
+    |---|---|---|
+    | `internal-app` | all | all |
+    | `admin` | the 18 enumerated | the same 18 |
+    | `user` | the same 18 as `admin` | those 18 + `requirements.{id}.subscriptors.new` |
+    | `external-user` | **none** | the 6 the portal reaches over HTTP |
+    | `core` · `bus-observer` | none | none |
+    | unknown role | none | none |
+
+    **Why the two channels are not the same list, and why only one role declares the difference.**
+    An `external-user` **does not write over the bus** (REQ-007 §20): its callout template gives it
+    no publish permission, and this map is the *second, independent* defence in case that template
+    were ever wrong. But it **does write through the portal** — six opus endpoints declare
+    `external-user` and publish a command — and since S-029 that write arrives here inside an
+    envelope carrying `actor.roles`. With a single list you have to choose between breaking the
+    portal and opening the bus. With two, you don't.
+
+    **A command a person reaches ONLY because the api publishes it on their behalf goes in the
+    envelope column, not the direct one.** `user` reaches
+    `requirements.{id}.subscriptors.new` solely as the secondary command of
+    `POST /api/opus/requirements`; the subscription endpoint itself is `external-user` only. Putting
+    it in the direct column would let any `user` on the bus subscribe anyone to any requirement —
+    more than their HTTP surface allows. This story migrates rules; it does not invent them.
+
+    **The role that decides is the ACTOR's, not the publisher's.** `internal-app` is still exempt
+    as a **publisher** — that is what lets it send the envelope — but it is **no longer the
+    authoriser**: when a command arrives with an envelope, the map is consulted with the person's
+    roles.
+
+    **The enumeration is derived from `x-roles` in `docs/apis/api.yaml`, endpoint by endpoint**, and
+    a parity test verifies it against that spec. It is not written from memory, and it must not be
+    edited by hand. Note that a route may publish **more than one command**: `x-bus-command`
+    documents the 1:1 endpoint → command correspondence, so a secondary command (such as the
+    subscription `POST /api/opus/requirements` publishes after creating the requirement) does not
+    appear in the spec at all and is declared as data in that test.
+
+    `week-assigned-times.replace` is **not** in the map: the 21st command does not exist in the
+    registry yet, and its entry (`admin` only) belongs to S-032.
 
     > **`external-publisher` was removed.** It enumerated the 9 subjects of a callout template of
     > its own, for the channel REQ-001 RF-11 defined — an outside service that uploads files and
@@ -85,22 +156,38 @@ info:
     **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there
     is a **silent total write outage**: if the api connects to the bus before core is subscribed,
     its authentication event is lost (core NATS, no retry, no record), the api stays connected and
-    functional **without a row in `users`**, and core refuses **all 20 commands** with a 403 — until
+    functional **without a row in `users`**, and core refuses **all 21 commands** with a 403 — until
     the api reconnects, which with a hot-renewed ~1 h token may not happen for days. The api also
     already authorises by role before publishing (`hasAnyRole`), so consulting `users.roles` for its
     service user would be authorising the same thing twice from two sources, with the worse of the
     two deciding. The exemption reuses the very constant and branch that `resolveActor` already has.
 
-    **Product roles authorise no command on purpose.** Core does not hold the business rules that
-    depend on the end user — the worked-hours window, who may charge hours to someone else, the
-    frozen past weeks of assignment. They live in the api. A person publishing `worked-times.new`
-    straight to the bus would bypass three rules that have nowhere to live on the writer's side.
-
-    **People CAN now connect to the bus (REQ-005), but only to read.** `templates/person.yaml`
-    grants publish on `{instance}.{user_id}.jiku-queries.v1.>` and its own inbox — nothing else.
-    Commands are still published by the api with its own service user, and that is still why the
-    acting user travels in the body instead of being read from the subject: the subject identifies
-    the api, not the person.
+    > **REQ-007 — the two paragraphs that used to be here are DEROGATED, and this is the change
+    > that gives the requirement its name.**
+    >
+    > They read: *"Product roles authorise no command on purpose. Core does not hold the business
+    > rules that depend on the end user — the worked-hours window, who may charge hours to someone
+    > else, the frozen past weeks of assignment. They live in the api"*; and *"People CAN now
+    > connect to the bus (REQ-005), but **only to read**"*.
+    >
+    > **Both are now false, and in this order:**
+    >
+    > 1. **The three rules moved here** (S-031, S-032). The window and the charge-to-others rule
+    >    live in `worked-times.new`; the frozen past week lives in the 21st command,
+    >    `week-assigned-times.replace`, which had to be created because there was nowhere to put
+    >    it. The requirement state workflow (S-033) joined them, and it was never in the api
+    >    either — it lived only in `web`.
+    > 2. **The role -> method map enumerates commands for `admin` and `user`** (S-030), instead of
+    >    saying "no command". It is still deny-by-default: no match, no authorisation, and an
+    >    unknown role authorises nothing. `external-user` still gets **no command at all**.
+    > 3. **`templates/person.yaml` was split** (S-035) into `person-internal.yaml` — queries **and**
+    >    commands — and `person-external.yaml`, which keeps exactly today's permissions. Adding
+    >    commands to the shared template would have given them to `external-user` too.
+    >
+    > **The acting user still travels in the body for the api's channel**, now as the reserved
+    > `actor` key rather than scattered across `creator`/`author`/`editor`/`uploader` — the subject
+    > identifies the api, not the person. **For every other channel the identity IS the subject**,
+    > and sending `actor` from a non-trusted caller is `invalid_fields`.
 
     **The transaction belongs to the dispatcher**: commit if the reply is `success`, rollback
     in any other case.
@@ -221,7 +308,7 @@ servers:
 # THE SUBSCRIPTION PERMISSION IS THE LITERAL SUBJECT in `templates/core.yaml` `sub.allow` — never
 # `{{instance}}.events.>`. Deny-by-default applies on the bus too (ADR-008): a future event MUST
 # require a new line there, so no consumer starts receiving a new event type just because someone
-# added it to the namespace. WITHOUT THAT LINE core starts, serves the 20 commands, logs that it
+# added it to the namespace. WITHOUT THAT LINE core starts, serves the 21 commands, logs that it
 # subscribed, and receives nothing — the permissions violation is asynchronous and lands in the
 # NATS SERVER's log, never as a failure of `subscribe()`.
 #
@@ -455,6 +542,37 @@ channels:
         description: Requirement id (`requirements.id`).
         schema:
           type: string
+    x-req-007-state-workflow: |
+      **REQ-007 (S-033) — the state transition table.** C-15 never existed on the server: it lived
+      only in `web`. It is declared here as DATA, the same shape as the role -> method map, and
+      validated **where the transition happens**, which is this channel.
+
+      ```
+      analisis  ->  planificacion  ->  en_cola  ->  desarrollo  ->  revision
+                           └──────── incidencia ────────┘
+      ```
+
+      | From | To (allowed) |
+      |---|---|
+      | `analisis` | `planificacion` |
+      | `planificacion` | `en_cola`, **`desarrollo` only if `type === 'incidencia'`** |
+      | `en_cola` | `desarrollo` |
+      | `desarrollo` | `revision` |
+      | `revision` | `resuelto` |
+      | *any non-terminal state* | `cancelado` |
+      | *any non-terminal state* | `resuelto` **through the resolution path** (requires type + conclusion, C-17) |
+      | `resuelto`, `cancelado` | *(terminal)* |
+      | *one step back in the sequence* | allowed |
+
+      Anything else: `invalid_state_transition`. A transition into `resuelto` without resolution
+      type or conclusion: `resolution_required`.
+
+      **`type` is read from the ROW, not from the payload** — a caller declaring itself an
+      `incidencia` to skip `en_cola` would otherwise be forging the exception.
+
+      **Existing rows in a state the sequence does not explain are NOT migrated.** The rule is
+      about transitions, not about stored state, and since `cancelado` is reachable from any
+      non-terminal state, none of them is trapped.
     publish:
       operationId: requirementsEdit
       summary: Edit a requirement
@@ -470,11 +588,16 @@ channels:
       Inherited rule: an `incidencia` is not resolved without a conclusion. If none comes in the
       payload, the one already stored on the requirement is accepted.
 
-      > **DEAD SURFACE.** It is implemented and tested, but **no api route publishes it**:
-      > resolution still comes in through `requirements.{id}.edit`, which accepts
-      > `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly that reason.
+      > **NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced (REQ-007, S-033).** It is
+      > implemented and tested, and resolution still comes in through `requirements.{id}.edit`,
+      > which accepts `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly
+      > that reason.
       >
-      > Effect: the mandatory-conclusion rule lives only here, so **today it is not enforced**.
+      > **What changed.** This note used to end with *"the mandatory-conclusion rule lives only
+      > here, so today it is not enforced"*. **That is derogated.** Both channels now share the
+      > SAME validator — the state transition table (C-15) and the mandatory type + conclusion
+      > (C-17) — so the rule applies **whichever way the change arrives**. Validating only here
+      > would have left it exactly as unenforced as before.
     parameters:
       id:
         description: Requirement id (`requirements.id`).
@@ -682,10 +805,20 @@ channels:
       Cap of 1440 minutes (24 h) per person per day, counting worked time only.
 
       `taskId` and `requirementId` are mutually exclusive (`oxor`). If `requirementId` is
-      present, it has to belong to the given project.
+      present, it has to belong to the given project. **REQ-007: this is now the ONLY definition
+      of that exclusion** — the api's Joi `.oxor` was removed, so the two cannot diverge.
 
-      **The submission window (the current day and the 10 before it) is validated by the api**,
-      not core: it depends on the calendar and not on the data.
+      > **REQ-007 — the submission window and who may log for someone else now live HERE.**
+      > The previous wording said the window (the current day and the 10 before it) *"is validated
+      > by the api, not core: it depends on the calendar and not on the data"*. **That is
+      > derogated.** With the identity envelope core knows the end user, so:
+      >
+      > - **C-40, submission window** — `date` must fall between today and the 10 days before it.
+      >   Outside it: `invalid_date_range`. **Both edges are part of the rule**: a future date is
+      >   rejected too.
+      > - **C-41, logging for someone else** — if the resolved `personId` is not the actor's own
+      >   and the actor is not `admin`: `access_denied`.
+      > - **`personId` default** — see the schema: when absent it is resolved from the actor.
     publish:
       operationId: workedTimesNew
       summary: Log worked time
@@ -698,9 +831,14 @@ channels:
     description: |
       Delete a worked time entry. No body.
 
-      **Core deletes what it is told to:** that the entry is the caller's own and that the date is
-      within the allowed window is validated by the api, which is the one that knows the role and
-      the calendar.
+      > **REQ-007 — derogated.** This channel used to say *"core deletes what it is told to: that
+      > the entry is the caller's own and that the date is within the allowed window is validated
+      > by the api"*. **Both rules are enforced here now:**
+      >
+      > - **Ownership** — the entry has to belong to the actor's Person, unless the actor is
+      >   `admin`. Otherwise: `access_denied`.
+      > - **Submission window** — the entry's date has to be inside the window, same as on
+      >   creation. Otherwise: `invalid_date_range`.
     parameters:
       id:
         description: Entry id (`worked_times.id`).
@@ -729,7 +867,13 @@ channels:
         $ref: '#/components/messages/UnworkedTimesNew'
 
   unworked-times.{id}.delete:
-    description: Delete an unworked time record. No body. The permission is validated by the api.
+    description: |
+      Delete an unworked time record. No body.
+
+      > **REQ-007 — derogated.** It used to say *"the permission is validated by the api"*.
+      > Ownership by actor is enforced here: the record has to belong to the actor's Person unless
+      > the actor is `admin`, otherwise `access_denied`. The shared 1440-minute daily cap was
+      > already in core and does **not** move.
     parameters:
       id:
         description: Record id (`unworked_times.id`).
@@ -742,6 +886,47 @@ channels:
         - name: times
       message:
         $ref: '#/components/messages/EmptyBody'
+
+  # -------------------------------------------------------------------------
+  # week-assigned-times  (REQ-007 — S-032)
+  # -------------------------------------------------------------------------
+
+  week-assigned-times.replace:
+    description: |
+      **The 21st command.** Replaces a FULL WEEK of the project x person assignment grid.
+
+      **Why it exists.** `PUT /api/week-assigned-times` was **the only domain write that did not
+      go through core**: the api ran it with the ORM (`destroy` + `bulkCreate` in a transaction of
+      its own) and `docs/flows/asignacion-semanal.md` documented it apart for that reason —
+      *"core: **does not take part**"*. REQ-007 needs C-36 and C-38 enforced by the writer, and
+      there was nowhere to put them. **This channel is that place.**
+
+      **The HTTP contract does not change.** Same verb, same body, same statuses. What changes is
+      who validates and who writes — and, with it, the credential: the grid is now written by
+      core's owner user instead of the api's role.
+
+      **Replace, not upsert.** Delete + recreate is the semantics the entity already has: it is
+      the only entity that is *replaced by whole week*. The delete and the recreate happen
+      **inside the dispatcher's transaction** (ADR-003), so a half-replaced week cannot survive.
+
+      **Rules it enforces:**
+
+      - **`admin` only (C-38)** — resolved by the **role -> method map**, NOT inside the command,
+        because it does not depend on the payload. A `user` gets `caller_not_authorized`.
+      - **No past weeks (C-36)** — `invalid_date_range`. This is `validateWeekNotPast`, which
+        stops being an api rule.
+      - **`dateFrom` must be a Monday** — `invalid_fields`. The week is identified by its Monday;
+        accepting any day would let two weeks overlap.
+      - **`internal` is DERIVED** from `projects.type === 'interno'`, never taken from the
+        payload, exactly as the api did.
+      - **Assignments with `minutes: 0` are discarded** — an empty grid cell is not a row.
+    publish:
+      operationId: weekAssignedTimesReplace
+      summary: Replace a full week of assignments
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/WeekAssignedTimesReplace'
 
 # ---------------------------------------------------------------------------
 
@@ -757,7 +942,36 @@ components:
         $ref: '#/components/schemas/ClientsNewPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, internal_error]
+      # REQ-007 / S-030 — `access_denied` FIGURA EN LOS 20 CANALES DE COMANDO, y este comentario
+      # va UNA SOLA VEZ para no repetirlo veinte (el mismo criterio con que la clave `actor` se
+      # documenta una vez y no por canal).
+      #
+      # POR QUÉ `access_denied` SÍ Y `caller_not_authorized` NO. Son dos preguntas distintas,
+      # decididas en dos momentos distintos:
+      #
+      #   caller_not_authorized -> "¿tu rol habilita este método?". Lo decide el mapa rol → método
+      #      ANTES de resolver el canal, así que no es una respuesta DE ESTE canal sino del
+      #      despachador. Por eso no figura en el `x-error-codes` de ningún mensaje (mismo
+      #      criterio que `api/lib/utils/bus/protocol.ts`).
+      #
+      #   access_denied -> "¿podés tocar ESTA entidad?". Se decide CON LA ENTIDAD DEL CANAL
+      #      DELANTE —resolviendo el proyecto desde el tipo de entidad y exigiendo la fila en
+      #      `user_project_permissions`—, así que SÍ es una respuesta posible de este canal.
+      #
+      # SOLO SE EMITE EN MODO EXTERNO (clase de caller `external`). Un `admin`, un `user` o un
+      # conector NUNCA lo reciben: los usuarios internos no tienen filas en
+      # `user_project_permissions`, y exigírselas rompería toda la escritura interna.
+      #
+      # OJO CON `EmptyBody`: LO COMPARTEN TRES CANALES —`requirements.{id}.subscriptors.{userId}.delete`,
+      # `worked-times.{id}.delete` y `unworked-times.{id}.delete`—, así que el código se agrega
+      # una vez y aplica a los tres. `WeekAssignedTimesReplace` NO lo lleva: es el canal 21, su
+      # comando todavía no existe en el registry y su dueño es S-032.
+      #
+      # EL TERCER LUGAR DEL CÓDIGO SIGUE ABIERTO: `STATUS_BY_ERROR_CODE` de la api tiene que
+      # mapear `access_denied` -> 403, y es de `S-030.api.*`. SIN ESE MAPEO el código cae en el
+      # `|| 500` de `httpStatusFor` y el frontend lo trata como error de servidor en vez de
+      # mostrar el mensaje. El síntoma no es un error de compilación.
+      x-error-codes: [invalid_fields, internal_error, access_denied]
 
     ClientsEdit:
       name: ClientsEdit
@@ -767,7 +981,7 @@ components:
         $ref: '#/components/schemas/ClientsEditPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, client_not_found, internal_error]
+      x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
 
     ProjectsNew:
       name: ProjectsNew
@@ -777,7 +991,7 @@ components:
         $ref: '#/components/schemas/ProjectsNewPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, client_not_found, internal_error]
+      x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
 
     ProjectsEdit:
       name: ProjectsEdit
@@ -787,7 +1001,7 @@ components:
         $ref: '#/components/schemas/ProjectsEditPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, project_not_found, client_not_found, internal_error]
+      x-error-codes: [invalid_fields, project_not_found, client_not_found, internal_error, access_denied]
 
     TasksNew:
       name: TasksNew
@@ -807,6 +1021,7 @@ components:
         # `file_not_owned` (403). La distinción es la regla nueva del REQ-001.
         - file_not_owned
         - internal_error
+        - access_denied
 
     TasksEdit:
       name: TasksEdit
@@ -823,6 +1038,7 @@ components:
         - requirement_project_mismatch
         - file_not_owned
         - internal_error
+        - access_denied
 
     TasksComment:
       name: TasksComment
@@ -832,7 +1048,7 @@ components:
         $ref: '#/components/schemas/TasksCommentPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error]
+      x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error, access_denied]
 
     RequirementsNew:
       name: RequirementsNew
@@ -848,6 +1064,7 @@ components:
         - invalid_responsible_person
         - file_not_owned
         - internal_error
+        - access_denied
 
     RequirementsEdit:
       name: RequirementsEdit
@@ -862,6 +1079,28 @@ components:
         - requirement_not_found
         - invalid_responsible_person
         - file_not_owned
+        # REQ-007 — S-033. The state workflow (C-15) and the mandatory type + conclusion (C-17)
+        # are validated HERE, because this is the channel resolution actually comes in through.
+        - invalid_state_transition
+        - resolution_required
+        - internal_error
+        - access_denied
+
+    # REQ-007 — S-032. `ReplyEmpty`, not `ReplyWithId`: it is a replacement, not a creation, so
+    # there is no id to return.
+    WeekAssignedTimesReplace:
+      name: WeekAssignedTimesReplace
+      title: week-assigned-times.replace
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WeekAssignedTimesReplacePayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - invalid_date_range
+        - project_not_found
+        - person_not_found
         - internal_error
 
     RequirementsResolve:
@@ -872,7 +1111,7 @@ components:
         $ref: '#/components/schemas/RequirementsResolvePayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error]
+      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error, access_denied]
 
     RequirementsComment:
       name: RequirementsComment
@@ -882,7 +1121,7 @@ components:
         $ref: '#/components/schemas/RequirementsCommentPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error]
+      x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error, access_denied]
 
     RequirementsSubscriptorsNew:
       name: RequirementsSubscriptorsNew
@@ -898,6 +1137,7 @@ components:
         - user_not_found
         - already_subscribed
         - internal_error
+        - access_denied
 
     FilesRequestUpload:
       name: FilesRequestUpload
@@ -907,7 +1147,7 @@ components:
         $ref: '#/components/schemas/FilesRequestUploadPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithUploadTicket'
-      x-error-codes: [invalid_fields, file_type_not_allowed, file_too_large, internal_error]
+      x-error-codes: [invalid_fields, file_type_not_allowed, file_too_large, internal_error, access_denied]
 
     FilesRequestDownload:
       name: FilesRequestDownload
@@ -920,7 +1160,7 @@ components:
       # `file_not_available` YA NO SE EMITE (revisado 2026-08-20): el comando dejó de verificar
       # `byte_status`. Se conserva en el catálogo de `ErrorCode` —no está cerrado y el paquete es
       # compartido (ADR-005)— y la api lo sigue mapeando a 404, pero ningún comando lo devuelve.
-      x-error-codes: [file_not_found, internal_error]
+      x-error-codes: [file_not_found, internal_error, access_denied]
 
     AttachmentsDelete:
       name: AttachmentsDelete
@@ -930,7 +1170,7 @@ components:
         $ref: '#/components/schemas/EmptyPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, internal_error]
+      x-error-codes: [invalid_fields, internal_error, access_denied]
 
     WorkedTimesNew:
       name: WorkedTimesNew
@@ -949,6 +1189,7 @@ components:
         - requirement_project_mismatch
         - daily_limit_exceeded
         - internal_error
+        - access_denied
 
     UnworkedTimesNew:
       name: UnworkedTimesNew
@@ -958,7 +1199,7 @@ components:
         $ref: '#/components/schemas/UnworkedTimesNewPayload'
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
-      x-error-codes: [invalid_fields, person_not_found, daily_limit_exceeded, internal_error]
+      x-error-codes: [invalid_fields, person_not_found, daily_limit_exceeded, internal_error, access_denied]
 
     EmptyBody:
       name: EmptyBody
@@ -978,6 +1219,7 @@ components:
         - worked_time_not_found
         - unworked_time_not_found
         - internal_error
+        - access_denied
 
   schemas:
 
@@ -1018,7 +1260,7 @@ components:
           description: |
             > **REQ-006 adds this field.** Optional, additive, and **absent** unless the emitter
             > passes it: `failure(errorCode, errorMessage)` keeps producing a reply **without the
-            > key**, so the 20 commands are byte-for-byte unchanged.
+            > key**, so the 21 commands are byte-for-byte unchanged.
 
             Structured data about the error, so a caller never has to parse `errorMessage` with a
             regex. The query contract (`jiku-queries`) uses it from day one — a rejected name comes
@@ -1265,8 +1507,72 @@ components:
         - invalid_state_transition
         - stage_not_found
         - resolution_required
+        # REQ-007 — "can you touch THIS entity?", decided by THE GATE with the row in front of
+        # it. NOT the same question as `caller_not_authorized`, which is "does your role enable
+        # this method?" and is decided by the role -> method map before touching the domain.
+        #
+        # THE GATE, NOT THE COMMAND (S-030 CA-15). The check lives in the dispatcher — after Joi
+        # validation and before the transaction opens — and NONE of the 20 `execute()` were
+        # touched. That is what makes it possible to tell a gate bug from a command bug. It runs
+        # ONLY for callers in external mode.
+        # It is also the code both frontends already know for this case, which is what keeps the
+        # HTTP contract unchanged. Maps to 403 in the api's `STATUS_BY_ERROR_CODE`.
+        - access_denied
         - worked_time_not_found
         - unworked_time_not_found
+
+    # REQ-007 — the identity envelope.
+    Actor:
+      type: object
+      description: |
+        **Reserved top-level key of every command message.** Optional, and only the trusted
+        publisher (`CORE_TRUSTED_PUBLISHER_ID`) may send it — any other caller that includes it is
+        rejected with `invalid_fields`.
+
+        The dispatcher **extracts it from the body before validating**, so the Joi schema of each
+        command never sees it and the 21 `execute()` functions are unchanged.
+
+        **It does not replace `creator` / `author` / `editor` / `uploader`.** Those are domain
+        data (they end up in `requirements.created_by`, in the Activity's author, in
+        `files.uploaded_by`). What changes is **who wins**:
+
+        ```
+        resolveActor(ctx, payload):
+          if there is an envelope                          -> actor.id
+          else if ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> payload.author/creator/editor/uploader
+          else                                             -> ctx.caller
+        ```
+
+        If the envelope AND the domain field are both present **and differ**, the command is
+        rejected with `invalid_fields` and `errorDetails: { field, value, expected }`. Two
+        different identities in one message is a publisher bug, and resolving it silently is how
+        one writes in someone else's name.
+      required: [id, roles]
+      properties:
+        id:
+          $ref: '#/components/schemas/IdentityUserId'
+        roles:
+          type: array
+          items:
+            type: string
+          description: |
+            From the `urn:zitadel:iam:org:project:roles` claim the api already verified against
+            Zitadel. **Mandatory**: it is the input of the authorisation decision, and the role
+            that decides is this one and not the publisher's.
+        name:
+          type: string
+          description: 'Optional. Missing logs a warning; on INSERT it falls back to `email` or `id`.'
+        username:
+          type: string
+          description: 'Optional. Same fallback as `name`.'
+        email:
+          type: string
+          description: |
+            Optional. **This is where the two mirrors differ on purpose:** the
+            `{instance}.events.auth` event DISCARDS a person event without `email` rather than
+            create a partial row; the command path does not, because rejecting a write over a
+            profile field is disproportionate and a misconfigured `CALLOUT_IDP_ENRICH` would leave
+            the product with no writes at all.
 
     EmptyPayload:
       type: object
@@ -1829,8 +2135,11 @@ components:
 
     WorkedTimesNewPayload:
       type: object
-      required: [date, minutes, projectId, personId]
-      description: 'Extra constraint: `taskId` and `requirementId` are mutually exclusive.'
+      required: [date, minutes, projectId]
+      description: |
+        Extra constraint: `taskId` and `requirementId` are mutually exclusive.
+
+        **REQ-007: `personId` moved out of `required`.** See its description below.
       properties:
         date:
           $ref: '#/components/schemas/DateOnly'
@@ -1851,11 +2160,55 @@ components:
         personId:
           type: integer
           description: |
-            Id from the `persons` table, **required**.
+            Id from the `persons` table. **OPTIONAL since REQ-007** (S-031). When absent, core
+            resolves it **from the actor**: `SELECT id FROM people WHERE user_id = {actor}`. If
+            the actor has no linked Person: `person_not_found`.
 
-            **Corrected:** an earlier prose version declared it optional, defaulting to "the
-            authenticated user's person". Core cannot do that — it does not know the end user.
-            The api resolves that default before publishing.
+            > **The "Corrected" note that used to be here is DEROGATED.** It read: *"an earlier
+            > prose version declared it optional, defaulting to 'the authenticated user's person'.
+            > Core cannot do that — it does not know the end user. The api resolves that default
+            > before publishing."* **With the identity envelope, core DOES know the end user.**
+            >
+            > Without this change a person publishing straight to the bus would have to know their
+            > own `people.id` — an id no interface shows them — and the parity between the two
+            > paths would be false.
+
+            **If it IS sent and differs from the actor's own Person**, only an `admin` is allowed
+            (C-41); anyone else gets `access_denied`.
+
+    # REQ-007 — S-032. The 21st command.
+    WeekAssignedTimesReplacePayload:
+      type: object
+      required: [dateFrom, assignments]
+      additionalProperties: false
+      description: |
+        Full-week replacement of the assignment grid. `internal` is NOT accepted: core derives it
+        from `projects.type`.
+      properties:
+        dateFrom:
+          allOf:
+            - $ref: '#/components/schemas/DateOnly'
+          description: |
+            **Monday** of the week being replaced. Any other weekday: `invalid_fields`. A week in
+            the past: `invalid_date_range` (C-36).
+        assignments:
+          type: array
+          description: |
+            The whole grid for that week. Entries with `minutes: 0` are **discarded**, not stored.
+            An empty array is valid and clears the week.
+          items:
+            type: object
+            required: [projectId, personId, minutes]
+            additionalProperties: false
+            properties:
+              projectId:
+                type: integer
+              personId:
+                type: integer
+                description: 'Id from the `persons` table.'
+              minutes:
+                type: integer
+                minimum: 0
 
     UnworkedTimesNewPayload:
       type: object
@@ -1896,4 +2249,6 @@ tags:
   - name: requirements
     description: Requirements, comments and subscriptions. 6 commands.
   - name: times
-    description: Worked and unworked time logging. 4 commands.
+    description: |
+      Worked and unworked time logging, and the weekly assignment grid. **5 commands** since
+      REQ-007 added `week-assigned-times.replace`.

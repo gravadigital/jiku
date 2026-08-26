@@ -9,7 +9,10 @@ import {
   failure,
 } from '@jiku/nats-protocol';
 import { sequelize } from '../models';
-import { authorizeCaller } from '../authorize-caller';
+import { Channel, authorizeWithRoles, readCallerRoles } from '../authorize-caller';
+import { CallerClass, resolveCallerClass } from '../caller-class';
+import { getTrustedPublisherId } from '../config';
+import { authorizeEntityAccess } from '../entity-project';
 import logger from '../logger';
 import { CommandRegistry } from '../commands/registry';
 import { mirrorUser } from '../user-mirror';
@@ -176,11 +179,101 @@ export class Dispatcher {
     // comando existe— y `sequelize.transaction()` —no consume una conexión del pool de escritura—.
     // Es el mismo criterio con que la validación de Joi corre antes de abrir la transacción.
     //
-    // NO devuelve un booleano: devuelve el `Reply` de falla ya armado, o `null`. Así el código
-    // del error, su mensaje y su log viven en UN solo lugar para los DOS planos.
-    const denied = await authorizeCaller(caller, name, 'commands');
-    if (denied) {
-      return denied;
+    // EL `try` ES OBLIGATORIO Y ES EL MISMO DE `queries/dispatcher.ts`. Hasta S-030 acá se llamaba
+    // a `authorizeCaller()`, que trae su propio try/catch y por eso "nunca rechaza". Al inlinear
+    // la lectura —para no pagar dos `SELECT` (CA-13)— ESA PROTECCIÓN HAY QUE TRAERLA:
+    // `getTrustedPublisherId()` lanza si `loadConfig()` no corrió y `readCallerRoles` puede
+    // rechazar (base caída, pool agotado), y los dos ocurrirían FUERA del `try` de más abajo, así
+    // que escaparían de `dispatch()`. "El despachador nunca lanza" (ADR-003) no admite un camino
+    // donde sí.
+    let callerClass: CallerClass;
+    // LA IDENTIDAD DEL ACTOR, resuelta una vez y usada por las DOS compuertas: la del método y la
+    // de entidad. Con sobre es `actor.id`, sin sobre el caller del subject — NUNCA el service user
+    // de la api. Es la misma identidad que `resolveActor` elige y que la api usaba en
+    // `req.user.id`.
+    const actorIdentity = actor ? actor.id : caller;
+    try {
+      // CON SOBRE MANDA `actor.roles`, Y NO SE LEE LA BASE (CA-2). El claim ya fue verificado
+      // contra Zitadel por la api y es MÁS FRESCO que la fila: consultar `users` sería autorizar
+      // dos veces desde dos fuentes, con la peor de las dos decidiendo. El espejo de arriba es lo
+      // que hace que las dos converjan para el caller directo.
+      //
+      // Y EL ROL QUE DECIDE ES EL DE LA PERSONA, NO EL DE LA API (CA-2). `internal-app` sigue
+      // exento como PUBLICADOR —es lo que le permite mandar el sobre—, pero ya no como
+      // AUTORIZADOR: antes de S-030 el caller era la api, tenía `ALL`, y el mapa nunca se
+      // consultaba con el rol del actor.
+      //
+      // SIN SOBRE, UN SOLO `SELECT` (CA-13), con la misma forma del plano de consultas desde
+      // S-023: el MISMO resultado alimenta las DOS decisiones, el mapa y la clase.
+      //
+      // Y EL EXENTO SIN SOBRE SIGUE SIN TOCAR LA BASE (S-017 CA-1). Es la diferencia deliberada
+      // con el plano de consultas, que lee SIEMPRE porque allá la clase la necesita TODO caller.
+      // Acá leer sería pagar un `SELECT` por cada escritura del producto, y sobre todo: es el
+      // caso donde `users` puede estar VACÍA porque el evento de autenticación se perdió, y
+      // hacerlo depender de esa fila reintroduce la caída total y silenciosa de escritura que la
+      // exención existe para evitar.
+      const exemptDirect = !actor && caller === getTrustedPublisherId();
+      const roles = actor ? actor.roles : exemptDirect ? [] : await readCallerRoles(caller);
+      const channel: Channel = actor ? 'envelope' : 'direct';
+
+      // COMPUERTA 1 — "¿su rol habilita este método?".
+      //
+      // LA IDENTIDAD QUE SE EVALÚA ES LA DEL ACTOR CUANDO HAY SOBRE, Y ES LITERALMENTE CA-2:
+      // `internal-app` sigue exento como PUBLICADOR —es lo que le permite mandar el sobre— pero
+      // YA NO como AUTORIZADOR. Pasar el `caller` acá dejaría que la exención por `sub` de
+      // `authorizeWithRoles` cortara ANTES de mirar `actor.roles`, y el canal del sobre sería un
+      // no-op: cualquier rol publicado por la api quedaría autorizado en los 20 comandos. Es el
+      // modo de falla que TS-28/29/30 detectan.
+      //
+      // SIN SOBRE LA IDENTIDAD ES EL CALLER, así que la exención del publicador de confianza se
+      // conserva entera (S-017 CA-1) — y es el mismo criterio con el que `resolveActor` elige de
+      // quién es la escritura.
+      const denied = authorizeWithRoles(actorIdentity, roles, name, 'commands', channel);
+      if (denied) {
+        return denied;
+      }
+
+      // COMPUERTA 2 — LA CLASE DE CALLER DE ESCRITURA (CA-5): la MISMA función del plano de
+      // lectura, con la misma precedencia —gana el más restrictivo—. Reusarla en vez de copiar la
+      // tabla es la mitigación del "Riesgo medio" de la story: dos copias de una precedencia
+      // divergen, y el día que divergieran el aislamiento del portal tendría dos definiciones.
+      //
+      // EL EXENTO SIN SOBRE NO TIENE ROLES QUE LEER y no puede quedarse sin clase: es S-017 CA-1,
+      // el caso donde `users` está VACÍA porque el evento de autenticación se perdió. Sin este
+      // `??`, ese caso pasa de "escribe" a "no escribe nada", que es la caída total y silenciosa
+      // de escritura que la exención existe para evitar.
+      //
+      // Y NO HAY TERCERA RAMA: si el caller no es el exento y no tiene clase, `authorizeWithRoles`
+      // YA LO RECHAZÓ arriba, porque ningún rol sin entrada en `CLASS_BY_ROLE` autoriza ningún
+      // comando. Esa aserción implícita la sostiene un gate en los tests —"todo rol con comandos
+      // tiene clase"—, porque las dos tablas son deliberadamente independientes.
+      //
+      // ESTE PLANO NO EMITE `unknown_caller`, a diferencia del de consultas: acá el mapa ya
+      // rechazó a todo rol sin clase, así que el segundo código no tendría causa propia — y
+      // agregarlo obligaría a mapearlo a HTTP sin que nadie lo emita.
+      const resolved = resolveCallerClass(roles);
+      if (resolved) {
+        callerClass = resolved;
+      } else if (exemptDirect) {
+        // `exemptDirect` Y NO `caller === getTrustedPublisherId()`: la exención es del publicador
+        // DIRECTO. Con sobre, la api publica EN NOMBRE DE OTRO, y un rol sin clase tiene que
+        // fallar cerrado en vez de heredar `connector` —la clase MENOS restrictiva— por ser la
+        // api quien lo mandó.
+        callerClass = 'connector';
+      } else {
+        // INALCANZABLE HOY, Y FALLA CERRADA A PROPÓSITO. Llegar acá significa que un rol tiene
+        // comandos en `ROLE_METHODS` pero NO tiene entrada en `CLASS_BY_ROLE` — las dos tablas
+        // son deliberadamente independientes—. Un `'connector'` por defecto sería la clase MENOS
+        // restrictiva para un rol que nadie clasificó: exactamente al revés de cómo tiene que
+        // fallar una compuerta. Revienta acá, se traduce a `internal_error` abajo, y el gate
+        // "todo rol con comandos tiene clase" lo delata en los tests antes de llegar a producción.
+        throw new Error(`rol con comandos y sin clase de caller: ${roles.join(',')}`);
+      }
+    } catch (error: any) {
+      // UNA COMPUERTA QUE NO PUEDE DECIDIR DENIEGA. `internal_error` y no `caller_not_authorized`
+      // porque no es culpa del caller — lo que importa es que el comando NO se ejecuta.
+      logger.error(`[auth] commands: no se pudo autorizar ${name}: ${error.message}`);
+      return failure(ErrorCode.INTERNAL_ERROR, 'Internal error');
     }
 
     const resolved = this.registry.resolve(name);
@@ -208,6 +301,47 @@ export class Dispatcher {
     const validated = command.validate(payload);
     if ('error' in validated) {
       return validated.error;
+    }
+
+    // EL CHEQUEO DE ENTIDAD (CA-6, CA-7): **SOLO EN MODO EXTERNO**, y esa palabra es el criterio
+    // entero de la story. Para `'internal'` y `'connector'` no se ejecuta UNA SOLA CONSULTA, que
+    // es el 100% del tráfico de hoy.
+    //
+    // `validateProjectPermissions` de la api hace literalmente esto:
+    //
+    //     if (!req.decodedTokenRoles.includes('external-user')) { return next(); }
+    //
+    // LOS USUARIOS INTERNOS NO TIENEN FILAS en `user_project_permissions`: la tabla sostiene el
+    // aislamiento del portal y no se administra desde ninguna interfaz. Aplicarle el chequeo a
+    // `admin` y a `user` rechazaría CADA COMANDO SOBRE UNA ENTIDAD DE PROYECTO, y el síntoma
+    // sería "nadie puede hacer nada". Es H-3 del REQ y el error más caro que esta story podía
+    // cometer. Hay un test de regresión con nombre explícito que falla ruidosamente si alguien lo
+    // "endurece".
+    //
+    // VA ACÁ Y NO ADENTRO DE LOS COMANDOS (CA-15): los 20 `execute()` no se tocan, que es lo que
+    // permite saber si un bug es de la compuerta o del comando.
+    //
+    // VA DESPUÉS DE `validate()` porque necesita el payload YA VALIDADO —`requirements.new` saca
+    // el proyecto de `payload.projectId`— y los `params` del subject, que salen de
+    // `registry.resolve()`. Y ANTES de `transaction()` porque un caller sin permiso no tiene que
+    // consumir una conexión del pool de escritura: el mismo criterio de S-017 CA-6, intacto.
+    //
+    // NO ABRE TRANSACCIÓN, heredando la excepción DELIBERADA a la convención `orm` que la
+    // compuerta de S-017 ya declaró: acá TODAVÍA NO HAY transacción.
+    //
+    // LA IDENTIDAD ES LA DEL ACTOR, NUNCA LA DEL SERVICE USER DE LA API: es la misma que
+    // `resolveActor` elige y la que la api usaba en `req.user.id`. Con sobre, `actor.id`; sin
+    // sobre, el caller del subject.
+    if (callerClass === 'external') {
+      const deniedByEntity = await authorizeEntityAccess(
+        command.pattern,
+        actorIdentity,
+        params,
+        validated.value
+      );
+      if (deniedByEntity) {
+        return deniedByEntity;
+      }
     }
 
     const transaction = await sequelize.transaction();
