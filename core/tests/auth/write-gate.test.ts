@@ -544,8 +544,14 @@ describe('S-030 · la compuerta de escritura', () => {
     });
 
     it('TS-59 · `unworked-times.new` (descriptor `null`) no da `access_denied`', async () => {
+      // LA PERSONA ES DE `MIX`, Y ES UN CAMBIO DE FIXTURE, NO DE ASERCIÓN (S-031). Desde esta
+      // story `unworked-times.new` aplica TITULARIDAD POR ACTOR (CA-10): una ausencia a nombre de
+      // una Persona ajena responde `access_denied` POR UNA REGLA DE DOMINIO. Este test afirma que
+      // la COMPUERTA DE ENTIDAD no lo tocó, así que la Persona tiene que ser la del caller o el
+      // rechazo vendría de otro lado y el test dejaría de probar lo que dice su nombre.
       const person = await Person.create({
-        firstName: 'Ana', lastName: 'S030', enabled: true, initDate: new Date('2026-01-01'),
+        firstName: 'Ana', lastName: 'S030', enabled: true,
+        initDate: new Date('2026-01-01'), userId: MIX,
       });
 
       const reply = await dispatch(

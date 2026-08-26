@@ -187,6 +187,11 @@ export class Dispatcher {
     // que escaparían de `dispatch()`. "El despachador nunca lanza" (ADR-003) no admite un camino
     // donde sí.
     let callerClass: CallerClass;
+    // LOS ROLES DEL ACTOR, DECLARADOS ACÁ PARA QUE SOBREVIVAN AL `try` (S-031). El valor se
+    // calcula adentro —donde ya se calculaba— y se usa afuera, al armar el contexto del comando:
+    // es EL MISMO array, pasado un nivel más abajo, sin una sola consulta nueva. Es la misma forma
+    // que ya usa `callerClass`.
+    let roles: readonly string[];
     // LA IDENTIDAD DEL ACTOR, resuelta una vez y usada por las DOS compuertas: la del método y la
     // de entidad. Con sobre es `actor.id`, sin sobre el caller del subject — NUNCA el service user
     // de la api. Es la misma identidad que `resolveActor` elige y que la api usaba en
@@ -213,7 +218,7 @@ export class Dispatcher {
       // hacerlo depender de esa fila reintroduce la caída total y silenciosa de escritura que la
       // exención existe para evitar.
       const exemptDirect = !actor && caller === getTrustedPublisherId();
-      const roles = actor ? actor.roles : exemptDirect ? [] : await readCallerRoles(caller);
+      roles = actor ? actor.roles : exemptDirect ? [] : await readCallerRoles(caller);
       const channel: Channel = actor ? 'envelope' : 'direct';
 
       // COMPUERTA 1 — "¿su rol habilita este método?".
@@ -346,7 +351,9 @@ export class Dispatcher {
 
     const transaction = await sequelize.transaction();
     try {
-      const reply = await command.execute(validated.value, { caller, params, transaction, actor });
+      const reply = await command.execute(validated.value, {
+        caller, params, transaction, actor, roles,
+      });
 
       if (reply.status === 'success') {
         await transaction.commit();

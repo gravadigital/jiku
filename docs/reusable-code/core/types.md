@@ -42,6 +42,55 @@ const commandsSpec: ServiceSpec = {
 the process is wired, so adding a second service is adding a second object literal to the same
 call.
 
+## CommandContext
+
+**Location:** `core/src/commands/types.ts`
+
+**Description:** What a command receives besides its validated payload: the `caller` read from the
+subject, the `params` captured from the pattern, the **transaction the dispatcher opened**, the
+optional identity envelope and — since S-031 — **`roles`**.
+
+`roles` is **not optional**: the dispatcher always knows the value, so a `roles?: string[]` would
+force every command into a `?? []` and invent a fourth state ("it did not arrive") that does not
+exist. Where the array comes from, per channel:
+
+| Channel | Source of `roles` |
+|---|---|
+| envelope | `actor.roles` — the claim the api already verified against Zitadel. **No database read.** |
+| direct | `users.roles` of the subject's caller — **the same read the gate already did**, not a second `SELECT` |
+| exempt (trusted publisher, no envelope) | `[]`, because that channel deliberately does not touch the database (S-017 CA-1) |
+
+**`[]` means "this channel carries no roles", not "this person has none".** A command deciding on
+this array has to treat the empty case as *"I cannot assert anything about the actor"* — which is
+what the time commands do: with no actor they skip the actor-derived rules.
+
+`transaction` is there but **`commit` and `rollback` are not reachable** (ADR-003): a command cannot
+leave a half-written state by forgetting a rollback in an error branch. It is not discipline, there
+is no API to do it wrong.
+
+**Signature:**
+```ts
+interface CommandContext {
+  caller: string;
+  params: Record<string, string>;
+  transaction: Transaction;
+  actor?: Actor;
+  roles: readonly string[];
+}
+```
+
+**Usage:**
+```ts
+const actorId = resolveActor(ctx, undefined, 'worked-times.new');
+if (actorId && person.userId !== actorId && !ctx.roles.includes('admin')) {
+  return failure(ErrorCode.ACCESS_DENIED, 'Solo podés cargar tus propias horas');
+}
+```
+
+**Note:** `actorIdentity` is deliberately **not** in the context. The dispatcher uses it for its two
+gates; commands resolve their identity through `resolveActor`, which is where the precedence between
+the three sources lives. Two sources for the same thing diverge.
+
 ## Query
 
 **Location:** `core/src/queries/types.ts`

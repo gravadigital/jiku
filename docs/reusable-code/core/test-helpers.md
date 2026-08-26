@@ -35,6 +35,37 @@ function dispatch<T>(command: string, payload: unknown, caller?: string): Promis
 function dispatchQuery<T>(query: string, payload: unknown, caller?: string): Promise<Reply<T>>;
 ```
 
+## dayOffset / HOY / HOY_M10 / HOY_M11 / MANANA
+
+**Location:** `core/tests/helpers/dates.ts`
+
+**Description:** Dates **relative to today**, never literals, for anything a calendar rule looks at.
+
+Since S-031 the submission window (C-40) lives in `core`: **the current day and the 10 before it**.
+That makes a hard-coded date in a time fixture a time bomb — it passes today and fails in eleven
+days. The two files that had literals (`tests/commands/times.test.ts` and `tests/bus/actor.test.ts`)
+started answering `invalid_date_range` where they assert something else.
+
+It lives in `tests/helpers/` and **not inside a `.test.ts`** because two files need it, and copying
+it would mean two definitions of the same temporal reference. Not ending in `.test.ts` also keeps
+mocha from loading it as a suite: importing a test file from another test file would reorder how the
+`describe`s register.
+
+`TZ=UTC` is pinned in `tests/setup-env.ts`, but the `setUTCDate` / `toISOString` pair **does not
+depend** on that variable to be correct — which is the property you want if someone removes it. For
+the same reason it does **not** use millisecond arithmetic (`Date.now() - n * 86400000`): correct
+today, broken by any DST change in a non-UTC zone.
+
+**Signature:**
+```ts
+function dayOffset(days: number): string;   // 'YYYY-MM-DD' in UTC
+
+const HOY: string;      // today — inside the window
+const HOY_M10: string;  // the exact lower edge — inside
+const HOY_M11: string;  // the first day outside, backwards
+const MANANA: string;   // the first day outside, forwards
+```
+
 ## fakeMsg / fakeConnection
 
 **Location:** `core/tests/helpers/micro-double.ts`

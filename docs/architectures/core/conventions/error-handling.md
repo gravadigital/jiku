@@ -103,13 +103,22 @@ return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
 
 ### Deuda conocida del catálogo
 
-- **Tres códigos se emiten como literal** en vez de la constante: `resolution_required`
-  (`requirements-resolve.ts:49`), `worked_time_not_found` (`worked-times.ts:125`) y
-  `unworked_time_not_found` (`unworked-times.ts:95`). El valor es correcto pero está duplicado a
-  mano. Al tocar esos archivos, pasalos a la constante.
-- **Cuatro códigos declarados que ningún comando emite**: `invalid_date_range`,
-  `invalid_state_transition`, `stage_not_found` y `unknown_command` (que sí se emite, pero **la api
-  no lo mapea a HTTP** y cae en un 500 genérico).
+- **Un código se emite como literal** en vez de la constante: `resolution_required`
+  (`requirements-resolve.ts:49`). El valor es correcto pero está duplicado a mano. Al tocar ese
+  archivo, pasalo a la constante.
+
+  > **S-031 pagó dos de las tres.** `worked_time_not_found` y `unworked_time_not_found` estaban
+  > como literal y pasaron a `ErrorCode.WORKED_TIME_NOT_FOUND` / `ErrorCode.UNWORKED_TIME_NOT_FOUND`
+  > al tocar los dos comandos de borrado de tiempos. Queda `resolution_required`.
+
+- **Tres códigos declarados que ningún comando emite**: `invalid_state_transition`, `stage_not_found`
+  y `unknown_command` (que sí se emite, pero **la api no lo mapea a HTTP** y cae en un 500
+  genérico).
+
+  > **`invalid_date_range` salió de esta lista con S-031.** Lo emiten `worked-times.new` —la ventana
+  > de carga (C-40): el día actual y los 10 previos, **los dos bordes**— y
+  > `worked-times.{id}.delete`, con la misma ventana sobre la fecha del registro. La regla vivía en
+  > la api hasta REQ-007. **Las ausencias no lo emiten**: no ganaron la ventana.
 - **El catálogo no está cerrado**, y así lo declara el contrato. Un código nuevo va en el paquete,
   en `docs/apis/core.yaml` y en el mapa a HTTP de la api: **los tres**, o el usuario ve un 500.
 
@@ -118,7 +127,7 @@ return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
 El `errorMessage` cruza la api y algunos frontends lo muestran directamente. Dos consecuencias:
 
 1. **Está mezclado entre inglés y español**, a veces en el mismo archivo:
-   `worked-times.ts:44` responde `'Person not found'` y `:49` responde `'Proyecto no encontrado'`.
+   `worked-times.ts` responde `'Person not found'` unas líneas antes de `'Proyecto no encontrado'`.
    Es inconsistencia heredada. Para un mensaje nuevo, **español** — es lo que ve el usuario.
 2. **No pongas datos internos en el mensaje**: ids de otras entidades, nombres de columna, detalle
    de excepción.

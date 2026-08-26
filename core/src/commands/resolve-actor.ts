@@ -30,12 +30,21 @@ import { getTrustedPublisherId } from '../config';
  * externo no hay persona detrás: su identidad ES la del subject, avalada por el auth-callout
  * e infalsificable, y lo que declare en el cuerpo se IGNORA.
  *
- * LA COMPARTEN SIETE COMANDOS: `files.request-upload` (que la trajo al mundo en S-002) y los
+ * LA COMPARTEN ONCE COMANDOS: `files.request-upload` (que la trajo al mundo en S-002), los
  * seis de dominio que vinculan archivos —`requirements.new`, `requirements.{id}.edit`,
  * `requirements.{id}.comment`, `tasks.new`, `tasks.{id}.edit`, `tasks.{id}.comment`— a través
- * de `link-files.ts`. NO la dupliques ni la bifurques: si subir y vincular resolvieran la
- * identidad distinto, nadie podría vincular lo que subió. Por eso recibe el valor declarado en
- * vez de leer un campo con nombre fijo del payload.
+ * de `link-files.ts`, y desde S-031 los CUATRO DE TIEMPOS —`worked-times.new`,
+ * `worked-times.{id}.delete`, `unworked-times.new`, `unworked-times.{id}.delete`—, que la usan
+ * para las reglas que dependen de quién actúa. NO la dupliques ni la bifurques: si subir y
+ * vincular resolvieran la identidad distinto, nadie podría vincular lo que subió. Por eso recibe
+ * el valor declarado en vez de leer un campo con nombre fijo del payload.
+ *
+ * LOS DE TIEMPOS PASAN `undefined` COMO ACTOR DECLARADO, y no es que les falte un campo: no
+ * tienen ninguno de autoría en el payload. Eso deja exactamente la escalera de tres ramas que sus
+ * reglas necesitan, `undefined` DEL CANAL EXENTO INCLUIDO — ese canal no dice quién actúa, así
+ * que las reglas derivadas del actor (C-41, titularidad) NO se evalúan ahí, igual que S-030
+ * decidió para la clase `connector`. Las que solo dependen del payload —la ventana de carga y la
+ * exclusión tarea/requisito— SÍ se aplican.
  *
  * VIVE EN `commands/` —y ya no en `commands/files/`— justamente porque la comparten módulos
  * distintos: dejarla en `files/` obligaría a `requirements/` y `tasks/` a importar del módulo
