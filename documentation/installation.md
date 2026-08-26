@@ -1,6 +1,6 @@
 # Installation
 
-The short path. Every operational detail — the four setup steps, the SQL for the read-only
+The short path. Every operational detail — the six setup steps, the SQL for the read-only
 role, the troubleshooting — lives in [deploy/README.md](../deploy/README.md), which is where you
 will spend the time.
 

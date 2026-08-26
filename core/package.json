@@ -1,6 +1,6 @@
 {
   "name": "@jiku/core",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Consumidor NATS de Grava Gestión: única escritura a la base de datos",
   "main": "dist/src/index.js",
   "scripts": {
