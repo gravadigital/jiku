@@ -38,18 +38,27 @@ history. Fixing it means writing a baseline migration that creates the current s
 marking the existing ones as applied — worth doing before there are external adopters, since
 right now nobody can start from zero without a dump they do not have.
 
-## Users cannot be created through the product
+## Users are only created for identities that connect to the bus
 
-Jiku reads identities from the provider; it does not manage them. `POST /api/auth/present`
-used to create or update a user on first login, but it is **the one write that never got a
-command**, and with the API read-only it can no longer do it.
+Jiku reads identities from the provider; it does not manage them. `core` now mirrors them
+automatically: the auth-callout publishes an event on every successful authentication, and
+`core` creates or updates the `users` row from it, roles included. No admin approval.
 
-It now responds 200 and does nothing. The consequence: **a person who authenticates but is not
-in the `users` table gets 401 `user_not_found` from every other route.** Today the only way in
-is inserting them directly.
+**That covers only whoever connects to NATS.** A person who uses `web` or `opus-web` and never
+opens a bus connection produces no event, so they get no row — and **a person who authenticates
+but is not in `users` gets 401 `user_not_found` from every route.** `POST /api/auth/present`,
+which used to create the user on first login, is still a no-op: it was the one write that never
+got a command, and the API is read-only. For those users the only way in is still inserting them
+directly.
 
-Whether that becomes a core command, something the auth-callout does at authentication time,
-or a route that keeps its own write access, is undecided.
+Two more consequences worth knowing:
+
+- **Delivery is not durable.** The event travels over core NATS without JetStream, so if `core`
+  is down when it is published, it is lost with no record and the identity is mirrored on its
+  next authentication.
+- **Consistency is eventual, and asymmetric.** Revoking a role at the provider takes effect
+  **immediately** for HTTP authorisation, which reads the token claim on every request, and
+  **only at the next authentication** for the bus, which reads the mirrored row.
 
 ## A lost command is a lost command
 

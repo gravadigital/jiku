@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The 60 endpoints the API serves, generated from the route definitions. For the bus contract
+The 61 endpoints the API serves, generated from the route definitions. For the bus contract
 behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
@@ -31,7 +31,9 @@ A token that validates but whose subject is not in the `users` table gets 401
 `hasAnyRole` check, so any authenticated user reaches it — some of those validate access
 inside the handler instead, per entity.
 
-**Bus** marks the writes that publish a command to `core` instead of writing directly. Those have
+**Bus** marks the endpoints that publish a command to `core` instead of touching the database
+directly. Most of them are writes, but the attachment and file reads are marked too: signing a
+download URL is `core`'s job, so the `api` asks for it over the bus and answers `302`. Those have
 three failure modes. The first two used to be one single `503`, and they are told apart on purpose:
 they mean opposite things about whether it is safe to retry.
 
@@ -123,17 +125,28 @@ Called `objectives` here; the bus protocol calls them `task`. Same entity — se
 
 ### Attachments
 
-None of these carry a `hasAnyRole` check: they validate access **per entity** inside the
-handler, via `canUserAccessEntity`, which restricts `external-user` by project permission.
+None of these carry a `hasAnyRole` check. The ones that resolve a link validate access **per
+entity** inside the handler, via `canUserAccessEntity`, which restricts `external-user` by
+project permission. `POST /api/attachments` and `GET /api/files/:id/preview` are authorised by
+**the JWT alone**: the upload body no longer declares an entity, and a file with no link has no
+entity to check against. The per-entity check moved to the moment of linking, where the entity
+exists.
 
 | Method | Path                            | Roles | Bus |
 | ------ | ------------------------------- | ----- | --- |
 | GET    | `/api/attachments`              | —     |     |
-| POST   | `/api/attachments`              | —     |     |
+| POST   | `/api/attachments`              | —     | ●   |
 | GET    | `/api/attachments/:id`          | —     |     |
-| DELETE | `/api/attachments/:id`          | —     |     |
-| GET    | `/api/attachments/:id/download` | —     |     |
-| GET    | `/api/attachments/:id/preview`  | —     |     |
+| DELETE | `/api/attachments/:id`          | —     | ●   |
+| GET    | `/api/attachments/:id/download` | —     | ●   |
+| GET    | `/api/attachments/:id/preview`  | —     | ●   |
+| GET    | `/api/files/:id/preview`        | —     | ●   |
+
+`POST /api/attachments` does **not** receive the file. It takes `fileName`, `mimeType`,
+`fileSize` and an optional `checksum`, and returns an upload ticket the browser uses to `PUT`
+the byte straight to the bucket. One file per request. `GET /api/files/:id/preview` previews a
+file that is not linked to anything yet, which is the state an upload form is in before the
+entity is saved.
 
 ### Other
 
@@ -163,8 +176,8 @@ permission: an `external-user` only sees the projects they were granted.
 | POST    | `/api/opus/requirements/:reqid/comments`             | user, external-user        | ●   |
 | POST    | `/api/opus/requirements/:reqid/subscriptors`         | external-user              | ●   |
 | DELETE  | `/api/opus/requirements/:reqid/subscriptors/:userId` | external-user              | ●   |
-| POST    | `/api/opus/attachments`                              | user, external-user        |     |
-| GET     | `/api/opus/attachments/:id/preview`                  | user, external-user        |     |
+| POST    | `/api/opus/attachments`                              | user, external-user        | ●   |
+| GET     | `/api/opus/attachments/:id/preview`                  | user, external-user        | ●   |
 
 ## Errors
 

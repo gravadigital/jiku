@@ -69,6 +69,178 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-26
+
+Six requests and twenty-eight stories. The file no longer travels through the `api`, and
+the single NATS service `gestion` is replaced by two — `jiku-commands` for writes and
+`jiku-queries` for reads.
+
+**Read the two sections at the end before upgrading.** Several changes below are not
+backwards compatible — the attachment upload body, `fileIds` in the domain commands, the
+service rename, the removed public endpoint — and an installation that upgrades without
+following *Notes for existing installations* will break.
+
+### Added
+
+- **Reading the product over the bus.** `jiku-queries` is a second micro service living in
+  the same `core` process, with its own queue group, its own read-only database connection
+  and its own timeout. Twenty-three endpoints over seventeen resources, with keyset
+  pagination over opaque cursors, per-resource filters, `include` for related entities and
+  field projection. `docs/apis/core-queries.yaml` is the contract, and `meta.describe`
+  returns it as data, derived from the same specs that validate a request.
+- **Direct-to-S3 upload from `web` and `opus-web`.** The browser asks the bus for an upload
+  ticket, `PUT`s the byte straight to the bucket with a presigned URL and reports real
+  progress. Neither the `api` nor NATS ever sees the file.
+- **`GET /api/files/{id}/preview`** — previewing a file that is not linked to anything yet,
+  which is the state both upload forms are in before the entity is saved.
+- **`users.roles` and `users.identity_type`, mirrored from the bus.** `core` consumes the
+  `{instance}.events.auth` event the auth-callout publishes on every successful
+  authentication and creates or updates the row. Signing up needs no admin approval. The
+  event travels over core NATS without JetStream: if the consumer is down the event is lost,
+  and the identity is mirrored on its next connection.
+- **Bus callers are authorised by role**, in both dispatchers. A role that does not list a
+  method gets `caller_not_authorized`; a caller with no row in `users` gets `unknown_caller`.
+  The `api` maps the first to 403.
+- **People connect to the bus.** `templates/person.yaml` grants the three product roles
+  (`admin`, `user`, `external-user`) queries only — not one write subject.
+- `identityType` in the authorship payloads, and the badge both frontends render from it, so
+  a row written by a service is not shown as if a person had written it. `roles` is not
+  exposed in any HTTP response.
+- **The bus is introspectable.** Both services register under the micro framework, so
+  `nats micro info` and `nats micro stats` list their endpoints and report per-operation
+  request counts and latency. `deploy/bus-inspect.sh` wraps the usual queries, and
+  `SERVICE_VERSION` is what each service announces in discovery.
+- `errorDetails` in the `Reply` envelope, plus `unknown_caller`, `query_timeout`,
+  `invalid_cursor`, `comment_not_found` and `task_not_found` in the shared error catalogue.
+  All of it additive: `failure()` gained an optional third parameter and no code was retired.
+- **The `api` tells 503 from 504.** No subscriber on the subject is `service_unavailable` and
+  the operation did not happen; a reply that did not arrive in time is `gateway_timeout` and
+  it may have. The branch is chosen from the NATS client's signal, not from elapsed time.
+- `tasks.new` and `tasks.{id}.edit` accept files; they did not before.
+- Eighteen composite indexes for the keyset orderings (`20260824_02`), created
+  `CONCURRENTLY`.
+- MinIO in the local development stack, with the bucket created by `deploy/local.sh`.
+- The engineering documentation is tracked under `docs/`: the PRD, thirteen ADRs, ten flows,
+  three OpenAPI specs, the database schemas, and the requests and stories behind this
+  release.
+
+### Changed
+
+- **A file is no longer an attachment.** The new `files` table holds the object — key,
+  region, size, checksum, uploader, retention — and `attachments` holds only the link
+  between a file and an entity. A file with no link is a valid state, which is what removed
+  the five `*_draft` entity types and the re-anchoring they needed.
+- **`POST /api/attachments` and `POST /api/opus/attachments` no longer take the file.** They
+  take a JSON body of `fileName`, `mimeType`, `fileSize` and an optional `checksum`, and
+  return an upload ticket. `entityType`, `entityId`, `description` and `files` are rejected
+  with 400, and a `multipart/form-data` body is a 400 as well. One file per request: three
+  files are three independent requests.
+- **The six domain commands that receive files take `fileIds`, not `attachmentIds`**, and
+  only accept a file the caller uploaded — `file_not_owned`, mapped to 403. A `fileId` that
+  does not exist falls into `invalid_fields` (400); telling the two apart is deliberate.
+  `attachmentScope` is gone with no replacement, and the ten-file cap moved from a `multer`
+  transport limit to a domain rule in the bus contract.
+- **Reads redirect instead of streaming.** The attachment routes authorise, resolve the
+  file, ask `core` for a presigned URL and answer 302. The "stream under 15 MB, presign over
+  it" branch is gone; there is one path for every size, and the `api` moves no bytes in
+  either direction.
+- **The NATS service `gestion` is now `jiku-commands`**, with `jiku-queries` alongside it in
+  the third subject segment. The twenty existing commands are registered as micro endpoints
+  with no change to their logic. `NATS_SERVICE_NAME` is replaced by `NATS_COMMAND_SERVICE`
+  and `NATS_QUERY_SERVICE`; the observer template moved to `bus-observer`.
+- **`core` owns the storage.** It is the only service with bucket credentials — it signs both
+  the upload and the download URL — and the `STORAGE_S3_*` variables are no longer in the
+  `api`'s environment in any compose file. That is an infrastructure guarantee, not a
+  convention: the `api` cannot touch an object `core` did not sign for it.
+- `internal-app` is the connector role, and it now authorises both planes in the role-to-method
+  map. It previously authorised nothing, and the `api` passed only through the trusted-`sub`
+  exemption — so a second identity carrying the role could connect and publish, and collected
+  a `caller_not_authorized` on every method.
+- The user-facing documentation moved from `docs/` to `documentation/`; `docs/` now holds the
+  engineering documentation.
+- Every push to `dev` publishes the four images tagged `dev`, plus an immutable
+  `dev-<commit-sha>`.
+
+### Removed
+
+- **The public attachment endpoint.** `GET /api/opus/attachments/{id}/public` and the
+  `GET /attachments/{id}/{fileName}` route in `opus-web` are both gone, together with the
+  one entry in `api/config/public.ts`. It was the last surface in the product that could
+  originate a download with no credential. The lists in that file are now empty and the
+  mechanism is kept on purpose: declaring something public has to stay a one-line change in
+  a file whose only job is to enumerate what is public.
+- **The external-system integration (Jira).** The tables `external_integration_config`,
+  `external_project` and `external_sync_event`, the nine `external_*` columns on tasks, their
+  three Sequelize models and two never-taken branches in `web`. It was schema with no code;
+  the capability is dropped from the product.
+- **The `external-publisher` role**, its rule and its template. It enumerated nine write
+  subjects and no queries for a channel that never existed in Zitadel, so the channel was
+  never used and the two enumerations were dead configuration kept in sync by hand.
+- `multer`, the `api`'s S3 client and `uuid`. The upload no longer buffers 10 MB × 10 files
+  in the `api`'s memory.
+- `SERVICE_NAME` and `subscriptionSubject()` from `@jiku/nats-protocol`, and the wildcard
+  subscription they served.
+
+### Fixed
+
+- **A service identity could not be mirrored, which took down four things at once.** A
+  Zitadel machine user has no email address, so with `users.email` `NOT NULL` the consumer
+  discarded every service event with `"email" is required` — and with no row in `users` both
+  bus gates rejected that identity. The column is now nullable, and the requirement is
+  conditional: `core`'s schema still demands an email for a person, where a missing one means
+  the publisher is misconfigured and that diagnosis is worth keeping.
+- **File linking was broken against a migrated database.** The `Attachment` model still
+  declared the ten columns migration `20260819_05` had dropped, and every link wrote them, so
+  linking failed with `column "file_name" ... does not exist` and `GET /api/attachments` was
+  broken by the same cause. The test suite could not catch it: it builds its schema with
+  `sync()` from the model, so for the tests those columns existed. A test comparing the model
+  against the columns the migrations leave behind is the guard that was missing.
+- Three bugs that crossed the two id spaces — a file id used against the attachment route, a
+  `file:` reference rendered as raw text, and an attachment marker saved with a file id.
+  They were silent because the two spaces overlap: resolving a file id against the link route
+  does not 404, it serves a different file.
+- `files.{fileId}.request-download` no longer checks `byte_status`. `pending` meant both "the
+  byte never arrived" and "not linked yet", which made a freshly uploaded file impossible to
+  preview by construction.
+
+### Notes for existing installations
+
+- **This release contains a destructive migration.** `20260819_05_harden_attachments_schema`
+  is a point of no return, and the procedure in
+  `docs/changelog/2026-08-19-separacion-file-attachment.md` expects the four additive
+  migrations before it to be deployed first, their seven counts read from the log, and the
+  result accepted by a human. Both halves ship in this tag, so an installation with data
+  should run the first four from a checkout without the fifth and only then move to `2.0.0`.
+- **`CORE_TRUSTED_PUBLISHER_ID` is required and `core` will not start without it.** It is the
+  `sub` of the `api`'s service user, and it is how `core` tells the `api`'s channel from any
+  other publisher. Empty, every command would take the external branch and no user could
+  link what they uploaded.
+- **`NATS_SERVICE_NAME` is gone.** Set `NATS_COMMAND_SERVICE` and `NATS_QUERY_SERVICE`
+  instead, and remember that changing either one is not enough on its own: the auth-callout
+  authorises those names literally in `deploy/nats/auth-callout/templates/`. A mismatch still
+  connects and then fails every publish with `Authorization Violation`.
+- **`STORAGE_S3_ENDPOINT` is now the URL the signature is built from, and the signature ends
+  up in the browser.** It has to be an address the browser can resolve — an internal Docker
+  name works for `core` and breaks the direct `PUT`. Rewriting the host of an already-signed
+  URL gives `403 SignatureDoesNotMatch`, because the host travels in SigV4's `SignedHeaders`.
+  The bucket also needs a CORS policy, or the `PUT` dies with an opaque network error. Both
+  are covered in `deploy/README.md`, steps 5 and 6.
+- New variables read only by `core`: `POSTGRESQL_READ_POOL_MAX`,
+  `POSTGRESQL_STATEMENT_TIMEOUT_MS`, `NATS_EVENTS_QUEUE` and `SERVICE_VERSION`.
+  `POSTGRESQL_STATEMENT_TIMEOUT_MS` must stay strictly below `NATS_QUERY_TIMEOUT_MS`, or a
+  slow query leaves the caller on a bus timeout that explains nothing. `SERVICE_VERSION` is
+  validated as strict SemVer: a `latest` or a `1.0` there is a failed startup.
+- **The `external-publisher` role must be removed from Zitadel** if it was ever granted, and
+  the three product roles now need a `person` rule to exist for `identity_type` to be
+  reported correctly. Before those rules existed every event went out as
+  `identity_type: "service"`. `deploy/nats/add-events-user.sh` provisions the identity that
+  publishes the auth event.
+- **Anything already speaking to the bus has to move to `jiku-commands`.** The subject's
+  `version` segment is still `v1` — the protocol shape did not change, the service name did —
+  so there is no window in which both names answer.
+- `docs/apis/core.yaml`, `docs/apis/core-queries.yaml` and `docs/apis/api.yaml` are the
+  source of truth for the three contracts: where the code disagrees, the document wins.
+
 ## [1.0.0] - 2026-08-12
 
 First public release.

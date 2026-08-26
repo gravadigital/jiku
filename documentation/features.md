@@ -70,7 +70,10 @@ Stated plainly, because some of it used to exist and was removed before publishi
 
 - **No notifications.** Requirements have subscribers, but nothing sends them anything.
 - **No scheduled jobs.** No reminders, no recurring reports.
-- **No user administration.** Users come from the identity provider. Someone who authenticates
-  but is not yet in the database gets a 401.
+- **No user administration.** Users come from the identity provider. Whoever connects to the bus
+  is created automatically from the authentication event; someone who only uses the web and is
+  not yet in the database gets a 401 — see [known-limitations.md](known-limitations.md).
+- **No external-system integration.** The schema prepared to sync tasks with an external tracker
+  was dropped: it never had code behind it.
 - **No multi-tenancy.** One installation serves one organisation.
 - **Spanish-only interface.** Both frontends are in Spanish, with no i18n layer yet.
