@@ -172,8 +172,8 @@
           "type": "section",
           "category": "layout",
           "h": 90,
-          "content": "Sin interfaz · server component que ejecuta el alta y redirige",
-          "annotation": "bloque sintético: la tabla ## Estructura no declara ninguno porque el componente no devuelve JSX (login/enter/page.tsx:4-7). Hace POST /api/auth/present con Bearer del accessToken (timeout 10 s, lib/axios.ts:17) y después redirect('/') — siempre, tanto si el alta funcionó como si falló (el error se traga con console.warn, authApi.ts:24-31). La cadena completa son cuatro redirecciones: Zitadel → /login/enter → / → /projects → /projects/{primerId}/requirements?view=list. No hay loading.tsx en la ruta, así que durante el POST el navegador sigue mostrando la pantalla anterior sin señal de actividad, y la transición no se anuncia (sin aria-live ni DOM propio)"
+          "content": "Sin interfaz · server component que llama a /api/auth/present y redirige",
+          "annotation": "bloque sintético: la tabla ## Estructura no declara ninguno porque el componente no devuelve JSX (login/enter/page.tsx:4-7). Hace POST /api/auth/present con Bearer del accessToken (timeout 10 s, lib/axios.ts:17) y después redirect('/') — siempre, tanto si el alta funcionó como si falló (el error se traga con console.warn, authApi.ts:24-31). La cadena completa son cuatro redirecciones: Zitadel → /login/enter → / → /projects → /projects/{primerId}/requirements?view=list. No hay loading.tsx en la ruta, así que durante el POST el navegador sigue mostrando la pantalla anterior sin señal de actividad, y la transición no se anuncia (sin aria-live ni DOM propio) · REQ-007: la llamada dejó de dar de alta a nadie —core espeja la identidad desde el propio comando (CA-9, CA-11)— y el 401 user_not_found que la justificaba ya no existe en ninguna ruta (CA-12); el POST puede fallar entero y el usuario entra y opera igual, así que el tragado del error dejó de tener consecuencia aguas abajo"
         }
       ],
       "layouts": {
@@ -270,15 +270,15 @@
           "category": "content",
           "level": "body",
           "content": "Redirigiendo...",
-          "annotation": "todos los mensajes hardcodeados · la pantalla no tiene <h1> en ningún estado · el default es \"redirigiendo\": el useEffect ya disparó el router.push y no hay indicación de a qué proyecto se está entrando (projects/page.tsx:63-70)",
+          "annotation": "todos los mensajes hardcodeados · el default es \"redirigiendo\": el useEffect ya disparó el router.push y no hay indicación de a qué proyecto se está entrando (projects/page.tsx:63-70) · la pantalla sigue sin <h1> en loading, error y redirigiendo; desde REQ-007 lo tiene solo en empty (titulo-sin-acceso)",
           "state_overrides": {
             "loading": {
               "content": "Cargando proyectos...",
               "annotation": "disparado por isLoading de useProjects() (projects/page.tsx:27-36)"
             },
             "empty": {
-              "content": "No tienes proyectos asignados",
-              "annotation": "disparado por !projects || projects.length === 0 (projects/page.tsx:51-59) · usa \"tú\" mientras el resto de la aplicación vosea · es terminal de hecho: la única salida es el logout del sidebar, que bajo 768px no existe · no distingue \"no te asignaron\" de \"no tenés permisos\" ni de \"el alta en la api falló\""
+              "content": "Cuando el equipo te dé acceso a un proyecto, lo vas a ver acá. Si esperabas verlo ahora, escribile a tu contacto en Grava Digital.",
+              "annotation": "disparado por !projects || projects.length === 0 (projects/page.tsx:51-59) · reescrito por REQ-007: al desaparecer el 401 user_not_found de las 61 rutas, un external-user autenticado sin permisos recibe 200 [] y aterriza acá, así que este estado pasó de borde a primera pantalla de todo cliente nuevo (CA-12, CA-13) · el voseo se corrige en el mismo movimiento (era el único \"tú\" de la aplicación) · sigue sin distinguir \"no te asignaron\" de \"perdiste el permiso\", deliberado (REQ-006 §22); el tercer caso, \"el alta falló\", ya no existe (CA-9, CA-11)"
             },
             "error de sistema": {
               "content": "Error al cargar los proyectos",
@@ -296,6 +296,28 @@
             "error de sistema"
           ],
           "annotation": "on click → refetch() de useProjects (projects/page.tsx:43) · no navega · único elemento interactivo, y solo existe en el estado de error"
+        },
+        {
+          "name": "titulo-sin-acceso",
+          "type": "heading",
+          "category": "content",
+          "level": "h1",
+          "content": "Todavía no tenés acceso a ningún proyecto",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "primer <h1> que tiene esta pantalla en cualquiera de sus estados: hasta REQ-007 el estado terminal era un párrafo suelto sin encabezado · el tamaño y el peso salen de foundations/typography.md (font.size.3xl, semibold, line-height tight); el catálogo v0.1.0 de opus-web no tiene componente de encabezado y no se crea uno [REQ-007 CA-13]"
+        },
+        {
+          "name": "boton-cerrar-sesion",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Cerrar sesión",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "on click → cierra la sesión y vuelve a /login · Button variant=\"secondary\" del design system de la superficie · única salida de la pantalla en el estado terminal y única salida de la superficie en mobile, donde el sidebar es display:none sin reemplazo · en desktop duplica a propósito la acción del sidebar [REQ-007 CA-13]"
         },
         {
           "name": "sidebar-navegacion",
@@ -323,15 +345,17 @@
           "visible_only_in_viewports": [
             "desktop"
           ],
-          "annotation": "chrome del grupo (dashboard), no de esta pantalla · 263px fijos · display:none bajo 768px (Sidebar.module.scss:13) sin reemplazo: en mobile no hay ninguna navegación, y con el empty el usuario queda sin salida"
+          "annotation": "chrome del grupo (dashboard), no de esta pantalla · 263px fijos · display:none bajo 768px (Sidebar.module.scss:13) sin reemplazo: en mobile no hay ninguna navegación · desde REQ-007 el estado empty ya no deja al usuario sin salida, porque boton-cerrar-sesion vive dentro de la pantalla"
         }
       ],
       "layouts": {
         "mobile": [
           "contenedor-centrado",
           "indicador-carga",
+          "titulo-sin-acceso",
           "texto-estado",
-          "boton-reintentar"
+          "boton-reintentar",
+          "boton-cerrar-sesion"
         ],
         "desktop": [
           {
@@ -359,8 +383,10 @@
                         "stack": [
                           "contenedor-centrado",
                           "indicador-carga",
+                          "titulo-sin-acceso",
                           "texto-estado",
-                          "boton-reintentar"
+                          "boton-reintentar",
+                          "boton-cerrar-sesion"
                         ]
                       },
                       {
@@ -2517,6 +2543,14 @@
       "srcBlock": "boton-reintentar",
       "dst": "detalle-requisito",
       "trigger": "refetch del requisito",
+      "automatic": false
+    },
+    {
+      "src": "proyectos-redireccion",
+      "srcState": "empty",
+      "srcBlock": "boton-cerrar-sesion",
+      "dst": "login",
+      "trigger": "cerrar sesión → /login",
       "automatic": false
     }
   ]

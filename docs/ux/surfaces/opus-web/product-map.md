@@ -29,7 +29,7 @@ origin: relevamiento de código — brownfield
 |---|---|---|---|---|---|
 | 1 | login | Entrada al portal vía OIDC | cliente | ambos | C-67 |
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
-| 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético | cliente | ambos | C-59 |
+| 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético; sin proyectos, es donde el cliente nuevo entiende que su acceso todavía no está | cliente | ambos | C-59, REQ-007 |
 | 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto | cliente | ambos | C-60, C-61, C-66, REQ-005 |
 | 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005 |
 
@@ -75,6 +75,17 @@ el gap bloqueante de navegación en mobile.
 > **El detalle de requisito está implementado dos veces**: como overlay (O-01) y como pantalla
 > propia (#5). Los dos componen los mismos tres paneles, con 1 px de diferencia en el ancho del
 > panel de actividad.
+
+> **REQ-007 no agrega ni quita pantallas ni overlays, y rediseña un estado.** Habilitar `jiku-commands`
+> para personas no tiene interfaz —una persona que publica un comando lo hace desde un cliente NATS,
+> no desde el portal—, pero la eliminación del 401 `user_not_found` de las 61 rutas de la api sí es
+> user-visible acá: un `external-user` autenticado **sin fila en `users` y sin permisos de proyecto**
+> deja de rebotar y recibe `200 []` [REQ-007 CA-12, CA-13]. El estado `empty` de **proyectos-redireccion**
+> pasa de borde inalcanzable a **primera pantalla de todo cliente nuevo**, y se diseña como tal: gana
+> un `<h1>`, un cuerpo que nombra la causa y una salida (`Cerrar sesión`) que en mobile es la única
+> que existe. **tablero-requisitos** no cambia de bloques pero gana un motivo de rechazo nuevo —la
+> transición de estado inválida que `core` empieza a validar (CA-22)— que su toast fijo no nombra.
+> Ver [`screens/proyectos-redireccion.md`](screens/proyectos-redireccion.md).
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de
@@ -144,8 +155,13 @@ Pantallas: login (#1), login-entrada (#2)
 - **Rol interno vs `external-user`** — **No cambia la navegación.** Cambia qué controles se
   renderizan: un rol interno ve dropdowns de estado y prioridad donde el cliente ve pills fijos.
 - **Sin proyectos asignados** — Si el cliente no tiene ninguna fila en `user_project_permissions`,
-  el sidebar queda vacío y `/projects` no tiene a dónde redirigir. El microcopy dice **"No tienes
-  proyectos asignados"**.
+  el sidebar queda vacío y `/projects` no tiene a dónde redirigir. **Desde REQ-007 este es el estado
+  de entrada de todo cliente nuevo**, no un borde: al desaparecer el 401 `user_not_found`, una
+  identidad autenticada sin fila ni permisos entra y recibe cero proyectos en vez de un error
+  (CA-12, CA-13). El microcopy pasa de **"No tienes proyectos asignados"** a un encabezado —*"Todavía
+  no tenés acceso a ningún proyecto"*— más un cuerpo que dice qué esperar y a quién pedírselo, y la
+  pantalla suma **Cerrar sesión** para dejar de ser terminal sin salida. Sigue sin distinguir "no te
+  asignaron ninguno" de "perdiste el permiso", y eso es deliberado (REQ-006 §22).
 - **Mobile (< 768 px)** — **Estado degradado, no soportado.** Sin navegación: no se puede cambiar
   de proyecto ni cerrar sesión.
 - **Sin conexión** — **No hay tratamiento.** Tampoco hay `error.tsx` ni `not-found.tsx` en ninguna

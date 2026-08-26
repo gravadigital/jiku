@@ -5,7 +5,7 @@ type: event
 status: Draft
 created: 2026-08-24
 last_updated: 2026-08-25
-stories: [S-016, S-018, S-023]
+stories: [S-016, S-018, S-023, S-029, S-034]
 ---
 
 # Sincronización de Identidades desde el Evento de Autenticación
@@ -14,7 +14,37 @@ stories: [S-016, S-018, S-023]
 **Status:** Draft
 **Creado:** 2026-08-24
 **Última actualización:** 2026-08-25
-**Stories:** S-016, S-018
+**Stories:** S-016, S-018, S-023, S-029, S-034
+
+> ## REQ-007 — el flujo gana un SEGUNDO DISPARADOR
+>
+> Hasta hoy la fila de `users` la creaba **solo** el evento `{instance}.events.auth`. Desde S-029
+> también la crea o actualiza **el comando publicado por la api**, con la identidad de quien actúa.
+>
+> **La sección *"Lo que este flujo NO hace"* queda DEROGADA.** Decía: *"no da de alta al usuario
+> que solo usa `web` u `opus-web`: quien nunca conecta al bus sigue recibiendo 401
+> `user_not_found`"*. **Ese 401 dejó de existir en las 61 rutas** (S-034), y la fila la crea el
+> primer comando.
+>
+> **Los dos caminos escriben la misma fila y comparten el mismo handler.** Difieren en **una sola
+> cosa, parametrizada**: qué hacer ante un campo de perfil faltante.
+>
+> | | Evento `{instance}.events.auth` | Comando con sobre |
+> |---|---|---|
+> | Disparador | La identidad conecta al bus | La persona ejecuta cualquier comando desde la api |
+> | Campos | Los cinco, **reemplazo total sin `pickPresent`** | Los mismos cinco |
+> | Sin `email` | **Descarta** el evento sin crear fila parcial | **No rechaza el comando**: `warn`, y `name`/`username` caen a `email` o al `sub` si hay que crear la fila |
+> | `id` y `roles` faltantes | Descarta | **`invalid_fields`**: son la entrada de la autorización |
+> | Transacción | Propia | **Propia, y sobrevive al rollback del comando** |
+>
+> **Un comando rechazado igual espeja.** Es deliberado: la identidad de quien lo intentó sigue
+> siendo cierta, y es lo que hace que una fila con `roles: []` quede corregida. **Un caller no
+> autorizado NO llega a escribir**: sin sobre no hay espejo, y con sobre el caller es el publicador
+> de confianza.
+>
+> **Consecuencia de disponibilidad:** el espejo **deja de depender de un único evento no durable**.
+> Si el evento se pierde, el propio comando repone la fila.
+
 
 ## Descripción
 

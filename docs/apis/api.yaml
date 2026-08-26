@@ -20,6 +20,30 @@ openapi: 3.0.3
 #   la lista de exenciones está vacía en los cuatro métodos. El mecanismo se conserva —agregar una
 #   ruta pública sigue siendo un cambio de una línea en `api/config/public.ts`— pero ninguna ruta lo
 #   usa, así que no queda una sola operación con `security: []`.
+#
+# REQ-007 — LA API DEJA DE AUTORIZAR, Y `x-roles` CAMBIA DE SIGNIFICADO
+#   La api conserva exactamente TRES responsabilidades sobre la escritura: autenticar el token
+#   contra Zitadel, publicar el comando y traducir el código de error del reply a HTTP. **No evalúa
+#   rol, ni permiso de proyecto, ni regla de negocio.**
+#
+#   `x-roles` NO SE ELIMINA DE ESTE SPEC, y no es una inconsistencia. Deja de ser "lo que la api
+#   verifica" y pasa a ser DOCUMENTACIÓN DE QUÉ ROL AUTORIZA `core` en su mapa rol -> comando.
+#   Borrarlo dejaría el contrato HTTP sin decir quién puede llamar a cada ruta, que es información
+#   que los dos frontends usan para pintar la UI.
+#
+#   QUÉ SE ELIMINÓ, Y DÓNDE NO. De las RUTAS DE ESCRITURA se van `hasAnyRole` y
+#   `validateProjectPermissions` / `canUserAccessEntity`. **Las 28 rutas `GET` los CONSERVAN**: el
+#   fuera-de-alcance del REQ mantiene vigente REQ-006 §37 —ninguna de las 28 lecturas se muda al
+#   bus— y quitarles el rol sin que nadie lo aplique del otro lado ABRIRÍA LA LECTURA. Es el límite
+#   más fácil de cruzar de todo el requerimiento.
+#
+#   EL SOBRE DE IDENTIDAD. Cada comando que la api publica lleva la clave reservada `actor`
+#   —`{ id, roles, name?, username?, email? }`, armada CON EL CLAIM YA VERIFICADO y no con una
+#   lectura a `users`—, y `core` la espeja en `users` antes de autorizar. Contrato en
+#   `components/schemas/Actor` de core.yaml. **Solo el publicador de confianza puede transportarla.**
+#
+#   UN CÓDIGO NUEVO EN `STATUS_BY_ERROR_CODE`: `access_denied` -> 403. Sin él caería en el `|| 500`
+#   y el frontend lo trataría como error de servidor en vez de mostrar el mensaje.
 
 info:
   title: Jiku api — contrato HTTP
@@ -49,8 +73,14 @@ info:
     **Después de publicar, la api relee la base.** Core solo devuelve el `id`, pero el contrato
     con los frontends es el recurso completo con sus relaciones.
 
-    **Dos excepciones que escriben sin el bus:** las migraciones (credenciales propias) y
-    `PUT /api/week-assigned-times`, que queda como la única deuda conocida.
+    **Una sola excepción que escribe sin el bus: las migraciones** (credenciales propias).
+
+    > **REQ-007 (S-032) cerró la otra.** `PUT /api/week-assigned-times` era *"la única deuda
+    > conocida"*: escribía con el ORM y no publicaba ningún comando. Ahora publica
+    > **`week-assigned-times.replace`** —el comando 21— y relee, como el resto. Con eso **el rol de
+    > PostgreSQL de la api puede endurecerse a `SELECT` puro** para la escritura de dominio, que es
+    > lo que ADR-001 quería desde el principio. **No se endurece en este REQ**: es un cambio de
+    > infraestructura con su propio riesgo.
 
     > **REQ-001 cerró la tercera.** La fila de `attachments` ya no se escribe desde acá: subir,
     > vincular y desvincular pasan por comandos de `core`. Y el alcance de ADR-001 se amplía del
@@ -631,10 +661,19 @@ paths:
       description: |
         Publica `requirements.{id}.edit` y rearma la respuesta.
 
-        **Regla propia de la api:** una incidencia no pasa a `resuelto` sin tipo y conclusión de
-        resolución. La validación combina lo que llega en el cuerpo con lo que ya tiene el
-        requisito, y devuelve `resolution_required` (400) — un código que no está en el protocolo
-        del bus.
+        > **REQ-007 (S-033) — `- ELIMINADO`, deja de ser regla propia de la api.**
+        >
+        > Acá decía: *"**Regla propia de la api:** una incidencia no pasa a `resuelto` sin tipo y
+        > conclusión de resolución […] devuelve `resolution_required` (400) — **un código que no
+        > está en el protocolo del bus**"*. **Ahora está.**
+        >
+        > - **C-17** (tipo + conclusión al resolver) la aplica `core` en
+        >   `requirements.{id}.edit` **y** en `.resolve`, con el mismo validador, y devuelve
+        >   `resolution_required`. El status sigue siendo **400**
+        > - **C-15** (la secuencia de estados) **nace en `core`** con esta entrega: hasta hoy vivía
+        >   únicamente en `web`. Una transición inválida devuelve `invalid_state_transition` → 400
+        >
+        > **El contrato HTTP no cambia:** mismo status, mismo código.
       x-roles: [user, admin]
       x-bus-command: requirements.{id}.edit
       requestBody:
@@ -1401,17 +1440,38 @@ paths:
       tags: [week-assigned-times]
       summary: Reemplaza la asignación de una semana
       description: |
-        **El único `PUT` de la api, y la única ruta que escribe con el ORM.** No publica ningún
-        comando: borra las asignaciones de la semana y las recrea (`destroy` + `bulkCreate`) en
-        una transacción. Es la única ruta que usa los middlewares de transacción.
+        Reemplaza la semana completa de la grilla proyecto x persona. **El contrato HTTP no
+        cambia:** mismo verbo, mismo cuerpo, mismos status.
 
         Reemplazo total: lo que no venga en `allocations` se pierde. Las asignaciones con
         `minutes: 0` se descartan, e `internal` se deriva del tipo de proyecto (`interno`).
 
-        Solo `admin`, y `validateWeekNotPast` rechaza semanas anteriores a la actual.
+        > **REQ-007 (S-032) — `-> MODIFICADO`: de escritura con ORM a comando + relectura.**
+        >
+        > Acá decía: *"El único `PUT` de la api, y la única ruta que escribe con el ORM. **No
+        > publica ningún comando**: borra las asignaciones de la semana y las recrea (`destroy` +
+        > `bulkCreate`) en una transacción. Es la única ruta que usa los middlewares de
+        > transacción. […] Su futuro está sin decidir"*. **Su futuro se decidió.**
+        >
+        > - **`+ NUEVO`** publica `week-assigned-times.replace` —el **comando 21**— y **relee la
+        >   base** para responder, como el resto de las escrituras (ADR-001)
+        > - **`- ELIMINADO`** el `destroy` + `bulkCreate` con el ORM
+        > - **`- ELIMINADO`** el middleware `validateWeekNotPast`: la regla (C-36) la aplica
+        >   `core` y devuelve `invalid_date_range` → 400
+        > - **`- ELIMINADO`** el `hasAnyRole(['admin'])`: C-38 la resuelve el **mapa rol → comando**
+        >   de `core` y devuelve `caller_not_authorized` → 403
+        > - **`- ELIMINADO`** el uso de los **middlewares de transacción**, que era **la única ruta
+        >   que los usaba** — con lo que quedan sin ningún consumidor
+        >
+        > **Gana dos desenlaces que nunca tuvo:** `503` y `504` de ADR-002. Un `504` significa
+        > *"pudo haberse guardado"* sobre una grilla entera, y la recuperación correcta es
+        > **recargar la semana antes de reintentar** — la pantalla todavía no lo dice (gap
+        > declarado de REQ-007).
 
-        Su futuro está sin decidir: puede mantenerse, rehacerse o eliminarse.
+        **`x-roles: [admin]` sigue declarado, pero ya NO es lo que la api verifica**: documenta
+        qué rol autoriza `core`.
       x-roles: [admin]
+      x-bus-command: week-assigned-times.replace
       requestBody:
         required: true
         content:
@@ -2185,18 +2245,24 @@ paths:
         La web ya trata el error como no fatal ("Failed to present in API, but continuing"), así
         que el 200 preserva su comportamiento.
 
-        **Consecuencia:** un usuario nuevo de Zitadel **no queda dado de alta**, y si no está en
-        `users` el resto de las rutas responden 401 `user_not_found`. Hoy la única vía es
-        insertarlo directamente.
-
-        Es también el único endpoint donde `validateToken` **no** exige que el usuario exista en
-        `users` (`lib/utils/middlewares/validate-token.ts:115`).
-
-        **REQ-005 responde a medias.** Para quien **se conecta al bus** el alta la resuelve el
-        auth-callout: emite un evento de autenticación que `core` consume y espeja en `users`
-        (S-016). Para el **usuario de `web` / `opus-web` la pregunta sigue abierta**: ese camino no
-        pasa por el bus, así que ni el auth-callout ni el evento lo cubren, y esta ruta sigue
-        siendo un no-op.
+        > **REQ-007 (S-034) — la razón de ser de este no-op DESAPARECE.**
+        >
+        > Acá decía que *"un usuario nuevo de Zitadel no queda dado de alta, y si no está en
+        > `users` el resto de las rutas responden 401 `user_not_found`"*, que este era *"el único
+        > endpoint donde `validateToken` no exige que el usuario exista en `users`"*, y que para
+        > el usuario de `web` / `opus-web` *"la pregunta sigue abierta"*. **Las tres cosas quedan
+        > derogadas:**
+        >
+        > - **el 401 `user_not_found` ya no existe en ninguna ruta**, así que no hay nada que
+        >   evitar
+        > - **la excepción de `validate-token.ts:115` se eliminó**: ya no hay chequeo del que
+        >   eximir a esta ruta
+        > - **el alta la resuelve el comando**: `core` espeja la identidad en `users` desde el
+        >   sobre que la api transporta, así que la fila se crea la primera vez que la persona
+        >   escribe, sin que nadie la inserte a mano
+        >
+        > **La ruta sigue siendo un no-op y sigue devolviendo 200.** Lo que cambia es que ahora es
+        > un no-op sin consecuencia.
       responses:
         '200':
           description: OK. Cuerpo vacío
@@ -2227,7 +2293,22 @@ components:
         Los roles salen del claim `urn:zitadel:iam:org:project:roles`, como las claves del objeto.
         Roles del producto: `admin`, `user`, `external-user`.
 
-        El `sub` tiene que existir en la tabla `users` o la respuesta es 401 `user_not_found`.
+        > **REQ-007 (S-034) — `- ELIMINADO`.** Acá decía: *"El `sub` tiene que existir en la
+        > tabla `users` o la respuesta es 401 `user_not_found`"*. **Ese 401 ya no existe en
+        > ninguna de las 61 rutas.**
+        >
+        > `validateToken` **dejó de hacer `User.findByPk(sub)`** y arma `req.user` con
+        > `{ id, name, username, email, roles }` **del claim ya verificado** — que es la fuente
+        > que ADR-007 declara autoritativa (*"los roles DEBEN leerse del claim […] NO SE DEBEN
+        > almacenar roles en la base ni derivarlos de otra fuente"*). Con eso:
+        >
+        > - una identidad autenticada **opera aunque no tenga fila previa**, y la fila queda
+        >   creada la primera vez que ejecuta un comando (`core` la espeja desde el sobre)
+        > - **se elimina un `SELECT` por request** en toda la superficie HTTP
+        > - `POST /api/auth/present` **deja de necesitar su excepción**: ya no hay chequeo del
+        >   que eximirlo
+        >
+        > **El `401 unauthorized` (sin token / token inválido) NO cambia.**
 
   parameters:
     IdPath:
@@ -2278,15 +2359,15 @@ components:
 
   responses:
     Unauthorized:
-      description: Sin token, token inválido, o el `sub` no está en `users`
+      # REQ-007 (S-034): `- ELIMINADO` el ejemplo `userNotFound`. El `sub` ya NO tiene que estar
+      # en `users`: `req.user` se arma del claim. Queda una sola causa de 401.
+      description: Sin token o token inválido
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           examples:
             unauthorized:
               value: { code: unauthorized, message: Unauthorized }
-            userNotFound:
-              value: { code: user_not_found, message: User not found }
     AccessDenied:
       description: Autenticado, pero el rol o el permiso de proyecto no alcanzan
       content:

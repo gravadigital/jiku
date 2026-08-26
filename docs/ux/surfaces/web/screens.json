@@ -193,7 +193,7 @@
           "category": "content",
           "level": "body",
           "content": "Sin interfaz propia: llama a POST /auth/present y redirige a /.",
-          "annotation": "bloque sintético — el frame existe para anclar la transición del redirect (login/enter/page.tsx:6-9); representa la ausencia de UI",
+          "annotation": "bloque sintético — el frame existe para anclar la transición del redirect (login/enter/page.tsx:6-9); representa la ausencia de UI · REQ-007: la llamada dejó de proteger de nada. El 401 user_not_found desapareció de las 61 rutas de la api (CA-12) y core crea o actualiza la fila de users con el sobre de identidad de cada comando (CA-9, CA-10, CA-11), así que una persona que se autentica por primera vez opera desde la primera pantalla aunque presentInApi falle entero",
           "visible_only_in_states": [
             "default"
           ]
@@ -7887,7 +7887,7 @@
             "default",
             "success"
           ],
-          "annotation": "<input type=\"number\" min=\"0\" step=\"0.1\"> SIN max (:297-307, EditableCell.tsx:37-44). El valor es el % de capacidad; las horas se derivan con hoursPerDay (GET /settings/hours-per-day). Sin <label> ni aria-label, y la primera celda de la fila es un <td>, no un <th>: el lector anuncia el input sin decir de qué persona ni de qué proyecto. Sobreasignación (>100% por persona): fondo, borde y texto rojos en la celda, la lectura y el total a la vez — color puro, sin texto, sin icono, sin aria-invalid — y no bloquea el guardado"
+          "annotation": "<input type=\"number\" min=\"0\" step=\"0.1\"> SIN max (:297-307, EditableCell.tsx:37-44). El valor es el % de capacidad; las horas se derivan con hoursPerDay (GET /settings/hours-per-day). Sin <label> ni aria-label, y la primera celda de la fila es un <td>, no un <th>: el lector anuncia el input sin decir de qué persona ni de qué proyecto. Sobreasignación (>100% por persona): fondo, borde y texto rojos en la celda, la lectura y el total a la vez — color puro, sin texto, sin icono, sin aria-invalid — y no bloquea el guardado. REQ-007: core también valida ahora lo que la UI ya bloqueaba —solo admin puede el comando (CA-20) y una semana pasada se rechaza con invalid_date_range (CA-21)—; para el usuario no cambia nada"
         },
         {
           "name": "celda-lectura",
@@ -7950,10 +7950,10 @@
             "default",
             "success"
           ],
-          "annotation": "loading={saveMutation.isPending} → spinner en el botón mientras guarda (:439-441). Solo se renderiza si isEditable (:436): con !isAdmin, semana pasada, o domingo en la semana actual, desaparece sin explicar cuál de las tres condiciones aplica. Los cambios sin guardar se pierden al cambiar de semana, sin aviso (:190-199)",
+          "annotation": "loading={saveMutation.isPending} → spinner en el botón mientras guarda (:439-441). Solo se renderiza si isEditable (:436): con !isAdmin, semana pasada, o domingo en la semana actual, desaparece sin explicar cuál de las tres condiciones aplica. Los cambios sin guardar se pierden al cambiar de semana, sin aviso (:190-199). REQ-007: PUT /api/week-assigned-times deja de escribir con el ORM y publica el comando week-assigned-times.replace (CA-20, CA-21). El contrato HTTP no cambia (CA-8) y no hace falta ningún bloque nuevo, pero el guardado gana un tercer desenlace que esta pantalla nunca tuvo: 504 gateway_timeout, donde la semana pudo haberse reemplazado o no",
           "state_overrides": {
             "success": {
-              "annotation": "toast \"Cambios guardados correctamente\" (:278). Si el guardado falla, toast con error.message o \"Error al guardar los cambios\" (:282-283)"
+              "annotation": "toast \"Cambios guardados correctamente\" (:278). Si el guardado falla, toast con error.message o \"Error al guardar los cambios\" (:282-283). Desde REQ-007 ese error.message puede ser \"La operación tardó demasiado\" (504): ni éxito ni fracaso. El texto llega solo porque el toast ya renderiza error.message; lo que falta es la recuperación —recargar la semana antes de reintentar—, que nada dice. Gap que nace con este REQ"
             }
           }
         },

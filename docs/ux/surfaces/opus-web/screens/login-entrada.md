@@ -21,7 +21,7 @@ date: 2026-08-18
 
 - **Audiencia primaria:**
   - [cliente](../../../audiences/cliente/research-context.md) — la audiencia no es determinable desde el código; se transcribe la declarada para la superficie [fuente: código-existente].
-- **JTBD / Propósito:** Dar de alta al usuario en la api tras el login OIDC y redirigir al inicio. Es el `callbackUrl` que `/login` le pasa a `signIn`.
+- **JTBD / Propósito:** Redirigir al inicio tras el login OIDC. Es el `callbackUrl` que `/login` le pasa a `signIn`. **Desde REQ-007 ya no da de alta a nadie**: el alta la resuelve `core` al espejar la identidad del comando, así que `POST /api/auth/present` sigue siendo un no-op pero **perdió su razón de ser** (CA-9, CA-11, CA-12).
 - **Viewports:**
   - **mobile** — la ruta existe y se atraviesa en mobile, pero **no renderiza nada**: no hay tratamiento por viewport porque no hay DOM.
   - **desktop** — ídem: se atraviesa sin pintar nada.
@@ -94,6 +94,7 @@ Lo único que un usuario podría llegar a percibir es el tiempo de espera: `pres
 
 ### error de sistema / sin conexión
 - Aplica: No — no implementado (ver gaps-as-is.md). El error se captura y no se muestra: `presentInApi` hace `console.warn` y devuelve `null`; la redirección ocurre igual (`authApi.ts:24-31`). El código registra que ese tragado es deliberado y corrige un bug anterior en el que la pantalla quedaba en blanco bloqueando el ingreso (`authApi.ts:26-28`)
+- **Precisión con REQ-007:** el tragado **dejó de tener consecuencia aguas abajo**. Hasta acá, un `presentInApi` fallido dejaba al usuario sin fila en `users` y el problema reaparecía en la primera pantalla que pidiera datos, como 401 `user_not_found`. Ese 401 ya no existe en ninguna ruta de la api (CA-12), así que la llamada puede fallar entera y el cliente entra igual y opera igual. El estado sigue sin implementarse, y ahora **es correcto que siga así**: no hay nada que informarle al usuario
 
 ### success
 - Aplica: No — no implementado (ver gaps-as-is.md)
@@ -132,3 +133,9 @@ Comportamiento de `presentInApi` (`authApi.ts:5-32`), que es todo lo que esta pa
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-007 — `jiku-commands` para personas (2026-08-25)
+
+- **No cambia ningún bloque, y la revisión sirvió igual.** Esta pantalla existía para dar de alta al usuario y evitar un 401 que ya no existe. Se corrigió el propósito declarado en vez de dejar un JTBD que describe un trabajo que la pantalla ya no hace.
+- **Se descartó proponer eliminar la ruta.** Que `POST /api/auth/present` haya perdido su razón de ser es un hallazgo técnico del REQ, no una decisión de UX: la cadena de cuatro redirecciones del login es la misma y el usuario no percibe la diferencia. Si la ruta se borra, es un cambio de `opus-web` y de la api, fuera del alcance de esta revisión.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla — no introduce ninguno en absoluto.

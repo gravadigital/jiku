@@ -53,14 +53,20 @@ Es el flujo de **mayor frecuencia del producto** y el que sostiene toda la traza
 - **Cargar un día anterior** — El selector de día permite retroceder hasta **10 días**. Fuera de
   esa ventana la api rechaza.
 - **`admin` carga en nombre de otra persona** — Aparece un selector de persona que un `user` no
-  ve. Es la única diferencia de rol en esta pantalla.
+  ve. Es la única diferencia de rol en esta pantalla. **Desde REQ-007 esa diferencia también se
+  aplica en el servidor**: un `user` que mande un `personId` distinto del propio es rechazado por
+  `core` con el mismo 403 de siempre (CA-17). Para quien usa la pantalla no cambia nada; lo que
+  cambia es que ocultar el selector dejó de ser la única defensa.
 - **Borrar un registro** — Desde el listado del día, con **confirmación** (overlay O-02).
 
 ### Errores y recuperación
 
-- **Fuera de la ventana de 11 días** — La api rechaza con `invalid_date_range`. El usuario no tiene
-  forma de cargar ese día: **necesita que alguien lo haga por la base**. No hay recuperación en la
-  interfaz.
+- **Fuera de la ventana de 11 días** — Rechazo con `invalid_date_range`. El usuario no tiene forma
+  de cargar ese día: **necesita que alguien lo haga por la base**. No hay recuperación en la
+  interfaz. **Desde REQ-007 la regla la aplica `core`, no la api** (CA-16): el mismo status, el
+  mismo código y el mismo mensaje (CA-8), pero ahora rige **venga la carga de donde venga** —también
+  si una persona publica `worked-times.new` directo al bus—, en vez de depender de que el cliente
+  sea la interfaz.
 - **Tope diario superado** — El error informa **cuántos minutos quedan disponibles**, así que el
   usuario puede corregir el monto sin adivinar. Es el mejor mensaje de error del producto.
 - **Tarea y requisito a la vez** — El selector agrupado lo previene por construcción: se elige uno.
@@ -134,9 +140,15 @@ lo ve en Opus sin que nadie se lo comunique.
 
 - **Resolver una incidencia sin conclusión** — Falla con `resolution_required`. El usuario completa
   y reintenta; nada quedó a medias.
-- **Salto de estado inválido** — **El stepper lo previene, pero la api no lo valida**
-  [fuente: código-existente]: la regla vive solo en `web` (NFR-S07). Otro cliente HTTP podría
-  saltar a cualquier estado.
+- **Salto de estado inválido** — **El stepper lo previene, y desde REQ-007 el servidor también.**
+  Hasta acá la regla vivía **solo en `web`** (NFR-S07) y cualquier otro cliente podía saltar a
+  cualquier estado; REQ-007 la muda a `core` como tabla de transiciones declarada (C-15), validada
+  donde ocurre la transición y no solo al resolver, y la rechaza con `invalid_state_transition`
+  → **400** (CA-22). La excepción sigue en pie: una `incidencia` puede saltear `en_cola` (CA-23).
+  **Para quien usa esta pantalla no cambia nada** —el stepper sigue impidiendo elegir mal—, y por
+  eso el caso se registra sin diseñar mensaje. **Donde sí se vuelve alcanzable es en el portal**,
+  cuyo dropdown ofrece los siete estados a un rol interno sin orden: ver
+  [`opus-web/screens/tablero-requisitos.md`](../opus-web/screens/tablero-requisitos.md).
 - **Adjunto de otra persona** — Falla con *"No podés adjuntar un archivo que subió otra persona"*
   (REQ-001 RF-12). No hay recuperación posible más que subirlo de nuevo, y es deliberado.
 - **Adjunto cuyo contenido nunca llegó** — Al abrirlo dice *"El archivo no está disponible"*, no un
@@ -191,14 +203,23 @@ Es el contrapunto del flujo 1: acá se registra **lo planeado**, allá **lo ocur
 
 ### Errores y recuperación
 
-- **Semana pasada** — La api rechaza. **No hay aviso previo en la interfaz**: el usuario descubre
-  la restricción al intentar guardar.
-- **Fallo al guardar** — La transacción del ORM revierte: la semana queda como estaba.
-- **Este es el único flujo de escritura que no pasa por el bus**, así que el desdoblamiento
-  503/504 de [REQ-004] **no aplica acá**: `PUT /api/week-assigned-times` escribe con el ORM
-  (excepción 3 de ADR-001) y no hay caso "pudo haber ocurrido" — o la transacción commiteó, o
-  revirtió. Se registra explícitamente para que no se asuma lo contrario por analogía con los otros
-  tres flujos.
+- **Semana pasada** — Rechazo con `invalid_date_range`. **No hay aviso previo en la interfaz**: el
+  usuario descubre la restricción al intentar guardar. **Desde REQ-007 la rechaza `core`** —
+  `validateWeekNotPast` deja de ser una regla de la api (CA-21) — con el mismo status y el mismo
+  mensaje. Lo mismo con el corte por rol: la grilla sigue siendo solo de `admin`, y ahora también
+  del lado del servidor (CA-20).
+- **Fallo al guardar** — La semana queda como estaba: el reemplazo ocurre dentro de una transacción
+  y el rollback vale igual (CA-30).
+- 🔴 **Este flujo dejó de ser la excepción, y con eso hereda el desdoblamiento 503/504** [REQ-007
+  CA-20, CA-21]. Hasta acá era la **única escritura de dominio que no pasaba por el bus**:
+  `PUT /api/week-assigned-times` escribía con el ORM (excepción 3 de ADR-001), el resultado era
+  binario —commiteó o revirtió— y este documento lo registraba explícitamente para que nadie
+  asumiera lo contrario por analogía. **Ya no es así.** La api publica `week-assigned-times.replace`
+  y relee, así que aparece el tercer desenlace de [REQ-004 RF-16, CA-9]: con `504 gateway_timeout`
+  —*"La operación tardó demasiado"*— **la semana pudo haberse reemplazado o no**. El toast del
+  guardado ya renderiza el mensaje, pero **nada le dice al `admin` que la recuperación correcta es
+  recargar la semana antes de reintentar**, y esta pantalla además pierde los cambios sin guardar al
+  cambiar de semana sin avisar. Es un gap que **nace con REQ-007**, no una deuda heredada.
 
 ### Estado final
 
@@ -208,6 +229,8 @@ las cargadas en el flujo 1.
 ### Criterios de éxito
 
 - Un `admin` debería poder planificar la semana **sin salir de la grilla**
+- Ante un guardado que no se sabe si ocurrió, el `admin` debería saber que tiene que **recargar
+  antes de reintentar** — criterio **nuevo desde REQ-007**, y hoy no se cumple
 - La precarga debería ahorrar el trabajo de una semana típica, donde poco cambia respecto de la
   anterior
 - El usuario debería saber **antes de editar** que una semana pasada no se puede modificar

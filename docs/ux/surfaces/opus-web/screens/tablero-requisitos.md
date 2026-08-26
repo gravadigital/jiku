@@ -272,7 +272,8 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
   - Disparado por `isFetchingNextPage` de la query de ese estado
 
 ### error de validación
-- Aplica: No — no implementado (ver gaps-as-is.md). La pantalla no tiene formulario propio. Los cambios de estado y prioridad **no validan transiciones**: el dropdown ofrece los siete estados siempre, en cualquier orden
+- Aplica: No — no implementado (ver gaps-as-is.md). La pantalla no tiene formulario propio. Los cambios de estado y prioridad **no validan transiciones en el cliente**: el dropdown ofrece los siete estados siempre, en cualquier orden
+- **REQ-007: ahora el servidor sí valida, y el rechazo llega acá sin nombre.** `core` gana la tabla de transiciones de `requirements.state` (C-15) y rechaza el salto inválido con `invalid_state_transition` → **400** (CA-22), con la excepción de `incidencia`, que puede saltear `en_cola` (CA-23). Es el único lugar del producto donde ese rechazo es **fácil de provocar**: en `web` el stepper impone el orden, pero acá el dropdown sigue ofreciendo los siete estados a un rol interno, así que elegir mal es un clic. Lo que ve el usuario es el toast genérico `"Error al actualizar el estado"` (`useUpdateRequirement.ts:26-32`), que **descarta el `message` del `ApiError`**: el motivo existe del lado del servidor y la superficie lo tira. **No se diseña el mensaje acá:** REQ-007 declara `opus-web` sin cambios de UI, y el arreglo real es recortar el dropdown a las transiciones válidas, que es una decisión de producto ligada a la pregunta abierta 2 de la superficie (si un rol interno debería poder operar desde el portal). Queda registrado como gap que **nace con este REQ**, no como uno preexistente
 
 ### error de sistema / sin conexión
 - Aplica: No — no implementado (ver gaps-as-is.md). Las siete queries pueden fallar y la pantalla renderiza el tablero con las siete secciones en cero, indistinguible de un proyecto sin requisitos: `requirements/page.tsx:153-196` solo evalúa `isLoading`, nunca `isError`. Si además falla `useProjects`, el breadcrumb muestra el literal "Proyecto" y nada avisa (`requirements/page.tsx:132-135`)
@@ -310,7 +311,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 
 **Feedback:**
 - Cambio de estado/prioridad exitoso → toast "Requisito actualizado correctamente" · `useUpdateRequirement.ts:19`
-- Fallido → toast "Error al actualizar el estado" o "Error al actualizar la prioridad" · `:26-32`
+- Fallido → toast "Error al actualizar el estado" o "Error al actualizar la prioridad" · `:26-32`. **Desde REQ-007 ese texto fijo cubre una causa nueva y evitable**: la transición de estado inválida que `core` rechaza con `invalid_state_transition` (CA-22) — ver el estado `error de validación`
 - **Sin update optimista:** el pill no cambia hasta que vuelve el refetch de las siete queries.
 
 ## Accesibilidad
@@ -331,6 +332,13 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-007 — `jiku-commands` para personas (2026-08-25)
+
+- **No cambia ningún bloque, y aparece un gap que antes no podía existir.** El workflow de estados vivía únicamente en `web` (NFR-S07); REQ-007 lo muda a `core` como tabla de transiciones validada donde ocurre la transición (CA-22, CA-23). El portal es la superficie que más expuesta queda, porque su dropdown ofrece los siete estados sin orden: un rol interno que opere desde acá puede producir un rechazo que **antes era imposible**.
+- **Se descartó diseñar el mensaje de error.** Era la tentación evidente y sería inventar alcance: el REQ deja `opus-web` sin cambios de UI. Se registra dónde nace el gap y cuál es el arreglo correcto —recortar el dropdown a las transiciones válidas— para que quien lo tome no vuelva a descubrirlo.
+- **Se descartó tratarlo como un caso más del silencio de errores del portal.** Lo es en su forma, pero no en su origen: los otros gaps de esta pantalla son deuda relevada del código; este lo **introduce** este REQ, y mezclarlos haría perder esa distinción.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla.
 
 ### REQ-004 — El bus en dos servicios micro (2026-08-23)
 

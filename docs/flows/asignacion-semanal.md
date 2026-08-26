@@ -4,8 +4,8 @@ title: Asignación semanal de capacidad
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-19
-stories: [S-004]
+last_updated: 2026-08-25
+stories: [S-004, S-029, S-032, S-034]
 ---
 
 # Asignación Semanal de Capacidad
@@ -13,8 +13,29 @@ stories: [S-004]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-19
-**Stories:** S-004
+**Última actualización:** 2026-08-25
+**Stories:** S-004, S-029, S-032, S-034
+
+> ## REQ-007 — este flujo DEJA DE SER EXCEPCIONAL
+>
+> **Todo lo que este documento dice sobre `core` queda derogado por S-032.** Hoy se describe como
+> ***"el flujo excepcional del producto […] la única escritura de dominio que no pasa por
+> `core`"***, con `core` marcado ***"No participa. Este flujo no lo involucra"***. **Las dos
+> frases dejan de ser ciertas.**
+>
+> | Qué | Cómo queda | Story |
+> |---|---|---|
+> | El diagrama de secuencia | Se rehace: `web → api → NATS → core → PostgreSQL`, con **la transacción del despachador** (ADR-003) en vez de la de la api | S-032 |
+> | La tabla de servicios | **`core` entra.** La api pasa de *"Procesador **y escritor**"* a **Procesador** | S-032 |
+> | El comando | **`week-assigned-times.replace`**, el **comando 21**. `nats micro info jiku-commands` pasa a listar 21 endpoints | S-032 |
+> | **C-38** (*solo `admin` edita la grilla*) | Se muda de la api a `core`, y la resuelve el **mapa rol → comando** —no el comando— porque no depende del payload → `caller_not_authorized` (403) | S-030, S-032 |
+> | **C-36** (*no se modifican semanas pasadas*) | Se muda de la api a `core`, dentro del comando → `invalid_date_range` (400). `validateWeekNotPast` deja de existir | S-032 |
+> | Los middlewares de transacción de la api | **Pierden su único consumidor**: esta era la única ruta que los usaba | S-032 |
+> | La credencial que escribe | Pasa del rol de la api al **usuario dueño** de `core`. Es lo que ADR-001 quería desde el principio | S-032 |
+> | **Desenlaces nuevos** | **503** y **504** de ADR-002, que este flujo **nunca tuvo**. Un 504 significa *"pudo haberse guardado"* sobre una grilla entera | S-032 |
+>
+> **El contrato HTTP no cambia:** mismo verbo, mismo cuerpo, mismos status.
+
 
 ## Descripción
 
