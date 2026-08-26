@@ -136,10 +136,23 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
     source.should.containEql('this file stays the contract of the commands');
   });
 
-  it('TS-99 · los 20 canales de comandos siguen intactos (CA-16)', () => {
+  it('TS-99 · los canales de los 20 comandos registrados siguen intactos (CA-16)', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+    const declared = keysUnder(source, 'channels');
 
-    keysUnder(source, 'channels').should.have.length(20);
+    // CA-16 es sobre lo que NO SE PIERDE: los canales de comando siguen todos declarados. El
+    // conteo fijo en 20 dejó de expresar eso cuando REQ-007 documentó `week-assigned-times.replace`
+    // —el comando 21, que la spec describe ANTES de que exista porque el comando nace en S-032—,
+    // así que la aserción pasa a decir lo que CA-16 quiso decir, y contra el registro real.
+    declared.should.containDeep(commandRegistry.patterns());
+
+    // Y lo único que puede estar declarado sin comando registrado es ese canal 21. Cualquier otro
+    // canal de más es la spec mintiendo por exceso, que es el desfasaje que este test atrapa.
+    declared
+      .filter((channel) => !commandRegistry.patterns().includes(channel))
+      .forEach((extra) => {
+        extra.should.equal('week-assigned-times.replace');
+      });
   });
 
   /**

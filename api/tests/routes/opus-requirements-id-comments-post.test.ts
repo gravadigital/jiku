@@ -6,6 +6,7 @@ import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -190,6 +191,78 @@ describe('POST /api/opus/requirements/:reqid/comments', () => {
         .expect(400)
         .then((response) => {
           response.body.code.should.equal('invalid_fields');
+        });
+    });
+  });
+
+  /**
+   * S-030 (CA-7, CA-9, CA-10, CA-11): la traducción a HTTP de los dos rechazos que core emite,
+   * vista desde una ruta real y no desde el mapa.
+   *
+   * EL REPLY ES FIJO Y NO UNA EJECUCIÓN REAL DE CORE, y no es un atajo: mientras la api siga
+   * autorizando por su cuenta (CA-14), `validateProjectPermissions` rechaza al external-user
+   * ANTES de publicar, así que el rechazo de core no es alcanzable desde una ruta. Se vuelve
+   * alcanzable en S-034, y para entonces esta traducción ya tiene que estar puesta.
+   */
+  describe('la traducción de los rechazos de core a HTTP (S-030)', () => {
+    it('TS-9 (S-030): traduce access_denied a 403 con el cuerpo que los fronts conocen', () => {
+      fakeBus.reply(`requirements.${requirementId}.comment`, {
+        status: 'failure',
+        errorCode: 'access_denied',
+        errorMessage: 'No tenés permiso sobre esta entidad',
+      });
+
+      return request(application)
+        .post(`/api/opus/requirements/${requirementId}/comments`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ comment: 'Comentario de prueba' })
+        .expect(403)
+        .then((response) => {
+          response.body.code.should.equal('access_denied');
+          response.body.message.should.equal('No tenés permiso sobre esta entidad');
+          // Sin esta aserción, un 403 emitido por un middleware de la api pasaría el test
+          // igual, y estaríamos probando `validateProjectPermissions` en vez de la traducción.
+          fakeBus.last!.command.should.equal(`requirements.${requirementId}.comment`);
+        });
+    });
+
+    // CA-10 vista desde HTTP: mismo status, `code` distinto. Sin este test, "no se fusionan" es
+    // una afirmación sobre el catálogo y no sobre lo que recibe el front.
+    it('TS-10 (S-030): caller_not_authorized sale también 403, con su propio code', () => {
+      fakeBus.reply(`requirements.${requirementId}.comment`, {
+        status: 'failure',
+        errorCode: 'caller_not_authorized',
+        errorMessage: 'Caller no autorizado',
+      });
+
+      return request(application)
+        .post(`/api/opus/requirements/${requirementId}/comments`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ comment: 'Comentario de prueba' })
+        .expect(403)
+        .then((response) => {
+          response.body.code.should.equal('caller_not_authorized');
+          response.body.message.should.equal('Caller no autorizado');
+          fakeBus.last!.command.should.equal(`requirements.${requirementId}.comment`);
+        });
+    });
+
+    // TS-12 — el guardián de CA-14 en este archivo: SIN reply fijo, con core real ejecutando el
+    // comando. Si se pone rojo, alguien tocó una regla de autorización de la api.
+    it('TS-12 (S-030): el camino feliz del portal sigue en 200, con core real ejecutando', () => {
+      return request(application)
+        .post(`/api/opus/requirements/${requirementId}/comments`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ comment: 'Comentario de prueba' })
+        .expect(200)
+        .then((response) => {
+          response.body.should.have.property('id');
+          response.body.visibilityLevel.should.equal('public');
+          response.body.requirementId.should.equal(requirementId);
+          return RequirementActivity.findByPk(response.body.id);
+        })
+        .then((activity) => {
+          (activity !== null).should.be.true();
         });
     });
   });

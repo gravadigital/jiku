@@ -102,6 +102,31 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   // está escrito arriba para `file_not_owned`. Sin esta entrada saldría 500.
   caller_not_authorized: 403,
 
+  // `access_denied` es el SEGUNDO 403 que emite core y NO SE FUSIONA con el de arriba, aunque
+  // compartan status. Responden preguntas distintas (REQ-007, S-030):
+  //
+  //   caller_not_authorized -> "¿tu rol habilita este método?"  lo decide EL MAPA rol -> método,
+  //                                                             antes de tocar el dominio
+  //   access_denied         -> "¿podés tocar ESTA entidad?"     lo decide LA COMPUERTA, con la
+  //                                                             fila de user_project_permissions
+  //                                                             delante, y SOLO EN MODO EXTERNO
+  //
+  // Fusionarlos obligaría a un futuro consumidor a mapear un código a dos causas: el mismo
+  // argumento que ya está escrito para `unknown_caller` vs `caller_not_authorized`.
+  //
+  // ES 403 Y NO 400 por la misma razón que `file_not_owned`: describe un PERMISO, no una entrada
+  // inválida.
+  //
+  // EL NOMBRE NO SE ELIGIÓ, SE HEREDÓ: esta api ya responde `{ code: 'access_denied' }` con 403
+  // desde `has-any-role.ts` y `validate-project-permission.ts`, y los dos frontends ya lo conocen.
+  // Mantener el par (403, access_denied) es lo que deja mover el rechazo a core sin tocar UI.
+  //
+  // HOY ESTA API NO LO RECIBE, y no es un olvido: sigue autorizando por su cuenta (S-030 CA-14),
+  // así que rechaza antes de publicar. Se mapea igual porque EL MAPA ES DEL SERVICIO, NO DEL
+  // ENDPOINT —el mismo argumento escrito arriba para `file_not_owned`—, y porque el día que S-034
+  // elimine esa regla, sin esta entrada TODOS esos rechazos saldrían 500 en vez de 403.
+  access_denied: 403,
+
   unknown_command: 500,
   internal_error: 500,
 };

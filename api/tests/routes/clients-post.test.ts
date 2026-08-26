@@ -138,4 +138,32 @@ describe('POST /api/clients', () => {
         return Client.count().then((count) => count.should.equal(0));
       });
   });
+
+  /**
+   * S-030 (CA-9, CA-11): EL MAPA ES DEL SERVICIO, NO DEL ENDPOINT. `access_denied` nace en la
+   * compuerta de entidad de core, que solo aplica en MODO EXTERNO —y esta ruta interna nunca lo
+   * va a recibir—, pero se traduce igual: la traducción vive en `httpStatusFor`, que es una sola
+   * para las 27 publicaciones de la api.
+   *
+   * El reply es fijo por la misma razón que en el portal: mientras la api siga autorizando por
+   * su cuenta (CA-14), el rechazo de core no es alcanzable desde una ruta.
+   */
+  it('TS-11: una ruta interna traduce access_denied a 403 igual que la del portal', () => {
+    fakeBus.reply('clients.new', {
+      status: 'failure',
+      errorCode: 'access_denied',
+      errorMessage: 'No tenés permiso sobre esta entidad',
+    });
+
+    return request(application)
+      .post('/api/clients')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ name: 'Adistal' })
+      .expect(403)
+      .then((response) => {
+        response.body.code.should.equal('access_denied');
+        response.body.message.should.equal('No tenés permiso sobre esta entidad');
+        fakeBus.last!.command.should.equal('clients.new');
+      });
+  });
 });
