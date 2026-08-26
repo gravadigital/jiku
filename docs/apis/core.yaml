@@ -1188,6 +1188,11 @@ components:
         - requirement_not_found
         - requirement_project_mismatch
         - daily_limit_exceeded
+        # REQ-007 (S-031): the submission window (C-40) is enforced HERE now, so this command
+        # emits `invalid_date_range`. It was missing from this list while the rule lived in the
+        # api. `daily_limit_exceeded` also carries `errorDetails: { remainingMinutes }` now — see
+        # `Reply.errorDetails`; it is additive and consumers that do not know it ignore it.
+        - invalid_date_range
         - internal_error
         - access_denied
 
@@ -1218,6 +1223,10 @@ components:
         - subscription_not_found
         - worked_time_not_found
         - unworked_time_not_found
+        # REQ-007 (S-031): emitted ONLY by `worked-times.{id}.delete`, whose entry has to fall
+        # inside the submission window. NOT by `unworked-times.{id}.delete` —absences never had
+        # that window and did not gain it— and NOT by the unsubscribe.
+        - invalid_date_range
         - internal_error
         - access_denied
 
@@ -2236,7 +2245,17 @@ components:
         personId:
           type: integer
           minimum: 1
-          description: 'Required, just like in `worked-times.new`.'
+          description: |
+            **Still required, on purpose.** It used to say *"required, just like in
+            `worked-times.new`"* — that sentence went stale with REQ-007 (S-031), where
+            `personId` moved OUT of `required` in `worked-times.new`.
+
+            It did **not** move here: S-031 CA-10 only moved **ownership** to core for absences,
+            not the default resolution. The api keeps its `resolvePersonId` for this route.
+
+            > **Ownership (REQ-007, S-031):** if the Person is not the actor's own and the actor
+            > is not `admin`, core answers `access_denied`. Same rule as `worked-times.new`
+            > (C-41), and the same one that guards `unworked-times.{id}.delete`.
 
 tags:
   - name: clients

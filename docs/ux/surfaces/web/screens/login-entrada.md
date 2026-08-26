@@ -17,7 +17,7 @@ date: 2026-08-18
 ## Identidad
 
 - **Audiencia primaria:** equipo-interno. No declara auth — está fuera de `(loggedin)` —, pero en la práctica solo se llega acá con sesión, porque es el `callbackUrl` de `signIn` [fuente: código-existente].
-- **JTBD / Propósito:** pantalla de tránsito. Llama a `POST /auth/present` en la api y redirige a `/`. No tiene UI propia en el happy path [fuente: código-existente].
+- **JTBD / Propósito:** pantalla de tránsito. Llama a `POST /auth/present` en la api y redirige a `/`. No tiene UI propia en el happy path [fuente: código-existente]. **Desde REQ-007 esa llamada no protege de nada**: el 401 `user_not_found` que justificaba el paso desapareció de las 61 rutas de la api (CA-12).
 - **Viewports:**
   - **desktop** — único viewport. No renderiza nada en el happy path; los bloques de `loading.tsx` y `error.tsx` se muestran dentro del layout partido de `/login`, sin tratamiento responsive.
   - Mobile queda fuera de la superficie `web`: el shell tiene la sidebar fija en 290px sin ninguna media query, así que no hay navegación bajo ese ancho (evidencia: `web/src/app/(loggedin)/styles.module.scss:1-26`) [fuente: código-existente].
@@ -125,8 +125,10 @@ También dentro del layout partido de `/login`, sin estilos propios (elementos `
 - Aplica: No — no implementado (ver gaps-as-is.md)
 
 ### fallo de `POST /auth/present`
-- Aplica: No — no implementado (ver gaps-as-is.md). Se traga con `console.warn` y el flujo continúa al redirect. Un usuario que no quedó registrado en la api entra igual, y recién falla en la primera pantalla que pida datos (401 → el interceptor lo devuelve a `/login`) (`authApi.ts:19-21`, `axios.ts:46-51`) [fuente: código-existente].
-- **Precisión con REQ-005:** el alta automática de usuarios **ya existe en el producto**, pero no por este camino. Desde REQ-005 toda identidad que se autentica **en el bus** queda dada de alta sola, sin aprobación (RF-4); quien entra por `web` sigue sin alta y sigue cayendo en este mismo bucle de 401 (CA-17). O sea: la pantalla no cambia, pero **la razón por la que el usuario queda afuera dejó de ser "el producto no da de alta a nadie" y pasó a ser "no da de alta por esta puerta"**. El caso sigue abierto en FG-1
+- Aplica: No — no implementado (ver gaps-as-is.md). Se traga con `console.warn` y el flujo continúa al redirect (`authApi.ts:19-21`) [fuente: código-existente].
+- **Precisión con REQ-005:** el alta automática de usuarios **ya existe en el producto**, pero no por este camino. Desde REQ-005 toda identidad que se autentica **en el bus** queda dada de alta sola, sin aprobación (RF-4); quien entra por `web` seguía sin alta y seguía cayendo en un bucle de 401 (CA-17). O sea: la pantalla no cambia, pero **la razón por la que el usuario queda afuera dejó de ser "el producto no da de alta a nadie" y pasó a ser "no da de alta por esta puerta"**.
+- 🟢 **Y con REQ-007 la puerta se abrió: el bucle no existe más.** La api arma `req.user` **del claim** y deja de exigir fila previa, así que el 401 `user_not_found` desapareció de las 61 rutas (CA-12); y `core` crea o actualiza la fila de `users` con el sobre de identidad que viaja en cada comando, incluso con la tabla vacía (CA-9, CA-10, CA-11). El resultado observable: **una persona que se autentica por primera vez en `web` opera normalmente desde la primera pantalla**, aunque `presentInApi` falle entero. Lo que este REQ resuelve de FG-1 es exactamente esto —el alta automática—; **lo que queda abierto en FG-1 es otra cosa**: el alta de Personas y la administración de `user_project_permissions` por interfaz.
+- El estado sigue sin implementarse y **ahora es correcto que siga así**: el fallo dejó de tener consecuencia para el usuario, así que no hay nada que informarle
 
 ## Interacciones
 
@@ -155,4 +157,12 @@ También dentro del layout partido de `/login`, sin estilos propios (elementos `
 - **No se agrega ningún bloque, y la revisión sirvió igual.** REQ-005 preguntó explícitamente si el 401 `user_not_found` seguía contándose igual. La respuesta es que sí para el usuario de esta superficie (CA-17), pero el enunciado que lo explicaba —"el producto no escribe `users`"— quedó falso: ahora sí lo escribe, por el evento del bus. Se corrigió la precisión del estado en vez de inventar un mensaje que el código no tiene.
 - **Se descartó mostrarle al usuario que existe un camino de alta que no es el suyo.** Sería exacto y sería inútil: el usuario de `web` no puede conectarse al bus para provisionarse, así que la información no habilita ninguna acción. El silencio se mantiene, y sigue siendo un gap de FG-1, no de este REQ.
 - **Se revisó `sin-permisos` y no cambia.** Es la pantalla del `external-user` redirigido desde `(loggedin)`, un corte por rol y no por ausencia de fila en `users`: REQ-005 no la toca.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla.
+
+### REQ-007 — `jiku-commands` para personas (2026-08-25)
+
+- **No cambia ningún bloque, y cierra el caso que REQ-005 dejó abierto.** Es la tercera revisión seguida sobre el mismo estado no implementado, y esta vez el cambio es de signo: el 401 `user_not_found` **desapareció** de las 61 rutas de la api (CA-12), y con él el bucle donde un usuario nuevo entraba, pedía datos y volvía a `/login` sin saber por qué. La cadena `login → login-entrada → /` funciona ahora para cualquier identidad autenticada, tenga o no fila previa en `users`.
+- **Se descartó agregar un mensaje de éxito o cualquier bloque nuevo.** No hay nada que celebrar en una pantalla que el usuario no ve: el happy path de `login-entrada` es no verla, y sigue siéndolo. La mejora es la **ausencia** de un error, y las ausencias no se renderizan.
+- **Se descartó marcar el estado como "ya no aplica" y borrarlo.** El estado se conserva declarado —el `POST` puede seguir fallando— y lo que se corrigió es su consecuencia. Borrarlo dejaría el documento sin registro de por qué esa llamada existe todavía.
+- **Se verificó `sin-permisos` y no cambia.** Es el corte del `external-user` redirigido desde `(loggedin)`: depende del **rol**, no de la ausencia de fila en `users`. REQ-007 no toca ese corte —los `external-user` siguen sin poder entrar a `web`— así que la pantalla queda igual. Verificado, no asumido.
 - **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla.

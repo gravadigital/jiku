@@ -59,6 +59,17 @@ secundario.
   nombre de un servicio creyendo que es alguien del equipo. **En mobile no aparece**, porque la card
   del acordeón no muestra autor: ahí el cliente lo descubre recién al abrir el requisito (RF-3,
   RF-10).
+- **Primera entrada de un cliente al que todavía no le dieron acceso** — Camino de entrada **nuevo
+  desde REQ-007**, y el que más gente nueva va a recorrer. Hasta acá, una identidad autenticada sin
+  fila en `users` chocaba contra un 401 `user_not_found` y no entraba; ese 401 desapareció de las 61
+  rutas de la api, así que ahora **entra** y la api le devuelve `200 []` porque no tiene ninguna fila
+  en `user_project_permissions` (CA-12, CA-13). Recorre `login → login-entrada → proyectos-redireccion`
+  y **se queda ahí**: es el estado `empty`, que dejó de ser un borde para ser la pantalla de
+  bienvenida de todo cliente nuevo. Ve *"Todavía no tenés acceso a ningún proyecto"*, un texto que le
+  dice que el acceso lo concede el equipo y a quién escribirle, y un botón de **Cerrar sesión** —que
+  en mobile es la única salida que existe, porque el sidebar no se renderiza. **El happy path arranca
+  recién cuando alguien le concede el permiso desde afuera del portal**, y el cliente lo descubre en
+  su próxima visita: no hay notificación ni polling.
 - **Entrar desde un link viejo de adjunto** — Camino de entrada **nuevo desde REQ-002**. Alguien
   abre `/attachments/123/informe.pdf` desde un correo de hace meses: la ruta ya no existe y
   `attachments` salió del matcher, así que el guard lo alcanza y lo manda a **login** (RF-1, RF-2,
@@ -70,9 +81,17 @@ secundario.
 
 ### Errores y recuperación
 
-- **Sin proyectos asignados** — El sidebar queda vacío y aparece **"No tienes proyectos
-  asignados"**. El mensaje es **ambiguo**: no distingue entre "no te asignaron ninguno todavía",
-  "perdiste el permiso" y "tu alta falló". El cliente no tiene ninguna acción posible desde acá.
+- **Sin proyectos asignados** — **Ya no es un error: es el estado de entrada de todo cliente nuevo**
+  [REQ-007 CA-13]. Se mantiene listado acá porque el cliente lo puede leer como una falla si la
+  pantalla no le explica nada, que es exactamente lo que pasaba antes. El sidebar queda vacío y la
+  pantalla dice **"Todavía no tenés acceso a ningún proyecto"** más un cuerpo que nombra la causa y
+  la vía de resolución. De las tres lecturas ambiguas que tenía el mensaje anterior, **"tu alta
+  falló" dejó de existir** —con REQ-007 no hay alta que fallar, `core` espeja la identidad desde el
+  comando (CA-9, CA-11)—; las otras dos, "no te asignaron ninguno todavía" y "perdiste el permiso",
+  siguen sin distinguirse **a propósito**: el portal no le confirma a un externo qué existe del otro
+  lado (REQ-006 §22). El cliente ahora sí tiene una acción posible: **cerrar sesión**. Lo que no
+  tiene es forma de pedir el acceso desde el producto — `user_project_permissions` no tiene interfaz
+  de administración (FG-1) y no hay canal de notificación (FG-2).
 - **Fallan las 7 queries del tablero** — **Se ve un tablero vacío, indistinguible de un proyecto
   sin requisitos** [fuente: código-existente]. No hay estado de error.
 - **`projectId` inexistente** — **No da 404**: no hay `not-found.tsx` en ninguna ruta.
@@ -88,7 +107,10 @@ secundario.
   puede entrar ni a quién pedirle acceso.
 - **En mobile** — 🔴 **No hay navegación.** El sidebar desaparece y no se monta reemplazo: el
   cliente **no puede cambiar de proyecto ni cerrar sesión**. Si entró desde un link a un proyecto,
-  queda encerrado en él.
+  queda encerrado en él. **Con una excepción desde REQ-007:** en el estado sin proyectos, el botón
+  de cerrar sesión vive en la pantalla y no en el chrome, así que ahí sí hay salida. Es un parche
+  puntual sobre el recorrido que el REQ vuelve frecuente, **no** la solución del gap: montar el
+  `MobileMenu` sigue pendiente (pregunta abierta 1 de la superficie).
 
 ### Estado final
 
@@ -102,6 +124,9 @@ de cualquiera de ellos.
 - La pregunta "¿avanzó lo que pedí?" debería responderse **desde la primera pantalla**, sin abrir
   nada
 - El flujo debería funcionar desde un teléfono — **hoy no funciona**
+- Un cliente que entra por primera vez y todavía no tiene acceso debería entender **que el producto
+  funciona y que le falta un permiso**, no creer que se rompió — criterio **nuevo desde REQ-007**,
+  que es el que convierte ese recorrido en el más frecuente de los primeros
 
 ---
 

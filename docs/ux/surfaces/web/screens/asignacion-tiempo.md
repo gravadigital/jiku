@@ -243,6 +243,8 @@ La tabla usa `@include table-container` (`WeeklyAllocationTable.module.scss:29`)
 - Aplica: Sí
 - Mensaje: toast `"Cambios guardados correctamente"` (`:278`)
 - Cambios: solo el toast. El error del guardado usa toast `error.message` o `"Error al guardar los cambios"` (`:282-283`)
+- **REQ-007: el guardado pasa a escribirse por el bus, y hereda el desdoblamiento 503/504.** Hasta acá `PUT /api/week-assigned-times` era la única escritura de dominio que la api hacía con el ORM (excepción 3 de ADR-001), así que el resultado era binario: o commiteó o revirtió. Con REQ-007 la api publica el comando `week-assigned-times.replace` y relee (CA-20, CA-21), de modo que aparece un tercer resultado que esta pantalla nunca tuvo: **`504 gateway_timeout` — "La operación tardó demasiado" —, donde la semana pudo haberse reemplazado o no** [REQ-004 RF-16, CA-9]. El toast ya renderiza `error.message`, así que el texto llega solo y **no hace falta agregar ningún bloque**. Lo que no llega es la recuperación: con un 504 el `admin` tiene que **recargar la semana antes de volver a guardar**, y nada en la pantalla se lo dice. Se registra como gap que **nace con este REQ**
+- **El caso no es benigno acá.** El comando es un reemplazo de la semana entera —borra y recrea—, así que un reintento a ciegas tras un 504 no duplica filas, pero **puede pisar con el estado local una semana que ya se había guardado bien**, y los cambios sin guardar de esta pantalla se pierden al cambiar de semana sin aviso
 
 ### not found
 - Aplica: No — no implementado (ver gaps-as-is.md)
@@ -253,7 +255,7 @@ La tabla usa `@include table-container` (`WeeklyAllocationTable.module.scss:29`)
 - Cambios:
   - celda-editable: oculta en este estado; en su lugar se renderiza celda-lectura (`:296`)
   - boton-guardar: **no se renderiza** (`:436`)
-- Disparado por `!isAdmin || !isWeekEditable(weekStart)` (`:170-171`). Regla de editabilidad copiada del código (`:155-171`): **los domingos**, solo las semanas **futuras** son editables (`week > currentMonday`); **el resto de los días**, la semana actual y las futuras (`week >= currentMonday`); y siempre, además, `isAdmin`. El comentario del código dice *"On Sunday, only future weeks are editable"* / *"On other days, current and future weeks are editable"*, sin decir por qué el domingo es distinto
+- Disparado por `!isAdmin || !isWeekEditable(weekStart)` (`:170-171`). **Desde REQ-007 las dos primeras condiciones también viven en el servidor**: el mapa rol → comando de `core` autoriza `week-assigned-times.replace` solo a `admin` (CA-20) y rechaza una semana pasada con `invalid_date_range` (CA-21). La UI seguía siendo la única defensa; ahora es la primera de dos. Para el usuario no cambia nada —los mismos status y los mismos códigos (CA-8)— y el gap tampoco: la razón de no poder editar **sigue sin decirse**. Regla de editabilidad copiada del código (`:155-171`): **los domingos**, solo las semanas **futuras** son editables (`week > currentMonday`); **el resto de los días**, la semana actual y las futuras (`week >= currentMonday`); y siempre, además, `isAdmin`. El comentario del código dice *"On Sunday, only future weeks are editable"* / *"On other days, current and future weeks are editable"*, sin decir por qué el domingo es distinto
 - Nota: con tres condiciones posibles (no sos admin, es una semana pasada, es domingo y es la semana actual), la UI simplemente muestra texto en vez de inputs y hace desaparecer el botón, sin explicar cuál aplica
 
 ## Interacciones
@@ -274,7 +276,7 @@ La tabla usa `@include table-container` (`WeeklyAllocationTable.module.scss:29`)
 - Total por proyecto (columna) y por persona (fila de total), recalculados en vivo
 - Banner de precarga
 - Spinner en el botón de guardar
-- Toasts de resultado
+- Toasts de resultado. **Desde REQ-007 el toast de error puede traer un mensaje nuevo** —`"La operación tardó demasiado"`— que significa "no sé si se guardó": es la primera vez que esta pantalla tiene un resultado que no es ni éxito ni fracaso (ver el estado `success`)
 - Las horas se derivan del porcentaje con `hoursPerDay`, que viene de `GET /settings/hours-per-day` (`:88-91`); cada celda muestra las dos cosas (`:322-323`)
 
 **Pérdida de datos** [fuente: código-existente]: **los cambios sin guardar se pierden al cambiar de semana, sin aviso.** El `useEffect` de `:190-199` repuebla `localAllocations` con los datos de la semana nueva (`:367`).
@@ -289,3 +291,11 @@ La tabla usa `@include table-container` (`WeeklyAllocationTable.module.scss:29`)
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-007 — `jiku-commands` para personas (2026-08-25)
+
+- **No cambia ningún bloque, y es la pantalla de `web` que más cambia por dentro.** REQ-007 saca a esta grilla de su excepción: `PUT /api/week-assigned-times` deja de escribir con el ORM en la api y pasa a publicar un comando (CA-20, CA-21). El contrato HTTP es el mismo (CA-8), así que la composición no se toca; lo que cambia es el **conjunto de desenlaces posibles del guardado**, que gana el `504 gateway_timeout` que las otras escrituras del producto ya tenían desde REQ-004.
+- **Se descartó diseñar el mensaje de recuperación del 504.** Es el arreglo correcto y no es de este REQ: el REQ declara `web` sin cambios de UI, y el texto que hace falta —"recargá la semana antes de volver a guardar"— es una decisión de contenido sobre una pantalla que tampoco avisa hoy que los cambios sin guardar se pierden al cambiar de semana. Los dos gaps son el mismo problema y se resuelven juntos o no se resuelven.
+- **Sí se registró que el gap nace acá y no se hereda.** El `.md` de esta pantalla decía —y el flujo 3 de `user-flows.md` lo decía más fuerte— que el desdoblamiento 503/504 **no aplicaba** a esta pantalla. Era cierto y dejó de serlo: si no se corrige, el documento miente en la dirección más cara, la de "no hace falta pensar en esto".
+- **Se descartó tocar el estado `estado terminal / readonly`.** La regla de editabilidad ahora se valida también en `core`, pero eso no cambia lo que ve el usuario ni el gap de que la razón nunca se dice. Se anotó la duplicación en el estado y nada más.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla.

@@ -110,18 +110,37 @@ sirve core, en [`docs/apis/core.yaml`](../../../apis/core.yaml).
 
 ### El usuario que actúa
 
-Core **no conoce roles ni usuarios finales**: confía en el `creator` / `author` / `editor` que
-viaja en el cuerpo. Ese id lo pone la api desde el token.
+> **Esta sección describía el modelo ANTERIOR AL SOBRE.** Decía: *"Core **no conoce roles ni
+> usuarios finales**: confía en el `creator` / `author` / `editor` que viaja en el cuerpo"*. **S-029
+> lo derogó.**
+
+**El sobre de identidad lo inyecta `sendCommand`, en el embudo — no las rutas.** `withActor`
+(`lib/utils/bus/send-command.ts`) agrega una clave reservada `actor` a todo comando publicado,
+armada por `buildActor` **desde el claim verificado** (`req.decodedToken.sub` + los roles del
+token), nunca desde `req.user`:
+
+```ts
+return { ...payload, actor };   // el sobre va DESPUÉS del spread: gana el del token
+```
+
+**Una ruta nueva nace con sobre**: no hay nada que recordar en el handler. Y si un payload trajera
+su propia clave `actor`, gana el del token — identidad declarada por el cuerpo es exactamente el
+agujero que el sobre cierra.
+
+**Los campos de dominio `creator` / `author` / `editor` siguen existiendo y no desaparecen**, pero
+**ya no son la fuente de identidad**: son datos del recurso. El helper que los llena se llama
+`actorId(req)` y no `actor`, porque `actor` es ahora el nombre de la clave reservada del mensaje.
 
 ```ts
 const data = await sendCommand(res, 'requirements.new', {
-  creator: req.user.id,      // o actor(req), el helper de send-command.ts
+  creator: actorId(req),     // campo DE DOMINIO; el sobre viaja aparte y solo
   ...
 });
 ```
 
-> El `user-id` del **subject** identifica al service user de la api, no a la persona. Por eso el
-> usuario final tiene que ir en el cuerpo.
+> El `user-id` del **subject** sigue identificando al service user de la api. Lo que cambió es que
+> la persona ya no depende de un campo de dominio: viaja en el sobre, y `core` lo extrae en el
+> despachador — "el sobre es del transporte, no del dominio".
 
 ## Traducción de errores a HTTP
 
@@ -215,13 +234,20 @@ variable de entorno.
 - Después de `sendCommand`, chequeá `if (!data) return;`. Después de `runCommand`,
   `if (!ok) return;`. Sin eso se responde dos veces.
 - Usá `runCommand` cuando el comando no devuelve datos, y `sendCommand` cuando sí.
-- El usuario que actúa va en el cuerpo (`creator` / `author` / `editor`), tomado de
-  `req.user.id`. Nunca lo tomes del cuerpo de la request.
+- **La identidad viaja en el sobre**, y lo inyecta `sendCommand`: no la agregues a mano. Los
+  campos de dominio (`creator` / `author` / `editor`) se siguen llenando con `actorId(req)`. Nunca
+  tomes la identidad del cuerpo de la request.
 - Un `errorCode` nuevo en core se agrega a `STATUS_BY_ERROR_CODE`, o sale 500.
 - Los campos opcionales van con spread condicional, no con `undefined` explícito.
 - Las traducciones de nombres o formatos van en `lib/utils/bus/`, no en el handler.
-- Si el comando necesita el rol, el usuario final o la fecha de hoy para validarse, esa
-  validación se queda en la api: core no tiene esos datos.
+- **Si el comando necesita el rol, el usuario final o la fecha de hoy para validarse, ESO YA NO LO
+  DEJA EN LA API.** La regla anterior —*"esa validación se queda en la api: core no tiene esos
+  datos"*— **quedó derogada por el sobre de S-029**: `core` recibe el actor y sus roles en cada
+  comando. El criterio nuevo es **de quién es la regla**: si decide si la operación puede ocurrir
+  sobre estos datos y tiene que dar el mismo resultado por HTTP y por el bus, **va al comando de
+  `core`**; si es del transporte HTTP —la forma del input, la traducción de nombres de contrato, el
+  404 de la entidad del path, un código que el protocolo del bus no tiene— se queda acá. REQ-007
+  (S-031/S-032/S-033) es la migración que aplicó ese criterio.
 - No agregues reintento automático: los comandos no son idempotentes.
 - En los tests, usá el `FakeBus`. Ver [`testing`](./testing.md).
 

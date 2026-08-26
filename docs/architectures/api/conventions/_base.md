@@ -89,10 +89,13 @@ con 61 archivos.
 
 - En los bordes HTTP, las fechas van como las manda Sequelize al serializar. Los comandos del
   bus que llevan un día llevan `YYYY-MM-DD`: `new Date(date).toISOString().split('T')[0]`
-  (`lib/routes/worked-times-post.ts:122`).
+  (`lib/routes/worked-times-post.ts`).
 - Los contenedores fijan `TZ=UTC` (`Dockerfile:5`). No dependas de la zona del host.
-- Las reglas de calendario (ventana de carga, semana no pasada) comparan contra `new Date()`
-  normalizado con `setHours(0,0,0,0)`. Si escribís una regla así, normalizá los dos lados.
+- Las reglas de calendario que **quedan en la api** (el deadline de 10 días para borrar una
+  ausencia, la semana no pasada) comparan contra `new Date()` normalizado. Si escribís una regla
+  así, normalizá los dos lados. **La ventana de carga de horas ya no es un ejemplo de este
+  servicio**: se mudó a `core` con REQ-007 (S-031), donde se compara sobre strings `YYYY-MM-DD`
+  normalizados en UTC.
 
 ## Comentarios
 

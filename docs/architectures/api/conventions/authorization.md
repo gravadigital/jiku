@@ -35,7 +35,7 @@ La capa 1 está en [`auth-jwt`](./auth-jwt.md). Acá van la 2 y la 3.
 
 | Rol | Alcance |
 |---|---|
-| `admin` | todo, más imputar horas a terceros y editar la asignación semanal |
+| `admin` | todo, más editar la asignación semanal. **Imputar horas a terceros también es suyo, pero desde REQ-007 (S-031) no lo verifica la api**: la regla vive en `core` y llega como `access_denied` en el reply |
 | `user` | equipo interno: proyectos, requisitos, tareas, sus propias horas |
 | `external-user` | solo `/api/opus/*`, y solo los proyectos concedidos en `user_project_permissions` |
 
@@ -132,11 +132,17 @@ archivo. Los casos vivos:
 
 | Regla | Dónde |
 |---|---|
-| Solo `admin` imputa horas a otra persona | `worked-times-post.ts:57-83` |
-| Solo el dueño borra su registro de horas | `worked-times-id-delete.ts:50-70` |
 | Un `external-user` solo se suscribe a sí mismo | `opus-requirements-id-subscriptors-userid-delete.ts:11-16` |
 | El usuario a suscribir tiene permiso en el proyecto | `opus-requirements-id-subscriptors-post.ts:27` |
 | Solo el autor edita su comentario | `objectives-id-comments-cid-patch.ts:41-50` |
+
+> **REQ-007 (S-031) — dos filas se fueron de esta tabla.** Eran *"Solo `admin` imputa horas a otra
+> persona (`worked-times-post.ts:57-83`)"* y *"Solo el dueño borra su registro de horas
+> (`worked-times-id-delete.ts:50-70`)"*. Las dos, más la misma titularidad en las rutas de
+> ausencias, **las aplica ahora `core`**, que es el único servicio que escribe: llegan como
+> `access_denied` en el reply y salen **403**, igual que antes. Con el sobre de identidad de S-029
+> `core` conoce al actor y sus roles, así que una autorización que decide *"¿podés hacer esto con
+> estos datos?"* ya no tiene por qué quedarse del lado del transporte.
 
 Y el filtrado por permiso en listados, que no es un 403 sino un `where`:
 

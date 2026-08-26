@@ -21,6 +21,7 @@ import { Actor, ErrorCode } from '@jiku/nats-protocol';
 import logger from '../../src/logger';
 import { sequelize } from '../../src/models';
 import { dispatch } from '../helpers/dispatch';
+import { HOY } from '../helpers/dates';
 import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
 
 /**
@@ -466,7 +467,9 @@ describe('el sobre de identidad · el espejo sobre `users`', () => {
     });
 
     const reply = await dispatch('worked-times.new', {
-      actor: SOBRE, date: '2026-08-25', minutes: 60, projectId, personId: 999999,
+      // FECHA RELATIVA (S-031): con la ventana de carga en core, un literal deja de ser válido a
+      // los once días de escribirlo. La aserción de este test no cambia.
+      actor: SOBRE, date: HOY, minutes: 60, projectId, personId: 999999,
     });
 
     reply.errorCode!.should.equal(ErrorCode.PERSON_NOT_FOUND);

@@ -237,8 +237,22 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
 
 ## Lo que un comando NO hace
 
-- **No valida permisos ni roles.** Eso es de la api, que es quien conoce al usuario final. Core
-  confía en el `creator`/`author`/`editor` del cuerpo.
+- **No decide si un rol habilita un método.** Eso es de la **compuerta** del despachador
+  (`authorize-caller.ts`, S-030): *"¿tu rol habilita este método?"*. El comando decide otra
+  pregunta: *"¿podés hacer esto con estos datos?"*.
+
+  > **Esta línea afirmaba que decidir sobre permisos y roles era de la api, «que es quien conoce
+  > al usuario final», y S-031 la derogó.** La premisa era cierta hasta S-029: el `sub` del subject es
+  > el service user de la api (ADR-007), así que core no conocía a la persona. **Con el sobre de
+  > identidad la conoce**, y desde S-031 los comandos de tiempos aplican reglas que dependen de
+  > quién actúa: la ventana de carga (C-40), quién imputa horas a otra persona (C-41) y la
+  > titularidad del registro al borrar. Un comando que necesite decidir sobre el actor usa
+  > `resolveActor(ctx, ...)` y `ctx.roles` —los roles que el despachador ya resolvió, sin una
+  > consulta nueva—, **nunca** una escalera de identidad propia ni un `SELECT` sobre `users`.
+  >
+  > **Sin actor no se evalúan las reglas derivadas del actor.** `resolveActor` devuelve `undefined`
+  > en el canal exento (el publicador de confianza sin sobre) y ahí `ctx.roles` es `[]`: es la misma
+  > decisión que S-030 tomó para la clase `connector`, *"el caller autoriza por su cuenta"*.
 - **No abre ni cierra transacciones.**
 - **No lanza.** Un error esperado es un `Reply` de falla; uno inesperado lo captura el despachador.
 - **No lee `process.env`.** Las constantes de negocio son constantes de módulo.

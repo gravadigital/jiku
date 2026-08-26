@@ -28,7 +28,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 |---|---|---|---|---|---|
 | 1 | home-vacia | Raíz de la aplicación | equipo-interno | solo desktop | — *(ver Preguntas Abiertas)* |
 | 2 | login | Entrada al sistema vía OIDC | equipo-interno | solo desktop | C-67 |
-| 3 | login-entrada | Callback post-OIDC, sin UI propia | equipo-interno | solo desktop | C-67, REQ-005 |
+| 3 | login-entrada | Callback post-OIDC, sin UI propia | equipo-interno | solo desktop | C-67, REQ-005, REQ-007 |
 | 4 | sin-permisos | Corte de acceso para `external-user` | equipo-interno | solo desktop | C-70 |
 | 5 | listado-actores | Ver los actores y su cartera de proyectos | equipo-interno | solo desktop | C-01, C-02 |
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
@@ -48,7 +48,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
 | 22 | tareas-por-responsable | Ver las tareas agrupadas por responsable | equipo-interno | solo desktop | C-30 |
-| 23 | asignacion-tiempo | Planificar capacidad semanal en grilla proyecto × persona | equipo-interno (`admin`) | solo desktop | C-34..C-38 |
+| 23 | asignacion-tiempo | Planificar capacidad semanal en grilla proyecto × persona | equipo-interno (`admin`) | solo desktop | C-34..C-38, REQ-007 |
 | 24 | carga-horas | Cargar las horas y ausencias del día | equipo-interno | solo desktop | C-39..C-48 |
 | 25 | reporte-horas | Reportar horas con tabla jerárquica de 4 niveles | equipo-interno | solo desktop | C-49 |
 
@@ -58,6 +58,18 @@ del grupo `(loggedin)` [fuente: código-existente].
 > **Todas las pantallas son `solo desktop`.** No es una decisión por pantalla sino del shell: la
 > sidebar mide 290 px fijos y el layout no tiene ningún media query, así que bajo ~1000 px no hay
 > navegación. Ver [`grid.md`](../../../design-system/web/foundations/grid.md).
+
+> **REQ-007 no agrega ni quita pantallas, y toca dos.** Habilitar `jiku-commands` para personas no
+> tiene interfaz: quien publica un comando lo hace desde un cliente NATS. Lo user-visible son dos
+> consecuencias. **(1)** El 401 `user_not_found` **desaparece de las 61 rutas de la api** (CA-12) y
+> `core` da de alta la identidad desde el propio comando (CA-9, CA-11): el bucle donde un usuario
+> nuevo entraba, pedía datos y volvía a `/login` **deja de existir**, y `login-entrada` cierra el
+> caso que REQ-005 había dejado abierto. **(2)** `asignacion-tiempo` deja de ser la única escritura
+> de dominio que no pasa por el bus (CA-20, CA-21), así que su guardado hereda el desdoblamiento
+> 503/504 de REQ-004 y aparece un desenlace que esa pantalla nunca tuvo: *"pudo haberse guardado"*.
+> **Se verificó `sin-permisos` y no cambia** —corta por rol, no por ausencia de fila en `users`— y
+> se verificó que ninguna otra vista dependa del 401 como señal. Ninguna pantalla gana ni pierde
+> bloques [REQ-007].
 
 > **REQ-005 no agrega ni quita pantallas, y toca tres.** El evento de autenticación del bus no
 > tiene interfaz; lo que sí es user-visible es su consecuencia: desde REQ-005 una **identidad de
@@ -156,7 +168,11 @@ Pantallas: home-vacia (#1), login (#2), login-entrada (#3), sin-permisos (#4)
   puede editar: la grilla de asignación semanal es de solo lectura para `user`, y solo `admin`
   puede cargar horas en nombre de otra persona.
 - **Sesión vencida** — El interceptor de axios redirige a `/login` ante un 401. La sesión dura
-  12 h.
+  12 h. **Desde REQ-007 ese 401 significa una sola cosa.** Antes había dos 401 indistinguibles para
+  la interfaz —token vencido y `user_not_found`— y el segundo mandaba a `/login` a alguien cuya
+  sesión estaba perfecta, produciendo un bucle sin explicación. El `user_not_found` ya no existe en
+  ninguna ruta (CA-12), así que un redirect a `/login` ahora quiere decir exactamente *"tu sesión
+  venció"*.
 - **Sin conexión** — **No hay tratamiento.** No hay banner, ni modo offline, ni reintento visible.
 
 ## Mapa Visual

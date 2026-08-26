@@ -4,8 +4,8 @@ title: Autenticación y entrada al sistema
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-24
-stories: [S-023]
+last_updated: 2026-08-25
+stories: [S-023, S-029, S-034]
 ---
 
 # Autenticación y Entrada al Sistema
@@ -13,8 +13,25 @@ stories: [S-023]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-24
-**Stories:** —
+**Última actualización:** 2026-08-25
+**Stories:** S-023, S-029, S-034
+
+> ## REQ-007 — el problema que este flujo documenta DEJA DE EXISTIR
+>
+> Este documento existe en parte para señalar *"el punto donde el producto falla para un usuario
+> nuevo"*. **S-034 lo elimina.**
+>
+> | Paso | Qué cambia | Story |
+> |---|---|---|
+> | **3** — *"el paso que no hace nada"* | `POST /api/auth/present` **sigue siendo un no-op**, pero **su razón de ser desaparece**: ya no hay fila que crear ni 401 que evitar. La nota del diagrama *"NO-OP: no crea la fila de users"* **deja de ser un problema** | S-034 |
+> | **4** — *"Primera request de datos — donde el problema aparece"* | **El problema deja de existir.** La rama `alt sin fila en users → 401 user_not_found` **se elimina del diagrama**, y con ella la fila *"única solución hoy: `INSERT` a mano (FG-1)"*. **El título del paso hay que cambiarlo** | S-034 |
+> | **de dónde sale `req.user`** | `validateToken` **deja de hacer `User.findByPk(sub)`** y lo arma **del claim** ya verificado. Las 61 rutas siguen teniendo `req.user.id` sin tocarlas una por una, y **se elimina un `SELECT` por request** | S-034 |
+> | **la excepción de `/api/auth/present`** | **Se elimina** de `validate-token.ts:115`: ya no hay chequeo del que eximirla | S-034 |
+> | **quién crea la fila** | **El primer comando que la persona ejecuta.** `core` espeja la identidad desde el sobre que la api transporta | S-029 |
+>
+> **El `401 unauthorized` (sin token / token inválido) NO cambia.** Solo desaparece la variante
+> `user_not_found`.
+
 
 ## Descripción
 

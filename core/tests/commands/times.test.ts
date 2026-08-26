@@ -2,9 +2,13 @@ import 'mocha';
 import 'should';
 import { Objective, Person, Project, Requirement, UnworkedTime, User, WorkedTime } from '@jiku/models';
 import { dispatch } from '../helpers/dispatch';
+import { HOY } from '../helpers/dates';
 
 const CREATOR = 'zitadel-sub-times';
-const DATE = '2026-05-04';
+// LA FECHA DE LOS FIXTURES ES RELATIVA A HOY, y no es cosmética: desde S-031 la ventana de carga
+// (C-40) vive en core, así que un literal del pasado —acá había `'2026-05-04'`— hace que estos 14
+// despachos respondan `invalid_date_range` en vez de lo que cada test afirma. Ver `helpers/dates`.
+const DATE = HOY;
 
 describe('times', () => {
   let projectId: number;

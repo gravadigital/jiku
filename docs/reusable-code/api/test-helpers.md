@@ -6,6 +6,67 @@ The `FakeBus` (`api/tests/mocks/bus.ts`) is installed for the whole run by
 `api/tests/setup-env.ts` and reset before each test by a root hook, so a test **never** calls
 `setBus`. It exposes `fakeBus` as a singleton.
 
+## dayOffset / HOY / HOY_M10 / HOY_M11 / MANANA
+
+**Location:** `api/tests/helpers/dates.ts`
+
+**Description:** Dates relative to *today*, as `YYYY-MM-DD` strings, for every suite that touches
+worked or unworked times. `dayOffset(n)` returns the day `n` days from today; the four constants
+name the boundaries the submission window is defined by — `HOY` (today, inside), `HOY_M10` (the
+exact lower edge, inside), `HOY_M11` (the first day outside, backwards) and `MANANA` (the first day
+outside, forwards).
+
+**Why it exists:** since S-031 the submission window (*the current day and the 10 previous ones*)
+is enforced by `core`, and its exact edges have to be tested from the api too. The three
+time-tracking suites each declared their own `getDateStr`, and two of their constants **lied** about
+the offset they returned (`eightDaysAgoStr = getDateStr(-11)`, `tenDaysAgoStr = getDateStr(-11)`):
+three definitions of the same temporal reference are three chances for a divergence to go unnoticed.
+It is deliberately the **mirror** of `core/tests/helpers/dates.ts` — the parity test of CA-14 only
+reads well if both halves spell the same boundary with the same name.
+
+**Why not `mockdate`,** which the `testing` convention also offers: the `FakeBus` runs `core` **in
+the same process**, so freezing the clock would also freeze `isWithinSubmissionWindow` inside core.
+It works, but it couples the test to a detail of the double.
+
+**Why it lives outside a `.test.ts`:** four files need it, and mocha does not load it as a suite —
+importing a test file from another one would reorder the registration of the `describe`s.
+
+**Signature:**
+
+```ts
+export function dayOffset(days: number): string
+export const HOY: string      // hoy
+export const HOY_M10: string  // hoy − 10, the exact lower edge, inside the window
+export const HOY_M11: string  // hoy − 11, the first day outside
+export const MANANA: string   // hoy + 1, the first day outside going forwards
+```
+
+**Usage example:**
+
+```ts
+import { HOY_M10, HOY_M11 } from '../helpers/dates';
+
+it('acepta el borde inferior exacto de la ventana (hoy − 10)', () => {
+  return request(application)
+    .post('/api/worked-times')
+    .send({ date: HOY_M10, minutes: 60, projectId: 1 })
+    .set('Authorization', 'Bearer token_01_user')
+    .expect(201);
+});
+
+it('rechaza hoy − 11 con `invalid_date_range`', () => {
+  return request(application)
+    .post('/api/worked-times')
+    .send({ date: HOY_M11, minutes: 60, projectId: 1 })
+    .set('Authorization', 'Bearer token_01_user')
+    .expect(400);
+});
+```
+
+**Note:** `unworked_times.created_at` is a `TIMESTAMP`, not a day, so the deadline fixtures need a
+full `Date`. Derive it from the same offset (`new Date(`${dayOffset(-11)}T00:00:00.000Z`)`) rather
+than writing millisecond arithmetic — that is exactly what this helper exists to avoid.
+
 ## fakeBus.failWithNoResponders()
 
 **Location:** `api/tests/mocks/bus.ts`

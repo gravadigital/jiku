@@ -186,9 +186,11 @@ matchesPattern('tasks.{id}.edit', 'tasks.7.comment'); // false
 **Location:** `core/src/commands/resolve-actor.ts`
 
 > Moved in S-003 from `core/src/commands/files/resolve-actor.ts`. It now lives one level up because
-> **seven** commands share it — `files.request-upload` plus the six domain commands that link files
-> — and leaving it under `files/` would force `requirements/` and `tasks/` to import from the file
-> module.
+> **ELEVEN** commands share it — `files.request-upload`, the six domain commands that link files
+> (`requirements.new` / `.edit` / `.comment` and `tasks.new` / `.edit` / `.comment`, through
+> `link-files.ts`) and, since S-031, the four time ones (`worked-times.new`,
+> `worked-times.{id}.delete`, `unworked-times.new`, `unworked-times.{id}.delete`) — and leaving it
+> under `files/` would force `requirements/`, `tasks/` and `times/` to import from the file module.
 
 **Description:** Resolves who the actor of a command is, depending on the channel it arrived
 through. If the subject's `caller` equals `CORE_TRUSTED_PUBLISHER_ID`, the actor is the one
@@ -214,6 +216,62 @@ if (!actor) return failure(ErrorCode.INVALID_FIELDS, 'Falta el uploader del arch
 **Note:** It takes the declared value instead of reading a fixed field name so the six domain
 commands of S-003 reuse it as-is for `author` / `creator` / `editor`. Do NOT duplicate or fork it:
 if uploading and linking resolved identity differently, nobody could link what they uploaded.
+
+**Note (S-031):** the time commands pass `undefined` as `declaredActor` — they have no authorship
+field in the payload — which leaves the exact three-branch ladder the rules need: the envelope's
+`id`, or the subject's caller, or **`undefined` on the exempt channel** (the trusted publisher with
+no envelope). That `undefined` is not an error: it means *"this channel does not say who acts"*, and
+the rules derived from the actor (C-41, ownership) are **not evaluated** there, exactly as S-030
+decided for the `connector` class. The rules that only depend on the payload — the submission window
+and the task/requirement exclusion — **are** applied.
+
+## isWithinSubmissionWindow / toDayUTC / SUBMISSION_WINDOW_DAYS
+
+**Location:** `core/src/commands/times/window.ts`
+
+**Description:** The submission window (C-40) as a **single definition**: a date has to fall between
+**today and the 10 days before it, both edges included**. Outside it, the time commands answer
+`invalid_date_range`.
+
+It lives in its own file because **two commands apply it** — `worked-times.new` and
+`worked-times.{id}.delete` — over **two different representations** of the date: the payload's
+`'YYYY-MM-DD'` string and the `Date` that comes back from the database (`worked_times.date` is a
+`TIMESTAMP`, `unworked_times.date` is a `DATE`). Two copies of a calendar rule diverge, and the
+symptom would be that you can delete what you could not have logged.
+
+**The upper edge is part of the rule.** An implementation that only looks backwards **accepts future
+dates**, which the api rejects today — it is the mistake S-031 flags as its highest risk.
+
+**Everything normalises to a UTC day.** `TZ=UTC` is pinned in the container and in the tests, but the
+comparison does not depend on that variable: a timezone bug here shows up **only at the edge and only
+some hours of the day**. The comparison is between `'YYYY-MM-DD'` strings, which sort
+lexicographically the same as chronologically.
+
+Pure: it reads no `process.env`, touches no database and logs nothing.
+
+**Signature:**
+```ts
+const SUBMISSION_WINDOW_DAYS = 10;
+
+function toDayUTC(value: string | Date): string;
+
+function isWithinSubmissionWindow(value: string | Date, today?: Date): boolean;
+```
+
+**Usage:**
+```ts
+if (!isWithinSubmissionWindow(payload.date)) {
+  return failure(
+    ErrorCode.INVALID_DATE_RANGE,
+    'Solo se pueden cargar horas del día actual y los 10 días previos'
+  );
+}
+```
+
+**Note:** `today` has a default so a test can pin "today" without touching the process clock — the
+timezone bug only manifests some hours of the day, so it cannot be provoked otherwise. **A command
+never passes it.** And the window is **not** applied to absences: that is deliberate (S-031 CA-10),
+and there is a test pinning it so nobody adds it "for symmetry".
 
 ## linkFiles
 

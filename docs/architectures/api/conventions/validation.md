@@ -105,15 +105,24 @@ state: joi.string().valid(...Object.values(RequirementState)).optional(),
 | Claves extra permitidas | `.unknown(true)` |
 | Default | `joi.string().valid('public', 'internal').default('internal')` |
 
-`oxor` sobre `objectiveId` / `requirementId` es la que expresa "una hora se imputa a una tarea
-**o** a un requisito, no a ambos" (`worked-times-post.ts:19`).
+`oxor` expresa "vino A **o** vino B, no los dos".
+
+> **El ejemplo vivo que había acá ya no existe.** Era `oxor('objectiveId','requirementId')` en
+> `worked-times-post.ts:19`, la exclusión tarea/requisito. **REQ-007 (S-031) lo eliminó**: la regla
+> tenía dos definiciones —una en la api y otra en `core`— y dos definiciones de la misma regla es
+> lo que las deja divergir en silencio. Hoy vive **solo** en `core/src/commands/times/worked-times.ts`,
+> y sigue respondiendo `invalid_fields` → 400, así que el contrato con los frontends no cambió.
+> `oxor` se sigue documentando porque el patrón sirve; el ejemplo queda como **histórico**.
 
 ## Qué no valida Joi
 
 - **Los path params.** Los valida el middleware que carga la entidad, con 404.
-- **Las reglas que necesitan la base o el calendario.** Van como middleware local después de la
-  validación de forma. Ejemplos: la ventana de 10 días para cargar horas, que solo `admin`
-  impute a terceros, que una incidencia no se resuelva sin conclusión.
+- **Las reglas que necesitan la base o el calendario, *y que son de la api*.** Van como middleware
+  local después de la validación de forma. Ejemplos vigentes: el deadline de 10 días desde
+  `created_at` para borrar una ausencia (`deadline_exceeded`, un código que el protocolo del bus no
+  tiene), que no se modifiquen semanas pasadas, que una incidencia no se resuelva sin conclusión.
+  **Los ejemplos que estaban acá —la ventana de 10 días para cargar horas y que solo `admin` impute
+  a terceros— se mudaron a `core` con REQ-007 (S-031)** y ya no son ciertos de este servicio.
 - **El multipart de adjuntos.** `POST /api/attachments` valida a mano dentro del handler
   (`entityType` contra el enum, extensión y MIME contra listas blancas), porque los campos llegan
   después de multer. Ver [`storage`](./storage.md).
@@ -130,7 +139,12 @@ state: joi.string().valid(...Object.values(RequirementState)).optional(),
 - Esquema largo → constante nombrada arriba del archivo. Corto → inline en la cadena.
 - No cambies el contrato de error: `400` con `{ code: 'invalid_fields', message: 'Invalid field - ...' }`.
 - Los ids de usuario son `joi.string()`; los de entidad, `joi.number().integer()`.
-- Una regla que necesita la base, el rol o la fecha de hoy no es Joi: es un middleware local.
+- Una regla que necesita la base, el rol o la fecha de hoy no es Joi. **Pero antes de escribirla
+  como middleware local, preguntate de quién es la regla:** si decide si la operación puede ocurrir
+  sobre estos datos y tiene que dar el mismo resultado por HTTP y por el bus, **es del escritor y va
+  a `core`**, dentro del comando (con el sobre de S-029 `core` tiene el actor y sus roles). Solo si
+  es del transporte HTTP —la forma del input, el 404 de la entidad del path, un código que el
+  protocolo del bus no tiene— se queda acá como middleware local.
 
 ## Integración con otras convenciones
 

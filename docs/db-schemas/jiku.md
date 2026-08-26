@@ -735,7 +735,7 @@ Table worked_times {
     requirement_id [name: 'idx_worked_times_requirement_id', note: 'REQ-006: requirements.totalMinutes. Subconsulta correlacionada POR FILA: con limit 200 son 200. YA EXISTIA: lo creo 20260626_01 junto con la columna, asi que 20260824_02 no lo crea (IF NOT EXISTS) ni lo dropea']
     objective_id [name: 'idx_worked_times_objective_id', note: 'REQ-006: la otra mitad de totalMinutes. Las dos juntas son 400 subconsultas con limit 200']
   }
-  note: 'objective_id y requirement_id son mutuamente excluyentes (lo valida la api)'
+  note: 'objective_id y requirement_id son mutuamente excluyentes (lo valida CORE, en worked-times.new). REQ-007/S-031 movio la regla: hasta entonces la aplicaba el .oxor de Joi de la api, que ya no existe. SIGUE SIN CHECK EN LA BASE A PROPOSITO: bajarla al esquema cambiaria el codigo de error (hoy invalid_fields -> 400) y el contrato con los frontends'
 }
 
 Table unworked_times {

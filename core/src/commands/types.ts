@@ -33,14 +33,40 @@ export interface CommandContext {
    * precedencia entre las tres fuentes.
    */
   actor?: Actor;
+  /**
+   * Los roles de quien actúa, resueltos por el despachador y pasados sin ninguna consulta nueva.
+   *
+   * DE DÓNDE SALE EL ARRAY EN CADA UNO DE LOS TRES CANALES (S-031):
+   *
+   *   - SOBRE: `actor.roles`, el claim que la api YA VERIFICÓ contra Zitadel. No se lee la base.
+   *   - DIRECTO (una persona publicando al bus): `users.roles` de `ctx.caller`, la misma lectura
+   *     que la compuerta ya hizo — el MISMO valor, no una segunda consulta.
+   *   - EXENTO (el publicador de confianza sin sobre): `[]`, porque ese canal no toca la base a
+   *     propósito (S-017 CA-1) y no hay roles que leer.
+   *
+   * `[]` SIGNIFICA "EL CANAL NO TRAE ROLES", NO "LA PERSONA NO TIENE NINGUNO". Un comando que
+   * decide sobre este array tiene que tratar el vacío como "no puedo afirmar nada del actor", que
+   * es exactamente lo que hacen los comandos de tiempos: sin actor no evalúan las reglas
+   * derivadas del actor (ver D-1 de S-031 y la clase `connector` de S-030).
+   *
+   * NO ES OPCIONAL: el despachador SIEMPRE sabe cuál es, así que un `roles?:` obligaría a cada
+   * comando a un `?? []` y crearía un cuarto estado —"no vino"— que no existe.
+   */
+  roles: readonly string[];
 }
 
 /**
  * Un comando: valida su payload y escribe.
  *
- * No maneja permisos ni roles — eso queda en la api. Tampoco abre ni cierra la
- * transacción: la maneja el despachador, que hace commit si el comando responde
- * `success` y rollback en cualquier otro caso.
+ * DESDE S-031 UN COMANDO SÍ PUEDE VALIDAR PERMISOS, y es un cambio de reparto, no una licencia:
+ * hasta S-029 core no conocía al usuario final —la identidad del subject es el service user de la
+ * api (ADR-007)— y por eso estas reglas vivían allá. Con el sobre core lo conoce, así que los
+ * comandos de tiempos aplican la ventana de carga (C-40), quién imputa a otra persona (C-41) y la
+ * titularidad del registro. Lo que sigue siendo del DESPACHADOR es la compuerta —"¿tu rol habilita
+ * este método?"—; el comando decide "¿podés hacer esto con estos datos?".
+ *
+ * Tampoco abre ni cierra la transacción: la maneja el despachador, que hace commit si el comando
+ * responde `success` y rollback en cualquier otro caso.
  */
 export interface Command<TPayload = any, TData = unknown> {
   /**

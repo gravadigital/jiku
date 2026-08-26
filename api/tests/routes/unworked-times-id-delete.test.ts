@@ -4,12 +4,17 @@ import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import { Person, UnworkedTime, User } from '@jiku/models';
+import { HOY, HOY_M11, dayOffset } from '../helpers/dates';
+import { fakeBus } from '../mocks/bus';
 
 describe('DELETE /api/unworked-times/:id', () => {
   let application: Application;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const eightDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000);
+  const todayStr = HOY;
+  // `created_at` es un TIMESTAMP, no un día: `validateDeadline` compara contra un `Date` completo,
+  // así que acá hace falta el instante y no el `YYYY-MM-DD` del helper. Se deriva del MISMO offset
+  // (hoy − 11, el primer día fuera del deadline) para que las dos referencias no puedan divergir.
+  const creadoHace11Dias = new Date(`${dayOffset(-11)}T00:00:00.000Z`);
 
   before(function() {
     application = start();
@@ -75,8 +80,28 @@ describe('DELETE /api/unworked-times/:id', () => {
             minutes: 60,
             reason: 'estudio',
             personId: 1,
-            createdAt: eightDaysAgo,
-            updatedAt: eightDaysAgo,
+            createdAt: creadoHace11Dias,
+            updatedAt: creadoHace11Dias,
+          }),
+          // TS-37 (H-2): `date` FUERA de la ventana de horas pero CREADA HOY. Se borra igual: las
+          // ausencias no tienen ventana de carga, solo deadline sobre `created_at`.
+          UnworkedTime.create({
+            id: 4,
+            date: HOY_M11,
+            minutes: 60,
+            reason: 'personal',
+            personId: 1,
+          }),
+          // TS-39 (H-4): AJENA y VENCIDA a la vez. Fija cuál de las dos reglas gana ahora que una
+          // vive en la api y la otra en core.
+          UnworkedTime.create({
+            id: 5,
+            date: todayStr,
+            minutes: 60,
+            reason: 'otro',
+            personId: 2,
+            createdAt: creadoHace11Dias,
+            updatedAt: creadoHace11Dias,
           }),
         ]);
       });
@@ -144,5 +169,91 @@ describe('DELETE /api/unworked-times/:id', () => {
       .then((response) => {
         response.body.code.should.equal('unauthorized');
       });
+  });
+  /**
+   * S-031 · LA TITULARIDAD SE FUE A `core`, EL DEADLINE SE QUEDA (CA-10, H-2 / D-2).
+   *
+   * De los tres middlewares de esta ruta se eliminó EXACTAMENTE UNO. `loadUnworkedTime` da el 404
+   * del path y alimenta a `validateDeadline`; `validateDeadline` compara `created_at` contra hoy −
+   * 10 y responde `deadline_exceeded`, un código que emite LA API y que ni siquiera está en
+   * `STATUS_BY_ERROR_CODE`. Es OTRA regla que la ventana de horas, y esta story no la muda.
+   */
+  describe('S-031 · la titularidad se fue a core, el deadline se quedó', () => {
+    // TS-35: CA-10 — el rechazo por titularidad ahora lo decide core (CA-12)
+    it('TS-35: el registro ajeno lo rechaza CORE, con el mismo código y el mismo mensaje', () => {
+      return UnworkedTime.create({ id: 6, date: todayStr, minutes: 60, reason: 'otro', personId: 2 })
+        .then(() => {
+          return request(application)
+            .delete('/api/unworked-times/6')
+            .set('Accept', 'application/json')
+            .set('Authorization', 'Bearer token_01_user')
+            .expect(403);
+        })
+        .then((response) => {
+          response.body.code.should.equal('access_denied');
+          response.body.message.should.equal('Solo podés eliminar tus propios registros');
+          // El comando SE PUBLICÓ: la decisión es de core. Si esto fuera 0, la regla seguiría acá.
+          fakeBus.sent.length.should.equal(1);
+        });
+    });
+
+    // TS-36: H-2 / D-2 — `deadline_exceeded` sigue siendo de la api (CA-12, CA-15)
+    it('TS-36: el `deadline_exceeded` lo sigue emitiendo la api, SIN publicar', () => {
+      return request(application)
+        .delete('/api/unworked-times/3')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('deadline_exceeded');
+          response.body.message.should.equal(
+            'Solo se pueden eliminar registros creados en los últimos 10 días'
+          );
+          // La api corta ANTES de publicar. Es lo que hace que este código no necesite entrada en
+          // `STATUS_BY_ERROR_CODE`: nunca llega por reply.
+          fakeBus.sent.length.should.equal(0);
+        });
+    });
+
+    // TS-37: H-2 — no hay ventana de carga en ausencias (CA-10)
+    it('TS-37: una ausencia con `date` viejo pero creada hoy SÍ se borra (no hay ventana)', () => {
+      return request(application)
+        .delete('/api/unworked-times/4')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          // NO `invalid_date_range`: agregar la ventana de horas acá sería AMPLIAR una regla, no
+          // migrarla. Core lo dejó anotado y este test lo fija del lado HTTP.
+          response.body.should.have.property('message', 'Deleted');
+        });
+    });
+
+    // TS-38: H-3 — el 404 del path lo sigue dando la api (CA-12)
+    it('TS-38: el 404 del path lo da la api y NO se publica nada (H-3)', () => {
+      return request(application)
+        .delete('/api/unworked-times/9999')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(404)
+        .then((response) => {
+          response.body.code.should.equal('unworked_time_not_found');
+          fakeBus.sent.length.should.equal(0);
+        });
+    });
+
+    // TS-39: H-4 — ajena Y vencida: ahora gana el deadline (CA-10, CA-12)
+    it('TS-39: ajena Y vencida responde `deadline_exceeded`, no `access_denied` (H-4)', () => {
+      // PRECEDENCIA INVERTIDA respecto de hoy, y es inevitable: `validateDeadline` se queda en la
+      // api y corre ANTES de publicar; la titularidad se fue a core, que corre después.
+      return request(application)
+        .delete('/api/unworked-times/5')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('deadline_exceeded');
+        });
+    });
   });
 });

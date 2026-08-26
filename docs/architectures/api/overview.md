@@ -122,21 +122,46 @@ sentidos para no tocar el contrato HTTP.
 
 ## Reglas de negocio que viven acá y no en core
 
-Core no conoce roles, ni usuarios finales, ni el calendario. Todo lo que dependa de eso se
-queda en la api:
+> **Esta sección tenía una premisa que ya no es cierta.** Decía: *"Core no conoce roles, ni
+> usuarios finales, ni el calendario. Todo lo que dependa de eso se queda en la api"*. **El sobre
+> de identidad de S-029 la derogó**: `core` recibe el actor y sus roles en cada comando, así que
+> ahora *puede* aplicar reglas que dependen de quién actúa.
 
 | Regla | Dónde | Por qué acá |
 |---|---|---|
-| Ventana de carga de horas: día actual + 10 previos | `worked-times-post.ts:87-110` | Depende del calendario, no de los datos |
-| Solo `admin` imputa horas a otra persona | `worked-times-post.ts:57-83` | Es una validación de rol |
-| `personId` por default = persona del usuario autenticado | `worked-times-post.ts:26-50` | Core recibe el `personId` ya resuelto |
 | No se modifican semanas pasadas | `middlewares/validate-week-not-past.ts` | Depende del calendario |
 | Una incidencia no se resuelve sin tipo y conclusión | `requirements-id-patch.ts:36-58` | Combina el estado que llega con el que ya tiene, y devuelve un código que no está en el protocolo |
+| Deadline para borrar una ausencia: 10 días desde `created_at` | `unworked-times-id-delete.ts` | **`deadline_exceeded` no está en el protocolo del bus**, y compara `created_at`, no `date`: es otra regla que la ventana de carga. `core` decidió explícitamente no tomarla (S-031) |
 | Visibilidad automática de actividades | `utils/visibility-helper.ts` | Estado, título y descripción son `public`; el resto `internal`. Solo los comentarios permiten elegir |
 | Límites de adjuntos: 10 archivos, 10 MB, 13 extensiones | `attachments-post.ts:15-31` | La api es la que recibe el multipart |
 
-> Antes de mover una validación a core, preguntate si necesita el rol, el usuario final o la
-> fecha de hoy. Si necesita alguno, no puede irse.
+### Lo que se fue con REQ-007 (S-031)
+
+Las tres reglas de horas que esta tabla listaba **ya no están en la api**, y con ellas el `.oxor`
+de la exclusión tarea/requisito y la titularidad al borrar:
+
+| Regla que estaba acá | Dónde vive ahora | Código |
+|---|---|---|
+| Ventana de carga: día actual + 10 previos (alta y borrado) | `core` · `commands/times/` | `invalid_date_range` → 400 |
+| Solo `admin` imputa horas a otra persona | `core` · `worked-times.new` | `access_denied` → 403 |
+| `personId` por default = Persona del **actor** | `core` · `worked-times.new` | `person_not_found` → 400 |
+| Exclusión `objectiveId` / `requirementId` | `core` (única definición) | `invalid_fields` → 400 |
+| Titularidad al borrar horas y ausencias | `core` | `access_denied` → 403 |
+
+**Ninguna línea de UI cambió:** los status y los códigos son exactamente los mismos.
+
+> **El criterio para decidir dónde vive una regla ya no es "¿necesita el rol, el usuario final o
+> la fecha de hoy?".** Con el sobre, `core` tiene los tres. La pregunta ahora es **de quién es la
+> regla**:
+>
+> - **Es del escritor** — decide si la operación puede ocurrir sobre estos datos, y tiene que dar
+>   el mismo resultado por HTTP y por el bus → **va a `core`**, dentro del comando.
+> - **Es del transporte HTTP** — la forma del input, la traducción de nombres de contrato, el 404
+>   de la entidad del path, un código que el protocolo del bus no tiene → **se queda en la api**.
+>
+> El despachador de `core` decide *"¿tu rol habilita este método?"*; el comando decide *"¿podés
+> hacer esto con estos datos?"*; la api decide *"¿esta request está bien formada y a quién
+> corresponde?"*.
 
 ## Integraciones
 

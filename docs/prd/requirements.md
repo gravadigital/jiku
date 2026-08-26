@@ -73,9 +73,32 @@ status: Draft - Importado desde código existente
     vuelve a resolverla.
   - Una identidad **sin fila, con `roles` vacío o con roles desconocidos** no puede leer nada por
     el bus: la respuesta es `unknown_caller`, **nunca una colección vacía**. **Sin excepciones por
-    identidad**, incluido el service user de la api. Como la fila la crea un evento de entrega no
-    durable, la disponibilidad de la lectura por el bus **queda acoplada a la sincronización de
-    `users`**.
+    identidad**, incluido el service user de la api.
+  - **Desde REQ-007 la fila tiene un SEGUNDO CAMINO DE ESCRITURA**, y eso cambia dos cosas que
+    hasta ahora eran limitaciones del producto:
+    - Además del evento `{instance}.events.auth`, **`core` crea o actualiza la fila al recibir un
+      comando publicado por la api con la identidad de quien actúa** — mismos cinco campos
+      (`name`, `username`, `email`, `roles`, `identityType: person`) y misma semántica de espejo:
+      crea si no existe, actualiza si existe. El espejo ocurre **antes** de autorizar, para que la
+      fuente del rol sea la misma por los dos caminos. La disponibilidad de la escritura **deja de
+      depender de un evento no durable**: si el evento se pierde, el propio comando repone la fila
+      (la lectura por el bus sigue acoplada al evento para quien nunca ejecuta un comando).
+    - **El 401 `user_not_found` desaparece de las 61 rutas de la api**, de lectura y de escritura.
+      Una identidad autenticada opera aunque no tenga fila previa, y la fila queda creada la
+      primera vez que ejecuta un comando. **La ausencia de fila deja de ser un error del
+      producto.** Un `external-user` autenticado sin fila ni permisos de proyecto ve el portal
+      **vacío** —200 con cero proyectos— y no un error, coherente con el recorte del modo externo
+      de REQ-006.
+  - **Desde REQ-007 `roles` es también el control de acceso efectivo de la ESCRITURA por el bus**,
+    y no solo de la lectura. Nace una **clase de caller para escritura**, análoga a la de lectura:
+    `admin` y `user` autorizan comandos según un mapa cerrado rol → comando; `external-user` no
+    autoriza ninguno; `internal-app` sigue exento como **publicador**, pero **ya no como
+    autorizador** — cuando el comando llega desde la api, el rol que decide es el de la persona
+    que viaja en el comando, no el del service user del subject.
+  - **Solo el publicador de confianza puede transportar identidad en el payload.** Una persona que
+    publica un comando directo al bus e incluye identidad en el cuerpo es rechazada: para ella la
+    identidad **es el segundo token del subject**, que el auth-callout hace infalsificable
+    (REQ-006 §19, extendido a escritura por REQ-007).
 
 ### Proyecto (`projects`)
 - **Atributos clave:** `code` (string), `name` (string), `type` (enum: interno/comercial/
@@ -91,6 +114,9 @@ status: Draft - Importado desde código existente
   `ticketSlug` **no se expone ni se acepta como filtro en el contrato de consultas del bus**
   (REQ-006): la columna está marcada para eliminarse (FG-6) y el contrato nace sin ella para que
   el saneamiento no tenga que romper un contrato recién publicado.
+  **Desde REQ-007 la validación de `documentacion`, `diseño` y `board_de_tareas` como URI se
+  aplica en `core` y solo ahí** (C-07): deja de vivir en el Joi de la api, así que vale igual para
+  cualquier cliente que publique `projects.new` o `projects.{id}.edit`.
 
 ### Requisito (`requirements`)
 - **Atributos clave:** `title` (string 255, req), `description` (text, req), `type` (enum:
@@ -111,6 +137,14 @@ status: Draft - Importado desde código existente
   aplicación**: el recorte del modo externo del servicio de consultas exige
   `visibilityLevel = 'public'` **además** del permiso de proyecto, y lo aplica **antes** del filtro
   del caller.
+  **Desde REQ-007 `state` gana transiciones declaradas.** Hasta ahora el enum tenía siete valores y
+  **ninguna secuencia obligatoria del lado del servidor**: la secuencia
+  `analisis → planificacion → en_cola → desarrollo → revision` —con las **incidencias salteando
+  `en_cola`**— vivía únicamente en `web` (C-15). Pasa a ser una regla del dominio, verificada en
+  `core` sea cual sea el cliente, y se rechaza con `invalid_state_transition`. La **resolución**
+  exige **tipo y conclusión** en un único lugar (C-17); hasta REQ-007 esa regla estaba partida —la
+  api la aplicaba sobre `PATCH /requirements/:reqid` y el comando `requirements.{id}.resolve` que
+  la implementa **no lo publica ninguna ruta**, así que del lado del escritor no se aplicaba.
 
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
@@ -136,14 +170,20 @@ status: Draft - Importado desde código existente
   belongs_to Requisito (opt)
 - **Notas:** `objectiveId` y `requirementId` son **mutuamente excluyentes** — una hora se imputa
   a una tarea **o** a un requisito, nunca a ambos. La exclusión **no tiene constraint en la
-  base**: la validan la api (Joi `.oxor`) y core.
+  base**.
+  **Desde REQ-007 tres reglas que el PRD documentaba como "se valida en: api" pasan a ser reglas
+  de la entidad**, verificables por cualquier cliente y aplicadas en `core`:
+  la **ventana de carga** —el día actual y los 10 previos (C-40)—, **quién puede imputar horas a
+  otra persona** —solo `admin` (C-41)— y la **exclusión mutua** (C-42), que deja de tener dos
+  definiciones (el `.oxor` de Joi en la api y core) para tener una sola.
 
 ### Ausencia (`unworked_times`)
 - **Atributos clave:** `date` (date, req), `minutes` (int, req), `reason` (enum: tramite/
   corte_servicios/vacaciones/dia_no_laborable/personal/medico/estudio/enfermedad/otro, req)
 - **Relaciones:** belongs_to Persona
 - **Notas:** Comparte el tope diario de 1440 minutos con HoraTrabajada: la suma de ambas por
-  persona y día no puede superarlo.
+  persona y día no puede superarlo. **Desde REQ-007 ese tope se aplica en un único lugar —`core`—
+  e igual por los dos caminos** (HTTP y bus).
 
 ### AsignacionSemanal (`week_assigned_times`)
 - **Atributos clave:** `dateFrom` (timestamp, lunes), `dateTo` (timestamp, lunes + 4),
@@ -151,6 +191,11 @@ status: Draft - Importado desde código existente
 - **Relaciones:** belongs_to Proyecto, belongs_to Persona
 - **Notas:** Es la única entidad que se **reemplaza por semana completa** (borrar + recrear en
   una transacción). Las asignaciones con `minutes: 0` se descartan.
+  **Desde REQ-007 "solo `admin` la edita" (C-38) y "no se modifican semanas pasadas" (C-36) dejan
+  de ser reglas de la api y pasan a ser reglas de la entidad**, aplicadas en `core`. Es la entidad
+  de mayor impacto del requerimiento: hoy **no tiene comando** —`PUT /api/week-assigned-times` es
+  la única escritura de dominio que no pasa por `core`, y la ejecuta la api con el ORM—, así que
+  mudar sus reglas exige **convertir esa escritura en comando**.
 
 ### Actividad (`objective_activity` / `requirement_activity`)
 - **Atributos clave:** `typeOfActivity` (enum, req), `previousValue` (text, req), `newValue`
@@ -162,6 +207,10 @@ status: Draft - Importado desde código existente
   `visibilityLevel: 'public'` significa **"visible para usuarios externos autenticados"**: desde
   REQ-002 no habilita acceso anónimo a los adjuntos del comentario, y desde REQ-006 el recorte del
   modo externo del servicio de consultas lo exige además del permiso de proyecto.
+  **Desde REQ-007 el autor de una actividad generada por un comando que una persona publica
+  directo al bus es esa persona**, no el service user de la api: la identidad de escritura se
+  resuelve por canal y, fuera del canal del publicador de confianza, sale del subject. La
+  visibilidad automática de los cambios de campo (C-21) **no cambia**.
 
 ### Suscriptor (`requirement_subscriptors` / `objectives_subscriptors`)
 - **Atributos clave:** `userId` (string, req)
@@ -178,7 +227,10 @@ status: Draft - Importado desde código existente
   aplicación:** hasta ahora el aislamiento lo aplicaba la api con `validateProjectPermissions`
   antes de leer Postgres; el servicio de consultas la consulta por su cuenta para recortar a los
   callers en modo externo, **antes** del filtro del caller y sin forma de desactivarlo por
-  payload.
+  payload. **Desde REQ-007 gana un TERCER punto de aplicación:** el despachador de comandos de
+  `core` resuelve el proyecto **desde los 9 tipos de entidad** y verifica esta tabla antes de
+  ejecutar cualquier comando que modifique una entidad de proyecto (C-71, C-58). La tabla **sigue
+  sin administrarse desde ninguna interfaz** (FG-1).
 
 ### Archivo (`files`)
 - **Atributos clave:** `fileName` (string 255, req — el nombre original, **no** es la clave),
@@ -203,6 +255,11 @@ status: Draft - Importado desde código existente
   del bus, que además **no mintea URLs**: obtener los bytes sigue siendo el comando
   `files.{fileId}.request-download`. `checksum` se expone solo bajo pedido (`include`) y con la
   advertencia de que nadie lo verifica.
+  **Desde REQ-007 los límites de subida pasan de la api a `core`** (C-50): **máximo 10 archivos de
+  10 MB cada uno**, con **doble lista blanca de extensión y MIME type**. La **titularidad** —solo
+  quien subió un archivo puede vincularlo, **sin excepción por rol**— se verifica en el mismo
+  lugar que el resto; hasta REQ-007 era uniforme por construcción (core no conocía roles) y ahora
+  pasa a serlo **por decisión explícita**, porque el despachador sí los conoce.
 
 ### Adjunto (`attachments`)
 - **Atributos clave:** `entityType` (string, req), `entityId` (int, **req**), `fileId` (int, req)
