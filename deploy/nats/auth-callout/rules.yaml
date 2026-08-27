@@ -18,35 +18,44 @@
 #   Gramática completa: <instance>.<user-id>.<svc>.<version>.<method>
 #
 # ROLES DEL PRODUCTO
-#   admin               administrador web  -> accede a NATS con permiso de SOLO CONSULTAS
-#   user                usuario de la web  -> accede a NATS con permiso de SOLO CONSULTAS
+#   admin               administrador web  -> accede a NATS con CONSULTAS Y COMANDOS
+#   user                usuario de la web  -> accede a NATS con CONSULTAS Y COMANDOS
 #   external-user       usuario de opus    -> accede a NATS con permiso de SOLO CONSULTAS
 #   internal-app        conectores         -> la api y cualquier otro servicio que
 #                                             hable con core: publica comandos y consulta
 #   core                el servicio core   -> atiende los comandos
 #   bus-observer        diagnóstico local  -> escucha todo, no publica nada
 #
-# LAS PERSONAS CONECTAN AL BUS, Y SOLO PUEDEN LEER
-#   Los tres roles de producto tienen regla acá, y su plantilla —templates/person.yaml—
-#   autoriza exactamente dos cosas: publicar sobre el prefijo de consultas y escuchar su
-#   propio inbox. Ningún comando, y nada más.
+# LAS PERSONAS CONECTAN AL BUS. DESDE S-035, `admin`/`user` TAMBIÉN ESCRIBEN
+#   Los tres roles de producto tienen regla acá, pero YA NO apuntan todos a la misma
+#   plantilla. Hasta S-035 los tres compartían `person.yaml` y esa plantilla SOLO daba
+#   lectura. Ahora hay DOS plantillas:
+#     - `templates/person-internal.yaml` (`admin`, `user`)      -> consultas Y comandos
+#     - `templates/person-external.yaml` (`external-user`)      -> solo consultas
 #
-#   Los comandos los sigue publicando la api con su propio service_user, y ESA PARTE NO
-#   CAMBIÓ: una persona que necesita escribir habla HTTP con la api, igual que siempre.
+#   LA ASIMETRÍA ES INTENCIONAL Y ES COHERENTE CON EL MAPA ROL -> MÉTODO DE core (S-030):
+#   `admin`/`user` tienen comandos reales en `authorize-caller.ts`, `external-user` tiene
+#   `commands: []`. Ampliar la plantilla compartida en vez de partirla le habría dado el
+#   permiso de publicación a `external-user` también, y el síntoma no habría sido un
+#   error: habría sido un `external-user` escribiendo hasta que el mapa de core lo frenara
+#   -con la segunda capa haciendo de primera-. Partirla es lo que mantiene las dos
+#   defensas independientes.
 #
-#   LA GARANTÍA DE QUE UNA PERSONA NO ESCRIBA PASÓ DEL TRANSPORTE A DOS CAPAS, y las dos
+#   `external-user` sigue sin ganar ningún comando: sigue escribiendo solo por el portal,
+#   vía HTTP a la api (RF-1 §20 de REQ-007).
+#
+#   LA GARANTÍA DE QUE `external-user` NO ESCRIBA SIGUE SIENDO DE DOS CAPAS, y las dos
 #   tienen que seguir siendo verdad:
-#     1. templates/person.yaml no le da permiso de publicación sobre el prefijo de
-#        comandos -> el servidor NATS le rechaza la publicación con una violación de
+#     1. templates/person-external.yaml no le da permiso de publicación sobre el prefijo
+#        de comandos -> el servidor NATS le rechaza la publicación con una violación de
 #        permisos, en el momento.
-#     2. El mapa rol -> método de core (core/src/authorize-caller.ts, S-017) no autoriza
-#        ningún comando para roles de producto -> si ese permiso existiera por un error
-#        de plantilla, core responde `caller_not_authorized`.
-#   CADA UNA ALCANZA POR SÍ SOLA. Antes la garantía era que una persona no podía
-#   CONECTARSE: una sola, implícita, y del transporte. La de ahora es más fuerte en un
-#   sentido —defensa en profundidad, dos capas explícitas— y más frágil en otro:
-#   depende de DOS ARCHIVOS CORRECTOS en vez de la AUSENCIA de uno. Un rol nuevo con
-#   acceso al bus se declara en los dos lugares.
+#     2. El mapa rol -> método de core (core/src/authorize-caller.ts, S-030) tiene
+#        `commands: []` para `external-user` -> si ese permiso existiera por un error de
+#        plantilla, core responde `caller_not_authorized`.
+#   CADA UNA ALCANZA POR SÍ SOLA. Para `admin`/`user` la garantía es distinta: la
+#   plantilla YA autoriza el prefijo de comandos, y el mapa de core es el que RECORTA cuál
+#   de los comandos de ese prefijo puede cada uno — la plantilla no distingue `admin` de
+#   `user`, el mapa sí. Un rol nuevo con acceso al bus se declara en los dos lugares.
 
 version: 1
 
@@ -103,17 +112,17 @@ rules:
     service: bus-observer
     template: templates/observer.yaml
 
-  # PERSONAS CON UN ROL DE PRODUCTO. Las tres reglas de abajo son las que hacen que una
-  # persona pueda conectarse, y las tres apuntan a la MISMA plantilla: `person.yaml`
-  # autoriza publicar SOLO sobre el prefijo de consultas y escuchar su propio inbox.
-  # Ninguna escritura, ningún `$SRV.>`, ninguna suscripción de servicio.
+  # PERSONAS CON UN ROL DE PRODUCTO. Ya NO apuntan todas a la misma plantilla: `admin` y
+  # `user` ganan comandos, `external-user` no.
   #
-  # ESO ES COHERENTE CON EL MAPA ROL -> MÉTODO DE core, A PROPÓSITO. `authorize-caller.ts`
-  # autoriza a estos tres roles TODAS las consultas y NINGÚN comando, así que la
-  # plantilla no mintea un permiso que el escritor va a rechazar: las dos capas dicen lo
-  # mismo, y el diagnóstico es más claro — el rechazo llega como violación de permisos en
-  # el cliente al publicar, no como un `failure` a los 5 segundos de un request que nadie
-  # iba a autorizar.
+  # POR QUÉ LA ASIMETRÍA: paridad con el mapa rol -> método de core (S-030). Ahí
+  # `admin`/`user` ya autorizan comandos reales y `external-user` tiene `commands: []`.
+  # Ampliar la plantilla compartida de siempre (`person.yaml`) se lo habría dado a los
+  # tres, con la segunda capa —el mapa de core— haciendo de primera. Partirla en dos
+  # (S-035) es lo que mantiene las dos defensas independientes: `person-internal.yaml`
+  # autoriza publicar sobre `jiku-queries.v1.>` Y `jiku-commands.v1.>`;
+  # `person-external.yaml` sigue autorizando SOLO `jiku-queries.v1.>` — el mismo permiso
+  # de siempre, sin cambios.
   #
   # `type: person` ES LO QUE PRODUCE `identity_type: "person"` EN EL EVENTO de
   # {instance}.events.auth. Estas tres reglas son lo que hace observable la distinción
@@ -121,9 +130,9 @@ rules:
   # TODO evento salía con `identity_type: "service"`.
   #
   # SIN `service`, A DIFERENCIA DE LAS TRES DE ARRIBA. Ese campo nombra el ENDPOINT que
-  # el usuario atiende, y una persona no atiende ninguno: `person.yaml` no tiene
-  # `sub.allow` de servicio y no usa `{{service}}`. Declararlo sería inventar un endpoint
-  # que nadie atiende y nadie puede alcanzar.
+  # el usuario atiende, y una persona no atiende ninguno: ni person-internal.yaml ni
+  # person-external.yaml tienen `sub.allow` de servicio ni usan `{{service}}`. Declararlo
+  # sería inventar un endpoint que nadie atiende y nadie puede alcanzar.
   #
   # LAS TRES VAN ÚLTIMAS, Y NO ES ORDEN ALFABÉTICO NI CASUALIDAD. Gana la primera regla
   # que coincida, así que un token que llegara con un rol de servicio Y uno de producto
@@ -135,17 +144,21 @@ rules:
   # archivo "para agrupar", rompés esto sin enterarte.
   - match: admin
     type: person
-    template: templates/person.yaml
+    template: templates/person-internal.yaml
 
-  # Usuario de la web.
+  # Usuario de la web. Desde S-035, publica consultas Y comandos con
+  # person-internal.yaml, con el recorte de qué comando puede ejecutar a cargo del mapa
+  # de core (18 directos + 1 por sobre, distinto del de `admin`).
   - match: user
     type: person
-    template: templates/person.yaml
+    template: templates/person-internal.yaml
 
-  # Usuario de opus, el portal de clientes.
+  # Usuario de opus, el portal de clientes. Sigue con person-external.yaml: la misma
+  # plantilla de solo consultas de siempre, sin cambio de permiso. RF-1 §20 de REQ-007:
+  # `external-user` no gana ni un comando con esta story.
   - match: external-user
     type: person
-    template: templates/person.yaml
+    template: templates/person-external.yaml
 
   # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.
   # Lo que queda afuera es CUALQUIER ROL QUE NO ESTÉ EN ESTAS SEIS REGLAS. Ya no son

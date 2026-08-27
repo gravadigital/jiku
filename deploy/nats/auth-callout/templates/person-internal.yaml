@@ -1,0 +1,124 @@
+# PERSONA con un rol INTERNO de producto (`admin`, `user`).
+#
+# QUÉ ES
+#   Una persona de carne y hueso conectada al bus con su propio token de Zitadel, y no un
+#   service user. Su identidad es su `sub`, igual que la de la api o la de un publicador
+#   externo, y es lo que va como `<user-id>` en el subject: cada consulta y cada comando
+#   quedan atribuidos a la persona que los hizo, sin service user intermedio.
+#
+#   Las dos reglas de rules.yaml que apuntan acá son `admin` y `user`, y las dos son
+#   `type: person`. Ese `type` es lo que hace que el evento de `{instance}.events.auth`
+#   llegue con `identity_type: "person"`: no hay heurística que lo adivine, lo declara la
+#   regla que ganó.
+#
+# POR QUÉ EXISTE
+#   Para darle a una persona con rol interno un camino de LECTURA **Y ESCRITURA** directo
+#   al bus. Hasta S-035 esta plantilla no existía —los tres roles de producto compartían
+#   `person.yaml`, y esa plantilla SOLO daba lectura— y `admin`/`user` publicaban comandos
+#   exclusivamente a través de la api, con su service user, por HTTP.
+#
+#   AHORA SÍ HABILITA UN CAMINO DE ESCRITURA. Es el cambio central de REQ-007 / S-035: una
+#   persona con rol `admin` o `user` puede publicar un comando directo al bus, con su
+#   propio token, y que se ejecute igual que si lo hubiera creado desde `web`. La
+#   condición para habilitarlo era mudar a core las reglas de negocio que antes solo
+#   vivían en la api —la ventana de carga de horas, quién puede imputar horas a otra
+#   persona, no modificar semanas pasadas de asignación— y esa migración ya se completó
+#   (S-031, S-032, S-033). Esta plantilla es la mitad de despliegue de un mapa rol ->
+#   comando que en `core` ya estaba cerrado (S-030): NI UNA LÍNEA de TypeScript acompaña
+#   este cambio.
+#
+# GRAMÁTICA
+#   {instance}.{user-id}.{svc}.{version}.{método}
+#     instance  despliegue (dev / prod)
+#     user-id   QUIÉN llama: el `sub` del token de Zitadel, crudo — el de la persona
+#     svc       A QUIÉN le habla. Son DOS valores, los dos atendidos por core:
+#                 `jiku-queries`   las lecturas
+#                 `jiku-commands`  las escrituras — NUEVO respecto de person.yaml
+#     version   versión del protocolo: v1
+#     método    projects.list, projects.get, tasks.list, ..., requirements.new,
+#               worked-times.new, week-assigned-times.replace (solo admin), ...
+#
+#   Ejemplo de consulta: dev.281234567890123456.jiku-queries.v1.projects.list
+#   Ejemplo de comando:  dev.281234567890123456.jiku-commands.v1.requirements.new
+#
+# PLACEHOLDERS
+#   {{instance}}      la instancia de deploy
+#   {{user_id}}       el `sub` del token, crudo (guion BAJO, no `{{user-id}}`)
+#   {{user_id_hash}}  hash estable del user id — solo para el prefijo de inbox
+#   {{service}}       el nombre del endpoint que atiende; una persona no atiende ninguno,
+#                     así que esta plantilla NO lo usa y las dos reglas de persona interna
+#                     no declaran `service`
+#
+# IDENTIDAD vs ENDPOINT
+#   Su identidad es su `sub` de Zitadel. No atiende ningún endpoint: no tiene `sub.allow`
+#   de servicio, solo publica consultas y comandos y escucha su propio inbox. Nadie la
+#   llama por el bus y no hay `<svc>` que la nombre.
+#
+# QUÉ PUEDE PUBLICAR, Y CON QUÉ LÍMITE
+#   Este archivo abre el PREFIJO ENTERO de `jiku-commands.v1.>`, igual que hace api.yaml.
+#   Eso NO significa que la persona pueda ejecutar cualquier comando: la plantilla es el
+#   permiso de TRANSPORTE, y la SEGUNDA CAPA —el mapa rol -> método de core
+#   (`core/src/authorize-caller.ts`, S-030)— es la que enumera, comando por comando, qué
+#   puede cada rol. `admin` tiene 19 (los 18 internos + `week-assigned-times.replace`);
+#   `user` tiene 18 directos + 1 por sobre. Un `user` que publica el comando 19 llega al
+#   servidor sin problema y `core` lo rechaza con `caller_not_authorized`: la plantilla no
+#   distingue `admin` de `user`, el mapa de core sí.
+#
+# LAS DOS COSAS QUE SIGUEN SIN ESTAR, Y POR QUÉ
+#   1. SIN `$SRV.>`. Es discovery y stats del protocolo micro: qué servicios hay, en qué
+#      versión y con qué endpoints. Una persona no atiende ningún endpoint y no necesita
+#      enumerar los servicios del bus; dárselo sería exponerle metadata del protocolo sin
+#      un caso de uso que lo pida. Es el mismo criterio con que api.yaml tampoco lo tiene.
+#      Publicar comandos no cambia este argumento: sigue sin necesitar discovery.
+#   2. SIN SUSCRIPCIÓN DE SERVICIO. `sub.allow` no tiene ninguna línea de la forma
+#      instancia + comodín + endpoint, ni usa `{{service}}`: nadie le manda requests a una
+#      persona, publique comandos o no.
+#
+#   ESTAS DOS AUSENCIAS SON EL ENTREGABLE, no un archivo a medio escribir. Si alguna te
+#   parece un olvido, la respuesta está en el párrafo de arriba antes que en un commit.
+#
+# POR QUÉ NO HAY BLOQUE `response:`
+#   NO es un olvido, y publicar comandos no cambia el argumento. `response`
+#   (`allow_responses` de NATS) autoriza a CONTESTAR en el subject de un request RECIBIDO,
+#   y una persona NUNCA RECIBE REQUESTS, escriba o no: su `sub.allow` es solo su propio
+#   inbox, sin ninguna suscripción de servicio. Publicar `jiku-commands.v1.requirements.new`
+#   sigue siendo request/reply con core como SERVIDOR y la persona como CLIENTE — el
+#   bloque `response:` sería configuración muerta acá. Lo que permite que core le
+#   conteste a la persona es el `response` de core.yaml, no uno de esta plantilla.
+#
+# LA SEGUNDA CAPA VIVE EN core, Y NO ES OPCIONAL
+#   Esta plantilla es la primera de dos garantías independientes de qué puede ejecutar
+#   cada rol. La otra es el mapa rol -> método de core (`core/src/authorize-caller.ts`,
+#   S-030): `admin` y `user` tienen su propia lista de comandos, distinta entre sí, y
+#   ninguna de las dos es "todo". Si esta plantilla autorizara de más por error, core
+#   igual rechaza lo que el mapa no enumera para ese rol específico. Un rol nuevo con
+#   acceso al bus se declara en los DOS lugares.
+
+pub:
+  allow:
+    # Consultas hacia core, bajo su propia identidad. El `>` final cubre los seis métodos
+    # del servicio de lecturas, Y ES EL ÚNICO LUGAR DONDE VA EL COMODÍN EN ESTA LÍNEA:
+    # subirlo un segmento —`{{instance}}.{{user_id}}.>`— le daría TODOS los servicios
+    # presentes y futuros del bus, no dos.
+    - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
+    # Comandos hacia core, bajo su propia identidad. NUEVO respecto de person.yaml: es el
+    # cambio central de S-035. El `>` final cubre todo el prefijo de escrituras — el
+    # RECORTE de qué comando puede ejecutar cada rol lo hace el mapa de core, NO esta
+    # línea. IGUAL QUE ARRIBA: el comodín va acá, al final del prefijo de servicio, NUNCA
+    # en `{{instance}}.{{user_id}}.>` — es el error de un carácter que más cuesta detectar
+    # en revisión, y daría todos los servicios presentes y futuros, no dos.
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
+
+sub:
+  allow:
+    # Inbox propio: por acá llegan las respuestas de core. Va bajo el HASH del user id,
+    # no el user id crudo.
+    #
+    # EL CLIENTE DEBE FIJAR ESTE PREFIJO AL CONECTAR (`inboxPrefix` en nats.js). Si no lo
+    # hace, la librería genera un _INBOX.<aleatorio> que ningún permiso autoriza y las
+    # respuestas NUNCA LLEGAN. El síntoma es un TIMEOUT, no un error de permisos, y es el
+    # error más caro de diagnosticar de esta plantilla.
+    #
+    # Para saber qué hash le toca a un usuario: `go run ./cmd/session <sub>` en el repo
+    # de auth-callout.
+    - "_INBOX.{{user_id_hash}}.>"

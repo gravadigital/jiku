@@ -554,52 +554,82 @@ records the external service itself. That is intended — it is the author.
 
 ---
 
-## Letting a person query the bus
+## Letting a person write to the bus
 
 A person with a product role — `admin`, `user` or `external-user` — connects to the bus with their
 own Zitadel token, not through a service user. The subject carries their `sub` as the `user-id`, so
-every query is attributed to the person who made it rather than to the api.
+every query — and, for internal roles, every command — is attributed to the person who made it
+rather than to the api.
 
-**They can only read.** The template
-([nats/auth-callout/templates/person.yaml](nats/auth-callout/templates/person.yaml)) authorises
-exactly two things: publishing under `{instance}.{user-id}.jiku-queries.v1.>`, and listening on
-`_INBOX.<hash-of-user-id>.>`. Nothing else — no commands, no `$SRV.>` discovery, no service
-subscription.
+**People with an internal role (`admin`, `user`) can now read and write.** Until this changed
+(story S-035 of REQ-007), the three product roles shared a single template that granted read-only
+access, and commands could only reach the product through the api's own service user over HTTP.
+That is no longer true for `admin`/`user`: they can publish a command straight at the bus, with
+their own token, and it executes exactly as if it had come from `web`.
 
-**They cannot publish a command, and two layers say so independently.** Either one is enough on its
-own:
+**`external-user` is unaffected — it still cannot write, and it gained nothing.** Per REQ-007 it
+keeps writing exclusively through the portal, over HTTP. This is a **security change** (ADR-007:
+*"a change to `rules.yaml` MUST be treated as a security change: it is what defines who can write
+to the product"*), and the widening applies to exactly two roles, not three.
 
-1. `person.yaml` grants no publish permission on the commands prefix, so the **NATS server rejects
-   the publish with a permissions violation, on the spot**. The message never leaves the server and
-   core never sees it.
-2. Core's role → method map (`core/src/authorize-caller.ts`) authorises **every** query and **no**
-   command for the three product roles, so even if the template grew that permission by mistake,
-   core answers `caller_not_authorized`.
+**Two templates now cover the three product roles, not one:**
 
-The second layer is not redundancy for its own sake. Core does not hold the rules the api does — the
-time-entry window (today plus the ten previous days), who may log hours on someone else's behalf, or
-the ban on editing past assignment weeks. A person publishing commands straight at the bus would
-bypass all three.
+- [nats/auth-callout/templates/person-internal.yaml](nats/auth-callout/templates/person-internal.yaml)
+  (`admin`, `user`) authorises publishing under **both**
+  `{instance}.{user-id}.jiku-queries.v1.>` and `{instance}.{user-id}.jiku-commands.v1.>`, plus
+  listening on `_INBOX.<hash-of-user-id>.>`.
+- [nats/auth-callout/templates/person-external.yaml](nats/auth-callout/templates/person-external.yaml)
+  (`external-user`) authorises **only** `{instance}.{user-id}.jiku-queries.v1.>` plus the same
+  inbox — the exact permission the old shared template granted, unchanged.
 
-| Caller                                          | Commands                          | Queries                            |
-| ----------------------------------------------- | --------------------------------- | ---------------------------------- |
-| the api (`internal-app`)                        | the whole `jiku-commands.v1` prefix | the whole `jiku-queries.v1` prefix |
-| an external publisher                           | an explicit list of nine subjects  | none                               |
-| **a person** (`admin`, `user`, `external-user`) | **none**                          | the whole `jiku-queries.v1` prefix  |
+Neither template declares `$SRV.>` discovery or a service subscription: a person never attends any
+endpoint, whether or not they can write.
 
-Of the three, a person is the only one that cannot write and an external publisher the only one that
-cannot read. It is the narrowest permission in `nats/auth-callout/templates/`, on purpose.
+**Publishing under the commands prefix is the transport permission, not the authorisation.** The
+template opens the whole `jiku-commands.v1` prefix for `admin`/`user`; which of those commands each
+role may actually execute is decided by core's role → method map
+(`core/src/authorize-caller.ts`), which enumerates a different command list for `admin` than for
+`user`.
+
+**`external-user` cannot publish a command, and two layers say so independently.** Either one is
+enough on its own:
+
+1. `person-external.yaml` grants no publish permission on the commands prefix, so the **NATS server
+   rejects the publish with a permissions violation, on the spot**. The message never leaves the
+   server and core never sees it.
+2. Core's role → method map has `commands: []` for `external-user`, so even if the template grew
+   that permission by mistake, core answers `caller_not_authorized`.
+
+**Manual verification checklist, on every change to these two templates or to `rules.yaml`:**
+
+1. Connect with a `user` token and publish a command the role's map entry allows → **accepted**,
+   and core executes it.
+2. Connect with an `external-user` token and attempt to publish any command → **permissions
+   violation, on the spot**, at the NATS server.
+3. Confirm core's role → method map still rejects `external-user` even if the template's permission
+   existed by mistake (read `commands: []` for `external-user` in `authorize-caller.ts`).
+
+| Caller                                | Commands                                       | Queries                            |
+| -------------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| the api (`internal-app`)               | the whole `jiku-commands.v1` prefix             | the whole `jiku-queries.v1` prefix  |
+| **`admin` / `user`** (`person-internal`) | **the whole `jiku-commands.v1` prefix, trimmed by core's role → method map** | the whole `jiku-queries.v1` prefix  |
+| **`external-user`** (`person-external`) | **none**                                        | the whole `jiku-queries.v1` prefix  |
+
+Of the three, `external-user` is now the only one that cannot write at all — `admin` and `user`
+moved from that same restriction to full command access, trimmed only by what their role is allowed
+to execute. `person-external.yaml` remains the narrowest permission in
+`nats/auth-callout/templates/`, on purpose.
 
 **The client must set `inboxPrefix` when it connects.** Same trap as every other caller on this bus:
-replies come back on `_INBOX.<hash-of-user-id>.>` and that is the only inbox the template
+replies come back on `_INBOX.<hash-of-user-id>.>` and that is the only inbox either template
 authorises. Let the library pick a random `_INBOX.<random>` and the replies never arrive at all —
 and the symptom is a **timeout**, not a permissions error, which sends you looking in the wrong
 place.
 
 **Nothing in `deploy/` needs changing to let a person in.** Granting the role on the
-`GESTION_ZITADEL_PROJECT_ID` project is enough, because the three rules and the template are already
-versioned here — and they are the same three roles the frontends already use, so in practice there
-is nothing new to grant.
+`GESTION_ZITADEL_PROJECT_ID` project is enough, because the three rules and the two templates are
+already versioned here — and they are the same three roles the frontends already use, so in
+practice there is nothing new to grant.
 
 **No component of the product connects a person to the bus today, and that is expected.** `web` and
 `opus-web` talk HTTP to the api. What exists is the road, not traffic on it.
