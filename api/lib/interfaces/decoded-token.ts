@@ -14,3 +14,21 @@ export interface DecodedToken {
   preferred_username?: string;
   email?: string;
 }
+
+/**
+ * `req.user` a partir de S-034: se arma DEL CLAIM ya verificado, no de una fila de `users`
+ * (D-6, H-5). Deja de ser una instancia del modelo Sequelize `User` — es un objeto plano con
+ * los mismos cinco campos que ya arma `buildActor` (`lib/utils/bus/actor.ts`), que es el
+ * precedente exacto de este patrón.
+ *
+ * `name`, `username` y `email` son OPCIONALES por la misma razón que en `DecodedToken`: el
+ * access token solo los trae si la instancia de Zitadel los emite con scope `profile`/`email`.
+ * `roles` es obligatorio: sin claim de roles, `[]` (nunca `undefined`).
+ */
+export interface ClaimUser {
+  id: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  roles: string[];
+}

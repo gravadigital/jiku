@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction, Router } from 'express';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import logger from '../logger';
 import { WorkedTime } from '@jiku/models';
 import { runCommand } from '../utils/bus/send-command';
@@ -78,7 +77,6 @@ async function deleteWorkedTime(req: Request, res: Response) {
  * @response {500} Internal error
  */
 router.delete('/worked-times/:id',
-  hasAnyRole(['user', 'admin']),
   loadWorkedTime,
   deleteWorkedTime
 );

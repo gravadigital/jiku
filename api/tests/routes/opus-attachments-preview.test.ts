@@ -233,8 +233,9 @@ describe('GET /api/opus/attachments/:id/public — ELIMINADO (S-009)', () => {
     this.timeout(30000);
     application = start();
 
-    // Los dos usuarios del token tienen que existir en `users`: un token válido cuyo `sub` no
-    // está en la tabla recibe 401 `user_not_found` y nunca llegaría al 404 que TS-6/TS-7 afirman.
+    // Desde S-034, `req.user` sale del claim y ya no hace falta una fila en `users` para
+    // autenticar. Estas dos filas se conservan porque otras aserciones de este archivo joinean
+    // contra `users` (p. ej. `creator`), no por autenticación.
     await User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'user01pub', email: 'user01pub@mail.com' } as any);
     await User.create({ id: 'zitadel-sub-04', name: 'External User', username: 'ext04pub', email: 'ext04pub@mail.com' } as any);
 

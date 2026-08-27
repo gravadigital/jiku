@@ -1,7 +1,7 @@
 import { Transaction } from 'sequelize';
 import { ParsedParams } from './parsed-params';
-import { DecodedToken } from './decoded-token';
-import { Objective, ObjectiveActivity, ObjectiveSubscriptor, Project, Requirement, RequirementActivity, RequirementSubscriptor, User } from '@jiku/models';
+import { ClaimUser, DecodedToken } from './decoded-token';
+import { Objective, ObjectiveActivity, ObjectiveSubscriptor, Project, Requirement, RequirementActivity, RequirementSubscriptor } from '@jiku/models';
 
 
 export {};
@@ -9,7 +9,9 @@ export {};
 declare global {
   namespace Express {
     interface Request {
-      user: User,
+      // Desde S-034: armado del claim ya verificado en `validateToken`, no de una fila de
+      // `users` (D-6). Ya no es una instancia de Sequelize `User` — ver `ClaimUser`.
+      user: ClaimUser,
       project : Project,
       objective: Objective,
       objectiveActivity: ObjectiveActivity[],

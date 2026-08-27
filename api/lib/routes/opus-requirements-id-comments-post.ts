@@ -1,10 +1,8 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import { RequirementActivity, VisibilityLevel } from '@jiku/models';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
-import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import { sendCommand } from '../utils/bus/send-command';
 
 const router: Router = Router();
@@ -50,9 +48,7 @@ async function addComment(req: Request, res: Response) {
 }
 
 router.post('/opus/requirements/:reqid/comments',
-  hasAnyRole(['user', 'external-user']),
   validateRequirement,
-  validateProjectPermissions,
   validateBodyFields(joi.object({
     comment: joi.string().required(),
     // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al

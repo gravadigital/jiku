@@ -159,14 +159,28 @@ describe('PATCH /api/projects/:id', () => {
       });
   });
 
-  it('should reject an invalid uri in keyValuePairs', () => {
+  // S-034 (CA-9): la api ya no valida el formato URI de `documentacion`/`diseño`/
+  // `board_de_tareas` -- eso ya lo hace `core` (`core/src/commands/projects/properties.ts`,
+  // `propertiesSchema`). El 400 se conserva, pero el origen cambió: ahora sale del reply de
+  // `core`, y el comando SÍ se publica (a diferencia del corte temprano que este test
+  // verificaba antes).
+  it('should reject an invalid uri in keyValuePairs, now via core\'s reply', () => {
+    fakeBus.reply('projects.1.edit', {
+      status: 'failure',
+      errorCode: 'invalid_fields',
+      errorMessage: 'Invalid field - documentacion',
+    });
+
     return request(application)
       .patch('/api/projects/1')
       .set('Authorization', 'Bearer token_01_user')
       .send({ ...VALID_BODY, keyValuePairs: { documentacion: 'no-es-una-url' } })
       .expect(400)
-      .then(() => {
-        fakeBus.sent.length.should.equal(0);
+      .then((response) => {
+        response.body.code.should.equal('invalid_fields');
+        // El comando SÍ SE PUBLICÓ: si el `uriRule` de la api siguiera ahí, `fakeBus.last`
+        // seguiría vacío y este test pasaría por la razón equivocada.
+        fakeBus.last!.command.should.equal('projects.1.edit');
       });
   });
 

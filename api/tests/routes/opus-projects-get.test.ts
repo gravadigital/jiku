@@ -110,4 +110,24 @@ describe('GET /opus/projects', () => {
         response.body[0].should.have.properties(['id', 'name']);
       });
   });
+
+  // TS-12 (S-034, CA-6/CA-14): un external-user AUTENTICADO pero SIN ninguna fila en
+  // user_project_permissions ve el portal vacío -- 200 [], no un error. El WHERE id IN ()
+  // de prepareQuery acota a cero proyectos sin lanzar. Este describe agrega su propio
+  // external-user (zitadel-sub-06) sin fila en `users` ni en `user_project_permissions`, a
+  // diferencia de zitadel-sub-04 (que sí tiene una fila en el describe de arriba) -- para
+  // cubrir el caso realmente vacío y, de paso, CA-1/CA-2: la ausencia de fila en `users` no
+  // bloquea la request.
+  describe('external-user sin ninguna fila en user_project_permissions ni en users', () => {
+    it('TS-12: should return 200 with empty array', () => {
+      return request(application)
+        .get('/api/opus/projects')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_06_external_user_no_permissions')
+        .expect(200)
+        .then((response) => {
+          response.body.should.eql([]);
+        });
+    });
+  });
 });

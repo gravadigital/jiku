@@ -106,6 +106,28 @@ describe('POST /api/projects', () => {
       });
   });
 
+  // TS-16 (S-034, CA-9): la api ya no valida el formato URI de `documentacion`/`diseño`/
+  // `board_de_tareas` -- ahora lo hace `core` (`propertiesSchema`,
+  // `core/src/commands/projects/properties.ts`). El comando SE PUBLICA y el 400 sale del
+  // reply de core, no de un `uriRule` de Joi en la api.
+  it('should reject an invalid uri in keyValuePairs, via core\'s reply', () => {
+    fakeBus.reply('projects.new', {
+      status: 'failure',
+      errorCode: 'invalid_fields',
+      errorMessage: 'Invalid field - documentacion',
+    });
+
+    return request(application)
+      .post('/api/projects')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ ...VALID_BODY, keyValuePairs: { documentacion: 'no-es-una-url' } })
+      .expect(400)
+      .then((response) => {
+        response.body.code.should.equal('invalid_fields');
+        fakeBus.last!.command.should.equal('projects.new');
+      });
+  });
+
   it('should reject an invalid body before publishing', () => {
     return request(application)
       .post('/api/projects')

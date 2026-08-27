@@ -71,7 +71,17 @@ function validateToken(req: Request, res: Response, next: NextFunction) {
             message: 'Unauthorized'
           });
         }
-        req.user = user;
+        // El bypass sigue leyendo la fila real (herramienta de desarrollo local, AC-6 de la
+        // Tarea 1 — no se toca su mecanismo), pero `req.user` ahora es `ClaimUser`, no el
+        // modelo Sequelize: se adapta campo a campo para mantener el mismo tipo en las dos
+        // ramas de la función.
+        req.user = {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          email: user.email ?? undefined,
+          roles: ['admin'],
+        };
         req.decodedToken = {
           sub: user.id,
           email: user.email,
@@ -101,18 +111,17 @@ function validateToken(req: Request, res: Response, next: NextFunction) {
       req.token = token;
       req.decodedToken = decodedToken;
       req.decodedTokenRoles = getRolesFromToken(req.decodedToken);
-      return User.findByPk(req.decodedToken.sub);
-    })
-    .then((user) => {
-      if (!user && req.path !== '/api/auth/present') {
-        return res.status(401).json({
-          code: 'user_not_found',
-          message: 'User not found'
-        });
-      }
-      if (user) {
-        req.user = user;
-      }
+      // Desde S-034 (D-6, H-5): `req.user` se arma DEL CLAIM ya verificado contra el JWKS, sin
+      // consultar `users`. El `sub` no tiene que existir en la tabla — la fila es un espejo
+      // best-effort (S-029), no una condición para operar. Mismo criterio que `buildActor`
+      // (`lib/utils/bus/actor.ts`), que ya arma el sobre del bus de esta misma forma.
+      req.user = {
+        id: decodedToken.sub,
+        name: decodedToken.name,
+        username: decodedToken.preferred_username,
+        email: decodedToken.email,
+        roles: req.decodedTokenRoles,
+      };
       return next();
     })
     .catch(() => {
