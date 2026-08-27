@@ -594,8 +594,10 @@ channels:
     description: |
       Resolve a requirement: moves it to `resuelto` and stores the reason.
 
-      Inherited rule: an `incidencia` is not resolved without a conclusion. If none comes in the
-      payload, the one already stored on the requirement is accepted.
+      **REQ-007 (S-033) — C-17 applies to every type, not just `incidencia`.** No requirement is
+      resolved without a resolution type and a conclusion — `resolution_required` otherwise. If
+      the conclusion is missing from the payload, the one already stored on the requirement is
+      accepted.
 
       > **NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced (REQ-007, S-033).** It is
       > implemented and tested, and resolution still comes in through `requirements.{id}.edit`,
@@ -1126,7 +1128,7 @@ components:
         $ref: '#/components/schemas/RequirementsResolvePayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error, access_denied]
+      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, invalid_state_transition, internal_error, access_denied]
 
     RequirementsComment:
       name: RequirementsComment
@@ -2121,8 +2123,8 @@ components:
         conclusion:
           type: [string, 'null']
           description: |
-            If the requirement is of type `incidencia`, a conclusion is needed: the one in the
-            payload or the one already stored. If there is neither, it replies
+            REQ-007 (S-033): required for every requirement type, not only `incidencia` — the one
+            in the payload or the one already stored. If there is neither, it replies
             `resolution_required`.
         comment:
           type: [string, 'null']
