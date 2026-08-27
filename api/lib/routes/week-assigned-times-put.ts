@@ -1,17 +1,14 @@
-import { Request, Response, NextFunction, Router } from 'express';
+import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import validateToken from '../utils/middlewares/validate-token';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
-import validateWeekNotPast from '../utils/middlewares/validate-week-not-past';
-import startTransaction from '../utils/transaction-start';
-import commitTransaction from '../utils/transaction-commit';
+import { runCommand } from '../utils/bus/send-command';
 import logger from '../logger';
-import { Project, WeekAssignedTime } from '@jiku/models';
+import { WeekAssignedTime } from '@jiku/models';
 
 const router: Router = Router();
 
-// Schema de validación Joi para el body del PUT
+// Schema de validación Joi para el body del PUT — forma HTTP, sin cambios (S-032).
 const putWeekAssignedTimesSchema = joi.object({
   weekStart: joi.date().iso().required(),
   allocations: joi.array().items(
@@ -23,86 +20,57 @@ const putWeekAssignedTimesSchema = joi.object({
   ).required()
 });
 
-// Handler para PUT /api/week-assigned-times
-async function putWeekAssignedTimes(req: Request, res: Response, next: NextFunction) {
+/**
+ * Handler para PUT /api/week-assigned-times — comando + relectura (S-032).
+ *
+ * La escritura la hace `core`: la api publica `week-assigned-times.replace` y arma la
+ * respuesta releyendo la base. `core` responde `ReplyEmpty` (CA-8), así que se usa
+ * `runCommand` y no `sendCommand` (que devolvería `null` incluso en éxito).
+ *
+ * TRADUCCIÓN DE NOMBRES (H-2): el contrato HTTP usa `weekStart`/`allocations`; el
+ * contrato del bus usa `dateFrom`/`assignments`. NO son alias — son dos contratos
+ * correctos que dicen cosas distintas, y la traducción va acá.
+ *
+ * `hasAnyRole(['admin'])`, `validateWeekNotPast`, `startTransaction`/`commitTransaction`
+ * y la escritura con el ORM (`destroy`+`bulkCreate`) se ELIMINAN de esta ruta (CA-10):
+ * C-38 y C-36 las resuelve `core` (el mapa rol → comando y el comando, respectivamente),
+ * y la transacción es la del despachador de `core` (ADR-003).
+ */
+async function putWeekAssignedTimes(req: Request, res: Response) {
   const { weekStart, allocations } = req.body;
-  const transaction = req.transaction;
+
+  const ok = await runCommand(res, 'week-assigned-times.replace', {
+    dateFrom: weekStart,
+    assignments: allocations,
+  });
+  if (!ok) {
+    return;
+  }
+
+  // Calcular weekEnd (viernes, +4 días) — transporte HTTP, no regla de dominio.
+  const weekStartDate = new Date(weekStart);
+  const weekEndDate = new Date(weekStart);
+  weekEndDate.setDate(weekStartDate.getDate() + 4);
+  const weekEnd = weekEndDate.toISOString().split('T')[0];
 
   try {
-    // Calcular weekEnd (viernes, +4 días)
-    const weekStartDate = new Date(weekStart);
-    const weekEndDate = new Date(weekStart);
-    weekEndDate.setDate(weekStartDate.getDate() + 4);
-    const weekEnd = weekEndDate.toISOString().split('T')[0];
-
-    // 1. Eliminar asignaciones existentes de la semana
-    await WeekAssignedTime.destroy({
-      where: {
-        dateFrom: weekStart,
-        dateTo: weekEnd
-      },
-      transaction
+    const allocationsResult = await WeekAssignedTime.findAll({
+      where: { dateFrom: weekStart, dateTo: weekEnd },
+      attributes: ['id', 'personId', 'projectId', 'minutes', 'internal', 'dateFrom', 'dateTo']
     });
 
-    // 2. Preparar nuevas asignaciones
-    const allocationsToCreate = [];
-
-    for (const alloc of allocations) {
-      // Filtrar minutes = 0
-      if (alloc.minutes === 0) {
-        continue;
-      }
-
-      // Consultar tipo de proyecto
-      const project = await Project.findByPk(alloc.projectId, { transaction });
-      if (!project) {
-        throw new Error(`Project ${alloc.projectId} not found`);
-      }
-
-      // Derivar internal
-      const internal = project.type === 'interno';
-
-      allocationsToCreate.push({
-        personId: alloc.personId,
-        projectId: alloc.projectId,
-        minutes: alloc.minutes,
-        internal: internal,
-        dateFrom: weekStart,
-        dateTo: weekEnd
-      });
-    }
-
-    // 3. Crear asignaciones
-    const createdAllocations = await WeekAssignedTime.bulkCreate(
-      allocationsToCreate,
-      { transaction }
-    );
-
-    // 4. Preparar respuesta
-    res.locals.responseObject = {
+    return res.status(200).json({
       weekStart,
       weekEnd,
-      allocations: createdAllocations
-    };
-
-    return next();
-
+      allocations: allocationsResult
+    });
   } catch (error: any) {
     logger.error(`PUT /api/week-assigned-times error: ${error.message}`);
-
-    // Rollback
-    await transaction.rollback();
-
     return res.status(500).json({
       code: 'internal_error',
       message: 'Internal error'
     });
   }
-}
-
-// Middleware de respuesta final
-function sendResponse(_req: Request, res: Response) {
-  return res.status(200).json(res.locals.responseObject);
 }
 
 /**
@@ -116,16 +84,13 @@ function sendResponse(_req: Request, res: Response) {
  * @response {401} Unauthorized - No token or invalid token
  * @response {403} Forbidden - Not admin
  * @response {500} Internal error
+ * @response {503} Service unavailable - Bus caído (ADR-002)
+ * @response {504} Gateway timeout - El bus no respondió a tiempo (ADR-002)
  */
 router.put('/week-assigned-times',
   validateToken,
-  hasAnyRole(['admin']),
   validateBodyFields(putWeekAssignedTimesSchema),
-  validateWeekNotPast,
-  startTransaction,
-  putWeekAssignedTimes,
-  commitTransaction,
-  sendResponse
+  putWeekAssignedTimes
 );
 
 export default router;
