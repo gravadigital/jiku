@@ -1075,6 +1075,23 @@ describe('requirements — vinculación de archivos (S-003)', () => {
       (await comments()).should.equal(0);
     });
 
+    it('TS-12 (S-034): con sobre y rol admin RESUELTO, sigue sin excepción por rol', async () => {
+      // Distinto del test anterior: acá el ACTOR RESUELTO (no solo un campo declarado en el
+      // cuerpo) lleva `roles: ['admin']` de verdad, vía el sobre de identidad (S-029/S-030).
+      // `resolveActor` devuelve `ctx.actor.id` (ADMIN) y `ctx.roles` es realmente `['admin']` —
+      // es la evidencia que TS-12 del Story Plan pide: ni siquiera con el rol admin RESUELTO
+      // hay una rama que lo consulte para la titularidad.
+      const f1 = await makeFile({ uploadedBy: UPLOADER_A });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: ADMIN, comment: 'hola', fileIds: [f1.id], actor: { id: ADMIN, roles: ['admin'] },
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      (await comments()).should.equal(0);
+    });
+
     it('TS-4/TS-19: rechaza `attachmentIds` y 11 `fileIds`', async () => {
       const conAttachments = await dispatch(`requirements.${requirementId}.comment`, {
         author: UPLOADER_A, comment: 'hola', attachmentIds: [1],
