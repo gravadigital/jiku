@@ -87,11 +87,12 @@ Total: 8
 
 ## Test Helpers
 
-Total: 15
+Total: 16
 
 - **dispatch** (`core/tests/helpers/dispatch.ts`) - Dispatches a command as if it had arrived on the bus, building the full subject. Its default caller is the trusted publisher, since S-017.
 - **dispatchQuery** (`core/tests/helpers/dispatch.ts`) - Same for the QUERY plane: `jiku-queries` subject, the real `QueryDispatcher` over `readDb`, no transaction.
 - **dayOffset / HOY / HOY_M10 / HOY_M11 / MANANA** (`core/tests/helpers/dates.ts`) - Dates RELATIVE TO TODAY, never literals, for anything a calendar rule looks at. Since S-031 the submission window lives in core, so a hard-coded date in a time fixture passes today and fails in eleven days. Lives in `helpers/` and not inside a `.test.ts` because two files need it and mocha would otherwise load it as a suite, reordering how the `describe`s register. Uses `setUTCDate` + `toISOString`, which does not depend on `TZ=UTC` being pinned — and NOT millisecond arithmetic, which breaks on any DST change in a non-UTC zone.
+- **lunesOffset / LUNES / LUNES_ANTERIOR / LUNES_SIGUIENTE / desdeLunes** (`core/tests/helpers/dates.ts`) - The MONDAY of a week relative to this one, plus a helper to step off a Monday by whole days. Added by S-032, whose 21st command has two calendar rules that need each other: C-36 (`dateFrom` cannot precede the current week's Monday) and the Monday rule (`dateFrom` has to BE a Monday). `getUTCDay()` and never `getDay()` — in a negative timezone a UTC Monday reads as Sunday and the helper would return the previous week, a value the command rejects inside a test that asserts it is accepted. Sunday subtracts 6, not 1, or the helper hands out a future week for 24 h every week. `desdeLunes` derives from a Monday and not from `HOY`, because `HOY + 1` lands on a different weekday every day.
 - **setQueryBudget / resetQueryBudget** (`core/tests/helpers/dispatch.ts`) - Injects the page byte budget `dispatchQuery()` runs with, so the budget-cut and truncation tests do not depend on a real server's `max_payload`.
 - **Task query fixtures** (`core/tests/queries/task-fixtures.ts`) - The fixture world of the query-engine tests: projects, requirement, people, tasks with a controlled `created_at`, comments, assignments and subscriptions. Since S-023 `createWorld()` also seeds the trusted publisher with `roles: ['internal-app']`, because the caller class gate exempts nobody. Written through the WRITE connection; read back through `readDb`.
 - **createQueryCallers / destroyQueryCallers** (`core/tests/queries/task-fixtures.ts`) - The six query callers with their exact roles, one per class plus the two that the method gate cuts. Teardown removes their project permissions first: the FK points at `users.id`.

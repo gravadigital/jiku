@@ -19,6 +19,7 @@ import filesRequestUpload from './files/files-request-upload';
 import filesRequestDownload from './files/files-request-download';
 import { workedTimesNew, workedTimesDelete } from './times/worked-times';
 import { unworkedTimesNew, unworkedTimesDelete } from './times/unworked-times';
+import weekAssignedTimesReplace from './times/week-assigned-times';
 
 /**
  * Registro único de comandos. Agregar uno nuevo es sumarlo a esta lista.
@@ -46,6 +47,7 @@ export const registry = new CommandRegistry().registerAll([
   workedTimesDelete,
   unworkedTimesNew,
   unworkedTimesDelete,
+  weekAssignedTimesReplace,
 ]);
 
 export default registry;

@@ -15,7 +15,7 @@ import { FakeMsg, decode, encode, fakeConnection, fakeMsg } from '../helpers/mic
 const DESCRIPTION = 'Comandos de dominio de Jiku: la única vía de escritura a la base';
 
 /**
- * Los 20 endpoints, COPIADOS del contrato (`docs/apis/core.yaml`:151-171), no recalculados con
+ * Los 21 endpoints, COPIADOS del contrato (`docs/apis/core.yaml`:151-171), no recalculados con
  * `endpointName`/`endpointSubject`. Recalcularlos verificaría que el paquete es consistente
  * consigo mismo; copiarlos verifica que el servicio expone lo que el contrato promete.
  */
@@ -40,6 +40,9 @@ const CONTRACT_ENDPOINTS: [string, string][] = [
   ['worked-times-delete', 'worked-times.*.delete'],
   ['unworked-times-new', 'unworked-times.new'],
   ['unworked-times-delete', 'unworked-times.*.delete'],
+  // EL COMANDO 21 (S-032). Es el único de los 21 cuyo NOMBRE Y SUBJECT son idénticos al patrón:
+  // ningún segmento es `{param}`, así que el subject no lleva `*`.
+  ['week-assigned-times-replace', 'week-assigned-times.replace'],
 ];
 
 function specFor(
@@ -400,7 +403,7 @@ describe('bus/service', () => {
       String(nc.created[0].group.subject).should.equal('dev.*.jiku-commands.v1');
     });
 
-    it('TS-12 · los 20 endpoints salen del registry, con el par (nombre, subject) del contrato', async () => {
+    it('TS-12 · los 21 endpoints salen del registry, con el par (nombre, subject) del contrato', async () => {
       const nc = fakeConnection();
 
       await registerService(
@@ -411,7 +414,7 @@ describe('bus/service', () => {
       const registered = nc.created[0].group.endpoints.map(
         (endpoint) => [endpoint.name, endpoint.subject] as [string, string | undefined]
       );
-      registered.length.should.equal(20);
+      registered.length.should.equal(21);
       registered.should.deepEqual(CONTRACT_ENDPOINTS);
     });
 
@@ -424,12 +427,12 @@ describe('bus/service', () => {
       );
 
       const endpoints = nc.created[0].group.endpoints;
-      endpoints.length.should.equal(21);
-      endpoints[20].name.should.equal('widgets-archive');
-      String(endpoints[20].subject).should.equal('widgets.*.archive');
+      endpoints.length.should.equal(22);
+      endpoints[21].name.should.equal('widgets-archive');
+      String(endpoints[21].subject).should.equal('widgets.*.archive');
 
       // La otra mitad del escenario, y la que de verdad prueba que no hay lista a mano: el
-      // endpoint 21 se registró sin que `widgets` aparezca en NINGÚN archivo de `src/`.
+      // endpoint 22 se registró sin que `widgets` aparezca en NINGÚN archivo de `src/`.
       const mentioning = sourceFiles().filter((file) =>
         readFileSync(file, 'utf8').includes('widgets')
       );
@@ -468,7 +471,7 @@ describe('bus/service', () => {
       nc.created[0].group.endpoints.length.should.equal(1);
     });
 
-    it('TS-16 · los 20 patrones reales no se solapan', async () => {
+    it('TS-16 · los 21 patrones reales no se solapan', async () => {
       const nc = fakeConnection();
 
       await registerService(
@@ -477,7 +480,7 @@ describe('bus/service', () => {
       );
 
       const subjects = nc.created[0].group.endpoints.map((endpoint) => endpoint.subject);
-      new Set(subjects).size.should.equal(20);
+      new Set(subjects).size.should.equal(21);
     });
 
     it('TS-17 · la versión sale de SERVICE_VERSION, con default 1.0.0 SemVer estricto', async () => {

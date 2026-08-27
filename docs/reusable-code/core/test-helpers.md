@@ -66,6 +66,52 @@ const HOY_M11: string;  // the first day outside, backwards
 const MANANA: string;   // the first day outside, forwards
 ```
 
+## lunesOffset / LUNES / LUNES_ANTERIOR / LUNES_SIGUIENTE / desdeLunes
+
+**Location:** `core/tests/helpers/dates.ts`
+
+**Description:** The **Monday of a week relative to this one**, `'YYYY-MM-DD'` in UTC, plus a helper
+to step off a Monday by whole days.
+
+Added by S-032 for the 21st command, which has **two calendar rules that need each other**: C-36
+says `dateFrom` cannot be earlier than the Monday of the current week (`invalid_date_range`), and the
+Monday rule says `dateFrom` has to be a Monday at all (`invalid_fields`). A literal in a fixture
+passes today and fails next week — the same bomb `dayOffset` was added to defuse.
+
+**`getUTCDay()` and never `getDay()`.** In a negative timezone a UTC Monday reads as Sunday, so the
+helper would return the PREVIOUS week's Monday — a value the command *rejects*, inside a test that
+asserts it is accepted, and only some hours of the day. For the same reason **Sunday subtracts 6,
+not 1**: `1 - 0` would give the FOLLOWING Monday, and the helper would hand out a future week for 24
+hours every week. It is the same adjustment `validateWeekNotPast` makes in the api.
+
+**`desdeLunes` derives from a Monday, not from `HOY`**, and that is the whole point: `dayOffset(1)`
+lands on a different weekday every day, so a test that wants "a Tuesday" has to start from the
+Monday or it would be asserting something different every 24 hours.
+
+**Signature:**
+```ts
+function lunesOffset(semanas: number): string;            // 'YYYY-MM-DD' in UTC
+function desdeLunes(lunes: string, days: number): string; // 'YYYY-MM-DD' in UTC
+
+const LUNES: string;            // this week's Monday — C-36 ACCEPTS it (its exact lower edge)
+const LUNES_ANTERIOR: string;   // last week's Monday — C-36 REJECTS it
+const LUNES_SIGUIENTE: string;  // next week's Monday — C-36 ACCEPTS it
+```
+
+**Usage:**
+```ts
+// The happy path of the 21st command
+await dispatch('week-assigned-times.replace', {
+  dateFrom: LUNES,
+  assignments: [{ projectId: PROJ_COM, personId: P_ANA, minutes: 480 }],
+});
+
+// A Tuesday: rejected with `invalid_fields`, not `invalid_date_range`
+await dispatch('week-assigned-times.replace', {
+  dateFrom: desdeLunes(LUNES, 1), assignments: [],
+});
+```
+
 ## fakeMsg / fakeConnection
 
 **Location:** `core/tests/helpers/micro-double.ts`

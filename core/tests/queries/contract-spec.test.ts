@@ -136,23 +136,34 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
     source.should.containEql('this file stays the contract of the commands');
   });
 
-  it('TS-99 · los canales de los 20 comandos registrados siguen intactos (CA-16)', () => {
+  it('TS-99 · los canales de los comandos registrados siguen intactos (CA-16)', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
     const declared = keysUnder(source, 'channels');
 
     // CA-16 es sobre lo que NO SE PIERDE: los canales de comando siguen todos declarados. El
     // conteo fijo en 20 dejó de expresar eso cuando REQ-007 documentó `week-assigned-times.replace`
-    // —el comando 21, que la spec describe ANTES de que exista porque el comando nace en S-032—,
-    // así que la aserción pasa a decir lo que CA-16 quiso decir, y contra el registro real.
+    // —el comando 21, que la spec describió ANTES de que existiera— así que la aserción dice lo
+    // que CA-16 quiso decir, y contra el registro real.
     declared.should.containDeep(commandRegistry.patterns());
 
-    // Y lo único que puede estar declarado sin comando registrado es ese canal 21. Cualquier otro
-    // canal de más es la spec mintiendo por exceso, que es el desfasaje que este test atrapa.
+    // Y LA EXCEPCIÓN SE FUE EN S-032: mientras el comando 21 no estaba registrado, era el único
+    // canal que podía estar declarado sin comando. Con el comando registrado la lista tiene que
+    // quedar VACÍA — cualquier canal de más es la spec mintiendo por exceso, que es el desfasaje
+    // que este test atrapa. Un gate con una excepción sin razón se vuelve ruido que el próximo
+    // lector borra sin pensarlo.
     declared
       .filter((channel) => !commandRegistry.patterns().includes(channel))
-      .forEach((extra) => {
-        extra.should.equal('week-assigned-times.replace');
-      });
+      .should.deepEqual([]);
+  });
+
+  it('S-032 TS-40 · el spec ya no dice que el comando 21 no existe (CA-1)', () => {
+    const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
+
+    // LAS DOS FRASES SE VOLVIERON FALSAS con S-032, y dejarlas es peor que no haber tocado el
+    // archivo: este spec es la fuente de verdad del contrato de `core`, así que alguien razonaría
+    // sobre la autorización del comando 21 con un mapa que dejó de ser cierto.
+    source.should.not.containEql('does not exist in the registry');
+    source.should.not.containEql('belongs to S-032');
   });
 
   /**
@@ -170,7 +181,7 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
     source.should.containEql('- access_denied');
   });
 
-  it('TS-80 · los 20 canales de comando listan `access_denied`, y el 21 NO (S-030)', () => {
+  it('TS-80 · LOS 21 canales de comando listan `access_denied`, sin excepción (S-030, S-032)', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
     const lines = source.split('\n');
 
@@ -240,9 +251,12 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
       .filter(([, msg]) => !(codesByMessage.get(msg) ?? []).includes('access_denied'))
       .map(([name]) => name);
 
-    // EL CANAL 21 ES LA ÚNICA EXCEPCIÓN, y es deliberada: `week-assigned-times.replace` está en
-    // el spec pero su comando NO ESTÁ EN EL REGISTRY todavía. Su dueño es S-032.
-    sinCodigo.should.deepEqual(['week-assigned-times.replace']);
+    // SIN EXCEPCIONES DESDE S-032 (D-7). El canal 21 era la única, y su motivo —"su comando no
+    // está en el registry todavía"— dejó de ser cierto. El spec declara `access_denied`
+    // UNIFORMEMENTE en todos los canales de comando, incluidos los trece cuyo `COMMAND_ENTITY` es
+    // `null` y que por lo tanto tampoco pueden emitirlo: es política DEL PLANO, no una derivación
+    // por comando.
+    sinCodigo.should.deepEqual([]);
   });
 
   it('TS-80 · el bloque del `enum` dice que lo decide LA COMPUERTA, no el comando (CA-15)', () => {
@@ -297,14 +311,18 @@ describe('docs/architectures/core — la documentación describe el servicio que
     declared.should.have.length(12);
   });
 
-  it('TS-102 · `overview.md` dice VEINTE comandos, y son los del registro (CA-18)', () => {
+  it('TS-102 · `overview.md` dice VEINTIUNO comandos, y son los del registro (CA-18)', () => {
     const overview = arch('overview.md');
 
+    // `17 comandos` SE CONSERVA: es el rastro de la vez ANTERIOR que este número se desactualizó,
+    // y este test es lo que ató el documento al registry para que no volviera a pasar. En S-032
+    // volvió a pasar —el comando 21— y el gate hizo exactamente lo que tenía que hacer.
     overview.should.not.containEql('17 comandos');
-    overview.should.containEql('**20 comandos**');
+    overview.should.not.containEql('**20 comandos**');
+    overview.should.containEql('**21 comandos**');
     // El número se verifica contra el CÓDIGO, no contra otro documento: es el mismo tipo de dato
-    // que ya se desactualizó una vez.
-    commandRegistry.patterns().should.have.length(20);
+    // que ya se desactualizó dos veces.
+    commandRegistry.patterns().should.have.length(21);
   });
 
   it('TS-103 · `overview.md` describe el plano de consultas (CA-18)', () => {

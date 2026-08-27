@@ -224,9 +224,12 @@ export interface CommandEntity {
  * ausente rompe `POST /api/opus/attachments`, cuyo test afirma que un `external-user` SIN NINGÚN
  * permiso de proyecto recibe 201 (*"`canUserAccessEntity` no tiene sobre qué operar"*,
  * `api/lib/routes/attachments-post.ts`). Tratar ausente como `null` dejaría pasar en modo externo
- * el comando 21 —que todavía no existe— sin que nadie lo decidiera.
+ * un comando que nadie declaró — el ejemplo con el que se escribió esta nota era el comando 21,
+ * que EN S-032 YA EXISTE y tiene su entrada explícita más abajo. El argumento se conserva porque
+ * sigue siendo la mejor ilustración de la diferencia: la entrada del 21 está porque ALGUIEN LA
+ * DECIDIÓ, no porque el default la haya tapado.
  *
- * LAS 20 CLAVES SON LAS DE `registry.patterns()`, ni una más ni una menos, y hay un gate que lo
+ * LAS 21 CLAVES SON LAS DE `registry.patterns()`, ni una más ni una menos, y hay un gate que lo
  * verifica contra el registry en vez de contra una lista a mano.
  *
  * DE DÓNDE SALE ESTE MAPA: de QUÉ RUTA DE ESCRITURA APLICA HOY LA CAPA 3 de la api, verificado con
@@ -234,7 +237,7 @@ export interface CommandEntity {
  * es lo que hace auditable la decisión, y sin él la lista parece arbitraria.
  */
 export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
-  // ── Los 12 que NO chequean entidad ──────────────────────────────────────────────────────────
+  // ── Los 13 que NO chequean entidad ──────────────────────────────────────────────────────────
   //
   // NINGUNA de sus rutas lleva `validateProjectPermissions` ni `canUserAccessEntity` hoy.
   //
@@ -255,6 +258,13 @@ export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
   'worked-times.{id}.delete': null, //       api/lib/routes/worked-times-id-delete.ts — sin capa 3
   'unworked-times.new': null, //             api/lib/routes/unworked-times-post.ts — sin capa 3
   'unworked-times.{id}.delete': null, //     api/lib/routes/unworked-times-id-delete.ts — sin capa 3
+  // EL COMANDO 21, Y SU `null` ES UNA DECISIÓN, NO UN DEFAULT (S-032, D-4). Su ruta —
+  // `api/lib/routes/week-assigned-times-put.ts`— NO lleva `validateProjectPermissions`, así que
+  // declararle el chequeo sería ENDURECER, y esta story MIGRA reglas. Y es INALCANZABLE en la
+  // práctica: la compuerta de entidad solo corre con clase `external`, y `external-user` no tiene
+  // este comando por ningún canal. La entrada existe igual porque el mapa es CERRADO y ausente
+  // DENIEGA (ADR-008).
+  'week-assigned-times.replace': null, //    api/lib/routes/week-assigned-times-put.ts — sin capa 3
 
   // ── Los 6 de requisitos, que sus rutas de opus SÍ chequean ──────────────────────────────────
   //
