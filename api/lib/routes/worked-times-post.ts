@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import validateBodyFields from '../utils/validate-body-fields';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import { Objective, Project, Requirement, WorkedTime } from '@jiku/models';
 import { sendCommand } from '../utils/bus/send-command';
 
@@ -124,7 +123,6 @@ async function createWorkedTime(req: Request, res: Response) {
  */
 router.post('/worked-times',
   validateBodyFields(bodySchema),
-  hasAnyRole(['user', 'admin']),
   createWorkedTime
 );
 

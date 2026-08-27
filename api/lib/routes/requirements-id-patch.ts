@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import { Person, Project, RequirementResolution, RequirementState, RequirementVisibilityLevel } from '@jiku/models';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
 import { runCommand } from '../utils/bus/send-command';
@@ -69,7 +68,6 @@ async function patchRequirement(req: Request, res: Response) {
 }
 
 router.patch('/requirements/:reqid',
-  hasAnyRole(['user', 'admin']),
   validateBodyFields(patchSchema),
   validateRequirement,
   patchRequirement

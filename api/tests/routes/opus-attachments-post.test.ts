@@ -8,15 +8,21 @@ import { fakeBus } from '../mocks/bus';
 
 // Tokens del mock:
 // token_01_user          → sub: zitadel-sub-01, rol: user
-// token_03_admin         → sub: zitadel-sub-03, rol: admin (NO está en x-roles de este endpoint)
+// token_03_admin         → sub: zitadel-sub-03, rol: admin (no está en x-roles del spec, pero
+//                           desde S-034 el spec ya no es lo que este endpoint verifica)
 // token_04_external_user → sub: zitadel-sub-04, rol: external-user, sin permisos de proyecto
 
 /**
  * El endpoint del portal cambia igual que el interno (REQ-001, S-004): JSON, un archivo por
  * request, publica `files.request-upload` y devuelve un `UploadTicket`.
  *
- * Conserva `x-roles: [user, external-user]` y PIERDE su validación propia de `entityType`,
- * porque el cuerpo ya no lo declara.
+ * PIERDE su validación propia de `entityType`, porque el cuerpo ya no lo declara.
+ *
+ * Desde S-034 (CA-5) también pierde el `hasAnyRole(['user', 'external-user'])`: `x-roles`
+ * sigue declarado en el spec, pero ya es documentación de qué rol autoriza `core` (CA-8), no
+ * lo que este endpoint verifica. `files.request-upload` está en `INTERNAL_COMMANDS`
+ * (`core/src/authorize-caller.ts`), así que en la práctica CUALQUIER rol autenticado entra
+ * ahora (ver el test de `admin` más abajo).
  */
 describe('POST /api/opus/attachments', () => {
   let application: Application;
@@ -94,17 +100,22 @@ describe('POST /api/opus/attachments', () => {
       });
   });
 
-  // TS-20: `admin` NO está en `x-roles` y el endpoint lo rechaza. La capa de rol se conserva:
-  // es la única de las tres que sigue teniendo sobre qué operar.
-  it('devuelve 403 para un token cuyo único rol es admin, sin publicar', () => {
+  // TS-20 (S-034, CA-5): `admin` NO está en `x-roles` de este endpoint, pero desde que la api
+  // pierde su `hasAnyRole(['user','external-user'])`, el rechazo por rol ya no existe en la
+  // api -- lo decide `core`. `files.request-upload` SÍ está en `INTERNAL_COMMANDS`, y `admin`
+  // los hereda todos (`ADMIN_COMMANDS`), así que ahora entra: 201, no 403. `x-roles` sigue en
+  // el spec como documentación de qué rol autoriza `core` (CA-8), pero ya no es lo que esta
+  // ruta verifica.
+  it('un token cuyo único rol es admin ahora entra (el hasAnyRole de la api ya no lo bloquea)', () => {
     return request(application)
       .post('/api/opus/attachments')
       .set('Authorization', 'Bearer token_03_admin')
       .send(validBody)
-      .expect(403)
+      .expect(201)
       .then(res => {
-        res.body.code.should.equal('access_denied');
-        fakeBus.sent.length.should.equal(0);
+        res.body.should.have.property('fileId');
+        fakeBus.sent.length.should.equal(1);
+        (fakeBus.last as any).command.should.equal('files.request-upload');
       });
   });
 

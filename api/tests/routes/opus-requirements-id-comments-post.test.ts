@@ -199,10 +199,11 @@ describe('POST /api/opus/requirements/:reqid/comments', () => {
    * S-030 (CA-7, CA-9, CA-10, CA-11): la traducción a HTTP de los dos rechazos que core emite,
    * vista desde una ruta real y no desde el mapa.
    *
-   * EL REPLY ES FIJO Y NO UNA EJECUCIÓN REAL DE CORE, y no es un atajo: mientras la api siga
-   * autorizando por su cuenta (CA-14), `validateProjectPermissions` rechaza al external-user
-   * ANTES de publicar, así que el rechazo de core no es alcanzable desde una ruta. Se vuelve
-   * alcanzable en S-034, y para entonces esta traducción ya tiene que estar puesta.
+   * EL REPLY ES FIJO Y NO UNA EJECUCIÓN REAL DE CORE: prueba la TRADUCCIÓN (`httpStatusFor` +
+   * `errorBody`), no la regla de negocio en sí -- eso ya lo cubre TS-13 más abajo, con core real
+   * y sin permiso de proyecto. Desde S-034 el camino SÍ es alcanzable desde esta ruta:
+   * `validateProjectPermissions` ya no corta antes de publicar (CA-7), así que el 403 que sigue
+   * viendo el cliente ahora sale de acá.
    */
   describe('la traducción de los rechazos de core a HTTP (S-030)', () => {
     it('TS-9 (S-030): traduce access_denied a 403 con el cuerpo que los fronts conocen', () => {
@@ -264,6 +265,43 @@ describe('POST /api/opus/requirements/:reqid/comments', () => {
         .then((activity) => {
           (activity !== null).should.be.true();
         });
+    });
+
+    // TS-13 (S-034, CA-7): con CORE REAL ejecutando (no reply fijo), un external-user SIN
+    // permiso de proyecto sigue recibiendo 403 -- pero el corte ya no es de la api
+    // (`validateProjectPermissions` se eliminó), es el reply de `core`
+    // (`authorizeEntityAccess` en modo externo, S-030). El comando SÍ se publica: es la
+    // diferencia observable con el comportamiento viejo.
+    it('TS-13 (S-034): sin permiso de proyecto, el 403 ahora sale del reply de core, no de un corte temprano', () => {
+      return Project.create({
+        id: projectId + 1, code: 'OC2', name: 'Opus Comment Project sin permiso', type: 'comercial',
+        status: 'activo', priority: 1, initDate: new Date(), createdBy: 'zitadel-sub-01',
+      })
+        .then(() => Requirement.create({
+          id: requirementId + 1,
+          title: 'Requisito sin permiso',
+          description: 'Desc',
+          type: 'funcionalidad',
+          priority: 'sin_prioridad',
+          state: 'analisis',
+          projectId: projectId + 1,
+          createdBy: 'zitadel-sub-01',
+        }))
+        .then(() => request(application)
+          .post(`/api/opus/requirements/${requirementId + 1}/comments`)
+          .set('Authorization', 'Bearer token_04_external_user')
+          .send({ comment: 'Comentario sin permiso' })
+          .expect(403))
+        .then((response) => {
+          response.body.code.should.equal('access_denied');
+          // El comando SE PUBLICÓ: si `validateProjectPermissions` siguiera en la cadena,
+          // `fakeBus.last` seguiría apuntando al request anterior o sería `undefined`, no a
+          // este comando.
+          fakeBus.last!.command.should.equal(`requirements.${requirementId + 1}.comment`);
+        })
+        .then(() => RequirementActivity.destroy({ where: { requirementId: requirementId + 1 } }))
+        .then(() => Requirement.destroy({ where: { id: requirementId + 1 } }))
+        .then(() => Project.destroy({ where: { id: projectId + 1 } }));
     });
   });
 });

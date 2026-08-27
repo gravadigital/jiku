@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProjectsPage from '@/app/(dashboard)/projects/page';
 import { ProjectProvider } from '@/contexts/ProjectContext';
 import { useProjects } from '@/features/projects';
+import { useLogout } from '@/shared/hooks/useLogout';
 import { vi, type Mock } from 'vitest';
 
 const mockPush = vi.fn();
@@ -26,7 +27,12 @@ vi.mock('next/navigation', () => ({
   })),
 }));
 
+vi.mock('@/shared/hooks/useLogout', () => ({
+  useLogout: vi.fn(),
+}));
+
 const mockUseProjects = useProjects as Mock;
+const mockUseLogout = useLogout as Mock;
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -106,13 +112,14 @@ describe('ProjectsPage', () => {
     expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it('muestra mensaje vacío cuando no hay proyectos', () => {
+  it('muestra el encabezado nuevo cuando no hay proyectos', () => {
     mockUseProjects.mockReturnValue({
       data: [],
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
     });
+    mockUseLogout.mockReturnValue(vi.fn());
 
     const Wrapper = createWrapper();
     render(
@@ -121,7 +128,155 @@ describe('ProjectsPage', () => {
       </Wrapper>
     );
 
-    expect(screen.getByText('No tienes proyectos asignados')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Todavía no tenés acceso a ningún proyecto' })
+    ).toBeInTheDocument();
+  });
+
+  it('muestra el microcopy nuevo cuando no hay proyectos', () => {
+    mockUseProjects.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    expect(
+      screen.getByText(
+        'Cuando el equipo te dé acceso a un proyecto, lo vas a ver acá. Si esperabas verlo ahora, escribile a tu contacto en Grava Digital.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('ya no muestra el texto viejo cuando no hay proyectos', () => {
+    mockUseProjects.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    expect(screen.queryByText('No tienes proyectos asignados')).toBeNull();
+  });
+
+  it('muestra el botón de cerrar sesión con variant secondary cuando no hay proyectos', () => {
+    mockUseProjects.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    const button = screen.getByRole('button', { name: 'Cerrar sesión' });
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute('data-variant', 'secondary');
+  });
+
+  it('dispara useLogout al hacer click en Cerrar sesión', () => {
+    const mockLogoutFn = vi.fn();
+    mockUseProjects.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(mockLogoutFn);
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+    expect(mockLogoutFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('estado loading: no muestra encabezado ni botón de cerrar sesión (regresión)', () => {
+    mockUseProjects.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
+    expect(screen.getByText('Cargando proyectos...')).toBeInTheDocument();
+  });
+
+  it('estado error: no muestra encabezado ni botón de cerrar sesión, sigue con Reintentar (regresión)', () => {
+    mockUseProjects.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByText('Error al cargar los proyectos')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  });
+
+  it('estado redirigiendo: no muestra el botón de cerrar sesión (regresión)', () => {
+    mockUseProjects.mockReturnValue({
+      data: [{ id: 1, name: 'Proyecto Alpha' }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    mockUseLogout.mockReturnValue(vi.fn());
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <ProjectsPage />
+      </Wrapper>
+    );
+
+    expect(screen.getByText('Redirigiendo...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).toBeNull();
   });
 
   it('auto-redirige al primer proyecto cuando hay múltiples proyectos', () => {

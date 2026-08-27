@@ -40,6 +40,14 @@
   margin: 0;
 }
 
+.emptyTitle {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
 .emptyText {
   font-size: var(--font-size-base);
   color: var(--color-text-secondary);

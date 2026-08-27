@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import { RequirementActivity } from '@jiku/models';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
 import { sendCommand } from '../utils/bus/send-command';
@@ -42,7 +41,6 @@ async function addActivity(req: Request, res: Response) {
 }
 
 router.post('/requirements/:reqid/comments',
-  hasAnyRole(['user', 'admin']),
   validateBodyFields(activitySchema),
   validateRequirement,
   addActivity

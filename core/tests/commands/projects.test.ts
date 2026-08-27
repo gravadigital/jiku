@@ -221,6 +221,15 @@ describe('projects', () => {
       });
     });
 
+    it('falla si board_de_tareas no es una URI válida (S-034, TS-3)', () => {
+      return dispatch(`projects.${projectId}.edit`, {
+        properties: [{ code: 'board_de_tareas', value: 'no es una url' }],
+      }).then((reply) => {
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_fields');
+      });
+    });
+
     it('falla al mandar null en name, que es obligatorio al crear', () => {
       return dispatch(`projects.${projectId}.edit`, { name: null }).then((reply) => {
         reply.status.should.equal('failure');

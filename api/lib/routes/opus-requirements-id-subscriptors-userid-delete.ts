@@ -1,8 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { runCommand } from '../utils/bus/send-command';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateRequirement from '../utils/middlewares/validate-requirement';
-import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import { RequirementSubscriptor } from '@jiku/models';
 import logger from '../logger';
 
@@ -47,10 +45,8 @@ async function deleteSubscription(req: Request, res: Response) {
 }
 
 router.delete('/opus/requirements/:reqid/subscriptors/:userId',
-  hasAnyRole(['external-user']),
   validateSelfUnsubscribe,
   validateRequirement,
-  validateProjectPermissions,
   validateSubscriptionExists,
   deleteSubscription
 );

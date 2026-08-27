@@ -661,7 +661,9 @@ describe('PATCH /api/requirements/:reqid', () => {
           .send({ resolutionComment: 'intento externo' })
           .expect(403)
       ).then((response) => {
-        response.body.code.should.equal('access_denied');
+        // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa
+        // rol->método de core (S-030, authorizeWithRoles), que responde caller_not_authorized.
+        response.body.code.should.equal('caller_not_authorized');
       });
     });
 
@@ -673,7 +675,9 @@ describe('PATCH /api/requirements/:reqid', () => {
         .send({ resolutionType: 'otro', resolutionConclusion: 'x' })
         .expect(403)
         .then((response) => {
-          response.body.code.should.equal('access_denied');
+          // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa
+        // rol->método de core (S-030, authorizeWithRoles), que responde caller_not_authorized.
+        response.body.code.should.equal('caller_not_authorized');
         });
     });
 
@@ -1387,7 +1391,9 @@ describe('PATCH /api/requirements/:reqid', () => {
         .send({ state: 'desarrollo' })
         .expect(403)
         .then((response) => {
-          response.body.code.should.equal('access_denied');
+          // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa
+        // rol->método de core (S-030, authorizeWithRoles), que responde caller_not_authorized.
+        response.body.code.should.equal('caller_not_authorized');
         });
     });
 
@@ -1399,7 +1405,9 @@ describe('PATCH /api/requirements/:reqid', () => {
         .send({ scope: 'texto' })
         .expect(403)
         .then((response) => {
-          response.body.code.should.equal('access_denied');
+          // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa
+        // rol->método de core (S-030, authorizeWithRoles), que responde caller_not_authorized.
+        response.body.code.should.equal('caller_not_authorized');
         });
     });
 

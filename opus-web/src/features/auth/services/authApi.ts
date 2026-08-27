@@ -22,9 +22,9 @@ export async function presentInApi() {
       }
     );
   } catch (error) {
-    // No es fatal: si el alta falla, el usuario igual tiene sesión y las pantallas
-    // resuelven solas si le falta permiso. Antes se relanzaba y /login/enter quedaba en
-    // una pantalla blanca de error, sin poder entrar. La web ya lo trataba así.
+    // Desde REQ-007 esto no tiene consecuencia aguas abajo: core espeja la identidad al
+    // procesar el primer comando, así que no hay alta que pueda fallar acá. El try/catch
+    // se mantiene para que un error de red no bloquee el ingreso.
     const apiError = error as ApiError;
     console.warn('Failed to present in API, but continuing:', apiError.message);
     return null;

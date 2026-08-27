@@ -2,7 +2,6 @@ import { Request, Response, NextFunction, Router } from 'express';
 import joi from 'joi';
 import { Person, Project, Requirement, RequirementPriority, RequirementState, RequirementType, RequirementVisibilityLevel } from '@jiku/models';
 import logger from '../logger';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import { sendCommand } from '../utils/bus/send-command';
 
@@ -106,7 +105,6 @@ async function createRequirement(req: Request, res: Response) {
 }
 
 router.post('/requirements',
-  hasAnyRole(['user', 'admin']),
   validateBodyFields(createSchema),
   validateProject,
   createRequirement

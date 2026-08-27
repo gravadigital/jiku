@@ -2,9 +2,7 @@ import { Request, Response, NextFunction, Router } from 'express';
 import joi from 'joi';
 import { Project, Requirement, RequirementPriority, RequirementType } from '@jiku/models';
 import logger from '../logger';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
-import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import { runCommand, sendCommand } from '../utils/bus/send-command';
 
 const router: Router = Router();
@@ -67,7 +65,6 @@ async function createRequirement(req: Request, res: Response) {
 }
 
 router.post('/opus/requirements',
-  hasAnyRole(['user', 'external-user']),
   validateBodyFields(joi.object({
     title: joi.string().required(),
     description: joi.string().required(),
@@ -82,7 +79,6 @@ router.post('/opus/requirements',
     fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
   })),
   validateProject,
-  validateProjectPermissions,
   createRequirement
 );
 

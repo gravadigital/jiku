@@ -1,6 +1,5 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import { sendCommand, actorId } from '../utils/bus/send-command';
 import { UploadTicketReply, toUploadTicket } from '../utils/bus/upload-ticket';
@@ -64,9 +63,9 @@ async function requestUpload(req: Request, res: Response) {
 }
 
 router.post('/opus/attachments',
-  // Se CONSERVA: el spec declara `x-roles: [user, external-user]` para este endpoint, y es la
-  // única diferencia real con el interno.
-  hasAnyRole(['user', 'external-user']),
+  // Desde S-034 (CA-5): ya no valida rol acá. `x-roles: [user, external-user]` sigue declarado
+  // en el spec como documentación de qué rol autoriza `core` (CA-8) — no es más lo que esta
+  // ruta verifica.
   validateBodyFields(uploadTicketSchema),
   requestUpload
 );

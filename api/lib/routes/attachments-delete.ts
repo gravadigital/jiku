@@ -64,6 +64,30 @@ async function deleteAttachment(req: Request, res: Response) {
     return res.status(404).json({ code: 'not_found', message: 'Attachment not found' });
   }
 
+  // EXCEPCIÓN DECLARADA A CA-7 DE S-034, no un descuido ni trabajo pendiente de esa story.
+  //
+  // S-034 elimina `validateProjectPermissions`/`canUserAccessEntity` de las rutas de escritura
+  // porque `core` ya aplica el chequeo de entidad en modo externo (S-030,
+  // `core/src/entity-project.ts`, `authorizeEntityAccess`). Esta ruta NO puede seguir ese mismo
+  // camino: para `entityType === 'objective'`, `canUserAccessEntity` (vía
+  // `canUserAccessObjective`, `lib/utils/attachments-access.ts`) exige que un `user` interno
+  // (no `admin`) tenga permiso de proyecto, O sea el creador de la tarea, O esté asignado a
+  // ella — reglas FINAS que `core`'s `authorizeEntityAccess` no replica: ese chequeo solo corre
+  // para `callerClass === 'external'`, nunca para `admin`/`user`.
+  //
+  // `core/src/entity-project.ts` documenta la brecha con su propia nota (decisión D-5): "LO QUE
+  // NO SE ESPEJA... las reglas finas de `canUserAccessObjective`... LAS REGLAS FINAS SIGUEN EN
+  // LA API, que las aplica delante... EL DÍA QUE LA API DEJE DE AUTORIZAR (S-034) alguien tiene
+  // que decidir si esas reglas se mudan o se resignan."
+  //
+  // Eliminar este chequeo sin más abriría un hueco real: cualquier `user` autenticado podría
+  // desvincular un archivo de CUALQUIER tarea de CUALQUIER proyecto, sin ser su creador, sin
+  // estar asignado y sin permiso de proyecto. Mudar la regla fina a `core` es trabajo NUEVO —
+  // un comando que hoy no tiene esa validación empezaría a tenerla— y CA-12 exige que el diff
+  // de S-034 sea SOLO de eliminaciones. Por eso esta ruta conserva su chequeo tal cual, en vez
+  // de perderlo junto con el resto de las rutas de escritura. Ver TS-15 (S-034), que protege
+  // esta excepción: si algún día deja de pasar, es porque alguien eliminó el chequeo sin mudar
+  // la regla fina a `core` primero. Mudarla es trabajo de una story de seguimiento, no de ésta.
   let hasAccess: boolean;
   try {
     hasAccess = await canUserAccessEntity(

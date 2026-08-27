@@ -46,12 +46,29 @@ describe('POST /api/opus/requirements/:reqid/subscriptors', () => {
       .expect(401);
   });
 
-  it('should return 403 for internal user role', () => {
-    return request(application)
-      .post('/api/opus/requirements/1/subscriptors')
-      .set('Authorization', 'Bearer token_01_user')
-      .send({ userId: 'zitadel-sub-01' })
-      .expect(403);
+  // S-034 (CA-5): esta ruta pierde el `hasAnyRole(['external-user'])` de la api. El rol `user`
+  // NO estaba excluido por `core` -- solo lo estaba por ese `hasAnyRole` más estricto de la
+  // api, que ya no está. `requirements.{id}.subscriptors.new` SÍ está en
+  // `USER_ENVELOPE_COMMANDS` (S-030): un `user` interno suscribiéndose a sí mismo ahora llega
+  // hasta el resto de la cadena -- "story migra reglas, no las inventa"
+  // (core/src/authorize-caller.ts). `validatePermissionFromUserBody` es un chequeo LOCAL de
+  // esta ruta, no tocado por S-034 (no es `validateProjectPermissions`): sigue exigiendo que
+  // el `userId` del cuerpo tenga fila en `user_project_permissions`, así que se le crea una
+  // para que el 200 se deba al cambio de rol y no a otra causa.
+  it('un `user` interno ahora puede suscribirse (el hasAnyRole de la api ya no lo bloquea)', () => {
+    return UserProjectPermission.create({ userId: 'zitadel-sub-01', projectId: 1 })
+      .then(() => request(application)
+        .post('/api/opus/requirements/1/subscriptors')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ userId: 'zitadel-sub-01' })
+        .expect(200))
+      .then((response) => {
+        response.body.should.be.an.Object();
+        return RequirementSubscriptor.findOne({ where: { requirementId: 1, userId: 'zitadel-sub-01' } });
+      })
+      .then((sub) => {
+        (sub !== null).should.be.true();
+      });
   });
 
   it('should return 404 if requirement does not exist', () => {
@@ -65,7 +82,14 @@ describe('POST /api/opus/requirements/:reqid/subscriptors', () => {
       });
   });
 
-  // TS-12: sin acceso al proyecto retorna 403
+  // TS-12: sin acceso al proyecto retorna 403.
+  // S-034 (CA-7) elimina `validateProjectPermissions` (el chequeo sobre EL CALLER) de esta
+  // ruta, pero `validatePermissionFromUserBody` -- el chequeo LOCAL sobre el `userId` DEL
+  // CUERPO, que no es `validateProjectPermissions` y no está en el alcance de esta story --
+  // sigue ahí y ahora es el primero en correr. Caller y `userId` del cuerpo son la misma
+  // persona en este test, así que el resultado observable (403, sin permiso) no cambia, pero
+  // el `code` sí: ya no es el `access_denied` que emitía `validateProjectPermissions`, es el
+  // `no_permission` de `validatePermissionFromUserBody`.
   it('TS-12: should return 403 when external user has no project permission', () => {
     return request(application)
       .post('/api/opus/requirements/1/subscriptors')
@@ -73,7 +97,7 @@ describe('POST /api/opus/requirements/:reqid/subscriptors', () => {
       .send({ userId: 'zitadel-sub-04' })
       .expect(403)
       .then((response) => {
-        response.body.code.should.equal('access_denied');
+        response.body.code.should.equal('no_permission');
       });
   });
 

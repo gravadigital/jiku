@@ -46,9 +46,10 @@ describe('POST /api/worked-times', () => {
         email: 'external01@mail.com'
       }),
       // TS-11: el actor SIN Persona vinculada. `token_05_user_profile` ya existe en el mock con rol
-      // `user`, así que no hace falta tocarlo; lo único que falta es su fila en `users`, porque
-      // `validateToken` responde 401 `user_not_found` si no está y el test moriría antes de llegar
-      // a `person_not_found`. NO se le crea Persona: esa ausencia ES el caso.
+      // `user`, así que no hace falta tocarlo. Se le crea igual su fila en `users` (espejo,
+      // S-029) porque `core` resuelve la Persona a partir del actor -- no por la autenticación
+      // de la api, que desde S-034 no consulta `users`. NO se le crea Persona: esa ausencia ES
+      // el caso que TS-11 prueba.
       User.create({
         id: 'zitadel-sub-05',
         name: 'Sin Persona',
@@ -399,7 +400,9 @@ describe('POST /api/worked-times', () => {
       });
   });
 
-  // TS-10: Rol externo con carga a requisito → 403 access_denied
+  // TS-10: Rol externo con carga a requisito → 403 caller_not_authorized
+  // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa rol->método de
+  // core (S-030, authorizeWithRoles), que responde caller_not_authorized.
   it('TS-10: should deny external-user role when imputing to a requirement', () => {
     return request(application)
       .post('/api/worked-times')
@@ -413,7 +416,7 @@ describe('POST /api/worked-times', () => {
       .set('Authorization', 'Bearer token_04_external_user')
       .expect(403)
       .then((response) => {
-        response.body.code.should.equal('access_denied');
+        response.body.code.should.equal('caller_not_authorized');
       });
   });
 
@@ -607,6 +610,8 @@ describe('POST /api/worked-times', () => {
       });
   });
 
+  // S-034: el rechazo ya no viene de un hasAnyRole de la api -- viene del mapa rol->método de
+  // core (S-030, authorizeWithRoles), que responde caller_not_authorized.
   it('should fail with external-user role', () => {
     return request(application)
       .post('/api/worked-times')
@@ -619,7 +624,7 @@ describe('POST /api/worked-times', () => {
       .set('Authorization', 'Bearer token_04_external_user')
       .expect(403)
       .then((response) => {
-        response.body.code.should.equal('access_denied');
+        response.body.code.should.equal('caller_not_authorized');
       });
   });
   /**
@@ -812,8 +817,10 @@ describe('POST /api/worked-times', () => {
         });
     });
 
-    // TS-12: el rol sigue cortando EN LA API (CA-15)
-    it('TS-12: `hasAnyRole` sigue cortando antes de publicar (CA-15)', () => {
+    // TS-12: S-034 elimina `hasAnyRole` de esta ruta (CA-5) -- el rechazo por rol ya no corta
+    // en la api, lo decide `core` desde el sobre de identidad (S-030, authorizeWithRoles). El
+    // comando SE PUBLICA (a diferencia del comportamiento viejo que este test documentaba).
+    it('TS-12: el rol lo decide `core`, no un `hasAnyRole` de la api', () => {
       return request(application)
         .post('/api/worked-times')
         .send({ date: HOY_M10, minutes: 60, projectId: 1 })
@@ -821,9 +828,8 @@ describe('POST /api/worked-times', () => {
         .set('Authorization', 'Bearer token_04_external_user')
         .expect(403)
         .then((response) => {
-          response.body.code.should.equal('access_denied');
-          response.body.message.should.equal('Access denied');
-          fakeBus.sent.length.should.equal(0);
+          response.body.code.should.equal('caller_not_authorized');
+          fakeBus.sent.length.should.equal(1);
         });
     });
 

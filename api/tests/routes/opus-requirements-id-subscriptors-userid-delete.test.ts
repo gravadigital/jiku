@@ -46,11 +46,23 @@ describe('DELETE /api/opus/requirements/:reqid/subscriptors/:userId', () => {
       .expect(401);
   });
 
+  // S-034 (CA-5): esta ruta pierde el `hasAnyRole(['external-user'])` de la api. El 403 se
+  // mantiene, pero ahora sale de `core`: `requirements.{id}.subscriptors.{userId}.delete` no
+  // está en `USER_ENVELOPE_COMMANDS` (ni en ningún rol interno) -- ver el comentario de
+  // `authorize-caller.ts`, "un admin NO PUEDE desuscribir a nadie por HTTP hoy" -- así que
+  // `authorizeWithRoles` lo rechaza con `caller_not_authorized`, no con el `access_denied` que
+  // emitía el `hasAnyRole` de la api. Hace falta una fila de suscripción previa: sin ella,
+  // `validateSubscriptionExists` (chequeo LOCAL, no tocado por S-034) corta antes con 404 y
+  // el comando nunca llega a publicarse -- ahí el rechazo de `core` no sería alcanzable.
   it('should return 403 for internal user role', () => {
-    return request(application)
-      .delete('/api/opus/requirements/1/subscriptors/zitadel-sub-01')
-      .set('Authorization', 'Bearer token_01_user')
-      .expect(403);
+    return RequirementSubscriptor.create({ requirementId: 1, userId: 'zitadel-sub-01' })
+      .then(() => request(application)
+        .delete('/api/opus/requirements/1/subscriptors/zitadel-sub-01')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(403))
+      .then((response) => {
+        response.body.code.should.equal('caller_not_authorized');
+      });
   });
 
   // TS-14: userId distinto al autenticado retorna 403

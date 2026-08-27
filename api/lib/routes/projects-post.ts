@@ -49,7 +49,6 @@ async function createProject(req: Request, res: Response) {
  * @responsebody {string} [message] Internal error
  */
 
-const uriRule = joi.string().uri().allow(null, '');
 router
   .post('/projects',
     validateBodyFields(joi.object({
@@ -61,10 +60,13 @@ router
       description: joi.string().required(),
       initDate: joi.date().required(),
       endDate: joi.date(),
+      // Desde S-034 (CA-9): `documentacion`, `diseño` y `board_de_tareas` ya no validan
+      // formato de URI acá — `core/src/commands/projects/properties.ts` ya lo hace
+      // (`docs/apis/core.yaml` lo documenta). La api solo valida que sean string.
       keyValuePairs: joi.object({
-        documentacion: uriRule,
-        diseño: uriRule,
-        board_de_tareas: uriRule,
+        documentacion: joi.string().allow(null, ''),
+        diseño: joi.string().allow(null, ''),
+        board_de_tareas: joi.string().allow(null, ''),
         mattermost_group_name: joi.string().allow(null, ''),
       }).optional(),
     })),

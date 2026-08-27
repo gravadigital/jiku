@@ -1,8 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { runCommand } from '../utils/bus/send-command';
-import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateRequirement from '../utils/middlewares/validate-requirement';
-import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import { RequirementSubscriptor, User, UserProjectPermission } from '@jiku/models';
 import joi from 'joi';
 import validateBodyFields from '../utils/validate-body-fields';
@@ -69,10 +67,8 @@ async function createSubscription(req: Request, res: Response) {
 }
 
 router.post('/opus/requirements/:reqid/subscriptors',
-  hasAnyRole(['external-user']),
   validateBodyFields(joi.object({ userId: joi.string().required() })),
   validateRequirement,
-  validateProjectPermissions,
   validateUserToSubscribe,
   validatePermissionFromUserBody,
   checkNotAlreadySubscribed,

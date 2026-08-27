@@ -9,9 +9,13 @@ const router: Router = Router();
  * falla: la api conecta con un usuario de solo lectura.
  *
  * Mientras tanto responde 200 sin tocar nada, que es lo que la web espera —ya trata el
- * error como no fatal ("Failed to present in API, but continuing")—. La consecuencia es
- * que **un usuario nuevo de Zitadel no queda dado de alta**: si no está en `users`, el
- * resto de las rutas responden 401 `user_not_found`.
+ * error como no fatal ("Failed to present in API, but continuing")—.
+ *
+ * Desde S-034 (D-6, H-5) esta ruta YA NO TIENE del 401 `user_not_found` del que eximirse:
+ * `validateToken` arma `req.user` del claim ya verificado, sin consultar `users`, así que
+ * ninguna ruta —esta incluida— corta por falta de fila. La fila se crea sola con el primer
+ * comando que la persona publica (S-029); mientras tanto, opera igual desde la primera
+ * pantalla.
  *
  * Pendiente: definir si el alta pasa a ser un comando de core, si la resuelve el
  * auth-callout al autenticar, o si esta ruta conserva escritura propia.
