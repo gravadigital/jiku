@@ -4,11 +4,13 @@ import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useProjects } from '@/features/projects';
 import { Spinner, Button } from '@/shared/components/ui';
+import { useLogout } from '@/shared/hooks/useLogout';
 import styles from './page.module.scss';
 
 export default function ProjectsPage() {
   const router = useRouter();
   const { data: projects, isLoading, isError, refetch } = useProjects();
+  const logout = useLogout();
 
   // Sort projects alphabetically by name
   const sortedProjects = useMemo(() => {
@@ -52,7 +54,14 @@ export default function ProjectsPage() {
     return (
       <div className={styles.container}>
         <div className={styles.centered}>
-          <p className={styles.emptyText}>No tienes proyectos asignados</p>
+          <h1 className={styles.emptyTitle}>Todavía no tenés acceso a ningún proyecto</h1>
+          <p className={styles.emptyText} aria-live="polite">
+            Cuando el equipo te dé acceso a un proyecto, lo vas a ver acá. Si esperabas verlo ahora,
+            escribile a tu contacto en Grava Digital.
+          </p>
+          <Button variant="secondary" onClick={logout}>
+            Cerrar sesión
+          </Button>
         </div>
       </div>
     );
