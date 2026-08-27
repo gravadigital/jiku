@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction, Router } from 'express';
+import { Request, Response, Router } from 'express';
 import joi from 'joi';
-import { Person, Project, RequirementResolution, RequirementState, RequirementType, RequirementVisibilityLevel } from '@jiku/models';
+import { Person, Project, RequirementResolution, RequirementState, RequirementVisibilityLevel } from '@jiku/models';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
@@ -29,32 +29,6 @@ const patchSchema = joi.object({
   // que un lote de más no cueste un round-trip del bus antes de que core lo rechace igual.
   fileIds: joi.array().items(joi.number().integer().positive()).max(10).optional(),
 });
-
-/**
- * Regla heredada: una incidencia no se resuelve sin tipo y conclusión.
- *
- * Se queda en la api porque combina el estado que llega con el que ya tiene el requisito,
- * y devuelve un código propio que no está en el protocolo.
- */
-function validateResolutionRules(req: Request, res: Response, next: NextFunction) {
-  const requirement = req.requirement;
-  const { resolutionType, resolutionConclusion, state } = req.body;
-
-  if (state === RequirementState.Resuelto && requirement.type === RequirementType.Incidencia) {
-    const finalType = resolutionType !== undefined ? resolutionType : requirement.resolutionType;
-    const finalConclusion = resolutionConclusion !== undefined
-      ? resolutionConclusion
-      : requirement.resolutionConclusion;
-    if (!finalType || !finalConclusion) {
-      return res.status(400).json({
-        code: 'resolution_required',
-        message: 'Se requiere tipo y conclusión para resolver una incidencia',
-      });
-    }
-  }
-
-  return next();
-}
 
 /**
  * La escritura la hace core; la api rearma la respuesta con proyecto y responsables,
@@ -98,7 +72,6 @@ router.patch('/requirements/:reqid',
   hasAnyRole(['user', 'admin']),
   validateBodyFields(patchSchema),
   validateRequirement,
-  validateResolutionRules,
   patchRequirement
 );
 

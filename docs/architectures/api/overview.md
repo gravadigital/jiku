@@ -71,7 +71,7 @@ particularidad de este servicio respecto de la estructura `domain/{module}/` del
 |---|---|---|---|
 | `clients` | `clients-*` | 5 | "Actores" en la UI |
 | `projects` | `projects-*` | 6 | Incluye `keyValuePairs` con los enlaces del proyecto |
-| `requirements` | `requirements-*` | 8 | Con reglas de resolución propias de la api |
+| `requirements` | `requirements-*` | 8 | Sin reglas propias — el workflow de estados vive en `core` (REQ-007, S-033) |
 | `objectives` | `objectives-*` | 6 | "Tareas" en la UI, `task` en el bus |
 | `worked-times` | `worked-times-*` | 8 | Carga de horas + 3 reportes |
 | `unworked-times` | `unworked-times-*` | 5 | Ausencias y motivos |
@@ -130,7 +130,6 @@ sentidos para no tocar el contrato HTTP.
 | Regla | Dónde | Por qué acá |
 |---|---|---|
 | No se modifican semanas pasadas | `middlewares/validate-week-not-past.ts` | Depende del calendario |
-| Una incidencia no se resuelve sin tipo y conclusión | `requirements-id-patch.ts:36-58` | Combina el estado que llega con el que ya tiene, y devuelve un código que no está en el protocolo |
 | Deadline para borrar una ausencia: 10 días desde `created_at` | `unworked-times-id-delete.ts` | **`deadline_exceeded` no está en el protocolo del bus**, y compara `created_at`, no `date`: es otra regla que la ventana de carga. `core` decidió explícitamente no tomarla (S-031) |
 | Visibilidad automática de actividades | `utils/visibility-helper.ts` | Estado, título y descripción son `public`; el resto `internal`. Solo los comentarios permiten elegir |
 | Límites de adjuntos: 10 archivos, 10 MB, 13 extensiones | `attachments-post.ts:15-31` | La api es la que recibe el multipart |
@@ -162,6 +161,22 @@ de la exclusión tarea/requisito y la titularidad al borrar:
 > El despachador de `core` decide *"¿tu rol habilita este método?"*; el comando decide *"¿podés
 > hacer esto con estos datos?"*; la api decide *"¿esta request está bien formada y a quién
 > corresponde?"*.
+
+### Lo que se fue con REQ-007 (S-033)
+
+La regla de tipo+conclusión al resolver, que esta tabla listaba como *"una incidencia no se
+resuelve sin tipo y conclusión"*, **ya no está en la api**:
+
+| Regla que estaba acá | Dónde vive ahora | Código |
+|---|---|---|
+| Tipo + conclusión obligatorios al resolver — antes acotada a `incidencia` | `core` · `requirements.{id}.edit` y `.resolve` (mismo validador, C-17) — **ampliada a todo `type`, no solo `incidencia`** | `resolution_required` → 400 |
+| La secuencia de estados del requisito (`analisis → planificacion → en_cola → desarrollo → revision`, con la excepción de `incidencia` saltando `en_cola`) — **nunca vivió en el servidor**, solo en el stepper de `web` | `core` · tabla de transiciones (C-15, `state-transitions.ts`) | `invalid_state_transition` → 400 |
+
+**El status HTTP no cambió: 400 en los dos casos.** Lo que cambió es el alcance: la regla de
+tipo+conclusión ahora aplica a cualquier tipo de requisito, no solo `incidencia`, porque `core`
+la aplica sin esa condición. Y la secuencia de estados, que antes solo `web` respetaba, ahora la
+rechaza cualquier caller que la salte — `web`, el portal (`opus-web`), o una persona publicando
+directamente por el bus.
 
 ## Integraciones
 

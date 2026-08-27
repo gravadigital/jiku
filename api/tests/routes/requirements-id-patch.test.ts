@@ -116,13 +116,22 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
   });
 
-  // TS-1 (S-064): transición a en_cola aceptada
+  // TS-1 (S-064, actualizado por S-033): transición a en_cola aceptada — la tabla de
+  // transiciones de C-15 (S-033) exige pasar por `planificacion` primero, ya no es un salto
+  // libre de dos pasos.
   it('TS-1: should accept transition to en_cola', () => {
     return request(application)
       .patch('/api/requirements/1')
       .set('Authorization', 'Bearer token_01_user')
-      .send({ state: 'en_cola' })
+      .send({ state: 'planificacion' })
       .expect(200)
+      .then(() =>
+        request(application)
+          .patch('/api/requirements/1')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'en_cola' })
+          .expect(200)
+      )
       .then((response) => {
         response.body.state.should.equal('en_cola');
       });
@@ -159,19 +168,22 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
   });
 
-  // TS-5 (S-064): retroceso desde revision ya no está bloqueado
-  it('TS-5: should allow transition from revision to planificacion (no longer blocked)', () => {
+  // TS-5 (S-064, actualizado por S-033): el retroceso de un paso se permite (CA-5) — pero la
+  // tabla de C-15 (S-033) lo acota a un paso en la secuencia, no a cualquier salto hacia atrás.
+  it('TS-5: should allow a one-step backward transition from revision to desarrollo', () => {
     return request(application)
       .patch('/api/requirements/2')
       .set('Authorization', 'Bearer token_01_user')
-      .send({ state: 'planificacion' })
+      .send({ state: 'desarrollo' })
       .expect(200)
       .then((response) => {
-        response.body.state.should.equal('planificacion');
+        response.body.state.should.equal('desarrollo');
       });
   });
 
   // transición revision → resuelto registra finishedAt (legacy, no confundir con TS-13 de S-064)
+  // Actualizado por S-033: C-17 exige tipo + conclusión al resolver, para todo `type` — el PATCH
+  // ahora los manda, igual que cualquier resolución.
   it('should allow revision to resuelto and set finishedAt', () => {
     return Requirement.create({
       id: 60,
@@ -188,7 +200,7 @@ describe('PATCH /api/requirements/:reqid', () => {
       request(application)
         .patch('/api/requirements/60')
         .set('Authorization', 'Bearer token_01_user')
-        .send({ state: 'resuelto' })
+        .send({ state: 'resuelto', resolutionType: 'otro', resolutionConclusion: 'Resuelto' })
         .expect(200)
     ).then((response) => {
       response.body.state.should.equal('resuelto');
@@ -196,27 +208,29 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  // TS-3 (S-064): reapertura desde resuelto
-  it('TS-3: should allow reopening a requirement from resuelto', () => {
+  // TS-3 (S-064, revertido por S-033): la reapertura desde resuelto ya NO se permite — CA-7
+  // declara `resuelto` y `cancelado` terminales, sin ninguna transición de salida.
+  it('TS-3: should reject reopening a requirement from resuelto (terminal state, CA-7)', () => {
     return request(application)
       .patch('/api/requirements/3')
       .set('Authorization', 'Bearer token_01_user')
       .send({ state: 'desarrollo' })
-      .expect(200)
+      .expect(400)
       .then((response) => {
-        response.body.state.should.equal('desarrollo');
+        response.body.code.should.equal('invalid_state_transition');
       });
   });
 
-  // TS-4 (S-064): reapertura desde cancelado
-  it('TS-4: should allow reopening a requirement from cancelado', () => {
+  // TS-4 (S-064, revertido por S-033): la reapertura desde cancelado ya NO se permite — mismo
+  // motivo que TS-3 (CA-7).
+  it('TS-4: should reject reopening a requirement from cancelado (terminal state, CA-7)', () => {
     return request(application)
       .patch('/api/requirements/4')
       .set('Authorization', 'Bearer token_01_user')
       .send({ state: 'analisis' })
-      .expect(200)
+      .expect(400)
       .then((response) => {
-        response.body.state.should.equal('analisis');
+        response.body.code.should.equal('invalid_state_transition');
       });
   });
 
@@ -288,13 +302,16 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  // TS-5: transición planificacion → desarrollo válida, registra actividad
-  it('TS-5: should allow planificacion to desarrollo and register activity', () => {
+  // TS-5 (actualizado por S-033): planificacion → desarrollo saltea en_cola — solo válido para
+  // `incidencia` (CA-3). La `funcionalidad` original de este test caía justo en el caso que
+  // CA-4 rechaza, así que el fixture pasa a `incidencia` para seguir probando el camino
+  // aceptado y el registro de actividad.
+  it('TS-5: should allow planificacion to desarrollo for an incidencia and register activity', () => {
     return Requirement.create({
       id: 12,
       title: 'Req para TS-5',
       description: 'Desc',
-      type: 'funcionalidad',
+      type: 'incidencia',
       priority: 'sin_prioridad',
       state: 'planificacion',
       estimatedFinishDate: '2026-07-01',
@@ -317,8 +334,10 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  // TS-2 (S-064): transición libre revision → analisis ya no bloqueada
-  it('TS-2: should allow transition from revision to analisis (free transition)', () => {
+  // TS-2 (S-064, revertido por S-033): revision → analisis ya NO es una transición libre — la
+  // tabla de C-15 (S-033) solo permite un paso hacia atrás en la secuencia (CA-5), y esto son
+  // cuatro. Pasa a probar el rechazo, que es el comportamiento vigente.
+  it('TS-2: should reject a multi-step backward transition from revision to analisis', () => {
     return Requirement.create({
       id: 13,
       title: 'Req revision para TS-2',
@@ -335,9 +354,9 @@ describe('PATCH /api/requirements/:reqid', () => {
         .patch('/api/requirements/13')
         .set('Authorization', 'Bearer token_01_user')
         .send({ state: 'analisis' })
-        .expect(200)
+        .expect(400)
     ).then((response) => {
-      response.body.state.should.equal('analisis');
+      response.body.code.should.equal('invalid_state_transition');
     });
   });
 
@@ -459,7 +478,7 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-4: gate exige ambos campos - ninguno cargado
+    // TS-4: core exige ambos campos (C-17, aplicado por `core` desde S-033) - ninguno cargado
     it('TS-4: should return 400 resolution_required when resolving incidencia without type nor conclusion', () => {
       return Requirement.create({
         id: 73,
@@ -488,7 +507,7 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-5: gate rechaza si falta resolutionConclusion
+    // TS-5: core rechaza si falta resolutionConclusion (C-17, aplicado por `core` desde S-033)
     it('TS-5: should return 400 resolution_required when resolutionConclusion is missing', () => {
       return Requirement.create({
         id: 74,
@@ -513,7 +532,7 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-6: gate rechaza si falta resolutionType
+    // TS-6: core rechaza si falta resolutionType (C-17, aplicado por `core` desde S-033)
     it('TS-6: should return 400 resolution_required when resolutionType is missing', () => {
       return Requirement.create({
         id: 75,
@@ -538,7 +557,7 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-7: gate satisfecho con un campo ya cargado y el otro en el mismo PATCH
+    // TS-7: la regla de core se satisface con un campo ya cargado y el otro en el mismo PATCH
     it('TS-7: should resolve incidencia combining already-set field with field sent in the same PATCH', () => {
       return Requirement.create({
         id: 76,
@@ -563,8 +582,9 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-8: otros tipos de requisito no exigen los campos
-    it('TS-8: should resolve non-incidencia requirement without type nor conclusion', () => {
+    // TS-8 (S-033): C-17 ya no se acota a incidencia — core la aplica a todo `type` (H-1 del
+    // Story Plan de S-033/api). Antes de esta story este mismo caso esperaba 200.
+    it('TS-8: should return 400 resolution_required when resolving any requirement type without type nor conclusion', () => {
       return Requirement.create({
         id: 77,
         title: 'Funcionalidad TS-8',
@@ -580,9 +600,45 @@ describe('PATCH /api/requirements/:reqid', () => {
           .patch('/api/requirements/77')
           .set('Authorization', 'Bearer token_01_user')
           .send({ state: 'resuelto' })
+          .expect(400)
+      ).then((response) => {
+        response.body.code.should.equal('resolution_required');
+      });
+    });
+
+    // TS-2 de Test Scenarios (S-033): la misma funcionalidad, con tipo y conclusión en el
+    // mismo PATCH, sí se resuelve — cubre la rama de aceptación de la regla ampliada sin
+    // depender de `incidencia` para probar el camino feliz.
+    it('should resolve a funcionalidad when type and conclusion are sent in the same PATCH', () => {
+      return Requirement.create({
+        id: 81,
+        title: 'Funcionalidad TS-2 (S-033)',
+        description: 'Desc',
+        type: 'funcionalidad',
+        priority: 'media',
+        state: 'desarrollo',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/81')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({
+            state: 'resuelto',
+            resolutionType: 'otro',
+            resolutionConclusion: 'Resuelto en el sprint',
+          })
           .expect(200)
       ).then((response) => {
         response.body.state.should.equal('resuelto');
+        response.body.resolutionType.should.equal('otro');
+        response.body.resolutionConclusion.should.equal('Resuelto en el sprint');
+        fakeBus.last!.command.should.equal('requirements.81.edit');
+        const payload = fakeBus.last!.payload as any;
+        payload.state.should.equal('resuelto');
+        payload.resolutionType.should.equal('otro');
+        payload.resolutionConclusion.should.equal('Resuelto en el sprint');
       });
     });
 
@@ -677,6 +733,30 @@ describe('PATCH /api/requirements/:reqid', () => {
           .expect(200)
       ).then((response) => {
         (response.body.resolutionComment === null).should.be.true();
+      });
+    });
+
+    // TS-6 de Test Scenarios (S-033): salto de estado inválido — core lo rechaza con
+    // invalid_state_transition, la api traduce igual que cualquier otro error del bus.
+    it('should return 400 invalid_state_transition when skipping states (analisis to desarrollo)', () => {
+      return Requirement.create({
+        id: 82,
+        title: 'Funcionalidad TS-6 (S-033)',
+        description: 'Desc',
+        type: 'funcionalidad',
+        priority: 'media',
+        state: 'analisis',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/82')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'desarrollo' })
+          .expect(400)
+      ).then((response) => {
+        response.body.code.should.equal('invalid_state_transition');
       });
     });
 
@@ -1148,12 +1228,14 @@ describe('PATCH /api/requirements/:reqid', () => {
       return User.destroy({ where: { id: 'zitadel-sub-04' } });
     });
 
-    // TS-6: transición a resuelto sin campos de información base cargados
+    // TS-6: transición a resuelto sin campos de información base cargados. Actualizado por
+    // S-033: C-17 sigue exigiendo tipo + conclusión de RESOLUCIÓN (no confundir con los campos
+    // de información base, que es lo que este test verifica que NO hace falta cargar).
     it('TS-6: should allow transitioning to resuelto without base info fields', () => {
       return request(application)
         .patch('/api/requirements/100')
         .set('Authorization', 'Bearer token_01_user')
-        .send({ state: 'resuelto' })
+        .send({ state: 'resuelto', resolutionType: 'otro', resolutionConclusion: 'Resuelto' })
         .expect(200)
         .then((response) => {
           response.body.state.should.equal('resuelto');
@@ -1235,7 +1317,9 @@ describe('PATCH /api/requirements/:reqid', () => {
         });
     });
 
-    // TS-14: timestamp no se sobreescribe en transición posterior al mismo estado
+    // TS-14: timestamp no se sobreescribe en transición posterior al mismo estado. Actualizado
+    // por S-033: llegar a `desarrollo` desde `planificacion` pasa por `en_cola` (C-15) — ya no
+    // es un salto directo.
     it('TS-14: should not overwrite scheduledAt when re-entering planificacion later', () => {
       let firstScheduledAt: string;
 
@@ -1249,9 +1333,19 @@ describe('PATCH /api/requirements/:reqid', () => {
           return request(application)
             .patch('/api/requirements/108')
             .set('Authorization', 'Bearer token_01_user')
-            .send({ state: 'desarrollo' })
+            .send({ state: 'en_cola' })
             .expect(200);
         })
+        .then(() => request(application)
+          .patch('/api/requirements/108')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'desarrollo' })
+          .expect(200))
+        .then(() => request(application)
+          .patch('/api/requirements/108')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'en_cola' })
+          .expect(200))
         .then(() => request(application)
           .patch('/api/requirements/108')
           .set('Authorization', 'Bearer token_01_user')
