@@ -44,7 +44,7 @@ level — that is what lets an internal comment carry a file the portal will not
 
 ## Three rules that surprise people
 
-The api enforces these, and they produce errors that look like bugs:
+`core` enforces these, and they produce errors that look like bugs:
 
 - You log **your own** hours, nobody else's.
 - Only for **today and the ten days before it**.

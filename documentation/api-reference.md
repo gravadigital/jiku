@@ -23,13 +23,17 @@ covered by the global installation and has to declare `validateToken` in its own
 The token must be a JWT from the configured identity provider, sent as
 `Authorization: Bearer <token>`. There is no query-parameter fallback.
 
-A token that validates but whose subject is not in the `users` table gets 401
-`user_not_found` — Jiku does not create users. See
+`req.user` is built entirely from the verified JWT claim — the api does not look the subject up
+in `users` on the request path, so there is no `user_not_found` response anymore. See
 [known-limitations.md](known-limitations.md).
 
 **Roles** come from a claim on the token. A dash in the Roles column means the endpoint has no
 `hasAnyRole` check, so any authenticated user reaches it — some of those validate access
-inside the handler instead, per entity.
+inside the handler instead, per entity. **For a `Bus` endpoint, the Roles column documents what
+`core`'s role → command map authorises, not a check the api runs itself** (REQ-007): the api no
+longer calls `hasAnyRole` on any write route, and publishes the command to `core` for it to
+authorise, mirror identity, and apply every entity/project and business rule that used to be
+enforced here.
 
 **Bus** marks the endpoints that publish a command to `core` instead of touching the database
 directly. Most of them are writes, but the attachment and file reads are marked too: signing a
@@ -183,12 +187,12 @@ permission: an `external-user` only sees the projects they were granted.
 
 Responses carry a `code` and a `message`. Common codes:
 
-| Code             | Meaning                                                                 |
-| ---------------- | ----------------------------------------------------------------------- |
-| `unauthorized`   | missing or invalid token                                                |
-| `user_not_found` | the token is valid but the subject is not in `users`                    |
-| `access_denied`  | authenticated, but the role or the project permission does not allow it |
-| `not_found`      | no such route or entity                                                 |
+| Code                     | Meaning                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `unauthorized`           | missing or invalid token                                                |
+| `access_denied`          | authenticated, but the entity or project permission does not allow it   |
+| `caller_not_authorized`  | authenticated, but the role does not authorise this command             |
+| `not_found`              | no such route or entity                                                 |
 
 **There is no closed catalogue of error codes**, and no documented mapping from the bus's
 `errorCode` to HTTP statuses. Messages are currently in Spanish, because the frontends display

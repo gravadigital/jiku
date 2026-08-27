@@ -48,11 +48,13 @@ an edit here: the auth-callout authorises those names literally in
 with `Authorization Violation`.
 
 `CORE_TRUSTED_PUBLISHER_ID` is how `core` tells the api's channel from any other publisher: on a
-match the actor is the person in the message body, which the api already authenticated. Left
-empty, every command would take the external branch and nobody could link what they uploaded, so
-**core refuses to start**. `NATS_EVENTS_QUEUE` is the queue group for the authentication event
-`core` consumes to mirror identities, and `SERVICE_VERSION` is what each service announces in
-discovery — validated as strict SemVer, so a `latest` there is a failed startup, not a default.
+match, `core` accepts the `actor` envelope the api attaches to every command — the person's id
+and roles, straight from the JWT claim the api already verified — and mirrors that identity into
+`users` before authorising. Left empty, every command would take the external branch and nobody
+could link what they uploaded, so **core refuses to start**. `NATS_EVENTS_QUEUE` is the queue
+group for the authentication event `core` consumes to mirror identities, and `SERVICE_VERSION` is
+what each service announces in discovery — validated as strict SemVer, so a `latest` there is a
+failed startup, not a default.
 
 The auth-callout itself is configured by the `GESTION_IDP_*` and `AUTH_CALLOUT_*` variables, all
 with defaults, wired to the identity provider and the NATS credentials.

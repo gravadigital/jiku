@@ -38,18 +38,19 @@ history. Fixing it means writing a baseline migration that creates the current s
 marking the existing ones as applied — worth doing before there are external adopters, since
 right now nobody can start from zero without a dump they do not have.
 
-## Users are only created for identities that connect to the bus
+## Users are mirrored, not managed
 
-Jiku reads identities from the provider; it does not manage them. `core` now mirrors them
-automatically: the auth-callout publishes an event on every successful authentication, and
-`core` creates or updates the `users` row from it, roles included. No admin approval.
+Jiku reads identities from the provider; it does not manage them. `core` mirrors the `users`
+row two ways: the auth-callout publishes an event on every successful authentication that
+`core` consumes to create or update it, roles included, and — since the identity envelope
+(REQ-007) — `core` also mirrors it from the `actor` the api attaches to every command a person
+publishes, before authorising that command. No admin approval either way.
 
-**That covers only whoever connects to NATS.** A person who uses `web` or `opus-web` and never
-opens a bus connection produces no event, so they get no row — and **a person who authenticates
-but is not in `users` gets 401 `user_not_found` from every route.** `POST /api/auth/present`,
-which used to create the user on first login, is still a no-op: it was the one write that never
-got a command, and the API is read-only. For those users the only way in is still inserting them
-directly.
+**HTTP no longer depends on any of this.** `validateToken` builds `req.user` from the verified
+JWT claim alone; there is no `users` lookup on the request path, so `401 user_not_found` is
+gone. A person who has never triggered either mirror simply has no `users` row yet — nothing
+in `web` or `opus-web` needs one to exist. `POST /api/auth/present`, which used to create the
+user on first login, is still a no-op: the api is read-only and never writes `users` directly.
 
 Two more consequences worth knowing:
 

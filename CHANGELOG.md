@@ -69,6 +69,117 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-27
+
+One request, seven stories. `admin` and `user` gain write access to the bus, and every
+business rule that gated a write — role, entity ownership, submission windows, the
+requirement state machine, resolution requirements — moves into `core`, the only place
+that now enforces any of it.
+
+**Read the security and behaviour notes below even though this is a backwards-compatible
+release.** No HTTP status or error code changes shape for a consumer that already mapped
+them the way the two frontends do, but three rules start being enforced where they
+previously were not, and `admin`/`user` gain real publish permission on the bus.
+
+### Added
+
+- **People publish commands.** `admin` and `user` connect to the bus with permission to
+  publish on `{instance}.{user_id}.jiku-commands.v1.>`, not just to query. `external-user`
+  is unaffected — still queries only, still only through the portal.
+- **The identity envelope.** The `api` attaches `actor` — the caller's id and roles, plus
+  name/username/email — to every command it publishes, built straight from the verified
+  JWT claim. `core`'s dispatcher extracts it before validation; only
+  `CORE_TRUSTED_PUBLISHER_ID` may send one.
+- **`core` mirrors identity on every command, not only on the auth event.** With an
+  `actor` present, `core` creates or updates the `users` row in its own transaction,
+  before authorising. The mirror self-heals on first write, so a stale or missing row is
+  no longer a way to get `401`.
+- **Command 21: `week-assigned-times.replace`.** The weekly assignment grid was the one
+  domain write still going straight to the ORM from the `api`; it is now a command like
+  every other write, admin-only, and rejects past weeks.
+- **The requirement state machine, enforced server-side for the first time.**
+  `analisis → planificacion → en_cola → desarrollo → revision`, incidents skip
+  `en_cola`. Both `requirements.{id}.edit` and `requirements.{id}.resolve` check it and
+  return `invalid_state_transition` on a bad jump.
+- **`access_denied`**, a new shared error code (403) distinguishing "you may not touch
+  this entity" (`core`, entity/project-scoped) from `caller_not_authorized` ("your role
+  does not enable this method", the role map). Both already mapped to 403 on the HTTP
+  side, so no frontend changes.
+- `core`'s role → command map now enumerates real methods for `admin` and `user` — 18
+  shared commands, one admin-only, one envelope-only — instead of the empty list they
+  carried while they had no write path at all.
+
+### Changed
+
+- **Every write rule the `api` used to enforce now lives in `core`.** Role checks,
+  entity/project ownership, the worked-time submission window, charging hours to another
+  person, task/requirement mutual exclusion, weekly-assignment past-week protection, and
+  mandatory resolution type + conclusion — all removed from the `api`'s routes and
+  applied once, in `core`, on every channel that reaches them.
+- **`validateToken` no longer queries `users`.** `req.user` is built entirely from the
+  verified JWT claim. The `401 user_not_found` response is gone from all 61 routes.
+- **Resolution type + conclusion (C-17) now applies to every requirement type**, not only
+  `incidencia`. The `api` enforced it for incidents alone; `core` enforces it uniformly
+  on both `requirements.{id}.edit` and `requirements.{id}.resolve`.
+- `worked-times.new`'s `personId` becomes optional in the bus contract — `core` resolves
+  it from the actor's linked Person when absent. `unworked-times.new` keeps `personId`
+  required; the asymmetry is intentional.
+- Eight command schemas' `creator`/`editor`/`author`/`uploader` fields become optional —
+  the effective actor is always resolved by `core`'s `resolveActor()`, never enforced by
+  Joi presence, closing a gap where the `api` had to duplicate the same id in two places.
+
+### Removed
+
+- **`deploy/nats/auth-callout/templates/person.yaml`**, the single template shared by all
+  three person roles. Replaced by `person-internal.yaml` (`admin`/`user`: queries and
+  commands) and `person-external.yaml` (`external-user`: queries only, unchanged).
+- The `api` middlewares that used to run these rules before delegating to `core`:
+  `validateDateRange`, `validatePersonPermission`, `validateWeekNotPast`,
+  `validateDeletePermission`, the `.oxor('objectiveId','requirementId')` check and
+  `validateResolutionRules`. The transaction middlewares (`startTransaction`/
+  `commitTransaction`) lose their only caller along with the ORM-based weekly-assignment
+  write they wrapped.
+
+### Fixed
+
+- **Eight command schemas rejected a valid envelope-only payload.** `creator`/`editor`/
+  `author` were still `required()` even when `actor` carried the same identity, forcing
+  the `api` to send the id twice and risking a spurious `invalid_fields` on a mismatch.
+
+### Security
+
+- **`admin` and `user` gain publish permission on the bus.** This is the release's
+  substantive security change (ADR-007): a person's own token now authorises writing to
+  `jiku-commands`, not only reading from `jiku-queries`. It is deliberate and is enforced
+  twice — once by the auth-callout template, once by `core`'s role → command map — but
+  any installation that relied on "people can only read the bus" as a security boundary
+  needs to re-examine that assumption before upgrading.
+
+### Behaviour notes (no contract change, but observable)
+
+- Resolving a non-`incidencia` requirement without a resolution type and conclusion now
+  fails with `400 resolution_required`, where it previously succeeded.
+- A requirement-state jump the `api` never validated (skipping `en_cola`, for instance)
+  now fails with `400 invalid_state_transition`.
+- When two rules fail on the same `worked-times`/`unworked-times` call, the error code
+  returned can differ from before: the rules moved into `core` and are now evaluated in a
+  different order. `docs/apis/api.yaml` marks each reordered case explicitly.
+
+### Notes for existing installations
+
+- **No new environment variables, no migrations.** `deploy/.env.dist` and
+  `api/db-upgrade/migrations/` are both untouched by this release.
+- **`admin` and `user` roles in Zitadel gain real write access to the bus** the moment
+  this version is deployed — see *Security* above. If an operator's threat model assumed
+  otherwise, that assumption needs revisiting before, not after, the upgrade.
+- **Any local override of `deploy/nats/auth-callout/templates/person.yaml`** — outside a
+  plain checkout of this repository — needs to move to `person-internal.yaml` /
+  `person-external.yaml`. `rules.yaml` already points at the new names; a manual copy of
+  the old template left in place is simply unused, not a conflict, but a manual rule that
+  still references `person.yaml` by path will fail to resolve.
+- `docs/apis/api.yaml` and `docs/apis/core.yaml` are the source of truth for the two
+  contracts: where the code disagrees, the document wins.
+
 ## [1.1.0] - 2026-08-26
 
 Six requests and twenty-eight stories. The file no longer travels through the `api`, and
