@@ -141,8 +141,12 @@ info:
     subscription `POST /api/opus/requirements` publishes after creating the requirement) does not
     appear in the spec at all and is declared as data in that test.
 
-    `week-assigned-times.replace` is **not** in the map: the 21st command does not exist in the
-    registry yet, and its entry (`admin` only) belongs to S-032.
+    `week-assigned-times.replace` **is** in the map since S-032, and it is the only command
+    enumerated for **`admin` alone** (C-38). It is NOT in the list of 18 that `admin` and `user`
+    share on purpose — that constant is shared so the two roles cannot diverge, so putting the
+    21st command there would hand it to `user` too. `PUT /api/week-assigned-times` is the only
+    route of the product with `x-roles: [admin]` on its own, and that is why it is the only
+    command that breaks the symmetry.
 
     > **`external-publisher` was removed.** It enumerated the 9 subjects of a callout template of
     > its own, for the channel REQ-001 RF-11 defined — an outside service that uploads files and
@@ -321,7 +325,8 @@ servers:
 #
 # EVERY CHANNEL IS A MICRO ENDPOINT. The endpoint name and subject are DERIVED from the command
 # pattern by `endpointName()` / `endpointSubject()` of `@jiku/nats-protocol` — nothing is written
-# by hand, so adding command 21 to the registry registers it as an endpoint too. This is the table
+# by hand, so adding a command to the registry registers it as an endpoint too — which is exactly
+# how command 21 got its endpoint in S-032, without a line of `bus/`. This is the table
 # `nats micro info jiku-commands` shows:
 #
 #   #   command pattern                                    endpoint subject                      endpoint name
@@ -345,6 +350,7 @@ servers:
 #   18  worked-times.{id}.delete                           worked-times.*.delete                 worked-times-delete
 #   19  unworked-times.new                                 unworked-times.new                    unworked-times-new
 #   20  unworked-times.{id}.delete                         unworked-times.*.delete               unworked-times-delete
+#   21  week-assigned-times.replace                        week-assigned-times.replace           week-assigned-times-replace
 #
 # Two shape rules the derivation respects, and why:
 #   - THE NAME CARRIES NO DOTS. Micro validates the endpoint name against /^[-\w]+$/; the subject,
@@ -353,7 +359,10 @@ servers:
 #     extracts the params from the full subject with the segment registry — it does not need them
 #     from the endpoint.
 #
-# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 20
+# COMMAND 21 IS THE ONLY ONE WHOSE NAME AND SUBJECT BOTH EQUAL THE PATTERN, because no segment of
+# it is a `{param}`: there is no `*` to introduce and no dot to strip.
+#
+# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 21
 # above do not overlap, and the reason is structural rather than luck — the registry matches BY
 # SEGMENT COUNT, and those sharing a length differ in their first or last literal token. But the
 # design does not rest on that manual check: `registerService()` keeps a Set of subjects and FAILS
@@ -964,8 +973,7 @@ components:
       #
       # OJO CON `EmptyBody`: LO COMPARTEN TRES CANALES —`requirements.{id}.subscriptors.{userId}.delete`,
       # `worked-times.{id}.delete` y `unworked-times.{id}.delete`—, así que el código se agrega
-      # una vez y aplica a los tres. `WeekAssignedTimesReplace` NO lo lleva: es el canal 21, su
-      # comando todavía no existe en el registry y su dueño es S-032.
+      # una vez y aplica a los tres.
       #
       # EL TERCER LUGAR DEL CÓDIGO SIGUE ABIERTO: `STATUS_BY_ERROR_CODE` de la api tiene que
       # mapear `access_denied` -> 403, y es de `S-030.api.*`. SIN ESE MAPEO el código cae en el
@@ -1102,6 +1110,13 @@ components:
         - project_not_found
         - person_not_found
         - internal_error
+        # S-032 (D-7). The spec declares `access_denied` UNIFORMLY across every command channel,
+        # including the thirteen whose `COMMAND_ENTITY` is `null` and which therefore cannot emit
+        # it either: it is a policy OF THE PLANE, not a per-command derivation. This channel used
+        # to be the one exception, and the only reason for it was that the 21st command was not
+        # registered yet — which stopped being true when S-032 registered it. A gate with an
+        # exception whose reason has expired turns into noise the next reader deletes unthinkingly.
+        - access_denied
 
     RequirementsResolve:
       name: RequirementsResolve

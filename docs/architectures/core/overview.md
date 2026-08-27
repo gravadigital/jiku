@@ -7,7 +7,7 @@ valida tokens** — eso sigue siendo trabajo de la api; lo que sí hace, y solo 
 consultas, es **leer roles** para decidir qué le recorta a cada caller.
 
 - **Tipo:** worker (consumidor de bus) · **Lenguaje:** node (TypeScript, `strict`) · **Path:** `core/`
-- **Expone:** **20 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
+- **Expone:** **21 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
   (`jiku-queries`), request/reply sin JetStream, **dos micro servicios sobre una sola conexión**
 - **Consume:** PostgreSQL `jiku` por **dos conexiones** —el usuario dueño para escribir, un rol de
   **solo lectura** para las consultas—, NATS, Zitadel (solo para su propio token)
@@ -123,12 +123,12 @@ lectura completa** y vive en `src/queries/`.
 | `projects` | 2 | `commands/projects/` | Traduce `properties` ↔ `key_value_pairs` |
 | `tasks` | 3 | `commands/tasks/` | Tabla `objectives`. El edit calcula el historial a mano, antes de escribir |
 | `requirements` | 6 | `commands/requirements/` | El historial lo calcula el hook `@BeforeUpdate` del modelo |
-| `times` | 4 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias |
+| `times` | 5 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias. Desde REQ-007 suma `week-assigned-times.replace`, el reemplazo de la semana completa de la grilla |
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. **La api no tiene credenciales de S3** |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico más una ficha por recurso |
 
-**Son 20 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
+**Son 21 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
 de la columna es la verificación, no la fuente.
 
 Agregar un comando son tres pasos: el archivo bajo `src/commands/<entidad>/`, el registro en
@@ -178,7 +178,7 @@ puede publicar estos comandos. **Si esa política falla, core no tiene segunda l
 > Desde REQ-005 hay una compuerta que autoriza al **caller del subject** contra `users.roles` antes
 > de resolver el método, en los dos planos. **No cierra el hueco de arriba**: el canal de la api está
 > exento de ella —sin la exención, un evento de autenticación perdido dejaría a la api sin fila en
-> `users` y core rechazaría los 20 comandos con un 403—, y dentro de ese canal core sigue confiando
+> `users` y core rechazaría los 21 comandos con un 403—, y dentro de ese canal core sigue confiando
 > en el `creator`/`author`/`editor` del cuerpo.
 
 ## En el plano de CONSULTAS, core SÍ lee roles
@@ -217,12 +217,19 @@ Declararlo en la ficha ES aplicarlo: el motor lo antepone al `WHERE` de los tres
 | Una incidencia no se resuelve sin conclusión | `requirements/requirements-resolve.ts:45-53` |
 | Visibilidad automática de actividades: `state`/`title`/`description` públicas, el resto internas | `tasks/activity.ts:18` |
 | Los adjuntos tienen que ser drafts propios, vivos y anclados a la entidad correcta | `tasks/tasks-comment.ts:56-77` y equivalentes |
+| No se modifican semanas pasadas de la asignación semanal (C-36) | `times/week-assigned-times.ts` |
 
 ### Reglas que NO viven acá
 
 Las que dependen del rol, del usuario final o del calendario están en la api: la ventana de carga
-de horas (día actual + 10 previos), quién puede imputar horas a otra persona, y que no se
-modifiquen semanas pasadas de asignación. Core no puede validarlas porque no sabe quién llama.
+de horas (día actual + 10 previos) y quién puede imputar horas a otra persona. Core no puede
+validarlas porque no sabe quién llama.
+
+**Que no se modifiquen semanas pasadas de asignación (C-36) ya NO está acá:** con el comando 21
+(S-032) esa regla se mudó a `times/week-assigned-times.ts`, y figura en la tabla de arriba. La
+otra regla de la grilla —*solo `admin` la edita* (C-38)— tampoco vive en un comando: no depende del
+payload, así que la resuelve el **mapa rol → método** de `authorize-caller.ts` antes de tocar el
+dominio.
 
 ## Integraciones
 
@@ -297,7 +304,7 @@ llamen (`core/src/bus/consumer.ts:44-46`).
 
 | Documento | Contenido |
 |---|---|
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **20 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
+| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **21 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
 | [`docs/apis/core-queries.yaml`](../../apis/core-queries.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio. `meta.describe` es su reflejo en datos |
 | [`docs/flows/consulta-por-el-bus.md`](../../flows/consulta-por-el-bus.md) | El recorrido completo de una consulta, de la publicación al cursor |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida |

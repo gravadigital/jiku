@@ -835,29 +835,38 @@ describe('S-030 · la compuerta de escritura', () => {
         .should.deepEqual(['objective_comment_draft', 'requirement_comment_draft']);
     });
 
-    it('TS-71c · (gate) `COMMAND_ENTITY` declara EXACTAMENTE los 20 del registry', () => {
+    it('TS-71c · (gate) `COMMAND_ENTITY` declara EXACTAMENTE los del registry', () => {
       // NI UNA MÁS NI UNA MENOS, y contra el REGISTRY y no contra una lista a mano: un comando
       // que falte DENIEGA en modo externo (ADR-008) y uno que sobre es un patrón muerto.
       Object.keys(COMMAND_ENTITY).sort().should.deepEqual([...registry.patterns()].sort());
     });
 
-    it('TS-71d · (gate) los 12 comandos sin entidad llevan `null` EXPLÍCITO', () => {
+    it('TS-71d · (gate) los 13 comandos sin entidad llevan `null` EXPLÍCITO', () => {
       // `null` ("no hay entidad que chequear: PASA") y AUSENTE ("DENIEGA") son dos cosas
       // distintas, y confundirlas es un bug de seguridad en las dos direcciones.
+      //
+      // ERAN 12 HASTA S-032: el comando 21 suma el suyo, y su `null` es una DECISIÓN y no un
+      // default — su ruta, `week-assigned-times-put.ts`, no lleva `validateProjectPermissions`,
+      // así que declararle el chequeo sería ENDURECER.
       const conNull = Object.entries(COMMAND_ENTITY)
         .filter(([, descriptor]) => descriptor === null)
         .map(([command]) => command);
-      conNull.length.should.equal(12);
+      conNull.length.should.equal(13);
       // El que más importa: su ruta NO aplica capa 3 y su test de la api afirma que un
       // external-user sin ningún permiso de proyecto recibe 201.
       conNull.should.containEql('files.request-upload');
     });
 
     it('TS-71e · un comando AUSENTE del mapa DENIEGA en modo externo (D-6, ADR-008)', async () => {
-      // No es alcanzable por `dispatch()` —los 20 están todos declarados— así que se prueba
-      // contra la función. Es la rama que protege al comando 21 el día que S-032 lo registre
+      // No es alcanzable por `dispatch()` —los 21 están todos declarados— así que se prueba
+      // contra la función. Es la rama que protege al comando 22 el día que alguien lo registre
       // sin pasar por acá.
-      const reply = await authorizeEntityAccess('week-assigned-times.replace', MIX, {}, {});
+      //
+      // EL EJEMPLO CAMBIÓ EN S-032, no el escenario: acá se usaba `week-assigned-times.replace`
+      // porque el comando 21 todavía no estaba declarado en el mapa. Ahora lo está, así que hace
+      // falta un patrón REALMENTE ausente — el mismo `widgets.{id}.archive` inventado que
+      // `service.test.ts` TS-13 usa para lo mismo.
+      const reply = await authorizeEntityAccess('widgets.{id}.archive', MIX, {}, {});
 
       (reply === null).should.be.false();
       reply!.errorCode!.should.equal(ErrorCode.ACCESS_DENIED);

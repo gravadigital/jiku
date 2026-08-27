@@ -91,9 +91,10 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
    * Si vuelve a existir un rol de conector ACOTADO, este helper es el patrón a recuperar.
    */
 
-  it('TS-11 · internal-app autoriza LOS 20 comandos registrados, uno por uno', () => {
-    // Los 20 salen de `registry.patterns()` y no de una lista a mano.
-    COMMANDS.length.should.equal(20);
+  it('TS-11 · internal-app autoriza LOS 21 comandos registrados, uno por uno', () => {
+    // Los 21 salen de `registry.patterns()` y no de una lista a mano. Eran 20 hasta que S-032
+    // registró `week-assigned-times.replace`, el comando 21.
+    COMMANDS.length.should.equal(21);
     for (const pattern of COMMANDS) {
       rolesAuthorize(['internal-app'], asMethod(pattern), 'commands').should.be.true();
     }
@@ -136,9 +137,19 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
       'requirements.{id}.subscriptors.{userId}.delete',
     ];
 
+    // EL COMANDO 21 ES LA TERCERA EXCEPCIÓN, Y ES LA ÚNICA QUE ROMPE LA SIMETRÍA ENTRE LOS DOS
+    // ROLES INTERNOS (S-032, C-38): `PUT /api/week-assigned-times` es la única ruta del producto
+    // con `x-roles: [admin]` sola, así que `admin` lo tiene y `user` NO. Por eso no está en
+    // `INTERNAL_COMMANDS` —la constante que los dos comparten— sino en `ADMIN_COMMANDS`. Su gate
+    // propio, con las dos direcciones y los dos canales, es `S-032 · el comando 21 es de admin
+    // SOLO`, más abajo.
+    const SOLO_ADMIN = ['week-assigned-times.replace'];
+
     for (const role of ['admin', 'user']) {
       for (const pattern of COMMANDS) {
-        const esperado = !SOLO_EXTERNAS.includes(pattern);
+        const esperado =
+          !SOLO_EXTERNAS.includes(pattern) &&
+          (role === 'admin' || !SOLO_ADMIN.includes(pattern));
         rolesAuthorize([role], asMethod(pattern), 'commands').should.equal(
           esperado,
           `${role} -> ${pattern}`
@@ -213,9 +224,20 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
       .should.deepEqual(['external-user', 'user']);
   });
 
-  it('S-030 TS-12 · (gate) `week-assigned-times.replace` NO está en el mapa', () => {
-    // El comando 21 nace en S-032, con su entrada propia (`admin` solamente, C-38).
-    JSON.stringify(ROLE_METHODS).includes('week-assigned-times').should.be.false();
+  it('S-032 · (gate) el comando 21 es de `admin` SOLO', () => {
+    // ESTE GATE SE INVIRTIÓ EN S-032. Antes afirmaba la AUSENCIA del comando 21 en el mapa —el
+    // comando no existía todavía— con un `includes` sobre el JSON serializado. Ahora el comando
+    // está, y la propiedad que hay que proteger es OTRA: que sea de `admin` y NO de `user`. Un
+    // `includes` sobre el JSON no distingue de quién es, así que se pregunta a `rolesAuthorize`,
+    // que es la función que la compuerta usa de verdad.
+    for (const channel of ['direct', 'envelope'] as const) {
+      rolesAuthorize(['admin'], 'week-assigned-times.replace', 'commands', channel)
+        .should.be.true();
+      rolesAuthorize(['user'], 'week-assigned-times.replace', 'commands', channel)
+        .should.be.false();
+      rolesAuthorize(['external-user'], 'week-assigned-times.replace', 'commands', channel)
+        .should.be.false();
+    }
   });
 
   it('S-030 · (gate) todo rol con comandos tiene clase en CLASS_BY_ROLE', () => {
@@ -391,7 +413,7 @@ describe('la compuerta de autorización · plano de comandos', () => {
       }
     });
 
-    it('TS-22 · con `users` vacía, ninguno de los 20 devuelve caller_not_authorized', async () => {
+    it('TS-22 · con `users` vacía, ninguno de los 21 devuelve caller_not_authorized', async () => {
       (await User.count()).should.equal(0);
 
       for (const pattern of registry.patterns()) {

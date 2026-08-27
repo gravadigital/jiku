@@ -188,7 +188,8 @@ function allowedFor(
  *    está en el canal DEL SOBRE, donde `user` suma `requirements.{id}.subscriptors.new` — ver el
  *    comentario de `USER_ENVELOPE_COMMANDS`. Ningún OTRO endpoint los distingue entre las
  *    escrituras que ya pasan por el bus: la única combinación `['admin']` sola es
- *    `PUT /api/week-assigned-times`, que publica el COMANDO 21 y es S-032. Es coherente con que
+ *    `PUT /api/week-assigned-times`, que publica el COMANDO 21 y que S-032 YA ENTREGÓ — por eso
+ *    ese comando va en `ADMIN_COMMANDS` y no en la lista de 18. Es coherente con que
  *    `CLASS_BY_ROLE` los meta en la misma CLASE (`internal`): la clase dice qué se les recorta a
  *    nivel de fila —nada, a los dos—, no qué métodos alcanzan.
  *
@@ -198,9 +199,13 @@ function allowedFor(
  *    así que dárselo por el bus sería AMPLIAR, no migrar. Queda anotado como observación para
  *    S-034/S-035, no como bug.
  *
- * 3. `week-assigned-times.replace` NO APARECE. El comando 21 nace en S-032 —no está en el
- *    registry todavía— y su entrada (`admin` solamente, C-38) se agrega ahí. Hay un gate que
- *    verifica que este mapa no lo nombre.
+ * 3. `week-assigned-times.replace` APARECE, Y SOLO PARA `admin` (C-38, S-032). Es el ÚNICO
+ *    comando enumerado para un rol de producto sin estar en `INTERNAL_COMMANDS`, y eso NO es una
+ *    inconsistencia: esa constante la COMPARTEN `admin` y `user` a propósito —para que no
+ *    diverjan—, así que meter el comando 21 ahí se lo daría también a `user`. Su ruta,
+ *    `PUT /api/week-assigned-times`, es la única del producto con `x-roles: [admin]` sola. Hay un
+ *    gate que verifica que esté para `admin` y NO para `user` ni `external-user`, por los dos
+ *    canales.
  *
  * ============================================================================================
  *
@@ -285,6 +290,24 @@ const INTERNAL_COMMANDS: readonly string[] = [
 ];
 
 /**
+ * EL COMANDO 21, Y ES DE `admin` SOLO (C-38, S-032).
+ *
+ * NO VA EN `INTERNAL_COMMANDS`, y esa es la decisión, no un descuido: esa constante la COMPARTEN
+ * `admin` y `user` —a propósito, para que no diverjan— así que meterlo ahí se lo daría también a
+ * `user`, y C-38 dice justo lo contrario. `PUT /api/week-assigned-times` es la ÚNICA ruta del
+ * producto con `x-roles: [admin]` sola, y por eso el comando 21 es el único que rompe la simetría
+ * de los 18.
+ *
+ * `admin` NO NECESITA `envelopeCommands`: su ausencia significa "los mismos que `commands`"
+ * (`allowedFor()` hace `envelopeCommands ?? commands`), y `admin` alcanza el comando por los dos
+ * canales. Declararlo sería repetir la lista para que después diverja.
+ */
+const ADMIN_COMMANDS: readonly string[] = [
+  ...INTERNAL_COMMANDS,
+  'week-assigned-times.replace', //                     (a) PUT /api/week-assigned-times — [admin]
+];
+
+/**
  * LO QUE `user` ALCANZA **SOLO POR EL SOBRE**, Y POR QUÉ NO ESTÁ EN SU CANAL DIRECTO.
  *
  * `POST /api/opus/requirements` declara `hasAnyRole(['user','external-user'])` y publica DOS
@@ -335,7 +358,7 @@ const EXTERNAL_ENVELOPE_COMMANDS: readonly string[] = [
 
 export const ROLE_METHODS: Readonly<Record<string, RolePermissions>> = {
   'internal-app': { commands: ALL, queries: ALL },
-  admin: { commands: INTERNAL_COMMANDS, queries: ALL },
+  admin: { commands: ADMIN_COMMANDS, queries: ALL },
   user: { commands: INTERNAL_COMMANDS, envelopeCommands: USER_ENVELOPE_COMMANDS, queries: ALL },
   // `commands: []` NO ES UN OLVIDO: es la segunda defensa de CA-3. Ver `envelopeCommands` arriba.
   'external-user': { commands: [], envelopeCommands: EXTERNAL_ENVELOPE_COMMANDS, queries: ALL },

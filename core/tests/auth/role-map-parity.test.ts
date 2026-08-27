@@ -35,16 +35,6 @@ const PRODUCT_ROLES = ['admin', 'user', 'external-user'] as const;
 type ProductRole = (typeof PRODUCT_ROLES)[number];
 
 /**
- * EL COMANDO 21 SE EXCLUYE EXPLÍCITAMENTE, y sin esta línea el test estaría rojo HOY.
- *
- * `week-assigned-times.replace` ya está declarado en `docs/apis/api.yaml` (con `x-roles: [admin]`)
- * pero TODAVÍA NO ESTÁ EN EL REGISTRY de `core`: el comando 21 nace en S-032, y su entrada en el
- * mapa —`admin` solamente, C-38— se agrega ahí. Comparar contra el spec sin excluirlo haría
- * fallar este test por algo que otra story tiene que hacer.
- */
-const NOT_YET_IMPLEMENTED = 'week-assigned-times.replace';
-
-/**
  * Un endpoint que publica un comando: sus roles declarados, o `null` si NO declara ninguno.
  *
  * `null` NO ES lo mismo que `[]`: es "el endpoint no lleva `hasAnyRole`", que es la deuda que la
@@ -218,13 +208,16 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
   const publishers = [...readPublishersFromSpec(), ...PUBLISHERS_FROM_CODE];
   const commands = registry.patterns();
 
-  it('TS-16 · el spec declara un comando que el registry todavía no tiene, y es EXACTAMENTE el 21', () => {
+  it('TS-16 · el spec no declara NINGÚN comando que el registry no tenga', () => {
     const inSpec = new Set(readPublishersFromSpec().map((p) => p.command));
     const missing = [...inSpec].filter((command) => !commands.includes(command)).sort();
 
-    // Si esta lista crece, alguien agregó un `x-bus-command` al spec sin registrar el comando —o
-    // S-032 ya entregó y hay que sacar `week-assigned-times.replace` de la exclusión de arriba.
-    missing.should.deepEqual([NOT_YET_IMPLEMENTED]);
+    // LA LISTA TIENE QUE ESTAR VACÍA DESDE S-032. Hasta esa story la única excepción declarada
+    // era `week-assigned-times.replace` —el spec lo describía antes de que el comando existiera—
+    // y con el comando 21 registrado la excepción, y la constante que la sostenía, desaparecen.
+    // Si esta lista vuelve a crecer, alguien agregó un `x-bus-command` al spec sin registrar el
+    // comando.
+    missing.should.deepEqual([]);
   });
 
   it('TS-16b · el parser encontró publicadores en el spec (la indentación no cambió)', () => {
@@ -248,7 +241,6 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
   for (const role of PRODUCT_ROLES) {
     it(`TS-14 · \`${role}\`: el mapa coincide EXACTAMENTE con la derivación D-2 sobre el spec`, () => {
       const expected = commands
-        .filter((command) => command !== NOT_YET_IMPLEMENTED)
         .filter((command) => derive(role, command, publishers))
         .sort();
       const actual = [...mapped(role)].sort();
@@ -271,15 +263,27 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
     });
   }
 
-  it('TS-14b · los conteos derivados: 18 · 19 · 6 por el canal que cada rol usa', () => {
-    // `user` tiene UNO MÁS que `admin`, y es `requirements.{id}.subscriptors.new`: se lo da el
-    // comando SECUNDARIO de `POST /api/opus/requirements`, un endpoint que `admin` no alcanza.
-    mapped('admin').length.should.equal(18);
+  it('TS-14b · los conteos derivados: 19 · 19 · 6 por el canal que cada rol usa', () => {
+    // LOS DOS ROLES INTERNOS EMPATAN EN 19, Y CADA UNO POR UN COMANDO DISTINTO — que es más
+    // interesante que el empate:
+    //
+    //   `user`  suma `requirements.{id}.subscriptors.new`, el comando SECUNDARIO de
+    //           `POST /api/opus/requirements`, un endpoint que `admin` no alcanza.
+    //   `admin` suma `week-assigned-times.replace` (S-032, C-38), cuya ruta
+    //           `PUT /api/week-assigned-times` es la ÚNICA del producto con `x-roles: [admin]`
+    //           sola — y por eso el comando 21 no está en `INTERNAL_COMMANDS`.
+    //
+    // Los 18 compartidos siguen siendo los mismos: el empate es de conteo, no de contenido, así
+    // que las dos diferencias se afirman explícitamente abajo.
+    mapped('admin').length.should.equal(19);
     mapped('user').length.should.equal(19);
     mapped('external-user').length.should.equal(6);
 
     const soloDeUser = mapped('user').filter((c) => !mapped('admin').includes(c));
     soloDeUser.should.deepEqual(['requirements.{id}.subscriptors.new']);
+
+    const soloDeAdmin = mapped('admin').filter((c) => !mapped('user').includes(c));
+    soloDeAdmin.should.deepEqual(['week-assigned-times.replace']);
   });
 
   it('TS-14c · el canal DIRECTO de `user` no incluye lo que solo alcanza por el sobre', () => {
