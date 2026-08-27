@@ -4,7 +4,7 @@ title: Alta de requisito desde el portal de clientes
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-25
+last_updated: 2026-08-27
 stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034]
 ---
 
@@ -13,7 +13,7 @@ stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-25
+**Última actualización:** 2026-08-27
 **Stories:** S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034
 
 > ## REQ-007 — la autorización por rol y por entidad se muda a `core`
@@ -26,7 +26,7 @@ stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034]
 > | **4** — *"La api autoriza por rol y por entidad"* | **Se elimina de la api** y **reaparece en `core`** como compuerta de método + chequeo de entidad. El proyecto se resuelve **desde los 9 tipos de entidad** | S-030, S-034 |
 > | **4 (matiz que hay que leer)** | El chequeo de `user_project_permissions` se aplica **solo en modo externo**. Un `admin` o un `user` **no** tienen filas en esa tabla —`validateProjectPermissions` de la api hoy los deja pasar de largo— y aplicárselo rompería **toda** la escritura interna | S-030 |
 > | **5** | El payload gana la clave reservada **`actor`** — **ya aplicado** | S-029 |
-> | **6** | Gana la **validación de la transición de estado** contra la tabla declarada. El requisito nace en `analisis`, y la nota que dice que *"la secuencia posterior solo se valida en `web`"* **se invierte** | S-033 |
+> | **6** | Gana la **validación de la transición de estado** contra la tabla declarada — **ya aplicado**. El requisito nace en `analisis`, y la nota que decía que *"la secuencia posterior solo se valida en `web`"* queda invertida | S-033 |
 >
 > **Los códigos:** `caller_not_authorized` (403) si el rol no habilita el método; **`access_denied`
 > (403), código nuevo del catálogo**, si el rol habilita pero la entidad no es suya.
@@ -317,8 +317,13 @@ del tablero. El equipo interno lo ve en `web` con el mismo estado.
   vínculo, que es un estado válido (RF-1, CA-7) y no un huérfano. Ver
   [`vinculacion-de-archivos`](vinculacion-de-archivos.md).
 - **El requisito nace siempre en `analisis`.** El portal lo muestra como chip fijo y core lo
-  valida por default, pero **la secuencia posterior del workflow solo se valida en `web`**
-  (NFR-S07): por esta misma superficie se puede llevar un requisito a cualquier estado.
+  valida por default. **Desde S-033, la secuencia posterior del workflow también se valida en
+  `core`**: la tabla de transiciones (`analisis -> planificacion -> en_cola -> desarrollo ->
+  revision`, con la excepción de `incidencia` saltando `en_cola`) es una constante de módulo
+  validada **donde ocurre la transición** —`requirements.{id}.edit` y `requirements.{id}.resolve`,
+  compartiendo el mismo validador—, sea cual sea el cliente. Antes de S-033 esa secuencia **solo**
+  se validaba en `web` (NFR-S07 quedaba sin cumplir por esta misma superficie); ahora el portal no
+  puede llevar un requisito a cualquier estado.
 - **Los suscriptores no reciben nada.** La suscripción se registra en la base y **no hay canal de
   notificación en el producto**. Es la brecha del feature group FG-2.
 - **Un usuario interno puede usar esta misma superficie.** `opus-web` no corta navegación por rol,

@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-08-25 (S-031)
+**Last updated:** 2026-08-27 (S-033)
 
 ## Utils
 
-Total: 23
+Total: 24
 
 - **authorizeCaller** (`core/src/authorize-caller.ts`) - The method gate as one call: exempts the api's channel by `sub`, otherwise reads `users.roles` and authorises against the closed deny-by-default map. Never throws and fails closed. **Since S-030 NO dispatcher calls it** — both planes chain `readCallerRoles` + `authorizeWithRoles` themselves so a single `SELECT` feeds the method gate AND the caller class. Kept as the right shape for any future plane that only needs the method. **It does not know the channel**, so it always evaluates the most restrictive list: routing an envelope command through it would reject the portal's six live paths.
 - **readCallerRoles** (`core/src/authorize-caller.ts`) - The read on its own: `User.findByPk(caller)` plus the `Array.isArray` guard for the unchecked `JSONB`. Extracted so the query plane can feed BOTH gates with a single `SELECT`. Does not catch: the caller decides.
@@ -34,6 +34,7 @@ Total: 23
 - **enumLabeled** (`core/src/queries/engine/spec.ts`) - The same enum as `{ value, label }[]`, with the RAW VALUE as the label's fallback. It is what `meta.describe` projects. The fallback is not laziness: a `label: undefined` in the response would force every consumer to handle the case, and the raw value is always a legitimate label.
 - **describeResource** (`core/src/queries/meta/describe-spec.ts`) - Projects a `ResourceSpec` to the shape `meta.describe` publishes: base, includables (with `kind`, `cap` and `truncatedFlag`), filterables (with `kind`, enum name and whether they search), sortables, defaults and enums. A PURE function that names no resource — so adding resource 17 does not touch it — and it drops everything that is schema: `externalScope`, `where`, `table`, `joins`, every column name, the SQL of a computed includable, and the value of a constant.
 - **keyValuePairsToProperties** (`core/src/commands/projects/properties.ts`) - The READ half of the `properties` ↔ `key_value_pairs` translation: turns the column's flat object into the contract's `[{code, value}]` list. An absent or `NULL` column yields `[]`, never `null`, and it does NOT filter by the write-side allow-list. Lives next to its inverse so the two planes share one map.
+- **isTransitionAllowed** (`core/src/commands/requirements/state-transitions.ts`) - The requirement state workflow (C-15, REQ-007 / S-033) as data: a module-constant sequence plus the `cancelado`/`resuelto` any-non-terminal rules and the `incidencia` skip exception. Deny-by-default (terminal states have no outgoing transition), pure (no database, no `Reply`), and it does NOT decide the type+conclusion requirement (C-17) — that stays with the caller. `type` must be the ROW's value, read BEFORE any payload change is applied.
 
 ## Services
 

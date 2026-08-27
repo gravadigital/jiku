@@ -4,6 +4,7 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
+import { isTransitionAllowed } from './state-transitions';
 
 export interface RequirementsEditPayload {
   editor: string;
@@ -80,6 +81,30 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
           ErrorCode.INVALID_RESPONSIBLE_PERSON,
           'Responsible person does not exist'
         );
+      }
+    }
+
+    // LA TABLA DE TRANSICIONES (C-15, S-033): `edit` es el canal por el que REALMENTE llega la
+    // resolución (H-2 del Story Plan — `resolve` no tiene ruta HTTP que lo publique), así que
+    // el validador va acá y no solo en `resolve`. `type` se lee de LA FILA
+    // (`requirement.type`), nunca de `payload.type`, aunque el mismo payload también lo traiga
+    // para cambiar la clasificación: se evalúa contra el valor PRE-cambio (H-4) — un caller no
+    // puede declararse `incidencia` en el mismo request para saltear `en_cola`.
+    if (payload.state !== undefined && payload.state !== requirement.state) {
+      if (!isTransitionAllowed(requirement.state, payload.state, requirement.type)) {
+        return failure(ErrorCode.INVALID_STATE_TRANSITION, 'Transición de estado no permitida');
+      }
+      if (payload.state === RequirementState.Resuelto) {
+        // C-17: tipo y conclusión son obligatorios al resolver, venga del camino que venga
+        // (CA-10) — sin acotarlo a `incidencia`, a diferencia de la regla que reemplaza.
+        const resolutionType = payload.resolutionType ?? requirement.resolutionType;
+        const resolutionConclusion = payload.resolutionConclusion ?? requirement.resolutionConclusion;
+        if (!resolutionType || !resolutionConclusion) {
+          return failure(
+            ErrorCode.RESOLUTION_REQUIRED,
+            'Se requiere tipo y conclusión para resolver un requisito'
+          );
+        }
       }
     }
 

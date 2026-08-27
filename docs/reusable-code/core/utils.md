@@ -658,3 +658,46 @@ for (const spec of specs) {
 }
 return Promise.resolve(success({ resources }));
 ```
+
+## isTransitionAllowed
+
+**Location:** `core/src/commands/requirements/state-transitions.ts`
+
+**Description:** The requirement state workflow (C-15, REQ-007 / S-033) **as data**, the same shape
+as `ROLE_PERMISSIONS` (S-030): a module-constant linear sequence (`SEQUENCE`) plus two rules that do
+not fit a linear table — `cancelado` and `resuelto` (through the resolution path) are reachable from
+**any non-terminal state** — and one exception read from the row: `planificacion -> desarrollo`
+skips `en_cola` **only** when `type === 'incidencia'`.
+
+**DENY-BY-DEFAULT**: a terminal state (`resuelto`, `cancelado`) has no outgoing transition at all —
+checked first, before any other rule. A step back in `SEQUENCE` is always allowed (moving a board
+card backwards is a routine correction, not an error).
+
+**PURE**: no database, no `Reply`, no Joi — the three primitive values in, a boolean out. It does
+**not** decide the mandatory type+conclusion rule (C-17) for a transition into `resuelto` — that is
+the caller's responsibility (`requirements-edit.ts` / `requirements-resolve.ts`), because it needs
+values `isTransitionAllowed` never receives (`resolutionType`, `resolutionConclusion`).
+
+**`type` must be the ROW's value, never the payload's** — the caller enforces this by reading
+`requirement.type` **before** applying any payload changes: a request that sends both `type` and
+`state` in the same edit must be evaluated against the type the row had before the edit, or the
+exception becomes forgeable.
+
+**Signature:**
+```ts
+function isTransitionAllowed(
+  from: RequirementState,
+  to: RequirementState,
+  type: RequirementType | null | undefined
+): boolean;
+```
+
+**Usage:**
+```ts
+// core/src/commands/requirements/requirements-edit.ts
+if (payload.state !== undefined && payload.state !== requirement.state) {
+  if (!isTransitionAllowed(requirement.state, payload.state, requirement.type)) {
+    return failure(ErrorCode.INVALID_STATE_TRANSITION, 'Transición de estado no permitida');
+  }
+}
+```
