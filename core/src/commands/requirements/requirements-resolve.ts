@@ -3,10 +3,13 @@ import { Requirement, RequirementActivity, RequirementActivityType, RequirementR
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { resolveActor } from '../resolve-actor';
 import { isTransitionAllowed } from './state-transitions';
 
+const COMPONENT = 'requirements.resolve';
+
 export interface RequirementsResolvePayload {
-  editor: string;
+  editor?: string;
   type: RequirementResolution;
   conclusion?: string | null;
   comment?: string | null;
@@ -20,7 +23,8 @@ export interface RequirementsResolvePayload {
  * comando, así que la transición a `resuelto` queda acá y no en el edit.
  */
 const schema = joi.object({
-  editor: joi.string().required(),
+  // OPTIONAL: ver la nota de `tasks-edit.ts`.
+  editor: joi.string().optional(),
   type: joi.string().valid(...Object.values(RequirementResolution)).required(),
   conclusion: joi.string().allow('', null).optional(),
   comment: joi.string().allow('', null).optional(),
@@ -34,6 +38,11 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<void>> {
+    const actor = resolveActor(ctx, payload.editor, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el editor del requisito');
+    }
+
     const requirement = await Requirement.findByPk(ctx.params.id, {
       transaction: ctx.transaction,
     });
@@ -82,7 +91,7 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
           newValue: RequirementState.Resuelto,
           visibilityLevel: VisibilityLevel.Public,
           requirementId: requirement.id,
-          changedBy: payload.editor,
+          changedBy: actor,
         },
         { transaction: ctx.transaction }
       );

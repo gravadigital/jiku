@@ -5,10 +5,13 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
+import { resolveActor } from '../resolve-actor';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 
+const COMPONENT = 'tasks.new';
+
 export interface TasksNewPayload {
-  creator: string;
+  creator?: string;
   title: string;
   description?: string;
   estimatedFinishDate?: Date | null;
@@ -29,7 +32,9 @@ export interface TasksNewPayload {
  * `responsiblePersonIds` es el nombre nuevo de `personIds`.
  */
 const schema = joi.object({
-  creator: joi.string().required(),
+  // OPTIONAL: con sobre es redundante con `actor.id`; sin sobre, `resolveActor` toma el
+  // subject. Ver `projects-new.ts` para la nota completa.
+  creator: joi.string().optional(),
   title: joi.string().required(),
   description: joi.string().allow('', null).optional(),
   // La columna es STRING, no DATE: se guarda como YYYY-MM-DD. Con `joi.date()` el valor
@@ -65,6 +70,11 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
+    const actor = resolveActor(ctx, payload.creator, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el creador de la tarea');
+    }
+
     const project = await Project.findByPk(payload.projectId, { transaction: ctx.transaction });
     if (!project) {
       return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
@@ -104,7 +114,7 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
         projectId: payload.projectId,
         visibilityLevel: payload.visibilityLevel,
         requirementId: payload.requirementId ?? null,
-        createdBy: payload.creator,
+        createdBy: actor,
       },
       { transaction: ctx.transaction }
     );
@@ -116,13 +126,16 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
     // La tabla es `objectives` y el `entity_type` del vínculo es `objective`: el vocabulario
     // del bus dice `task`, la base dice `objective` (convención `contract-translation`).
     // `fileIds` NO se traduce: la columna es `file_id` y el nombre coincide.
+    //
+    // Se pasa el ACTOR YA RESUELTO, no `payload.creator`: `resolveActor` es pura, así que
+    // resolverla de nuevo adentro de `linkFiles` con el mismo `ctx` da el mismo resultado, pero
+    // pasar el valor ya resuelto documenta que es EL MISMO actor que `createdBy`.
     if (payload.fileIds && payload.fileIds.length > 0) {
       const linkError = await linkFiles({
         fileIds: payload.fileIds,
-        declaredActor: payload.creator,
+        actor,
         entityType: AttachmentEntityType.Objective,
         entityId: task.id,
-        component: 'tasks.new',
         ctx,
       });
       if (linkError) {

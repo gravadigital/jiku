@@ -4,10 +4,13 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
+import { resolveActor } from '../resolve-actor';
 import { isTransitionAllowed } from './state-transitions';
 
+const COMPONENT = 'requirements.edit';
+
 export interface RequirementsEditPayload {
-  editor: string;
+  editor?: string;
   title?: string;
   description?: string;
   type?: RequirementType | null;
@@ -27,7 +30,9 @@ export interface RequirementsEditPayload {
 }
 
 const schema = joi.object({
-  editor: joi.string().required(),
+  // OPTIONAL: ver la nota de `tasks-edit.ts`. La obligatoriedad efectiva —alguna fuente tiene
+  // que producir un actor— la impone `execute()` vía `resolveActor`, no Joi.
+  editor: joi.string().optional(),
   title: joi.string().optional(),
   description: joi.string().optional(),
   type: joi.string().valid(...Object.values(RequirementType)).allow(null).optional(),
@@ -64,6 +69,11 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<void>> {
+    const actor = resolveActor(ctx, payload.editor, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el editor del requisito');
+    }
+
     const requirement = await Requirement.findByPk(ctx.params.id, {
       transaction: ctx.transaction,
     });
@@ -129,7 +139,7 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
               newValue: change.next,
               visibilityLevel: VisibilityLevel.Public,
               requirementId: requirement.id,
-              changedBy: payload.editor,
+              changedBy: actor,
             },
             { transaction: ctx.transaction }
           )
@@ -147,10 +157,9 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
     if (payload.fileIds !== undefined) {
       const linkError = await syncFileLinks({
         fileIds: payload.fileIds,
-        declaredActor: payload.editor,
+        actor,
         entityType: AttachmentEntityType.Requirement,
         entityId: requirement.id,
-        component: 'requirements.edit',
         ctx,
       });
       if (linkError) {

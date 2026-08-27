@@ -142,6 +142,25 @@ describe('requirements', () => {
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
     });
+
+    it('falla sin creator y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch('requirements.new', {
+        title: 'x', description: 'y', projectId,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, creator es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>('requirements.new', {
+        title: 'Con sobre', description: 'x', projectId,
+        actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(reply.data!.id);
+      // El `createdBy` sale de `actor.id`, no de un `creator` que nunca se mandó.
+      requirement!.createdBy.should.equal(CREATOR);
+    });
   });
 
   describe('requirements.{id}.edit', () => {
@@ -210,10 +229,21 @@ describe('requirements', () => {
       links[0].personId.should.equal(personB);
     });
 
-    it('falla sin editor', async () => {
+    it('falla sin editor y sin sobre: ninguna fuente resuelve el actor', async () => {
       const reply = await dispatch(`requirements.${requirementId}.edit`, { title: 'x' });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, editor es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.edit`, {
+        title: 'Editado con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+
+      const activities = await RequirementActivity.findAll({ where: { requirementId } });
+      // El `changedBy` de la actividad sale de `actor.id`, no de un `editor` que nunca se mandó.
+      activities.forEach((a) => a.changedBy.should.equal(CREATOR));
     });
 
     it('falla si el requisito no existe', async () => {
@@ -287,6 +317,28 @@ describe('requirements', () => {
       });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('falla sin editor y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        type: 'otro', conclusion: 'Resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, editor es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        type: 'otro', conclusion: 'Resuelto con sobre',
+        actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+
+      const activity = await RequirementActivity.findOne({
+        where: { requirementId, typeOfActivity: 'state' },
+      });
+      // El `changedBy` sale de `actor.id`, no de un `editor` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
     });
   });
 
@@ -596,6 +648,22 @@ describe('requirements', () => {
       });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('requirement_not_found');
+    });
+
+    it('falla sin author y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment`, { comment: 'x' });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, author es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        comment: 'Con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(reply.data!.id);
+      // El `changedBy` sale de `actor.id`, no de un `author` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
     });
   });
 

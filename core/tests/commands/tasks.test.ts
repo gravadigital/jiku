@@ -155,6 +155,25 @@ describe('tasks', () => {
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
     });
+
+    it('falla sin creator y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch('tasks.new', {
+        title: 'x', projectId, responsiblePersonIds: [personA],
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, creator es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>('tasks.new', {
+        title: 'Con sobre', projectId, responsiblePersonIds: [personA],
+        actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const task = await Objective.findByPk(reply.data!.id);
+      // El `createdBy` sale de `actor.id`, no de un `creator` que nunca se mandó.
+      task!.createdBy.should.equal(CREATOR);
+    });
   });
 
   describe('tasks.{id}.edit', () => {
@@ -245,10 +264,23 @@ describe('tasks', () => {
       reply.errorCode!.should.equal('objective_not_found');
     });
 
-    it('falla sin editor: la actividad necesita un usuario real', async () => {
+    it('falla sin editor y sin sobre: ninguna fuente resuelve el actor', async () => {
       const reply = await dispatch(`tasks.${taskId}.edit`, { title: 'Sin autor' });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, editor es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch(`tasks.${taskId}.edit`, {
+        title: 'Editada con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+
+      const activity = await ObjectiveActivity.findOne({
+        where: { objectiveId: taskId, typeOfActivity: 'title' },
+      });
+      // El `changedBy` sale de `actor.id`, no de un `editor` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
     });
 
     it('falla si una persona no existe y no toca la task', async () => {
@@ -301,6 +333,22 @@ describe('tasks', () => {
       const reply = await dispatch(`tasks.${taskId}.comment`, { author: CREATOR });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('falla sin author y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment`, { comment: 'x' });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, author es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>(`tasks.${taskId}.comment`, {
+        comment: 'Con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const activity = await ObjectiveActivity.findByPk(reply.data!.id);
+      // El `changedBy` sale de `actor.id`, no de un `author` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
     });
 
     it('falla si la task no existe', async () => {

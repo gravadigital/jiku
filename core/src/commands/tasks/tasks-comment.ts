@@ -4,16 +4,20 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
+import { resolveActor } from '../resolve-actor';
+
+const COMPONENT = 'tasks.comment';
 
 export interface TasksCommentPayload {
-  author: string;
+  author?: string;
   comment: string;
   visibilityLevel?: activityVisibilityLevel;
   fileIds?: number[];
 }
 
 const schema = joi.object({
-  author: joi.string().required(),
+  // OPTIONAL: ver la nota de `projects-new.ts`.
+  author: joi.string().optional(),
   comment: joi.string().required(),
   visibilityLevel: joi.string()
     .valid('public', 'internal')
@@ -32,6 +36,11 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
+    const actor = resolveActor(ctx, payload.author, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el autor del comentario');
+    }
+
     // La api no verificaba que la tarea existiera: comentar sobre un id inexistente
     // fallaba por la foreign key con un 500. Acá se valida y se responde el código del
     // protocolo. Ver docs/apis/core.yaml.
@@ -46,7 +55,7 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
         typeOfActivity: 'comment',
         newValue: payload.comment,
         previousValue: '',
-        changedBy: payload.author,
+        changedBy: actor,
         visibilityLevel: payload.visibilityLevel,
       },
       { transaction: ctx.transaction }
@@ -58,10 +67,9 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
     if (payload.fileIds && payload.fileIds.length > 0) {
       const linkError = await linkFiles({
         fileIds: payload.fileIds,
-        declaredActor: payload.author,
+        actor,
         entityType: AttachmentEntityType.ObjectiveComment,
         entityId: comment.id,
-        component: 'tasks.comment',
         ctx,
       });
       if (linkError) {

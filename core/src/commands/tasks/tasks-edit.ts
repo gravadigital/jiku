@@ -5,11 +5,14 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
+import { resolveActor } from '../resolve-actor';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 import { activityVisibility } from './activity';
 
+const COMPONENT = 'tasks.edit';
+
 export interface TasksEditPayload {
-  editor: string;
+  editor?: string;
   title?: string;
   description?: string | null;
   estimatedFinishDate?: Date | null;
@@ -29,12 +32,14 @@ export interface TasksEditPayload {
  *
  * Un campo ausente se deja como estaba; para vaciarlo hay que mandar null explícito.
  *
- * `editor` no está en el protocolo pero es REQUERIDO: `objective_activity.changed_by`
- * tiene una foreign key contra `users`, así que sin un id de usuario real no se puede
- * registrar la actividad. Ver docs/apis/core.yaml.
+ * `editor` es OPCIONAL en el esquema, no obstante `objective_activity.changed_by` tener una
+ * foreign key contra `users`: con sobre, `resolveActor` toma `actor.id` y el campo sería
+ * redundante; sin sobre, sale del subject. Lo que sigue siendo obligatorio es que ALGUNA de
+ * las dos fuentes produzca un actor — lo exige `execute()`, no Joi, porque Joi no ve el sobre
+ * (lo extrae el despachador antes de validar). Ver docs/apis/core.yaml.
  */
 const schema = joi.object({
-  editor: joi.string().required(),
+  editor: joi.string().optional(),
   title: joi.string().optional(),
   description: joi.string().allow('', null).optional(),
   // Ver tasks-new: la columna es STRING.
@@ -77,6 +82,11 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<void>> {
+    const actor = resolveActor(ctx, payload.editor, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el editor de la tarea');
+    }
+
     const task = await Objective.findByPk(ctx.params.id, { transaction: ctx.transaction });
     if (!task) {
       return failure(ErrorCode.OBJECTIVE_NOT_FOUND, 'Objective not found');
@@ -106,7 +116,7 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
 
 
     // Registrar la actividad ANTES de escribir: hace falta el valor anterior.
-    const changedBy = payload.editor;
+    const changedBy = actor;
     const activities = TRACKED.flatMap((field) => {
       if (!Object.prototype.hasOwnProperty.call(payload, field)) {
         return [];
@@ -176,10 +186,9 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
     if (payload.fileIds !== undefined) {
       const linkError = await syncFileLinks({
         fileIds: payload.fileIds,
-        declaredActor: payload.editor,
+        actor,
         entityType: AttachmentEntityType.Objective,
         entityId: task.id,
-        component: 'tasks.edit',
         ctx,
       });
       if (linkError) {

@@ -1,7 +1,6 @@
 import { Attachment, AttachmentEntityType, ByteStatus, File, RetentionStatus } from '@jiku/models';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { CommandContext } from './types';
-import { resolveActor } from './resolve-actor';
 
 /**
  * La vinculación de archivos a una entidad de dominio, compartida por los SEIS comandos que
@@ -21,18 +20,23 @@ import { resolveActor } from './resolve-actor';
  * del despachador por `ctx` y devuelve un `Reply` de falla que el comando retorna tal cual. El
  * rollback del despachador es lo que garantiza que la entidad y sus vínculos queden juntos o
  * ninguno (CA-4).
+ *
+ * RECIBE EL ACTOR YA RESUELTO, no el campo crudo del payload. Los seis comandos llamadores
+ * resuelven `resolveActor(ctx, payload.creator/author/editor, component)` UNA SOLA VEZ, arriba
+ * de `execute()`, para usarlo también en `createdBy`/`changedBy` de la entidad. Si este helper
+ * volviera a llamar a `resolveActor` con el campo crudo, la rama externa —la que loguea `warn`—
+ * se ejecutaría DOS VECES por comando: una en el llamador, otra acá. `resolveActor` es pura y da
+ * el mismo resultado las dos veces, pero el log no es puro.
  */
 
 /** Los parámetros comunes a los dos modos. */
 interface LinkFilesParams {
   /** Los ids de `files` a vincular. El tope de 10 lo impone Joi en cada comando (D-20). */
   fileIds: number[];
-  /** Lo que el cuerpo declara como actor: `creator` / `author` / `editor`. */
-  declaredActor: string | undefined;
+  /** El actor YA RESUELTO por el comando llamador (`resolveActor`), no el campo crudo. */
+  actor: string;
   entityType: AttachmentEntityType;
   entityId: number;
-  /** Prefijo del log de la rama externa, p. ej. `requirements.new`. */
-  component: string;
   ctx: CommandContext;
 }
 
@@ -44,7 +48,7 @@ interface LinkFilesParams {
  * @returns `null` si vinculó bien, o el `Reply` de falla que el comando debe retornar.
  */
 export async function linkFiles(params: LinkFilesParams): Promise<Reply<never> | null> {
-  const { fileIds, declaredActor, entityType, entityId, component, ctx } = params;
+  const { fileIds, actor, entityType, entityId, ctx } = params;
 
   if (fileIds.length === 0) {
     return null;
@@ -57,7 +61,7 @@ export async function linkFiles(params: LinkFilesParams): Promise<Reply<never> |
   // distinto de una. (CA-3 / TS-38)
   const uniqueIds = [...new Set(fileIds)];
 
-  const validated = await validateFiles(uniqueIds, declaredActor, component, ctx);
+  const validated = await validateFiles(uniqueIds, actor, ctx);
   if ('error' in validated) {
     return validated.error;
   }
@@ -77,7 +81,7 @@ export async function linkFiles(params: LinkFilesParams): Promise<Reply<never> |
  * @returns `null` si sincronizó bien, o el `Reply` de falla que el comando debe retornar.
  */
 export async function syncFileLinks(params: LinkFilesParams): Promise<Reply<never> | null> {
-  const { fileIds, declaredActor, entityType, entityId, component, ctx } = params;
+  const { fileIds, actor, entityType, entityId, ctx } = params;
 
   const uniqueIds = [...new Set(fileIds)];
 
@@ -98,7 +102,7 @@ export async function syncFileLinks(params: LinkFilesParams): Promise<Reply<neve
   // pero sí haría que una edición ajena fallara sobre vínculos que el editor no está tocando.
   const toValidate = uniqueIds.filter((id) => !existingByFileId.has(id));
 
-  const validated = await validateFiles(toValidate, declaredActor, component, ctx);
+  const validated = await validateFiles(toValidate, actor, ctx);
   if ('error' in validated) {
     return validated.error;
   }
@@ -136,7 +140,7 @@ export async function syncFileLinks(params: LinkFilesParams): Promise<Reply<neve
 }
 
 /**
- * Resuelve el actor y valida los archivos referenciados, EN ESTE ORDEN:
+ * Valida los archivos referenciados contra el actor YA RESUELTO, EN ESTE ORDEN:
  *
  *   1. existencia   -> `invalid_fields`  (400)
  *   2. vida         -> `invalid_fields`  (400)
@@ -153,20 +157,11 @@ export async function syncFileLinks(params: LinkFilesParams): Promise<Reply<neve
  */
 async function validateFiles(
   fileIds: number[],
-  declaredActor: string | undefined,
-  component: string,
+  actor: string,
   ctx: CommandContext
 ): Promise<{ files: File[] } | { error: Reply<never> }> {
   if (fileIds.length === 0) {
     return { files: [] };
-  }
-
-  const actor = resolveActor(ctx, declaredActor, component);
-  if (!actor) {
-    // Inalcanzable por el canal de la api (`creator` / `author` / `editor` son `.required()`
-    // en los seis esquemas), pero se maneja igual: es más legible que un `internal_error`
-    // opaco y cuesta tres líneas.
-    return { error: failure(ErrorCode.INVALID_FIELDS, 'Falta el actor del comando') };
   }
 
   // Un solo `findAll` por PK, no un `findByPk` por archivo: con el tope de 10 el peor caso es

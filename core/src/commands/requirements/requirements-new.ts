@@ -4,9 +4,12 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
+import { resolveActor } from '../resolve-actor';
+
+const COMPONENT = 'requirements.new';
 
 export interface RequirementsNewPayload {
-  creator: string;
+  creator?: string;
   title: string;
   description: string;
   projectId: number;
@@ -24,7 +27,8 @@ export interface RequirementsNewPayload {
 }
 
 const schema = joi.object({
-  creator: joi.string().required(),
+  // OPTIONAL: ver la nota de `projects-new.ts`.
+  creator: joi.string().optional(),
   title: joi.string().required(),
   description: joi.string().required(),
   projectId: joi.number().integer().required(),
@@ -58,6 +62,11 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
+    const actor = resolveActor(ctx, payload.creator, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el creador del requisito');
+    }
+
     const project = await Project.findByPk(payload.projectId, { transaction: ctx.transaction });
     if (!project) {
       return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
@@ -88,7 +97,7 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
         estimatedFinishDate: payload.estimatedFinishDate ?? null,
         projectId: payload.projectId,
         tags: payload.tags ?? null,
-        createdBy: payload.creator,
+        createdBy: actor,
         scope: payload.scope ?? null,
         technicalSolution: payload.technicalSolution ?? null,
         acceptanceCriteria: payload.acceptanceCriteria ?? null,
@@ -108,10 +117,9 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
     if (payload.fileIds && payload.fileIds.length > 0) {
       const linkError = await linkFiles({
         fileIds: payload.fileIds,
-        declaredActor: payload.creator,
+        actor,
         entityType: AttachmentEntityType.Requirement,
         entityId: requirement.id,
-        component: 'requirements.new',
         ctx,
       });
       if (linkError) {

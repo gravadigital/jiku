@@ -384,14 +384,17 @@ describe('el sobre de identidad · extracción, guarda, forma y choque', () => {
     requirement.createdBy.should.equal(ANA);
   });
 
-  it('TS-22 · el sobre NO vuelve opcional al campo de dominio obligatorio', async () => {
-    const reply = await dispatch('requirements.new', {
+  it('TS-22 · el sobre SÍ vuelve opcional al campo de dominio', async () => {
+    // Corregido: `creator` pasó a `.optional()` en el esquema. Con sobre, repetirlo es
+    // redundante con `actor.id` — la api ya no tiene que mandarlo dos veces — y omitirlo
+    // no rechaza el comando: `resolveActor` toma `actor.id` y ahí termina la resolución.
+    const reply = await dispatch<{ id: number }>('requirements.new', {
       actor: SOBRE, title: 'T', description: 'D', projectId,
     });
 
-    reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
-    // Lo rechaza Joi: `creator` sigue siendo `.required()` en el esquema del comando (CA-7).
-    reply.errorMessage!.should.containEql('creator');
+    reply.status.should.equal('success');
+    const requirement = (await Requirement.findByPk(reply.data!.id))!;
+    requirement.createdBy.should.equal(SOBRE.id);
   });
 });
 

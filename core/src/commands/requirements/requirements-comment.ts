@@ -4,16 +4,20 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
+import { resolveActor } from '../resolve-actor';
+
+const COMPONENT = 'requirements.comment';
 
 export interface RequirementsCommentPayload {
-  author: string;
+  author?: string;
   comment: string;
   visibilityLevel?: VisibilityLevel;
   fileIds?: number[];
 }
 
 const schema = joi.object({
-  author: joi.string().required(),
+  // OPTIONAL: ver la nota de `projects-new.ts`.
+  author: joi.string().optional(),
   comment: joi.string().required(),
   visibilityLevel: joi.string()
     .valid(...Object.values(VisibilityLevel))
@@ -31,6 +35,11 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
+    const actor = resolveActor(ctx, payload.author, COMPONENT);
+    if (!actor) {
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el autor del comentario');
+    }
+
     const requirement = await Requirement.findByPk(ctx.params.id, {
       transaction: ctx.transaction,
     });
@@ -46,7 +55,7 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
         newValue: payload.comment,
         visibilityLevel: payload.visibilityLevel,
         requirementId: requirement.id,
-        changedBy: payload.author,
+        changedBy: actor,
       },
       { transaction: ctx.transaction }
     );
@@ -60,10 +69,9 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
     if (payload.fileIds && payload.fileIds.length > 0) {
       const linkError = await linkFiles({
         fileIds: payload.fileIds,
-        declaredActor: payload.author,
+        actor,
         entityType: AttachmentEntityType.RequirementComment,
         entityId: activity.id,
-        component: 'requirements.comment',
         ctx,
       });
       if (linkError) {

@@ -116,10 +116,24 @@ describe('projects', () => {
       });
     });
 
-    it('falla sin creator', () => {
+    it('falla sin creator y sin sobre: ninguna fuente resuelve el actor', () => {
       return dispatch('projects.new', { name: 'Proyecto', code: 'P-006' }).then((reply) => {
         reply.status.should.equal('failure');
         reply.errorCode!.should.equal('invalid_fields');
+      });
+    });
+
+    it('con sobre, creator es redundante: no hace falta mandarlo', () => {
+      return dispatch<{ id: number }>('projects.new', {
+        name: 'Proyecto Con Sobre',
+        code: 'P-SOBRE',
+        actor: { id: CREATOR, roles: ['user'] },
+      }).then((reply) => {
+        reply.status.should.equal('success');
+        return Project.findByPk(reply.data!.id).then((project) => {
+          // El `createdBy` sale de `actor.id`, no de un `creator` que nunca se mandó.
+          project!.createdBy.should.equal(CREATOR);
+        });
       });
     });
 

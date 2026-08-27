@@ -11,9 +11,13 @@ import { Actor, Reply } from '@jiku/nats-protocol';
  *
  *   - en el SOBRE (`actor`), cuando lo manda el publicador de confianza. Es la clave reservada
  *     que el despachador extrae del cuerpo antes de validar, y la fuente que MANDA.
- *   - en el CAMPO DE DOMINIO (`creator` / `author` / `editor` / `uploader`) cuando no hay sobre.
- *     Esos campos NO desaparecieron y no son redundantes: son datos de dominio y siguen yendo a
- *     su columna. Lo único que cambia es quién gana — ver `resolveActor`.
+ *   - en el CAMPO DE DOMINIO (`creator` / `author` / `editor` / `uploader`) cuando NO hay sobre.
+ *     Con sobre, ese campo es REDUNDANTE y por eso es `.optional()` en Joi: el publicador de
+ *     confianza ya no tiene que repetir en el cuerpo lo que mandó en `actor.id`, y si lo repite
+ *     tiene que coincidir (`extractActor` lo rechaza si difiere). Sin sobre —una persona o un
+ *     conector publicando directo— el campo tampoco se usa: la identidad sale del subject vía
+ *     `ctx.caller`. Quien SIGUE yendo a la columna (`created_by`, `changed_by`, `uploaded_by`)
+ *     es el actor YA RESUELTO por `resolveActor`, no el campo crudo del payload.
  */
 export interface CommandContext {
   /** Servicio que publicó el mensaje, leído del subject. */

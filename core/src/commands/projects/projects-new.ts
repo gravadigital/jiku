@@ -3,10 +3,13 @@ import { Client, Project } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
+import { resolveActor } from '../resolve-actor';
 import { Property, propertiesSchema, propertiesToKeyValuePairs } from './properties';
 
+const COMPONENT = 'projects.new';
+
 export interface ProjectsNewPayload {
-  creator: string;
+  creator?: string;
   name: string;
   code: string;
   status?: string;
@@ -23,7 +26,11 @@ export interface ProjectsNewPayload {
  * según el protocolo.
  */
 const schema = joi.object({
-  creator: joi.string().required(),
+  // OPTIONAL, no `.required()`: con sobre, `creator` es redundante con `actor.id` y la api ya
+  // no tiene que mandarlo (`extractActor` rechaza si lo manda Y difiere). Sin sobre —una
+  // persona o un conector publicando directo— la identidad sale del subject vía `resolveActor`
+  // y este campo no se usa para nada. Ver `resolveActor` para la escalera completa.
+  creator: joi.string().optional(),
   name: joi.string().required(),
   code: joi.string().required(),
   status: joi.string()
@@ -47,6 +54,14 @@ export const projectsNew: Command<ProjectsNewPayload, { id: number }> = {
   },
 
   async execute(payload, ctx: CommandContext): Promise<Reply<{ id: number }>> {
+    const actor = resolveActor(ctx, payload.creator, COMPONENT);
+    if (!actor) {
+      // Solo alcanzable si publicó la api sin sobre y sin `creator`: el contrato exige uno de
+      // los dos. Más legible que dejar que el `NOT NULL` de `created_by` falle con un
+      // `internal_error` opaco.
+      return failure(ErrorCode.INVALID_FIELDS, 'Falta el creador del proyecto');
+    }
+
     if (payload.clientId !== undefined && payload.clientId !== null) {
       const client = await Client.findByPk(payload.clientId, { transaction: ctx.transaction });
       if (!client) {
@@ -65,7 +80,7 @@ export const projectsNew: Command<ProjectsNewPayload, { id: number }> = {
         endDate: payload.endDate ?? null,
         clientId: payload.clientId ?? null,
         keyValuePairs: propertiesToKeyValuePairs(payload.properties),
-        createdBy: payload.creator,
+        createdBy: actor,
       },
       { transaction: ctx.transaction }
     );

@@ -1573,6 +1573,15 @@ components:
         rejected with `invalid_fields` and `errorDetails: { field, value, expected }`. Two
         different identities in one message is a publisher bug, and resolving it silently is how
         one writes in someone else's name.
+
+        **All eleven domain-actor fields are OPTIONAL in their schema, `uploader` included.**
+        With an envelope, the field is redundant with `actor.id` — the trusted publisher no
+        longer has to repeat it, and if it does it has to match. Without an envelope — a person
+        or a connector publishing directly — the field is unused: identity comes from the
+        subject. **What stays mandatory is that SOME source produces an actor**; that is enforced
+        by `resolveActor()` inside `execute()`, not by Joi's `required`, because Joi never sees
+        the envelope (the dispatcher extracts it before validation runs). A command that ends up
+        with no actor at all answers `invalid_fields`, not a raw `NOT NULL` violation.
       required: [id, roles]
       properties:
         id:
@@ -1765,10 +1774,16 @@ components:
 
     ProjectsNewPayload:
       type: object
-      required: [creator, name, code]
+      required: [name, code]
       properties:
         creator:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Who creates the project. **Optional in the schema**: with an envelope it is redundant
+            with `actor.id`; without one, identity comes from the subject. Some source has to
+            resolve an actor or the command answers `invalid_fields` — see `resolveActor` in
+            `Actor`'s description.
         name:
           type: string
         code:
@@ -1845,10 +1860,12 @@ components:
 
     TasksNewPayload:
       type: object
-      required: [creator, title, projectId, responsiblePersonIds]
+      required: [title, projectId, responsiblePersonIds]
       properties:
         creator:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         title:
           type: string
         description:
@@ -1907,16 +1924,16 @@ components:
 
     TasksEditPayload:
       type: object
-      required: [editor]
-      description: 'Partial edit: only `editor` is required.'
+      description: |
+        Partial edit: every field is optional, `editor` included. `objective_activities.changed_by`
+        has a foreign key against `users`, so an actor MUST be resolved — with an envelope or with
+        `editor` — or the command answers `invalid_fields`; see `resolveActor` in `Actor`'s
+        description.
       properties:
         editor:
           allOf:
             - $ref: '#/components/schemas/IdentityUserId'
-          description: |
-            **Required even though the protocol does not declare it.**
-            `objective_activities.changed_by` has a foreign key against `users`, so without a real
-            user id the activity cannot be logged.
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         title:
           type: string
         description:
@@ -1958,10 +1975,12 @@ components:
 
     TasksCommentPayload:
       type: object
-      required: [author, comment]
+      required: [comment]
       properties:
         author:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         comment:
           type: string
         visibilityLevel:
@@ -1986,10 +2005,12 @@ components:
 
     RequirementsNewPayload:
       type: object
-      required: [creator, title, description, projectId]
+      required: [title, description, projectId]
       properties:
         creator:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         title:
           type: string
         description:
@@ -2042,13 +2063,16 @@ components:
 
     RequirementsEditPayload:
       type: object
-      required: [editor]
-      description: 'Partial edit: only `editor` is required.'
+      description: |
+        Partial edit: every field is optional, `editor` included. `requirement_activities.changed_by`
+        has an FK against `users`, so an actor MUST be resolved — with an envelope or with
+        `editor` — or the command answers `invalid_fields`; see `resolveActor` in `Actor`'s
+        description.
       properties:
         editor:
           allOf:
             - $ref: '#/components/schemas/IdentityUserId'
-          description: 'Required: `requirement_activities.changed_by` has an FK against `users`.'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         title:
           type: string
         description:
@@ -2110,10 +2134,12 @@ components:
 
     RequirementsResolvePayload:
       type: object
-      required: [editor, type]
+      required: [type]
       properties:
         editor:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         type:
           type: string
           enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro]
@@ -2131,10 +2157,12 @@ components:
 
     RequirementsCommentPayload:
       type: object
-      required: [author, comment]
+      required: [comment]
       properties:
         author:
-          $ref: '#/components/schemas/IdentityUserId'
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
         comment:
           type: string
         visibilityLevel:
