@@ -3,6 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
+import sinon from 'sinon';
 import { Person, PersonRequirement, Project, Requirement, RequirementActivity, User } from '@jiku/models';
 
 describe('GET /api/requirements', () => {
@@ -272,5 +273,219 @@ describe('GET /api/requirements', () => {
           Object.keys(req).should.not.containEql('creator');
         });
       });
+  });
+
+  describe('count', () => {
+    // TS-1: fixture tiene 4 requisitos del proyecto 1 (ids 1 y 3 en analisis, 2 en
+    // planificacion, 4 en desarrollo)
+    it('TS-1: should return the total count with count=true', () => {
+      return request(application)
+        .get('/api/requirements?count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(4);
+        });
+    });
+
+    it('TS-2: should return the count filtered by state', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(2);
+        });
+    });
+
+    // TS-3: el caso de uso real de S-038 (7 totales por estado dentro de un proyecto)
+    it('TS-3: should return the count filtered by projectId and state', () => {
+      return request(application)
+        .get('/api/requirements?projectId=1&state=desarrollo&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(1);
+        });
+    });
+
+    it('TS-4: should return the count filtered by search (ILIKE on title)', () => {
+      return request(application)
+        .get('/api/requirements?search=factura&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(2);
+        });
+    });
+
+    it('TS-5: should return the count filtered by tag (jsonb contains)', () => {
+      return request(application)
+        .get('/api/requirements?tag=tipo:bug&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(1);
+        });
+    });
+
+    it('TS-6: should return the array as before when count is not provided', () => {
+      return request(application)
+        .get('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          response.body.forEach((req: any) => {
+            req.should.have.property('id');
+            req.should.have.property('title');
+            req.should.have.property('state');
+            req.should.have.property('project');
+            req.should.have.property('responsiblePeople');
+          });
+        });
+    });
+
+    /**
+     * TS-7: `count=false` tiene que devolver el LISTADO.
+     *
+     * Es el test que atrapa el `if (!count)` copiado de objectives: en req.query el valor llega
+     * como el string 'false', que es truthy, asi que esa comparacion devolveria el conteo a
+     * quien pidio el listado. Si este test empieza a fallar con un numero en el body, alguien
+     * cambio la comparacion contra 'true' por una evaluacion de verdad.
+     */
+    it('TS-7: should return the list (not the count) when count=false', () => {
+      return request(application)
+        .get('/api/requirements?count=false')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+        });
+    });
+
+    it('TS-8: should keep filtering the list when count is not provided', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          response.body.forEach((req: any) => {
+            req.state.should.equal('analisis');
+          });
+        });
+    });
+
+    /**
+     * TS-9: el conteo ignora `page` y `limit` — devuelve el total filtrado, no el tamaño de la
+     * pagina. Si este test empieza a devolver 1, alguien colo page/limit dentro del count().
+     */
+    it('TS-9: should ignore page and limit when counting', () => {
+      return request(application)
+        .get('/api/requirements?count=true&page=2&limit=1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(4);
+        });
+    });
+
+    it('TS-10: should return 400 when count is not a boolean value', () => {
+      return request(application)
+        .get('/api/requirements?count=quizas')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.message.should.match(/^Invalid field - /);
+        });
+    });
+
+    it('TS-11: should return 400 when limit is below the minimum (0)', () => {
+      return request(application)
+        .get('/api/requirements?limit=0')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-12: should return 400 when limit is above the maximum (101)', () => {
+      return request(application)
+        .get('/api/requirements?limit=101')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-13: should return 401 when no token is provided, even with count=true', () => {
+      return request(application)
+        .get('/api/requirements?count=true')
+        .set('Accept', 'application/json')
+        .expect(401);
+    });
+
+    it('TS-14: should return 401 when no token is provided, without count (regression)', () => {
+      return request(application)
+        .get('/api/requirements')
+        .set('Accept', 'application/json')
+        .expect(401);
+    });
+
+    it('TS-15: should return 403 for external-user role with count=true, without a number in the body', () => {
+      return request(application)
+        .get('/api/requirements?count=true')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403)
+        .then((response) => {
+          response.body.should.have.property('code', 'access_denied');
+        });
+    });
+
+    it('TS-16: should return 403 for external-user role without count (regression)', () => {
+      return request(application)
+        .get('/api/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403);
+    });
+
+    it('TS-17: should return 500 when the count query fails', () => {
+      const stub = sinon.stub(Requirement, 'count').rejects(new Error('db down'));
+
+      return request(application)
+        .get('/api/requirements?count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(500)
+        .then((response) => {
+          response.body.should.have.property('code', 'internal_error');
+          response.body.should.have.property('message', 'Internal error');
+          JSON.stringify(response.body).should.not.containEql('db down');
+        })
+        .finally(() => stub.restore());
+    });
+
+    it('TS-18: should return 0 (not null nor empty array) when the filter matches nothing', () => {
+      return request(application)
+        .get('/api/requirements?projectId=1&state=resuelto&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(0);
+        });
+    });
   });
 });
