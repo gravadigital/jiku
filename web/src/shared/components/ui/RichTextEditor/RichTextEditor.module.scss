@@ -3,7 +3,12 @@
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
-  min-height: 0;
+  // Ocupa todo el alto disponible del contenedor de scroll: el vacío debajo del
+  // último textarea tiene que pertenecer al editor para que su handler de
+  // `mousedown` lo reciba y pueda enfocar. Con `min-height: 0` ese espacio era
+  // del contenedor padre y el click moría ahí.
+  min-height: 100%;
+  cursor: text;
 }
 
 .textArea {

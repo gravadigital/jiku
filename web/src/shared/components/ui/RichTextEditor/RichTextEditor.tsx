@@ -130,6 +130,50 @@ export function RichTextEditor({
     [segments, onChange]
   );
 
+  /**
+   * El contenido se parte en un `<textarea>` por segmento de texto, y cada uno
+   * se auto-dimensiona a lo que tiene: entre ellos quedan los adjuntos, el
+   * `gap` del contenedor y, debajo del último, todo el alto sobrante del área
+   * de scroll. Un click ahí no cae sobre ningún campo y no enfocaba nada, así
+   * que el editor parecía de solo lectura salvo que se acertara al texto.
+   *
+   * Se resuelve en `mousedown` y no en `click` para ganarle al foco nativo, y
+   * se hace `preventDefault()` para que el navegador no vuelva a moverlo
+   * después. Un click sobre un textarea o sobre un adjunto no se toca: ahí el
+   * comportamiento nativo ya es el correcto.
+   */
+  const handleContainerMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      if (event.target !== event.currentTarget) return;
+
+      const textareas = Array.from(textareaRefs.current.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, el]) => el);
+      if (textareas.length === 0) return;
+
+      const { clientY } = event;
+      // Distancia vertical al campo: 0 si el punto cae dentro de su franja.
+      const target = textareas.reduce((closest, el) => {
+        const rect = el.getBoundingClientRect();
+        const distance = Math.max(rect.top - clientY, clientY - rect.bottom, 0);
+        const closestRect = closest.getBoundingClientRect();
+        const closestDistance = Math.max(
+          closestRect.top - clientY,
+          clientY - closestRect.bottom,
+          0
+        );
+        return distance < closestDistance ? el : closest;
+      }, textareas[0]);
+
+      event.preventDefault();
+      target.focus();
+      const end = target.value.length;
+      target.setSelectionRange(end, end);
+    },
+    [disabled]
+  );
+
   const handleRemove = useCallback(
     (id: number, resource: AttachmentResource) => {
       const filtered = segments.filter(
@@ -152,7 +196,7 @@ export function RichTextEditor({
   );
 
   return (
-    <div className={styles.editor}>
+    <div className={styles.editor} onMouseDown={handleContainerMouseDown}>
       {segments.map((segment, i) => {
         if (segment.type === 'text') {
           return (
