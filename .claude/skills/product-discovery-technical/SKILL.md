@@ -8,7 +8,7 @@ allowed-tools: "Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, WebSearch,
 
 ## Purpose
 
-Run the technical Discovery as the Technical Leader: read the functional + domain analyses and produce a decision-complete **technical analysis** (service map, stack per service, communication patterns, key flows, and a requirement coverage table). Front-loading these decisions makes `/product-initialize-technical` linear transcription instead of discovery.
+Run the technical Discovery following [Technical Standards](.claude/specs/technical-standards.md): read the functional + domain analyses and produce a decision-complete **technical analysis** (service map, stack per service, communication patterns, key flows, and a requirement coverage table). Front-loading these decisions makes `/product-initialize-technical` linear transcription instead of discovery.
 
 **Flow:**
 
@@ -40,9 +40,9 @@ Step 7: Finalization -> Suggest /product-initialize
 
 These are handled in `/product-discovery-functional`, `/product-initialize`, and `/product-initialize-technical`.
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## Pre-loaded Context
 

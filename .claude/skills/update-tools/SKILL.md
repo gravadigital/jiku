@@ -1,6 +1,7 @@
 ---
 name: update-tools
 description: Update Grava Workflow tools to the latest version - handles versioning, backups, and migrations
+model: sonnet
 allowed-tools: "Read, Write, Edit, Bash, Glob, Grep"
 ---
 

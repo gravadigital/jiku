@@ -1,6 +1,7 @@
 ---
 name: auto-new-request-from-fg
 description: Automatically generate a REQ document from a PRD feature group - no user interaction
+model: sonnet
 argument-hint: "[feature-group-number]"
 allowed-tools: "Read, Write, Edit, Bash, Glob, Grep"
 ---
@@ -33,9 +34,9 @@ Step 5: Draft, save & notify
 - Design technical solutions — Use `/product-design-request` after
 - Work with free-text input — Use `/product-new-request` for conversational capture
 
-## Role
+## References
 
-**Adopt the Analyst Agent role** - Read [Analyst Agent](.claude/agents/analyst.md)
+**Read [Functional Analysis](.claude/specs/functional-analysis.md)** and apply it.
 
 ## CRITICAL RULES
 

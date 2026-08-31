@@ -32,9 +32,9 @@ Loop: Attend user requests
 - Modify wireframes (`docs/ux/surfaces/{surface}/screens/*.md`) — those are agnostic of the DS
 - Modify code in service repositories — the DS is consumed by services at implementation time
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role** — extended with design-system stewardship: applies changes faithfully, maintains semver discipline, never silently breaks consumers.
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it. — extended with design-system stewardship: applies changes faithfully, maintains semver discipline, never silently breaks consumers.
 
 ## CRITICAL RULES
 

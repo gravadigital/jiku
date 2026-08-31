@@ -1,6 +1,7 @@
 ---
 name: status
 description: Show project or service status - pending requests, active stories, and suggested next actions
+model: haiku
 allowed-tools: "Read, Glob, Grep"
 ---
 

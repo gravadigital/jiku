@@ -39,9 +39,9 @@ Step 7: Show next steps
 - Define implementation tasks -- Use `/service-planify-story`
 - Apply UX changes (new screens, modified flows) -- Use `/product-ux-request` after this command when `ux_review: required`
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

@@ -43,13 +43,10 @@ Loop: Attend user requests
 
 For structured implementation from a story plan, use `/service-implement-story`.
 
-## Role
+## References
 
-**Auto-detect the service type** (resolved in Step 0): **monorepo** → from
-`docs/architectures/{{service}}/manifest.yaml` (`type:`); **multirepo** → from `.claude/local-config.yaml`
-(`service_type`):
-- If type is `backend` -> Read [Backend Developer Agent](.claude/agents/backend-developer.md)
-- If type is `frontend` -> Read [Frontend Developer Agent](.claude/agents/frontend-developer.md)
+The service's stack, patterns and conventions are declared in its `manifest.yaml` and the
+conventions it references (resolved in Step 0) -- read those, do not infer the stack.
 
 ## CRITICAL RULES
 
@@ -94,8 +91,7 @@ Resolve mode and paths following the **Configuration Resolution Convention** in 
    - **Monorepo:** read `docs/architectures/{{service_name}}/manifest.yaml` `type:` field. If missing/no
      type, ABORT pointing to `/product-create-{backend,frontend}-architecture` / `/product-migrate-architecture`.
    - **Multirepo:** use `service_type` from `local-config.yaml`.
-   - If type is `backend` -> Backend Developer Agent
-   - If type is `frontend` -> Frontend Developer Agent
+   - The type selects which conventions apply; the stack itself comes from `manifest.yaml`.
 
 ### Step 1: Load Full Technical Context
 

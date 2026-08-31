@@ -1,6 +1,7 @@
 ---
 name: product-migrate-architecture
 description: Migrate a service architecture from legacy format (multi-section files) to the manifest.yaml + custom conventions format
+model: sonnet
 argument-hint: "[service-name]"
 allowed-tools: "Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Agent"
 ---
@@ -40,9 +41,9 @@ Step 4: Summary
 - Modify conventions after migration — use `/product-change-technical-definition`
 - Touch the global conventions catalog (`.claude/conventions/`)
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** — Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 
@@ -133,7 +134,7 @@ For each service to migrate, launch a subagent in background with this prompt:
 **Subagent prompt:**
 
 ```
-You are a Technical Leader Agent. Read the file .claude/agents/technical-leader.md for your role.
+Read .claude/specs/technical-standards.md and apply it.
 
 Your task: analyze the source code and legacy architecture docs of the service "{service-name}" and produce a structured migration draft.
 

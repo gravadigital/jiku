@@ -9,7 +9,7 @@ Excalidraw renderer had no layout engine, so it reimplemented CSS by hand — wi
 heights and a text-width heuristic that erred by about +20% on real Spanish microcopy.
 
 Mid-fi extensions over low-fi:
-- Surface-level `viewports` (one canvas section per viewport), `accent_color` and `grid_baseline`
+- Surface-level `viewports` (a chip per viewport in the book's top bar), `accent_color`, `grid_baseline` and `viewport_widths`
 - Per-screen `layouts`: how blocks are arranged in each viewport (a stack, or rows of columns)
 - Block-level viewport visibility (`hidden_in_viewports`, `visible_only_in_viewports`) and
   `viewport_overrides`
@@ -73,7 +73,7 @@ illustrative and lives only here (see rule 8b of `SKILL.md`). Two consequences:
 |-----|----------|------|-------------|
 | `surface` | Yes | string | Surface name (matches the surface folder under `docs/ux/surfaces/`) |
 | `platform` | No | enum | `web` (default) · `mobile-app` · `desktop-app`. Determines which viewports are valid. Declared per surface in `product-overview.md` |
-| `viewports` | Yes | array | Ordered subset of the platform's viewports (see the table below). Each one becomes a SECTION on the canvas with its own frame size. The **first** one is the primary viewport: arrows are drawn there. Rendered in canonical order regardless of declaration order. A viewport outside the platform's set is a **hard error** |
+| `viewports` | Yes | array | Ordered subset of the platform's viewports (see the table below). Each one becomes a chip in the book's top bar, with its own frame width. The **first** one is the primary viewport. Rendered in canonical order regardless of declaration order. **Not validated against the platform:** the renderer draws any viewport name it knows and drops the ones it does not, without a word — declaring `desktop` on a `mobile-app` renders, and `/product-ux-audit` (V3) is what reports it |
 | `device` | No | enum | **Deprecated** single-viewport alias, kept so documents written before viewports keep rendering: `device: "mobile"` is equivalent to `viewports: ["mobile"]`. `device: "tablet"` warns and renders as **mobile**, preserving the legacy behavior from when tablet had no frame of its own — for a real tablet frame declare `platform: "mobile-app"` + `viewports: ["tablet"]`. Ignored when `viewports` is present |
 
 ### Platforms and their viewports
@@ -104,7 +104,7 @@ foundation, not separate arrangements. Do not synthesize a second viewport to lo
 it represents. The viewport only fixes the WIDTH — 400px, 1200px — which is the axis that actually
 changes the layout. The previous renderer had to pick a height, and picking 800px meant silently
 dropping whatever did not fit.
-| `transitions` | No | array | List of transitions between screens. Empty/omitted = no arrows |
+| `transitions` | No | array | List of transitions between screens. Empty/omitted = no clickable blocks |
 
 ## Screen object
 
@@ -126,11 +126,11 @@ dropping whatever did not fit.
 | Key | Required | Type | Description |
 |-----|----------|------|-------------|
 | `name` | Yes | string | Internal id, used to reference in transitions. Kebab-case |
-| `displayName` | Yes | string | Shown as the row label and frame name |
+| `displayName` | Yes | string | Label shown in the book's screen rail |
 | `audiences` | No | array | Audience names (informative) |
 | `overlay` | No | boolean | `true` if this is an overlay (drawer, bottom-sheet, modal, popover) rather than a full-screen route. Default `false` |
-| `overlay_type` | No | string | `drawer` · `bottom-sheet` · `modal` · `popover`. Required when `overlay: true` (informative — affects label in canvas) |
-| `triggered_by` | No | string | `name` of the parent screen that opens this overlay. Used by the layout engine to position the overlay frame near the parent |
+| `overlay_type` | No | string | `drawer` · `bottom-sheet` · `modal` · `popover`. Required when `overlay: true` (informative — it is the tag shown next to the screen in the book's rail) |
+| `triggered_by` | No | string | `name` of the parent screen that opens this overlay. Informative: it records which screen the overlay belongs to |
 | `viewports` | No | array | Subset of the surface's viewports where this screen exists. Omitted = all of them. Use it for a screen that only makes sense on one viewport (a dense config table on desktop, a camera capture on mobile) |
 | `blocks` | Yes | array | The screen's block inventory, declared ONCE regardless of viewport. Order is the default vertical stack |
 | `layouts` | No | object | Per-viewport arrangement, keyed by viewport name. See "Layout object". Omitted for a viewport = the flat stack in `blocks[]` order, which is exactly the pre-viewport behavior |
@@ -158,7 +158,7 @@ dropping whatever did not fit.
 | `type` | Yes | string | One of the 36 dictionary types |
 | `category` | No | string | layout / navigation / content / input / feedback (informative) |
 | `content` | No | string | Real text rendered on the block (microcopy, label, heading) — defaults to `name` |
-| `icon` | No | string | Icon name from the Unicode map (search, check, menu, arrow-right, etc.). Falls back to `[name]` text if unknown |
+| `icon` | No | string | Icon name from the Unicode map (search, check, menu, plus, arrow-right, etc.) — the full list is in `SKILL.md`. An unknown name renders as visible `[name]` text and warns. Drawn by: `header`, `sidebar` items, `heading`, `button`, `link`, `text-input`, `search-bar`, `section`, `card`, `icon`. Types with no place for one (`table`, `tabs`, `pagination`, `chart`, …) warn that it is ignored |
 | `annotation` | No | string | Inline note rendered in small gray text below the block (e.g., "polling 30s", "valida >8 chars") |
 | `hidden_in_states` | No | string[] | State names in which this block is NOT rendered. Case-insensitive match. Backward-compatible — omitting this field renders the block in all states (original behavior). Example: `["default", "loading"]` |
 | `visible_only_in_states` | No | string[] | Inverse of `hidden_in_states`. Block is rendered ONLY in the listed states. Mutually exclusive with `hidden_in_states` (use one or the other). Example: `["error de validación", "error de sistema"]` |
@@ -189,7 +189,7 @@ dropping whatever did not fit.
 
 **`image`**
 - `aspect_ratio`: e.g., `4:3`, `16:9`. Rendered as text inside the placeholder
-- `h`: explicit height in px (default 200)
+- `h`: minimum height in px
 
 **`list`**
 - `items`: list of `{title, subtitle, icon}` for real items. If absent, falls back to `items_count`.
@@ -216,8 +216,10 @@ dropping whatever did not fit.
 - `h`: explicit height. Omitted, the panel fills the room left in its column down to the footer — which is what a persistent desktop sidebar looks like
 
 **`table`**
-- `columns`: list of column labels, or of `{label, width}` where `width` is the column's share (percent or twelfths). Widths matter: a listing whose title column takes 42% reads nothing like one with even columns
-- `rows`: number of data rows to draw (default 3) · `row_h`: row height (default 32)
+- `columns`: list of column labels, or of `{label, width}` where `width` is the column's share. Widths matter: a listing whose title column takes 42% reads nothing like one with even columns
+- **Scale of `width`:** percent or twelfths, whichever the numbers are on — they are normalized to sum to 100%, so `8/42/16/11/11/12` and `1/5/2/1/1/2` both come out right. Mixing declared and undeclared columns is allowed: the undeclared ones split what is left (`50, -, -` → 50/25/25). Declaring widths that already fill the scale AND leaving columns blank is contradictory and warns
+- `rows`: a list of real rows (each a list of cell strings), or an int to draw that many skeleton rows · `row_h`: row height in px
+- Cell prefixes: `badge:Alta` renders a badge · `skeleton:70` renders a 70%-wide placeholder bar
 
 **`pagination`**
 - `pages`: how many page buttons to draw (default 3, capped at 5) · `page_size`: draws the page-size select when set
@@ -238,16 +240,26 @@ dropping whatever did not fit.
 - `kind`: `info` (default) · `error` · `success` · `warning`. Anchored to the right edge of the frame
 
 **`section`**
-- `h`: explicit height (default 50)
+- `h`: minimum height in px
+- `icon`: ONE trailing action drawn at the right edge of the box
+- A `section` is a standalone labelled box. To wrap other blocks in a titled container, use a
+  `card: true` row instead (see "Composite sections" above)
 
 **`card`**, **`badge`**, **`progress-bar`**, **`avatar`**, **`toggle`**, **`checkbox`**, **`radio`** — see SKILL.md for behavior.
 
 ### Block types (dictionary)
-- Layout: `header`, `footer`, `sidebar`, `main`, `modal`, `section`
-- Navigation: `nav-bar`, `tabs`, `link`, `breadcrumbs`, `pagination`
-- Content: `heading`, `paragraph`, `image`, `icon`, `list`, `card`, `table`, `avatar`, `badge`, `chart`
-- Input: `text-input`, `button`, `dropdown`, `checkbox`, `radio`, `toggle`, `search-bar`, `slider`, `date-picker`
-- Feedback: `alert`, `toast`, `progress-bar`, `tooltip`, `empty-state`, `loader`
+
+40 types, all with a real renderer in `build_book.py`. A type outside this list renders as a **loud red
+block** naming it.
+
+- Layout (6): `header`, `footer`, `sidebar`, `main`, `modal`, `section`
+- Navigation (5): `nav-bar`, `tabs`, `link`, `breadcrumbs`, `pagination`
+- Content (13): `heading`, `paragraph`, `label`, `image`, `icon`, `list`, `card`, `card-list`, `table`, `chips`, `avatar`, `badge`, `chart`
+- Input (10): `text-input`, `textarea`, `button`, `dropdown`, `checkbox`, `radio`, `toggle`, `search-bar`, `slider`, `date-picker`
+- Feedback (6): `alert`, `toast`, `progress-bar`, `tooltip`, `empty-state`, `loader`
+
+`card-list` reads a fixed item shape — `{id, fecha, titulo, badges[], proyecto, responsable}` — and
+draws nothing for keys outside it. For records that do not fit, use `list` or stacked `card` blocks.
 
 ## Layout object (per viewport)
 
@@ -284,6 +296,24 @@ dropping whatever did not fit.
 | `cols` | Yes | array | Non-empty list of columns |
 | `cols[].w` | Yes | number | Width in grid columns out of 12. Normalized by the **sum** of the row's fractions, so `3+9` and `1+3` both split 25/75 |
 | `cols[].stack` | Yes | array | Layout items stacked vertically inside the column. May contain further row objects |
+| `card` | No | boolean | Draws the card frame — border, radius, padding — around the container. Valid on a **row** (wraps the whole row) and on a **column** (wraps that column only) |
+| `title` | No | string | Title rendered inside the card frame, at the top. Needs `card: true` |
+| `icon` | No | string | ONE trailing action in the title row, at the right edge — the `+` of a create affordance. Needs `card: true` |
+
+### Composite sections: declare the container, not five siblings
+
+A panel that holds a title, a create button, tabs, a table and its pagination is **one
+container**, and it has to be declared as one. Listing its parts as siblings in a column stack
+renders them as five stacked blocks with nothing around them — the title's `+` ends up floating
+above a table instead of inside the panel header, which is not what the screen looks like:
+
+```json
+{"row": "requisitos", "card": true, "title": "Requisitos", "icon": "plus",
+ "cols": [{"w": 12, "stack": ["tabs-estado", "tabla", "paginacion"]}]}
+```
+
+The `section` block type is for a labelled box that stands alone. It is **not** a section header
+for the blocks that follow it — it has no way to contain them.
 
 **Rules the script enforces:**
 
@@ -293,7 +323,7 @@ dropping whatever did not fit.
   skipped if referenced in a layout. A layout arranges everything *between* them — so a desktop
   sidebar starts below the full-width header, which is the common shell pattern.
 - A block name may appear more than once (a grid of identical cards). Each occurrence renders; the
-  **first** one is recorded in `coords.blocks` as the arrow anchor.
+  **first** one carries the transition jump, if the block is a transition source.
 - A row's height is the tallest of its columns.
 - Blocks hidden in this viewport are skipped even if the layout lists them, so one layout can be
   shared across viewports.
@@ -301,6 +331,19 @@ dropping whatever did not fit.
 **Omitting a layout** for a viewport falls back to the flat vertical stack in `blocks[]` order. That
 is the exact behavior that existed before viewports, which is why documents that predate them render
 unchanged.
+
+## Declared fields must be fields the type draws
+
+The builder warns for **every key a block declares that its type does not render**, and for every
+icon name outside the map. A field that looks meaningful in the JSON and draws nothing is the
+failure mode this format was built to eliminate — it just moved one level down, from types to
+fields. Four shipped that way for months: `icon` was documented for every block and read by two
+renderers, `h` was documented for five types and read by none, `error_msg` and table column
+`width` were documented and never implemented. Each one was declared correctly by the agent,
+silently dropped by the renderer, and the wireframe looked plausible enough that nobody checked.
+
+If a warning says a field is ignored, either the field is wrong or it belongs on a different
+block — do not leave it in as documentation.
 
 ## Override precedence
 
@@ -345,10 +388,10 @@ States are rendered **in this order**: `default` first (column 0), then the rest
 |-----|----------|------|-------------|
 | `src` | Yes | string | Source screen `name` (must match a screen's `name`) |
 | `srcState` | No | string | Source state name. Default `"default"`. Use other state names when the trigger lives in a non-default state |
-| `srcBlock` | No | string | Block `name` within `src.blocks[]` that triggers the transition. Used by the agent to know which block to anchor the arrow to |
+| `srcBlock` | No | string | Block `name` within `src.blocks[]` that triggers the transition. It is the block the renderer makes clickable — without it the transition is recorded but nothing in the book jumps |
 | `dst` | Yes | string | Destination screen `name` (must match a screen's `name`) |
-| `trigger` | No | string | Short label (4-6 words, ~25 chars). Used by the agent as the label text |
-| `automatic` | No | boolean | If `true`, arrow is dashed (auto transition). Default `false` (solid, user-driven) |
+| `trigger` | No | string | Short label (4-6 words, ~25 chars). Shown on the clickable block |
+| `automatic` | No | boolean | If `true`, the transition happens without user action. Informative in the book — an automatic transition has no block to click |
 
 **`build_book.py` turns each transition into a clickable block.** The block named by `srcBlock`
 becomes a jump to `dst` inside the book, labelled with `trigger`. There are no arrows to lay out: the
@@ -488,7 +531,7 @@ what is declared per viewport (presence, arrangement).
          "viewport_overrides": {"desktop": {"content": "Pedidos del turno", "icon": null}}},
         {"name": "sidebar-nav", "type": "sidebar", "content": "Navegación",
          "visible_only_in_viewports": ["desktop"],
-         "items": [{"title": "Pedidos", "icon": "list"}, {"title": "Clientes", "icon": "users"}]},
+         "items": [{"title": "Pedidos", "icon": "file"}, {"title": "Clientes", "icon": "users"}]},
         {"name": "nav-inferior", "type": "nav-bar", "labels": ["Pedidos", "Clientes", "Perfil"],
          "visible_only_in_viewports": ["mobile"]},
         {"name": "Buscador", "type": "search-bar", "content": "Buscar pedido…", "icon": "search"},
@@ -607,29 +650,37 @@ What this example shows:
   per screen — likely a split view (map on one side, trip data on the other), which is a real second
   layout rather than a wider version of the first.
 
-## Validation errors
+## Errors and warnings
 
-The script fails with `[build_wireframes] ERROR: ...` and exit code 1 on:
+**Almost nothing is fatal, and that is deliberate: a partial book beats no book.** `build_book.py`
+fails hard only on JSON it cannot read or on a structurally impossible spec — a missing `screens`, or
+a screen without `name` / `displayName` — which surfaces as a Python traceback and exit code 1.
 
-- Missing required top-level key (`surface`, `device`, `screens`)
-- `device` not in `mobile`/`desktop`/`tablet`
-- `screens` empty
-- Screen missing `name`, `displayName`, `blocks`, or `states`
-- `states` empty
-- Block missing `name` or `type`
-- State `applies` not boolean
-- Unknown viewport name (valid: `mobile`, `desktop`, `phone`, `phone-landscape`, `tablet`)
-- Unknown platform (valid: `web`, `mobile-app`, `desktop-app`)
-- A viewport that does not belong to the declared platform (e.g. `desktop` on a `mobile-app`)
-- A block declaring both `hidden_in_viewports` and `visible_only_in_viewports`
-- A layout referencing a block name that does not exist in the screen
-- A layout row without a non-empty `cols` list, or a column without a `stack` or with `w <= 0`
-- Layout nesting deeper than 3 levels
+Everything else is a warning on stderr, prefixed `[build_book] WARN:`. **The report has to include
+them:** a warning is a bug in the spec, and the whole point of naming it is that someone acts on it.
 
-Transitions are **not** fatal: a transition naming an unknown screen, or anchored to a block that does
-not exist in the source screen, is skipped (or anchored at the frame edge) with a warning on stderr.
-The rest of the canvas still renders — an unrenderable arrow should not cost you the wireframe.
+| Warning | What it means |
+|---|---|
+| `N bloque(s) declarados pero ausentes del layout` | A `layouts` entry REPLACES the default stack, so a block it never mentions is never drawn. The frame can look complete while half the screen is missing. Fix the layout in the `.md` |
+| `transición a una pantalla inexistente` | `transitions[]` and the screen inventory disagree; the jump is dropped |
+| `campo(s) que este tipo no dibuja, se ignoran` | A declared key no renderer reads. It looks meaningful in the JSON and does nothing |
+| `'{type}' no dibuja icono` | An `icon` on a type with no place for one |
+| `icono desconocido '{name}'` | Not in the Unicode map; renders as visible `[name]` |
+| `item sin title/label/text/name` | An item object with no recognizable label key — it would draw an empty chip |
+| `la columna de 'row' ... queda en ~Npx` | The row's fixed columns squeeze a text column below 180px. The declared layout asks for more width than the viewport has: set `viewport_widths` or make the column flexible |
+| `accent_color invalido` | Not a hex color; the book renders in greyscale rather than inventing a brand color |
+| `N de M columnas sin width` | Some table columns declare a width and some do not; the rest is split evenly |
+| `los anchos declarados ya suman N sobre M` | The declared column widths fill or overflow the scale and there are still columns without one — everything is rescaled and the declared proportions are not honored |
 
-Unknown block types do **not** fail — they render as `[type] {name}` so the issue is visible without breaking the build.
+Two things the renderer does **not** check, so they have to be caught upstream:
+
+- **Viewport vs. platform.** A `desktop` viewport on a `mobile-app` surface renders normally. It is a
+  category error and `/product-ux-audit` (check V3) is what reports it.
+- **Unknown viewport names.** A typo (`mobil`) is dropped silently; if every declared viewport is
+  dropped, the book falls back to `desktop`.
+
+Unknown **block types** do not fail either — they render as a loud red block naming the type. The
+previous renderer drew a silent grey box, which is how a product ended up with 20 tables rendered as
+empty rectangles.
 
 ---

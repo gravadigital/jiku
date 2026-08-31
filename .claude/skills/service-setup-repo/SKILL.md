@@ -46,9 +46,9 @@ Step 5: Verify & summary
 - Generate service architectures -> Use `/product-create-backend-architecture` or `/product-create-frontend-architecture`
 - Plan or implement stories -> Use `/service-planify-story` and `/service-implement-story`
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

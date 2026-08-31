@@ -44,9 +44,9 @@ Step 8: Finalization
 
 These are handled in `/product-initialize` and `/product-new-request`.
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## Pre-loaded Context
 

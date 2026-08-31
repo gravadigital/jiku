@@ -35,9 +35,9 @@ Step 6: Summary
 - Read source code -- it works exclusively from existing documentation
 - Replace existing flow documents -- it skips flows already documented
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

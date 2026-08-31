@@ -1,6 +1,7 @@
 ---
 name: auto-implement-product
 description: Automatically implement all (or selected) feature groups from the PRD end-to-end without user interaction
+model: sonnet
 argument-hint: "[\"feature group description or filter\"]"
 allowed-tools: "Read, Bash, Glob, Grep, Agent"
 ---
@@ -33,15 +34,17 @@ Step 4: Final summary
 - Work on multirepo setups — Only supported in monorepo mode
 - Modify or review the PRD — Feature groups must already be defined
 
-## Role
+## References
 
-**Adopt the Orchestrator Agent role** - Read [Orchestrator Agent](.claude/agents/orchestrator.md)
+**Read [Orchestration](.claude/specs/orchestration.md)** and apply it.
 
 ## CRITICAL RULES
 
 1. **Monorepo only** - The repo must be a monorepo (detected by `docs/prd/` at the root, per the
    Configuration Resolution Convention). ABORT if it's a multirepo (see Step 0.1)
 2. **PRD must exist** - ABORT if PRD feature groups are not found
+2b. **Pass `model` explicitly in every Agent call** - A delegated skill's own `model:` frontmatter is IGNORED when the skill runs inside a subagent. Each call below states which model to pass; omitting it silently runs the step on the session model
+2c. **If the `Skill` tool fails inside a subagent, ABORT** - Do NOT let the subagent fall back to reading the `SKILL.md` from disk and running its steps by hand. That produces files that pass filesystem verification while bypassing the skill's real flow, which the filesystem verification rule cannot catch. Report the tool error verbatim and stop
 3. **Sequential execution** - One feature group at a time, wait for full completion before starting the next
 4. **Never make technical or product decisions** - All work is delegated to subagents
 5. **Read filesystem to verify state** - After each subagent, verify the expected files/statuses exist
@@ -176,7 +179,10 @@ Iniciando...
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]` to grant full permissions.
 
+Pasá `model: "sonnet"` en la llamada a la Agent tool (expande un feature group ya definido).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill auto-new-request-from-fg con los siguientes parámetros:
 - Argumento: {{feature_group_number}}
@@ -199,7 +205,10 @@ Inform user (do NOT wait for response — continue immediately): **[Feature {{cu
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "inherit"` en la llamada a la Agent tool (sub-orquestador: fija el modelo de sus propias llamadas).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions, context, or state about what was already done. The subagent reads the filesystem and determines its own starting point:**
+
 ```
 Ejecutá el skill auto-implement-request con los siguientes parámetros:
 - Argumento: {{current_req}}

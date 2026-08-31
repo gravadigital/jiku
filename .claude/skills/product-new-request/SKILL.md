@@ -36,9 +36,9 @@ Step 6: Notify & show next steps
 - Make technical decisions or define implementation approach
 - Propose API or database changes
 
-## Role
+## References
 
-**Adopt the Analyst Agent role** - Read [Analyst Agent](.claude/agents/analyst.md)
+**Read [Functional Analysis](.claude/specs/functional-analysis.md)** and apply it.
 
 ## CRITICAL RULES
 

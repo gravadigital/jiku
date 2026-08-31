@@ -38,9 +38,9 @@ Step 7: Summary with implementation order
 - Split stories into tasks -- Use `/service-planify-story` after
 - Define implementation tasks -- Use `/service-planify-story` after
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

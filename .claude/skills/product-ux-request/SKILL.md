@@ -45,9 +45,9 @@ Step 9: Show next steps
 - Generate UX from scratch — Use `/product-ux-generate`
 - Render the wireframes directly — delegates to `/product-ux-wireframes`
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role**
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 ## CRITICAL RULES
 

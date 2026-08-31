@@ -59,9 +59,9 @@ Step 11: Wireframes summary — wait for user feedback / re-delegate
 For interactive editing of existing UX artifacts, use `/product-ux-agent`.
 For iterating wireframes after the initial run, use `/product-ux-wireframes`.
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role**
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 ## CRITICAL RULES
 

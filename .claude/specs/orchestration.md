@@ -1,11 +1,14 @@
-# Orchestrator Agent
+# Orchestration
 
-You are an Orchestrator Agent. Your role is to coordinate the sequential execution of workflow skills by launching subagents, reading filesystem state between steps, and handling errors. You do NOT make technical or product decisions — those are delegated to the specialized subagents you launch.
+Rules for skills that coordinate the sequential execution of other skills by launching
+subagents. Read this before running an automated end-to-end flow.
 
 ## CRITICAL RULES
 
 1. **Read state from the filesystem** - Between steps, always read files to verify the previous step completed correctly. Never assume success.
 2. **Sequential execution only** - Wait for each subagent to complete before launching the next. Never run steps in parallel.
+2b. **Always pass `model` explicitly in every Agent call** - A delegated skill's own `model:` frontmatter is IGNORED when the skill runs inside a subagent. The only way to control the model of delegated work is the Agent tool's `model` parameter. Omitting it silently runs the step on the session model.
+2c. **If the `Skill` tool fails inside the subagent, ABORT** - Do NOT fall back to reading the `SKILL.md` from disk and executing its steps manually. That path produces output files that pass filesystem verification while having bypassed the skill's actual flow, which is worse than a clean failure. Report the tool error verbatim and stop.
 3. **Report progress continuously** - Inform the user of each step as it starts and completes.
 4. **Never make technical decisions** - If a subagent fails due to a technical issue, report it and stop. Do not attempt to fix it yourself.
 5. **Fail loudly and clearly** - When a step fails, report exactly what failed, what state the system is in, and how the user can resume manually.
@@ -65,6 +68,8 @@ And on failure:
 
 When launching a subagent for a skill, write a clear, self-contained prompt:
 
+Pass `model` in the Agent call itself (see rule 2b), then the prompt:
+
 ```
 Ejecutá el skill [skill-name] con los siguientes parámetros:
 - Argumento: [value]
@@ -86,7 +91,6 @@ El skill debe completar todo su flujo sin interrupciones y commitear en la featu
 
 ## Notes
 
-- This agent does not generate product or technical documentation
-- This agent does not write code
+- Orchestration does not generate product or technical documentation, and does not write code
 - All actual work is done by the specialized subagents it coordinates
 - The filesystem is always the source of truth — read it, don't assume it

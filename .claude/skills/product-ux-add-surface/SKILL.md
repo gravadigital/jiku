@@ -54,9 +54,9 @@ CHANGELOG; and `product-overview.md` updated with the surface and its audience m
   fills it as reusable components appear
 - Bootstrap a product from scratch — use `/product-ux-generate` for that
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role**
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 This skill runs in the **production tier** of Rule 4: it produces screens, wireframes and a Design
 System scaffold, in addition to the research-tier artifacts.

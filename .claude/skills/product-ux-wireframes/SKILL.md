@@ -1,6 +1,7 @@
 ---
 name: product-ux-wireframes
 description: Iterate on mid-fidelity wireframes — regenerate or update the HTML wireframe book and per-screen docs for existing UX documentation. Use after /product-ux-generate has bootstrapped the product.
+model: sonnet
 argument-hint: "[surface1,surface2,...] [--no-interactive]"
 allowed-tools: "Read, Write, Edit, Bash, Glob, Grep"
 ---
@@ -39,9 +40,9 @@ Step 4: Iterate on changes (modify the .md, re-render, repeat Step 3)
 - Produce a visual specification — that lives in the surface's design system. There is no high-fi stage in this workflow; see the hand-off in `docs/guides/ux-and-design-system.md`
 - Render visual designs in external tools (Figma, Claude Design) — the output is a self-contained HTML book
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role**
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 ## CRITICAL RULES
 
@@ -86,7 +87,7 @@ Step 4: Iterate on changes (modify the .md, re-render, repeat Step 3)
 
 12. **States limited to the 8 fixed UI states** — Plus optional sub-states (modal abierto, dropdown open) declared with a `parent_state` field. Each state with `Aplica: Sí` becomes a frame. Each state must declare its real user-facing message (not "Pendiente").
 
-13. **Overlays (drawers, modals, bottom-sheets) are separate screen objects with `overlay: true`** — They appear in the product-map's "Inventario de Overlays" section (not in the main screen table) and in `screens.json` as entries with `"overlay": true`, `"overlay_type"`, and `"triggered_by"`. The book lists them in its index, indented under the surface and tagged with their overlay type. Transitions FROM parent screens TO overlays are declared normally in `transitions[]`. **Do NOT list overlays in the "Inventario de Pantallas" main table, and do NOT create a separate row in the main grid for them.**
+13. **Overlays (drawers, modals, bottom-sheets) are separate screen objects with `overlay: true`** — They appear in the product-map's "Inventario de Overlays" section (not in the main screen table) and in `screens.json` as entries with `"overlay": true`, `"overlay_type"`, and `"triggered_by"`. The book lists them in its index, indented under the surface and tagged with their overlay type. Transitions FROM parent screens TO overlays are declared normally in `transitions[]`. **Do NOT list overlays in the "Inventario de Pantallas" main table** — the overlay inventory is their home, and the book derives its own indentation from `overlay: true`.
 
 14. **"Permiso/acceso denegado" applies ONLY for auth/role/ownership contexts** — Not for transient interaction states.
 
@@ -94,11 +95,22 @@ Step 4: Iterate on changes (modify the .md, re-render, repeat Step 3)
 
 15b. **`accent_color` is NOT a screen-level field** — It used to live in every `screen.md` frontmatter, duplicated across all screens of a surface. If a screen.md still carries it, **ignore it** and warn once in the final report: the design system is the source, and honoring a stale per-screen copy is how the wireframes end up disagreeing with the palette the implementor reads.
 
-16. **Icons by name from the Unicode map** — When declaring an icon (`icon: "search"`), use a name from the icon dictionary (see the reference section). Common names: search, menu, close, check, x, plus, minus, arrow-up/down/left/right, chevron-up/down, home, user, settings, edit, trash, heart, star, info, warning, error, success, more, calendar, clock, image, file, folder, link, share, download, upload, refresh, eye, eye-off, lock, mail, phone, bell, message. Unknown names render as a neutral glyph. Map to the dictionary rather than inventing names in Spanish: `tacho` → `trash`, `flecha` → `arrow-right`.
+16. **Icons by name from the Unicode map** — When declaring an icon (`icon: "search"`), use a name from the icon dictionary (see the reference section). Common names: search, menu, close, check, x, plus, minus, arrow-up/down/left/right, chevron-up/down, home, user, settings, edit, trash, heart, star, info, warning, error, success, more, calendar, clock, image, file, folder, link, share, download, upload, refresh, eye, eye-off, lock, mail, phone, bell, message. An unknown name renders as visible `[name]` text AND warns — it is never silently dropped. Map to the dictionary rather than inventing names in Spanish: `tacho` → `trash`, `flecha` → `arrow-right`.
+
+16b. **An icon only draws where the type has a place for it** — `header`, `sidebar` items, `heading`, `button`, `link`, `text-input`, `search-bar`, `section`, `card` and `icon` render it. Declaring one on a `table`, `tabs`, `pagination` or `chart` warns that it is ignored. When a create affordance belongs to a panel header, it goes on the **container** (`card: true` row, see rule 18b), not on the table below it.
 
 17. **Annotations describe behavior** — Use `annotation` on a block to add an inline gray note describing behavior (e.g., "polling 30s", "valida >8 chars al submit", "sheet-style modal"). Useful for mid-fi to communicate behaviors without animating them.
 
 18. **Headings have hierarchy** — `heading` blocks declare `level: h1 | h2 | h3`. h1 is for the screen's main title (one per screen typically). h2 for section titles. h3 for subsections.
+
+18b. **A composite section is ONE container, not a pile of siblings** — When the real screen shows a titled panel holding tabs + table + pagination (with a `+` in its header), declare it as a `card: true` row with `title` and `icon`, and put the parts in its `stack`:
+
+```json
+{"row": "requisitos", "card": true, "title": "Requisitos", "icon": "plus",
+ "cols": [{"w": 12, "stack": ["tabs-estado", "tabla-requisitos", "paginacion"]}]}
+```
+
+Listing `seccion-requisitos`, `tabs`, `tabla` and `paginacion` as flat siblings in a column renders four unrelated stacked blocks: the panel has no frame and its `+` floats above a table instead of sitting in the header. A `section` block is a standalone labelled box — it cannot contain the blocks that follow it. Read the Layout section of the screen's `.md`: an indented child in that outline is a containment relationship, and it has to survive into the layout.
 
 19. **Real error messages, not generic** — In `error de validación` and `error de sistema` states, declare the actual user-facing message ("Email inválido. Probá de nuevo.", not "Error message"). The script renders this as the `alert` content.
 
@@ -110,13 +122,13 @@ Step 4: Iterate on changes (modify the .md, re-render, repeat Step 3)
     | `mobile-app` | `phone` / `tablet` (+ `phone-landscape` per screen) | 390×844 / 834×1112 / 844×390 |
     | `desktop-app` | `desktop` | 1200×800 |
 
-    The build script **rejects** a viewport that does not belong to the platform — a `mobile-app` surface with a `desktop` viewport is a category error, not a preference. If the surface declares no platform, assume `web`; if it declares no viewports, fall back to the platform's first and note it in the report. A screen may narrow the set via the product-map's Viewports column, never widen it — except `phone-landscape`, which a rotating screen may carry when the surface declares it. For `web`, tablet is not a viewport: it is documented as behaving like one of the two.
+    A viewport outside the platform's set is a category error, not a preference — a `mobile-app` surface has no `desktop`. **This one is on you:** `build_book.py` renders whatever viewport names it recognizes and does not check them against the platform, so nothing downstream will stop you; `/product-ux-audit` reports the mismatch afterwards (check V3, severity `Rota`). A viewport name it does not recognize at all is dropped silently. If the surface declares no platform, assume `web`; if it declares no viewports, fall back to the platform's first and note it in the report. A screen may narrow the set via the product-map's Viewports column, never widen it — except `phone-landscape`, which a rotating screen may carry when the surface declares it. For `web`, tablet is not a viewport: it is documented as behaving like one of the two.
 
     **A `mobile-app` surface with a single `phone` viewport is complete.** Do not invent a second layout: in a native app there is one layout, and what varies (safe areas, text scaling) is a constraint declared in the Design System's grid foundation, not a separate arrangement.
 
-21. **Layout: one section per viewport; inside it, vertical = screens, horizontal = states** — Each viewport becomes a canvas section with its own frame size. Within a section: each screen = one row, each state = one column, default state always column 0. Overlays go in their own subsection per viewport. Screen numbers are global, so a destination number means the same screen in every section.
+21. **The book shows one screen at a time — viewport and state are switches, not a grid** — `wireframes.html` renders a left rail with every screen (overlays tagged with their overlay type, screens tagged with the viewports they exist in) and a top bar with a chip per viewport, a chip per state, an annotations toggle and the route. Every screen × viewport × state is pre-rendered in the file, so there is nothing to lay out and nothing to place: a screen restricted to one viewport simply offers one chip. You do not decide positions — you decide which combinations exist.
 
-21b. **Arrows are drawn ONLY on the primary viewport** — Transitions are viewport-independent: the same tap leads to the same screen at any width; only the layout differs. The script handles this. If a trigger genuinely differs per viewport (a drawer opened by a hamburger on mobile vs. an always-visible sidebar link on desktop), record the difference as an `annotation` on the block.
+21b. **Transitions are clickable blocks, and they are viewport-independent** — The block named in `srcBlock` becomes clickable and jumps to `dst` inside the book, in every viewport where the block exists. There are no arrows to place. The same tap leads to the same screen at any width; only the layout differs. If a trigger genuinely differs per viewport (a drawer opened by a hamburger on mobile vs. an always-visible sidebar link on desktop), record the difference as an `annotation` on the block.
 
 21c. **One `screen.md` covers ALL viewports** — Block inventory, microcopy, states, interactions and traceability are declared once. Only two things vary per viewport: which blocks are present (`Viewports` column) and how they are arranged (`Layout por viewport`). **Never** write one file per viewport.
 
@@ -124,9 +136,9 @@ Step 4: Iterate on changes (modify the .md, re-render, repeat Step 3)
 
 23. **Render via the bundled script — never write HTML, never compute geometry** — `build_book.py` produces the whole book from `screens.json`. Do not write HTML or CSS in chat, do not compute positions, do not post-process the output. Your job ends at writing a correct `screens.json`.
 
-23d. **Fixed px columns need their survey width recorded** — When a layout declares `fixed_cols` with px literals (typical for brownfield surfaces, where the widths were measured off a real browser), also set `viewport_widths` in `screens.json` to the width they were measured at. Those numbers only add up at their native width: dropped into a narrower canvas they squeeze the flexible column until the text wraps one word per line. The book warns when that happens — **do not answer the warning by shrinking the measurements**, that discards the survey. Answer it by declaring the width, or by making the column flexible if the real site is fluid there.
+23b. **Fixed px columns need their survey width recorded** — When a layout declares `fixed_cols` with px literals (typical for brownfield surfaces, where the widths were measured off a real browser), also set `viewport_widths` in `screens.json` to the width they were measured at. Those numbers only add up at their native width: dropped into a narrower canvas they squeeze the flexible column until the text wraps one word per line. The book warns when that happens — **do not answer the warning by shrinking the measurements**, that discards the survey. Answer it by declaring the width, or by making the column flexible if the real site is fluid there.
 
-23b. **`screens.json` is a versioned artifact, derived and never hand-edited** — It lives at `docs/ux/surfaces/{surface}/screens.json`, not in `/tmp`. It is the machine form of the screen specs: it diffs cleanly in a PR and lets the book be regenerated without re-deriving everything from the `.md`. The `.md` files remain the human source of truth; when they disagree, the `.md` wins.
+23c. **`screens.json` is a versioned artifact, derived and never hand-edited** — It lives at `docs/ux/surfaces/{surface}/screens.json`, not in `/tmp`. It is the machine form of the screen specs: it diffs cleanly in a PR and lets the book be regenerated without re-deriving everything from the `.md`. The `.md` files remain the human source of truth; when they disagree, the `.md` wins.
 
    **Always write `"_generated"` as its first key**, with the exact value:
    ```json
@@ -297,7 +309,7 @@ For each screen listed in the product-map's "Inventario de Pantallas":
 
 Also evaluate sub-states (modal abierto, dropdown open). Declare them as additional state objects with `parent_state` if needed.
 
-**Overlays:** if the product-map has an "Inventario de Overlays" section, include each overlay as a screen object with `"overlay": true`, `"overlay_type"` (drawer / bottom-sheet / modal / popover), and `"triggered_by"` (the parent screen `name`). Overlays are NOT rows of the main grid — the script renders them in their own section (see rule 13).
+**Overlays:** if the product-map has an "Inventario de Overlays" section, include each overlay as a screen object with `"overlay": true`, `"overlay_type"` (drawer / bottom-sheet / modal / popover), and `"triggered_by"` (the parent screen `name`). The book indents them under their parent in the screen rail, with an `↳` and their overlay type (see rule 13).
 
 **Transitions:** from user-flows.md, extract user-driven and automatic transitions to/from this screen. For each transition, decide:
 - `src`, `dst` (matching screen `name`s)
@@ -379,7 +391,7 @@ After all surfaces are generated, present a summary:
 Wireframes mid-fi generados.
 
 **{surface-1}:**
-- Plataforma: {web} · Viewports: {mobile 400×800, desktop 1200×800} · flechas en {viewport primario}
+- Plataforma: {web} · Viewports: {mobile 400×800, desktop 1200×800} · {N} transiciones clickeables
 - Accent: {color hex} — origen: {design system | product-overview | default}
 - {N} pantallas: {pantalla-1}, {pantalla-2}, ...
   {{Si alguna está restringida a un viewport:}} {pantalla-X}: solo {viewport}
@@ -478,7 +490,8 @@ Files saved per surface to **ux_surfaces_folder**/{surface}/ (see Files index fo
 
 ## Block dictionary (reference)
 
-The skill recognizes 36 block types in 5 categories. Use ONLY these types in screen `.md` files. For unmapped concepts, fall back to `section`.
+The skill recognizes 40 block types in 5 categories — the same 40 `build_book.py` has a renderer for.
+Use ONLY these types in screen `.md` files. For unmapped concepts, fall back to `section`.
 
 ### Layout (6)
 `header` · `footer` · `sidebar` · `main` · `modal` · `section`
@@ -486,33 +499,51 @@ The skill recognizes 36 block types in 5 categories. Use ONLY these types in scr
 ### Navigation (5)
 `nav-bar` · `tabs` · `link` · `breadcrumbs` · `pagination`
 
-### Content (10)
-`heading` · `paragraph` · `image` · `icon` · `list` · `card` · `table` · `avatar` · `badge` · `chart`
+### Content (13)
+`heading` · `paragraph` · `label` · `image` · `icon` · `list` · `card` · `card-list` · `table` · `chips` · `avatar` · `badge` · `chart`
 
-### Input (9)
-`text-input` · `button` · `dropdown` · `checkbox` · `radio` · `toggle` · `search-bar` · `slider` · `date-picker`
+### Input (10)
+`text-input` · `textarea` · `button` · `dropdown` · `checkbox` · `radio` · `toggle` · `search-bar` · `slider` · `date-picker`
 
 ### Feedback (6)
 `alert` · `toast` · `progress-bar` · `tooltip` · `empty-state` · `loader`
+
+The four least obvious ones:
+
+| Type | What it draws | Use it for |
+|---|---|---|
+| `label` | A short standalone caption line | A field label that is not part of an input, a metadata caption |
+| `textarea` | A multi-line field (accepts `h` as `min-height`) | Free-text input: a description, a comment box |
+| `chips` | A row of chips from `items[]` | Applied filters, tags, selected values |
+| `card-list` | A list of record cards, each with metadata, title and badges | The card form of a listing (the mobile counterpart of a `table`) |
+
+> `card-list` reads a **fixed item shape** — `{id, fecha, titulo, badges[], proyecto, responsable}` —
+> and silently draws nothing for any other key. If your records do not fit that shape, use `list` or
+> stacked `card` blocks instead of inventing keys.
 
 ---
 
 ## Viewports and layout (reference)
 
-| Viewport | Frame | When a surface declares it |
-|---|---|---|
-| `mobile` | 400×800 | The surface is used on a phone. Default when the overview says nothing |
-| `desktop` | 1200×800 | The surface is actually used on a desktop/laptop |
+| Viewport | Default frame | Platform | When a surface declares it |
+|---|---|---|---|
+| `mobile` | 400×800 | `web` | The web surface is used on a phone. Default when the overview says nothing |
+| `desktop` | 1200×800 | `web`, `desktop-app` | The surface is actually used on a desktop/laptop |
+| `phone` | 390×844 | `mobile-app` | Native app on a phone — on its own, a complete declaration |
+| `tablet` | 834×1112 | `mobile-app` | The native app really supports tablets, with its own layout |
+| `phone-landscape` | 844×390 | `mobile-app` | Per screen, for the ones that actually rotate |
 
-Tablet is not a viewport — it is documented as behaving like one of the two.
+On `web`, tablet is not a viewport — it is documented as behaving like one of the two, and the
+intermediate range is resolved in the surface's `grid.md`. Any of these widths can be overridden per
+surface with `viewport_widths` in `screens.json` (see rule 23b).
 
 **Layout items** (in `layouts.<viewport>`):
 - a **string** → block name, full width of its container
 - a **row** → `{"row": "<id>", "cols": [{"w": <1..12>, "stack": [<items>]}]}`
 
 Fractions are out of 12, normalized by the row's sum. Nesting caps at 3 levels. `header` and `footer`
-are frame chrome and are skipped if listed. A block name may repeat; the first occurrence is the arrow
-anchor. Blocks hidden in a viewport are skipped even if the layout lists them, so a layout can be
+are frame chrome and are skipped if listed. A block name may repeat; the first occurrence is the one
+that carries the transition jump. Blocks hidden in a viewport are skipped even if the layout lists them, so a layout can be
 shared between viewports.
 
 Omitting `layouts` for a viewport falls back to the flat stack in block order — correct for mobile,
@@ -600,7 +631,8 @@ The skill maps icon names to Unicode glyphs. Common names:
 | Content | `image`, `file`, `folder`, `calendar`, `clock`, `time`, `play`, `pause`, `stop`, `filter`, `sort` |
 | Settings | `settings` |
 
-Unknown names render as `[name]` text (visible flag).
+Unknown names render as `[name]` text (visible flag) and warn. The map in
+`scripts/build_book.py` (`ICONS`) is the implementation of this table — keep them in sync.
 
 ---
 

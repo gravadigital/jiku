@@ -28,10 +28,73 @@ def esc(s):
     return html.escape(str(s if s is not None else ""))
 
 
+# ---------------------------------------------------------------- icons
+
+# The names SKILL.md publishes, mapped to the glyphs it promises. This map used to exist
+# only in the documentation: the skill told the agent to declare `icon: "plus"` from a
+# table of ~60 names, and the renderer read `icon` in exactly two places. Every other
+# icon was dropped without a word — which is how a section whose whole affordance is a
+# `+` button rendered as a bare label.
+ICONS = {
+    # navigation
+    "menu": "☰", "close": "✕", "x": "✕", "arrow-up": "↑", "arrow-down": "↓",
+    "arrow-left": "←", "arrow-right": "→", "chevron-up": "⌃", "chevron-down": "⌄",
+    "chevron-left": "‹", "chevron-right": "›", "home": "⌂", "more": "⋯",
+    # user / social
+    "user": "◓", "users": "◕", "heart": "♡", "star": "☆", "mail": "✉", "phone": "☏",
+    "bell": "◔", "notification": "◔", "message": "✉", "comment": "✉", "share": "↗",
+    # action
+    "search": "⌕", "check": "✓", "checkmark": "✓", "plus": "＋", "minus": "−",
+    "edit": "✎", "trash": "🗑", "delete": "🗑", "refresh": "↻", "download": "↓",
+    "upload": "↑", "link": "⚭", "eye": "◉", "eye-off": "◎", "lock": "🔒",
+    "unlock": "🔓",
+    # status
+    "info": "ⓘ", "warning": "⚠", "error": "⊗", "alert": "⚠", "success": "✓",
+    # content
+    "image": "▣", "file": "▤", "folder": "▰", "calendar": "▦", "clock": "◷",
+    "time": "◷", "play": "▶", "pause": "❚❚", "stop": "■", "filter": "⚗", "sort": "⇅",
+    # settings
+    "settings": "⚙",
+}
+
+# Fallback for an unknown name. SKILL.md promises "[name] text (visible flag)", so an
+# icon that does not exist is loud rather than silently absent.
+def icon_html(name, cls="wf-ico"):
+    """Glyph for a declared icon name. Empty string when no icon is declared."""
+    if not name:
+        return ""
+    key = str(name).strip().lower()
+    g = ICONS.get(key)
+    if g is None:
+        return f'<span class="wf-ico wf-ico-unknown">[{esc(key)}]</span>'
+    return f'<span class="{cls}">{g}</span>'
+
+
+# ---------------------------------------------------------------- geometry
+
+def _h_style(b, attr="min-height"):
+    """The declared `h`, as a MINIMUM rather than a fixed height.
+
+    `h` was documented for section/image/sidebar/chart and read by nobody, so every
+    declared height was inert. It is honored as a floor, never a ceiling: a fixed
+    height is what let the old renderer silently clip whatever did not fit, and this
+    format exists because a block is as tall as its content.
+    """
+    try:
+        h = float(b.get("h"))
+    except (TypeError, ValueError):
+        return ""
+    if h <= 0:
+        return ""
+    return f' style="{attr}:{h:.0f}px"'
+
+
 # ---------------------------------------------------------------- block renderers
 
 def r_header(b):
-    icon = '<span class="wf-burger">☰</span>' if b.get("icon") == "menu" else ""
+    ico = b.get("icon")
+    icon = (f'<span class="wf-burger">{ICONS["menu"]}</span>' if ico == "menu"
+            else icon_html(ico))
     return f'<div class="wf-header"><b>{esc(b.get("content"))}</b>{icon}</div>'
 
 
@@ -55,16 +118,17 @@ def item_icon(it):
 def r_sidebar(b):
     active = b.get("active")
     def one(i, it):
-        ico = ICON_GLYPH if item_icon(it) else ""
+        ico = icon_html(item_icon(it))
         on = " class=on" if i == active else ""
         return f"<a{on}>{ico}{esc(item_label(it))}</a>"
     items = "".join(one(i, it) for i, it in enumerate(b.get("items", [])))
-    return f'<nav class="wf-sidebar"><b>Navegación</b>{items}</nav>'
+    label = esc(b.get("content") or "Navegación")
+    return f'<nav class="wf-sidebar"{_h_style(b)}><b>{label}</b>{items}</nav>'
 
 
 def r_heading(b):
     lvl = b.get("level", "h2")
-    return f'<{lvl} class="wf-h">{esc(b.get("content"))}</{lvl}>'
+    return f'<{lvl} class="wf-h">{icon_html(b.get("icon"))}{esc(b.get("content"))}</{lvl}>'
 
 
 def r_label(b):
@@ -72,11 +136,19 @@ def r_label(b):
 
 
 def r_button(b):
-    return f'<button class="wf-btn" data-variant="{esc(b.get("variant","primary"))}">{esc(b.get("content"))}</button>'
+    txt = esc(b.get("content"))
+    ico = icon_html(b.get("icon"), cls="wf-btn-ico")
+    # An icon-only button (the `+` that opens a create form) is square, not a
+    # full-width bar with a glyph floating in it.
+    only = " data-icononly=1" if ico and not txt else ""
+    return (f'<button class="wf-btn" data-variant="{esc(b.get("variant","primary"))}"'
+            f'{only}>{ico}{txt}</button>')
 
 
 def r_link(b):
-    return f'<a class="wf-link">← {esc(b.get("content"))}</a>'
+    # An explicit icon wins over the default back-arrow; `icon: null` drops it.
+    ico = icon_html(b.get("icon")) if "icon" in b else icon_html("arrow-left")
+    return f'<a class="wf-link">{ico}{esc(b.get("content"))}</a>'
 
 
 def _field(b, inner, suffix=""):
@@ -87,7 +159,10 @@ def _field(b, inner, suffix=""):
 def r_text_input(b):
     ph = esc(b.get("content")) or "&nbsp;"
     st = f' data-state="{esc(b["state"])}"' if b.get("state") else ""
-    return _field(b, f'<div class="wf-ctl"{st}>{ph}</div>')
+    ico = icon_html(b.get("icon"))
+    err = (f'<p class="wf-err">{esc(b["error_msg"])}</p>'
+           if b.get("error_msg") and b.get("state") == "error" else "")
+    return _field(b, f'<div class="wf-ctl"{st}>{ico}{ph}</div>', err)
 
 
 def r_textarea(b):
@@ -106,16 +181,84 @@ def r_date_picker(b):
 
 def r_search(b):
     # leading icon: plain span, not .wf-caret (which pushes itself to the right edge)
-    inner = f'<div class="wf-ctl"><span class="wf-ico">⌕</span>{esc(b.get("content"))}</div>'
+    ico = icon_html(b.get("icon") or "search")
+    inner = f'<div class="wf-ctl">{ico}{esc(b.get("content"))}</div>'
     return _field(b, inner)
+
+
+def col_widths(cols, warn=None, where=""):
+    """Column shares as CSS percentages.
+
+    Two bugs lived here. The width was emitted as the bare number — `width:8` — which is
+    an invalid CSS length, so the browser dropped the declaration and `table-layout:fixed`
+    split every column evenly: exactly the "reads nothing like the real thing" case the
+    schema warns about. And the schema accepts both percent and twelfths for the same
+    key, which the renderer never disambiguated.
+
+    Resolved by normalising: whatever scale the numbers are on, they are rescaled to sum
+    to 100%. That makes `8/42/16/11/11/12` (percent) and `1/5/2/1/1/2` (twelfths) both
+    come out right, and a set that sums to neither still keeps its proportions.
+    """
+    raw = []
+    for c in cols:
+        v = c.get("width") if isinstance(c, dict) else None
+        if isinstance(v, str):
+            m = re.search(r"(\d+(?:\.\d+)?)", v)
+            v = float(m.group(1)) if m else None
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            v = None
+        raw.append(v if v and v > 0 else None)
+
+    if not any(x is not None for x in raw):
+        return [None] * len(cols)            # no widths declared: let the browser split evenly
+    if warn and any(x is None for x in raw):
+        warn(f"{where}: {sum(x is None for x in raw)} de {len(raw)} columnas sin width; "
+             f"reparto el resto en partes iguales")
+    known = sum(x for x in raw if x)
+    blanks = sum(1 for x in raw if x is None)
+    if not blanks:
+        return [x * 100.0 / known for x in raw]
+
+    # Some columns declared, some not. Infer the scale the declared numbers are on, then
+    # let the undeclared ones split what is left of it — so `50, -, -` reads 50/25/25
+    # instead of being averaged into even thirds.
+    scale = 12.0 if all(x <= 12 for x in raw if x) and known <= 12 else 100.0
+    rest = scale - known
+    # Declared widths already fill (or overflow) the scale: fall back to an even-ish share
+    # so the blank columns stay visible instead of collapsing to zero. The spec is
+    # self-contradictory here — it asks for the full width AND more columns — so the
+    # proportions cannot all be honored.
+    fill = rest / blanks if rest > 0 else known / max(len(raw) - blanks, 1)
+    if rest <= 0 and warn:
+        warn(f"{where}: los anchos declarados ya suman {known:.0f} sobre {scale:.0f} y "
+             f"quedan {blanks} columna(s) sin width; reescalo todo y las proporciones "
+             f"declaradas no se respetan")
+    total = known + fill * blanks
+    return [(x if x else fill) * 100.0 / total for x in raw]
 
 
 def r_table(b):
     cols = b.get("columns", [])
-    cg = "".join(f'<col style="width:{esc(c.get("width",""))}">' for c in cols)
-    th = "".join(f"<th>{esc(c.get('label'))}</th>" for c in cols)
+    cg = "".join(f'<col style="width:{w:.3f}%">' if w else "<col>"
+                 for w in col_widths(cols))
+    th = "".join(f"<th>{esc(c.get('label') if isinstance(c, dict) else c)}</th>"
+                 for c in cols)
+    try:
+        row_h = float(b.get("row_h"))
+    except (TypeError, ValueError):
+        row_h = 0
+    rh = f' style="height:{row_h:.0f}px"' if row_h > 0 else ""
+
+    # `rows` is documented as a COUNT and used as a list of real rows. Accept both: an
+    # int draws that many skeleton rows, a list draws the sample data it carries.
+    rows = b.get("rows", [])
+    if isinstance(rows, (int, float)):
+        rows = [["skeleton:70"] * max(len(cols), 1) for _ in range(int(rows))]
+
     body = []
-    for row in b.get("rows", []):
+    for row in rows:
         tds = []
         for cell in row:
             s = str(cell)
@@ -126,7 +269,7 @@ def r_table(b):
                 tds.append(f'<td><span class="wf-sk" style="width:{esc(w)}%"></span></td>')
             else:
                 tds.append(f"<td>{esc(s)}</td>")
-        body.append("<tr>" + "".join(tds) + "</tr>")
+        body.append(f"<tr{rh}>" + "".join(tds) + "</tr>")
     return (f'<div class="wf-card wf-tablewrap"><table class="wf-table"><colgroup>{cg}</colgroup>'
             f"<thead><tr>{th}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
 
@@ -173,7 +316,12 @@ def r_pagination(b):
 
 
 def r_section(b):
-    return f'<div class="wf-section">{esc(b.get("content") or "")}</div>'
+    # A section is a labelled container, and its label routinely carries one trailing
+    # affordance — the `+` that opens a create form. Rendered as a title row so the
+    # icon sits at the right edge of the box instead of vanishing.
+    ico = icon_html(b.get("icon"), cls="wf-sec-act")
+    body = f'<span>{esc(b.get("content") or "")}</span>{ico}'
+    return f'<div class="wf-section"{_h_style(b)}>{body}</div>'
 
 
 # ---- the 21 remaining dictionary types ----------------------------------------
@@ -186,7 +334,7 @@ def r_footer(b):
 
 
 def r_main(b):
-    return f'<div class="wf-main">{esc(b.get("content") or "")}</div>'
+    return f'<div class="wf-main"{_h_style(b)}>{esc(b.get("content") or "")}</div>'
 
 
 def r_modal(b):
@@ -231,13 +379,24 @@ def r_paragraph(b):
 
 def r_image(b):
     ar = b.get("aspect_ratio")
-    style = f' style="aspect-ratio:{esc(ar.replace(":", "/"))}"' if ar else ""
+    bits = []
+    if ar:
+        bits.append(f'aspect-ratio:{ar.replace(":", "/")}')
+    try:
+        h = float(b.get("h"))
+        if h > 0:
+            bits.append(f"min-height:{h:.0f}px")
+    except (TypeError, ValueError):
+        pass
+    style = f' style="{esc(";".join(bits))}"' if bits else ""
     cap = esc(b.get("content") or "imagen")
     return f'<div class="wf-img"{style}><span>{cap}{f" · {esc(ar)}" if ar else ""}</span></div>'
 
 
 def r_icon(b):
-    return f'<span class="wf-icon" title="{esc(b.get("name") or b.get("content"))}">◻</span>'
+    name = b.get("icon") or b.get("content") or b.get("name")
+    g = ICONS.get(str(name).strip().lower(), "◻")
+    return f'<span class="wf-icon" title="{esc(name)}">{g}</span>'
 
 
 def r_list(b):
@@ -257,8 +416,10 @@ def r_list(b):
 
 def r_card(b):
     body = f'<p class="wf-p">{esc(b.get("paragraph"))}</p>' if b.get("paragraph") else ""
-    title = f'<b>{esc(b.get("content"))}</b>' if b.get("content") else ""
-    return f'<div class="wf-card wf-cardblock">{title}{body}</div>'
+    ico = icon_html(b.get("icon"), cls="wf-sec-act")
+    title = (f'<div class="wf-cardhead"><b>{esc(b.get("content"))}</b>{ico}</div>'
+             if b.get("content") or ico else "")
+    return f'<div class="wf-card wf-cardblock"{_h_style(b)}>{title}{body}</div>'
 
 
 def r_avatar(b):
@@ -279,7 +440,7 @@ def r_chart(b):
         marks = '<div class="wf-bars">' + "".join(
             f'<span style="height:{h}%"></span>' for h in hs) + "</div>"
     lab = f'<b>{esc(b.get("content"))}</b>' if b.get("content") else ""
-    return f'<div class="wf-chart">{lab}{marks}</div>'
+    return f'<div class="wf-chart"{_h_style(b)}>{lab}{marks}</div>'
 
 
 def _check(b, shape):
@@ -422,6 +583,21 @@ def render_items(items, blocks, state, viewport=None, seen=None, nav=None):
     return "".join(out)
 
 
+def card_head(spec, title_key="title"):
+    """The title row of a container: heading on the left, one action on the right.
+
+    A panel whose header carries a create affordance (`Requisitos` + `+`) is the most
+    common composite on a listing screen, and without this the affordance had nowhere
+    to live inside the box.
+    """
+    title = spec.get(title_key)
+    ico = icon_html(spec.get("icon"), cls="wf-sec-act")
+    if not title and not ico:
+        return ""
+    t = f"<b>{esc(title)}</b>" if title else "<b></b>"
+    return f'<div class="wf-cardhead">{t}{ico}</div>'
+
+
 def render_row(row, blocks, state, viewport=None, seen=None, nav=None):
     cols = row.get("cols", [])
     # A row with an explicit CSS template keeps the real thing (e.g. a fixed 420px
@@ -432,12 +608,20 @@ def render_row(row, blocks, state, viewport=None, seen=None, nav=None):
         tpl = " ".join(f'{c.get("w", 1)}fr' for c in cols)
     cells = []
     for c in cols:
-        inner = render_items(c.get("stack", []), blocks, state, viewport, seen, nav)
+        inner = card_head(c) + render_items(c.get("stack", []), blocks, state,
+                                           viewport, seen, nav)
         cls = "wf-col wf-card" if c.get("card") else "wf-col"
         cells.append(f'<div class="{cls}">{inner}</div>')
     ann = f'<p class="wf-ann">{esc(row["annotation"])}</p>' if row.get("annotation") else ""
-    return (f'<div class="wf-row" style="grid-template-columns:{esc(tpl)}">'
-            + "".join(cells) + "</div>" + ann)
+    grid = (f'<div class="wf-row" style="grid-template-columns:{esc(tpl)}">'
+            + "".join(cells) + "</div>")
+    # `card` on the ROW wraps the whole row — the shape of a panel that holds a header
+    # plus a body of sub-rows. It used to be honored only on a column, so declaring it
+    # here did nothing and said nothing, which is its own instance of this file's bug.
+    if row.get("card"):
+        return (f'<section class="wf-card wf-panel">{card_head(row)}{grid}</section>'
+                + ann)
+    return grid + ann
 
 
 def render_screen(screen, viewport, state, warn=None, nav=None):
@@ -475,8 +659,6 @@ def render_screen(screen, viewport, state, warn=None, nav=None):
 # ---------------------------------------------------------------- book assembly
 
 DEFAULT_ACCENT = "#4a4a4a"
-
-ICON_GLYPH = '<span class="wf-ico">\u25fb</span>'
 
 CSS = """
 :root{
@@ -552,6 +734,24 @@ h2.wf-h{font-size:15px}
 .wf-caret{margin-left:auto;color:var(--mut);font-size:11px}
 .wf-ico{color:var(--mut);font-size:14px}
 .wf-card{border:1.5px solid var(--line);border-radius:6px;background:var(--paper);padding:14px}
+/* A panel: card frame around a whole row, with its own title row above the body. */
+.wf-panel{display:flex;flex-direction:column;gap:calc(var(--u)*1.25)}
+.wf-panel>.wf-row{gap:calc(var(--u)*1.5)}
+/* A table inside a panel drops its own frame: card-inside-a-card reads as a double
+   border that does not exist in the real screen. */
+.wf-panel .wf-tablewrap{border:0;border-radius:0}
+.wf-panel .wf-tablewrap .wf-table th{border-top:1.5px solid var(--line)}
+/* Title row of a card/panel/section: label left, single action right. This is where the
+   `+` of a create affordance lives — it used to be dropped entirely. */
+.wf-cardhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wf-cardhead>b{font-size:15px}
+.wf-sec-act{flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+  background:var(--accent);color:#fff;display:inline-flex;align-items:center;
+  justify-content:center;font-size:15px;line-height:1}
+.wf-btn-ico{font-size:14px}
+.wf-btn[data-icononly]{width:auto;padding:6px 10px}
+.wf-err{color:#c0392b;font-size:12px}
+.wf-ico-unknown{color:#c0392b;font-size:11px}
 .wf-tablewrap{padding:0;overflow:hidden}
 .wf-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
 /* border-box so the declared %ages stay true once padding is added — otherwise the last
@@ -583,7 +783,8 @@ h2.wf-h{font-size:15px}
 .wf-pg{display:flex;gap:5px}
 .wf-pg span{border:1px solid var(--line);border-radius:4px;padding:4px 9px;font-size:12px}
 .wf-pg span.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-.wf-section{border:1px dashed var(--line);border-radius:5px;padding:10px;min-height:36px}
+.wf-section{border:1px dashed var(--line);border-radius:5px;padding:10px;min-height:36px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px}
 .wf-ann{color:var(--ann);font-size:11px;font-style:italic;line-height:1.35}
 .wf-ann::before{content:"› "}
 .wf-unknown{border:2px solid #c92a2a;color:#c92a2a;border-radius:5px;padding:8px;font-size:12px}
@@ -830,6 +1031,121 @@ def viewport_widths(spec):
     return out
 
 
+# Keys every block may carry, whatever its type.
+COMMON_FIELDS = {
+    "name", "type", "category", "content", "annotation", "icon",
+    "hidden_in_states", "visible_only_in_states",
+    "hidden_in_viewports", "visible_only_in_viewports",
+    "viewport_overrides", "state_overrides",
+}
+
+# Per-type keys the renderers actually read. A key outside this set is inert: it was
+# declared, it looks meaningful in the JSON, and nothing draws it. Four such fields
+# (`icon` on most types, `h`, `error_msg`, table `width`) shipped for months because
+# the renderer never said a word — the same silent-loss failure mode this file's
+# unknown-type fallback was written to stop, one level down.
+TYPE_FIELDS = {
+    "button": {"variant"},
+    "link": {"variant"},
+    "text-input": {"state", "value", "error_msg", "label"},
+    "textarea": {"state", "value", "error_msg", "label", "h"},
+    "search-bar": {"state", "value", "label"},
+    "dropdown": {"state", "options", "label", "value"},
+    "date-picker": {"state", "value", "label"},
+    "heading": {"level"},
+    "paragraph": {"level", "lines"},
+    "alert": {"kind"},
+    "toast": {"kind"},
+    "badge": {"kind"},
+    "image": {"aspect_ratio", "h"},
+    "list": {"items", "items_count"},
+    "card-list": {"items"},
+    "chips": {"items"},
+    "tabs": {"labels", "active"},
+    "nav-bar": {"labels", "active"},
+    "sidebar": {"items", "active", "h"},
+    "breadcrumbs": {"items"},
+    "table": {"columns", "rows", "row_h"},
+    "pagination": {"pages", "page_size"},
+    "chart": {"kind", "h"},
+    "slider": {"fill"},
+    "progress-bar": {"fill"},
+    "section": {"h"},
+    "main": {"h"},
+    "card": {"paragraph", "h"},
+    "modal": {"paragraph"},
+    "checkbox": {"checked", "selected"},
+    "radio": {"checked", "selected"},
+    "toggle": {"on"},
+    "loader": set(),
+    "empty-state": {"paragraph"},
+    "header": set(),
+    "footer": set(),
+    "icon": set(),
+    "avatar": set(),
+    "tooltip": set(),
+}
+
+# Types that draw no icon, so declaring one there is a mistake worth naming.
+NO_ICON = {"table", "pagination", "progress-bar", "slider", "chart", "loader",
+           "tabs", "nav-bar", "breadcrumbs", "toggle", "avatar"}
+
+
+def check_block_fields(spec, warn):
+    """Name every declared field that no renderer reads."""
+    for sc in spec.get("screens", []):
+        for blk in sc.get("blocks", []):
+            t = blk.get("type")
+            if t not in TYPE_FIELDS:
+                continue                      # unknown type: already loud in render_block
+            allowed = COMMON_FIELDS | TYPE_FIELDS[t]
+            extra = sorted(k for k in blk if k not in allowed)
+            if extra:
+                warn(f"{sc['name']} / {blk.get('name')} ({t}): campo(s) que este tipo no "
+                     f"dibuja, se ignoran: {', '.join(extra)}")
+            if t in NO_ICON and blk.get("icon"):
+                warn(f"{sc['name']} / {blk.get('name')}: '{t}' no dibuja icono, "
+                     f"'{blk['icon']}' se ignora")
+
+
+def check_tables(spec, warn):
+    """Run the width resolution once for its warnings, off the render path."""
+    for sc in spec.get("screens", []):
+        for blk in sc.get("blocks", []):
+            if blk.get("type") == "table" and blk.get("columns"):
+                col_widths(blk["columns"], warn,
+                           f"{sc['name']} / {blk.get('name')}")
+
+
+def check_icons(spec, warn):
+    """Every icon name must exist in the map SKILL.md publishes."""
+    def one(where, name):
+        if name and str(name).strip().lower() not in ICONS:
+            warn(f"{where}: icono desconocido '{name}' — se dibuja como [{name}]. "
+                 f"Usa un nombre del mapa de SKILL.md")
+
+    for sc in spec.get("screens", []):
+        for blk in sc.get("blocks", []):
+            where = f"{sc['name']} / {blk.get('name')}"
+            one(where, blk.get("icon"))
+            for it in (blk.get("items") or []):
+                one(where, item_icon(it))
+            for ov in ("viewport_overrides", "state_overrides"):
+                for k, patch in (blk.get(ov) or {}).items():
+                    if isinstance(patch, dict):
+                        one(f"{where} [{ov}:{k}]", patch.get("icon"))
+        for vp, lay in (sc.get("layouts") or {}).items():
+            def walk(items):
+                for it in items:
+                    if isinstance(it, dict):
+                        one(f"{sc['name']} ({vp}) / row {it.get('row') or '?'}",
+                            it.get("icon"))
+                        for c in it.get("cols") or []:
+                            one(f"{sc['name']} ({vp}) / col", c.get("icon"))
+                            walk(c.get("stack") or [])
+            walk(lay)
+
+
 def build(spec_path, out_path, font_path=None):
     spec = json.loads(Path(spec_path).read_text(encoding="utf-8"))
 
@@ -857,6 +1173,10 @@ def build(spec_path, out_path, font_path=None):
                 if isinstance(it, dict) and not item_label(it):
                     warn(f"{sc['name']} / {blk.get('name')}: item sin title/label/text/name "
                          f"({sorted(it)}) — se dibuja vacio")
+
+    check_block_fields(spec, warn)
+    check_tables(spec, warn)
+    check_icons(spec, warn)
 
     for sc in spec["screens"]:
         bl = {b["name"]: b for b in sc.get("blocks", [])}

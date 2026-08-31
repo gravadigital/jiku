@@ -1,6 +1,7 @@
 ---
 name: service-implement-story
 description: Implement all tasks of a planified story - test-first development using Story Plan as single source of truth
+model: sonnet
 argument-hint: "[S-number] [service] [--auto]"
 allowed-tools: "Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion"
 ---
@@ -45,13 +46,11 @@ Step 8: Finalization
 - Create the story plan -- Use `/service-planify-story` first
 - Push to remote or create PR -- User handles this after approval
 
-## Role
+## References
 
-**Auto-detect the service type** (resolved in Step 1): **monorepo** → from
-`docs/architectures/{{service}}/manifest.yaml` (`type:`); **multirepo** → from `.claude/local-config.yaml`
-(`service_type`):
-- If type is `backend` -> Read [Backend Developer Agent](.claude/agents/backend-developer.md)
-- If type is `frontend` -> Read [Frontend Developer Agent](.claude/agents/frontend-developer.md)
+The Story Plan is the single source of truth for what to implement. The service's stack,
+patterns and conventions are declared in its `manifest.yaml` and the conventions it
+references -- read those, do not infer the stack.
 
 ## CRITICAL RULES
 
@@ -158,7 +157,7 @@ in `rules/skill.md`.
      Resolution Convention (point out `/product-create-{backend,frontend}-architecture` /
      `/product-migrate-architecture`).
    - **Multirepo:** use `service_type` from `local-config.yaml`.
-   - If type is `backend` → Backend Developer Agent. If `frontend` → Frontend Developer Agent.
+   - The type selects which conventions apply; the stack itself comes from `manifest.yaml`.
 
 4. **Search for THIS service's Story Plan** in **story_plans** folder:
    - The plan is service-scoped. Match `S-{{number}}.{{service_name}}.*.md`.
@@ -422,19 +421,25 @@ Keep an internal list of all wireframe/DS changes made during this run. They wil
    - Fix all failing tests
    - Ensure new code doesn't break existing functionality
 
-### Step 5.5: QA Review (Subagent)
+### Step 5.5: QA Review (forked, clean context)
 
 **After quality verification passes, launch a QA review in a clean context.**
 
-This step uses a subagent to verify implementation correctness without the bias of having written the code.
+This step verifies implementation correctness without the bias of having written the code.
 
-**5.5.1 Launch QA Subagent**
+**5.5.1 Launch QA Review**
 
-Spawn a subagent with the [QA Reviewer Agent](.claude/agents/qa-reviewer.md) role, providing:
-- The complete Story Plan file (path)
-- The list of all files created/modified during Step 4
+Invoke `/service-qa-review` with `$ARGUMENTS` built as:
 
-The subagent will verify in a clean context:
+```
+{{story_plan_path}} | {{comma-separated list of files created/modified in Step 4}}
+```
+
+The skill runs forked: its own clean context, its own model, and with `Write`/`Edit`
+removed so it cannot alter the code it reviews. It carries the verification contract
+and returns the report.
+
+It verifies:
 1. Every TS-X from the Test Scenarios table has a matching test with the same inputs/outputs
 2. Every ADR Implementation Rule from the Architectural Context is respected in the code
 3. Every Acceptance Criterion has test coverage
@@ -444,10 +449,10 @@ The subagent will verify in a clean context:
 
 - **If no issues found:** Proceed to Step 6
 - **If issues found:**
-  1. Review each issue reported by the QA subagent
+  1. Review each issue reported by the QA review
   2. Fix the issues (write missing tests, correct field names, adjust code to match ADR rules)
   3. Re-run quality verification (Step 5) for the fixes
-  4. **Do NOT re-run the QA subagent** -- fix the specific issues reported and proceed
+  4. **Do NOT re-run the QA review** -- fix the specific issues reported and proceed
 
 **5.5.3 Inform User**
 

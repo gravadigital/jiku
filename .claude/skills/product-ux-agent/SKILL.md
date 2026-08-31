@@ -38,9 +38,9 @@ End: User exits or says "listo"
 - Create artifacts outside the methodology (no wireframes, no design specs)
 - Modify the PRD (use `/product-change-technical-definition` for technical changes; PRD changes go through analyst skills)
 
-## Role
+## References
 
-**Adopt the UX Researcher Agent role** - Read [UX Researcher Agent](.claude/agents/ux-researcher.md)
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 In particular: read the **Interactive Mode** section of the agent file. It defines bootstrap, allowed actions, and notification patterns specific to this skill.
 

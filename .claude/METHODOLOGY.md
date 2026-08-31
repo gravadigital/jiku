@@ -25,7 +25,7 @@ In **multirepo** mode each service points to a separate product repository via r
 
 ---
 
-## Skill catalogue (30 skills)
+## Skill catalogue (33 skills)
 
 > All skills use the flat format `/<skill-name>` (no namespaces or colons).
 
@@ -55,10 +55,16 @@ In **multirepo** mode each service points to a separate product repository via r
 - `/auto-implement-product ["filter"]` — Iterate the PRD feature groups end to end.
 
 ### Product — UX & design system
-- `/product-ux-generate` — Generate complete UX docs + mid-fidelity HTML wireframes + DS scaffold (per surface).
-- `/product-ux-wireframes [surface1,surface2,...]` — Iterate on mid-fidelity wireframes and per-screen specs. Optional CSV scopes the run to specific surfaces.
+- `/product-ux-generate` — Bootstrap complete UX docs + mid-fidelity HTML wireframes + DS scaffold (per surface). Aborts once `docs/ux/` exists.
+- `/product-ux-add-surface <surface>` — Add one surface to an already bootstrapped product: product-map, user-flows, screens, wireframes and its own DS scaffold, without touching the existing surfaces.
+- `/product-ux-wireframes [surface1,surface2,...] [--no-interactive]` — Iterate on mid-fidelity wireframes and per-screen specs. Sole owner of the render contract. Optional CSV scopes the run to specific surfaces.
+- `/product-ux-audit [surface1,...]` — Read-only consistency check of the UX set: broken references, viewport/platform mismatches, DS wiring, stale wireframes.
 - `/product-ux-agent` — Interactive UX assistant with full UX context loaded.
 - `/product-design-system-update` — Interactive DS update with semver bump and CHANGELOG. The DS is per-surface, so the skill asks which surface to iterate.
+
+> **Brownfield:** UX is not generated with `/product-ux-generate` but surveyed from the code —
+> `/product-analyze-service` surveys each frontend into `docs/analysis/ux/{service}/` and
+> `/product-consolidate-services` transcribes it into `docs/ux/` + seeds the DS with the real values.
 
 ### Product — administration
 - `/product-generate-flows` — Detect and generate cross-service flows.
@@ -73,6 +79,7 @@ In **multirepo** mode each service points to a separate product repository via r
 - `/service-update-reusable-code [service]` — Build/refresh the reusable code catalogue (per service in monorepo).
 - `/service-planify-story S-XXX [service] [--auto]` — Story Plan with tasks and test scenarios.
 - `/service-implement-story S-XXX [service] [--auto]` — Test-first implementation.
+- `/service-qa-review <story-plan> | <changed-files>` — Clean-context verification against the Story Plan. Runs forked with `Write`/`Edit` removed; invoked by `/service-implement-story` Step 5.5.
 - `/service-dev [service]` — Interactive developer mode with full service context.
 
 ### Cross-cutting utilities
@@ -92,8 +99,8 @@ In **multirepo** mode each service points to a separate product repository via r
 5. `/service-setup-repo` (in each service)
 
 ### Existing product (import)
-1. `/product-analyze-service <path>` (once per service)
-2. `/product-consolidate-services`
+1. `/product-analyze-service <path>` (once per service — surveys the UI too, on frontends)
+2. `/product-consolidate-services` (also consolidates `docs/ux/` + seeds the DS when there was a UX survey)
 3. `/service-setup-repo` + `/service-update-reusable-code` (in each service)
 
 ### Day-to-day cycle
@@ -113,9 +120,11 @@ Steps 2–6 can be collapsed with `/auto-implement-request REQ-XXX` (monorepo on
 | Resource | Location |
 |----------|----------|
 | Skills | `.claude/skills/<name>/SKILL.md` |
-| Agents | `.claude/agents/*.md` (8 agents) |
+| Specs | `.claude/specs/*.md` (4 shared specifications skills read) |
+| Agents | `.claude/agents/*.md` (1 agent: `ux-researcher`, for parametric fan-out) |
 | Templates | `.claude/templates/*.yaml` |
-| Conventions catalogue | `.claude/conventions/` (`index.md`, `manifest-schema.md`, per-language folders) |
+| Conventions catalogue | `.claude/conventions/` (`index.md`, `manifest-schema.md`, 53 conventions across node / nextjs / golang / flutter) |
+| Wireframe renderer | `.claude/skills/product-ux-wireframes/scripts/` (`build_book.py` + `SCHEMA.md`, stdlib only) |
 | Hooks | `.claude/hooks/` (pre-compact + session-resume) |
 | Migrations | `.claude/migrations/` |
 | Scripts | `.claude/scripts/` (`migrate.sh`, `update-tools.sh`) |
@@ -137,10 +146,11 @@ docs/
 ├── db-schemas/            # DB schemas (English)
 ├── adrs/                  # Architectural Decision Records
 ├── architectures/         # per-service architecture (manifest.yaml + conventions + overview)
-├── ux/                    # UX docs (overview, audiences/, surfaces/, cross-surface-flows)
+├── ux/                    # UX docs (overview, audiences/, cross-surface-flows, gaps-as-is in brownfield)
+│   └── surfaces/{surface}/  # product-map, user-flows, screens/*.md, screens.json (IR), wireframes.html
 ├── design-system/         # DS per surface — README.md (index) + {surface}/{foundations,tokens,components,patterns,guidelines}
 ├── references/            # external references (third-party APIs, integrations)
-├── analysis/              # temporary analyses (import workflow)
+├── analysis/              # temporary analyses (import workflow): services/*.md + ux/{service}/ (frontend survey)
 └── changelog/             # technical change records
 ```
 

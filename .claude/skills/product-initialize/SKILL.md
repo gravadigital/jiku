@@ -40,9 +40,9 @@ Step 8: Finalization -> Suggest /product-initialize-technical
 
 These are handled in `/product-initialize-technical`.
 
-## Role
+## References
 
-**Adopt the Analyst Agent role** - Read [Analyst Agent](.claude/agents/analyst.md)
+**Read [Functional Analysis](.claude/specs/functional-analysis.md)** and apply it.
 
 ## Pre-loaded Context
 

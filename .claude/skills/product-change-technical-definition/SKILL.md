@@ -43,9 +43,9 @@ Step 5: Summary
 - Plan stories — use `/service-planify-story`
 - Edit the global conventions catalog (`.claude/conventions/`) — that is maintained in the workflow repo
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** — Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

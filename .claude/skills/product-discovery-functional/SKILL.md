@@ -9,7 +9,7 @@ argument-hint: "[brief-doc-path]"
 
 ## Purpose
 
-Run the Discovery phase as the Analyst: produce a decision-complete **functional analysis** and a DDD-light **domain analysis** from an optional base brief (or from scratch), BEFORE `/product-initialize`. Front-loading these decisions makes initialization linear transcription instead of interactive discovery.
+Run the Discovery phase following [Functional Analysis](.claude/specs/functional-analysis.md): produce a decision-complete **functional analysis** and a DDD-light **domain analysis** from an optional base brief (or from scratch), BEFORE `/product-initialize`. Front-loading these decisions makes initialization linear transcription instead of interactive discovery.
 
 **Flow:**
 
@@ -39,9 +39,9 @@ Step 6: Finalization -> Suggest /product-discovery-technical
 
 These are handled in `/product-discovery-technical`, `/product-initialize`, and `/product-initialize-technical`.
 
-## Role
+## References
 
-**Adopt the Analyst Agent role** - Read [Analyst Agent](.claude/agents/analyst.md)
+**Read [Functional Analysis](.claude/specs/functional-analysis.md)** and apply it.
 
 ## Pre-loaded Context
 
@@ -59,7 +59,7 @@ These are handled in `/product-discovery-technical`, `/product-initialize`, and 
 4. **Reference locations from Files index** - Use folder IDs (discovery_folder, references_folder). Do not hardcode paths
 5. **Do NOT dump full content in chat** - Save to file, show summary, let user review file directly
 6. **Facilitate, don't generate** - Extract knowledge from the user. When you must assume something, say it explicitly: "Voy a asumir X porque Y. Es correcto?"
-7. **Challenge vagueness at the point of impact** - Push back on vague scope, entities, states, invariants, or NFR targets. Test: "Could the Technical Leader build this without asking me a question?"
+7. **Challenge vagueness at the point of impact** - Push back on vague scope, entities, states, invariants, or NFR targets. Test: "Could the technical phase build this without asking me a question?"
 8. **Every ambiguity lands in "Decisiones Tomadas" with its rationale** - This is the load-bearing artifact. A decision without a "por qué" is incomplete
 9. **The domain analysis is a SUPERSET of the PRD Domain Entities section** - Entity names, types and enum values must be reusable verbatim by `/product-initialize`
 10. **Every bounded context MUST name the service(s) it becomes** - This is the bridge that linearizes the technical phase

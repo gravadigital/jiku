@@ -104,10 +104,13 @@ run_migration() {
 
     log_migrate "Ejecutando migración: $migration_name"
 
-    # Source el script de migración
-    source "$migration_file"
-
-    if [ $? -eq 0 ]; then
+    # Ejecutar en un proceso hijo, NO con source.
+    # Cada migración define su propia TARGET_VERSION y sus propios log_*; con
+    # source esas definiciones pisaban las del orquestador y truncaban el rango
+    # de migraciones (solo corría la primera de la cadena).
+    # bash (y no un subshell) además evita que las migraciones hereden `set -e`,
+    # que no fueron escritas para tolerar.
+    if bash "$migration_file"; then
         log_success "Migración $migration_name completada"
         return 0
     else
@@ -122,19 +125,20 @@ main() {
 
     # Obtener versiones
     PROJECT_VERSION=$(get_or_create_project_version)
-    TARGET_VERSION=$(get_target_version)
+    # Nombre propio del orquestador: ninguna migración puede pisarlo.
+    WORKFLOW_TARGET=$(get_target_version)
 
     log_info "Versión del proyecto: v$PROJECT_VERSION"
-    log_info "Versión target: v$TARGET_VERSION"
+    log_info "Versión target: v$WORKFLOW_TARGET"
 
     # Comparar versiones
-    COMPARISON=$(compare_versions "$PROJECT_VERSION" "$TARGET_VERSION")
+    COMPARISON=$(compare_versions "$PROJECT_VERSION" "$WORKFLOW_TARGET")
 
     if [ "$COMPARISON" = "0" ]; then
         log_success "El proyecto ya está en la versión más reciente"
         exit 0
     elif [ "$COMPARISON" = "1" ]; then
-        log_warning "La versión del proyecto ($PROJECT_VERSION) es mayor que la del workflow ($TARGET_VERSION)"
+        log_warning "La versión del proyecto ($PROJECT_VERSION) es mayor que la del workflow ($WORKFLOW_TARGET)"
         log_warning "No se ejecutarán migraciones"
         exit 0
     fi
@@ -146,13 +150,13 @@ main() {
     if [ ! -d "$MIGRATIONS_DIR" ]; then
         log_info "No hay migraciones disponibles"
         # Actualizar versión directamente
-        echo "$TARGET_VERSION" > "$VERSION_FILE"
-        log_success "Versión actualizada a v$TARGET_VERSION"
+        echo "$WORKFLOW_TARGET" > "$VERSION_FILE"
+        log_success "Versión actualizada a v$WORKFLOW_TARGET"
         exit 0
     fi
 
     # Iterar sobre todas las migraciones en orden
-    for migration_file in "$MIGRATIONS_DIR"/*.sh; do
+    for migration_file in "$MIGRATIONS_DIR"/[0-9][0-9][0-9]-*.sh; do
         [ -f "$migration_file" ] || continue
 
         # Extraer TARGET_VERSION del script
@@ -164,9 +168,9 @@ main() {
         fi
 
         # Verificar si necesitamos ejecutar esta migración
-        # La ejecutamos si: PROJECT_VERSION < MIGRATION_TARGET <= TARGET_VERSION
+        # La ejecutamos si: PROJECT_VERSION < MIGRATION_TARGET <= WORKFLOW_TARGET
         COMP_PROJECT=$(compare_versions "$PROJECT_VERSION" "$MIGRATION_TARGET")
-        COMP_TARGET=$(compare_versions "$MIGRATION_TARGET" "$TARGET_VERSION")
+        COMP_TARGET=$(compare_versions "$MIGRATION_TARGET" "$WORKFLOW_TARGET")
 
         if [ "$COMP_PROJECT" = "2" ] && { [ "$COMP_TARGET" = "2" ] || [ "$COMP_TARGET" = "0" ]; }; then
             if run_migration "$migration_file"; then
@@ -179,20 +183,29 @@ main() {
         fi
     done
 
-    # Actualizar .grava-version al target
-    echo "$TARGET_VERSION" > "$VERSION_FILE"
+    # Detectar migraciones de agente pendientes (.md).
+    # Se hace ANTES de mover .grava-version para que el rango sea el real
+    # recorrido en esta corrida.
+    detect_agent_migrations "$PROJECT_VERSION" "$WORKFLOW_TARGET"
 
-    # Detectar migraciones de agente pendientes (.md)
-    detect_agent_migrations "$PROJECT_VERSION" "$TARGET_VERSION"
+    # Actualizar .grava-version al target
+    echo "$WORKFLOW_TARGET" > "$VERSION_FILE"
+
+    # Salvaguarda: si la versión final no alcanzó el target, avisar en vez de
+    # dejar un .grava-version que miente sobre el estado real.
+    FINAL_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+    if [ "$(compare_versions "$FINAL_VERSION" "$WORKFLOW_TARGET")" != "0" ]; then
+        log_warning "La versión final ($FINAL_VERSION) no alcanzó el target ($WORKFLOW_TARGET) — revisar migraciones omitidas"
+    fi
 
     # Resumen
     echo ""
     if [ $MIGRATIONS_EXECUTED -gt 0 ]; then
         log_success "✨ Migraciones completadas: $MIGRATIONS_EXECUTED"
-        log_success "📦 Versión actualizada: v$PROJECT_VERSION → v$TARGET_VERSION"
+        log_success "📦 Versión actualizada: v$PROJECT_VERSION → v$WORKFLOW_TARGET"
     else
         log_info "No había migraciones pendientes"
-        log_success "📦 Versión actualizada a v$TARGET_VERSION"
+        log_success "📦 Versión actualizada a v$WORKFLOW_TARGET"
     fi
 }
 
@@ -207,7 +220,11 @@ detect_agent_migrations() {
         return 0
     fi
 
-    for migration_file in "$MIGRATIONS_DIR"/*.md; do
+    # Solo los archivos con el naming de migración (NNN-*.md). Un *.md suelto en
+    # la carpeta —el README, por ejemplo, que documenta el formato del frontmatter
+    # dentro de un bloque de código— matcheaba el grep de target_version y entraba
+    # a la lista de pendientes como si fuera una migración.
+    for migration_file in "$MIGRATIONS_DIR"/[0-9][0-9][0-9]-*.md; do
         [ -f "$migration_file" ] || continue
 
         # Extraer TARGET_VERSION del frontmatter
@@ -223,11 +240,19 @@ detect_agent_migrations() {
 
         if [ "$COMP_FROM" = "2" ] && { [ "$COMP_TO" = "2" ] || [ "$COMP_TO" = "0" ]; }; then
             pending+=("$migration_file")
+        elif [ -f "$pending_file" ] && grep -q "file: $migration_file$" "$pending_file"; then
+            # Ya estaba pendiente de una corrida anterior y el agente todavía no
+            # la ejecutó (el archivo sigue existiendo): se arrastra.
+            # Sin esto, una corrida posterior reescribía el archivo con un rango
+            # más nuevo y descartaba en silencio migraciones nunca aplicadas.
+            pending+=("$migration_file")
         fi
     done
 
     # Generar archivo de pendientes si hay alguna
     if [ ${#pending[@]} -gt 0 ]; then
+        # Deduplicar y ordenar por nombre de migración
+        IFS=$'\n' read -r -d '' -a pending < <(printf '%s\n' "${pending[@]}" | sort -u && printf '\0')
         {
             echo "# Agent Migrations Pending"
             echo ""

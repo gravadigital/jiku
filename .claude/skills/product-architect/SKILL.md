@@ -40,9 +40,9 @@ To materialize conclusions:
 - A change to existing architecture/APIs/schemas/ADRs -> `/product-change-technical-definition`
 - New flow documents from existing definitions -> `/product-generate-flows`
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

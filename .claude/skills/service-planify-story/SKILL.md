@@ -37,9 +37,9 @@ Step 6: Summary
 
 **IMPORTANT:** A story may affect multiple services, but this command generates tasks for the **current service only** (the repository where this command is executed).
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

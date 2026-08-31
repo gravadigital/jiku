@@ -1,6 +1,7 @@
 ---
 name: auto-implement-request
 description: Automatically design, create stories, planify and implement a captured request end-to-end without user interaction
+model: sonnet
 argument-hint: "[REQ-number]"
 allowed-tools: "Read, Bash, Glob, Grep, Agent"
 ---
@@ -38,15 +39,17 @@ Step 4: Final summary
 - Push to remote or create a PR — User handles this after reviewing the results
 - Work on multirepo setups — Only supported in monorepo mode
 
-## Role
+## References
 
-**Adopt the Orchestrator Agent role** - Read [Orchestrator Agent](.claude/agents/orchestrator.md)
+**Read [Orchestration](.claude/specs/orchestration.md)** and apply it.
 
 ## CRITICAL RULES
 
 1. **Monorepo only** - The repo must be a monorepo (detected by `docs/prd/` at the root, per the
    Configuration Resolution Convention). ABORT if it's a multirepo (see Step 0.2)
 2. **Sequential subagents** - Launch one subagent at a time, wait for completion, verify filesystem state before continuing
+2b. **Pass `model` explicitly in every Agent call** - A delegated skill's own `model:` frontmatter is IGNORED when the skill runs inside a subagent. Each call below states which model to pass; omitting it silently runs the step on the session model
+2c. **If the `Skill` tool fails inside a subagent, ABORT** - Do NOT let the subagent fall back to reading the `SKILL.md` from disk and running its steps by hand. That produces files that pass filesystem verification while bypassing the skill's real flow, which the filesystem verification rule cannot catch. Report the tool error verbatim and stop
 3. **Never make technical decisions** - All technical work is delegated to subagents. If a subagent fails, stop and report — do not attempt to fix the issue
 4. **Read filesystem to verify state** - After each subagent, read the relevant file to confirm the expected status change occurred
 5. **Branch safety** - Record the current branch before starting. One feature branch per story (shared by all its services); merge and delete it **once, after all of the story's services are Done**, before moving to the next story. Never merge between services of the same story.
@@ -167,7 +170,10 @@ Cada story usa una rama (compartida por sus servicios), creada desde esta rama y
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "opus"` en la llamada a la Agent tool (diseño técnico: decide impacto en APIs/schemas y el split de stories).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill product-design-request con los siguientes parámetros:
 - Argumento: REQ-{{number}} --auto
@@ -196,7 +202,10 @@ Inform user: **[Step 1/4]** ✓ Request diseñado. Revisión UX: {{ux_review_val
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "opus"` en la llamada a la Agent tool (decide el delta de pantallas y flujos).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill product-ux-request con los siguientes parámetros:
 - Argumento: REQ-{{number}} --auto
@@ -223,7 +232,10 @@ Inform user: **[Step 1.5/4]** ✓ Revisión UX completada.
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "sonnet"` en la llamada a la Agent tool (formaliza un split ya decidido).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill product-create-stories con los siguientes parámetros:
 - Argumento: REQ-{{number}} --auto
@@ -282,7 +294,10 @@ Inform user (do NOT wait): **[Step 3/4 — S-{{number}}]** Servicios a implement
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "opus"` en la llamada a la Agent tool (define tareas y test scenarios: es la decisión de diseño de la implementación).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill service-planify-story con los siguientes parámetros:
 - Argumento: S-{{number}} {{service}} --auto
@@ -303,7 +318,10 @@ Inform user: **[Step 3/4 — S-{{number}} / {{service}}]** ✓ Planificada.
 
 Use the **Agent tool** to launch a subagent with a clean context. The subagent must NOT inherit any context from this conversation. Pass `allowed_tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]` to grant full permissions.
 
+Pasá `model: "sonnet"` en la llamada a la Agent tool (el Story Plan es la fuente de verdad; el trabajo es mecánico).
+
 **CRITICAL: Pass ONLY the following prompt verbatim — do NOT add extra instructions or context:**
+
 ```
 Ejecutá el skill service-implement-story con los siguientes parámetros:
 - Argumento: S-{{number}} {{service}} --auto

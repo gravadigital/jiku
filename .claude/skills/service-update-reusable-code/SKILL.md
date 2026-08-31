@@ -35,9 +35,9 @@ Step 7: Summary
 - Implement new reusable code -- Only catalogs what exists
 - Plan stories -- Use `/service-planify-story` which consumes this documentation
 
-## Role
+## References
 
-**Adopt the Technical Leader Agent role** - Read [Technical Leader Agent](.claude/agents/technical-leader.md)
+**Read [Technical Standards](.claude/specs/technical-standards.md)** and apply it.
 
 ## CRITICAL RULES
 

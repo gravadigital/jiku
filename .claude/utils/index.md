@@ -2,15 +2,23 @@
 
 ## Resources
 
+### Specs
+
+Shared specifications that skills read. They carry formats, contracts and criteria —
+not roles.
+
+- [Technical Standards](../specs/technical-standards.md) — API/DB/ADR/flow formats and reading order
+- [Functional Analysis](../specs/functional-analysis.md) — extraction, assumptions, complexity scale
+- [UX Methodology](../specs/ux-methodology.md) — seven firm rules, vocabulary, generation order
+- [Orchestration](../specs/orchestration.md) — sequencing, progress format, subagent prompt pattern
+
 ### Agents
-- [Analyst Agent](../agents/analyst.md)
-- [Backend Developer Agent](../agents/backend-developer.md)
-- [Database Architect Agent](../agents/db-architector.md)
-- [Frontend Developer Agent](../agents/frontend-developer.md)
-- [Orchestrator Agent](../agents/orchestrator.md)
-- [QA Reviewer Agent](../agents/qa-reviewer.md)
-- [Technical Leader Agent](../agents/technical-leader.md)
-- [UX Researcher Agent](../agents/ux-researcher.md)
+
+Executable subagents, addressed by `subagent_type`, for **parametric fan-out**: N parallel
+invocations with different arguments. A single, known invocation does not need one — use a
+skill with `context: fork` instead (see `/service-qa-review`).
+
+- `ux-researcher` ([definition](../agents/ux-researcher.md)) — parallel fan-out for UX artifacts
 
 ### Skills
 

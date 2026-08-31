@@ -1,6 +1,7 @@
 ---
 name: product-ux-audit
 description: Check the UX documentation set for inconsistencies - broken references, viewport and platform mismatches, design system wiring and stale wireframes
+model: sonnet
 argument-hint: "[surface1,surface2,...]"
 allowed-tools: "Read, Glob, Grep, Bash"
 ---
@@ -46,9 +47,9 @@ and which skill fixes it.
 - Check the PRD or the technical architecture for internal consistency — its scope is `docs/ux/` and
   its wiring into `docs/design-system/`
 
-## Role
+## References
 
-**Adopt the [UX Researcher Agent](.claude/agents/ux-researcher.md) role**
+**Read [UX Methodology](.claude/specs/ux-methodology.md)** and apply it.
 
 This skill runs in the **research tier** of Rule 4: it reads and reports, and produces nothing.
 

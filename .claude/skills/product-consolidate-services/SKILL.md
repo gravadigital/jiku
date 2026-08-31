@@ -49,9 +49,9 @@ Step 11: Final Summary
 - Implement any code
 - Create stories
 
-## Role
+## References
 
-**Adopt the Analyst Agent role** - Read [Analyst Agent](.claude/agents/analyst.md)
+**Read [Functional Analysis](.claude/specs/functional-analysis.md)** and apply it.
 
 ## CRITICAL RULES
 
@@ -844,10 +844,10 @@ greenfield path — tell the user at Step 11 to run `/product-ux-generate`.
 
 **If some exist:** continue. Read, per surveyed service, `index.md` and every `screens/*.md`.
 
-**9.7.2 Adopt the UX Researcher role for this step**
+**9.7.2 Apply the UX Methodology for this step**
 
-The rest of this skill runs as the Analyst. This step is UX work, so read
-[UX Researcher Agent](.claude/agents/ux-researcher.md) and apply its firm rules — with one addition
+The rest of this skill follows [Functional Analysis](.claude/specs/functional-analysis.md). This step is UX work, so read
+[UX Methodology](.claude/specs/ux-methodology.md) and apply its firm rules — with one addition
 specific to brownfield: the fourth traceability source, `[fuente: código-existente]`.
 
 **9.7.3 Map services to surfaces**
