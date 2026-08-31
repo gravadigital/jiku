@@ -509,14 +509,24 @@ paths:
           in: query
           description: Aceptado por el esquema pero **no usado**; el orden es siempre `createdAt DESC`
           schema: { type: string }
+        - name: count
+          in: query
+          description: |
+            Si es `true`, devuelve la cantidad de requisitos que satisfacen los mismos filtros en
+            vez del listado. `page` y `limit` se ignoran. Mismo contrato que `count` en
+            `GET /objectives`.
+          schema: { type: boolean }
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/RequirementWithRelations' }
+                oneOf:
+                  - type: array
+                    items: { $ref: '#/components/schemas/RequirementWithRelations' }
+                  - type: integer
+                    description: Cantidad de requisitos que satisfacen los filtros. Solo con `count=true`.
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
@@ -825,14 +835,24 @@ paths:
         - name: personId
           in: query
           schema: { type: integer }
+        - name: count
+          in: query
+          description: |
+            Si es `true`, devuelve la cantidad de tareas que satisfacen los mismos filtros en vez
+            del listado. `page` y `limit` se ignoran. Existía en el código antes de documentarse
+            acá; mismo contrato que `count` en `GET /requirements`.
+          schema: { type: boolean }
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/ObjectiveWithWorkedTime' }
+                oneOf:
+                  - type: array
+                    items: { $ref: '#/components/schemas/ObjectiveWithWorkedTime' }
+                  - type: integer
+                    description: Cantidad de tareas que satisfacen los filtros. Solo con `count=true`.
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }

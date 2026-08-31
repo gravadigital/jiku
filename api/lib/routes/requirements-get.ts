@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { sequelize } from '../models';
 import { Person, Project, Requirement, RequirementState, RequirementType } from '@jiku/models';
 import logger from '../logger';
@@ -21,11 +21,13 @@ const querySchema = joi.object({
   page: joi.number().integer().min(1).default(1),
   limit: joi.number().integer().min(1).max(100).default(20),
   sort: joi.string().optional(),
+  count: joi.boolean().optional(),
 });
 
-function getRequirements(req: Request, res: Response) {
-  const { projectId, state, type, priority, createdBy, estimatedFinishDate, tag, search, page = 1, limit = 20 } = req.query as any;
-  const offset = (Number(page) - 1) * Number(limit);
+// Un solo constructor del `where` para listado y conteo: si cada uno armara el suyo, un filtro
+// nuevo agregado a uno y no al otro los haria divergir sin que ningun test lo note.
+function buildWhere(query: any) {
+  const { projectId, state, type, priority, createdBy, estimatedFinishDate, tag, search } = query;
 
   const where: any = {};
   if (projectId) where.projectId = Number(projectId);
@@ -41,6 +43,37 @@ function getRequirements(req: Request, res: Response) {
       `tags @> '[{"key": ${JSON.stringify(key)}, "value": ${JSON.stringify(value)}}]'::jsonb`
     );
   }
+
+  return where;
+}
+
+function getRequirementsCount(req: Request, res: Response, next: NextFunction) {
+  // `count` llega como string: Express 5 no coerciona req.query, y validateQueryParams descarta
+  // el value que Joi devuelve ya coercido (solo usa `error`). Por eso se compara contra 'true' en
+  // vez de evaluar la verdad del valor: el string 'false' es truthy y devolveria el conteo a quien
+  // pidio el listado.
+  if (String(req.query.count) !== 'true') {
+    return next();
+  }
+
+  // Sin `include`: ningun filtro depende de las relaciones -`project` y `responsiblePeople` se
+  // incluyen solo para armar el cuerpo del listado-, asi que no hay filas duplicadas que obliguen
+  // al `distinct` que si necesita el conteo de objectives.
+  return Requirement.count({ where: buildWhere(req.query) })
+    .then((count) => {
+      return res.status(200).json(count);
+    })
+    .catch((error) => {
+      logger.error(`[GET /requirements] getRequirementsCount error: ${error.message}`);
+      return res.status(500).json({ code: 'internal_error', message: 'Internal error' });
+    });
+}
+
+function getRequirements(req: Request, res: Response) {
+  const { page = 1, limit = 20 } = req.query as any;
+  const offset = (Number(page) - 1) * Number(limit);
+
+  const where = buildWhere(req.query);
 
   return Requirement.findAll({
     where,
@@ -79,6 +112,7 @@ function getRequirements(req: Request, res: Response) {
 router.get('/requirements',
   hasAnyRole(['user', 'admin']),
   validateQueryParams(querySchema),
+  getRequirementsCount,
   getRequirements
 );
 
