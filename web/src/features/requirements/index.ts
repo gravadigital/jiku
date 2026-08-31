@@ -1,6 +1,7 @@
 export * from './types/requirement.types';
 export * from './services/requirementsApi';
 export * from './hooks/useRequirements';
+export * from './hooks/useRequirementsCount';
 export * from './hooks/useRequirement';
 export * from './hooks/useCreateRequirement';
 export * from './hooks/useUpdateRequirement';

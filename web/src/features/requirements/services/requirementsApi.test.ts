@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { apiClient } from '@/lib/axios';
-import { addRequirementActivity, getRequirements } from './requirementsApi';
+import { addRequirementActivity, getRequirements, getRequirementsCount } from './requirementsApi';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 
@@ -22,6 +22,49 @@ describe('getRequirements', () => {
     await getRequirements({ search: 'login', page: 1 });
 
     expect(apiClient.get).toHaveBeenCalledWith(expect.stringContaining('search=login'));
+  });
+});
+
+describe('getRequirementsCount', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ data: 12 });
+  });
+
+  // TS-1 (S-038/CA-1): count viaja dentro del objeto de filtros, no concatenado a mano
+  it('TS-1: pasa "count" dentro del objeto de filtros, sin "?&" ni "&&" en la URL', async () => {
+    await getRequirementsCount({ projectId: 1, state: 'desarrollo' });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).toBe('/requirements?projectId=1&state=desarrollo&count=true');
+    expect(calledUrl).not.toContain('?&');
+    expect(calledUrl).not.toContain('&&');
+  });
+
+  // TS-2 (S-038/CA-1): la respuesta es el número crudo, no un sobre
+  it('TS-2: devuelve el número crudo devuelto por la api', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: 12 });
+
+    const result = await getRequirementsCount({ projectId: 1, state: 'desarrollo' });
+
+    expect(result).toBe(12);
+    expect(typeof result).toBe('number');
+  });
+
+  // TS-3 (S-038/CA-1): sin filtros no produce una query string malformada
+  it('TS-3: sin filtros produce "/requirements?count=true"', async () => {
+    await getRequirementsCount({});
+
+    expect(apiClient.get).toHaveBeenCalledWith('/requirements?count=true');
+  });
+
+  // TS-4 (S-038/CA-1): nunca se manda count=false
+  it('TS-4: nunca manda "count=false" en la URL', async () => {
+    await getRequirementsCount({ projectId: 1, count: false });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain('count=false');
+    expect(calledUrl).toContain('count=true');
   });
 });
 
