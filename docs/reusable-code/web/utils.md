@@ -68,3 +68,29 @@ function fileErrorMessage(error: unknown, fallback: string): string;
 ```ts
 onError: (error) => toast.error(fileErrorMessage(error, 'Hubo un error al crear el requisito'));
 ```
+
+---
+
+## getPageWindow
+
+**Location:** `web/src/shared/components/ui/Pagination/getPageWindow.ts`
+
+**Description:** Computes the range of page numbers a paginator should render: a window of at
+most 10 numbers (the `PAGE_WINDOW_SIZE` constant), centered on `currentPage` and clamped to
+`[1, totalPages]` when the ideal window would fall outside that range. When `totalPages` is 10 or
+fewer it returns `[1..totalPages]` with no padding. Returns `[]` for `totalPages <= 0` instead of
+throwing. Pure function, no React dependency — safe to unit test without `jsdom`. Used by
+`Pagination` (`web/src/shared/components/ui/Pagination/Pagination.tsx`).
+
+**Signature:**
+
+```ts
+function getPageWindow(params: { currentPage: number; totalPages: number }): number[];
+```
+
+**Usage:**
+
+```ts
+const pageNumbers = getPageWindow({ currentPage, totalPages });
+// currentPage=15, totalPages=30 -> [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+```

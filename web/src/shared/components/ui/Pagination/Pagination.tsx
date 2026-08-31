@@ -1,43 +1,78 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getPageWindow } from './getPageWindow';
 import styles from './Pagination.module.scss';
 
-interface PaginationProps {
+interface PaginationBaseProps {
   readonly totalItems: number;
   readonly limit: number;
 }
 
-export function Pagination({ totalItems, limit }: PaginationProps) {
+type PaginationUrlProps = PaginationBaseProps & {
+  /** Ruta base a la que navegar; el resto de los searchParams se preservan. */
+  readonly basePath: string;
+  readonly currentPage?: never;
+  readonly onPageChange?: never;
+};
+
+type PaginationControlledProps = PaginationBaseProps & {
+  readonly currentPage: number;
+  readonly onPageChange: (page: number) => void;
+  readonly basePath?: never;
+};
+
+type PaginationProps = PaginationUrlProps | PaginationControlledProps;
+
+function isControlled(
+  props: PaginationProps,
+): props is PaginationControlledProps {
+  return props.onPageChange !== undefined;
+}
+
+export function Pagination(props: PaginationProps) {
+  const { totalItems, limit } = props;
+  const controlled = isControlled(props);
+  const basePath = controlled ? undefined : props.basePath;
+  const onPageChange = controlled ? props.onPageChange : undefined;
+
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState<number | null>(null);
 
-  useEffect(() => {
-    const page = searchParams?.get('page');
-    const calculatedTotalPages = Math.ceil(totalItems / limit);
-    setTotalPages(calculatedTotalPages);
-    if (!page || page === '1') {
-      setCurrentPage(1);
-    } else {
-      setCurrentPage(Number(page));
-    }
-  }, [searchParams, totalItems, limit]);
+  const createQueryString = useCallback(
+    (name: string, value: string) => {
+      const params = new URLSearchParams(searchParams?.toString());
+      params.set(name, value);
+      return params.toString();
+    },
+    [searchParams],
+  );
 
-  const createQueryString = (field: string, value: string) => {
-    const params = new URLSearchParams(searchParams?.toString());
-    params.set(field, value);
-    return params.toString();
-  };
+  const derivedPage = (() => {
+    const pageParam = searchParams?.get('page');
+    const parsed = Number(pageParam);
+    return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
+  })();
 
-  const handlePageChange = (newPage: number) => {
-    router.push(`/objectives?${createQueryString('page', newPage.toString())}`);
-  };
+  const currentPage = controlled ? props.currentPage : derivedPage;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      if (onPageChange) {
+        onPageChange(newPage);
+        return;
+      }
+      router.push(`${basePath}?${createQueryString('page', String(newPage))}`);
+    },
+    [onPageChange, router, basePath, createQueryString],
+  );
 
   if (totalItems === 0) {
     return null;
   }
+
+  const pageNumbers = getPageWindow({ currentPage, totalPages });
 
   return (
     <nav className={styles.pagination} aria-label="Paginación" role="navigation">
@@ -49,13 +84,12 @@ export function Pagination({ totalItems, limit }: PaginationProps) {
       >
         {'<'}
       </button>
-      {Array.from({ length: totalPages || 0 }, (__, index) => {
-        const pageNumber = index + 1;
+      {pageNumbers.map((pageNumber) => {
         const isCurrentPage = currentPage === pageNumber;
         return (
           <button
             type="button"
-            key={index}
+            key={pageNumber}
             onClick={() => handlePageChange(pageNumber)}
             disabled={isCurrentPage}
             data-active={isCurrentPage || undefined}
