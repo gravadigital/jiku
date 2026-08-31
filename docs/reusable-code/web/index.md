@@ -29,11 +29,12 @@ Total: 2
 
 ## Utils
 
-Total: 3
+Total: 4
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
 - **fileErrorMessage** (`web/src/features/attachments/utils/fileErrorMessages.ts`) - Maps the file domain error codes to the user-facing Spanish message, with a fallback.
+- **getPageWindow** (`web/src/shared/components/ui/Pagination/getPageWindow.ts`) - Pure function that computes a sliding window of at most 10 page numbers, centered on the current page and clamped to `[1, totalPages]`. No React dependency; used by `Pagination`.
 
 ## Types
 

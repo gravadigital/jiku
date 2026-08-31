@@ -128,7 +128,11 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
                 ))}
               </tbody>
             </table>
-            <Pagination totalItems={objectivesCount} limit={Number(filters.limit) || 20} />
+            <Pagination
+              totalItems={objectivesCount}
+              limit={Number(filters.limit) || 20}
+              basePath="/objectives"
+            />
           </div>
         </div>
       )}
