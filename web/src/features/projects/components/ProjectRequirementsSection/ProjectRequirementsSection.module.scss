@@ -190,42 +190,20 @@
   color: #626a81;
 }
 
-.pagination {
+.paginationRow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.25rem;
   padding: 0.75rem 1rem;
   border-top: 1px solid #e6e8ed;
-}
 
-.pageBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #e6e8ed;
-  border-radius: 6px;
-  background: #fff;
-  font-size: 0.875rem;
-  color: #626a81;
-  cursor: pointer;
-  font-family: system-ui;
-}
-
-.pageBtn.active {
-  background: #DA2C6A;
-  color: #fff;
-  border-color: #DA2C6A;
-}
-
-.ellipsis {
-  font-size: 0.875rem;
-  color: #626a81 !important;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 2px;
+  // El <nav> del paginador compartido trae `margin-top: 20px`, pensado para
+  // un uso standalone. Acá conviven como hermanos en una fila alineada a la
+  // derecha, así que se neutraliza para no desalinear el conjunto.
+  nav {
+    margin-top: 0;
+  }
 }
 
 .perPageSelect {

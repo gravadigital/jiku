@@ -124,6 +124,7 @@ export interface RequirementFilters {
   page?: number | string;
   limit?: number | string;
   sort?: string | null;
+  count?: boolean;
 }
 
 export interface CreateRequirementPayload {

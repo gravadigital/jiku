@@ -25,6 +25,13 @@ export const getRequirements = async (filters: RequirementFilters = {}): Promise
   return response.data;
 };
 
+export const getRequirementsCount = async (filters: RequirementFilters = {}): Promise<number> => {
+  const nonEmptyFilters = cleanFilters({ ...filters, count: true });
+  const queryParams = new URLSearchParams(nonEmptyFilters).toString();
+  const response = await apiClient.get(`/requirements?${queryParams}`);
+  return response.data;
+};
+
 export const getRequirementById = async (reqid: number): Promise<RequirementDetail> => {
   const response = await apiClient.get(`/requirements/${reqid}`);
   return response.data;

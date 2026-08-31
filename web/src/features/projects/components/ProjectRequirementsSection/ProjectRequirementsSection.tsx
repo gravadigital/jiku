@@ -1,12 +1,14 @@
 'use client';
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useRequirements } from '@/features/requirements/hooks/useRequirements';
-import { getTypeLabel } from '@/features/requirements/utils/requirementHelpers';
+import { getRequirementsCount } from '@/features/requirements/services/requirementsApi';
+import { getTypeLabel, PRIORITY_LABELS } from '@/features/requirements/utils/requirementHelpers';
+import { Pagination } from '@/shared/components/ui/Pagination';
 import styles from './ProjectRequirementsSection.module.scss';
 import type {
   Requirement,
-  RequirementPriority,
   RequirementState,
 } from '@/features/requirements/types/requirement.types';
 
@@ -24,15 +26,9 @@ const STATE_TABS: { label: string; value: RequirementState }[] = [
   { label: 'Cancelado', value: 'cancelado' },
 ];
 
-const DEFAULT_PAGE_SIZE = 5;
+const STATE_VALUES = STATE_TABS.map((tab) => tab.value);
 
-const PRIORITY_LABELS: Record<RequirementPriority, string> = {
-  sin_prioridad: 'Sin prioridad',
-  baja: 'Baja',
-  media: 'Media',
-  alta: 'Alta',
-  urgente: 'Urgente',
-};
+const DEFAULT_PAGE_SIZE = 5;
 
 function formatCreatedDate(value: string): string {
   const date = new Date(value);
@@ -51,29 +47,31 @@ function formatResponsible(people: Requirement['responsiblePeople']): string {
 
 export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSectionProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeState, setActiveState] = useState<RequirementState>('desarrollo');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const { data: requirements = [], isLoading } = useRequirements({
-    filters: { projectId },
+  const countResults = useQueries({
+    queries: STATE_VALUES.map((state) => ({
+      queryKey: ['requirements-count', { projectId, state }],
+      queryFn: () => getRequirementsCount({ projectId, state }),
+    })),
   });
 
-  const countByState = useCallback(
-    (state: RequirementState) => requirements.filter((r) => r.state === state).length,
-    [requirements]
-  );
+  const activeIndex = STATE_VALUES.indexOf(activeState);
+  const activeCount = countResults[activeIndex]?.data ?? 0;
+  const totalPages = Math.ceil(activeCount / pageSize);
+  const page = Math.min(currentPage, Math.max(1, totalPages));
 
-  const visibleRequirements = requirements.filter((r) => r.state === activeState);
-  const totalPages = Math.ceil(visibleRequirements.length / pageSize);
-  const paginatedRequirements = visibleRequirements.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  const { data: requirements = [], isLoading } = useRequirements({
+    filters: { projectId, state: activeState, page, limit: pageSize },
+  });
 
   const handleTabChange = (state: RequirementState) => {
     setActiveState(state);
     setCurrentPage(1);
+    queryClient.invalidateQueries({ queryKey: ['requirements-count'] });
   };
 
   const handlePageSizeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -96,8 +94,10 @@ export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSec
       </div>
 
       <nav className={styles.tabs} aria-label="Filtro por estado">
-        {STATE_TABS.map((tab) => {
+        {STATE_TABS.map((tab, index) => {
           const isActive = activeState === tab.value;
+          const countQuery = countResults[index];
+          const countLabel = countQuery.isError ? '—' : (countQuery.data ?? '—');
           return (
             <button
               key={tab.value}
@@ -107,7 +107,7 @@ export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSec
               onClick={() => handleTabChange(tab.value)}
             >
               <span className={styles.tabLabel}>{tab.label}</span>
-              <span className={styles.tabCount}>{countByState(tab.value)}</span>
+              <span className={styles.tabCount}>{countLabel}</span>
             </button>
           );
         })}
@@ -132,14 +132,14 @@ export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSec
                   Cargando requisitos...
                 </td>
               </tr>
-            ) : paginatedRequirements.length === 0 ? (
+            ) : requirements.length === 0 ? (
               <tr>
                 <td colSpan={6} className={styles.emptyState}>
                   No se encontraron requisitos
                 </td>
               </tr>
             ) : (
-              paginatedRequirements.map((req: Requirement) => (
+              requirements.map((req: Requirement) => (
                 <tr
                   key={req.id}
                   className={styles.row}
@@ -161,52 +161,22 @@ export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSec
           </tbody>
         </table>
 
-        <nav className={styles.pagination} aria-label="Paginación">
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
+        <div className={styles.paginationRow}>
+          <Pagination
+            totalItems={activeCount}
+            limit={pageSize}
+            currentPage={page}
+            onPageChange={setCurrentPage}
+          />
+          <select
+            className={styles.perPageSelect}
+            value={pageSize}
+            onChange={handlePageSizeChange}
           >
-            ‹
-          </button>
-          {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => i + 1)
-            .filter((page) => page <= 3 || page === Math.max(totalPages, 1))
-            .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
-              if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-              acc.push(page);
-              return acc;
-            }, [])
-            .map((item, idx) =>
-              item === 'ellipsis' ? (
-                <span key={`ellipsis-${idx}`} className={styles.ellipsis}>
-                  …
-                </span>
-              ) : (
-                <button
-                  key={item}
-                  type="button"
-                  className={`${styles.pageBtn}${currentPage === item ? ` ${styles.active}` : ''}`}
-                  onClick={() => setCurrentPage(item)}
-                  aria-current={currentPage === item ? 'page' : undefined}
-                >
-                  {item}
-                </button>
-              )
-            )}
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => setCurrentPage((p) => Math.min(Math.max(totalPages, 1), p + 1))}
-            disabled={currentPage === Math.max(totalPages, 1)}
-          >
-            ›
-          </button>
-          <select className={styles.perPageSelect} value={pageSize} onChange={handlePageSizeChange}>
             <option value={5}>5 por página</option>
             <option value={10}>10 por página</option>
           </select>
-        </nav>
+        </div>
       </div>
     </div>
   );
