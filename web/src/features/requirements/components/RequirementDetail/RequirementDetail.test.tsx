@@ -5,12 +5,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { toast } from 'react-toastify';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as useRequirementWorkedHoursModule from '../../hooks/useRequirementWorkedHours';
 import * as useUpdateRequirementModule from '../../hooks/useUpdateRequirement';
 import { RequirementDetail } from './RequirementDetail';
 import type { Requirement } from '../../types/requirement.types';
 
 vi.mock('react-toastify', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
+}));
+
+vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
+
+vi.mock('next/image', () => ({
+  default: ({ alt }: { alt: string }) => <img alt={alt} />,
 }));
 
 vi.mock('../../services/requirementsApi', () => ({
@@ -32,6 +39,10 @@ vi.mock('../RequirementActivityFeed', () => ({
 vi.mock('../RequirementActivityForm', () => ({
   RequirementActivityForm: () => <div data-testid="activity-form" />,
 }));
+
+// La card de horas se carga sola, con su propia query (S-045): se mockea el hook para que los
+// tests existentes de RequirementDetail no intenten una request real.
+vi.mock('../../hooks/useRequirementWorkedHours');
 
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -105,6 +116,11 @@ describe('RequirementDetail', () => {
       mutate: mockUpdateMutate,
       isPending: false,
     } as any);
+    vi.mocked(useRequirementWorkedHoursModule.useRequirementWorkedHours).mockReturnValue({
+      data: { requirementId: 5, totalMinutes: 0, byPerson: [] },
+      isLoading: false,
+      isError: false,
+    } as any);
   });
 
   it('TS-5: SCSS usa grid-template-columns: 1fr 420px', () => {
@@ -169,6 +185,45 @@ describe('RequirementDetail', () => {
     expect(screen.getByText('Información General')).toBeInTheDocument();
     expect(screen.getByText('Etiquetas')).toBeInTheDocument();
     expect(screen.getByText('Resolución')).toBeInTheDocument();
+    expect(screen.getByText('Horas Trabajadas')).toBeInTheDocument(); // S-045
+  });
+
+  // TS-19 (S-045/CA-4): el card de horas se monta último en la columna derecha
+  it('TS-19: el orden de los títulos de card en la columna derecha es el esperado (S-045)', () => {
+    render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
+
+    const rightColumn = screen.getByText('Información General').closest(
+      '[class*="rightColumn"]'
+    ) as HTMLElement;
+    const cardTitles = Array.from(
+      rightColumn.querySelectorAll('[class*="cardTitle"]')
+    ).map((el) => el.textContent);
+
+    expect(cardTitles).toEqual([
+      'Información General',
+      'Etiquetas',
+      'Resolución',
+      'Horas Trabajadas',
+    ]);
+  });
+
+  // TS-17 (S-045/CA-8): el detalle se renderiza completo aunque la card de horas falle
+  it('TS-17: el detalle se renderiza completo aunque la card de horas falle (S-045)', () => {
+    vi.mocked(useRequirementWorkedHoursModule.useRequirementWorkedHours).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    } as any);
+
+    render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
+
+    expect(screen.getByText('Contexto')).toBeInTheDocument();
+    expect(screen.getByText('Información General')).toBeInTheDocument();
+    expect(screen.getByText('Etiquetas')).toBeInTheDocument();
+    expect(screen.getByText('Resolución')).toBeInTheDocument();
+    expect(screen.getByText('Req test')).toBeInTheDocument();
+    expect(screen.getByText('Horas Trabajadas')).toBeInTheDocument();
+    expect(screen.getByText('No se pudieron cargar las horas')).toBeInTheDocument();
   });
 
   // S-090 (CA-3, TS-6, no-regresión): el mixin mobile no se tocó en los componentes de referencia

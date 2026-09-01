@@ -77,21 +77,24 @@ describe('RequirementList — S-051', () => {
     vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(32);
   });
 
-  // TS-1: 8 columnas con headers del prototipo
-  it('TS-1: tabla muestra 8 columnas con headers del prototipo', async () => {
+  // TS-1: 9 columnas con headers del prototipo, "Hs. Trab." último (S-045)
+  it('TS-1: tabla muestra 9 columnas con headers del prototipo, "Hs. Trab." último (S-045)', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
       const headers = document.querySelectorAll('thead th');
       const headerTexts = Array.from(headers).map((th) => th.textContent?.trim());
-      expect(headerTexts).toContain('ID');
-      expect(headerTexts).toContain('Proyecto');
-      expect(headerTexts).toContain('Título');
-      expect(headerTexts).toContain('Estado');
-      expect(headerTexts).toContain('Responsable');
-      expect(headerTexts).toContain('Tipo');
-      expect(headerTexts).toContain('Prioridad');
-      expect(headerTexts).toContain('Creación');
-      expect(headers.length).toBe(8);
+      expect(headerTexts).toEqual([
+        'ID',
+        'Proyecto',
+        'Título',
+        'Responsable',
+        'Estado',
+        'Tipo',
+        'Prioridad',
+        'Creación',
+        'Hs. Trab.',
+      ]);
+      expect(headers.length).toBe(9);
     });
   });
 
@@ -184,15 +187,15 @@ describe('RequirementList — S-051', () => {
     });
   });
 
-  // TS-11: sin requisitos → mensaje vacío con colSpan 8
-  it('TS-11: sin requisitos muestra mensaje vacío', async () => {
+  // TS-11: sin requisitos → mensaje vacío con colSpan 9 (S-045: 8 -> 9)
+  it('TS-11: sin requisitos muestra mensaje vacío con colSpan 9 (S-045)', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([]);
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
       expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
     });
     const td = screen.getByText('No se encontraron requisitos').closest('td');
-    expect(td?.getAttribute('colSpan') ?? td?.getAttribute('colspan')).toBe('8');
+    expect(td?.getAttribute('colSpan') ?? td?.getAttribute('colspan')).toBe('9');
   });
 
   // TS-12: paginación — botón activo tiene data-active
@@ -670,5 +673,80 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       expect(screen.getByText('Req test')).toBeInTheDocument();
     });
     expect(getPaginationNav()).toBeNull();
+  });
+});
+
+describe('RequirementList — S-045 (columna "Hs. Trab.")', () => {
+  const filters: RequirementFilters = { page: 1, limit: 10 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams = new URLSearchParams();
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([mockRequirement]);
+    vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(32);
+  });
+
+  // TS-6: la celda formatea 150 minutos como "2h 30m" (CA-1)
+  it('TS-6: la celda formatea 150 minutos como "2h 30m" (CA-1)', async () => {
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([
+      { ...mockRequirement, id: 5, totalMinutes: 150 },
+    ]);
+    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText('2h 30m')).toBeInTheDocument();
+    });
+  });
+
+  // TS-7: totalMinutes 0 muestra "—" y no "0h 0m" (CA-2)
+  it('TS-7: totalMinutes 0 muestra "—" y no "0h 0m" (CA-2)', async () => {
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([
+      { ...mockRequirement, id: 5, totalMinutes: 0 },
+    ]);
+    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      const row = screen.getByText('Req test').closest('tr') as HTMLElement;
+      const lastCell = row.querySelectorAll('td')[row.querySelectorAll('td').length - 1];
+      expect(lastCell.textContent).toBe('—');
+    });
+    expect(screen.queryByText('0h 0m')).not.toBeInTheDocument();
+  });
+
+  // TS-8: totalMinutes ausente (api vieja) muestra "—" sin lanzar excepción (CA-2)
+  it('TS-8: totalMinutes ausente muestra "—" sin lanzar excepción (CA-2)', async () => {
+    // mockRequirement no declara `totalMinutes`: simula exactamente la respuesta de una api
+    // vieja que todavía no conoce el campo (a diferencia de TS-7, que lo manda en 0).
+    expect('totalMinutes' in mockRequirement).toBe(false);
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([mockRequirement]);
+    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      const row = screen.getByText('Req test').closest('tr') as HTMLElement;
+      const lastCell = row.querySelectorAll('td')[row.querySelectorAll('td').length - 1];
+      expect(lastCell.textContent).toBe('—');
+    });
+  });
+
+  // TS-9: el <th> de "Hs. Trab." no es accionable (CA-6)
+  it('TS-9: el <th> de "Hs. Trab." no es accionable (CA-6)', async () => {
+    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+
+    const th = await screen.findByText('Hs. Trab.');
+    fireEvent.click(th);
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(th).not.toHaveAttribute('onclick');
+    expect(th).not.toHaveAttribute('role', 'button');
+    expect(th).not.toHaveAttribute('tabindex');
+  });
+
+  // TS-10: la fila de carga usa colSpan={9} (CA-7)
+  it('TS-10: la fila de carga usa colSpan={9} (CA-7)', async () => {
+    vi.mocked(requirementsApi.getRequirements).mockReturnValue(new Promise(() => {}));
+    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+
+    const td = await screen.findByText('Cargando requisitos...');
+    expect(td.closest('td')).toHaveAttribute('colSpan', '9');
   });
 });

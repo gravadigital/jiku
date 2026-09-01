@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { apiClient } from '@/lib/axios';
-import { addRequirementActivity, getRequirements, getRequirementsCount } from './requirementsApi';
+import {
+  addRequirementActivity,
+  getRequirements,
+  getRequirementsCount,
+  getRequirementWorkedHours,
+} from './requirementsApi';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 
@@ -40,6 +45,19 @@ describe('getRequirements', () => {
     expect(calledUrl).not.toContain('state');
     expect(calledUrl).toContain('page=1');
     expect(calledUrl).toContain('limit=15');
+  });
+
+  // TS-1 (S-045/CA-3): include=totalMinutes sobrevive a cleanFilters y llega a la query string
+  it('TS-1: serializa "include=totalMinutes" en la query string (S-045)', async () => {
+    await getRequirements({
+      state: 'desarrollo',
+      page: 1,
+      limit: 15,
+      include: 'totalMinutes',
+    });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('include=totalMinutes');
   });
 });
 
@@ -84,6 +102,15 @@ describe('getRequirementsCount', () => {
     expect(calledUrl).not.toContain('count=false');
     expect(calledUrl).toContain('count=true');
   });
+
+  // TS-2 (S-045/CA-3): count=true ignora include, la request de conteo no lo arrastra
+  it('TS-2 (S-045): no manda "include" aunque el objeto de filtros lo traiga', async () => {
+    await getRequirementsCount({ state: 'desarrollo' });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).toBe('/requirements?state=desarrollo&count=true');
+    expect(calledUrl).not.toContain('include');
+  });
 });
 
 describe('addRequirementActivity', () => {
@@ -117,5 +144,29 @@ describe('addRequirementActivity', () => {
       comment: 'Solo texto',
       visibilityLevel: 'public',
     });
+  });
+});
+
+describe('getRequirementWorkedHours', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // TS-4 (S-045/CA-4): llama al endpoint correcto y devuelve response.data, no el objeto de axios
+  it('TS-4: llama a /requirements/{reqid}/worked-hours y devuelve response.data (S-045)', async () => {
+    const responseData = {
+      requirementId: 12,
+      totalMinutes: 300,
+      byPerson: [
+        { personId: 7, firstName: 'Ana', lastName: 'García', minutes: 180 },
+        { personId: 9, firstName: 'Beto', lastName: 'Ruiz', minutes: 120 },
+      ],
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({ data: responseData });
+
+    const result = await getRequirementWorkedHours(12);
+
+    expect(apiClient.get).toHaveBeenCalledWith('/requirements/12/worked-hours');
+    expect(result).toEqual(responseData);
   });
 });

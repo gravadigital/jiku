@@ -8,6 +8,7 @@ import type {
   RequirementFilters,
   RequirementReportFilters,
   RequirementReportItem,
+  RequirementWorkedHours,
   TagSuggestion,
   UpdateRequirementPayload,
 } from '../types/requirement.types';
@@ -34,6 +35,13 @@ export const getRequirementsCount = async (filters: RequirementFilters = {}): Pr
 
 export const getRequirementById = async (reqid: number): Promise<RequirementDetail> => {
   const response = await apiClient.get(`/requirements/${reqid}`);
+  return response.data;
+};
+
+export const getRequirementWorkedHours = async (
+  reqid: number
+): Promise<RequirementWorkedHours> => {
+  const response = await apiClient.get(`/requirements/${reqid}/worked-hours`);
   return response.data;
 };
 
