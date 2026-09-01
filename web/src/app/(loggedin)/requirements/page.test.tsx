@@ -40,4 +40,28 @@ describe('Requirements (listado)', () => {
 
     expect(receivedFilters?.search).toBeNull();
   });
+
+  // TS-1 (S-041/CA-1): sin `state` en la URL, aplica el default de cuatro estados
+  it('TS-1: sin "state" en la URL aplica el default de cuatro estados (S-041)', async () => {
+    const searchParams = Promise.resolve({});
+    render(await Requirements({ searchParams }));
+
+    expect(receivedFilters?.state).toBe('planificacion,en_cola,desarrollo,revision');
+  });
+
+  // TS-2 (S-041/CA-5): con `state` explícito en la URL, se respeta sin pisarlo con el default
+  it('TS-2: respeta el "state" explícito de la URL y no lo pisa con el default (S-041)', async () => {
+    const searchParams = Promise.resolve({ state: 'desarrollo,revision' });
+    render(await Requirements({ searchParams }));
+
+    expect(receivedFilters?.state).toBe('desarrollo,revision');
+  });
+
+  // TS-3 (S-041/CA-4): el sentinel `all` se propaga tal cual, sin convertirse en el default
+  it('TS-3: propaga el sentinel "all" sin convertirlo en el default (S-041)', async () => {
+    const searchParams = Promise.resolve({ state: 'all' });
+    render(await Requirements({ searchParams }));
+
+    expect(receivedFilters?.state).toBe('all');
+  });
 });

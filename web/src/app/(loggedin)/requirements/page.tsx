@@ -7,6 +7,11 @@ import type { RequirementFilters } from '@/features/requirements/types/requireme
 
 export const dynamic = 'force-dynamic';
 
+// Default al entrar sin `state` en la URL: los cuatro estados de trabajo en curso, en el orden
+// del enum `requirement_state`. `analisis`, `resuelto` y `cancelado` quedan fuera del default —
+// se piden explícitamente. Ver S-041 / REQ-009 AC-1.
+const DEFAULT_STATE_FILTER = 'planificacion,en_cola,desarrollo,revision';
+
 export default async function Requirements({
   searchParams,
 }: {
@@ -15,7 +20,7 @@ export default async function Requirements({
   const resolvedSearchParams = await searchParams;
   const filters: RequirementFilters = {
     projectId: resolvedSearchParams.projectId || null,
-    state: resolvedSearchParams.state || null,
+    state: resolvedSearchParams.state || DEFAULT_STATE_FILTER,
     type: resolvedSearchParams.type || null,
     priority: resolvedSearchParams.priority || null,
     createdBy: resolvedSearchParams.createdBy || null,

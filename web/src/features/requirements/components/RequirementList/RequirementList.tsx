@@ -79,7 +79,12 @@ export function RequirementList({ filters }: RequirementListProps) {
   const updateFilter = useCallback(
     (key: keyof Filters, value: string) => {
       const params = new URLSearchParams(searchParams?.toString());
-      if (!value || value === 'all') {
+      // `state` es la excepción: con un default de cuatro estados en page.tsx, una URL sin
+      // `state` significa "el default", no "sin filtro". Por eso el sentinel 'all' se escribe
+      // en vez de borrarse. Ver S-041 / REQ-009 (riesgo R1). El resto de los filtros conserva
+      // el borrado. `cleanFilters` descarta 'all' al serializar, así que la api recibe la
+      // request sin `state` y devuelve los siete estados.
+      if (key === 'state' ? !value : !value || value === 'all') {
         params.delete(key as string);
       } else {
         params.set(key as string, value);
