@@ -2,8 +2,10 @@
 
 import React, { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Pagination } from '@/shared/components/ui';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
 import { useRequirements } from '../../hooks/useRequirements';
+import { useRequirementsCount } from '../../hooks/useRequirementsCount';
 import { getTypeLabel } from '../../utils/requirementHelpers';
 import { RequirementFilters } from '../RequirementFilters';
 import styles from './RequirementList.module.scss';
@@ -72,8 +74,8 @@ export function RequirementList({ filters }: RequirementListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: requirements = [], isLoading } = useRequirements({ filters });
+  const { data: count = 0 } = useRequirementsCount(filters);
 
-  const currentPage = Number(filters.page) || 1;
   const limit = Number(filters.limit) || 15;
 
   const updateFilter = useCallback(
@@ -90,16 +92,6 @@ export function RequirementList({ filters }: RequirementListProps) {
         params.set(key as string, value);
       }
       params.delete('page');
-      router.push(`/requirements?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
-
-  const handlePageChange = useCallback(
-    (newPage: number) => {
-      if (newPage < 1) return;
-      const params = new URLSearchParams(searchParams?.toString());
-      params.set('page', String(newPage));
       router.push(`/requirements?${params.toString()}`);
     },
     [router, searchParams]
@@ -199,45 +191,7 @@ export function RequirementList({ filters }: RequirementListProps) {
           </tbody>
         </table>
         <div className={styles.pagination}>
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            aria-label="Página anterior"
-          >
-            {'‹'}
-          </button>
-          {currentPage > 1 && (
-            <button
-              type="button"
-              className={styles.pageBtn}
-              onClick={() => handlePageChange(currentPage - 1)}
-            >
-              {currentPage - 1}
-            </button>
-          )}
-          <button type="button" className={styles.pageBtn} data-active="true" aria-current="page">
-            {currentPage}
-          </button>
-          {requirements.length >= limit && (
-            <button
-              type="button"
-              className={styles.pageBtn}
-              onClick={() => handlePageChange(currentPage + 1)}
-            >
-              {currentPage + 1}
-            </button>
-          )}
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={requirements.length < limit}
-            aria-label="Página siguiente"
-          >
-            {'›'}
-          </button>
+          <Pagination totalItems={count} limit={limit} basePath="/requirements" />
           <select
             className={styles.perPageSelect}
             value={String(limit)}
