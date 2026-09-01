@@ -410,4 +410,76 @@ describe('GET /api/objectives/:id', () => {
         });
     });
   });
+
+  /**
+   * S-047 (CA-7): la lectura interna expone `editedAt`/`editedBy` sin código nuevo, porque el
+   * handler serializa el modelo completo con `toJSON()` en vez de armar una proyección campo
+   * por campo — las columnas ya existen en el modelo desde S-046. Este bloque es de
+   * VERIFICACIÓN: fija que la lectura sigue exponiéndolos, y que un comentario no editado
+   * expone los dos campos en null (presentes, no ausentes).
+   */
+  describe('S-047: editedAt/editedBy en la lectura interna (CA-7)', () => {
+    let editedCommentId: number;
+    let plainCommentId: number;
+
+    before(() => {
+      return ObjectiveActivity.create({
+        changedBy: 'zitadel-sub-01',
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'Comentario editado',
+        objectiveId: 1,
+        editedAt: new Date(),
+        editedBy: 'zitadel-sub-01',
+      })
+        .then((activity) => {
+          editedCommentId = activity.id;
+          return ObjectiveActivity.create({
+            changedBy: 'zitadel-sub-01',
+            typeOfActivity: 'comment',
+            previousValue: '',
+            newValue: 'Comentario sin editar',
+            objectiveId: 1,
+          });
+        })
+        .then((activity) => {
+          plainCommentId = activity.id;
+        });
+    });
+
+    after(() => {
+      return ObjectiveActivity.destroy({ where: { id: [editedCommentId, plainCommentId] } });
+    });
+
+    // TS-24: la actividad editada expone los dos campos con valor.
+    it('TS-24: expone editedAt y editedBy en una actividad editada', () => {
+      return request(application)
+        .get('/api/objectives/1')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const activity = response.body.ObjectiveActivity
+            .find((a: any) => a.id === editedCommentId);
+          (activity.editedAt !== null).should.be.true();
+          activity.editedBy.should.equal('zitadel-sub-01');
+        });
+    });
+
+    // TS-25: un comentario NO editado expone editedAt/editedBy en null, no ausentes — el front
+    // distingue "no editado" de "campo que no llegó".
+    it('TS-25: un comentario no editado expone editedAt y editedBy en null', () => {
+      return request(application)
+        .get('/api/objectives/1')
+        .set('Accept', 'application/json')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const activity = response.body.ObjectiveActivity
+            .find((a: any) => a.id === plainCommentId);
+          activity.should.have.property('editedAt', null);
+          activity.should.have.property('editedBy', null);
+        });
+    });
+  });
 });

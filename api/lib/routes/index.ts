@@ -50,6 +50,7 @@ export { default as RequirementsIdGet } from './requirements-id-get';
 export { default as RequirementsIdPatch } from './requirements-id-patch';
 export { default as RequirementsIdWorkedHoursGet } from './requirements-id-worked-hours-get';
 export { default as RequirementsIdActivityPost } from './requirements-id-activity-post';
+export { default as RequirementsIdCommentsCidPatch } from './requirements-id-comments-cid-patch';
 export { default as RequirementsTagsSuggestionsGet } from './requirements-tags-suggestions-get';
 export { default as OpusRequirementsPost } from './opus-requirements-post';
 export { default as OpusRequirementsIdGet } from './opus-requirements-id-get';

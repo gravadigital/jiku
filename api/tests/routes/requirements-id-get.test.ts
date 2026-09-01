@@ -385,4 +385,74 @@ describe('GET /api/requirements/:reqid', () => {
         (response.body.type === null).should.be.true();
       });
   });
+
+  /**
+   * S-047 (CA-7): la lectura interna expone `editedAt`/`editedBy` sin código nuevo, porque el
+   * handler serializa el modelo completo con `toJSON()` (`const response =
+   * requirement!.toJSON()`) en vez de armar una proyección campo por campo — las columnas ya
+   * existen en el modelo desde S-046. Este bloque es de VERIFICACIÓN: fija que la lectura
+   * sigue exponiéndolos, y que un comentario no editado expone los dos campos en null
+   * (presentes, no ausentes).
+   */
+  describe('S-047: editedAt/editedBy en la lectura interna (CA-7)', () => {
+    let editedCommentId: number;
+    let plainCommentId: number;
+
+    before(() => {
+      return RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'Comentario editado',
+        visibilityLevel: 'internal',
+        requirementId: 1,
+        changedBy: 'zitadel-sub-01',
+        editedAt: new Date(),
+        editedBy: 'zitadel-sub-01',
+      })
+        .then((activity) => {
+          editedCommentId = activity.id;
+          return RequirementActivity.create({
+            typeOfActivity: 'comment',
+            previousValue: '',
+            newValue: 'Comentario sin editar',
+            visibilityLevel: 'internal',
+            requirementId: 1,
+            changedBy: 'zitadel-sub-01',
+          });
+        })
+        .then((activity) => {
+          plainCommentId = activity.id;
+        });
+    });
+
+    after(() => {
+      return RequirementActivity.destroy({ where: { id: [editedCommentId, plainCommentId] } });
+    });
+
+    // TS-23: la actividad editada expone los dos campos con valor.
+    it('TS-23: expone editedAt y editedBy en una actividad editada', () => {
+      return request(application)
+        .get('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const activity = response.body.activity.find((a: any) => a.id === editedCommentId);
+          (activity.editedAt !== null).should.be.true();
+          activity.editedBy.should.equal('zitadel-sub-01');
+        });
+    });
+
+    // TS-25: un comentario NO editado expone editedAt/editedBy en null, no ausentes.
+    it('TS-25: un comentario no editado expone editedAt y editedBy en null', () => {
+      return request(application)
+        .get('/api/requirements/1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const activity = response.body.activity.find((a: any) => a.id === plainCommentId);
+          activity.should.have.property('editedAt', null);
+          activity.should.have.property('editedBy', null);
+        });
+    });
+  });
 });

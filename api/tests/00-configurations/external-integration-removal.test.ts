@@ -74,6 +74,11 @@ const ACTIVITY_REMAINING_ATTRS = [
   'visibilityLevel',
   'objectiveId',
   'changedBy',
+  // `editedAt`/`editedBy` se sumaron en S-046, después de que este test fijara la lista: no son
+  // parte de la baja de la integración externa, pero tienen que estar en la lista o el `.length`
+  // de abajo falla contra el modelo real.
+  'editedAt',
+  'editedBy',
   'createdAt',
   'updatedAt',
 ];

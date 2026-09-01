@@ -127,6 +127,25 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   // elimine esa regla, sin esta entrada TODOS esos rechazos saldrían 500 en vez de 403.
   access_denied: 403,
 
+  // Los tres códigos que emiten los comandos de edición de comentario de core (S-046,
+  // `tasks.{id}.comment.{cid}.edit` y `requirements.{id}.comment.{cid}.edit`, consumidos por
+  // S-047). `comment_not_owned` es 403 y NO 400 por la MISMA razón que `file_not_owned`:
+  // describe un PERMISO —el comentario existe y está bien formado, pero lo escribió otra
+  // persona—, no una entrada inválida.
+  comment_not_owned: 403,
+
+  // `activity_not_editable` es 400: la actividad existe pero no es de un tipo editable (por
+  // ejemplo, un cambio de campo en vez de un comentario). Es una PRECONDICIÓN SOBRE EL DATO,
+  // no un permiso, así que no comparte status con `comment_not_owned`.
+  activity_not_editable: 400,
+
+  // `comment_not_found` es 400 y NO 404, por coherencia con `requirement_not_found` (arriba en
+  // este mismo mapa) y con lo que declara `api.yaml` para estos dos endpoints. HASTA S-047 la
+  // api lo resolvía localmente con 400 sin pasar por este mapa; al migrar la ruta a publicar
+  // el comando, ese caso ahora lo emite core y sin esta entrada caería en el `|| 500` de abajo,
+  // rompiendo un contrato que `web` ya maneja.
+  comment_not_found: 400,
+
   unknown_command: 500,
   internal_error: 500,
 };

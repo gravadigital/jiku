@@ -134,7 +134,6 @@ archivo. Los casos vivos:
 |---|---|
 | Un `external-user` solo se suscribe a sí mismo | `opus-requirements-id-subscriptors-userid-delete.ts:11-16` |
 | El usuario a suscribir tiene permiso en el proyecto | `opus-requirements-id-subscriptors-post.ts:27` |
-| Solo el autor edita su comentario | `objectives-id-comments-cid-patch.ts:41-50` |
 
 > **REQ-007 (S-031) — dos filas se fueron de esta tabla.** Eran *"Solo `admin` imputa horas a otra
 > persona (`worked-times-post.ts:57-83`)"* y *"Solo el dueño borra su registro de horas
@@ -143,6 +142,15 @@ archivo. Los casos vivos:
 > `access_denied` en el reply y salen **403**, igual que antes. Con el sobre de identidad de S-029
 > `core` conoce al actor y sus roles, así que una autorización que decide *"¿podés hacer esto con
 > estos datos?"* ya no tiene por qué quedarse del lado del transporte.
+
+> **REQ-011 (S-047) — una tercera fila se fue por la misma razón.** Era *"Solo el autor edita su
+> comentario (`objectives-id-comments-cid-patch.ts:41-50`)"*. La ruta escribía con
+> `ObjectiveActivity.update(...)` directo — la cuarta excepción no declarada a ADR-001 — y
+> validaba la autoría ahí mismo. Ahora publica `tasks.{id}.comment.{cid}.edit` (y su par de
+> requisitos, `requirements-id-comments-cid-patch.ts`, publica
+> `requirements.{id}.comment.{cid}.edit`), y **la autoría la valida `core`**: un no-autor sin rol
+> `admin` recibe `comment_not_owned` en el reply, que sale **403** igual que antes — solo cambia
+> el `code` (era `forbidden`, generado por la api).
 
 Y el filtrado por permiso en listados, que no es un 403 sino un `where`:
 
