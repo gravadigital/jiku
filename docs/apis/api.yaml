@@ -521,6 +521,17 @@ paths:
             vez del listado. `page` y `limit` se ignoran. Mismo contrato que `count` en
             `GET /objectives`.
           schema: { type: boolean }
+        - name: include
+          in: query
+          description: |
+            Lista de campos calculados adicionales, separados por coma. Único valor aceptado:
+            `totalMinutes`. Ausente, la respuesta no lo trae y las subconsultas no se ejecutan.
+            Un valor fuera de la lista responde 400 `invalid_fields`.
+
+            **`count=true` lo ignora:** el conteo devuelve un entero y no hay dónde poner el
+            campo, así que las subconsultas no se arrastran a un `COUNT`.
+          schema: { type: string }
+          example: totalMinutes
       responses:
         '200':
           description: OK
@@ -3137,6 +3148,14 @@ components:
                   firstName: { type: string }
                   lastName: { type: string }
                   isLeader: { type: boolean, nullable: true }
+            totalMinutes:
+              type: integer
+              description: |
+                Minutos imputados al requisito más los de sus tareas. **Solo presente con
+                `include=totalMinutes` en `GET /requirements`**: son dos subconsultas
+                correlacionadas por fila y no se pagan si no se piden. Misma gradación que el
+                incluible homónimo de `core-queries.yaml`. Mismo valor que devuelve
+                `GET /requirements/{reqid}/worked-hours`.
 
     RequirementActivity:
       type: object

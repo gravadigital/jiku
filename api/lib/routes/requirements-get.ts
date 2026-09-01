@@ -5,9 +5,16 @@ import logger from '../logger';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateQueryParams from '../utils/validate-query-params';
 import joi from 'joi';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 
 const router: Router = Router();
+
+// Los campos calculados que el listado sabe agregar bajo demanda. Es una LISTA, no un booleano,
+// aunque hoy tenga un solo miembro: es el mismo mecanismo (`include`, deny-by-default, un nombre
+// no declarado es `invalid_fields`) que el contrato de consultas del bus en `core-queries.yaml`.
+// Alinear los dos nombres deja preparada una futura migracion de esta ruta al plano de consultas
+// como traduccion, no como rediseño.
+const INCLUDABLE_FIELDS = ['totalMinutes'];
 
 // `state` acepta un CSV de uno o varios valores. Se valida como una lista (separador ',') en la
 // que cada miembro tiene que pertenecer al enum: un unico miembro invalido invalida el parametro
@@ -36,7 +43,24 @@ const querySchema = joi.object({
   limit: joi.number().integer().min(1).max(100).default(20),
   sort: joi.string().optional(),
   count: joi.boolean().optional(),
+  include: joi
+    .string()
+    .custom((value, helpers) => {
+      const members = String(value).split(',').map((s) => s.trim());
+      const isValid = members.every((member) => INCLUDABLE_FIELDS.includes(member));
+      if (!isValid) return helpers.error('any.only');
+      return value;
+    }, 'CSV of includable fields')
+    .messages({ 'any.only': `"include" must be one of [${INCLUDABLE_FIELDS.join(', ')}]` })
+    .optional(),
 });
+
+// `include` llega como string: Express 5 no coerciona req.query y validateQueryParams solo usa
+// el `error` de Joi, no el value coercido. Se parsea a mano, igual que `count`.
+function wantsTotalMinutes(query: any) {
+  if (!query.include) return false;
+  return String(query.include).split(',').map((s) => s.trim()).includes('totalMinutes');
+}
 
 // Un solo constructor del `where` para listado y conteo: si cada uno armara el suyo, un filtro
 // nuevo agregado a uno y no al otro los haria divergir sin que ningun test lo note.
@@ -73,6 +97,8 @@ function getRequirementsCount(req: Request, res: Response, next: NextFunction) {
   // Sin `include`: ningun filtro depende de las relaciones -`project` y `responsiblePeople` se
   // incluyen solo para armar el cuerpo del listado-, asi que no hay filas duplicadas que obliguen
   // al `distinct` que si necesita el conteo de objectives.
+  // `include` no se mira aca a proposito: el conteo devuelve un entero y no hay donde poner el
+  // campo, asi que arrastrar las subconsultas a un COUNT seria pagarlas para nada (CA-4 de S-044).
   return Requirement.count({ where: buildWhere(req.query) })
     .then((count) => {
       return res.status(200).json(count);
@@ -88,8 +114,9 @@ function getRequirements(req: Request, res: Response) {
   const offset = (Number(page) - 1) * Number(limit);
 
   const where = buildWhere(req.query);
+  const withTotalMinutes = wantsTotalMinutes(req.query);
 
-  return Requirement.findAll({
+  const options: any = {
     where,
     include: [
       { model: Project, as: 'project', attributes: ['id', 'name'] },
@@ -103,7 +130,30 @@ function getRequirements(req: Request, res: Response) {
     limit: Number(limit),
     offset,
     order: [['createdAt', 'DESC']],
-  })
+  };
+
+  // Las dos subconsultas correlacionadas SOLO si se pidieron: son 2 por fila de la pagina (200
+  // con el tope de limit=100), y el caso por defecto no puede pagarlas. Mismo calculo que
+  // `requirements-report-get.ts` y que `GET /requirements/:reqid/worked-hours`.
+  if (withTotalMinutes) {
+    options.attributes = {
+      include: [
+        [literal(`(
+          SELECT COALESCE(SUM(wt.minutes), 0)
+          FROM worked_times wt
+          WHERE wt.requirement_id = "Requirement"."id"
+        )`), 'directMinutes'],
+        [literal(`(
+          SELECT COALESCE(SUM(wt.minutes), 0)
+          FROM worked_times wt
+          INNER JOIN objectives o ON o.id = wt.objective_id
+          WHERE o.requirement_id = "Requirement"."id"
+        )`), 'objectiveMinutes'],
+      ],
+    };
+  }
+
+  return Requirement.findAll(options)
     .then((requirements) => {
       const response = requirements.map((requirement) => {
         const json = requirement.toJSON() as any;
@@ -113,6 +163,14 @@ function getRequirements(req: Request, res: Response) {
           lastName: person.lastName,
           isLeader: person.PersonRequirement?.isLeader ?? null,
         }));
+        if (withTotalMinutes) {
+          // El SUM de PostgreSQL es bigint y `pg` lo entrega como string para no perder
+          // precision: sin Number() en los dos lados, "120" + "60" daria "12060".
+          json.totalMinutes = Number(json.directMinutes) + Number(json.objectiveMinutes);
+          // Las dos mitades son detalle de implementacion, no contrato: no salen en la respuesta.
+          delete json.directMinutes;
+          delete json.objectiveMinutes;
+        }
         return json;
       });
       return res.status(200).json(response);
