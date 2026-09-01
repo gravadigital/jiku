@@ -275,16 +275,27 @@ function CommentEditForm({
         </ul>
       )}
       <div className={styles.editFormActions}>
+        {/* size="small" para igualar el boton "Enviar" del compositor de comentarios
+            (RequirementActivityForm .sendBtn: 34px de alto, 0.875rem), que es el que
+            queda inmediatamente debajo en la pantalla. */}
         <Button
           label="Cancelar"
           variant="secondary"
+          size="small"
           onClick={() => {
             setRemovedLinkIds(new Set());
             onCancel();
           }}
           disabled={isPending}
         />
-        <Button label="Guardar" variant="primary" onClick={handleSave} disabled={isEmpty || isPending} loading={isPending} />
+        <Button
+          label="Guardar"
+          variant="primary"
+          size="small"
+          onClick={handleSave}
+          disabled={isEmpty || isPending}
+          loading={isPending}
+        />
       </div>
     </>
   );

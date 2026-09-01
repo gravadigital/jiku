@@ -230,23 +230,19 @@ export function ObjectiveComment({
           <div className={styles.editButtonContainer}>
             {isEditing ? (
               <>
-                <div className={styles.cancelButton}>
-                  <Button
-                    key="action-cancel"
-                    onClick={handleCancel}
-                    label="Cancelar"
-                    disabled={loading}
-                  />
-                </div>
-                <div className={styles.saveButton}>
-                  <Button
-                    key="action-save"
-                    onClick={handleSave}
-                    label="Guardar"
-                    disabled={isEmpty || loading}
-                    loading={loading}
-                  />
-                </div>
+                <Button
+                  key="action-cancel"
+                  onClick={handleCancel}
+                  label="Cancelar"
+                  disabled={loading}
+                />
+                <Button
+                  key="action-save"
+                  onClick={handleSave}
+                  label="Guardar"
+                  disabled={isEmpty || loading}
+                  loading={loading}
+                />
               </>
             ) : (
               <button

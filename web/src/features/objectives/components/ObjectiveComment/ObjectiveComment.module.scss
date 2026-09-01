@@ -55,7 +55,10 @@
 
 .editedLabel {
   font-family: var(--font-primary);
-  font-size: 0.9rem;
+  // Mismo tamaño que .commentDate: la marca acompaña a la fecha, no compite con ella.
+  // El valor va explícito porque globals.scss:196 declara `span { font-size: 1.25rem }`
+  // y este <span> está anidado dentro del de la fecha.
+  font-size: 0.875rem;
   line-height: 1.2;
   color: var(--color-text-muted);
   font-style: italic;
@@ -164,17 +167,6 @@
   border: none;
   cursor: pointer;
   padding: 5px;
-}
-
-.saveButton,
-.cancelButton {
-  button{
-    padding: 0.5rem !important;
-    height: 2.3rem !important;
-    min-width: 100px !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
 }
 
 // El <textarea> crudo fue reemplazado por RequirementRichTextEditor (S-048, Tarea 6): el
