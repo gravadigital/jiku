@@ -82,7 +82,7 @@ date: 2026-08-18
 | 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 38 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
 
-**Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-287`, `:159-180`, `:185-225`, `:227-280`, `:289-295`, `:301-367`, `:370-392`, `:376-390`, `:394-398`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
+**Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
 `card-estado`, `seccion-tareas`, `acordeon-campo`, `formulario-comentario` y `card-resolucion` se relevaron como `card` / `section`: son compuestos sin tipo propio en el diccionario. `stepper-workflow` se relevó como `progress-bar` por ser lo más cercano del diccionario: no es una barra, son 5 nodos con conectores y un símbolo por nodo (`✓`, `×` o el número). El chrome es compartido; los pills-dropdown están documentados aparte [fuente: código-existente].
 
@@ -233,9 +233,13 @@ date: 2026-08-18
 
 ### paginacion-tareas
 - Texto/label: controles de página con `aria-label="Paginación"` en el `<nav>`
-- Icono: flechas de anterior/siguiente
+- Icono: flechas de anterior/siguiente. Glifos `<` / `>` (antes `‹` / `›` de la reimplementación inline)
 - Asset: nada
-- Annotation: reimplementada inline (`RequirementDetail.tsx:227-280`)
+- Annotation: usa el componente compartido `Pagination` en modo controlado
+  (`web/src/shared/components/ui/Pagination/Pagination.tsx`), con ventana deslizante de máximo 10
+  números centrada en la página actual y sin elipsis — mismo componente que `tabla-tareas` de
+  `listado-tareas` y `paginacion-requisitos` de `detalle-proyecto` (story S-039). Con 0 tareas en la
+  tab activa, el paginador no se renderiza (antes dibujaba un `<nav>` con un botón "1" inerte)
 
 ### card-actividad
 - Texto/label: título `"Actividad"`
