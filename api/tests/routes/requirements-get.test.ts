@@ -488,4 +488,296 @@ describe('GET /api/requirements', () => {
         });
     });
   });
+
+  // S-040: `state` acepta un CSV de uno o varios valores separados por coma. El fixture del
+  // `before` de este archivo tiene id 1 y 3 en 'analisis', id 2 en 'planificacion', id 4 en
+  // 'desarrollo'. Los escenarios que necesitan un estado no representado ('en_cola', 'revision',
+  // 'resuelto', 'cancelado') crean su propio requisito y lo limpian en su `after`.
+  describe('multi-state filter (S-040)', () => {
+    it('TS-1: should return the union of two valid states', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,desarrollo')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(3);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 3, 4]);
+          response.body.forEach((req: any) => {
+            (req.state === 'analisis' || req.state === 'desarrollo').should.be.true();
+            req.state.should.not.equal('planificacion');
+          });
+        });
+    });
+
+    it('TS-2: should return the union of four valid states', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,planificacion,desarrollo,revision')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 2, 3, 4]);
+        });
+    });
+
+    it('TS-3: a single state behaves exactly as before (list)', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 3]);
+          response.body.forEach((req: any) => req.state.should.equal('analisis'));
+        });
+    });
+
+    it('TS-4: a single state behaves exactly as before (count)', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(2);
+        });
+    });
+
+    it('TS-5: a CSV with one member outside the enum rejects the whole request', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,inventado')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.message.should.match(/^Invalid field - /);
+          response.body.should.not.be.an.Array();
+        });
+    });
+
+    it('TS-6: an invalid member invalidates the whole parameter, does not filter by the valid ones', () => {
+      return request(application)
+        .get('/api/requirements?state=inventado,analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-7: a single invalid value still rejects as before', () => {
+      return request(application)
+        .get('/api/requirements?state=inventado')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-8: an invalid CSV also rejects with count=true', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,inventado&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.should.not.be.a.Number();
+        });
+    });
+
+    it('TS-9: a role without permission gets 403 even with a valid CSV', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,desarrollo')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403)
+        .then((response) => {
+          response.body.should.have.property('code', 'access_denied');
+          response.body.should.have.property('message', 'Access denied');
+        });
+    });
+
+    it('TS-10: a role without permission gets 403 even with an invalid CSV (403 precedes 400)', () => {
+      return request(application)
+        .get('/api/requirements?state=inventado,otro')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403)
+        .then((response) => {
+          response.body.should.have.property('code', 'access_denied');
+        });
+    });
+
+    it('TS-11: without a token, a valid CSV still returns 401', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,desarrollo')
+        .set('Accept', 'application/json')
+        .expect(401);
+    });
+
+    it('TS-12: repeated values do not duplicate rows', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 3]);
+        });
+    });
+
+    it('TS-13: repeated values do not inflate the count', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,analisis&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(2);
+        });
+    });
+
+    it('TS-14: the count respects the multi-state filter', () => {
+      return request(application)
+        .get('/api/requirements?state=analisis,desarrollo&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(3);
+        });
+    });
+
+    it('TS-15: the count for the real use case (four states) matches the equivalent list length', () => {
+      const query = 'state=planificacion,en_cola,desarrollo,revision';
+      return Promise.all([
+        request(application)
+          .get(`/api/requirements?${query}&count=true`)
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+        request(application)
+          .get(`/api/requirements?${query}`)
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+      ]).then(([countResponse, listResponse]) => {
+        countResponse.body.should.be.a.Number();
+        countResponse.body.should.equal(2);
+        listResponse.body.should.be.an.Array();
+        countResponse.body.should.equal(listResponse.body.length);
+      });
+    });
+
+    it('TS-16: the multi-state filter combines with projectId', () => {
+      return request(application)
+        .get('/api/requirements?projectId=1&state=analisis,desarrollo&count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(3);
+        });
+    });
+
+    it('TS-17: the multi-state filter combines with search', () => {
+      return request(application)
+        .get('/api/requirements?search=factura&state=analisis,desarrollo')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          const titles = response.body.map((r: any) => r.title).sort();
+          titles.should.eql(['Ajuste de factura anual', 'Nueva facturación mensual']);
+        });
+    });
+
+    it('TS-18: the multi-state filter combines with type', () => {
+      return request(application)
+        .get('/api/requirements?type=mejora&state=planificacion,desarrollo')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([2, 4]);
+          response.body.forEach((req: any) => req.type.should.equal('mejora'));
+        });
+    });
+
+    it('TS-19: without state the list is not filtered by state (no regression)', () => {
+      return request(application)
+        .get('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+        });
+    });
+
+    it('TS-20: without state the count is not filtered by state', () => {
+      return request(application)
+        .get('/api/requirements?count=true')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(4);
+        });
+    });
+
+    it('TS-21: spaces around commas are tolerated', () => {
+      return request(application)
+        .get('/api/requirements?state=' + encodeURIComponent('analisis, desarrollo'))
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(3);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 3, 4]);
+        });
+    });
+
+    it('TS-22: a CSV with an empty member is rejected', () => {
+      return request(application)
+        .get('/api/requirements?state=' + encodeURIComponent('analisis,'))
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-23: all seven enum states accepted together match the unfiltered count', () => {
+      const allStates = 'analisis,planificacion,en_cola,desarrollo,revision,resuelto,cancelado';
+      return request(application)
+        .get(`/api/requirements?state=${allStates}&count=true`)
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(4);
+        });
+    });
+
+    it('TS-24: a valid state with no matching requirements returns an empty list, not an error', () => {
+      return request(application)
+        .get('/api/requirements?state=cancelado,resuelto')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.should.have.length(0);
+        });
+    });
+  });
 });

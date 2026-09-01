@@ -9,9 +9,23 @@ import { Op } from 'sequelize';
 
 const router: Router = Router();
 
+// `state` acepta un CSV de uno o varios valores. Se valida como una lista (separador ',') en la
+// que cada miembro tiene que pertenecer al enum: un unico miembro invalido invalida el parametro
+// completo con 400, igual que hoy, y no lo convierte en un filtro parcial silencioso (a
+// diferencia de `objectives-get.ts`, que no valida sus miembros contra el enum).
 const querySchema = joi.object({
   projectId: joi.number().integer().optional(),
-  state: joi.string().valid(...Object.values(RequirementState)).optional(),
+  state: joi
+    .string()
+    .custom((value, helpers) => {
+      const members = String(value).split(',').map((s) => s.trim());
+      const validValues = Object.values(RequirementState) as string[];
+      const isValid = members.every((member) => validValues.includes(member));
+      if (!isValid) return helpers.error('any.only');
+      return value;
+    }, 'CSV of RequirementState')
+    .messages({ 'any.only': `"state" must be one of [${Object.values(RequirementState).join(', ')}]` })
+    .optional(),
   type: joi.string().valid(...Object.values(RequirementType)).optional(),
   priority: joi.string().optional(),
   createdBy: joi.string().optional(),
@@ -31,7 +45,7 @@ function buildWhere(query: any) {
 
   const where: any = {};
   if (projectId) where.projectId = Number(projectId);
-  if (state) where.state = state;
+  if (state) where.state = { [Op.or]: String(state).split(',').map((s) => s.trim()) };
   if (type) where.type = type;
   if (priority) where.priority = priority;
   if (createdBy) where.createdBy = createdBy;
