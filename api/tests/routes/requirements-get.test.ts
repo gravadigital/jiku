@@ -4,7 +4,7 @@ import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import sinon from 'sinon';
-import { Person, PersonRequirement, Project, Requirement, RequirementActivity, User } from '@jiku/models';
+import { Objective, Person, PersonRequirement, Project, Requirement, RequirementActivity, User, UserProjectPermission, WorkedTime } from '@jiku/models';
 
 describe('GET /api/requirements', () => {
   let application: Application;
@@ -777,6 +777,418 @@ describe('GET /api/requirements', () => {
         .then((response) => {
           response.body.should.be.an.Array();
           response.body.should.have.length(0);
+        });
+    });
+  });
+
+  // S-044: `include=totalMinutes` es opt-in. El estado de horas se monta ACA y no en el
+  // `before` global a proposito: hay tests del bloque multi-estado que esperan que el listado
+  // sin filtros tenga exactamente 4 requisitos, asi que agregar requisitos nuevos arriba los
+  // romperia. Estas filas cuelgan de los requisitos que ya existen (ids 1..4) y se limpian al
+  // salir del describe.
+  describe('include=totalMinutes', () => {
+    before(function () {
+      this.timeout(30000);
+
+      return Objective.create({
+        id: 100,
+        title: 'Tarea del req 1',
+        description: 'Desc',
+        state: 'activo',
+        area: 'desarrollo',
+        priority: 1,
+        projectId: 1,
+        requirementId: 1,
+        createdBy: 'zitadel-sub-01',
+      })
+        .then(() => Objective.create({
+          id: 101,
+          title: 'Tarea del req 3',
+          description: 'Desc',
+          state: 'activo',
+          area: 'desarrollo',
+          priority: 1,
+          projectId: 1,
+          requirementId: 3,
+          createdBy: 'zitadel-sub-01',
+        }))
+        .then(() => Promise.all([
+          WorkedTime.create({ date: new Date(), minutes: 120, projectId: 1, personId: 10, requirementId: 1 }),
+          WorkedTime.create({ date: new Date(), minutes: 45, projectId: 1, personId: 10, requirementId: 2 }),
+          WorkedTime.create({ date: new Date(), minutes: 60, projectId: 1, personId: 10, objectiveId: 100 }),
+          WorkedTime.create({ date: new Date(), minutes: 90, projectId: 1, personId: 10, objectiveId: 101 }),
+        ]));
+    });
+
+    after(() => {
+      return WorkedTime.destroy({ where: {} })
+        .then(() => Objective.destroy({ where: {} }));
+    });
+
+    it('TS-1: without include, the list does not carry the field (no-regression of the default)', () => {
+      return request(application)
+        .get('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          response.body.forEach((req: any) => {
+            req.should.not.have.property('totalMinutes');
+          });
+          const one = response.body.find((r: any) => r.id === 1);
+          one.should.have.property('id');
+          one.should.have.property('title');
+          one.should.have.property('state');
+          one.project.should.eql({ id: 1, name: 'Project1' });
+          one.responsiblePeople.should.be.an.Array();
+        });
+    });
+
+    it('TS-2: does not add the subqueries when include is absent', () => {
+      const spy = sinon.spy(Requirement, 'findAll');
+      return request(application)
+        .get('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then(() => {
+          spy.calledOnce.should.be.true();
+          spy.firstCall!.args[0]!.should.not.have.property('attributes');
+        })
+        .finally(() => spy.restore());
+    });
+
+    it('TS-3: with include=totalMinutes, every row carries the total', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          const byId = (id: number) => response.body.find((r: any) => r.id === id);
+          byId(1).totalMinutes.should.equal(180);
+          byId(2).totalMinutes.should.equal(45);
+          byId(3).totalMinutes.should.equal(90);
+          byId(4).totalMinutes.should.equal(0);
+          response.body.forEach((req: any) => {
+            req.should.not.have.property('directMinutes');
+            req.should.not.have.property('objectiveMinutes');
+          });
+        });
+    });
+
+    it('TS-4: totalMinutes sums direct and task hours', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const one = response.body.find((r: any) => r.id === 1);
+          one.totalMinutes.should.equal(180);
+        });
+    });
+
+    it('TS-5: a requirement with no hours returns 0, not null nor absent', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          const four = response.body.find((r: any) => r.id === 4);
+          four.should.have.property('totalMinutes');
+          four.totalMinutes.should.equal(0);
+          (typeof four.totalMinutes).should.equal('number');
+        });
+    });
+
+    it('TS-6: totalMinutes matches GET /requirements/:reqid/worked-hours', () => {
+      return Promise.all([
+        request(application)
+          .get('/api/requirements?include=totalMinutes')
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+        request(application)
+          .get('/api/requirements/1/worked-hours')
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+      ]).then(([listado, workedHours]) => {
+        const fromList = listado.body.find((r: any) => r.id === 1).totalMinutes;
+        fromList.should.equal(workedHours.body.totalMinutes);
+        fromList.should.equal(180);
+      });
+    });
+
+    it('TS-7: include with a name outside the whitelist returns 400', () => {
+      return request(application)
+        .get('/api/requirements?include=byPerson')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.message.should.match(/^Invalid field - /);
+        });
+    });
+
+    it('TS-8: an invalid member invalidates the whole parameter (no partial include)', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes,byPerson')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+          response.body.should.not.be.an.Array();
+        });
+    });
+
+    it('TS-9: an empty include returns 400', () => {
+      return request(application)
+        .get('/api/requirements?include=')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-10: a CSV with an empty member returns 400', () => {
+      return request(application)
+        .get('/api/requirements?include=' + encodeURIComponent('totalMinutes,'))
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-11: spaces around the comma are tolerated', () => {
+      return request(application)
+        .get('/api/requirements?include=' + encodeURIComponent(' totalMinutes '))
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          response.body.forEach((req: any) => req.should.have.property('totalMinutes'));
+        });
+    });
+
+    it('TS-12: totalMinutes repeated in the CSV is valid', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes,totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          const one = response.body.find((r: any) => r.id === 1);
+          one.totalMinutes.should.equal(180);
+        });
+    });
+
+    it('TS-13: count=true&include=totalMinutes returns the usual integer', () => {
+      return request(application)
+        .get('/api/requirements?count=true&include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(4);
+        });
+    });
+
+    it('TS-14: count=true&include=totalMinutes does not drag the subqueries into COUNT', () => {
+      const spy = sinon.spy(Requirement, 'count');
+      return request(application)
+        .get('/api/requirements?count=true&include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.equal(4);
+          spy.calledOnce.should.be.true();
+          spy.firstCall!.args[0]!.should.not.have.property('attributes');
+        })
+        .finally(() => spy.restore());
+    });
+
+    it('TS-15: count=true&include=totalMinutes respects filters as always', () => {
+      return request(application)
+        .get('/api/requirements?count=true&include=totalMinutes&state=analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.a.Number();
+          response.body.should.equal(2);
+        });
+    });
+
+    it('TS-16: count=false with include returns the list with the field', () => {
+      return request(application)
+        .get('/api/requirements?count=false&include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          response.body.forEach((req: any) => req.should.have.property('totalMinutes'));
+        });
+    });
+
+    it('TS-17: without a token, include changes nothing', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Accept', 'application/json')
+        .expect(401);
+    });
+
+    it('TS-18: external-user still gets 403 with include', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(403)
+        .then((response) => {
+          response.body.should.have.property('code', 'access_denied');
+          response.body.should.not.have.property('totalMinutes');
+          response.body.should.not.be.an.Array();
+        });
+    });
+
+    it('TS-19: admin gets the field just like user', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_03_admin')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(4);
+          const one = response.body.find((r: any) => r.id === 1);
+          one.totalMinutes.should.equal(180);
+        });
+    });
+
+    it('TS-20: include does not enable filtering by totalMinutes', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes&totalMinutes=180')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(400)
+        .then((response) => {
+          response.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    it('TS-21: include does not enable sorting by totalMinutes', () => {
+      return Promise.all([
+        request(application)
+          .get('/api/requirements?include=totalMinutes&sort=totalMinutes')
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+        request(application)
+          .get('/api/requirements?include=totalMinutes')
+          .set('Authorization', 'Bearer token_01_user')
+          .expect(200),
+      ]).then(([withSort, withoutSort]) => {
+        const idsWithSort = withSort.body.map((r: any) => r.id);
+        const idsWithoutSort = withoutSort.body.map((r: any) => r.id);
+        idsWithSort.should.eql(idsWithoutSort);
+      });
+    });
+
+    describe('opus portal (CA-7)', () => {
+      before(() => {
+        return UserProjectPermission.create({ userId: 'zitadel-sub-04', projectId: 1 });
+      });
+
+      after(() => {
+        return UserProjectPermission.destroy({ where: {} });
+      });
+
+      it('TS-22: the external portal does not expose totalMinutes in its list', () => {
+        return request(application)
+          .get('/api/opus/projects/1/requirements')
+          .set('Authorization', 'Bearer token_04_external_user')
+          .expect(200)
+          .then((response) => {
+            response.body.should.be.an.Array();
+            response.body.length.should.be.above(0);
+            response.body.forEach((req: any) => {
+              req.should.not.have.property('totalMinutes');
+            });
+          });
+      });
+
+      it('TS-23: the external portal does not expose totalMinutes even if requested', () => {
+        return request(application)
+          .get('/api/opus/projects/1/requirements?include=totalMinutes')
+          .set('Authorization', 'Bearer token_04_external_user')
+          .then((response) => {
+            response.body.should.be.an.Array();
+            response.body.forEach((req: any) => {
+              req.should.not.have.property('totalMinutes');
+            });
+          });
+      });
+    });
+
+    it('TS-24: include combines with the list filters', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes&state=analisis')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          const ids = response.body.map((r: any) => r.id).sort();
+          ids.should.eql([1, 3]);
+          const byId = (id: number) => response.body.find((r: any) => r.id === id);
+          byId(1).totalMinutes.should.equal(180);
+          byId(3).totalMinutes.should.equal(90);
+        });
+    });
+
+    it('TS-25: include combines with pagination and only pays for the page', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes&page=1&limit=2')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.length.should.equal(2);
+          response.body.forEach((req: any) => {
+            req.should.have.property('totalMinutes');
+            (typeof req.totalMinutes).should.equal('number');
+          });
+        });
+    });
+
+    it('TS-26: a database error with include comes out as a generic 500', () => {
+      const stub = sinon.stub(Requirement, 'findAll').rejects(new Error('db down'));
+
+      return request(application)
+        .get('/api/requirements?include=totalMinutes')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(500)
+        .then((response) => {
+          response.body.should.have.property('code', 'internal_error');
+          response.body.should.have.property('message', 'Internal error');
+          JSON.stringify(response.body).should.not.containEql('db down');
+        })
+        .finally(() => stub.restore());
+    });
+
+    it('TS-27: the rest of the body does not change when requesting include', () => {
+      return request(application)
+        .get('/api/requirements?include=totalMinutes&projectId=1')
+        .set('Authorization', 'Bearer token_01_user')
+        .expect(200)
+        .then((response) => {
+          response.body.should.be.an.Array();
+          response.body.forEach((req: any) => {
+            req.project.should.eql({ id: 1, name: 'Project1' });
+            req.should.have.property('responsiblePeople');
+          });
+          const one = response.body.find((r: any) => r.id === 1);
+          one.responsiblePeople.should.have.length(1);
+          one.responsiblePeople[0].should.eql({ id: 10, firstName: 'Ana', lastName: 'Gómez', isLeader: true });
         });
     });
   });
