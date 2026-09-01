@@ -48,8 +48,6 @@ export default function ProjectDetail({ params }: { readonly params: Promise<{ i
             <ProjectDescription project={project} />
           </div>
 
-          <div className={styles.card}></div>
-
           <div className={styles.card}>
             <ProjectRequirementsSection projectId={project.id!} />
           </div>

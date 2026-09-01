@@ -88,7 +88,7 @@ Todos son custom properties en `:root`, declaradas en `_variables.scss`.
 | Estado de proyecto | `--color-status-{analisis,activo,cancelado,inactivo,finalizado,backlog,en-revision}` |
 | Área de tarea | `--color-area-{diseño,gestion,desarrollo,investigacion}` |
 | Prioridad | `--color-priority-0` … `--color-priority-5` |
-| Etapa | `--color-stage-{scope,support,date,active,finished,hours,month}` y su `-bg` |
+| Semánticos | `--color-success`, `--color-danger` y su `-bg` |
 | Superficie | `--color-background`, `--color-surface-{light,hover,alt}`, `--color-tooltip-bg` |
 | Espaciado | `--spacing-{xs,sm,md,lg,xl,2xl}` = 0.25 / 0.5 / 1 / 1.5 / 2 / 3 rem |
 | Tipografía | `--font-size-{xs,sm,base,md,lg,xl,2xl}` = 10 / 12 / 14 / 16 / 20 / 24 / 32 px |

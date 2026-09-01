@@ -116,12 +116,14 @@ Gradiente amarillo → rojo: `#FBC403` · `#ffa800` · `#ff8b04` · `#FB6B03` ·
 
 `--color-badge-active` `#2e7d32` / `-bg` `#e8f5e8` · `-finished` `#757575` / `-bg` `#f5f5f5`
 
-### Etapas
+### Semánticos
 
-7 pares texto/fondo (`--color-stage-{scope,support,date,active,finished,hours,month}` + `-bg`).
+`--color-success` `#004D20` / `-bg` `#CCFFE1` · `--color-danger` `#d32f2f` / `-bg` `#fabec8`
 
-> **Las etapas fueron eliminadas del modelo de datos** (la tabla `stages` ya no existe), pero sus
-> tokens de color siguen declarados.
+> Heredan los valores de los antiguos `--color-stage-{active,finished}`. Las etapas fueron
+> eliminadas del modelo de datos (la tabla `stages` ya no existe) y sus tokens se removieron;
+> estos dos pares sobrevivieron con nombre semántico porque no se usaban como color de etapa
+> sino como verde/rojo genéricos.
 
 ## Reglas de implementación
 

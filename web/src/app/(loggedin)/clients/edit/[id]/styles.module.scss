@@ -74,8 +74,8 @@
 
 .addKeyValueButton, .removeKeyValueButton {
   border: none;
-  background: var(--color-stage-active-bg);
-  color: var(--color-stage-active);
+  background: var(--color-success-bg);
+  color: var(--color-success);
   font-weight: 600;
   font-size: 1rem;
   padding: 0.4em 1em;
@@ -93,8 +93,8 @@
 
 .removeKeyValueButton {
   border: none;
-  background: var(--color-stage-finished-bg);
-  color: var(--color-stage-finished);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
   font-weight: bold;
   border-radius: 5px;
 }

@@ -136,6 +136,21 @@ describe('ProjectDetail page — layout y header', () => {
     expect(screen.getByTestId('project-requirements')).toBeInTheDocument();
   });
 
+  // La sección de etapas se eliminó junto con el concepto de etapas: quedaba un
+  // `<div className={styles.card}>` vacío que seguía pintando borde, padding y sombra.
+  it('no deja tarjetas vacías en el detalle', async () => {
+    vi.mocked(useProject).mockReturnValue({
+      data: makeProject(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useProject>);
+
+    const { container } = await renderPage({ id: 1 });
+    const emptyCards = Array.from(container.querySelectorAll('[class*="card"]')).filter(
+      card => card.children.length === 0 && card.textContent?.trim() === '',
+    );
+    expect(emptyCards).toHaveLength(0);
+  });
+
   it('renderiza los componentes de la columna derecha', async () => {
     vi.mocked(useProject).mockReturnValue({
       data: makeProject(),

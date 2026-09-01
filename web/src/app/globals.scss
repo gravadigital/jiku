@@ -55,21 +55,14 @@
   --color-priority-4: #ff472f;
   --color-priority-5: #FB033F;
 
-  // Colores de Tipo de Etapa
-  --color-stage-scope: #6a1b9a;
-  --color-stage-scope-bg: #f3e5f5;
-  --color-stage-support: #663300;
-  --color-stage-support-bg: #FFE5CC;
-  --color-stage-date: #003066;
-  --color-stage-date-bg: #CCE4FF;
-  --color-stage-active: #004D20;
-  --color-stage-active-bg: #CCFFE1;
-  --color-stage-finished: #d32f2f;
-  --color-stage-finished-bg: #fabec8;
-  --color-stage-hours: #df6c08;
-  --color-stage-hours-bg: #fadcc2;
-  --color-stage-month: #da2c6a;
-  --color-stage-month-bg: #fcdbe7;
+  // Semanticos
+  //
+  // Heredan los valores de los viejos --color-stage-{active,finished}: el concepto
+  // de etapas se elimino, pero estos dos pares se usaban como verde/rojo genericos.
+  --color-success: #004D20;
+  --color-success-bg: #CCFFE1;
+  --color-danger: #d32f2f;
+  --color-danger-bg: #fabec8;
 
   // Colores de Badge
   --color-badge-active: #2e7d32;
