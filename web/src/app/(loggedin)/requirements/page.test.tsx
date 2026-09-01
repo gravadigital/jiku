@@ -64,4 +64,15 @@ describe('Requirements (listado)', () => {
 
     expect(receivedFilters?.state).toBe('all');
   });
+
+  // TS-3 (S-045/CA-3): include=totalMinutes es fijo, no viene de la URL
+  it('TS-3: fija "include=totalMinutes" sin leerlo de la URL (S-045)', async () => {
+    const searchParams = Promise.resolve({});
+    render(await Requirements({ searchParams }));
+
+    expect(receivedFilters?.include).toBe('totalMinutes');
+    expect(receivedFilters?.state).toBe('planificacion,en_cola,desarrollo,revision');
+    expect(receivedFilters?.page).toBe(1);
+    expect(receivedFilters?.limit).toBe(15);
+  });
 });

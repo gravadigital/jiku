@@ -105,6 +105,13 @@ export interface Requirement {
   scope: string | null;
   technicalSolution: string | null;
   acceptanceCriteria: string | null;
+  /**
+   * Minutos imputados al requisito mas los de sus tareas. Solo presente cuando el
+   * listado se pide con `include=totalMinutes` (S-044): contra una api vieja, o sin el
+   * `include`, el campo no llega. La UI pinta la ausencia igual que el 0 (guion largo),
+   * asi que no hace falta distinguir "sin horas" de "dato no pedido".
+   */
+  totalMinutes?: number;
 }
 
 export interface RequirementDetail extends Requirement {
@@ -125,6 +132,12 @@ export interface RequirementFilters {
   limit?: number | string;
   sort?: string | null;
   count?: boolean;
+  /**
+   * Campos calculados adicionales a incluir en la respuesta, separados por coma. Unico
+   * valor aceptado hoy: `totalMinutes`. No es un filtro de usuario: la pantalla lo fija,
+   * nunca viaja en la URL.
+   */
+  include?: string | null;
 }
 
 export interface CreateRequirementPayload {
@@ -201,4 +214,22 @@ export interface RequirementReportFilters {
   createdFrom?: string;
   createdTo?: string;
   projectId?: number | string;
+}
+
+export interface WorkedHoursByPerson {
+  personId: number;
+  firstName: string;
+  lastName: string;
+  minutes: number;
+}
+
+export interface RequirementWorkedHours {
+  requirementId: number;
+  totalMinutes: number;
+  /**
+   * Siempre presente: vale `[]` cuando el requisito no tiene horas imputadas, nunca se
+   * omite. Ya viene ordenado por `minutes` descendente (desempate por `personId`
+   * ascendente) desde la api: el consumidor no ordena.
+   */
+  byPerson: WorkedHoursByPerson[];
 }

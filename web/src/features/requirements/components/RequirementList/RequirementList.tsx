@@ -4,6 +4,7 @@ import React, { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Pagination } from '@/shared/components/ui';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
+import { formatMinutes } from '@/shared/utils/format-minutes';
 import { useRequirements } from '../../hooks/useRequirements';
 import { useRequirementsCount } from '../../hooks/useRequirementsCount';
 import { getTypeLabel } from '../../utils/requirementHelpers';
@@ -74,7 +75,11 @@ export function RequirementList({ filters }: RequirementListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: requirements = [], isLoading } = useRequirements({ filters });
-  const { data: count = 0 } = useRequirementsCount(filters);
+  // `count=true` ignora `include` en la api: el conteo devuelve un entero y no hay dónde poner
+  // el campo. Se recorta acá para que la request de conteo no lo arrastre sin efecto (S-045).
+  const { include: _include, ...countFilters } = filters;
+  void _include;
+  const { data: count = 0 } = useRequirementsCount(countFilters);
 
   const limit = Number(filters.limit) || 15;
 
@@ -123,18 +128,19 @@ export function RequirementList({ filters }: RequirementListProps) {
               <th className={styles.thCompact}>Tipo</th>
               <th className={styles.thCompact}>Prioridad</th>
               <th className={styles.thCompact}>Creación</th>
+              <th className={styles.thCompact}>Hs. Trab.</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={8} className={styles.emptyState}>
+                <td colSpan={9} className={styles.emptyState}>
                   Cargando requisitos...
                 </td>
               </tr>
             ) : requirements.length === 0 ? (
               <tr>
-                <td colSpan={8} className={styles.emptyState}>
+                <td colSpan={9} className={styles.emptyState}>
                   No se encontraron requisitos
                 </td>
               </tr>
@@ -185,6 +191,9 @@ export function RequirementList({ filters }: RequirementListProps) {
                     </span>
                   </td>
                   <td className={styles.tdCompact}>{formatStartDate(req.createdAt)}</td>
+                  <td className={styles.tdCompact}>
+                    {req.totalMinutes ? formatMinutes(req.totalMinutes) : '—'}
+                  </td>
                 </tr>
               ))
             )}

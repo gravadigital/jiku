@@ -3,7 +3,7 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-08-31 (S-038)
+**Last updated:** 2026-09-01 (S-045)
 
 ## Components
 
@@ -13,21 +13,23 @@ Total: 1
 
 ## Services
 
-Total: 5
+Total: 6
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
 - **uploadFile** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Composes ticket → PUT → `fileId`. The single entry point every upload in the service goes through.
 - **getRequirementsCount** (`web/src/features/requirements/services/requirementsApi.ts`) - Server Action that returns the raw count of requirements matching a filter set, by passing `count: true` inside the filters object (not concatenated onto the query string) so `cleanFilters` handles it correctly.
 - **getFilePreviewUrl** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Resolves the preview URL of a file that has **no link yet**, by `fileId`.
+- **getRequirementWorkedHours** (`web/src/features/requirements/services/requirementsApi.ts`) - Server Action that returns the total minutes and per-person breakdown for a single requirement (`GET /requirements/{reqid}/worked-hours`); no filters, the id goes in the path.
 
 ## Hooks
 
-Total: 3
+Total: 4
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
 - **useRequirementsCount** (`web/src/features/requirements/hooks/useRequirementsCount.ts`) - Wraps `getRequirementsCount` in `useQuery` with key `['requirements-count', filters]`; inherits the global 30s `staleTime`, no per-hook override.
+- **useRequirementWorkedHours** (`web/src/features/requirements/hooks/useRequirementWorkedHours.ts`) - Wraps `getRequirementWorkedHours` in `useQuery` with key `['requirement-worked-hours', reqid]`; a query of its own, independent of the requirement's detail query, so it degrades on its own without blocking the rest of the screen.
 
 ## Utils
 

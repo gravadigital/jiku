@@ -2,6 +2,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as useRequirementWorkedHoursModule from '../../hooks/useRequirementWorkedHours';
 import * as useUpdateRequirementModule from '../../hooks/useUpdateRequirement';
 import { RequirementDetail } from './RequirementDetail';
 import type { Requirement } from '../../types/requirement.types';
@@ -35,6 +36,14 @@ vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null, status: 'unauthenticated' }),
 }));
+
+vi.mock('next/image', () => ({
+  default: ({ alt }: { alt: string }) => <img alt={alt} />,
+}));
+
+// La card de horas se carga sola, con su propia query (S-045): se mockea el hook para que
+// este archivo -que verifica markdown, no horas- no dependa de una request real.
+vi.mock('../../hooks/useRequirementWorkedHours');
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -73,6 +82,11 @@ describe('RequirementDetail — AC-3 renderizado real de markdown en Contexto', 
     vi.mocked(useUpdateRequirementModule.useUpdateRequirement).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
+    } as any);
+    vi.mocked(useRequirementWorkedHoursModule.useRequirementWorkedHours).mockReturnValue({
+      data: { requirementId: 5, totalMinutes: 0, byPerson: [] },
+      isLoading: false,
+      isError: false,
     } as any);
   });
 

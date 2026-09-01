@@ -12,6 +12,7 @@ import { RequirementActivityForm } from '../RequirementActivityForm';
 import { RequirementHeader } from '../RequirementHeader';
 import { RequirementResolutionCard } from '../RequirementResolutionCard';
 import { RequirementStatusCard } from '../RequirementStatusCard';
+import { RequirementWorkedHoursCard } from '../RequirementWorkedHoursCard';
 import styles from './RequirementDetail.module.scss';
 import type {
   Requirement,
@@ -367,6 +368,14 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
             onUpdate={handleUpdate}
             isPending={isPending}
           />
+
+          {/* Card: Horas Trabajadas — se carga sola, con su propia query; no cuelga del
+              payload del requisito (S-045). Va última: es de consulta, no parte del
+              recorrido de identificación-y-cierre de las otras cards. */}
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>Horas Trabajadas</div>
+            <RequirementWorkedHoursCard reqid={requirement.id} />
+          </div>
         </div>
       </div>
     </>

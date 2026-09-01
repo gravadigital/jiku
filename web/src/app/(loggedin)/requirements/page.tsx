@@ -30,6 +30,9 @@ export default async function Requirements({
     page: resolvedSearchParams.page ? parseInt(resolvedSearchParams.page, 10) : 1,
     limit: resolvedSearchParams.limit ? parseInt(resolvedSearchParams.limit, 10) : 15,
     sort: resolvedSearchParams.sort || null,
+    // Fijo, no un filtro de usuario: la columna "Hs. Trab." es parte de la pantalla, no una
+    // opción que se elige. No se lee de `searchParams` ni se escribe en la URL (S-045).
+    include: 'totalMinutes',
   };
 
   return (
