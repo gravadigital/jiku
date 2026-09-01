@@ -1,34 +1,62 @@
 @use '@/styles' as *;
 
-.total {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: #000;
-  margin: 0 0 var(--spacing-sm) 0;
-}
-
+/* Misma retícula que "Información General" (`RequirementDetail` `.grid` + `.row`): esta card
+   vive en la misma columna y tiene que leerse igual. Se usa `dl`/`dt`/`dd` por el mismo
+   motivo que allá: `globals.scss:196` declara `span { font-size: 1.25rem }` como estilo de
+   elemento, y un `span` heredaría ese tamaño en vez del de la fila. */
 .breakdown {
-  list-style: none;
-  margin: var(--spacing-sm) 0 0 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 0.75rem;
+  margin: 0;
 }
 
 .breakdownRow {
-  @include flex-between;
-  font-size: var(--font-size-base);
-  color: var(--color-general-text);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+
+  dt {
+    font-weight: 400;
+    color: var(--color-general-text);
+  }
+
+  dd {
+    color: #626a81;
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+/* El total sí se separa del desglose: es la suma de las filas de arriba, no una más. */
+.totalRow {
+  @extend .breakdownRow;
+
+  border-top: 1px solid #e6e8ed;
+  padding-top: 0.75rem;
+
+  dt {
+    font-weight: 600;
+    color: var(--color-general-title);
+  }
+
+  dd {
+    font-weight: 600;
+    color: var(--color-general-title);
+  }
 }
 
 .emptyText {
-  font-size: var(--font-size-base);
+  font-size: 0.875rem;
   color: var(--color-general-text);
   font-style: italic;
 }
 
 .errorText {
-  font-size: var(--font-size-base);
+  font-size: 0.875rem;
   color: var(--color-general-text);
 }

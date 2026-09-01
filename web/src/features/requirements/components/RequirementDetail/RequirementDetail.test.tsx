@@ -188,7 +188,7 @@ describe('RequirementDetail', () => {
     expect(screen.getByText('Horas Trabajadas')).toBeInTheDocument(); // S-045
   });
 
-  // TS-19 (S-045/CA-4): el card de horas se monta último en la columna derecha
+  // TS-19 (S-045/CA-4): el card de horas va sobre "Etiquetas" en la columna derecha
   it('TS-19: el orden de los títulos de card en la columna derecha es el esperado (S-045)', () => {
     render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
 
@@ -201,9 +201,9 @@ describe('RequirementDetail', () => {
 
     expect(cardTitles).toEqual([
       'Información General',
+      'Horas Trabajadas',
       'Etiquetas',
       'Resolución',
-      'Horas Trabajadas',
     ]);
   });
 

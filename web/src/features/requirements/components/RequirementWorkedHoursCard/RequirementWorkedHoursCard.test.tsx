@@ -37,11 +37,37 @@ describe('RequirementWorkedHoursCard — S-045', () => {
     render(<RequirementWorkedHoursCard reqid={12} />);
 
     expect(screen.getByText('5h 0m')).toBeInTheDocument();
-    const names = screen.getAllByRole('listitem').map((li) => li.textContent);
+    const names = screen.getAllByRole('term').map((dt) => dt.textContent);
+    const values = screen.getAllByRole('definition').map((dd) => dd.textContent);
     expect(names[0]).toContain('Ana García');
-    expect(names[0]).toContain('3h 0m');
+    expect(values[0]).toBe('3h 0m');
     expect(names[1]).toContain('Beto Ruiz');
-    expect(names[1]).toContain('2h 0m');
+    expect(values[1]).toBe('2h 0m');
+  });
+
+  // El total va etiquetado como "Total" en una fila al pie, no como un número suelto arriba:
+  // es lo que lo hace legible junto al desglose por persona.
+  it('muestra el total en una fila etiquetada "Total" al pie del desglose', () => {
+    vi.mocked(useRequirementWorkedHours).mockReturnValue({
+      data: {
+        requirementId: 12,
+        totalMinutes: 300,
+        byPerson: [
+          { personId: 7, firstName: 'Ana', lastName: 'García', minutes: 180 },
+          { personId: 9, firstName: 'Beto', lastName: 'Ruiz', minutes: 120 },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as any);
+
+    render(<RequirementWorkedHoursCard reqid={12} />);
+
+    const names = screen.getAllByRole('term').map((dt) => dt.textContent);
+    const values = screen.getAllByRole('definition').map((dd) => dd.textContent);
+    expect(names).toHaveLength(3);
+    expect(names[2]).toBe('Total');
+    expect(values[2]).toBe('5h 0m');
   });
 
   // TS-13 (CA-4): el componente no reordena el desglose que llega de la api
@@ -61,7 +87,7 @@ describe('RequirementWorkedHoursCard — S-045', () => {
 
     render(<RequirementWorkedHoursCard reqid={12} />);
 
-    const names = screen.getAllByRole('listitem').map((li) => li.textContent);
+    const names = screen.getAllByRole('term').map((dt) => dt.textContent);
     expect(names[0]).toContain('Beto Ruiz');
     expect(names[1]).toContain('Ana García');
   });

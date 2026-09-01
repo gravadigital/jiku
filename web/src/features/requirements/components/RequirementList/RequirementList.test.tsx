@@ -77,8 +77,8 @@ describe('RequirementList — S-051', () => {
     vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(32);
   });
 
-  // TS-1: 9 columnas con headers del prototipo, "Hs. Trab." último (S-045)
-  it('TS-1: tabla muestra 9 columnas con headers del prototipo, "Hs. Trab." último (S-045)', async () => {
+  // TS-1: 9 columnas con headers del prototipo, "Hs. Trab." antes de "Creación" (S-045)
+  it('TS-1: tabla muestra 9 columnas con headers del prototipo, "Hs. Trab." antes de "Creación" (S-045)', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
       const headers = document.querySelectorAll('thead th');
@@ -91,8 +91,8 @@ describe('RequirementList — S-051', () => {
         'Estado',
         'Tipo',
         'Prioridad',
-        'Creación',
         'Hs. Trab.',
+        'Creación',
       ]);
       expect(headers.length).toBe(9);
     });
@@ -707,8 +707,9 @@ describe('RequirementList — S-045 (columna "Hs. Trab.")', () => {
 
     await waitFor(() => {
       const row = screen.getByText('Req test').closest('tr') as HTMLElement;
-      const lastCell = row.querySelectorAll('td')[row.querySelectorAll('td').length - 1];
-      expect(lastCell.textContent).toBe('—');
+      // Índice 7: "Hs. Trab." va entre "Prioridad" y "Creación", no al final de la fila.
+      const hoursCell = row.querySelectorAll('td')[7];
+      expect(hoursCell.textContent).toBe('—');
     });
     expect(screen.queryByText('0h 0m')).not.toBeInTheDocument();
   });
@@ -723,8 +724,9 @@ describe('RequirementList — S-045 (columna "Hs. Trab.")', () => {
 
     await waitFor(() => {
       const row = screen.getByText('Req test').closest('tr') as HTMLElement;
-      const lastCell = row.querySelectorAll('td')[row.querySelectorAll('td').length - 1];
-      expect(lastCell.textContent).toBe('—');
+      // Índice 7: "Hs. Trab." va entre "Prioridad" y "Creación", no al final de la fila.
+      const hoursCell = row.querySelectorAll('td')[7];
+      expect(hoursCell.textContent).toBe('—');
     });
   });
 

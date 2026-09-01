@@ -127,8 +127,8 @@ export function RequirementList({ filters }: RequirementListProps) {
               <th className={styles.thCompact}>Estado</th>
               <th className={styles.thCompact}>Tipo</th>
               <th className={styles.thCompact}>Prioridad</th>
-              <th className={styles.thCompact}>Creación</th>
               <th className={styles.thCompact}>Hs. Trab.</th>
+              <th className={styles.thCompact}>Creación</th>
             </tr>
           </thead>
           <tbody>
@@ -190,10 +190,10 @@ export function RequirementList({ filters }: RequirementListProps) {
                       {PRIORITY_LABELS[req.priority]}
                     </span>
                   </td>
-                  <td className={styles.tdCompact}>{formatStartDate(req.createdAt)}</td>
                   <td className={styles.tdCompact}>
                     {req.totalMinutes ? formatMinutes(req.totalMinutes) : '—'}
                   </td>
+                  <td className={styles.tdCompact}>{formatStartDate(req.createdAt)}</td>
                 </tr>
               ))
             )}

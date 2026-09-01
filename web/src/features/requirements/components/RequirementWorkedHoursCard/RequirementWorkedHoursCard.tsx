@@ -36,18 +36,19 @@ export function RequirementWorkedHoursCard({ reqid }: RequirementWorkedHoursCard
   }
 
   return (
-    <div>
-      <h3 className={styles.total}>{formatMinutes(data.totalMinutes)}</h3>
-      <ul className={styles.breakdown}>
-        {data.byPerson.map((person) => (
-          <li key={person.personId} className={styles.breakdownRow}>
-            <span>
-              {person.firstName} {person.lastName}
-            </span>
-            <span>{formatMinutes(person.minutes)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <dl className={styles.breakdown}>
+      {data.byPerson.map((person) => (
+        <div key={person.personId} className={styles.breakdownRow}>
+          <dt>
+            {person.firstName} {person.lastName}
+          </dt>
+          <dd>{formatMinutes(person.minutes)}</dd>
+        </div>
+      ))}
+      <div className={styles.totalRow}>
+        <dt>Total</dt>
+        <dd>{formatMinutes(data.totalMinutes)}</dd>
+      </div>
+    </dl>
   );
 }
