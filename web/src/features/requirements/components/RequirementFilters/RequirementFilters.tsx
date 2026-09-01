@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactSelect from 'react-select';
 import { useProjects } from '@/features/projects/hooks/useProjects';
+import { InputMultipleSelect } from '@/shared/components/ui/InputMultipleSelect';
 import styles from './RequirementFilters.module.scss';
 import type { RequirementFilters as Filters } from '../../types/requirement.types';
 
@@ -17,8 +18,11 @@ const useDebouncedValue = (value: string, delay: number) => {
   return debouncedValue;
 };
 
+// La opción "Todos los estados" (value '') ya no existe: con selección múltiple sería un estado
+// contradictorio ("todos" elegido junto a dos estados concretos). "Todos" pasa a ser la ausencia
+// de selección (sentinel `all`, ver S-041 / REQ-009 RF-4, RF-6). Orden: el del enum
+// `requirement_state`, no alfabético.
 const STATE_OPTIONS: { label: string; value: string }[] = [
-  { label: 'Todos los estados', value: '' },
   { label: 'Análisis', value: 'analisis' },
   { label: 'Planificación', value: 'planificacion' },
   { label: 'En cola', value: 'en_cola' },
@@ -27,6 +31,11 @@ const STATE_OPTIONS: { label: string; value: string }[] = [
   { label: 'Resuelto', value: 'resuelto' },
   { label: 'Cancelado', value: 'cancelado' },
 ];
+
+const getStateLabel = (value: string): string => {
+  const option = STATE_OPTIONS.find((o) => o.value === value);
+  return option ? option.label : value;
+};
 
 const SORT_OPTIONS: { label: string; value: string }[] = [
   { label: 'Más recientes', value: 'recent' },
@@ -138,14 +147,22 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
         />
       </div>
       <div className={styles.filterField} style={{ flex: 1.6 }}>
-        <label className={styles.fLabel}>Estado</label>
-        <ReactSelect
-          inputId="filter-state"
-          styles={selectStyles}
+        <InputMultipleSelect
+          label="Estado"
+          code="filter-state"
+          placeholder="Todos los estados"
           options={STATE_OPTIONS}
-          value={STATE_OPTIONS.find((o) => o.value === (filters.state ?? '')) ?? STATE_OPTIONS[0]}
-          onChange={(opt) => onChange('state', opt?.value ?? '')}
-          isSearchable={false}
+          value={
+            !filters.state || filters.state === 'all'
+              ? []
+              : String(filters.state)
+                  .split(',')
+                  .filter(Boolean)
+                  .map((s) => ({ label: getStateLabel(s), value: s }))
+          }
+          onChange={(values) =>
+            onChange('state', values.length === 0 ? 'all' : values.map((v) => v.value).join(','))
+          }
         />
       </div>
       <div className={styles.filterField} style={{ flex: 1.2 }}>

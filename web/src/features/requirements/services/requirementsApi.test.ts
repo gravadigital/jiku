@@ -23,6 +23,24 @@ describe('getRequirements', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(expect.stringContaining('search=login'));
   });
+
+  // TS-16 (S-041/CA-6): el CSV de estados llega tal cual a la api
+  it('TS-16: el CSV de estados llega tal cual a la api (S-041)', async () => {
+    await getRequirements({ state: 'desarrollo,revision', page: 1, limit: 15 });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).toMatch(/state=desarrollo(%2C|,)revision/);
+  });
+
+  // TS-17 (S-041/CA-4): el sentinel 'all' se descarta al serializar, la request sale sin state
+  it('TS-17: el sentinel "all" se descarta y la request sale sin "state" (S-041)', async () => {
+    await getRequirements({ state: 'all', page: 1, limit: 15 });
+
+    const calledUrl = vi.mocked(apiClient.get).mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain('state');
+    expect(calledUrl).toContain('page=1');
+    expect(calledUrl).toContain('limit=15');
+  });
 });
 
 describe('getRequirementsCount', () => {

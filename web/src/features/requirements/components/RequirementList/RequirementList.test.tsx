@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as requirementsApi from '../../services/requirementsApi';
 import { RequirementList } from './RequirementList';
@@ -250,5 +250,129 @@ describe('RequirementList — S-051', () => {
     await waitFor(() => {
       expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
     });
+  });
+
+  // TS-12 (S-041/CA-4): updateFilter conserva state=all en la URL (excepción al borrado del sentinel)
+  it('TS-12: updateFilter conserva "state=all" en la URL y borra "page" (S-041)', async () => {
+    mockSearchParams = new URLSearchParams('state=desarrollo&page=3');
+    render(<RequirementList filters={{ ...filters, state: 'desarrollo', page: 3 }} />, {
+      wrapper: createWrapper(),
+    });
+
+    const removeButton = await screen.findByLabelText('Remove Desarrollo');
+    fireEvent.click(removeButton);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalled();
+    });
+    const pushedUrl = mockPush.mock.calls[mockPush.mock.calls.length - 1][0] as string;
+    expect(pushedUrl).toContain('state=all');
+    expect(pushedUrl).not.toContain('page');
+  });
+
+  // TS-13 (S-041/CA-6): updateFilter sigue borrando el parámetro para los demás filtros con 'all'
+  it('TS-13: updateFilter sigue borrando "projectId" con el valor "all", sin tocar "state" (S-041)', async () => {
+    mockSearchParams = new URLSearchParams('projectId=7&state=desarrollo');
+    render(
+      <RequirementList filters={{ ...filters, projectId: 7, state: 'desarrollo' }} />,
+      { wrapper: createWrapper() }
+    );
+
+    const label = await screen.findByText(
+      (content, element) => content === 'Proyecto' && element?.tagName.toLowerCase() === 'label'
+    );
+    const container = label.closest('div') as HTMLElement;
+    const input = within(container).getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    const option = screen.getAllByRole('option').find((o) => o.textContent === 'Todos los proyectos');
+    fireEvent.click(option as HTMLElement);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalled();
+    });
+    const pushedUrl = mockPush.mock.calls[mockPush.mock.calls.length - 1][0] as string;
+    expect(pushedUrl).not.toContain('projectId');
+    expect(pushedUrl).toContain('state=desarrollo');
+  });
+
+  // TS-14 (S-041/CA-2, CA-3): cambiar la selección de estados resetea la página a 1
+  it('TS-14: cambiar la selección de estados resetea "page" (S-041)', async () => {
+    mockSearchParams = new URLSearchParams('state=desarrollo&page=4');
+    render(<RequirementList filters={{ ...filters, state: 'desarrollo', page: 4 }} />, {
+      wrapper: createWrapper(),
+    });
+
+    const stateLabel = await screen.findByText(
+      (content, element) => content === 'ESTADO' && element?.tagName.toLowerCase() === 'label'
+    );
+    const container = stateLabel.closest('div') as HTMLElement;
+    const input = within(container).getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByText('Revisión'));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalled();
+    });
+    const pushedUrl = mockPush.mock.calls[mockPush.mock.calls.length - 1][0] as string;
+    expect(pushedUrl).toMatch(/state=desarrollo(%2C|,)revision/);
+    expect(pushedUrl).not.toContain('page');
+  });
+
+  // TS-15 (S-041/CA-6): el filtro de estado no borra los demás filtros de la URL
+  it('TS-15: cambiar el filtro de estado conserva los demás parámetros de la URL (S-041)', async () => {
+    mockSearchParams = new URLSearchParams('search=login&projectId=3&sort=priority&state=desarrollo');
+    render(
+      <RequirementList
+        filters={{ ...filters, search: 'login', projectId: 3, sort: 'priority', state: 'desarrollo' }}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const stateLabel = await screen.findByText(
+      (content, element) => content === 'ESTADO' && element?.tagName.toLowerCase() === 'label'
+    );
+    const container = stateLabel.closest('div') as HTMLElement;
+    const input = within(container).getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByText('Revisión'));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalled();
+    });
+    const pushedUrl = mockPush.mock.calls[mockPush.mock.calls.length - 1][0] as string;
+    expect(pushedUrl).toContain('search=login');
+    expect(pushedUrl).toContain('projectId=3');
+    expect(pushedUrl).toContain('sort=priority');
+  });
+
+  // TS-18 (S-041/CA-4): con state='all' la tabla lista requisitos de estados fuera del default
+  it('TS-18: con state="all" la tabla lista requisitos de estados fuera del default (S-041)', async () => {
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([
+      { ...mockRequirement, id: 5, state: 'resuelto' },
+      { ...mockRequirement, id: 6, state: 'cancelado' },
+    ]);
+    render(<RequirementList filters={{ ...filters, state: 'all' }} />, {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Resuelto')).toBeInTheDocument();
+      expect(screen.getByText('Cancelado')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No se encontraron requisitos')).not.toBeInTheDocument();
+  });
+
+  // TS-19 (S-041/CA-7): una combinación de estados sin resultados muestra el empty state
+  it('TS-19: una combinación de estados sin resultados muestra el empty state (S-041)', async () => {
+    vi.mocked(requirementsApi.getRequirements).mockResolvedValue([]);
+    render(
+      <RequirementList filters={{ ...filters, state: 'planificacion,en_cola' }} />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
+    });
+    expect(screen.getByText('ID')).toBeInTheDocument();
   });
 });
