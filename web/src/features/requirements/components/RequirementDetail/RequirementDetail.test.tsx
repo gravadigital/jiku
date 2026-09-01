@@ -36,6 +36,7 @@ vi.mock('../RequirementActivityForm', () => ({
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const baseRequirement: Requirement = {
@@ -290,69 +291,234 @@ describe('RequirementDetail', () => {
       expect(within(select).getByRole('option', { name: '10 por página' })).toBeInTheDocument();
     });
 
-    describe('Paginado unificado con el de detalle de proyecto', () => {
-      const manyObjectives = Array.from({ length: 25 }, (_, i) => ({
-        id: i + 1,
-        title: `Obj ${i + 1}`,
-        state: 'activo',
-        createdAt: '2026-01-01T00:00:00Z',
-        estimatedFinishDate: null,
-        persons: [],
-      })) as any;
+    describe('Paginado unificado con el de detalle de proyecto (S-039)', () => {
+      const objectivesActivos = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+          id: i + 1,
+          title: `Obj ${i + 1}`,
+          state: 'activo',
+          createdAt: '2026-01-01T00:00:00Z',
+          estimatedFinishDate: null,
+          persons: [],
+        })) as any;
 
-      it('con una sola página, los botones ‹/› están presentes pero deshabilitados', () => {
-        render(<RequirementDetail requirement={{ ...baseRequirement, linkedObjectives }} />, {
+      it('TS-1: el paginador unificado se renderiza en la card de tareas', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        expect(screen.getByRole('navigation', { name: 'Paginación' })).toBeInTheDocument();
+        const prevBtn = screen.getByRole('button', { name: 'Página anterior' });
+        const nextBtn = screen.getByRole('button', { name: 'Página siguiente' });
+        expect(prevBtn).toHaveTextContent('<');
+        expect(nextBtn).toHaveTextContent('>');
+      });
+
+      it('TS-2: con ≤ 10 páginas se muestran todos los números, sin elipsis', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        expect(screen.getByRole('button', { name: 'Página 1' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Página 2' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Página 3' })).toBeInTheDocument();
+        expect(screen.queryByText('…')).not.toBeInTheDocument();
+      });
+
+      it('TS-3: con más de 10 páginas, la ventana se pega al inicio en la página 1', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(60) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+
+        for (let i = 1; i <= 10; i += 1) {
+          expect(screen.getByRole('button', { name: `Página ${i}` })).toBeInTheDocument();
+        }
+        expect(screen.queryByRole('button', { name: 'Página 11' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Página 12' })).not.toBeInTheDocument();
+
+        const nav = screen.getByRole('navigation', { name: 'Paginación' });
+        const pageButtons = within(nav)
+          .getAllByRole('button')
+          .filter((btn) => /^Página \d+$/.test(btn.getAttribute('aria-label') ?? ''));
+        expect(pageButtons).toHaveLength(10);
+      });
+
+      it('TS-4: la ventana se desliza y queda centrada en la página actual', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(125) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Página 10' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Página 13' }));
+
+        for (let i = 8; i <= 17; i += 1) {
+          expect(screen.getByRole('button', { name: `Página ${i}` })).toBeInTheDocument();
+        }
+        expect(screen.queryByRole('button', { name: 'Página 7' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Página 18' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Página 13' })).toHaveAttribute(
+          'aria-current',
+          'page'
+        );
+      });
+
+      it('TS-5: cambiar de página no navega por URL', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Página 2' }));
+
+        expect(mockPush).not.toHaveBeenCalled();
+        expect(screen.getByText('Obj 6')).toBeInTheDocument();
+        expect(screen.queryByText('Obj 1')).not.toBeInTheDocument();
+      });
+
+      it('TS-6: la página activa se marca correctamente tras el click', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Página 3' }));
+
+        expect(screen.getByRole('button', { name: 'Página 3' })).toHaveAttribute(
+          'aria-current',
+          'page'
+        );
+        expect(screen.getByRole('button', { name: 'Página 3' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Página 1' })).not.toHaveAttribute(
+          'aria-current'
+        );
+      });
+
+      it('TS-7: con 0 tareas en la tab activa, el paginador no se renderiza', () => {
+        render(<RequirementDetail requirement={{ ...baseRequirement, linkedObjectives: [] }} />, {
           wrapper: createWrapper(),
         });
 
-        expect(screen.getByRole('navigation', { name: 'Paginación' })).toBeInTheDocument();
-        expect(screen.getByText('‹')).toBeDisabled();
-        expect(screen.getByText('›')).toBeDisabled();
+        expect(screen.getByText('Sin tareas en esta etapa')).toBeInTheDocument();
+        expect(
+          screen.queryByRole('navigation', { name: 'Paginación' })
+        ).not.toBeInTheDocument();
       });
 
-      it('con más páginas de las visibles, muestra ellipsis y la última página', () => {
+      it('TS-8: bajar el total de páginas por debajo de la página actual reajusta la vista', () => {
         render(
           <RequirementDetail
-            requirement={{ ...baseRequirement, linkedObjectives: manyObjectives }}
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Página 3' }));
+
+        expect(() =>
+          fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } })
+        ).not.toThrow();
+
+        expect(screen.getByText('Obj 1')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute(
+          'aria-current',
+          'page'
+        );
+        expect(screen.queryByRole('button', { name: 'Página 3' })).not.toBeInTheDocument();
+      });
+
+      it('TS-9: los extremos se deshabilitan en la primera y la última página', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
+          />,
+          { wrapper: createWrapper() }
+        );
+
+        expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Página siguiente' })).not.toBeDisabled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Página 3' }));
+
+        expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Página anterior' })).not.toBeDisabled();
+      });
+
+      it('TS-10: el selector de tamaño de página sigue presente y con sus dos opciones', () => {
+        render(
+          <RequirementDetail
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(12) }}
           />,
           { wrapper: createWrapper() }
         );
 
         const select = screen.getByRole('combobox');
-        fireEvent.change(select, { target: { value: '5' } });
-
-        expect(screen.getByText('…')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: '3' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: '5' })).toBeInTheDocument();
+        expect(select).toBeInTheDocument();
+        expect(within(select).getByRole('option', { name: '5 por página' })).toBeInTheDocument();
+        expect(within(select).getByRole('option', { name: '10 por página' })).toBeInTheDocument();
+        expect(
+          screen.getByRole('navigation', { name: 'Paginación' })
+        ).not.toContainElement(select);
       });
 
-      it('el botón de la página activa tiene aria-current="page"', () => {
+      it('TS-11: cambiar el tamaño de página resetea a la página 1 sin tocar la URL', () => {
         render(
           <RequirementDetail
-            requirement={{ ...baseRequirement, linkedObjectives: manyObjectives }}
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(60) }}
           />,
           { wrapper: createWrapper() }
         );
 
-        const select = screen.getByRole('combobox');
-        fireEvent.change(select, { target: { value: '5' } });
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Página 4' }));
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } });
 
-        expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+        expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute(
+          'aria-current',
+          'page'
+        );
+        expect(screen.getByText('Obj 1')).toBeInTheDocument();
+        expect(mockPush).not.toHaveBeenCalled();
       });
 
-      it('click en "›" avanza a la página siguiente', () => {
+      it('TS-12: el código y los estilos del paginador inline quedan eliminados', () => {
         render(
           <RequirementDetail
-            requirement={{ ...baseRequirement, linkedObjectives: manyObjectives }}
+            requirement={{ ...baseRequirement, linkedObjectives: objectivesActivos(60) }}
           />,
           { wrapper: createWrapper() }
         );
 
-        const select = screen.getByRole('combobox');
-        fireEvent.change(select, { target: { value: '5' } });
-        fireEvent.click(screen.getByText('›'));
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
 
-        expect(screen.getByRole('button', { name: '2' })).toHaveAttribute('aria-current', 'page');
+        expect(screen.queryByText('‹')).not.toBeInTheDocument();
+        expect(screen.queryByText('›')).not.toBeInTheDocument();
+        expect(screen.queryByText('…')).not.toBeInTheDocument();
+
+        const scssPath = path.join(__dirname, 'RequirementDetail.module.scss');
+        const scssContent = fs.readFileSync(scssPath, 'utf-8');
+        expect(scssContent).not.toMatch(/\.objPagination\s*\{/);
+        expect(scssContent).not.toMatch(/\.pageBtn\s*\{/);
+        expect(scssContent).not.toMatch(/\.pageBtnActive\s*\{/);
+        expect(scssContent).not.toMatch(/\.objPaginationEllipsis\s*\{/);
       });
     });
   });

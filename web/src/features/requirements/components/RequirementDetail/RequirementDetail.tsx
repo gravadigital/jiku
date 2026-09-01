@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
+import { Pagination } from '@/shared/components/ui/Pagination';
 import { useUpdateRequirement } from '../../hooks/useUpdateRequirement';
 import { RequirementActivityFeed } from '../RequirementActivityFeed';
 import { RequirementActivityForm } from '../RequirementActivityForm';
@@ -225,47 +226,13 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
                       )}
                     </tbody>
                   </table>
-                  <nav className={styles.objPagination} aria-label="Paginación">
-                    <button
-                      type="button"
-                      className={styles.pageBtn}
-                      onClick={() => setObjPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      ‹
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter((n) => n <= 3 || n === totalPages)
-                      .reduce<(number | 'ellipsis')[]>((acc, n, idx, arr) => {
-                        if (idx > 0 && n - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-                        acc.push(n);
-                        return acc;
-                      }, [])
-                      .map((item, idx) =>
-                        item === 'ellipsis' ? (
-                          <span key={`ellipsis-${idx}`} className={styles.objPaginationEllipsis}>
-                            …
-                          </span>
-                        ) : (
-                          <button
-                            key={item}
-                            type="button"
-                            className={`${styles.pageBtn}${page === item ? ` ${styles.pageBtnActive}` : ''}`}
-                            onClick={() => setObjPage(item)}
-                            aria-current={page === item ? 'page' : undefined}
-                          >
-                            {item}
-                          </button>
-                        )
-                      )}
-                    <button
-                      type="button"
-                      className={styles.pageBtn}
-                      onClick={() => setObjPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                    >
-                      ›
-                    </button>
+                  <div className={styles.paginationRow}>
+                    <Pagination
+                      totalItems={filtered.length}
+                      limit={objPageSize}
+                      currentPage={page}
+                      onPageChange={setObjPage}
+                    />
                     <select
                       className={styles.perPageSelect}
                       value={objPageSize}
@@ -280,7 +247,7 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
                         </option>
                       ))}
                     </select>
-                  </nav>
+                  </div>
                 </div>
               );
             })()}

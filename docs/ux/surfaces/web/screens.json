@@ -3778,7 +3778,7 @@
           "category": "navigation",
           "pages": 2,
           "page_size": 5,
-          "annotation": "reimplementada inline, con <nav aria-label=\"Paginación\"> y aria-current=\"page\" · select de 5 / 10 por página (RequirementDetail.tsx:227-280)"
+          "annotation": "usa el componente compartido Pagination en modo controlado (glifos < / >, sin elipsis), con <nav aria-label=\"Paginación\"> y aria-current=\"page\" · select de 5 / 10 por página sobrevive fuera del <nav> (web/src/shared/components/ui/Pagination/Pagination.tsx; RequirementDetail.tsx:229-250)"
         },
         {
           "name": "card-actividad",

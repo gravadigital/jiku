@@ -26,6 +26,7 @@ vi.mock('../RequirementActivityForm', () => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Sin mock de MarkdownViewer/AttachmentPlaceholder: verifica el renderizado real

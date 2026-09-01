@@ -186,45 +186,20 @@
   cursor: pointer;
 }
 
-.objPagination {
+.paginationRow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.25rem;
   padding: 0.75rem 1rem;
   border-top: 1px solid #e6e8ed;
-  flex-wrap: wrap;
-}
 
-.pageBtn {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border-radius: 6px;
-  border: 1px solid #e6e8ed;
-  background: #fff;
-  font-size: 0.8125rem;
-  color: #626a81;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:hover { border-color: var(--color-button); color: var(--color-button); }
-}
-
-.pageBtnActive {
-  background: var(--color-button);
-  color: #fff;
-  border-color: var(--color-button);
-}
-
-.objPaginationEllipsis {
-  font-size: 0.8125rem;
-  color: #626a81;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 2px;
+  // El <nav> del paginador compartido trae `margin-top: 20px`, pensado para
+  // un uso standalone. Acá conviven como hermanos en una fila alineada a la
+  // derecha, así que se neutraliza para no desalinear el conjunto.
+  nav {
+    margin-top: 0;
+  }
 }
 
 .perPageSelect {
