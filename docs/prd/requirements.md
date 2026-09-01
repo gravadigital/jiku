@@ -199,8 +199,10 @@ status: Draft - Importado desde código existente
 
 ### Actividad (`objective_activity` / `requirement_activity`)
 - **Atributos clave:** `typeOfActivity` (enum, req), `previousValue` (text, req), `newValue`
-  (text, req), `visibilityLevel` (enum: public/internal, req, default internal)
-- **Relaciones:** belongs_to Tarea **o** Requisito, belongs_to Usuario (autor)
+  (text, req), `visibilityLevel` (enum: public/internal, req, default internal), `editedAt`
+  (timestamp, **nullable**), `editedBy` (referencia a Usuario, **nullable**)
+- **Relaciones:** belongs_to Tarea **o** Requisito, belongs_to Usuario (autor), belongs_to Usuario
+  (editor, por `editedBy`)
 - **Notas:** Un mismo registro sirve para **cambios de campo y comentarios**: un comentario es
   una actividad con `typeOfActivity: 'comment'`. Es lo que permite el feed cronológico unificado.
   La visibilidad de los cambios de campo **la decide el sistema, no el usuario**.
@@ -211,6 +213,15 @@ status: Draft - Importado desde código existente
   directo al bus es esa persona**, no el service user de la api: la identidad de escritura se
   resuelve por canal y, fuera del canal del publicador de confianza, sale del subject. La
   visibilidad automática de los cambios de campo (C-21) **no cambia**.
+  **Desde REQ-011 un comentario es MUTABLE y lo declara en la entidad**, mientras una actividad de
+  cambio de campo **sigue siendo inmutable por completo**: el texto y los adjuntos de un comentario
+  los puede cambiar **su autor y un `admin`**, y cada edición completa `editedAt` y `editedBy` —los
+  dos únicos atributos que solo tienen valor en las filas de tipo `comment`; en el resto son
+  siempre `NULL`. `visibilityLevel` pasa a ser **explícitamente inmutable después de la creación**:
+  se elige al comentar y no se cambia nunca. **`editedAt` y `editedBy` no se exponen en modo
+  externo**, sin importar la visibilidad del comentario. **No hay límite** de cantidad de ediciones
+  ni ventana temporal, y `editedAt` refleja la última. La edición **no notifica** (la regla queda
+  declarada en el comando aunque FG-2 no exista todavía).
 
 ### Suscriptor (`requirement_subscriptors` / `objectives_subscriptors`)
 - **Atributos clave:** `userId` (string, req)
@@ -273,6 +284,11 @@ status: Draft - Importado desde código existente
   única razón por la que D-06 los preservaba, y esa restricción **queda derogada**. No se
   renumeran ni cambia la PK, pero dejan de condicionar el saneamiento del modelo (FG-6). La FK
   polimórfica hacia la entidad **sigue siendo imposible**: apunta a cinco tablas distintas.
+  **Desde REQ-011 los vínculos de un comentario dejan de crearse solo en el alta:** se agregan y se
+  borran durante la edición del comentario, con la semántica de **conjunto completo** que ya usan
+  `requirements.{id}.edit` y `tasks.{id}.edit`. **No cambia la estructura de la entidad ni la regla
+  de titularidad del Archivo**, que se sigue aplicando sin excepción por rol — un `admin` que edita
+  un comentario ajeno tampoco puede vincular archivos que no subió.
 
 ### AjusteDelSistema (`system_settings`)
 - **Atributos clave:** `key` (string 255, UNIQUE), `value` (**text**)
@@ -391,6 +407,7 @@ para que el pedido tenga trazabilidad desde que entra hasta que se cierra.
 | C-22 | Suscribirse a un requisito | U-03 | Suscriptor | CREATE | `userId` | **No dispara ninguna notificación: no hay canal.** `already_subscribed` si ya existe | core |
 | C-23 | Desuscribirse | U-03 | Suscriptor | DELETE | `userId` | — | core |
 | C-24 | Reportar requisitos con export | U-01, U-02 | Requisito | READ | filtros | `GET /requirements/report` + export **CSV generado en el cliente** | api · web |
+| C-82 | Editar un comentario de requisito | U-01, U-02 (autor o `admin`) | Actividad | UPDATE | `comment`, `fileIds` (opt) | REQ-011. Solo el autor o `admin`; `visibilityLevel` **inmutable**; registra `editedAt`/`editedBy`; no dispara notificación (no hay canal aún) | core |
 
 **Criterios de Aceptación:**
 - DADO un requisito de tipo `incidencia` en estado `planificacion`,
@@ -436,6 +453,7 @@ para saber quién hace qué y poder imputar el tiempo contra algo concreto.
 | C-31 | Ver historial de cambios | U-01, U-02 | Actividad | READ | — | **Seis campos rastreados**: `title`, `estimatedFinishDate`, `state`, `area`, `priority`, `description`. El paso a vacío no se registra, **salvo `estimatedFinishDate`** | core |
 | C-32 | Comentar una tarea | U-01, U-02 | Actividad | CREATE | `comment` (req), `visibilityLevel` (opt) | **La tarea debe existir** (`objective_not_found`): corrige un bug previo que devolvía 500 por la foreign key | core |
 | C-33 | Consultar minutos trabajados por tarea | U-01, U-02 | Tarea | READ | — | Totales, agrupados por persona y detallados | api |
+| C-83 | Editar un comentario de tarea | U-01, U-02 (autor o `admin`) | Actividad | UPDATE | `comment`, `fileIds` (opt) | REQ-011. Migra `PATCH /api/objectives/{id}/comment/{cid}` a publicar comando (cierra la excepción a ADR-001 que escribía con el ORM); mismas reglas que C-82 | core |
 
 **Criterios de Aceptación:**
 - DADO un requisito del proyecto 5,
@@ -713,7 +731,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-S06 | Aislamiento entre clientes | Un `external-user` accede **solo** a proyectos con fila en `user_project_permissions`, resuelto desde 9 tipos de entidad | Tests de autorización | **[implementado]** |
 | NFR-S07 | Reglas de workflow del lado del servidor | Las transiciones de estado de requisito (incluido el salteo de `en_cola` para incidencias) **hoy solo se validan en `web`** | Revisión de código | **[hueco conocido]** |
 | NFR-S08 | Allowlist del proxy del portal | El proxy catch-all de `opus-web` **no filtra paths ni métodos**: expone toda la superficie de `/api/opus/*` a cualquier usuario logueado | Revisión de código | **[hueco conocido — mitigado por NFR-S06]** |
-| NFR-S09 | Escritura solo desde `core` | La api conecta en solo lectura por credenciales. **Dos excepciones**: la fila de `attachments` y `PUT /api/week-assigned-times` | Permisos de PostgreSQL | **[implementado con excepciones]** |
+| NFR-S09 | Escritura solo desde `core` | La api conecta en solo lectura por credenciales. **Dos excepciones**: la fila de `attachments` y `PUT /api/week-assigned-times`. (Hasta REQ-011 hubo una tercera no declarada acá: `PATCH /api/objectives/{id}/comment/{cid}` escribía con el ORM sin publicar comando; REQ-011 la cerró migrando el endpoint al comando `tasks.{id}.comment.{cid}.edit`, así que vuelven a ser dos de verdad) | Permisos de PostgreSQL | **[implementado con excepciones]** |
 | NFR-S10 | Defensa del bus | La política del auth-callout es la **única** defensa: core confía en el `creator`/`author`/`editor` del cuerpo sin verificar | Config de Zitadel + NATS | **[implementado — sin segunda línea]** |
 | NFR-S11 | Bypass de autenticación en desarrollo | Opt-in explícito, **prohibido con `NODE_ENV=production`** (el arranque falla), exige `DEV_USER_ID` | Test de arranque | **[implementado]** |
 | NFR-S12 | Validación de archivos subidos | Doble lista blanca (extensión **y** MIME), 13 extensiones, 10 MB, 10 archivos, checksum sha256 | Tests de subida | **[implementado]** |

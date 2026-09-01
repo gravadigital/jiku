@@ -1262,20 +1262,27 @@ x-resources:
     note: >-
       `entityType` es OBLIGATORIO: los ids de las dos tablas de actividad SE PISAN. `body` es
       `new_value` y `authorId` es `changed_by` en la base. `attachments` está en el conjunto BASE,
-      no en incluibles: la excepción declarada a RF-17.
+      no en incluibles: la excepción declarada a RF-17. `editedAt`/`editedBy` (REQ-011) son
+      `edited_at`/`edited_by` en la base y SOLO se completan en actividades de tipo `comment`.
+      **RIESGO DECLARADO (REQ-011, decisión D-3):** este plano NO recorta `editedAt`/`editedBy`
+      para el modo externo — el recorte de `comments`/`activity` es de FILAS
+      (`externalScope`), no de campos, y `jiku-queries` no está en producción. El día que
+      migre, alguien tiene que agregar el recorte de estos dos campos para `external-user`. Hoy
+      la omisión real para el portal ocurre en la proyección campo a campo de
+      `GET /opus/requirements/{reqid}` en la `api` (`opus-requirements-id-get.ts`), no acá.
     discriminator:
       field: entityType
       values: [task, requirement]
       mandatory: true
     variants:
       task:
-        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, createdAt, updatedAt]
+        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, editedAt, editedBy, createdAt, updatedAt]
         includable: [author]
         filterable: [entityType, entityId, authorId, visibilityLevel, createdAt, q]
         enums:
           visibilityLevel: [public, internal]
       requirement:
-        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, createdAt, updatedAt]
+        base: [id, entityType, entityId, body, authorId, visibilityLevel, attachments, editedAt, editedBy, createdAt, updatedAt]
         includable: [author]
         filterable: [entityType, entityId, authorId, visibilityLevel, createdAt, q]
         enums:

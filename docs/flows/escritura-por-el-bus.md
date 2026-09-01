@@ -273,7 +273,10 @@ Misma precedencia que el plano de lectura — *gana el más restrictivo*: `exter
 | Tipo + conclusión al resolver | C-17 | El mismo validador | `resolution_required` |
 | `documentacion` / `diseño` / `board_de_tareas` como URI | C-07 | `projects.new` / `.edit` | `invalid_fields` |
 | Límites de subida y doble lista blanca | C-50 | `files.request-upload` — **ya estaba en core** | `file_too_large`, `file_type_not_allowed` |
-| Titularidad del archivo al vincular | — | Los seis comandos con `fileIds` — **ya estaba en core** | `file_not_owned` |
+| Titularidad del archivo al vincular | — | Los ocho comandos con `fileIds` — REQ-011 suma los dos de edición de comentario | `file_not_owned` |
+| Autoría del comentario, con excepción por rol `admin` | — | `requirements.{id}.comment.{cid}.edit` / `tasks.{id}.comment.{cid}.edit` (REQ-011) — `actor === comment.changedBy \|\| ctx.roles.includes('admin')` | `comment_not_owned` |
+| Solo se edita una actividad de tipo `comment` | — | Los mismos dos comandos (REQ-011) | `activity_not_editable` |
+| `visibilityLevel` inmutable después de creado | — | Los mismos dos comandos (REQ-011) — el payload no declara la propiedad | `invalid_fields` |
 
 **`access_denied` y `caller_not_authorized` responden preguntas distintas** y no se fusionan:
 el primero es *"¿podés tocar ESTA entidad?"* y lo decide el comando con la fila delante; el segundo

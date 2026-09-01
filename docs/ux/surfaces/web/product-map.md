@@ -38,12 +38,12 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
-| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar, resolver y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010 |
+| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y editar los comentarios propios, resolver y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008 |
-| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005 |
+| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
@@ -89,6 +89,21 @@ del grupo `(loggedin)` [fuente: código-existente].
 > que `reporte-horas` y `reporte-requisitos` no se tocan** —siguen siendo la vista de período, que
 > es lo que este requerimiento evita tener que abrir— y que **`opus-web` no se modifica**: las horas
 > son dato interno y no llegan al portal por ninguna vía [REQ-010 RF-6..RF-9].
+
+> **REQ-011 no agrega ni quita pantallas ni overlays, y toca dos.** La edición de un comentario
+> ocurre **in-place, dentro de la entrada del feed**: reutiliza el editor que la pantalla ya usa
+> para el alta y por eso no hay overlay que declarar. **(1)** `detalle-requisito` gana la
+> capacidad, que hoy no tiene: botón de editar por comentario —visible solo para su autor o para un
+> `admin`—, editor inline con edición de adjuntos, y una marca `"(editado)"` / `"(editado por X)"`
+> junto a la fecha. Suma un sub-estado nuevo (*comentario en edición*). **(2)** `detalle-tarea` ya
+> la tenía y la ve **ampliada**: el `admin` entra a la excepción, la marca de editado deja de
+> inferirse de un campo prestado y pasa a apoyarse en una fecha real, y los adjuntos del comentario
+> se vuelven editables. **En ninguna de las dos hay control de visibilidad en modo edición**: la
+> visibilidad de un comentario queda fijada al publicarlo y es inmutable desde entonces, porque el
+> comentario ya pudo haber sido leído en el portal. **`opus-web` no se modifica y no se lo verifica
+> por omisión**: el cliente no puede editar ni ve la marca, y el dato de edición **no viaja** en la
+> lectura del portal, así que la ausencia no depende de un condicional de interfaz
+> [REQ-011 RF-1..RF-8].
 
 > **REQ-009 no agrega ni quita pantallas, y toca una.** El filtro de estado de
 > `listado-requisitos` pasa de selección única a **selección múltiple**, replicando el mecanismo que

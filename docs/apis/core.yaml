@@ -1,6 +1,6 @@
 asyncapi: '2.6.0'
 
-# Messaging contract of `core` — the 21 commands it serves over NATS as the `jiku-commands` micro
+# Messaging contract of `core` — the 23 commands it serves over NATS as the `jiku-commands` micro
 # service.
 #
 # REQ-007 — WRITES OPEN TO PEOPLE, AND THE RULES MOVE HERE
@@ -11,6 +11,11 @@ asyncapi: '2.6.0'
 #        the only domain write that does not go through core.
 #     3. Rules that used to live in the api now live here: the submission window, who may log time
 #        for someone else, the requirement state workflow and the mandatory conclusion.
+#
+# REQ-011 — COMMENT EDITING
+#   Commands 22 and 23 (`requirements.{id}.comment.{cid}.edit`, `tasks.{id}.comment.{cid}.edit`)
+#   join the role -> method map's shared constant, which grows from 18 to 20 enumerated commands
+#   for `admin` and `user`, in both columns.
 #
 # WHY AsyncAPI AND NOT OpenAPI
 #   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
@@ -32,7 +37,7 @@ info:
     the api over NATS, validates the business rules and writes.
 
     **One process, two logical services on the bus.** Since REQ-004 the `core` process registers
-    **two NATS micro services over a single connection**: `jiku-commands`, the 21 write commands
+    **two NATS micro services over a single connection**: `jiku-commands`, the 23 write commands
     this spec describes, and `jiku-queries`, the read endpoints, with their own queue group and
     their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
     of this spec, and that is permanent** — this file stays the contract of the commands.
@@ -108,8 +113,8 @@ info:
     | Role | Commands published DIRECTLY to the bus | Commands published WITH AN ENVELOPE |
     |---|---|---|
     | `internal-app` | all | all |
-    | `admin` | the 18 enumerated | the same 18 |
-    | `user` | the same 18 as `admin` | those 18 + `requirements.{id}.subscriptors.new` |
+    | `admin` | the 20 enumerated | the same 20 |
+    | `user` | the same 20 as `admin` | those 20 + `requirements.{id}.subscriptors.new` |
     | `external-user` | **none** | the 6 the portal reaches over HTTP |
     | `core` · `bus-observer` | none | none |
     | unknown role | none | none |
@@ -142,7 +147,7 @@ info:
     appear in the spec at all and is declared as data in that test.
 
     `week-assigned-times.replace` **is** in the map since S-032, and it is the only command
-    enumerated for **`admin` alone** (C-38). It is NOT in the list of 18 that `admin` and `user`
+    enumerated for **`admin` alone** (C-38). It is NOT in the list of 20 that `admin` and `user`
     share on purpose — that constant is shared so the two roles cannot diverge, so putting the
     21st command there would hand it to `user` too. `PUT /api/week-assigned-times` is the only
     route of the product with `x-roles: [admin]` on its own, and that is why it is the only
@@ -160,7 +165,7 @@ info:
     **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there
     is a **silent total write outage**: if the api connects to the bus before core is subscribed,
     its authentication event is lost (core NATS, no retry, no record), the api stays connected and
-    functional **without a row in `users`**, and core refuses **all 21 commands** with a 403 — until
+    functional **without a row in `users`**, and core refuses **all 23 commands** with a 403 — until
     the api reconnects, which with a hot-renewed ~1 h token may not happen for days. The api also
     already authorises by role before publishing (`hasAnyRole`), so consulting `users.roles` for its
     service user would be authorising the same thing twice from two sources, with the worse of the
@@ -222,8 +227,10 @@ info:
     And then, uniform across both channels:
     `if File.uploaded_by != resolveActor(ctx, payload) -> failure(file_not_owned)`.
 
-    - **`files.request-upload` and the six domain commands MUST use the same function.** If
+    - **`files.request-upload` and the eight domain commands MUST use the same function.** If
       uploading and linking resolved identity differently, nobody could link what they uploaded.
+      (REQ-011 grows the count from six to eight: `requirements.{id}.comment.{cid}.edit` and
+      `tasks.{id}.comment.{cid}.edit` resolve their `fileIds` with the same `syncFileLinks`.)
     - **No exception by role** (RF-13): core knows nothing about roles, so the rule is uniform by
       construction — there is nowhere to put the exception even if one wanted to.
     - **What is still not covered:** inside the api's channel, core keeps trusting the `author` in
@@ -312,7 +319,7 @@ servers:
 # THE SUBSCRIPTION PERMISSION IS THE LITERAL SUBJECT in `templates/core.yaml` `sub.allow` — never
 # `{{instance}}.events.>`. Deny-by-default applies on the bus too (ADR-008): a future event MUST
 # require a new line there, so no consumer starts receiving a new event type just because someone
-# added it to the namespace. WITHOUT THAT LINE core starts, serves the 21 commands, logs that it
+# added it to the namespace. WITHOUT THAT LINE core starts, serves the 23 commands, logs that it
 # subscribed, and receives nothing — the permissions violation is asynchronous and lands in the
 # NATS SERVER's log, never as a failure of `subscribe()`.
 #
@@ -351,6 +358,8 @@ servers:
 #   19  unworked-times.new                                 unworked-times.new                    unworked-times-new
 #   20  unworked-times.{id}.delete                         unworked-times.*.delete               unworked-times-delete
 #   21  week-assigned-times.replace                        week-assigned-times.replace           week-assigned-times-replace
+#   22  requirements.{id}.comment.{cid}.edit               requirements.*.comment.*.edit         requirements-comment-edit
+#   23  tasks.{id}.comment.{cid}.edit                      tasks.*.comment.*.edit                tasks-comment-edit
 #
 # Two shape rules the derivation respects, and why:
 #   - THE NAME CARRIES NO DOTS. Micro validates the endpoint name against /^[-\w]+$/; the subject,
@@ -362,7 +371,7 @@ servers:
 # COMMAND 21 IS THE ONLY ONE WHOSE NAME AND SUBJECT BOTH EQUAL THE PATTERN, because no segment of
 # it is a `{param}`: there is no `*` to introduce and no dot to strip.
 #
-# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 21
+# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 23
 # above do not overlap, and the reason is structural rather than luck — the registry matches BY
 # SEGMENT COUNT, and those sharing a length differ in their first or last literal token. But the
 # design does not rest on that manual check: `registerService()` keeps a Set of subjects and FAILS
@@ -508,6 +517,36 @@ channels:
       message:
         $ref: '#/components/messages/TasksComment'
 
+  tasks.{id}.comment.{cid}.edit:
+    description: |
+      Edit a task's comment. Only the `ObjectiveActivity`'s author or an `admin` may edit; the
+      entry must be a `comment` (`activity_not_editable` otherwise).
+
+      **REQ-011.** Migrates `PATCH /objectives/{id}/comment/{cid}`, which used to write with the
+      ORM directly, bypassing the bus (ADR-001's fourth, undeclared exception). This channel
+      closes it: the api publishes instead of writing.
+
+      `visibilityLevel` is immutable once the comment exists and is rejected with `invalid_fields`
+      if sent. `fileIds` is the COMPLETE set that must end up linked, resolved with
+      `syncFileLinks` — same semantics as `requirements.{id}.edit`. Does not notify (no
+      notification channel exists in the product yet).
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+      cid:
+        description: Comment id (`objective_activities.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksCommentEdit
+      summary: Edit a comment on a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksCommentEdit'
+
   # -------------------------------------------------------------------------
   # requirements
   # -------------------------------------------------------------------------
@@ -639,6 +678,33 @@ channels:
         - name: requirements
       message:
         $ref: '#/components/messages/RequirementsComment'
+
+  requirements.{id}.comment.{cid}.edit:
+    description: |
+      Edit a requirement's comment. Only the `RequirementActivity`'s author or an `admin` may
+      edit; the entry must be a `comment` (`activity_not_editable` otherwise).
+
+      **REQ-011.** Closes the asymmetry with tasks: today only the task's comment can be edited.
+      `visibilityLevel` is immutable once the comment exists and is rejected with `invalid_fields`
+      if sent. `fileIds` is the COMPLETE set that must end up linked, resolved with
+      `syncFileLinks` — same semantics as `requirements.{id}.edit`. Does not notify (no
+      notification channel exists in the product yet).
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+      cid:
+        description: Comment id (`requirement_activities.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsCommentEdit
+      summary: Edit a comment on a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsCommentEdit'
 
   requirements.{id}.subscriptors.new:
     description: |
@@ -1060,6 +1126,26 @@ components:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error, access_denied]
 
+    # REQ-011 — command 23. Edits return nothing (`commands.md`: "creations return only the id;
+    # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
+    TasksCommentEdit:
+      name: TasksCommentEdit
+      title: tasks.{id}.comment.{cid}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CommentEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - objective_not_found
+        - comment_not_found
+        - activity_not_editable
+        - comment_not_owned
+        - file_not_owned
+        - internal_error
+        - access_denied
+
     RequirementsNew:
       name: RequirementsNew
       title: requirements.new
@@ -1139,6 +1225,26 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error, access_denied]
+
+    # REQ-011 — command 22. Edits return nothing (`commands.md`: "creations return only the id;
+    # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
+    RequirementsCommentEdit:
+      name: RequirementsCommentEdit
+      title: requirements.{id}.comment.{cid}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CommentEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - comment_not_found
+        - activity_not_editable
+        - comment_not_owned
+        - file_not_owned
+        - internal_error
+        - access_denied
 
     RequirementsSubscriptorsNew:
       name: RequirementsSubscriptorsNew
@@ -1495,6 +1601,14 @@ components:
         > cannot see it".** Answering a permission error would confirm to an external user that the
         > resource exists. And **a `list` never returns `*_not_found`**: a filter that matches
         > nothing is `items: []`.
+
+        > **REQ-011 adds two codes**, emitted by `requirements.{id}.comment.{cid}.edit` and
+        > `tasks.{id}.comment.{cid}.edit`, commands 22 and 23. Both MUST be mapped in
+        > `api/lib/utils/bus/protocol.ts` (ADR-002) or they fall through to a generic 500:
+        > `comment_not_owned` → **403** (the actor is not the comment's author and does not have
+        > the `admin` role), `activity_not_editable` → **400** (the activity exists but
+        > `typeOfActivity != 'comment'`). `comment_not_found`, reused here, already has its mapping
+        > from `comments.get` (REQ-006).
       enum:
         - invalid_fields
         - internal_error
@@ -1546,6 +1660,10 @@ components:
         - access_denied
         - worked_time_not_found
         - unworked_time_not_found
+        # REQ-011 — the two comment-editing codes, emitted by `requirements.{id}.comment.{cid}.edit`
+        # and `tasks.{id}.comment.{cid}.edit`.
+        - comment_not_owned    # the actor is not the comment's author and does not have `admin` (403)
+        - activity_not_editable # the activity exists but `typeOfActivity != 'comment'` (400)
 
     # REQ-007 — the identity envelope.
     Actor:
@@ -1998,6 +2116,31 @@ components:
             files already exist on their own and the link is created against the comment once it
             exists (REQ-001, S-003). The web always sends this field, even when the array is
             empty.
+
+    # REQ-011 — commands 22 and 23. ONE payload shared by `requirements.{id}.comment.{cid}.edit`
+    # and `tasks.{id}.comment.{cid}.edit`, the same criterion `EmptyBody` already uses to be
+    # shared across channels. `additionalProperties: false` is what makes `visibilityLevel`
+    # rejected with `invalid_fields` if sent — the comment's visibility is immutable after
+    # creation (RF-8): there is no field to ignore it, there is no field to accept it.
+    CommentEditPayload:
+      type: object
+      required: [comment]
+      additionalProperties: false
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        comment:
+          type: string
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            The **COMPLETE set** that must end up linked to the comment, resolved with
+            `syncFileLinks` — same semantics as `RequirementsEditPayload.fileIds`: the ids not
+            already linked get a new `attachments` row, and the ones no longer present have their
+            **link** deleted. Ownership is validated only over the new ids.
 
     # -----------------------------------------------------------------------
     # requirements

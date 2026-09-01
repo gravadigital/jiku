@@ -49,6 +49,14 @@ Las excepciones 2 y 3 son **deuda**: escriben con las credenciales de solo lectu
 porque el rol de la instalación se lo permite. Son las únicas escrituras de dominio que no pasan
 por core.
 
+> **Excepción cerrada por REQ-011 (2026-09-01): una cuarta, no declarada.**
+> `PATCH /api/objectives/{id}/comment/{cid}` escribía con `ObjectiveActivity.update(...)` directo,
+> sin publicar comando, y la propia `api.yaml` lo documentaba así ("No pasa por el bus") sin que
+> esta sección la enumerara — ni `NFR-S09` (`docs/prd/requirements.md`), que solo contaba dos.
+> REQ-011 migró ese endpoint a publicar `tasks.{id}.comment.{cid}.edit`, cerrando la excepción en
+> vez de duplicarla al agregar la edición de comentarios de requisito. Las excepciones vigentes
+> vuelven a ser las tres de arriba.
+
 ## Implementation Rules
 
 - Toda escritura de dominio nueva **DEBE** implementarse como comando en `core`. **NO SE DEBE**

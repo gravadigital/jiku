@@ -159,6 +159,7 @@ El único flujo genuinamente bidireccional del producto.
 | 2 | — | *(sistema)* | El del cliente **siempre es `public`**; el del equipo permite elegir |
 | 3 | opus-web | cliente | Ve **solo los públicos**, mezclados con los cambios públicos, en orden cronológico ascendente |
 | 4 | web | equipo-interno | Ve **todos** — públicos e internos — con marca de visibilidad |
+| 5 | web | equipo-interno | **Puede editar** un comentario ya escrito: el autor el suyo, un `admin` cualquiera. El texto y los adjuntos cambian **en su lugar**, sin entrada nueva y sin aviso a nadie [REQ-011] |
 
 ### El mecanismo que lo sostiene
 
@@ -189,6 +190,36 @@ nada que después alguien intentara reusar. Desde REQ-005 el conector tiene fila
 propio evento de autenticación— y el cruce se vuelve alcanzable de verdad: **un archivo cuyo autor
 es un servicio, visible en las dos superficies, y que ninguna persona puede reusar.** La regla no
 cambió; lo que cambió es que ahora se puede llegar a ella.
+
+**Y desde [REQ-011] el comentario dejó de ser inmutable, que es un cambio de fondo para este
+flujo** [REQ-011 RF-1..RF-8]. Hasta acá el feed era un registro de cosas dichas: una vez publicado,
+un comentario era el mismo para siempre en las dos superficies. Ahora su autor —o un `admin`— puede
+cambiarle el texto y los adjuntos, sin límite de veces y sin ventana de tiempo. Tres consecuencias
+para el cruce:
+
+| Qué cambia | En `web` | En `opus-web` |
+|---|---|---|
+| El texto de un comentario público editado | Se ve el texto nuevo, con marca `"(editado)"` | Se ve el texto nuevo, **sin ninguna marca** |
+| Quién editó, cuando no fue el autor | `"(editado por X)"` | No se muestra, y **el dato no viaja** |
+| La visibilidad de un comentario | **Inmutable** — no hay control en modo edición | Sin cambios: lo que era público sigue siéndolo |
+
+**La asimetría de la marca es deliberada, no una omisión del portal.** El indicador de edición es
+información interna sobre cómo trabaja el equipo, y el requerimiento es explícito en que no se
+muestra al cliente **sin importar si el comentario es público** (RF-6). Lo que lo sostiene no es un
+condicional de interfaz en `opus-web` sino que **el dato no se envía**: la lectura del portal arma
+su respuesta campo por campo y la fecha de edición no está en ella, así que la omisión no depende de
+que alguien se acuerde de ocultarla [REQ-011 D-3, D-5].
+
+**Y la visibilidad quedó fija por este flujo, no a pesar de él.** La razón de que un comentario no
+pueda cambiar de público a interno después de publicado es exactamente que este cruce existe: el
+cliente ya pudo haberlo leído en el portal, y volverlo interno no lo des-lee. En el otro sentido,
+volver público algo escrito en confianza lo expondría hacia atrás. Es la única decisión del alta que
+la edición **no** puede deshacer (RF-8, CA-8).
+
+**El cliente no puede editar, ni siquiera lo suyo** (RF-7, CA-6). El portal sigue siendo solo alta de
+comentarios: un cliente que se equivocó escribe otro. Es una asimetría real del flujo bidireccional
+—una parte puede corregirse y la otra no— y se aceptó porque la edición nace como capacidad del
+gestor interno, no de la conversación.
 
 **Lo que sí cruza distinto es la autoría.** El mismo feed que las dos superficies leen puede tener
 entradas de un autor que no es una persona, y **las dos lo marcan con la misma palabra**:
@@ -228,6 +259,14 @@ un canal formal debería resolver.
 Además, del lado del cliente el error de suscripción es **la palabra "Error" en un botón**, con el
 motivo en un `title` invisible en touch.
 
+🔴 **Y desde [REQ-011] hay una segunda cosa de la que nadie se entera: que un comentario cambió.**
+El equipo puede editar un comentario público que el cliente ya leyó, y del lado del portal **no hay
+ninguna señal**: ni marca de edición ni aviso. Un cliente que vuelve al requisito lee un texto
+distinto al que leyó ayer sin manera de saber que cambió, ni de saber qué decía antes. Es la misma
+discontinuidad de fondo —el dato cruza, el aviso no— aplicada ahora a un dato **que puede cambiar
+después de haber sido leído**, y por eso es peor que la de un comentario nuevo: un comentario que no
+llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro visible, no.
+
 ### Criterios de éxito
 
 - Un comentario debería **notificar a la otra parte** (FG-2)
@@ -235,6 +274,10 @@ motivo en un `title` invisible en touch.
 - El cliente no debería poder inferir que existe actividad interna — **hoy se cumple**
 - Las dos partes deberían leer **la misma marca** para un autor que no es una persona —
   **se cumple desde REQ-005**: el mismo badge `"Automático"` en las dos superficies
+- El cliente debería poder confiar en que **lo que leyó es lo que sigue diciendo** — **no se cumple
+  desde REQ-011**: un comentario público puede editarse y el portal no lo señala. Que la marca no se
+  muestre es una decisión tomada (RF-6); que no haya **ninguna** forma de enterarse es la
+  consecuencia que queda abierta, y la resuelve el mismo canal que falta para todo lo demás (FG-2)
 
 ---
 

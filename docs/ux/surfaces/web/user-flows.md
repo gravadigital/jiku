@@ -144,13 +144,27 @@ falla, el workflow se avanza igual, porque no es un paso del flujo sino contexto
   vínculo con el comentario se crea al enviarlo: si el envío falla, no queda ni el comentario ni
   el vínculo, pero **el archivo sí queda** y se puede volver a usar (REQ-001 RF-1, RF-7, RF-8).
   Un archivo **solo lo puede adjuntar quien lo subió**, sin excepción por rol (RF-12, RF-13).
+- **Editar un comentario ya publicado** — Camino **nuevo desde REQ-011**, y el primero que escribe
+  sobre una entrada del feed que ya existe. El autor de un comentario —o un `admin`, sobre
+  cualquiera— entra en edición desde la propia entrada, corrige el texto y agrega o quita adjuntos,
+  y guarda. **La visibilidad no se puede cambiar**: quedó fijada al publicarlo, porque el
+  comentario ya pudo haber sido leído por el cliente en el portal (RF-8, CA-8). El feed **no gana
+  una entrada nueva** —el comentario cambia en su lugar— y la edición **no notifica** (RF-10). Lo
+  que queda visible es una marca `"(editado)"` junto a la fecha, que dice `"(editado por X)"`
+  cuando quien editó no fue el autor: sin eso, un texto cambiado por un `admin` quedaría atribuido
+  a quien no lo escribió (RF-4, RF-5, CA-4). **Las entradas de cambio de campo no son editables**:
+  la asimetría es deliberada y es lo que mantiene confiable el registro (RF-12, CA-12). Se puede
+  editar **cuantas veces se quiera y sin ventana de tiempo**; solo se conserva la última edición,
+  no un historial (RF-9, CA-7).
 - **Leer una entrada del feed que no la escribió una persona** — Camino de lectura **nuevo desde
   REQ-005**. Una identidad de servicio —el conector externo— tiene fila en `users` y puede figurar
   como autor de una actividad o como `created_by` del requisito. En el feed y en la fila
   "Creado por" el nombre viene acompañado de un badge **"Automático"**, que es lo único que
   distingue a ese autor de un compañero de equipo. **No hay acción asociada:** el usuario no puede
-  responderle, y el comentario de un servicio no es editable como no lo es ningún comentario ajeno
-  (RF-3, RF-10).
+  responderle, y **desde REQ-011 el comentario de un servicio es editable por un `admin`**, como
+  cualquier comentario ajeno: la excepción por rol no distingue si el autor es una persona o una
+  identidad de servicio. Para un `user` que no lo escribió sigue sin haber acción (REQ-005 RF-3,
+  RF-10; REQ-011 RF-3).
 
 ### Errores y recuperación
 
@@ -167,6 +181,12 @@ falla, el workflow se avanza igual, porque no es un paso del flujo sino contexto
   [`opus-web/screens/tablero-requisitos.md`](../opus-web/screens/tablero-requisitos.md).
 - **Adjunto de otra persona** — Falla con *"No podés adjuntar un archivo que subió otra persona"*
   (REQ-001 RF-12). No hay recuperación posible más que subirlo de nuevo, y es deliberado.
+- **Editar un comentario que ya no se puede editar** — Falla con *"No podés editar un comentario
+  que no es tuyo"* si la autoría cambió de criterio desde que se cargó la pantalla, o con *"El
+  comentario ya no existe"* si fue borrado mientras estaba abierto en edición (REQ-011 CA-10,
+  CA-16). **Ninguno de los dos debería alcanzarse desde esta pantalla** —el botón de editar solo
+  aparece donde la edición está permitida—, así que valen como red de seguridad ante una vista
+  desactualizada, no como flujo previsto. La recuperación es refrescar.
 - **Adjunto cuyo contenido nunca llegó** — Al abrirlo dice *"El archivo no está disponible"*, no un
   error genérico (RF-21, CA-15). El sistema registra el archivo antes de recibir su contenido y no
   verifica que haya llegado, así que este caso es alcanzable si la subida se corta a mitad.

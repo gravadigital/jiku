@@ -100,6 +100,8 @@ return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
 | `already_subscribed` · `subscription_not_found` | Suscripciones |
 | `resolution_required` | Una incidencia sin conclusión |
 | `worked_time_not_found` · `unworked_time_not_found` | El registro a borrar no existe |
+| `comment_not_owned` | REQ-011. Edición de comentario: el actor no es el autor y no tiene rol `admin` |
+| `activity_not_editable` | REQ-011. Edición de comentario: la actividad existe pero `typeOfActivity ≠ 'comment'` |
 
 ### Deuda conocida del catálogo
 

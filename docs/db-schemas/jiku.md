@@ -355,6 +355,8 @@ Historial de una tarea: cambios de campo y comentarios.
 | `visibility_level` | `ENUM` | NOT NULL, default `internal` — `public`, `internal` |
 | `objective_id` | `INTEGER` | NOT NULL → `objectives.id` |
 | `changed_by` | `VARCHAR` | NOT NULL → `users.id` |
+| `edited_at` | `TIMESTAMP` | NULL — REQ-011. Solo se completa en actividades `comment`; `NULL` = nunca editado |
+| `edited_by` | `VARCHAR(100)` | NULL → `users.id` — REQ-011. Quien hizo la última edición (autor o `admin`) |
 
 > Los valores del enum son **camelCase** (`estimatedFinishDate`, `stageId`), a diferencia del
 > resto de los enums del esquema. `stageId` quedó del concepto de etapa eliminado.
@@ -370,10 +372,22 @@ Historial de una tarea: cambios de campo y comentarios.
 | `visibility_level` | `ENUM` | NOT NULL, default `internal` |
 | `requirement_id` | `INTEGER` | NOT NULL → `requirements.id` |
 | `changed_by` | `VARCHAR(100)` | NOT NULL → `users.id` |
+| `edited_at` | `TIMESTAMP` | NULL — REQ-011. Solo se completa en actividades `comment`; `NULL` = nunca editado |
+| `edited_by` | `VARCHAR(100)` | NULL → `users.id` — REQ-011. Quien hizo la última edición (autor o `admin`) |
 
 **Regla de visibilidad automática** (`api/lib/utils/visibility-helper.ts`): los cambios de
 `state`, `title` y `description` son `public`; el resto `internal`. Solo los comentarios permiten
-que el usuario elija.
+que el usuario elija — y desde REQ-011 esa elección es **inmutable después de creado**: el
+comando de edición rechaza el campo si viene.
+
+> **REQ-011 — edición de comentarios.** El texto y los adjuntos de un comentario (`type_of_
+> activity = comment`) son mutables por su autor y por un `admin`, vía los comandos
+> `requirements.{id}.comment.{cid}.edit` / `tasks.{id}.comment.{cid}.edit` de `core`. Las
+> actividades de cambio de campo siguen siendo inmutables por completo. El comando de edición NO
+> pisa `previous_value` (deja de usarse como marcador de edición): solo escribe `new_value`,
+> `edited_at` y `edited_by`. Migración: `20260901_01_activity_edited_at_edited_by.js`, un
+> `ALTER TABLE` por tabla con los dos `ADD COLUMN`, columnas nullable sin default — sin downtime
+> y sin backfill.
 
 #### `objectives_subscriptors` y `requirement_subscriptors`
 Misma forma: `id`, `objective_id`/`requirement_id` (NOT NULL) y `user_id` `VARCHAR(100)` (NOT
@@ -774,6 +788,8 @@ Table objective_activity {
   visibility_level visibility_level [not null, default: 'internal']
   objective_id integer [not null, ref: > objectives.id]
   changed_by varchar [not null, ref: > users.id]
+  edited_at timestamp [note: 'REQ-011: NULL = nunca editado. Solo en actividades comment']
+  edited_by varchar(100) [ref: > users.id, note: 'REQ-011: quien hizo la ultima edicion']
   created_at timestamp
   updated_at timestamp
   indexes {
@@ -789,6 +805,8 @@ Table requirement_activity {
   visibility_level visibility_level [not null, default: 'internal']
   requirement_id integer [not null, ref: > requirements.id]
   changed_by varchar(100) [not null, ref: > users.id]
+  edited_at timestamp [note: 'REQ-011: NULL = nunca editado. Solo en actividades comment']
+  edited_by varchar(100) [ref: > users.id, note: 'REQ-011: quien hizo la ultima edicion']
   created_at timestamp
   updated_at timestamp
   indexes {
@@ -992,7 +1010,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **104** |
+| Cantidad | **105** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`
@@ -1018,6 +1036,7 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
+| `20260901_01_activity_edited_at_edited_by` | REQ-011. Agrega `edited_at TIMESTAMP NULL` y `edited_by VARCHAR(100) NULL REFERENCES users(id)` a `requirement_activity` y `objective_activity`, un solo `ALTER TABLE` por tabla con los dos `ADD COLUMN`, en SQL crudo dentro de una transacción. Columnas nullable sin default: sin downtime y sin backfill. `NULL` significa "nunca editado" |
 | `20260825_01_users_email_nullable` | `users.email` deja de ser `NOT NULL`, para que una **identidad de servicio** pueda espejarse: un machine user de Zitadel no tiene dirección de correo y su evento se descartaba con `"email" is required`, dejándolo sin fila y por lo tanto rechazado por las dos compuertas del bus. Cambio de **catálogo**, sin reescritura de tabla y sin backfill. **El `down` no es incondicional**: restaurar el `NOT NULL` falla si ya existe alguna fila de servicio, y se deja fallar a propósito |
 | `20260824_02_query_indexes` | Creó los 18 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. El de `user_project_permissions(user_id)` es condicional por catálogo y **contra una base migrada no se crea**, porque `uk_user_project_permissions` ya lo cubre. **No borra** `idx_projects_client_id` ni `idx_worked_times_requirement_id`. Ver "Los índices del keyset" abajo |
 | `20260824_01_users_roles_identity_type` | Agrega `users.roles` (`JSONB`) e `users.identity_type`: el espejo de identidad de REQ-005 y, desde REQ-006, **el control de acceso efectivo de toda la lectura por el bus** |

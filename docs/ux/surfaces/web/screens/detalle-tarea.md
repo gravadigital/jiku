@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-01
 ---
 
 # Pantalla: Detalle de tarea
@@ -63,7 +63,7 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 15 | lista-comentarios | list | — | content | desktop | hidden_in_states: empty de comentarios | Comentarios de la tarea |
 | 16 | comentario | card | lectura / edición | content | desktop | — | Un comentario, editable in-place |
 | 17 | badge-visibilidad-comentario | badge | public / internal | content | desktop | — | Marca si el comentario es visible para externos |
-| 18 | boton-editar-comentario | button | — | input | desktop | — | Entra en modo edición del comentario |
+| 18 | boton-editar-comentario | button | — | input | desktop | **solo si el usuario es autor del comentario o tiene rol `admin`** | Entra en modo edición del comentario |
 | 19 | editor-comentario-nuevo | text-input | default · disabled | input | desktop | state_overrides: loading→disabled | Redacción del comentario nuevo |
 | 20 | lista-adjuntos-pendientes | list | — | content | desktop | visible_only_in_states: default (con archivos ya subidos) | Archivos subidos, todavía sin vincular al comentario |
 | 21 | boton-quitar-adjunto | button | — | input | desktop | — | Saca un archivo del comentario en curso |
@@ -74,6 +74,8 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 26 | vacio-comentarios | empty-state | — | feedback | desktop | visible_only_in_states: empty de comentarios | Mensaje de comentarios vacíos |
 | 27 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 28 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: empty del historial, empty de comentarios | Marca que el autor mostrado es una identidad de servicio y no una persona |
+| 29 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | **solo en comentarios con fecha de edición** | Indica que el comentario fue editado, y por quién si no fue su autor |
+| 30 | lista-adjuntos-comentario | list | — | content | desktop | visible_only_in_states: comentario en edición (con adjuntos) | Adjuntos del comentario que se está editando, con la opción de quitarlos |
 
 **Origen:** `src/app/(loggedin)/objectives/[id]/page.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.module.scss`, `src/features/objectives/components/ObjectiveHistoryList/ObjectiveHistoryList.tsx`, `src/features/objectives/components/ObjectiveComment/ObjectiveComment.tsx`, `src/shared/components/ui/CommentEditor/CommentEditor.tsx`.
 
@@ -96,7 +98,7 @@ Notas de transcripción [fuente: código-existente]:
 - lista-historial *(con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - titulo-comentarios
 - lista-comentarios
-  - comentario × N (con badge-visibilidad-comentario, marca-identidad-automatica *(solo si el autor es una identidad de servicio)* y boton-editar-comentario)
+  - comentario × N (con badge-visibilidad-comentario, marca-identidad-automatica *(solo si el autor es una identidad de servicio)*, marca-comentario-editado *(solo si fue editado)* y boton-editar-comentario *(solo para su autor o para un `admin`)*; en edición, el markdown se reemplaza por el editor con lista-adjuntos-comentario, boton-adjuntar-comentario y los botones `"Cancelar"` / `"Guardar"`)
 - editor-comentario-nuevo
 - lista-adjuntos-pendientes
   - boton-quitar-adjunto por archivo
@@ -208,7 +210,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Annotation: `<ul className={styles.connectedComments}>` (`ObjectiveHistoryList.tsx:75`)
 
 ### comentario
-- Texto/label: autor: el nombre del usuario de Jiku que escribió el comentario (`ObjectiveComment.tsx:79`, alimentado por `ObjectiveHistoryList.tsx:80`); marca `"(editado)"` con `Tooltip` en los modificados (`:94`); fecha en un `Tooltip` con `` `Creación: ${fecha}` `` (`:98`); contenido en markdown vía `<MarkdownViewer>` (`:116`). En edición, botones `"Cancelar"` y `"Guardar"` (`:124`, `:130`)
+- Texto/label: autor: el nombre del usuario de Jiku que escribió el comentario (`ObjectiveComment.tsx:79`, alimentado por `ObjectiveHistoryList.tsx:80`); la marca de editado pasa a ser marca-comentario-editado (ver abajo); fecha en un `Tooltip` con `` `Creación: ${fecha}` `` (`:98`); contenido en markdown vía `<MarkdownViewer>` (`:116`). En edición, botones `"Cancelar"` y `"Guardar"` (`:124`, `:130`)
 - Icono: nada
 - Asset: nada
 - Annotation: toast de éxito `"Comentario editado exitosamente"` (`:60`); toasts de error `"El comentario no puede estar vacío"` (`:51`) y `"Hubo un error al editar el comentario"` (`:66`). **El autor no tiene variantes**: con REQ-003 desaparece la rama que sufijaba `"(En sistema externo)"` al nombre cuando la actividad venía de un sistema externo — nunca se renderizó, porque nada escribía esos campos
@@ -222,6 +224,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 ### boton-editar-comentario
 - Texto/label: sin texto; `aria-label="Editar comentario"` (`ObjectiveComment.tsx:136-143`, `:140`)
 - Icono: icono de edición, `<Image>` con `alt="Editar"` (`:142`)
+- Annotation: **cambia con REQ-011.** Hasta acá aparecía solo para el autor del comentario; ahora también para un `admin`, que puede editar comentarios ajenos con las mismas capacidades (RF-3, CA-4). El resto no cambia: para quien no puede editar, el botón sigue sin estar —no deshabilitado, ausente— y las entradas del historial de cambios nunca lo tuvieron ni lo tendrán, porque un cambio de campo no es editable (RF-12, CA-12)
 - Asset: nada
 - Annotation: el `alt` de la imagen es redundante con el `aria-label` del botón
 
@@ -285,13 +288,26 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Asset: nada
 - Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en los tres lugares donde esta pantalla expone un usuario: la fila `"Creado por"` de la grilla de metadatos, el autor de cada entrada de `lista-historial` y el autor de cada `comentario`. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. **Es la variante de autoría que REQ-003 dejó explícitamente sin diseñar** al eliminar el sufijo `"(En sistema externo)"`, y no es la misma: aquella marcaba a una persona que había escrito en otro sistema; esta marca a una identidad del propio producto que no es una persona
 
+### marca-comentario-editado
+- Texto/label: `"(editado)"` cuando el editor fue el propio autor · `"(editado por {nombre})"` cuando no lo fue
+- Icono: nada
+- Asset: nada
+- Annotation: **cambia con REQ-011.** La marca ya existía, pero se derivaba de un campo prestado que solo decía que algo había cambiado alguna vez; ahora se apoya en una fecha de edición real, y el `Tooltip` de la fecha puede mostrar cuándo fue la última edición junto a la de creación. La variante `editado-por-otro` es nueva y existe porque un `admin` puede editar comentarios ajenos: sin decir quién editó, el texto cambiado quedaría atribuido al autor original (RF-4, RF-5, CA-4). **Nunca se muestra más de una edición**: se guarda la última, no un historial (CA-7)
+
+### lista-adjuntos-comentario
+- Texto/label: un ítem por adjunto ya vinculado al comentario, con su nombre de archivo y un control para quitarlo
+- Icono: cruz por ítem, con `aria-label` que nombra el archivo
+- Asset: nada
+- Annotation: **nueva con REQ-011.** Hasta acá los adjuntos de un comentario se elegían solo al escribirlo y después quedaban fijos: `lista-adjuntos-pendientes` cubre el alta y desaparece al guardar. En edición se muestran los adjuntos que el comentario ya tiene, se pueden quitar y se pueden sumar archivos propios con `boton-adjuntar-comentario` (RF-2, CA-3). Lo que se guarda es **el conjunto completo que debe quedar**, no un delta: si la escritura falla no se aplica ningún cambio, ni de texto ni de vínculos (CA-14). Quitar un adjunto **no borra el archivo** —queda subido y se puede volver a usar—, igual que en el alta (REQ-001 RF-8)
+
 ## Estados
 
 ### default
 - Aplica: Sí
 - Mensaje: —
 - Cambios: ninguno (estado base). `getObjectiveById` resuelve (`objectives/[id]/page.tsx:12-33`)
-- Sub-estado `comentario en edición`: click en boton-editar-comentario reemplaza el markdown por el editor, con `"Cancelar"` y `"Guardar"` (`ObjectiveComment.tsx:120-134`)
+- Sub-estado `comentario en edición`: click en boton-editar-comentario reemplaza el markdown por el editor, con `"Cancelar"` y `"Guardar"` (`ObjectiveComment.tsx:120-134`). **Con REQ-011** el modo edición suma lista-adjuntos-comentario y boton-adjuntar-comentario —el texto y los adjuntos se editan juntos, en la misma escritura (RF-2, CA-3)— y **no ofrece checkbox-comentario-publico**: la visibilidad quedó fijada en el alta y es inmutable (RF-8, CA-8)
+- marca-comentario-editado: presente o ausente **según el dato, no según el estado** — aparece en cada comentario que tenga fecha de edición, y con la variante `editado-por-otro` cuando quien editó no es el autor (REQ-011 RF-5)
 - marca-identidad-automatica: presente o ausente **según el dato, no según el estado** — aparece junto a cada autor cuyo `identityType` es `service` (REQ-005 RF-3). En `comentario` es compatible con el sub-estado de edición: la marca es del autor, no del modo de la tarjeta
 
 ### empty
@@ -327,7 +343,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 
 ### error de sistema / sin conexión
 - Aplica: Sí (parcialmente)
-- Mensaje: `"Requisito no disponible"` en la fila del requisito (`ObjectiveDetails.tsx:116`); toast `"Hubo un error al editar el comentario"` (`ObjectiveComment.tsx:66`) o `"Hubo un error al agregar el comentario"` (`CommentEditor.tsx:110`); **con REQ-001** toast `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10)
+- Mensaje: `"Requisito no disponible"` en la fila del requisito (`ObjectiveDetails.tsx:116`); toast `"Hubo un error al editar el comentario"` (`ObjectiveComment.tsx:66`) o `"Hubo un error al agregar el comentario"` (`CommentEditor.tsx:110`); **con REQ-001** toast `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10); **con REQ-011** toast `"No podés editar un comentario que no es tuyo"` cuando la edición se rechaza por autoría (CA-10) y `"El comentario ya no existe"` cuando fue borrado mientras estaba abierto en edición (CA-16) — los dos son red de seguridad ante una pantalla desactualizada, no flujo previsto, porque el botón de editar solo aparece donde la edición está permitida
 - Cambios:
   - link-requisito: content=`"Requisito no disponible"` cuando `hasRequirementError` de `useRequirement` (state_override, `ObjectiveDetails.tsx:19-23`)
   - El resto: solo toasts
@@ -351,8 +367,9 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - boton-editar · click → navega a `/objectives/edit/{id}` (`objectives/[id]/page.tsx:23`)
 - link-proyecto · click → `handleClick` navega al proyecto (`ObjectiveDetails.tsx:79`)
 - link-requisito · click → navega al requisito (`ObjectiveDetails.tsx:118`)
-- boton-editar-comentario · click → entra en modo edición (`ObjectiveComment.tsx:138`)
-- `"Guardar"` del comentario en edición · click → valida no vacío y muta (`ObjectiveComment.tsx:49-67`)
+- boton-editar-comentario · click → entra en modo edición (`ObjectiveComment.tsx:138`); **con REQ-011** carga también los adjuntos actuales del comentario en lista-adjuntos-comentario
+- `"Guardar"` del comentario en edición · click → valida no vacío y muta (`ObjectiveComment.tsx:49-67`); **con REQ-011** manda el texto y el conjunto completo de adjuntos que debe quedar, y **la escritura pasa por el bus** en vez de escribirse directo desde la api — para quien usa la pantalla no cambia nada salvo que ahora los errores del bus también aplican acá [REQ-011 Escenario B]
+- quitar un adjunto de lista-adjuntos-comentario · click → lo saca del conjunto que se va a guardar; **el cambio recién se aplica al guardar**, y `"Cancelar"` lo revierte [REQ-011]
 - `"Cancelar"` del comentario en edición · click → `handleCancel` descarta lo editado sin aviso (`ObjectiveComment.tsx:124`)
 - boton-guardar-comentario · click → guarda el comentario nuevo y navega a la ruta actual (`CommentEditor.tsx:107`)
 
@@ -363,7 +380,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 **Feedback:**
 - Toasts para el alta y la edición de comentario
 - `Tooltip` con la fecha completa en el historial y en cada comentario
-- Marca `"(editado)"` en los comentarios modificados
+- Marca `"(editado)"` en los comentarios modificados, **derivada de la fecha de edición desde REQ-011**, con `"(editado por X)"` cuando quien editó no es el autor
 
 **Acciones ausentes** [fuente: código-existente]: no se puede borrar un comentario (solo editarlo, `ObjectiveComment.tsx:120-145`), ni borrar la tarea desde esta pantalla — existe un `<DeleteObjectiveButton>` con label `"Eliminar"` (`DeleteObjectiveButton.tsx:15`) que no se monta acá ni en ningún otro lado.
 
@@ -372,7 +389,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Orden de foco:** boton-editar → boton-volver (el `row-reverse` de `PageLayout` invierte el orden visual pero no el del DOM, `PageLayout.module.scss:33`) → link-requisito → boton-editar-comentario de cada comentario → editor-comentario-nuevo → boton-quitar-adjunto de cada adjunto → checkbox-comentario-publico → boton-adjuntar-comentario → boton-guardar-comentario. **`link-proyecto` no está en el orden de foco:** es un `<a onClick>` sin `href`, así que no es enfocable por teclado ni se anuncia como enlace (`ObjectiveDetails.tsx:79`) [fuente: código-existente].
 - **Landmarks y jerarquía:** los landmarks son los del shell. Un solo `<h1>`, el del `PageLayout` (el título de la tarea, `objectives/[id]/page.tsx:16`), y dos `<h2>`: `"Historial de cambios"` y `"Comentarios"` (`ObjectiveHistoryList.tsx:101`, `:104`). Correcto. **La estructura de metadatos no es semántica:** `<p><span>Etiqueta</span> valor</p>` en vez de `<dl>`/`<dt>`/`<dd>`, así que la relación etiqueta-valor no se anuncia (`ObjectiveDetails.tsx:68-166`).
 - **Foco y teclado:** la pantalla no abre modales ni dropdowns propios, así que no introduce focus traps. Los `Tooltip` del historial y de los comentarios son de `:hover` puro. No hay atajos de teclado propios.
-- **Propio de esta composición:** **HTML inválido en las dos listas de actividad:** el empty de historial y el de comentarios devuelven un `<div>` que se renderiza dentro de un `<ul>` (`<ul>{renderActivityContent(...)}</ul>`, `ObjectiveHistoryList.tsx:33`, `:102`). **La visibilidad de cada comentario se comunica solo por emoji** (`👁` / `🔒`), con el significado en un `Tooltip` de `:hover`: los emoji los leen los lectores de pantalla, pero como `"ojo"` / `"candado"`, no como `"público"` / `"interno"` (`ObjectiveComment.tsx:84`). **Las fechas completas viven solo en tooltips de `:hover`** y son inalcanzables por teclado (`ObjectiveHistoryList.tsx:56`, `ObjectiveComment.tsx:98`). `boton-guardar-comentario` está `disabled` sin `aria-describedby` que explique por qué (`CommentEditor.tsx:158`), y `boton-quitar-adjunto` no identifica cuál adjunto quita (`CommentEditor.tsx:134`). El tag de prioridad muestra el número crudo sin leyenda de la escala (`ObjectiveDetails.tsx:63`) [fuente: código-existente]. **La marca de identidad automática se resuelve como texto visible y no como emoji ni `Tooltip`**, a propósito y contra los dos patrones que esta misma pantalla ya tiene registrados como defectos: la visibilidad de un comentario se comunica con `👁`/`🔒` que un lector lee como `"ojo"`/`"candado"`, y las fechas completas viven en tooltips de `:hover` inalcanzables por teclado. Repetir cualquiera de los dos para una marca nueva sería sumar un defecto conocido (REQ-005).
+- **Propio de esta composición:** **HTML inválido en las dos listas de actividad:** el empty de historial y el de comentarios devuelven un `<div>` que se renderiza dentro de un `<ul>` (`<ul>{renderActivityContent(...)}</ul>`, `ObjectiveHistoryList.tsx:33`, `:102`). **La visibilidad de cada comentario se comunica solo por emoji** (`👁` / `🔒`), con el significado en un `Tooltip` de `:hover`: los emoji los leen los lectores de pantalla, pero como `"ojo"` / `"candado"`, no como `"público"` / `"interno"` (`ObjectiveComment.tsx:84`). **Las fechas completas viven solo en tooltips de `:hover`** y son inalcanzables por teclado (`ObjectiveHistoryList.tsx:56`, `ObjectiveComment.tsx:98`). `boton-guardar-comentario` está `disabled` sin `aria-describedby` que explique por qué (`CommentEditor.tsx:158`), y `boton-quitar-adjunto` no identifica cuál adjunto quita (`CommentEditor.tsx:134`) — **con REQ-011 el problema se repite en lista-adjuntos-comentario**, donde quitar un adjunto de un comentario en edición necesita nombrar el archivo en el `aria-label`, y **la fecha de edición no puede vivir solo en el tooltip de `:hover`** por la misma razón que ya está anotada para la fecha de creación. El tag de prioridad muestra el número crudo sin leyenda de la escala (`ObjectiveDetails.tsx:63`) [fuente: código-existente]. **La marca de identidad automática se resuelve como texto visible y no como emoji ni `Tooltip`**, a propósito y contra los dos patrones que esta misma pantalla ya tiene registrados como defectos: la visibilidad de un comentario se comunica con `👁`/`🔒` que un lector lee como `"ojo"`/`"candado"`, y las fechas completas viven en tooltips de `:hover` inalcanzables por teclado. Repetir cualquiera de los dos para una marca nueva sería sumar un defecto conocido (REQ-005).
 
 ## Decisiones y descartes
 
@@ -400,3 +417,12 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Tres lugares, un solo bloque.** `"Creado por"`, el historial y los comentarios muestran el mismo dato con la misma consecuencia para el lector. Se descartó tratar el historial distinto (por ejemplo, con la marca en la propia frase *"{Autor} cambió {Campo}"*): dejaría al lector aprendiendo dos convenciones en una pantalla que ya mezcla dos listas de actividad.
 - **La marca no cambia nada de lo que el usuario puede hacer.** Un comentario de una identidad de servicio se lee igual y **no se puede editar** —`boton-editar-comentario` ya está acotado a los comentarios propios—, así que no hace falta ningún estado nuevo ni ninguna advertencia.
 - **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0, pero es un tipo que esta pantalla ya usa tres veces (`tag-prioridad`, `badge-estado`, `badge-visibilidad-comentario`): el gap es previo al delta. Anotado en la `## Revisión UX` de REQ-005.
+
+### REQ-011 — Edición de comentarios (2026-09-01)
+
+- **La pantalla que ya tenía edición es la que menos cambia, y el cambio es de fondo igual.** Editar un comentario existía acá desde siempre, pero escribía **por fuera del camino que todo el resto del producto usa**: la api tocaba la base directamente en vez de pasar por el bus. Para quien usa la pantalla el gesto es el mismo; lo que cambia es que ahora la edición falla, se rechaza y se audita como cualquier otra escritura, y los errores del bus —el servicio caído, la operación que tardó demasiado— pasan a aplicar también acá [REQ-011 Escenario B].
+- **La marca `"(editado)"` deja de ser una inferencia.** Se derivaba de un campo que guardaba el valor anterior de un cambio de campo y que en un comentario solo servía para saber que algo había pasado alguna vez: no decía cuándo ni quién, y era un uso prestado que además ensuciaba la lectura del historial. Con una fecha de edición propia la marca es verificable y el tooltip puede decir cuándo fue. **Descartado un historial de versiones** por lo mismo que en el detalle de requisito: nadie pidió leer lo que decía antes, y guardarlo obligaría a decidir quién puede ver versiones previas de un comentario que pudo haber sido público (CA-7).
+- **El `admin` entra a la excepción, y por eso la marca tiene que nombrar al editor.** Ampliar quién puede editar sin decir quién editó dejaría el feed atribuyendo a una persona un texto que escribió otra. Es el mismo problema que REQ-005 resolvió con el badge "Automático" —un autor que no es quien parece— y se resuelve igual: **marcando, no ocultando** (RF-3, RF-5, CA-4).
+- **Los adjuntos se editan junto con el texto, en una sola escritura.** Se descartó tratarlos como dos operaciones —guardar el texto y administrar los adjuntos aparte—: dejaría estados intermedios visibles donde el comentario ya cambió pero sus archivos no, y obligaría a explicar por qué una parte se guardó y la otra no. Como es una sola escritura, si algo falla no se aplica nada (CA-14).
+- **En edición no hay checkbox de visibilidad.** Es la misma decisión que en el detalle de requisito y por el mismo motivo: el comentario pudo haber sido leído ya por el cliente en el portal, y volverlo interno no lo des-lee (RF-8, CA-8). Acá el descarte es más visible porque el checkbox **está a la vista en el formulario de alta**, justo debajo: se aceptó esa asimetría antes que ofrecer un control que no puede cumplir lo que promete.
+- **[Auto] Design System — sin componentes nuevos.** Los dos bloques nuevos usan tipos que la pantalla ya tiene: `badge`, que ya usa cuatro veces (`tag-prioridad`, `badge-estado`, `badge-visibilidad-comentario`, `marca-identidad-automatica`), y `list`, que ya usa tres (`lista-equipo`, `lista-historial`, `lista-comentarios`, `lista-adjuntos-pendientes`). Ninguno tiene spec en el catálogo de `web` v0.1.0 (Button, Loader, InputSelect), pero es la misma carencia preexistente que REQ-001, REQ-005 y REQ-010 ya dejaron anotada, no un gap que este requerimiento abra. Reponer el catálogo corresponde a `/product-design-system-update`.

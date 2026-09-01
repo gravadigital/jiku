@@ -43,9 +43,10 @@ stories: [S-003, S-004, S-014, S-027, S-029, S-030, S-034]
 El **plano del vínculo**: qué pasa cuando un archivo ya subido se ata a un requisito, una tarea o un
 comentario. Se dispara al guardar o editar cualquiera de esas entidades con `fileIds`.
 
-Es **transversal a los seis comandos de dominio** que reciben archivos, y es el flujo donde vive la
-regla de titularidad de RF-12: **solo el actor que subió el archivo puede vincularlo**, sin
-excepción por rol.
+Es **transversal a los ocho comandos de dominio** que reciben archivos (eran seis hasta REQ-011,
+que sumó los dos comandos de edición de comentario), y es el flujo donde vive la regla de
+titularidad de RF-12: **solo el actor que subió el archivo puede vincularlo**, sin excepción por
+rol — ni siquiera para un `admin` que edita un comentario ajeno.
 
 Cubre también la **desvinculación** (`attachments.{id}.delete`), que cierra el ciclo de vida del
 vínculo: borrar el vínculo **no borra el archivo ni el objeto del bucket** (D-04, CA-9).
@@ -64,16 +65,25 @@ Es el plano 3 de [`subida-de-archivos`](subida-de-archivos.md), y junto con
 | `core` | Resuelve el actor, valida titularidad, marca el byte y escribe entidad + vínculos en **una** transacción | Procesador |
 | PostgreSQL `jiku` | Persiste la entidad, `attachments` y el `UPDATE` de `files` | Almacenamiento |
 
-## Los seis comandos alcanzados
+## Los ocho comandos alcanzados
+
+> **Eran seis; REQ-011 suma dos.** Los comandos de edición de comentario
+> (`requirements.{id}.comment.{cid}.edit` y `tasks.{id}.comment.{cid}.edit`) reciben `fileIds`
+> con la misma semántica de **conjunto completo** que `requirements.{id}.edit`: se resuelve con
+> `syncFileLinks`, que vincula los nuevos y **borra los que no vienen**, validando titularidad
+> solo sobre los ids nuevos. No es lógica nueva de adjuntos, es el mismo mecanismo aplicado a un
+> comando más.
 
 | Comando | Campo | Cambio |
 |---|---|---|
 | `requirements.new` | `attachmentIds` → **`fileIds`** | `attachmentScope` **ELIMINADO** |
 | `requirements.{id}.edit` | `attachmentIds` → **`fileIds`** | Sigue siendo el **conjunto completo**, pero opera sobre `attachments` (crear/borrar el vínculo), no sobre drafts |
 | `requirements.{id}.comment` | `attachmentIds` → **`fileIds`** | La mención a los draft desaparece |
+| `requirements.{id}.comment.{cid}.edit` | **`fileIds` NUEVO** | REQ-011. Conjunto completo vía `syncFileLinks`; titularidad validada solo sobre los ids nuevos |
 | `tasks.new` | **`fileIds` NUEVO** | No declaraba `attachmentIds` (RF-9) |
 | `tasks.{id}.edit` | **`fileIds` NUEVO** | Idem |
 | `tasks.{id}.comment` | `attachmentIds` → **`fileIds`** | — |
+| `tasks.{id}.comment.{cid}.edit` | **`fileIds` NUEVO** | REQ-011. Idem a su par de requisitos |
 
 **Esquema `FileIds`** (reemplaza a `AttachmentIds`):
 

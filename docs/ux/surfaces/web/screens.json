@@ -3839,7 +3839,7 @@
           "type": "card",
           "category": "content",
           "content": "Actividad",
-          "annotation": "RequirementDetail.tsx:290"
+          "annotation": "RequirementDetail.tsx:290 · con REQ-011 deja de ser una card de solo lectura: es la primera vez que el feed del requisito acepta una escritura sobre una entrada ya publicada [REQ-011 RF-1, RF-2]"
         },
         {
           "name": "feed-actividad",
@@ -3852,7 +3852,7 @@
               "subtitle": "Público · 18/08/2026 14:32"
             },
             {
-              "title": "M. Pérez agregó un comentario",
+              "title": "M. Pérez agregó un comentario · (editado)",
               "subtitle": "Interno · 17/08/2026 09:15"
             },
             {
@@ -3864,7 +3864,7 @@
               "subtitle": "Público · 12/08/2026 09:02"
             }
           ],
-          "annotation": "etiquetas de visibilidad \"Interno\" / \"Público\" (RequirementActivityFeed.tsx:118, :177)",
+          "annotation": "etiquetas de visibilidad \"Interno\" / \"Público\" (RequirementActivityFeed.tsx:118, :177) · con REQ-011 cada entrada de tipo comentario lleva marca-comentario-editado junto a la fecha cuando fue editada, y boton-editar-comentario al final de la fila cuando quien mira es su autor o un admin; la entrada en edición reemplaza su texto por editor-comentario-edicion",
           "state_overrides": {
             "empty": {
               "type": "empty-state",
@@ -3885,11 +3885,11 @@
           "state_overrides": {
             "success": {
               "content": "Comentario agregado",
-              "annotation": "toast de éxito; el feed de actividad se refresca (RequirementActivityForm.tsx:45)"
+              "annotation": "toast de éxito; el feed de actividad se refresca (RequirementActivityForm.tsx:45) · con REQ-011 se suma el toast \"Comentario editado\" al guardar una edición: la entrada vuelve a lectura con el texto nuevo, sus adjuntos actualizados y marca-comentario-editado presente, y el feed NO gana una entrada nueva — editar un comentario no es actividad, es el mismo comentario cambiado"
             },
             "error de sistema": {
               "content": "Error al agregar el comentario",
-              "annotation": "toast con error.message o el mensaje por defecto; aparece en el contenedor del shell, la pantalla no cambia (RequirementActivityForm.tsx:50)"
+              "annotation": "toast con error.message o el mensaje por defecto; aparece en el contenedor del shell, la pantalla no cambia (RequirementActivityForm.tsx:50) · con REQ-011 se suman \"No podés editar un comentario que no es tuyo\" (rechazo por autoría, CA-10), \"Esta entrada no es un comentario y no se puede editar\" (CA-12) y \"El comentario ya no existe\" (borrado mientras estaba abierto en edición, CA-16). Los tres son red de seguridad ante una pantalla desactualizada, no flujo previsto: el botón de editar solo aparece donde la edición está permitida · la edición pasa por el bus, así que el 503 \"El servicio no está disponible en este momento\" y el 504 \"La operación tardó demasiado\" de REQ-004 aplican también acá"
             }
           }
         },
@@ -3908,7 +3908,7 @@
           "variant": "tertiary",
           "content": "",
           "icon": "link",
-          "annotation": "sin texto visible · aria-label \"Adjuntar archivo\", SVG de clip con aria-hidden · con REQ-001 el tipo y el tamaño los valida el servidor y son configurables en caliente (RF-6, RF-15), así que el rechazo llega después de intentar subir: \"El archivo supera el tamaño máximo permitido\" o \"Ese tipo de archivo no está permitido\" (role=alert) · de a un archivo por vez (RF-7): queda disabled mientras hay una subida en curso (RequirementActivityForm.tsx:82-103)",
+          "annotation": "sin texto visible · aria-label \"Adjuntar archivo\", SVG de clip con aria-hidden · con REQ-001 el tipo y el tamaño los valida el servidor y son configurables en caliente (RF-6, RF-15), así que el rechazo llega después de intentar subir: \"El archivo supera el tamaño máximo permitido\" o \"Ese tipo de archivo no está permitido\" (role=alert) · de a un archivo por vez (RF-7): queda disabled mientras hay una subida en curso (RequirementActivityForm.tsx:82-103) · con REQ-011 el mismo botón sirve al modo edición: en una entrada en edición suma archivos propios al comentario, junto a la lista de adjuntos que ya tiene (RF-2, CA-3)",
           "state_overrides": {
             "error de sistema": {
               "annotation": "\"No podés adjuntar un archivo que subió otra persona\" cuando el vínculo se rechaza por titularidad (RF-12, CA-10) · el error de subida lleva role=alert (RequirementActivityForm.tsx:76)"
@@ -3930,6 +3930,63 @@
           "content": "",
           "icon": "arrow-right",
           "annotation": "sin texto visible · aria-label \"Enviar comentario\", SVG de avión con aria-hidden · disabled mientras el editor está vacío tras trim(), sin aria-describedby que lo explique; pasa a primary en cuanto hay texto · también queda disabled mientras un adjunto sube: enviar antes vincularía un archivo incompleto y el sistema no verifica que haya llegado (D-13) (RequirementActivityForm.tsx:128-148)"
+        },
+        {
+          "name": "boton-editar-comentario",
+          "type": "button",
+          "category": "input",
+          "variant": "tertiary",
+          "content": "",
+          "icon": "edit",
+          "visible_only_in_states": [
+            "default",
+            "success"
+          ],
+          "annotation": "nuevo con REQ-011 · sin texto visible, aria-label \"Editar comentario\", lápiz con aria-hidden · es la primera acción de escritura que el feed del requisito ofrece sobre una entrada ya publicada: hasta acá el feed era estrictamente de solo lectura y lo único editable de la pantalla vivía arriba, en la clasificación y en los campos del paso · aparece solo en las entradas de tipo comentario —un cambio de campo no es editable (RF-12, CA-12)— y solo si quien mira es el autor del comentario o tiene rol admin (RF-1, RF-3). Para el resto de las entradas y del resto de la gente no hay botón: no está deshabilitado, no está · mismo criterio que ya usa detalle-tarea, ampliado con la excepción del admin · click → la entrada pasa a modo edición con el texto y los adjuntos actuales cargados, y el botón desaparece de esa entrada mientras dura la edición [REQ-011 Escenario A]"
+        },
+        {
+          "name": "editor-comentario-edicion",
+          "type": "text-input",
+          "category": "input",
+          "state": "default",
+          "content": "Confirmado con el cliente: la exportación va en XLSX, no en CSV.",
+          "visible_only_in_states": [
+            "default"
+          ],
+          "annotation": "sub-estado \"comentario en edición\" (parent_state: default) · nuevo con REQ-011 · es el mismo editor que editor-comentario usa para el alta, reutilizado in-place: la entrada del feed reemplaza su texto renderizado por el editor y conserva alrededor el autor, la fecha, la etiqueta de visibilidad y marca-comentario-editado · se abre con el texto actual del comentario, ariaLabel \"Editar comentario\" · junto al editor se ofrecen boton-adjuntar y la lista de adjuntos del comentario, donde se pueden quitar los existentes y sumar archivos propios (RF-2, CA-3) · NO hay toggle-visibilidad: la visibilidad quedó fijada en el alta y no se puede cambiar nunca más (RF-8, CA-8) · se edita de a un comentario por vez, y el formulario de alta sigue disponible abajo"
+        },
+        {
+          "name": "boton-cancelar-edicion",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Cancelar",
+          "visible_only_in_states": [
+            "default"
+          ],
+          "annotation": "sub-estado \"comentario en edición\" (parent_state: default) · nuevo con REQ-011 · descarta el texto y los cambios de adjuntos y devuelve la entrada a lectura. No pide confirmación, en línea con el resto de la pantalla"
+        },
+        {
+          "name": "boton-guardar-edicion",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Guardar",
+          "visible_only_in_states": [
+            "default"
+          ],
+          "annotation": "sub-estado \"comentario en edición\" (parent_state: default) · nuevo con REQ-011 · deshabilitado con el editor vacío tras trim(), con el mismo criterio y la misma ausencia de mensaje que boton-enviar-comentario · guarda el conjunto completo de fileIds que debe quedar, no un delta: si la escritura falla no se aplica ni el texto ni ningún vínculo (CA-14) · la escritura pasa por el bus, así que los errores del bus de REQ-004 aplican también acá · toast de éxito \"Comentario editado\"; al volver success la entrada vuelve a lectura con el texto nuevo y el feed no gana una entrada nueva [REQ-011 Escenario A pasos 1 y 7]"
+        },
+        {
+          "name": "marca-comentario-editado",
+          "type": "badge",
+          "category": "content",
+          "content": "(editado)",
+          "visible_only_in_states": [
+            "default",
+            "success"
+          ],
+          "annotation": "nuevo con REQ-011 · \"(editado)\" cuando el editor fue el propio autor · \"(editado por {nombre})\" cuando no lo fue (variante editado-por-otro) · acompaña a la fecha de la entrada y aparece solo si el comentario tiene fecha de edición, que es un dato real y no una inferencia: hasta acá detalle-tarea deducía la marca de un campo prestado (previousValue) y el detalle de requisito no la mostraba en absoluto · la variante editado-por-otro existe porque un admin puede editar un comentario ajeno y el texto seguiría atribuido al autor original: sin decir quién editó, el feed mentiría (RF-4, RF-5, CA-4) · presente o ausente según el dato, no según el estado · el tooltip de la fecha suma la fecha de la última edición junto a la de creación, y no puede vivir solo ahí: el :hover ya está registrado como inalcanzable por teclado · nunca se muestra más de una edición: se guarda la última, no un historial (CA-7)"
         },
         {
           "name": "card-informacion-general",
@@ -4275,6 +4332,59 @@
                   "card-actividad",
                   "feed-actividad",
                   "marca-identidad-automatica",
+                  {
+                    "row": "entrada-comentario",
+                    "cols": [
+                      {
+                        "w": 9,
+                        "stack": [
+                          "marca-comentario-editado"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-editar-comentario"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "comentario-en-edicion",
+                    "card": true,
+                    "title": "Comentario en edición",
+                    "cols": [
+                      {
+                        "w": 12,
+                        "stack": [
+                          "editor-comentario-edicion",
+                          {
+                            "row": "acciones-edicion",
+                            "cols": [
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-adjuntar"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-cancelar-edicion"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-guardar-edicion"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
                   "formulario-comentario",
                   "editor-comentario",
                   "progreso-subida-adjunto",
@@ -6061,11 +6171,11 @@
               "subtitle": "Falta definir el formato exacto de la exportación."
             },
             {
-              "title": "L. Álvarez · 👁 · 16/08/2026 · (editado)",
+              "title": "L. Álvarez · 👁 · 16/08/2026 · (editado por M. Pérez)",
               "subtitle": "Confirmado con el actor: la exportación va en CSV."
             }
           ],
-          "annotation": "<ul className={styles.connectedComments}> (ObjectiveHistoryList.tsx:75): el feed se parte en dos listas filtrando por typeOfActivity === 'comment' (:22, :28)"
+          "annotation": "<ul className={styles.connectedComments}> (ObjectiveHistoryList.tsx:75): el feed se parte en dos listas filtrando por typeOfActivity === 'comment' (:22, :28) · con REQ-011 cada comentario lleva marca-comentario-editado cuando fue editado, y boton-editar-comentario cuando quien mira es su autor o un admin"
         },
         {
           "name": "comentario",
@@ -6076,7 +6186,7 @@
           ],
           "content": "Conector Portal · 17/08/2026",
           "paragraph": "Falta definir el formato exacto de la exportación.",
-          "annotation": "autor: siempre un usuario de Jiku (ObjectiveComment.tsx:79) — con REQ-003 desaparece la rama que sufijaba \"(En sistema externo)\", que nunca se renderizó. Marca \"(editado)\" con Tooltip en los modificados (:94) y fecha en un Tooltip \"Creación: {fecha}\" (:98); contenido en markdown vía <MarkdownViewer> (:116). En edición reemplaza el markdown por el editor con \"Cancelar\" y \"Guardar\" (:120-134); \"Cancelar\" descarta lo editado sin aviso. No se puede borrar un comentario"
+          "annotation": "autor: siempre un usuario de Jiku (ObjectiveComment.tsx:79) — con REQ-003 desaparece la rama que sufijaba \"(En sistema externo)\", que nunca se renderizó. La marca de editado pasa a ser marca-comentario-editado con REQ-011 (antes \"(editado)\" con Tooltip, :94); fecha en un Tooltip \"Creación: {fecha}\" (:98); contenido en markdown vía <MarkdownViewer> (:116). En edición reemplaza el markdown por el editor con \"Cancelar\" y \"Guardar\" (:120-134); \"Cancelar\" descarta lo editado sin aviso. Con REQ-011 el modo edición suma lista-adjuntos-comentario y boton-adjuntar-comentario —el texto y los adjuntos se editan juntos, en una sola escritura (RF-2, CA-3, CA-14)— y NO ofrece checkbox-comentario-publico: la visibilidad quedó fijada en el alta y es inmutable (RF-8, CA-8). La escritura pasa por el bus en vez de escribirse directo desde la api, así que los errores del bus de REQ-004 aplican también acá [REQ-011 Escenario B]. No se puede borrar un comentario"
         },
         {
           "name": "badge-visibilidad-comentario",
@@ -6097,7 +6207,7 @@
             "empty"
           ],
           "content": "✎",
-          "annotation": "sin texto; aria-label=\"Editar comentario\" y <Image alt=\"Editar\"> redundante con el aria-label (ObjectiveComment.tsx:136-143). Click → entra en modo edición in-place (:138)"
+          "annotation": "sin texto; aria-label=\"Editar comentario\" y <Image alt=\"Editar\"> redundante con el aria-label (ObjectiveComment.tsx:136-143). Click → entra en modo edición in-place (:138) · cambia con REQ-011: hasta acá aparecía solo para el autor del comentario; ahora también para un admin, que puede editar comentarios ajenos con las mismas capacidades (RF-3, CA-4). El resto no cambia: para quien no puede editar el botón sigue sin estar —no deshabilitado, ausente— y las entradas del historial de cambios nunca lo tuvieron ni lo tendrán, porque un cambio de campo no es editable (RF-12, CA-12) · con REQ-011 el click carga también los adjuntos actuales del comentario en lista-adjuntos-comentario"
         },
         {
           "name": "editor-comentario-nuevo",
@@ -6152,7 +6262,7 @@
           "category": "input",
           "content": "Comentario público (visible para usuarios externos)",
           "checked": false,
-          "annotation": "default sin marcar (isPublic = false, CommentEditor.tsx:30): interno por defecto. El <input type=\"checkbox\"> está envuelto en el <label> (:144-151)"
+          "annotation": "default sin marcar (isPublic = false, CommentEditor.tsx:30): interno por defecto. El <input type=\"checkbox\"> está envuelto en el <label> (:144-151) · con REQ-011 queda explícitamente fuera del modo edición: la visibilidad se fija al publicar y es inmutable (RF-8, CA-8). La asimetría es visible —el checkbox está a la vista justo debajo, en el formulario de alta— y se aceptó antes que ofrecer un control que no puede cumplir lo que promete"
         },
         {
           "name": "boton-adjuntar-comentario",
@@ -6160,7 +6270,7 @@
           "category": "input",
           "variant": "tertiary",
           "content": "Adjuntar archivo",
-          "annotation": "<AttachFileButton> (CommentEditor.tsx:152), de a un archivo por vez (RF-7): queda disabled mientras hay una subida en curso. Error de permisos: toast \"No tenés permisos para subir archivos a esta tarea\" (:38)",
+          "annotation": "<AttachFileButton> (CommentEditor.tsx:152), de a un archivo por vez (RF-7): queda disabled mientras hay una subida en curso. Error de permisos: toast \"No tenés permisos para subir archivos a esta tarea\" (:38) · con REQ-011 el mismo botón sirve al modo edición de un comentario ya publicado, junto a lista-adjuntos-comentario (RF-2, CA-3)",
           "state_overrides": {
             "error de validación": {
               "variant": "error",
@@ -6193,8 +6303,8 @@
             },
             "error de sistema": {
               "variant": "error",
-              "content": "Hubo un error al agregar el comentario",
-              "annotation": "toast de CommentEditor.tsx:110 · el comentario editado in-place falla con \"Hubo un error al editar el comentario\" (ObjectiveComment.tsx:66). La pantalla no tiene boundary propio: hereda el error.tsx de /objectives, que descarta el error real y muestra \"Error inesperado\""
+              "content": "No podés editar un comentario que no es tuyo",
+              "annotation": "con REQ-011 la edición se rechaza por autoría (CA-10) o el comentario ya no existe: \"El comentario ya no existe\" cuando fue borrado mientras estaba abierto en edición (CA-16). Los dos son red de seguridad ante una pantalla desactualizada, no flujo previsto: el botón de editar solo aparece donde la edición está permitida · la escritura pasa por el bus, así que el 503 y el 504 de REQ-004 aplican también acá"
             },
             "success": {
               "variant": "secondary",
@@ -6244,6 +6354,38 @@
             "empty"
           ],
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en los tres lugares donde esta pantalla expone un usuario: la fila \"Creado por\" de la grilla de metadatos, el autor de cada entrada de lista-historial y el autor de cada comentario · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10) · en comentario es compatible con el sub-estado de edición: la marca es del autor, no del modo de la tarjeta · es la variante de autoría que REQ-003 dejó sin diseñar al eliminar el sufijo \"(En sistema externo)\", y no es la misma: aquella marcaba a una persona que había escrito en otro sistema · texto visible y no emoji ni Tooltip, contra los dos patrones que esta pantalla ya tiene registrados como defectos"
+        },
+        {
+          "name": "marca-comentario-editado",
+          "type": "badge",
+          "category": "content",
+          "content": "(editado)",
+          "hidden_in_states": [
+            "empty"
+          ],
+          "annotation": "cambia con REQ-011 · \"(editado)\" cuando el editor fue el propio autor · \"(editado por {nombre})\" cuando no lo fue (variante editado-por-otro) · la marca ya existía, pero se derivaba de un campo prestado (previousValue) que solo decía que algo había cambiado alguna vez; ahora se apoya en una fecha de edición real y el Tooltip de la fecha puede mostrar cuándo fue la última edición junto a la de creación · la variante editado-por-otro es nueva y existe porque un admin puede editar comentarios ajenos: sin decir quién editó, el texto cambiado quedaría atribuido al autor original (RF-4, RF-5, CA-4) · presente o ausente según el dato, no según el estado · nunca se muestra más de una edición: se guarda la última, no un historial (CA-7)"
+        },
+        {
+          "name": "lista-adjuntos-comentario",
+          "type": "list",
+          "category": "content",
+          "content": "Adjuntos del comentario",
+          "visible_only_in_states": [
+            "default"
+          ],
+          "items": [
+            {
+              "title": "especificacion-v2.pdf",
+              "subtitle": "1,4 MB · quitar",
+              "icon": "x"
+            },
+            {
+              "title": "captura-error.png",
+              "subtitle": "320 KB · quitar",
+              "icon": "x"
+            }
+          ],
+          "annotation": "sub-estado \"comentario en edición\" (parent_state: default) · nueva con REQ-011 · hasta acá los adjuntos de un comentario se elegían solo al escribirlo y después quedaban fijos: lista-adjuntos-pendientes cubre el alta y desaparece al guardar. En edición se muestran los adjuntos que el comentario ya tiene, se pueden quitar y se pueden sumar archivos propios con boton-adjuntar-comentario (RF-2, CA-3) · lo que se guarda es el conjunto completo que debe quedar, no un delta: si la escritura falla no se aplica ningún cambio, ni de texto ni de vínculos (CA-14) · quitar un adjunto no borra el archivo —queda subido y se puede volver a usar—, igual que en el alta (REQ-001 RF-8), y el cambio recién se aplica al guardar: \"Cancelar\" lo revierte · cruz por ítem, con aria-label que nombra el archivo: el aria-label genérico de boton-quitar-adjunto ya está registrado como defecto y no hay que repetirlo acá"
         }
       ],
       "layouts": {
@@ -6324,9 +6466,15 @@
             "row": "comentario",
             "cols": [
               {
-                "w": 7,
+                "w": 6,
                 "stack": [
                   "comentario"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": [
+                  "marca-comentario-editado"
                 ]
               },
               {
@@ -6342,13 +6490,25 @@
                 ]
               },
               {
-                "w": 2,
+                "w": 1,
                 "stack": [
                   "boton-editar-comentario"
                 ]
               }
             ],
-            "annotation": "un comentario × N dentro de lista-comentarios: la marca de visibilidad y el botón de edición viven en el encabezado de cada tarjeta"
+            "annotation": "un comentario × N dentro de lista-comentarios: la marca de editado, la de identidad automática, la marca de visibilidad y el botón de edición viven en el encabezado de cada tarjeta · con REQ-011 marca-comentario-editado acompaña a la fecha y boton-editar-comentario aparece para el autor o para un admin"
+          },
+          {
+            "row": "adjuntos-comentario-edicion",
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "lista-adjuntos-comentario"
+                ]
+              }
+            ],
+            "annotation": "sub-estado \"comentario en edición\": los adjuntos que el comentario ya tiene, con la opción de quitarlos, dentro de la tarjeta del comentario en edición [REQ-011 RF-2]"
           },
           "vacio-comentarios",
           "editor-comentario-nuevo",

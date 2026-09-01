@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.1"
+version: "1.2"
 date: 2026-09-01
 ---
 
@@ -86,10 +86,17 @@ date: 2026-09-01
 | 41 | desglose-horas-persona | list | — | content | desktop | hidden_in_states: horas cargando, horas no disponibles, sin horas cargadas | Una fila por persona con lo que imputó |
 | 42 | vacio-horas-trabajadas | empty-state | — | feedback | desktop | visible_only_in_states: sin horas cargadas | Mensaje cuando el requisito no tiene horas |
 | 43 | cargando-horas-trabajadas | loader | — | feedback | desktop | visible_only_in_states: horas cargando | Carga del card, independiente del resto de la pantalla |
+| 44 | boton-editar-comentario | button | — | input | desktop | visible_only_in_states: default, success; **solo en las entradas de tipo comentario y solo si el usuario es su autor o tiene rol `admin`** | Entra en modo edición de ese comentario |
+| 45 | editor-comentario-edicion | text-input | default · disabled | input | desktop | visible_only_in_states: comentario en edición | Cuerpo del comentario que se está editando |
+| 46 | boton-cancelar-edicion | button | — | input | desktop | visible_only_in_states: comentario en edición | Descarta la edición y vuelve a lectura |
+| 47 | boton-guardar-edicion | button | primary · disabled | input | desktop | visible_only_in_states: comentario en edición; state_overrides: editor vacío→disabled | Guarda el texto y los adjuntos editados |
+| 48 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | visible_only_in_states: default, success; **solo en comentarios con `editedAt`** | Indica que el comentario fue editado, y por quién si no fue su autor |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
 `card-estado`, `seccion-tareas`, `acordeon-campo`, `formulario-comentario` y `card-resolucion` se relevaron como `card` / `section`: son compuestos sin tipo propio en el diccionario. `stepper-workflow` se relevó como `progress-bar` por ser lo más cercano del diccionario: no es una barra, son 5 nodos con conectores y un símbolo por nodo (`✓`, `×` o el número). El chrome es compartido; los pills-dropdown están documentados aparte [fuente: código-existente].
+
+**REQ-011** suma cinco bloques al feed (44-48). Ninguno introduce un tipo nuevo: `boton-editar-comentario`, `boton-cancelar-edicion` y `boton-guardar-edicion` son `button`; `editor-comentario-edicion` es el mismo `text-input` que ya usa `editor-comentario` —el editor se reutiliza, no se duplica—; y `marca-comentario-editado` es un `badge`, como `codigo-requisito` y `marca-identidad-automatica`. **`toggle-visibilidad` no aparece en la lista**: el modo edición no lo ofrece, porque la visibilidad de un comentario es inmutable desde su creación (REQ-011 RF-8, CA-8).
 
 ## Layout por viewport
 
@@ -104,7 +111,7 @@ date: 2026-09-01
     - card-contexto
     - card-estado (stepper-workflow con paso-workflow × 5, 4 acordeon-campo, boton-guardar-campos, boton-transicion)
     - seccion-tareas (tabs-estado-tarea, tabla-tareas, paginacion-tareas)
-    - card-actividad (feed-actividad —con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio—, formulario-comentario con editor-comentario, boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, toggle-visibilidad, boton-enviar-comentario)
+    - card-actividad (feed-actividad —con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio, marca-comentario-editado junto a la fecha de los comentarios editados, y boton-editar-comentario al final de la fila de cada comentario propio o de cualquiera si el usuario es `admin`; la entrada en edición reemplaza su texto por editor-comentario-edicion con boton-adjuntar, la lista de adjuntos del comentario, boton-cancelar-edicion y boton-guardar-edicion—, formulario-comentario con editor-comentario, boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, toggle-visibilidad, boton-enviar-comentario)
   - col ~5/12 (420px fijos): columna derecha
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-etiquetas (chip-etiqueta × N)
@@ -297,6 +304,36 @@ date: 2026-09-01
 - Asset: nada
 - Annotation: deshabilitado si el editor está vacío (`RequirementActivityForm.tsx:128-148`, `:131`, `:144`). Toast de éxito `"Comentario agregado"` (`:45`); toast de error `error.message` o `"Error al agregar el comentario"` (`:50`)
 
+### boton-editar-comentario
+- Texto/label: sin texto visible · `aria-label="Editar comentario"`
+- Icono: lápiz (`aria-hidden="true"`)
+- Asset: nada
+- Annotation: **nuevo con REQ-011.** Es la primera acción de escritura que el feed del requisito ofrece **sobre una entrada ya publicada**: hasta acá el feed era estrictamente de solo lectura y lo único editable de la pantalla vivía arriba, en la clasificación y en los campos del paso. Aparece **solo en las entradas de tipo comentario** —una actividad de cambio de campo no es editable (RF-12, CA-12)— y **solo si quien mira es el autor del comentario o tiene rol `admin`** (RF-1, RF-3). Para el resto de las entradas y del resto de la gente no hay botón: no está deshabilitado, no está. Es el mismo criterio que ya usa `detalle-tarea`, ampliado con la excepción del `admin`
+
+### editor-comentario-edicion
+- Texto/label: se abre con el texto actual del comentario · `ariaLabel` `"Editar comentario"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-011.** Es el **mismo editor** que `editor-comentario` usa para el alta, reutilizado in-place: la entrada del feed reemplaza su texto renderizado por el editor y conserva alrededor el autor, la fecha y la etiqueta de visibilidad. Junto al editor se ofrecen `boton-adjuntar` y la lista de adjuntos del comentario, donde se pueden quitar los existentes y sumar archivos propios (RF-2, CA-3). **No hay `toggle-visibilidad`**: la visibilidad quedó fijada en el alta y no se puede cambiar nunca más (RF-8, CA-8)
+
+### boton-cancelar-edicion
+- Texto/label: `"Cancelar"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-011.** Descarta el texto y los cambios de adjuntos y devuelve la entrada a lectura. No pide confirmación, en línea con el resto de la pantalla
+
+### boton-guardar-edicion
+- Texto/label: `"Guardar"`
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-011.** Deshabilitado con el editor vacío, con el mismo criterio y la misma ausencia de mensaje que `boton-enviar-comentario`. Toast de éxito `"Comentario editado"`; toasts de error según el código que devuelva la escritura, detallados en *error de validación* y *error de sistema*. **Guarda el conjunto completo de adjuntos** —los que quedan tras la edición—, no un delta: si la escritura falla, no se aplica ni el texto ni ningún vínculo (CA-14)
+
+### marca-comentario-editado
+- Texto/label: `"(editado)"` cuando el editor fue el propio autor · `"(editado por {nombre})"` cuando no lo fue
+- Icono: nada
+- Asset: nada
+- Annotation: **nuevo con REQ-011.** Acompaña a la fecha de la entrada. Aparece **solo si el comentario tiene fecha de edición**, que es un dato real y no una inferencia: hasta acá `detalle-tarea` deducía la marca de un campo prestado (`previousValue`) y el detalle de requisito no la mostraba en absoluto. La variante `editado-por-otro` existe porque un `admin` puede editar un comentario ajeno y el texto seguiría atribuido al autor original: sin decir quién editó, el feed mentiría (RF-4, RF-5, CA-4). El tooltip de la fecha suma la fecha de la última edición junto a la de creación. **Nunca se muestra más de una edición**: se guarda la última, no un historial (CA-7)
+
 ### card-informacion-general
 - Texto/label: título `"Información General"`; filas (`<dt>`) `"Proyecto"` · `"Responsable (líder)"` · `"Responsable(s)"` · `"Visibilidad"` · `"Creado por"` · `"Fecha de creación"` · `"Última actualización"`. Visibilidad: `"Público"` / `"Interno"`
 - Icono: nada
@@ -430,6 +467,17 @@ date: 2026-09-01
   - boton-enviar-comentario: variant=disabled — enviar mientras el byte viaja vincularía un archivo incompleto, y el sistema no verifica que haya llegado (D-13)
 - **Por qué es nuevo:** hasta ahora la subida no tenía ninguna representación en esta pantalla. El byte pasaba por la api y el usuario esperaba sin saber cuánto faltaba
 
+### comentario en edición (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-011** (RF-1, RF-2)
+- Mensaje: sin mensaje propio; la entrada cambia de forma, no de texto
+- Cambios:
+  - editor-comentario-edicion, boton-cancelar-edicion, boton-guardar-edicion: solo visibles en este estado (visible_only_in_states), y **solo dentro de la entrada que se está editando**
+  - la entrada en edición reemplaza su texto renderizado por el editor; el autor, la fecha, la etiqueta de visibilidad y marca-comentario-editado quedan donde están
+  - boton-editar-comentario: ausente en esa entrada mientras dura la edición
+  - toggle-visibilidad: **no se ofrece** — la visibilidad es inmutable (CA-8)
+- **Se edita de a un comentario por vez.** Abrir la edición de otro con una edición en curso no es un caso que la pantalla necesite resolver con un diálogo: el feed de un requisito rara vez tiene dos comentarios del mismo autor en pantalla que quiera tocar a la vez, y `boton-cancelar-edicion` está siempre a un click
+- **El formulario de alta sigue disponible abajo**: editar un comentario viejo no bloquea escribir uno nuevo, porque son dos escrituras independientes
+
 ### sin horas cargadas (parent_state: default)
 - Aplica: Sí — **estado nuevo con REQ-010** (RF-8)
 - Mensaje: `"Sin horas cargadas"`
@@ -458,19 +506,19 @@ date: 2026-09-01
 - **Por qué existe como estado propio y no como toast:** es la contrapartida de que la card tenga su propia consulta. Sin este estado la falla se vería como `"Sin horas cargadas"` —un requisito con horas parecería no tenerlas—, que es el modo de falla peor: silencioso y con un dato falso en pantalla. Distinguir "no hay horas" de "no pude traerlas" es la razón de que el estado esté declarado [REQ-010 RF-8, AC-11]
 
 ### error de validación
-- Aplica: No — no implementado (ver gaps-as-is.md). No hay validación en esta pantalla: los campos del acordeón y de resolución se guardan sin reglas, `"Guardar"` persiste lo que haya, y la transición no exige que el campo del paso esté completo. El `"!"` del acordeón es informativo, no bloqueante (`RequirementStatusCard.tsx:302-307`). La única regla es que el comentario no puede estar vacío, y se expresa deshabilitando el botón sin mensaje (`RequirementActivityForm.tsx:24`, `:131`) [fuente: código-existente].
+- Aplica: No — no implementado (ver gaps-as-is.md). No hay validación en esta pantalla: los campos del acordeón y de resolución se guardan sin reglas, `"Guardar"` persiste lo que haya, y la transición no exige que el campo del paso esté completo. El `"!"` del acordeón es informativo, no bloqueante (`RequirementStatusCard.tsx:302-307`). La única regla es que el comentario no puede estar vacío, y se expresa deshabilitando el botón sin mensaje (`RequirementActivityForm.tsx:24`, `:131`) [fuente: código-existente]. **Con REQ-011** esa única regla se extiende a la edición: `boton-guardar-edicion` queda deshabilitado con el editor vacío, con el mismo criterio y la misma ausencia de explicación.
 
 ### error de sistema / sin conexión
 - Aplica: Sí (solo como toast de las acciones)
-- Mensajes: `error.message` o `"Error al actualizar el requisito"` (actualización); `error.message` o `"Error al agregar el comentario"` (comentario); **con REQ-001** `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10) y `"El archivo no está disponible"` al abrir un adjunto cuyo contenido nunca llegó (RF-21, CA-15)
+- Mensajes: `error.message` o `"Error al actualizar el requisito"` (actualización); `error.message` o `"Error al agregar el comentario"` (comentario); **con REQ-001** `"No podés adjuntar un archivo que subió otra persona"` cuando el vínculo se rechaza por titularidad (RF-12, CA-10) y `"El archivo no está disponible"` al abrir un adjunto cuyo contenido nunca llegó (RF-21, CA-15); **con REQ-011** `"No podés editar un comentario que no es tuyo"` cuando la edición se rechaza por autoría (CA-10), `"Esta entrada no es un comentario y no se puede editar"` cuando se intenta editar un cambio de campo (CA-12) y `"El comentario ya no existe"` cuando fue borrado mientras estaba abierto en edición (CA-16). Los tres son casos que el usuario **no debería alcanzar desde esta pantalla** —el botón de editar solo aparece donde la edición está permitida—, así que valen como red de seguridad ante una pantalla desactualizada o una sesión con permisos cambiados, no como flujo previsto
 - Cambios: ninguno en la pantalla; el toast aparece en el contenedor del shell (`RequirementDetail.tsx:108`, `RequirementActivityForm.tsx:50`) [fuente: código-existente]
 - **El error al refrescar el requisito no se maneja:** `RequirementDetailContainer` hace `requirement ?? initialRequirement`, así que si el refetch falla **se sigue mostrando el dato del render inicial sin ningún aviso** — la pantalla se ve normal con datos potencialmente viejos (`RequirementDetailContainer.tsx:19`). El error al cargar las tareas vinculadas tampoco: `linkedObjectives` viene en el mismo payload del requisito y, si falta, la tabla queda vacía sin distinguir de "no hay tareas" (`RequirementDetail.tsx:33`) [fuente: código-existente]
-- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). Los dos salen por los toasts que ya existen: **la pantalla no se modifica**. Aplica a las tres escrituras de la pantalla —avanzar el workflow, editar la clasificación inline y comentar—: con el 503 nada ocurrió; con el 504 **pudo haber ocurrido**, y acá el reintento a ciegas es especialmente caro porque el cambio de estado y el comentario son **actividad del feed**: se duplican a la vista, y si son públicos **el cliente los ve duplicados en Opus**. Agrava el problema que ya está anotado abajo: si el refetch del requisito falla, la pantalla sigue mostrando el dato viejo sin avisar, así que el usuario no puede verificar si el cambio entró [REQ-004]
+- **REQ-004: la falla del bus se parte en dos y la recuperación no es la misma.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). Los dos salen por los toasts que ya existen: **la pantalla no se modifica**. Aplica a las escrituras de la pantalla —avanzar el workflow, editar la clasificación inline, comentar y, **desde REQ-011**, editar un comentario—: con el 503 nada ocurrió; con el 504 **pudo haber ocurrido**, y acá el reintento a ciegas es especialmente caro porque el cambio de estado y el comentario son **actividad del feed**: se duplican a la vista, y si son públicos **el cliente los ve duplicados en Opus**. Agrava el problema que ya está anotado abajo: si el refetch del requisito falla, la pantalla sigue mostrando el dato viejo sin avisar, así que el usuario no puede verificar si el cambio entró [REQ-004]
 
 ### success
 - Aplica: Sí
-- Mensaje: toast `"Comentario agregado"`
-- Cambios: el feed de actividad se refresca; el toast aparece en el contenedor del shell (`RequirementActivityForm.tsx:45`) [fuente: código-existente]
+- Mensaje: toast `"Comentario agregado"` al publicar; **con REQ-011** toast `"Comentario editado"` al guardar una edición
+- Cambios: el feed de actividad se refresca; el toast aparece en el contenedor del shell (`RequirementActivityForm.tsx:45`) [fuente: código-existente]. **Con REQ-011**, tras una edición la entrada vuelve a lectura con el texto nuevo, sus adjuntos actualizados y marca-comentario-editado presente — el feed **no gana una entrada nueva**: editar un comentario no es actividad, es el mismo comentario cambiado
 
 ### not found
 - Aplica: Sí (parcialmente)
@@ -522,6 +570,10 @@ date: 2026-09-01
 - editor-comentario · on change → `setIsEmpty(value.trim().length === 0)` · `RequirementActivityForm.tsx:23-25`
 - toggle-visibilidad · on click → `setVisibility('internal' | 'public')` · `RequirementActivityForm.tsx:110`, `:120`
 - boton-enviar-comentario · on submit → `addActivity`; deshabilitado si el editor está vacío · `RequirementActivityForm.tsx:131`
+- boton-editar-comentario · on click → la entrada pasa a modo edición con el texto y los adjuntos actuales cargados [REQ-011 Escenario A]
+- editor-comentario-edicion · on change → habilita o deshabilita boton-guardar-edicion según el texto quede vacío tras `trim()` [REQ-011]
+- boton-cancelar-edicion · on click → descarta los cambios y la entrada vuelve a lectura, sin confirmación [REQ-011]
+- boton-guardar-edicion · on submit → manda el texto y el **conjunto completo** de `fileIds` que debe quedar; al volver `success` se invalida el detalle y el feed se refresca [REQ-011 Escenario A pasos 1 y 7]
 - boton-resolver-requisito · on click → `onUpdate({ state: 'resuelto' })` · `RequirementResolutionCard.tsx:81`
 - boton-cancelar-requisito · on click → `onUpdate({ state: 'cancelado' })` · `RequirementResolutionCard.tsx:85`
 - card-horas-trabajadas · **sin eventos de usuario**: es una card de lectura. Ni el total ni las filas del desglose son clickeables — no llevan a un reporte, a la persona ni a las horas de una tarea [REQ-010 RF-8]
@@ -530,6 +582,8 @@ date: 2026-09-01
 
 **Validaciones:**
 - editor-comentario · no vacío tras `trim()` → boton-enviar-comentario queda `disabled`, sin mensaje · `RequirementActivityForm.tsx:24`, `:131`
+- editor-comentario-edicion · no vacío tras `trim()` → boton-guardar-edicion queda `disabled`, sin mensaje [REQ-011]
+- **Quién puede editar no es una validación de esta pantalla, es una condición de visibilidad.** El botón aparece solo para el autor o para un `admin`; la regla se vuelve a verificar del lado del servidor y el rechazo llega como toast, no como validación de formulario (CA-10, CA-15) [REQ-011 D-1]
 - **Ninguna otra.** No hay reglas sobre los campos del workflow ni sobre los de resolución [fuente: código-existente].
 
 **Feedback:**
@@ -542,7 +596,7 @@ date: 2026-09-01
 
 ## Accesibilidad
 
-- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito. **`card-horas-trabajadas` no agrega paradas al orden de foco**: es de solo lectura y no tiene controles [REQ-010 RF-8]. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
+- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → **boton-editar-comentario de cada comentario editable, en el orden del feed** → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito. **`card-horas-trabajadas` no agrega paradas al orden de foco**: es de solo lectura y no tiene controles [REQ-010 RF-8]. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
 - **Landmarks y jerarquía:** hay un solo `<h1>` (titulo-requisito). **Los títulos de card no son encabezados:** son `<div className={styles.cardTitle}>` / `<span className={styles.cardTitle}>`, así que en una pantalla con 8 secciones la jerarquía tiene un solo nivel y **no se puede navegar por secciones** (`RequirementHeader.tsx:~171` vs `RequirementDetail.tsx:133`, `:149`, `:290`, `:302`, `:371`) [fuente: código-existente].
 - **Foco y teclado:** los overlays de esta pantalla son los tres `PillDropdown` del encabezado. Tienen el juego completo de ARIA (`aria-haspopup="listbox"`, `aria-expanded`, `role="listbox"`, `role="option"`, `aria-selected`, `aria-disabled`) y **cierran por click afuera**, pero **no cierran con `Escape` y no soportan navegación por flechas** pese al `role="listbox"` (`RequirementHeader.tsx:99-145`, `:88-93`). Los acordeones **tampoco cierran con `Escape`** (`RequirementStatusCard.tsx:116`) [fuente: código-existente].
 - **Propio de esta composición:**
@@ -552,6 +606,8 @@ date: 2026-09-01
   - **El indicador `✓`/`!` del campo del acordeón no tiene texto alternativo:** un lector lee `"! Alcance"` sin saber que significa "falta completar" (`RequirementStatusCard.tsx:118`). El acordeón tiene `aria-expanded` pero **le falta `aria-controls`** (`:116`).
   - **El símbolo `×` del stepper no tiene texto que lo explique**, aunque se lee como carácter (`RequirementStatusCard.tsx:339`); el nodo actual sí lleva `aria-current="step"` (`:328`).
   - **`boton-enviar-comentario` está `disabled` sin explicación:** no hay `aria-describedby` que diga que hace falta escribir un comentario (`RequirementActivityForm.tsx:131`).
+  - **`boton-guardar-edicion` hereda el mismo problema** (REQ-011): se deshabilita con el editor vacío y tampoco lo explica. La edición además **mueve el foco** —la entrada del feed cambia de texto a formulario— y hay que llevarlo al editor al abrir y devolverlo a `boton-editar-comentario` al cancelar, o quien navega por teclado pierde el lugar en un feed que puede tener decenas de entradas.
+  - **`marca-comentario-editado` es texto, no solo un estilo** (REQ-011): `"(editado)"` y `"(editado por X)"` se leen con el resto de la entrada, y la fecha de edición vive en el mismo tooltip que la de creación — que ya hoy es un tooltip y arrastra las limitaciones de acceso que eso tiene.
   - **La marca de identidad automática no puede quedar solo en el color ni solo en un `title`.** Es un `badge` con texto visible (`"Automático"`) y nombre accesible propio; **se descartó resolverla con un `Tooltip` de `:hover`**, que es el patrón que esta pantalla ya usa para el motivo de una opción deshabilitada y que este mismo documento registra como inalcanzable por teclado y sin `aria-describedby` (REQ-005).
   - **El título `"Horas Trabajadas"` hereda el problema de jerarquía de las demás cards:** como los otros siete títulos de sección, no es un encabezado sino un `div`, así que la card nueva **no** agrega un punto de navegación por secciones. La carencia es de la pantalla entera y este requerimiento no la cierra, pero la card la agrava en un grado: son ocho secciones sin jerarquía en vez de siete [REQ-010 RF-8].
   - **Ni la carga ni el resultado de las horas se anuncian:** el card pasa de `"Cargando horas..."` a mostrar el total sin región `aria-live`, así que quien usa lector de pantalla y ya recorrió la columna derecha no se entera de que el contenido llegó. Es un gap que el estado de carga propio introduce —los demás loaders de la pantalla siguen a una acción del usuario, que sabe que algo está pasando— y queda registrado sin cerrarse acá [REQ-010 Escenario B].
@@ -598,3 +654,15 @@ date: 2026-09-01
 - **La card va última en la columna derecha.** Contexto, etiquetas y resolución forman una secuencia de identificación y cierre; el dato de horas es de consulta y no pertenece a esa secuencia. Al final no compite con los botones de resolver y cancelar, que son las únicas acciones de esa columna [REQ-010 RF-8].
 - **Nada de esto llega a `opus-web`.** Las horas son dato interno: el PRD es explícito en que mostrarle al cliente el tablero con horas y costos no es opción. El portal no tiene ni la card ni la columna, y el recorte no depende de un condicional de UI sino de que sus rutas son otras [REQ-010 RF-9, AC-16].
 - **[Auto] Design System — sin componentes nuevos.** Los cinco bloques usan tipos que la pantalla ya tiene: `card` (como las otras cuatro cards), `heading`, `list` (como `feed-actividad`), `empty-state` (como los tres empties por sección) y `loader`. Ningún tipo de bloque nuevo entra en la pantalla, y `loader` además está cubierto por el spec `Loader` del DS de `web`. Los tipos `card`, `list`, `heading` y `empty-state` no tienen spec en el catálogo (v0.1.0: Button, Loader, InputSelect), pero es una carencia preexistente y transversal —las cuatro cards actuales de esta misma pantalla ya la tienen— y no un gap que este requerimiento abra. Reponer el catálogo corresponde a `/product-design-system-update`.
+
+### REQ-011 — Edición de comentarios (2026-09-01)
+
+- **El feed del requisito deja de ser de solo lectura, y esa es la decisión de fondo.** Hasta acá lo editable de esta pantalla vivía arriba —clasificación, campos del paso, resolución— y el feed era el registro de lo que pasó. Con la edición de comentarios, una entrada publicada puede cambiar. Se aceptó porque un comentario **no es un hecho registrado sino algo que alguien escribió**, a diferencia de un cambio de campo, que sí lo es y sigue siendo inmutable (RF-12, CA-12). La asimetría entre las dos clases de entrada del feed es deliberada y es lo que hace que el registro siga siendo confiable.
+- **La edición es inline y reutiliza el editor del alta; se descartó un overlay.** Un modal sacaría el comentario de su contexto —el hilo, la fecha, las entradas de alrededor— justo cuando lo que se está haciendo es corregir algo dicho en ese hilo. Además obligaría a duplicar el editor con sus adjuntos y su progreso de subida. Es también lo que ya hace `detalle-tarea`, así que la edición se comporta igual en las dos pantallas donde existe.
+- **En modo edición no hay toggle de visibilidad, y no es una omisión.** La visibilidad es la única decisión que el usuario toma sobre un comentario al publicarlo, y desde REQ-011 queda fijada para siempre (RF-8, CA-8). El motivo es que el comentario ya pudo haber sido leído por el cliente en el portal: volverlo interno no lo des-lee, y volverlo público expone hacia atrás algo que se escribió en confianza. Mostrar el toggle deshabilitado se descartó por peor —invita a intentarlo y no explica nada.
+- **La marca `"(editado)"` pasa de inferencia a dato.** El detalle de tarea la deducía de un campo prestado que solo decía "algo cambió alguna vez", y el detalle de requisito no la mostraba. Con una fecha de edición real la marca es verificable y el tooltip puede decir cuándo. **Descartado un historial de versiones:** el producto no lo necesita —nadie pidió leer lo que decía antes— y guardarlo obligaría a decidir quién puede ver las versiones previas de un comentario que pudo haber sido público (CA-7).
+- **Cuando el editor no es el autor, la marca lo dice.** Es consecuencia directa de que un `admin` pueda editar comentarios ajenos (RF-3): sin nombrar al editor, el feed mostraría un texto cambiado atribuido a quien no lo escribió. Es el mismo problema que REQ-005 resolvió con el badge "Automático" —un autor que no es quien parece— y se resuelve igual: **marcando, no ocultando** (RF-5, CA-4).
+- **El botón de editar no aparece donde no se puede editar; no se muestra deshabilitado.** Un feed muestra comentarios de todo el equipo y de cambios automáticos: un botón deshabilitado por entrada sería ruido constante en la pantalla más densa del producto. La regla de autoría se verifica igual del lado del servidor, así que la ausencia del botón es comodidad, no seguridad (D-1).
+- **Editar no genera una entrada nueva en el feed.** El comentario cambia en su lugar. **Descartado** registrar la edición como actividad: duplicaría cada corrección de tipeo en un feed que ya es largo, y la marca "(editado)" ya deja la traza donde importa. También significa que la edición **no notifica** —regla declarada para cuando exista canal (RF-10, CA-9).
+- **Nada de esto llega al portal.** El cliente no ve la marca de edición ni puede editar, sin importar si el comentario es público y sin importar si lo escribió él (RF-6, RF-7, CA-5, CA-6). El dato de edición **no viaja** en la lectura del portal, así que la omisión no depende de un condicional de interfaz que alguien pueda olvidar [REQ-011 D-3, D-5].
+- **[Auto] Design System — sin componentes nuevos.** Los cinco bloques usan tipos que la pantalla ya tiene: `button` × 3 (cubierto además por el spec `Button` del catálogo), `text-input` —el mismo `editor-comentario` reutilizado— y `badge`, como `codigo-requisito`, `chip-etiqueta` y `marca-identidad-automatica`. Ningún tipo de bloque nuevo entra en la pantalla. `text-input` y `badge` no tienen spec en el catálogo (v0.1.0: Button, Loader, InputSelect), pero es la misma carencia preexistente y transversal que ya arrastran los bloques actuales de esta pantalla, no un gap que este requerimiento abra. Reponer el catálogo corresponde a `/product-design-system-update`.

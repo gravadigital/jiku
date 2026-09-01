@@ -391,6 +391,14 @@ directamente en el SQL, **antes** del filtro del caller y **combinado con AND**:
 | `worked-times` · `unworked-times` · `week-assigned-times` · `settings` | **sin acceso** → `items: []` |
 | `meta.describe` | igual para todos: describe el **contrato**, no los datos |
 
+> **Este paso recorta FILAS, no campos** (REQ-011, decisión D-3). `comments` ganó `editedAt` y
+> `editedBy` en su conjunto `base` (Paso 4, 9 → 11 campos), y ningún `externalScope` de esta
+> tabla los excluye: la fila entera se devuelve o no se devuelve, nunca con algunas columnas
+> quitadas. Recortar esos dos campos para el modo externo **no es responsabilidad de este
+> plano** — hoy la omisión real ocurre en la proyección campo a campo de
+> `GET /opus/requirements/{reqid}` en la `api`, que no serializa el modelo. Si las lecturas
+> migran a este motor, alguien tiene que agregar ese recorte acá.
+
 **Ref:** `core/src/queries/engine/build-sql.ts` (`externalScopeSql`),
 `core/src/queries/types.ts` (`ExternalScopeSpec`), `docs/db-schemas/jiku.md`
 (tabla `user_project_permissions`)

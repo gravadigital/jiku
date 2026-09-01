@@ -1,6 +1,6 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — los 60 endpoints que sirve.
+# Contrato HTTP de `api` — los 61 endpoints que sirve.
 #
 # EXTRAÍDO DEL CÓDIGO
 #   Los paths salen de `api/lib/routes/*.ts`; los request bodies y query params, de los esquemas
@@ -1058,7 +1058,9 @@ paths:
       tags: [objectives]
       summary: Edita un comentario de una tarea
       description: |
-        **No pasa por el bus.** Valida que quien edita sea el autor y responde 403 si no lo es.
+        Publica `tasks.{id}.comment.{cid}.edit`. Valida autoría (o rol `admin`) en `core`.
+      x-roles: [user, admin]
+      x-bus-command: tasks.{id}.comment.{cid}.edit
       parameters:
         - $ref: '#/components/parameters/IdPath'
         - name: cid
@@ -1075,6 +1077,8 @@ paths:
               required: [comment]
               properties:
                 comment: { type: string }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
       responses:
         '200':
           description: OK
@@ -1082,18 +1086,68 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
-          description: Validación fallida, o la tarea o el comentario no existen
+          description: Validación fallida, la tarea o el comentario no existen, o la actividad no es un comentario editable
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
-          description: No es el autor del comentario
+          description: No es el autor del comentario ni tiene rol admin, o algún fileId no le pertenece
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-              example: { code: access_denied, message: Access denied }
+              example: { code: comment_not_owned, message: Access denied }
         '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+
+  /requirements/{reqid}/comments/{cid}:
+    patch:
+      tags: [requirements]
+      summary: Edita un comentario de un requisito
+      description: |
+        Publica `requirements.{id}.comment.{cid}.edit`. Valida autoría (o rol `admin`) en `core`.
+      x-roles: [user, admin]
+      x-bus-command: requirements.{id}.comment.{cid}.edit
+      parameters:
+        - $ref: '#/components/parameters/ReqIdPath'
+        - name: cid
+          in: path
+          required: true
+          description: Id de la actividad (comentario)
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+                fileIds:
+                  $ref: '#/components/schemas/FileIds'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Acknowledgement' }
+        '400':
+          description: Validación fallida, el requisito o el comentario no existen, o la actividad no es un comentario editable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: No es el autor del comentario ni tiene rol admin, o algún fileId no le pertenece
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: comment_not_owned, message: Access denied }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BusUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   # ==========================================================================
   # worked-times
