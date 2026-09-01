@@ -476,7 +476,12 @@ paths:
           schema: { type: integer }
         - name: state
           in: query
-          schema: { $ref: '#/components/schemas/RequirementState' }
+          description: |
+            Uno o varios estados separados por coma. Devuelve los requisitos que estén en
+            **cualquiera** de ellos (OR). Un valor fuera del enum `RequirementState` invalida el
+            parámetro completo y responde 400 `invalid_fields`.
+          schema: { type: string }
+          example: planificacion,en_cola,desarrollo,revision
         - name: type
           in: query
           schema: { $ref: '#/components/schemas/RequirementType' }

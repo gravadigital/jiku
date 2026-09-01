@@ -1749,7 +1749,13 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "<select> \"5 por página\" / \"10 por página\", 5 por defecto; paginación reimplementada inline, con <nav aria-label=\"Paginación\"> y aria-current=\"page\" (ProjectRequirementsSection.tsx:27, :164-210)"
+          "annotation": "<select> \"5 por página\" / \"10 por página\", 5 por defecto · REQ-008: deja de ser una reimplementación inline y pasa al paginador único del producto, en modo controlado — el bloque no navega por URL, avisa el cambio de página al contenedor y la card conserva su estado local · ventana deslizante de máximo 10 números centrada en la página actual, ajustada a los extremos; el recorte anterior de páginas 1-3 más la última con elipsis desaparece · el total de páginas se calcula sobre el total real del estado activo, no sobre las filas en memoria · con 0 requisitos en el estado el bloque no se renderiza · <nav aria-label=\"Paginación\"> con aria-current=\"page\" [REQ-008 RF-1, RF-2, RF-4, RF-5, RF-10, CA-6, CA-11, CA-19]",
+          "state_overrides": {
+            "empty": {
+              "pages": 1,
+              "annotation": "con 0 requisitos en el estado activo el paginador no se renderiza: no hay páginas navegables, y el 0 del tab es un dato real de la api, no ausencia de datos [REQ-008 CA-11, CA-19]"
+            }
+          }
         },
         {
           "name": "seccion-tareas",
@@ -3140,9 +3146,8 @@
           "type": "dropdown",
           "category": "input",
           "state": "closed",
-          "content": "Estado: Todos los estados",
+          "content": "Estado: Planificación ×  En cola ×  Desarrollo ×  Revisión ×",
           "options": [
-            "Todos los estados",
             "Análisis",
             "Planificación",
             "En cola",
@@ -3151,7 +3156,13 @@
             "Resuelto",
             "Cancelado"
           ],
-          "annotation": "el sentinel de \"sin filtro\" acá es '', no 'all' como en actores y proyectos · react-select con inputId filter-state que ningún <label> referencia"
+          "annotation": "selección múltiple (<InputMultipleSelect>, el mismo mecanismo que el filtro de estado de listado-tareas): cada estado elegido es un chip removible dentro del control, y las siete opciones van en el orden del enum requirement_state, no alfabético · default al entrar sin state en la URL: Planificación, En cola, Desarrollo y Revisión — el listado abre en el trabajo en curso, no en el histórico · la opción \"Todos los estados\" de valor '' desaparece de la lista: con multi-selección \"todos\" deja de ser una opción y pasa a ser la ausencia de selección · selección vacía = los siete estados, persistida como state=all, sentinel que se conserva en la URL en vez de borrarse porque una URL sin state significa el default de cuatro · la selección viaja como CSV (state=desarrollo,revision), así que el recorte se comparte como link · react-select con inputId filter-state que ningún <label> referencia [REQ-009 RF-4..RF-7]",
+          "state_overrides": {
+            "empty": {
+              "content": "Estado: Planificación ×  En cola ×  Desarrollo ×  Revisión ×",
+              "annotation": "una combinación de estados sin resultados abre la tabla vacía aunque el proyecto tenga requisitos en analisis, resuelto o cancelado: el empty no lo explica, porque el mensaje es el mismo para \"no hay nada\" y \"no hay nada con estos filtros\" [REQ-009 AC-13]"
+            }
+          }
         },
         {
           "name": "filtro-proyecto",
@@ -3247,7 +3258,7 @@
               "Gestor Jiku",
               "Filtro por responsable en el listado",
               "Sin asignar",
-              "badge:Análisis",
+              "badge:Planificación",
               "Funcionalidad",
               "badge:Media",
               "12/08/2026"
@@ -3271,6 +3282,16 @@
               "Otro",
               "badge:Baja",
               "28/07/2026"
+            ],
+            [
+              "1028",
+              "Sitio Municipal",
+              "Alta masiva de actores desde CSV",
+              "L. Álvarez",
+              "badge:Desarrollo",
+              "Funcionalidad",
+              "badge:Media",
+              "21/07/2026"
             ]
           ],
           "state_overrides": {
@@ -3278,7 +3299,7 @@
               "rows": []
             }
           },
-          "annotation": "fecha DD/MM/YYYY vía labelFromDate · el responsable se resume: con más de uno muestra el primero y un +N priorizando al líder, con la lista completa en el title · proyecto vacío \"—\", sin responsable \"Sin asignar\" · las filas son <tr onClick> sin role ni tabIndex: la tabla no es navegable por teclado pese a ser la única vía al detalle"
+          "annotation": "fecha DD/MM/YYYY vía labelFromDate · el responsable se resume: con más de uno muestra el primero y un +N priorizando al líder, con la lista completa en el title · proyecto vacío \"—\", sin responsable \"Sin asignar\" · las filas son <tr onClick> sin role ni tabIndex: la tabla no es navegable por teclado pese a ser la única vía al detalle · con el default de cuatro estados no aparecen requisitos en analisis, resuelto ni cancelado [REQ-009 RF-5]"
         },
         {
           "name": "pill-estado",
@@ -3289,7 +3310,7 @@
             "loading",
             "empty"
           ],
-          "annotation": "va dentro de su celda de tabla-requisitos · <span class=sTag> con un <span class=dot> de color por data-state, y el punto no tiene aria-hidden · valores: Análisis · Planificación · En cola · Desarrollo · Revisión · Resuelto · Cancelado"
+          "annotation": "va dentro de su celda de tabla-requisitos · <span class=sTag> con un <span class=dot> de color por data-state, y el punto no tiene aria-hidden · valores: Análisis · Planificación · En cola · Desarrollo · Revisión · Resuelto · Cancelado — los cuatro del medio son los que trae el default del filtro [REQ-009 RF-5]"
         },
         {
           "name": "pill-tipo",
@@ -3321,7 +3342,13 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "flechas con aria-label \"Página anterior\" y \"Página siguiente\", página activa con aria-current=page · reimplementada inline como un <div>, no un <nav>, y sin aria-label · no conoce el total: \"siguiente\" se habilita comparando requirements.length >= limit, así que se puede navegar a una página vacía"
+          "annotation": "deja de ser una reimplementación inline y pasa al paginador unificado del producto, en su modo URL — el mismo bloque que ya usan listado-tareas, la card de requisitos del detalle de proyecto y la tabla de tareas del requisito · ventana deslizante de máximo 10 números centrada en la página actual, sin elipsis · conoce el total del conjunto filtrado: la cantidad de páginas se calcula sobre el total de requisitos que cumplen los estados seleccionados y los demás filtros, en vez de adivinar comparando requirements.length >= limit · con 32 requisitos en los cuatro estados por default y 15 por página ofrece 3 páginas, y la flecha \"siguiente\" se deshabilita en la última real: ya no se navega a una página vacía · cambiar la selección de estados cambia el total y devuelve a la página 1 · flechas con aria-label \"Página anterior\" / \"Página siguiente\" y aria-current=\"page\" en la activa [REQ-009 RF-8, RF-9, AC-6]",
+          "state_overrides": {
+            "empty": {
+              "pages": 1,
+              "annotation": "con la selección de estados sin resultados el total informado es 0 y no hay páginas navegables [REQ-009 AC-13]"
+            }
+          }
         },
         {
           "name": "selector-tamano-pagina",
@@ -3337,7 +3364,7 @@
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "default 15 · aria-label \"Elementos por página\" · al cambiar el tamaño resetea page a 1"
+          "annotation": "default 15 · aria-label \"Elementos por página\" · al cambiar el tamaño resetea page a 1 · con el total real del conjunto filtrado, cambiar el tamaño recalcula una cantidad de páginas exacta en vez de inferida [REQ-009 RF-9]"
         },
         {
           "name": "cargando-requisitos",
@@ -3368,7 +3395,7 @@
           "visible_only_in_states": [
             "empty"
           ],
-          "annotation": "<td colSpan={8}> con los encabezados de la tabla visibles · no diferencia el empty de primer uso del empty por filtros, y como isError se ignora un fallo se ve igual: es la única ruta de listado del producto sin error.tsx"
+          "annotation": "<td colSpan={8}> con los encabezados de la tabla visibles · no diferencia el empty de primer uso del empty por filtros, y como isError se ignora un fallo se ve igual: es la única ruta de listado del producto sin error.tsx · alcanzable por una combinación de estados sin resultados, y el mensaje no lo explica [REQ-009 AC-13]"
         }
       ],
       "layouts": {
@@ -3778,7 +3805,7 @@
           "category": "navigation",
           "pages": 2,
           "page_size": 5,
-          "annotation": "usa el componente compartido Pagination en modo controlado (glifos < / >, sin elipsis), con <nav aria-label=\"Paginación\"> y aria-current=\"page\" · select de 5 / 10 por página sobrevive fuera del <nav> (web/src/shared/components/ui/Pagination/Pagination.tsx; RequirementDetail.tsx:229-250)"
+          "annotation": "usa el componente compartido Pagination en modo controlado, con ventana deslizante de máximo 10 números centrada en la página actual y sin elipsis — mismo componente que la tabla de tareas de listado-tareas y que paginacion-requisitos de detalle-proyecto (story S-039) · glifos < / > (antes ‹ / › de la reimplementación inline) · con 0 tareas en la tab activa el paginador no se renderiza, donde antes dibujaba un <nav> con un botón \"1\" inerte · <nav aria-label=\"Paginación\"> con aria-current=\"page\" · el select de 5 / 10 por página sobrevive fuera del <nav>"
         },
         {
           "name": "card-actividad",

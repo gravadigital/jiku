@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-01
 ---
 
 # Pantalla: Listado de requisitos
@@ -45,7 +45,7 @@ date: 2026-08-18
 | 1 | boton-nuevo-requisito | button | primary | input | desktop | todos los estados | Ir al alta de requisito |
 | 2 | barra-filtros | section | — | layout | desktop | todos los estados | Contenedor de los cuatro filtros |
 | 3 | buscador-requisito | search-bar | default | input | desktop | todos los estados | Filtro por texto |
-| 4 | filtro-estado | dropdown | closed / open | input | desktop | todos los estados | Filtro por estado del requisito |
+| 4 | filtro-estado | dropdown | multi · closed / open | input | desktop | todos los estados | Filtro por uno o varios estados del requisito |
 | 5 | filtro-proyecto | dropdown | closed / open | input | desktop | todos los estados | Filtro por proyecto |
 | 6 | filtro-orden | dropdown | closed / open | input | desktop | todos los estados | Orden del listado |
 | 7 | tarjeta-tabla | card | — | layout | desktop | hidden_in_states: loading | Contenedor de la tabla |
@@ -53,7 +53,7 @@ date: 2026-08-18
 | 9 | pill-estado | badge | por `data-state` | content | desktop | hidden_in_states: loading, empty | Estado del requisito |
 | 10 | pill-tipo | badge | por `data-type` | content | desktop | hidden_in_states: loading, empty | Tipo del requisito |
 | 11 | pill-prioridad | badge | por `data-priority` | content | desktop | hidden_in_states: loading, empty | Prioridad del requisito |
-| 12 | paginacion | pagination | — | navigation | desktop | hidden_in_states: loading | Navegación entre páginas |
+| 12 | paginacion | pagination | ventana deslizante | navigation | desktop | hidden_in_states: loading | Navegación entre páginas del conjunto filtrado, con total real |
 | 13 | selector-tamano-pagina | dropdown | closed | input | desktop | hidden_in_states: loading | Cantidad de filas por página |
 | 14 | cargando-requisitos | loader | — | feedback | desktop | visible_only_in_states: loading | Fallback del `<Suspense>` |
 | 15 | cargando-tabla | paragraph | body | feedback | desktop | visible_only_in_states: loading | Mensaje dentro del cuerpo de la tabla |
@@ -104,10 +104,14 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 - Annotation: debounce antes de propagar el cambio (`:113`, `:117-119`). Es un `<input>` nativo con `<label className={styles.fLabel}>` **sin `htmlFor`** (`:131`, `:135`) [fuente: código-existente]
 
 ### filtro-estado
-- Texto/label: `"Estado"` · opciones `"Todos los estados"` (`''`) · `"Análisis"` · `"Planificación"` · `"En cola"` · `"Desarrollo"` · `"Revisión"` · `"Resuelto"` · `"Cancelado"`
+- Texto/label: `"Estado"` · placeholder con la selección vacía: `"Todos los estados"` · opciones `"Análisis"` (`analisis`) · `"Planificación"` (`planificacion`) · `"En cola"` (`en_cola`) · `"Desarrollo"` (`desarrollo`) · `"Revisión"` (`revision`) · `"Resuelto"` (`resuelto`) · `"Cancelado"` (`cancelado`)
 - Icono: nada
 - Asset: nada
-- Annotation: el sentinel de "sin filtro" acá es `''`, no `'all'` como en actores y proyectos (`RequirementFilters.tsx:141`, `:21-28`) [fuente: código-existente]
+- Annotation: **selección múltiple** — cada estado elegido se muestra como un chip removible dentro del control, y el orden de las siete opciones es el del enum `requirement_state`, no alfabético. **La opción `"Todos los estados"` de valor `''` desaparece de la lista:** deja de ser una opción y pasa a ser la ausencia de selección [REQ-009 RF-4, RF-6].
+  - **Default al entrar sin `state` en la URL:** `"Planificación"`, `"En cola"`, `"Desarrollo"` y `"Revisión"` seleccionados. `"Análisis"`, `"Resuelto"` y `"Cancelado"` quedan fuera — el listado abre en el trabajo en curso, no en el histórico completo [REQ-009 RF-5, AC-1].
+  - **Selección vacía = todos los estados.** Quitar el último chip no vacía la tabla ni devuelve el default: muestra los siete estados. Se persiste en la URL como `state=all`, y el sentinel **tiene que sobrevivir en la URL** — borrar el parámetro equivaldría a volver al default de cuatro [REQ-009 RF-6, AC-4, riesgo R1].
+  - **La selección viaja en la URL como lista separada por comas** (`state=desarrollo,revision`), de modo que recargar o compartir el link reproduce el mismo filtro; al entrar por link el control deriva sus chips parseando ese CSV [REQ-009 RF-7, AC-5].
+  - Mismo mecanismo que el filtro de estado de `listado-tareas` (`InputMultipleSelect`, CSV en la URL, sentinel `all`), que es el precedente que el requerimiento pide replicar [REQ-009].
 
 ### filtro-proyecto
 - Texto/label: `"Proyecto"` · opciones `"Todos los proyectos"` (`''`) + los proyectos en estado `analisis` o `activo`
@@ -155,7 +159,10 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 - Texto/label: flechas con `aria-label="Página anterior"` y `"Página siguiente"`, más los números de página
 - Icono: flechas de anterior/siguiente
 - Asset: nada
-- Annotation: reimplementada inline como un `<div>`. **No conoce el total:** el botón "siguiente" se habilita comparando `requirements.length >= limit` (`RequirementList.tsx:196-247`, `:202`, `:232`, `:215-233`) [fuente: código-existente]
+- Annotation: **deja de ser una reimplementación inline y pasa al paginador unificado** del producto (el mismo bloque que ya usan `listado-tareas`, la card de requisitos del detalle de proyecto y la tabla de tareas del requisito), en su modo URL. **Conoce el total del conjunto filtrado:** la cantidad de páginas se calcula sobre el total de requisitos que cumplen los estados seleccionados y los demás filtros, en vez de adivinar si hay una página siguiente porque la actual vino llena [REQ-009 RF-9, AC-6].
+  - Con 32 requisitos en los cuatro estados por default y 15 por página, ofrece **3 páginas** — no 4 ni las que resultarían del total sin filtrar [REQ-009 AC-6].
+  - Muestra como máximo 10 números en una ventana deslizante centrada en la página actual, como el resto de las tablas del producto.
+  - **El total corresponde siempre al conjunto filtrado**, así que cambiar los estados cambia el total y la cantidad de páginas, y cualquier cambio de la selección devuelve a la página 1 [REQ-009 RF-8, RF-9].
 
 ### selector-tamano-pagina
 - Texto/label: opciones `"15 por página"` · `"20 por página"` · `"25 por página"`
@@ -196,6 +203,7 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
   - pill-estado, pill-tipo, pill-prioridad: ocultos en este estado (hidden_in_states)
   - Los encabezados de la tabla quedan visibles
 - Disparado por `requirements.length === 0` (`RequirementList.tsx:138-143`). No diferencia el empty de primer uso del empty por filtros [fuente: código-existente]
+- **Alcanzable por una combinación de estados sin resultados.** Con el default de cuatro estados, un listado que solo tenga requisitos en `analisis`, `resuelto` o `cancelado` abre vacío aunque existan requisitos — el empty no lo explica, porque el mensaje es el mismo para "no hay nada" y "no hay nada con estos filtros". En ese caso el total informado es 0 y el paginador no ofrece páginas navegables [REQ-009 AC-13]
 
 ### loading
 - Aplica: Sí
@@ -221,14 +229,20 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 - Aplica: No — no implementado (ver gaps-as-is.md). Un requisito `resuelto` o `cancelado` se muestra igual que uno en curso, salvo el color del pill (`RequirementList.tsx:145-193`) [fuente: código-existente].
 
 ### última página conocida
-- Aplica: No — no implementado (ver gaps-as-is.md). La paginación no sabe el total: el botón "siguiente" se habilita comparando `requirements.length >= limit`, o sea "vino una página llena, asumo que hay más". Con un total múltiplo exacto del límite se puede navegar a una página vacía, y no hay número total de páginas ni de resultados en ningún lado (`RequirementList.tsx:215-233`) [fuente: código-existente].
+- Aplica: Sí — **pasa a estar implementado** [REQ-009 RF-9, AC-6].
+- Mensaje: —
+- Cambios:
+  - paginacion: la última página es la real del conjunto filtrado. La flecha "siguiente" queda deshabilitada en ella, y ya no se puede navegar a una página vacía cuando el total es múltiplo exacto del límite
+  - El total del conjunto filtrado deja de ser desconocido para la pantalla, y por lo tanto la cantidad de páginas es exacta en vez de inferida
+- Antes de este requerimiento la paginación adivinaba: habilitaba "siguiente" comparando `requirements.length >= limit` —"vino una página llena, asumo que hay más"— y no existía número total de páginas ni de resultados en ningún lado (`RequirementList.tsx:215-233`) [fuente: código-existente].
 
 ## Interacciones
 
 **Eventos:**
 - buscador-requisito · on change → debounce → `onChange('search', value)` → `router.push` · `RequirementFilters.tsx:113`, `:117-119`
-- filtro-estado / filtro-proyecto / filtro-orden · on change → `onChange(campo, valor)` inmediato · `RequirementFilters.tsx:147`, `:161`, `:173`
-- `updateFilter` → borra `page` y hace `router.push` · `RequirementList.tsx:82-89`
+- filtro-estado · on change → serializa la selección múltiple a lista separada por comas → `onChange('state', csv)` inmediato → `router.push`. **Con la selección vacía emite el sentinel `'all'`, que se escribe en la URL en vez de borrarse** [REQ-009 RF-6, RF-7, AC-4]
+- filtro-proyecto / filtro-orden · on change → `onChange(campo, valor)` inmediato · `RequirementFilters.tsx:161`, `:173`
+- `updateFilter` → borra `page` y hace `router.push` · `RequirementList.tsx:82-89`. **`state` es la excepción al borrado del sentinel:** los demás filtros siguen quitando el parámetro de la URL cuando el valor es vacío o `'all'`, pero `state=all` se conserva, porque una URL sin `state` significa el default de cuatro estados [REQ-009 RF-6, riesgo R1]
 - fila de tabla-requisitos · on click → navega a `/requirements/{id}` · `RequirementList.tsx:~147`
 - flecha de paginacion · on click → `params.set('page', ...)` + `router.push` · `RequirementList.tsx:93-99`
 - selector-tamano-pagina · on change → setea `limit` y **resetea `page` a 1** · `RequirementList.tsx:102-109`
@@ -240,6 +254,7 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 
 **Feedback:**
 - Cambio de filtro: el `<Suspense key>` remonta y muestra el fallback
+- Cambio de la selección de estados: la paginación vuelve a la página 1 y el total se recalcula sobre el conjunto filtrado [REQ-009 RF-8, RF-9]
 - Página activa: `data-active="true"` + `aria-current="page"` (`RequirementList.tsx:215`)
 - Responsables múltiples: `title` con la lista completa
 - `updateFilter` borra la página al filtrar (`RequirementList.tsx:87`), a diferencia de `ClientListFilters` y `ProjectListFilters`
@@ -251,7 +266,8 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 - **Foco y teclado:** los tres filtros de tipo dropdown son `react-select`, que aporta su propio comportamiento de teclado; la pantalla no monta overlays propios con focus trap [fuente: código-existente].
 - **Propio de esta composición:**
   - **Los labels de los cuatro filtros no están asociados a sus controles:** son `<label className={styles.fLabel}>` sin `htmlFor` y sin envolver el input, y ninguno de los cuatro controles tiene `aria-label` de respaldo. Un lector de pantalla lee los inputs sin nombre. Los `react-select` sí tienen `inputId` (`filter-state`, `filter-project`, `filter-sort`) pero **ningún `<label>` los referencia** (`RequirementFilters.tsx:131`, `:141`, `:152`, `:165`, `:143`, `:154`, `:167`).
-  - **El resultado del filtrado no se anuncia:** sin `aria-live` (`RequirementList.tsx:114`). Y como no existe un total de resultados en la UI, tampoco hay nada que anunciar (`RequirementList.tsx:196-247`).
+  - **El resultado del filtrado no se anuncia:** sin `aria-live` (`RequirementList.tsx:114`). Con el total del conjunto filtrado ya disponible en la pantalla [REQ-009 RF-9], **ahora sí existe algo que anunciar** y la ausencia de región live pasa de ser una consecuencia a ser una carencia propia: quien filtra con lector de pantalla no percibe que el conjunto cambió. Queda registrado como gap; este requerimiento no lo cierra.
+  - **El filtro de estado pasa a ser múltiple**, así que el control deja de anunciar un valor y anuncia una lista. Los chips de estados elegidos tienen que ser removibles por teclado, y el label sigue sin `htmlFor` que lo asocie al control — el gap de nombre accesible del filtro **no se cierra acá y se agrava**, porque ahora el control tiene más estado que comunicar [REQ-009 RF-4].
   - El punto de color del estado es un `<span className={styles.dot}>` vacío **sin `aria-hidden`** (`RequirementList.tsx:176`).
   - La lista completa de responsables va en `title`, un fallback débil que no aparece con el foco por teclado ni lo anuncian todos los lectores (`RequirementList.tsx:166`).
   - `selector-tamano-pagina` sí tiene `aria-label="Elementos por página"` (`RequirementList.tsx:240`).
@@ -260,3 +276,17 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 8 columnas de ancho
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-009 — Filtro multi-estado en el listado de requisitos
+
+- **El filtro de estado pasa a selección múltiple, replicando el de `listado-tareas` en vez de inventar un mecanismo.** El requerimiento lo pide textualmente ("como en el listado de tareas") y la superficie ya tiene ese patrón resuelto: multi-select, CSV en la URL y sentinel `all`. Copiarlo cierra una inconsistencia entre dos pantallas hermanas en lugar de sumar una tercera forma de filtrar [REQ-009 RF-4].
+- **El default es de cuatro estados y no "todos".** `planificacion`, `en_cola`, `desarrollo` y `revision` son el trabajo en curso; `analisis`, `resuelto` y `cancelado` quedan fuera. El listado abre en lo que se está haciendo, que es lo que se consulta a diario, y el histórico se pide explícitamente [REQ-009 RF-5].
+- **El default vive en el servidor de la página, no en el componente de filtros.** Así el primer render ya trae el recorte correcto y no hay parpadeo de "todos y después cuatro" — mismo lugar donde lo resuelve el listado de tareas [REQ-009, Escenario A].
+- **Deseleccionar todo muestra todo, y no vacía la tabla ni vuelve al default.** Es la decisión menos obvia de las tres posibles, y es la que pide el requerimiento: quitar los filtros tiene que significar "sin filtrar". **Descartado** vaciar la tabla (leería como "no hay requisitos", que es falso) y **descartado** devolver al default de cuatro (haría imposible ver los siete estados juntos) [REQ-009 RF-6, AC-4].
+- **El sentinel `all` se conserva en la URL en vez de borrarse.** Es la consecuencia directa de la decisión anterior: con un default de cuatro estados, una URL sin `state` ya no significa "sin filtro" sino "el default", así que "sin filtro" necesita su propia representación explícita. Es la excepción de `state` frente a los demás filtros del listado, que sí borran el parámetro [REQ-009 RF-6, riesgo R1].
+- **La opción `"Todos los estados"` de valor `''` se elimina de la lista.** Con selección múltiple, "todos" deja de ser una opción entre siete y pasa a ser la ausencia de selección; mantenerla habilitaría el estado contradictorio de tener "todos" elegido junto a dos estados concretos [REQ-009 RF-6].
+- **El paginador se migra al componente unificado y se alimenta con el total real.** No estaba en el pedido: es un hallazgo del diseño. El paginador inline adivinaba las páginas comparando si la página vino llena, y con un filtro que recorta el conjunto eso pasa de ser impreciso a ser visiblemente incorrecto — el requerimiento exige que el total y las páginas correspondan a los estados seleccionados. **Descartado** dejarlo como estaba: el filtro nuevo habría quedado sin una lectura fiable de cuánto trae [REQ-009 RF-9, AC-6, riesgo R2].
+- **No se agrega desglose por estado en el listado global.** Con multi-estado sería tentador mostrar cuántos requisitos hay de cada estado, pero ese desglose ya existe donde tiene sentido —los tabs de la card del detalle de proyecto— y acá el paginador informa el total de la selección, que es lo que se necesita para navegar [REQ-009, clarificación de negocio].
+- **La card de requisitos del detalle de proyecto no se toca.** Sigue con sus siete tabs de un estado cada uno. El cambio es compatible hacia atrás y esa card resuelve otro trabajo: comparar estados de a uno dentro de un proyecto, no filtrar el listado global [REQ-009, clarificación de alcance; AC-8].
+- **`opus-web` no se modifica.** El portal externo consume el mismo endpoint y su comportamiento no cambia; el multi-select es de la superficie interna [REQ-009 RF-11, AC-15].
+- **[Auto] Design System — sin componentes nuevos.** El multi-select se expresa con el tipo de bloque `dropdown` en variante múltiple, que ya está en uso en `listado-tareas` (`InputMultipleSelect`), y el paginador con el tipo `pagination` del paginador unificado. Ningún tipo de bloque nuevo entra en la pantalla, así que no se crea ningún componente de DS. La deuda conocida de la superficie —tres formas distintas de hacer un select— **no se resuelve acá**: se reutiliza la que ya usa la pantalla hermana, que es la que este requerimiento pide replicar.

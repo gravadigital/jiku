@@ -37,7 +37,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
-| 12 | listado-requisitos | Ver y filtrar los requisitos | equipo-interno | solo desktop | C-13 |
+| 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez | equipo-interno | solo desktop | C-13, REQ-009 |
 | 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
@@ -73,6 +73,19 @@ del grupo `(loggedin)` [fuente: código-existente].
 > requerimiento nombra dos paginadores y esos usan los suyos. **Queda un tercer paginador inline sin
 > unificar** en `detalle-requisito` (tabla de tareas del requisito), registrado como fuera de alcance
 > en el propio REQ [REQ-008 RF-1..RF-10].
+
+> **REQ-009 no agrega ni quita pantallas, y toca una.** El filtro de estado de
+> `listado-requisitos` pasa de selección única a **selección múltiple**, replicando el mecanismo que
+> `listado-tareas` ya usa: la selección viaja en la URL como lista separada por comas, el default al
+> entrar sin `state` son los cuatro estados de trabajo en curso (`planificacion`, `en_cola`,
+> `desarrollo`, `revision`) y **deseleccionar todo muestra los siete estados**, persistido como
+> `state=all` para distinguirlo del default. **La pantalla no gana ni pierde bloques:**
+> `filtro-estado` cambia de variante (single → multi) y `paginacion` deja de ser una
+> reimplementación inline para pasar al paginador unificado, ahora alimentado con el total real del
+> conjunto filtrado — el tercer paginador inline que REQ-008 había dejado registrado como fuera de
+> alcance. **Se verificó que la card de requisitos del detalle de proyecto no se toca** (sigue con
+> sus siete tabs de un estado cada uno, y el contrato es compatible hacia atrás), y que **`opus-web`
+> no se modifica** [REQ-009 RF-4..RF-9, RF-11].
 
 > **REQ-007 no agrega ni quita pantallas, y toca dos.** Habilitar `jiku-commands` para personas no
 > tiene interfaz: quien publica un comando lo hace desde un cliente NATS. Lo user-visible son dos

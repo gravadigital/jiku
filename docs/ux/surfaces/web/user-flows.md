@@ -107,6 +107,13 @@ lo ve en Opus sin que nadie se lo comunique.
 ### Happy path
 
 1. **listado-requisitos** → filtra y abre uno → **detalle-requisito**
+   - El listado **abre filtrado por los cuatro estados de trabajo en curso** (`planificacion`,
+     `en_cola`, `desarrollo`, `revision`): quien viene a avanzar un requisito entra viendo los que
+     están en curso, sin los de `analisis` ni el histórico de `resuelto` y `cancelado`. El filtro de
+     estado es de **selección múltiple**, así que se agregan o quitan estados sin perder el resto de
+     la selección, y **deseleccionar todos muestra los siete** [REQ-009 RF-4..RF-6].
+   - La selección viaja en la URL, de modo que un recorte de estados se comparte como link y el
+     paginador informa el total del conjunto filtrado [REQ-009 RF-7, RF-9].
 2. El **stepper de workflow** muestra dónde está: `analisis → planificacion → en_cola →
    desarrollo → revision` [fuente: código-existente]
 3. El usuario completa los campos del **acordeón** que corresponden al estado actual
