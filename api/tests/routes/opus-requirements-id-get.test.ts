@@ -208,4 +208,92 @@ describe('GET /api/opus/requirements/:reqid', () => {
         });
     });
   });
+
+  /**
+   * S-047 (CA-8, CA-9): TEST DE REGRESIÓN sobre la proyección de opus.
+   *
+   * `opus-requirements-id-get.ts` arma la respuesta campo por campo, y por eso NUNCA agrega
+   * `editedAt`/`editedBy`: no es un filtro que pueda olvidarse, es un campo que nunca se
+   * escribe. Este test es lo único que fija esa ausencia — si alguien "simplifica" la
+   * proyección serializando el modelo completo (`toJSON()`), este test es el que tiene que
+   * fallar. El fixture escribe `editedAt`/`editedBy` directo con el modelo (sin pasar por el
+   * bus): esto es sobre la LECTURA, no sobre la edición.
+   */
+  describe('S-047: la proyección de opus nunca expone editedAt/editedBy (CA-8, CA-9)', () => {
+    let publicEditedId: number;
+    let internalEditedId: number;
+
+    before(() => {
+      return RequirementActivity.create({
+        requirementId,
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'Comentario público editado',
+        visibilityLevel: VisibilityLevel.Public,
+        changedBy: 'zitadel-sub-01',
+        editedAt: new Date(),
+        editedBy: 'zitadel-sub-01',
+      })
+        .then((activity) => {
+          publicEditedId = activity.id;
+          // La actividad `internal` editada es la red de no-regresión: la ausencia de
+          // editedAt/editedBy no puede depender de que el filtro de visibilidad la excluya —
+          // tiene que estar ausente aunque la actividad SÍ llegara a la respuesta.
+          return RequirementActivity.create({
+            requirementId,
+            typeOfActivity: 'comment',
+            previousValue: '',
+            newValue: 'Comentario interno editado',
+            visibilityLevel: VisibilityLevel.Internal,
+            changedBy: 'zitadel-sub-01',
+            editedAt: new Date(),
+            editedBy: 'zitadel-sub-01',
+          });
+        })
+        .then((activity) => {
+          internalEditedId = activity.id;
+        });
+    });
+
+    after(() => {
+      return RequirementActivity.destroy({ where: { requirementId } });
+    });
+
+    // TS-26: un comentario public editado, leído por un external-user con permiso: ninguna
+    // actividad de la respuesta expone editedAt ni editedBy.
+    it('TS-26: no expone editedAt ni editedBy en un comentario public editado', () => {
+      return request(application)
+        .get(`/api/opus/requirements/${requirementId}`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(200)
+        .then((response) => {
+          response.body.requirementActivity.should.be.an.Array();
+          response.body.requirementActivity.length.should.be.above(0);
+          response.body.requirementActivity.forEach((entry: Record<string, unknown>) => {
+            entry.should.not.have.property('editedAt');
+            entry.should.not.have.property('editedBy');
+          });
+        });
+    });
+
+    // TS-27: mezcla de una actividad public editada y una internal editada. La internal ni
+    // siquiera aparece (ADR-006); la ausencia de editedAt/editedBy en la public no depende de
+    // la visibilidad.
+    it('TS-27: la ausencia no depende de la visibilidad, y lo internal sigue filtrado', () => {
+      return request(application)
+        .get(`/api/opus/requirements/${requirementId}`)
+        .set('Authorization', 'Bearer token_04_external_user')
+        .expect(200)
+        .then((response) => {
+          const ids = response.body.requirementActivity.map((entry: { id: number }) => entry.id);
+          ids.should.containEql(publicEditedId);
+          ids.should.not.containEql(internalEditedId);
+
+          response.body.requirementActivity.forEach((entry: Record<string, unknown>) => {
+            entry.should.not.have.property('editedAt');
+            entry.should.not.have.property('editedBy');
+          });
+        });
+    });
+  });
 });

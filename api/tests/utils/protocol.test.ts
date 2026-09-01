@@ -233,4 +233,38 @@ describe('httpStatusFor', () => {
     httpStatusFor('gateway_timeout').should.equal(500);
     httpStatusFor('service_unavailable').should.equal(500);
   });
+
+  /**
+   * S-047 (CA-6, D-1): los tres códigos que emiten los comandos de edición de comentario de
+   * core (`tasks.{id}.comment.{cid}.edit` y `requirements.{id}.comment.{cid}.edit`, S-046).
+   * Son tres y no dos: `comment_not_found` también viajaba local hasta ahora (400) y sin su
+   * entrada en el mapa pasaría de 400 a 500 al migrar la ruta a publicar el comando.
+   */
+  it('TS-20: mapea comment_not_owned a 403', () => {
+    httpStatusFor('comment_not_owned').should.equal(403);
+  });
+
+  it('TS-21: mapea activity_not_editable a 400', () => {
+    httpStatusFor('activity_not_editable').should.equal(400);
+  });
+
+  it('TS-22 (D-1): mapea comment_not_found a 400, no a 500', () => {
+    httpStatusFor('comment_not_found').should.equal(400);
+    httpStatusFor('comment_not_found').should.not.equal(500);
+  });
+
+  // Un código inventado sigue cayendo en el fallback: las tres entradas nuevas no lo rompieron.
+  it('S-047: mantiene el fallback a 500 para un código inventado', () => {
+    httpStatusFor('codigo_inventado_s047').should.equal(500);
+  });
+
+  // Ninguna entrada preexistente cambió de status con el agregado de esta story.
+  it('S-047: ninguna entrada preexistente cambió de status', () => {
+    httpStatusFor('invalid_fields').should.equal(400);
+    httpStatusFor('user_not_found').should.equal(404);
+    httpStatusFor('file_not_owned').should.equal(403);
+    httpStatusFor('caller_not_authorized').should.equal(403);
+    httpStatusFor('access_denied').should.equal(403);
+    httpStatusFor('internal_error').should.equal(500);
+  });
 });

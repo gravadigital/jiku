@@ -98,15 +98,17 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
 
   // TS-20: LA INVARIANTE Y EL ANCLA, en dos aserciones distintas y a propósito. La igualdad es
   // la regla —toda operación que puede dar 503 puede dar 504, porque las dos fallas son
-  // alcanzables desde el mismo `catch`—; el 26 es el estado de hoy. Si mañana se agrega una
-  // operación que publica un comando, el número correcto pasa a 27 y este test tiene que fallar
-  // por la razón útil ("agregaste un 503 sin su 504"), no por un literal desactualizado.
+  // alcanzables desde el mismo `catch`—; el 28 es el estado de hoy (S-047: `api.yaml` ya
+  // documentaba los dos endpoints de edición de comentario con 503/504 antes de que el código
+  // los publicara por el bus — 26 + 2 = 28). Si mañana se agrega una operación que publica un
+  // comando, el número correcto pasa a 29 y este test tiene que fallar por la razón útil
+  // ("agregaste un 503 sin su 504"), no por un literal desactualizado.
   it('TS-20: toda operación con 503 declara también 504', () => {
     const busUnavailable = countLinesWith(BUS_UNAVAILABLE_REF);
     const gatewayTimeout = countLinesWith(GATEWAY_TIMEOUT_REF);
 
     busUnavailable.should.equal(gatewayTimeout);
-    busUnavailable.should.equal(26);
+    busUnavailable.should.equal(28);
   });
 
   // TS-22: ninguna clave '503' o '504' apunta a otro componente. Es lo que impide que una
