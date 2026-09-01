@@ -258,7 +258,7 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
           <div className={styles.card}>
             <div className={styles.cardTitle}>Actividad</div>
             <div className={styles.activityScroll}>
-              <RequirementActivityFeed activity={requirement.activity ?? []} />
+              <RequirementActivityFeed activity={requirement.activity ?? []} reqid={requirement.id} />
             </div>
             <RequirementActivityForm reqid={requirement.id} />
           </div>

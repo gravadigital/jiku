@@ -1,6 +1,10 @@
 'use server';
 import { apiClient } from '@/lib/axios';
-import type { CreateCommentPayload, ObjectiveActivity } from '../types/activity.types';
+import type {
+  CreateCommentPayload,
+  ObjectiveActivity,
+  UpdateCommentPayload,
+} from '../types/activity.types';
 
 export const createComment = async (
   objectiveId: number,
@@ -13,7 +17,11 @@ export const createComment = async (
 export const updateComment = async (
   objectiveId: number,
   commentId: number,
-  payload: CreateCommentPayload
+  payload: UpdateCommentPayload
 ): Promise<void> => {
-  await apiClient.patch(`/objectives/${objectiveId}/comment/${commentId}`, payload);
+  const { comment, fileIds } = payload;
+  await apiClient.patch(`/objectives/${objectiveId}/comment/${commentId}`, {
+    comment,
+    ...(fileIds !== undefined ? { fileIds } : {}),
+  });
 };

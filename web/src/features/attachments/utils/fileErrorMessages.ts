@@ -32,3 +32,30 @@ export function fileErrorMessage(error: unknown, fallback: string): string {
   }
   return candidate?.message || fallback;
 }
+
+/**
+ * Traducción de los códigos de error de dominio que la api devuelve al editar un
+ * comentario (S-048). Delega en `FILE_ERROR_MESSAGES` para `file_not_owned` en vez de
+ * duplicarlo: los dos textos comparten fuente y no pueden divergir.
+ */
+const COMMENT_ERROR_MESSAGES: Record<string, string> = {
+  comment_not_owned: 'No podés editar un comentario que no es tuyo',
+  activity_not_editable: 'Esta entrada no es un comentario y no se puede editar',
+  comment_not_found: 'El comentario ya no existe',
+  file_not_owned: FILE_ERROR_MESSAGES.file_not_owned,
+  service_unavailable: 'El servicio no está disponible en este momento',
+  gateway_timeout: 'La operación tardó demasiado',
+};
+
+/**
+ * Devuelve el mensaje que corresponde mostrar para un error de edición de comentario, o
+ * `fallback` si el error no es uno de los códigos conocidos o no trae `code`.
+ */
+export function commentErrorMessage(error: unknown, fallback: string): string {
+  const candidate = error as MaybeApiError | null;
+  const code = candidate?.code;
+  if (code && COMMENT_ERROR_MESSAGES[code]) {
+    return COMMENT_ERROR_MESSAGES[code];
+  }
+  return fallback;
+}

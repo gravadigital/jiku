@@ -131,6 +131,8 @@ describe('RequirementResolutionCard', () => {
               changedBy: 'u1',
               changedByUser: { id: 'u1', name: 'x', email: 'x' },
               createdAt: '2026-07-15T12:00:00Z',
+              editedAt: null,
+              editedBy: null,
             },
           ],
         }}

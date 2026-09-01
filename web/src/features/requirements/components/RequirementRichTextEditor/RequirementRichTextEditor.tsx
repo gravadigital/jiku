@@ -37,6 +37,11 @@ export interface RequirementRichTextEditorHandle {
   clear: () => void;
   /** Abre el selector de archivos del sistema operativo (equivalente a click en "Adjuntar"). */
   openFilePicker: () => void;
+  /**
+   * Mueve el foco al primer campo de texto del editor. Agregado por S-048: la pantalla exige
+   * llevar el foco al editor al entrar en modo edición (accesibilidad de detalle-requisito).
+   */
+  focus: () => void;
 }
 
 export const RequirementRichTextEditor = forwardRef<
@@ -62,6 +67,7 @@ export const RequirementRichTextEditor = forwardRef<
   const [uploading, setUploading] = useState(false);
   const [uploadingMimeType, setUploadingMimeType] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -81,6 +87,9 @@ export const RequirementRichTextEditor = forwardRef<
     },
     openFilePicker: () => {
       fileInputRef.current?.click();
+    },
+    focus: () => {
+      containerRef.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
     },
   }));
 
@@ -140,7 +149,9 @@ export const RequirementRichTextEditor = forwardRef<
 
   return (
     <div
+      ref={containerRef}
       className={className ? `${styles.container} ${className}` : styles.container}
+      role="group"
       aria-label={ariaLabel}
     >
       <div className={`${styles.inputBox} rich-text-editor-input-box`}>

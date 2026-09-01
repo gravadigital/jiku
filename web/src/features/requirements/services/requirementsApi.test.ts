@@ -5,6 +5,7 @@ import {
   getRequirements,
   getRequirementsCount,
   getRequirementWorkedHours,
+  updateRequirementComment,
 } from './requirementsApi';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
@@ -13,6 +14,7 @@ vi.mock('@/lib/axios', () => ({
   apiClient: {
     post: vi.fn(),
     get: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -144,6 +146,37 @@ describe('addRequirementActivity', () => {
       comment: 'Solo texto',
       visibilityLevel: 'public',
     });
+  });
+});
+
+describe('updateRequirementComment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.patch).mockResolvedValue({ data: undefined });
+  });
+
+  // TS-1 (S-048/CA-1): PATCH /requirements/{reqid}/comments/{cid} con comment y fileIds
+  it('TS-1: llama a PATCH /requirements/{reqid}/comments/{cid} con comment y fileIds (S-048)', async () => {
+    await updateRequirementComment(12, 7, {
+      comment: 'texto corregido',
+      fileIds: [3, 9],
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith('/requirements/12/comments/7', {
+      comment: 'texto corregido',
+      fileIds: [3, 9],
+    });
+  });
+
+  // TS-2 (S-048/CA-1): sin fileIds, el body no lleva esa clave
+  it('TS-2: sin fileIds, el body no incluye la clave (S-048)', async () => {
+    await updateRequirementComment(12, 7, { comment: 'solo texto' });
+
+    expect(apiClient.patch).toHaveBeenCalledWith('/requirements/12/comments/7', {
+      comment: 'solo texto',
+    });
+    const [, body] = vi.mocked(apiClient.patch).mock.calls[0];
+    expect(body).not.toHaveProperty('fileIds');
   });
 });
 

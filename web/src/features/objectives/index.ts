@@ -47,7 +47,12 @@ export type {
   WorkedTime,
 } from './types/objective.types';
 
-export type { ActivityType, CreateCommentPayload, ObjectiveActivity } from './types/activity.types';
+export type {
+  ActivityType,
+  CreateCommentPayload,
+  ObjectiveActivity,
+  UpdateCommentPayload,
+} from './types/activity.types';
 
 /* Utils */
 export {

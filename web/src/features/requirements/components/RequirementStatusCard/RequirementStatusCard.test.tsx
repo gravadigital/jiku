@@ -159,6 +159,8 @@ describe('RequirementStatusCard', () => {
                 changedBy: 'u1',
                 changedByUser: { id: 'u1', name: 'x', email: 'x' },
                 createdAt: '2026-06-02T00:00:00Z',
+                editedAt: null,
+                editedBy: null,
               },
               {
                 id: 2,
@@ -169,6 +171,8 @@ describe('RequirementStatusCard', () => {
                 changedBy: 'u1',
                 changedByUser: { id: 'u1', name: 'x', email: 'x' },
                 createdAt: '2026-06-03T00:00:00Z',
+                editedAt: null,
+                editedBy: null,
               },
             ],
           }}

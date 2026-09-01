@@ -79,6 +79,10 @@ export interface RequirementActivity {
   changedBy: string;
   changedByUser: RequirementActivityUser;
   createdAt: string;
+  /** ISO string de la ultima edicion del comentario. `null` si nunca fue editado. */
+  editedAt: string | null;
+  /** Id del usuario que hizo la ultima edicion. `null` si nunca fue editado. */
+  editedBy: string | null;
 }
 
 export interface Requirement {
@@ -185,6 +189,17 @@ export interface AddActivityPayload {
   comment: string;
   visibilityLevel?: VisibilityLevel;
   /** Ids de `files` embebidos en el comentario. */
+  fileIds?: number[];
+}
+
+/**
+ * Payload del PATCH de edicion de un comentario ya publicado. Deliberadamente sin
+ * `visibilityLevel`: la api rechaza cualquier campo no declarado en su requestBody, y la
+ * visibilidad es inmutable despues de creado (RF-8).
+ */
+export interface UpdateCommentPayload {
+  comment: string;
+  /** Conjunto COMPLETO de `fileIds` que debe quedar vinculado al comentario. */
   fileIds?: number[];
 }
 

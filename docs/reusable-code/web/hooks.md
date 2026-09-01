@@ -84,3 +84,36 @@ const isUnavailable = error?.status === 404;
 // A file with no link yet
 const { data } = useAttachmentMeta(fileId, 'file');
 ```
+
+---
+
+## useUpdateRequirementComment
+
+**Location:** `web/src/features/requirements/hooks/useUpdateRequirementComment.ts`
+
+**Description:** Wraps `updateRequirementComment` in `useMutation` (S-048). On success it
+invalidates **two** query keys: `['requirement', reqid]` (so the feed shows the edited text and the
+new `editedAt`/`editedBy`) and `['attachments', 'requirement_comment', cid]` (so the comment's
+attachment list reflects what was just saved). It does not toast or navigate — that stays with the
+component, which has the screen context. Mirrors the pattern of `useAddRequirementActivity`.
+
+**Signature:**
+
+```ts
+function useUpdateRequirementComment(reqid: number): UseMutationResult<
+  void,
+  unknown,
+  { cid: number; comment: string; fileIds?: number[] }
+>;
+```
+
+**Usage:**
+
+```ts
+const { mutate, isPending } = useUpdateRequirementComment(reqid);
+
+mutate(
+  { cid: entry.id, comment: comment.trim(), fileIds: [3, 9] },
+  { onSuccess: () => toast.success('Comentario editado'), onError: (error) => toast.error(...) }
+);
+```

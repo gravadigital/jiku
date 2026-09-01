@@ -71,6 +71,31 @@ onError: (error) => toast.error(fileErrorMessage(error, 'Hubo un error al crear 
 
 ---
 
+## commentErrorMessage
+
+**Location:** `web/src/features/attachments/utils/fileErrorMessages.ts`
+
+**Description:** Maps the domain error codes the api returns when editing a comment (S-048) to the
+Spanish message the interface shows. Delegates `file_not_owned` to `FILE_ERROR_MESSAGES` instead of
+duplicating it — the two texts share one source and cannot diverge. Unlike `fileErrorMessage`, it
+does **not** fall back to the api's own `error.message`: an unrecognized code always resolves to the
+caller-supplied fallback, because the api's raw text is not written for people.
+
+**Signature:**
+
+```ts
+function commentErrorMessage(error: unknown, fallback: string): string;
+```
+
+**Usage:**
+
+```ts
+onError: (error) =>
+  toast.error(commentErrorMessage(error, 'Hubo un error al editar el comentario'));
+```
+
+---
+
 ## getPageWindow
 
 **Location:** `web/src/shared/components/ui/Pagination/getPageWindow.ts`
