@@ -798,7 +798,33 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [requirementId, totalMinutes, byPerson]
+                properties:
+                  requirementId: { type: integer }
+                  totalMinutes:
+                    type: integer
+                    description: |
+                      Suma de todos los minutos imputados al requisito: los cargados directamente
+                      más los de sus tareas. Es exactamente la suma de los `minutes` de `byPerson`.
+                  byPerson:
+                    type: array
+                    description: |
+                      Desglose de minutos por persona. **Siempre presente**: vale `[]` cuando el
+                      requisito no tiene horas imputadas, nunca se omite. Una fila por persona,
+                      sumando las horas directas y las de tareas. Ordenado por `minutes`
+                      descendente, con desempate por `personId` ascendente. Incluye personas
+                      deshabilitadas, dadas de baja y sin `User` vinculado: el desglose es por
+                      `Person`, no por `User`.
+                    items:
+                      type: object
+                      required: [personId, firstName, lastName, minutes]
+                      properties:
+                        personId: { type: integer }
+                        firstName: { type: string }
+                        lastName: { type: string }
+                        minutes: { type: integer }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }
         '404': { $ref: '#/components/responses/RequirementNotFound' }
