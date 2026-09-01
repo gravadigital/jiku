@@ -34,7 +34,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
 | 7 | edicion-actor | Editar un actor | equipo-interno | solo desktop | C-04 |
 | 8 | listado-proyectos | Ver y filtrar los proyectos | equipo-interno | solo desktop | C-06 |
-| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005 |
+| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos | equipo-interno | solo desktop | C-13 |
@@ -42,7 +42,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
-| 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28 |
+| 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008 |
 | 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
@@ -58,6 +58,21 @@ del grupo `(loggedin)` [fuente: código-existente].
 > **Todas las pantallas son `solo desktop`.** No es una decisión por pantalla sino del shell: la
 > sidebar mide 290 px fijos y el layout no tiene ningún media query, así que bajo ~1000 px no hay
 > navegación. Ver [`grid.md`](../../../design-system/web/foundations/grid.md).
+
+> **REQ-008 no agrega ni quita pantallas, y toca dos.** Corrige dos defectos de listados que
+> mostraban datos incompletos sin avisar. **(1)** `detalle-proyecto`: los 7 contadores de la card de
+> requisitos pasan a ser **totales reales pedidos a la api por estado**, y cada tab carga su propia
+> página desde el servidor. Hasta acá los contadores se calculaban sobre las 20 filas del default
+> del endpoint, así que un proyecto con más de 20 requisitos **informaba mal cuántos tiene** — y los
+> ausentes eran los más nuevos, por el orden `createdAt DESC`. **(2)** `listado-tareas`: el paginador
+> compartido muestra como máximo 10 números en una ventana centrada, en vez de uno por página.
+> **Ninguna pantalla gana ni pierde bloques**, y ninguna cambia su comportamiento de navegación: el
+> paginador queda unificado en un solo componente con dos modos —URL para tareas, controlado para la
+> card— y `paginacion-requisitos` deja de ser una reimplementación inline. Se verificó que
+> `listado-requisitos`, `reporte-requisitos` y las dos vistas agregadas de tareas **no se tocan**: el
+> requerimiento nombra dos paginadores y esos usan los suyos. **Queda un tercer paginador inline sin
+> unificar** en `detalle-requisito` (tabla de tareas del requisito), registrado como fuera de alcance
+> en el propio REQ [REQ-008 RF-1..RF-10].
 
 > **REQ-007 no agrega ni quita pantallas, y toca dos.** Habilitar `jiku-commands` para personas no
 > tiene interfaz: quien publica un comando lo hace desde un cliente NATS. Lo user-visible son dos
@@ -123,7 +138,10 @@ Dentro de **listado-requisitos** y **listado-tareas**: filtros en la URL (búsqu
 estado, proyecto, responsable, área, orden) y paginación.
 
 Dentro de **detalle-proyecto**: tabs por estado en las secciones de requisitos y de tareas, cada
-una con su paginación y contadores.
+una con su paginación y contadores. **Desde REQ-008 las dos secciones dejan de ser equivalentes:**
+en la de requisitos los contadores son totales reales del proyecto y cada tab pagina contra el
+servidor, mientras la de tareas conserva su recuento sobre los datos ya traídos y su paginador
+inline.
 
 Dentro de **carga-horas**: modo **Presente / Ausente**, que cambia el formulario completo.
 

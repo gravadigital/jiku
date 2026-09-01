@@ -53,7 +53,7 @@ date: 2026-08-18
 | 11 | pill-estado | dropdown | closed / open | input | desktop | — | Cambia el estado inline |
 | 12 | tag-area-responsable | badge | por `data-area` | content | desktop | — | Área (color) y responsable |
 | 13 | etiqueta-vencimiento | badge | finished / expiresToday / expired / closeToDeadline / default | content | desktop | — | Estado de vencimiento de la tarea |
-| 14 | paginacion | pagination | — | navigation | desktop | hidden_in_states: empty, loading, error de sistema | Navegación entre páginas |
+| 14 | paginacion | pagination | modo URL | navigation | desktop | hidden_in_states: empty, loading, error de sistema | Navegación entre páginas, con ventana de máximo 10 números |
 | 15 | cargando-tareas | loader | — | feedback | desktop | visible_only_in_states: loading | Fallback de los dos `<Suspense>` |
 | 16 | vacio-tareas | empty-state | — | feedback | desktop | visible_only_in_states: empty | Mensaje de sin resultados |
 | 17 | pantalla-error | alert | error | feedback | desktop | visible_only_in_states: error de sistema | `error.tsx` de la ruta |
@@ -178,6 +178,7 @@ Notas de transcripción [fuente: código-existente]:
 - Icono: nada
 - Asset: nada
 - Annotation: componente compartido `<Pagination totalItems limit>` (`ObjectivesTable.tsx:131`). Recibe `objectivesCount`, que viene de una segunda llamada con `&count=true`: es el único listado del producto que conoce su total, y **no lo muestra**
+- **REQ-008:** muestra **como máximo 10 números** en una ventana centrada en la página actual y ajustada a los extremos —página 1 de 30 → `1-10`; página 15 → `10-19`; página 30 → `21-30`—, en lugar de un botón por página. Con 10 páginas o menos las muestra todas, sin relleno ni huecos (RF-1, RF-2, CA-1 a CA-4). **La navegación no cambia:** sigue siendo por URL contra `/objectives` con el `page` actualizado; el único cambio observable es cuántos números hay (RF-5, CA-5). El componente deja de tener la ruta hardcodeada, pero esta pantalla la sigue recibiendo y se comporta igual
 
 ### cargando-tareas
 - Texto/label: `"Cargando..."` (Suspense externo) y `"Cargando tabla..."` (Suspense interno) (`objectives/page.tsx:34`, `:35`)
@@ -257,7 +258,7 @@ Notas de transcripción [fuente: código-existente]:
 - cambio de cualquier filtro → resetea `page` a 1 (`ObjectiveSearchFilters.tsx:55-57`)
 - fila-tarea · click → `router.push('/objectives/{id}')` (`TableRow.tsx:16`)
 - pill-estado · click → abre el dropdown; seleccionar una opción → muta el estado (`StateTag.tsx:74-78`, `:55-64`)
-- paginacion · click → `router.push('/objectives?page=N')` (`Pagination.tsx:34-36`)
+- paginacion · click → `router.push('/objectives?page=N')` (`Pagination.tsx:34-36`). **REQ-008: sin cambios** — el arreglo de la ventana no toca el comportamiento de navegación de esta pantalla (CA-5)
 - boton-nueva-tarea · click → navega a `/objectives/new`
 
 **Validaciones:**
@@ -279,3 +280,11 @@ Notas de transcripción [fuente: código-existente]:
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+
+### REQ-008 — Paginación y totales reales en los requisitos del proyecto (2026-08-31)
+
+- **Esta pantalla no cambia de comportamiento: cambia cuántos números ve el usuario.** Con 30 páginas dibujaba 30 botones, una fila de números que no cabe y en la que ninguno destaca. La ventana de 10 centrada en la página actual mantiene siempre visibles las páginas vecinas —las únicas a las que se salta de verdad— y acota el recorrido por teclado a un tramo constante.
+- **Se descartó la elipsis con primera y última** (el patrón `1 … 14 15 16 … 30`) que usaban los paginadores inline del producto. Muestra menos contexto alrededor de la posición actual y agrega dos elementos no interactivos al recorrido; la ventana corrida da lo mismo sin huecos.
+- **El total sigue sin mostrarse.** Esta pantalla es la única del producto que conoce su total —lo pide con `count=true`— y no lo dice en ninguna parte. Está fuera del alcance de este requerimiento, que se ocupa de cuántos números dibuja el paginador. **Queda registrado como gap**: el dato ya está pedido, mostrarlo no cuesta una llamada más.
+- **El paginador pierde la ruta hardcodeada, y esta pantalla no se entera.** El componente pasa a aceptar una ruta o un callback para poder servir también a la card de requisitos del proyecto; acá se sigue usando en modo URL contra `/objectives`, con la misma navegación de siempre (RF-4, RF-5).
+- **No se agregó componente al Design System.** `pagination` no tiene spec en `web` v0.1.0; el gap es previo y este requerimiento lo reduce, porque deja un único paginador en el producto en vez de varios reimplementados. Anotado en la `## Revisión UX` de REQ-008.

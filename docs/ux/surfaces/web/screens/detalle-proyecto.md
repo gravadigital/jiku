@@ -55,7 +55,7 @@ date: 2026-08-18
 | 8 | seccion-requisitos | section | — | content | desktop | hidden_in_states: loading | Requisitos del proyecto |
 | 9 | tabs-estado-requisito | tabs | 7 estados | navigation | desktop | hidden_in_states: loading | Filtra la tabla por estado |
 | 10 | tabla-requisitos | table | — | content | desktop | hidden_in_states: loading | Lista de requisitos del estado activo |
-| 11 | paginacion-requisitos | pagination | — | navigation | desktop | hidden_in_states: loading | Paginación de la tabla de requisitos |
+| 11 | paginacion-requisitos | pagination | controlado (sin ruta) | navigation | desktop | hidden_in_states: loading; oculto cuando el estado activo tiene 0 requisitos | Paginación de la tabla de requisitos, con ventana de máximo 10 números |
 | 12 | seccion-tareas | section | — | content | desktop | hidden_in_states: loading | Tareas del proyecto |
 | 13 | tabs-estado-tarea | tabs | 5 estados | navigation | desktop | hidden_in_states: loading | Filtra la tabla por estado |
 | 14 | tabla-tareas | table | — | content | desktop | hidden_in_states: loading | Lista de tareas del estado activo |
@@ -152,6 +152,7 @@ date: 2026-08-18
 - Icono: nada
 - Asset: nada
 - Annotation: **tab por defecto: `desarrollo`** (`ProjectRequirementsSection.tsx:18-24`, `:54`) [fuente: código-existente]
+- **REQ-008:** el contador de cada tab es el **total real de requisitos de ese estado en el proyecto**, pedido a la api por separado (`count=true`), y ya no el recuento de los datos ya traídos. Antes los 7 contadores se calculaban sobre las 20 filas que devolvía el default del endpoint, así que con más de 20 requisitos **los números eran falsos y nada lo avisaba** (RF-6, CA-7). Un contador que no pudo resolverse muestra un placeholder neutro en lugar de un número, sin romper el resto de la card (CA-20)
 
 ### tabla-requisitos
 - Texto/label: columnas `"ID"` · `"Título"` · `"Responsable"` · `"Tipo"` · `"Prioridad"` · `"Creación"`. Loading: `"Cargando requisitos..."`. Empty: `"No se encontraron requisitos"`. Responsable vacío: `"Sin asignar"`
@@ -160,10 +161,11 @@ date: 2026-08-18
 - Annotation: la fecha se compone `DD/MM/YYYY` a mano con `padStart` (`ProjectRequirementsSection.tsx:38-43`, `:120-125`, `:132`, `:138`, `:47`) [fuente: código-existente]
 
 ### paginacion-requisitos
-- Texto/label: `<select>` de tamaño de página con `"5 por página"` / `"10 por página"`
+- Texto/label: `<select>` de tamaño de página con `"5 por página"` / `"10 por página"`; números de página
 - Icono: nada
 - Asset: nada
 - Annotation: tamaño de página 5 por defecto; paginación reimplementada inline (`ProjectRequirementsSection.tsx:27`, `:164-210`, `:206-207`)
+- **REQ-008:** deja de ser una reimplementación inline y pasa a ser el **paginador único del producto**, en modo controlado — el bloque no navega por URL, avisa el cambio de página al contenedor y la card conserva su estado local (RF-4, RF-5, CA-6). Muestra **como máximo 10 números** en una ventana centrada en la página actual, ajustada a los extremos; con 10 páginas o menos las muestra todas sin huecos (RF-1, RF-2). El recorte anterior —páginas 1-3 más la última con elipsis— desaparece. El total de páginas se calcula sobre el **total real del estado activo**, no sobre las filas en memoria, y el `<select>` de tamaño de página conserva 5/10 con default 5 (RF-10). **Con 0 requisitos en el estado el bloque no se renderiza** (CA-11, CA-19)
 
 ### seccion-tareas
 - Texto/label: título `"Tareas"`; botón de alta sin texto con `aria-label="Nueva tarea"`
@@ -256,6 +258,7 @@ date: 2026-08-18
 - Mensajes: `"No se encontraron requisitos"` · `"No se encontraron tareas"` · `"No hay archivos adjuntos"` · `"Sin descripción"` · `"Sin propiedades definidas"`
 - Cambios:
   - tabla-requisitos: el cuerpo se reemplaza por una celda con `colSpan` y el mensaje (`ProjectRequirementsSection.tsx:135-140`)
+  - **REQ-008 · tabs-estado-requisito y paginacion-requisitos:** un estado sin requisitos muestra el tab con el total `0` —dato real de la api, no ausencia de datos— y **el paginador no se renderiza**: no hay páginas navegables (CA-11). Con el proyecto entero vacío los 7 tabs muestran `0` (CA-19). El vacío ahora es un hecho verificado del proyecto y no el efecto de una página fuera de rango
   - tabla-tareas: ídem (`ProjectObjectivesSection.tsx:122-127`)
   - lista-adjuntos: se reemplaza por el mensaje (`AttachmentsList.tsx:44-46`)
   - card-descripcion y card-propiedades: contenido reemplazado por su texto vacío (`ProjectDescription.tsx:16`, `ProjectProperties.tsx:21-23`)
@@ -268,6 +271,7 @@ date: 2026-08-18
   - **Carga inicial:** cargando-proyecto solo visible en este estado (visible_only_in_states); reemplaza toda la pantalla, incluido el encabezado. Disparado por `isLoadingProject || !project` (`projects/[id]/page.tsx:25-27`)
   - **Por sección:** solo el cuerpo de la tabla se reemplaza por una celda con `colSpan`; tabs y encabezados quedan (`ProjectRequirementsSection.tsx:129-134`, `ProjectObjectivesSection.tsx:116-121`)
   [fuente: código-existente]
+  - **REQ-008 · la sección de requisitos carga en dos pistas independientes.** El listado del estado activo y los 7 contadores son consultas separadas: el cuerpo de la tabla puede estar cargando mientras los tabs ya muestran sus totales, y al revés. Cambiar de tab o de tamaño de página vuelve a poner en carga el cuerpo de la tabla —nunca la pantalla completa—, y al cambiar de tab **los 7 contadores también se refrescan** (RF-8, CA-10). Los tabs, el `<select>` de tamaño y el paginador siguen visibles y operables durante la carga
 
 ### error de validación
 - Aplica: Sí (solo para la subida de archivos)
@@ -282,6 +286,7 @@ date: 2026-08-18
 - Cambios:
   - lista-adjuntos: se reemplaza por el mensaje de error. **Es la única sección de esta pantalla que maneja el error de su query** (`AttachmentsList.tsx:40-42`)
   - En un fallo de render, el boundary `projects/error.tsx:6-11` reemplaza el contenido de la ruta; no existe `projects/[id]/error.tsx` propio, así que el mensaje llega crudo, sin contexto del proyecto
+- **REQ-008 · el fallo de un contador queda aislado.** Los 7 conteos son consultas independientes: si uno falla, **ese tab muestra un placeholder neutro en lugar del número y nada más se ve afectado** — ni la tabla del tab activo, ni los otros seis contadores (CA-20). Es consecuencia directa de pedir cada total por separado: antes había un solo cálculo en memoria y cualquier fallo se llevaba puesta la sección entera.
 - **El error al cargar el proyecto no se maneja:** `useProject` se desestructura como `{ data: project, isLoading: isLoadingProject }` e ignora `isError`; ante un fallo, `project` queda `undefined` y la condición `isLoadingProject || !project` sigue siendo verdadera: **loader infinito** (`projects/[id]/page.tsx:19`, `:25-27`). Los errores de las tablas de requisitos y tareas tampoco se manejan: `useRequirements` y `useObjectives` sin `isError`, así que un fallo se ve como `"No se encontraron requisitos"` / `"No se encontraron tareas"` (`ProjectRequirementsSection.tsx:58`, `ProjectObjectivesSection.tsx:52`) [fuente: código-existente]
 
 ### success
@@ -318,9 +323,12 @@ date: 2026-08-18
 - boton-volver · on click → navega a `/projects` · `projects/[id]/page.tsx:34`
 - boton-editar · on click → `push('/projects/edit/{id}')` · `projects/[id]/page.tsx:21-23`
 - tabs-estado-requisito / tabs-estado-tarea · on click → cambia `activeState` en estado local y resetea la página a 1 · `ProjectRequirementsSection.tsx:~105`, `ProjectObjectivesSection.tsx:~94`
+- **REQ-008 · tabs-estado-requisito · on click** → además del reset a la página 1, se pide a la api el listado del nuevo estado y **se refrescan los 7 contadores** (RF-8, CA-10)
+- **REQ-008 · paginacion-requisitos · on click en un número** → el bloque **no navega**: avisa la página elegida al contenedor, que pide a la api esa página del estado activo. La URL no cambia (CA-6, CA-9)
+- **REQ-008 · si la página activa deja de existir** —porque un requisito cambió de estado y el total del tab bajó— la paginación se reajusta al total vigente en lugar de dejar la tabla en una página vacía sin salida (CA-21)
 - fila de tabla-requisitos / tabla-tareas · on click → navega al detalle del requisito o de la tarea · `ProjectRequirementsSection.tsx:~145`, `ProjectObjectivesSection.tsx:~132`
 - botón `+` de sección · on click → navega al alta con `?projectId={id}` · `ProjectRequirementsSection.tsx:92`, `ProjectObjectivesSection.tsx:81`
-- `<select>` de tamaño de página · on change → cambia `pageSize` y resetea la página · `ProjectRequirementsSection.tsx:79-83`
+- `<select>` de tamaño de página · on change → cambia `pageSize` y resetea la página · `ProjectRequirementsSection.tsx:79-83`. **REQ-008:** el nuevo tamaño se le pide a la api en vez de recortar en memoria, y el tab activo se mantiene (RF-9, CA-12)
 - zona-subida-archivos · on drop / on click / `Enter` / `Space` → abre el selector o procesa los archivos · `FileUploader.tsx:60-65`, `:96-107`
 - item-adjunto · `"Preview"` → abre `PreviewModal`; `"Download"` → descarga; `"Eliminar"` → abre `ConfirmDialog` · `AttachmentItem.tsx:82-100`
 - link de propiedad · on click → abre la URL en pestaña nueva · `ProjectProperties.tsx:32`
@@ -331,7 +339,7 @@ date: 2026-08-18
 - Archivo adjunto · tipo y tamaño validados antes de subir → mensaje `validation.error ?? "Archivo inválido"` · `FileUploader.tsx:76-79`
 
 **Feedback:**
-- Tabs: contador de elementos por estado, calculado con `countByState` (`ProjectRequirementsSection.tsx:110`, `ProjectObjectivesSection.tsx:98`)
+- Tabs: contador de elementos por estado, calculado con `countByState` (`ProjectRequirementsSection.tsx:110`, `ProjectObjectivesSection.tsx:98`). **REQ-008:** en la sección de requisitos el contador ya no se calcula en el cliente — es el total real que devuelve la api por estado
 - Subida: barra de progreso con porcentaje
 - Borrado de adjunto: `ConfirmDialog` y luego toast
 - Estado activo de tab y de página: clase + `aria-current`
@@ -344,7 +352,8 @@ date: 2026-08-18
 - **Propio de esta composición:**
   - **Las tabs no se anuncian como tabs:** son `<nav aria-label="Filtro por estado">` / `"Filtro por estado de tarea"` con `<button>`, **sin `role="tablist"`/`role="tab"`**, así que no responden a flechas (`ProjectRequirementsSection.tsx:98`, `ProjectObjectivesSection.tsx:87`).
   - **El cambio de tab no se anuncia:** sin `aria-live`, cambiar de tab no anuncia el nuevo contenido (`ProjectRequirementsSection.tsx:98-113`).
-  - **Las dos paginaciones tienen distinta calidad:** la de requisitos es `<nav aria-label="Paginación">` con `aria-current="page"`; la de tareas es un `<div>` sin `<nav>` ni label (`ProjectRequirementsSection.tsx:164,191` vs `ProjectObjectivesSection.tsx:159,186`).
+  - **Las dos paginaciones tienen distinta calidad:** la de requisitos es `<nav aria-label="Paginación">` con `aria-current="page"`; la de tareas es un `<div>` sin `<nav>` ni label (`ProjectRequirementsSection.tsx:164,191` vs `ProjectObjectivesSection.tsx:159,186`). **REQ-008 cierra la mitad de esa brecha:** la paginación de requisitos pasa al componente único, que conserva `<nav aria-label="Paginación">` y `aria-current="page"`. **La de tareas de esta pantalla queda como está** —el requerimiento nombra dos paginadores y este no es ninguno de los dos—, así que la asimetría persiste dentro de la misma pantalla, ahora con un motivo registrado en vez de por accidente.
+  - **REQ-008 · el paginador nunca muestra más de 10 números,** lo que acota el recorrido por teclado a un tramo constante: hoy un estado con muchas páginas obliga a tabular por todas ellas para llegar al bloque siguiente.
   - `zona-subida-archivos` es el bloque mejor resuelto: `role="button"` + `aria-label` descriptivo + handlers de `Enter`/`Space`, con el `<input type="file">` oculto por `aria-hidden="true"` (`FileUploader.tsx:95-107`, `:118`). El error de subida lleva `role="alert"`, así que se anuncia al aparecer (`FileUploader.tsx:155`).
   [fuente: código-existente]
 
@@ -366,3 +375,13 @@ date: 2026-08-18
 - **`uploaded_by` sigue sin mostrarse, y ahora es una decisión y no una omisión.** Desde REQ-005 un conector externo puede ser el `uploaded_by` de un archivo de esta lista. Se descartó agregar la columna: el adjunto se identifica por su nombre, agregar autoría a cada fila competiría con las tres acciones que ya lleva (`Preview` · `Download` · `Eliminar`), y la regla que importa —que un archivo solo lo puede adjuntar quien lo subió (REQ-001 RF-12)— ya se comunica cuando se rompe, no de forma preventiva. Queda anotado como gap: si el equipo necesita rastrear qué subió un conector, hoy la interfaz no lo dice en ninguna parte.
 - **Consistencia con `detalle-requisito`.** Mismo bloque, mismo microcopy `"Automático"`, misma decisión de acompañar el nombre en vez de reemplazarlo. Una segunda forma de decir lo mismo en la pantalla de al lado sería peor que no decirlo.
 - **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0; el gap es previo y esta pantalla ya no tenía badges propios, así que la marca los introduce como tipo pero no como compromiso nuevo del catálogo. Anotado en la `## Revisión UX` de REQ-005.
+
+### REQ-008 — Paginación y totales reales en los requisitos del proyecto (2026-08-31)
+
+- **Los contadores de los tabs pasan a ser un dato pedido, no un cálculo derivado.** Hasta acá los 7 números salían de contar las filas que la sección ya tenía en memoria, y esas filas eran las 20 que devuelve el default del endpoint: con más de 20 requisitos **la pantalla informaba mal cuántos requisitos tiene el proyecto, y los que faltaban eran los más nuevos**. Se descartó el paliativo de pedir 100 filas para contar mejor: mueve el techo sin sacarlo, y deja a la pantalla mintiendo en silencio a partir del requisito 101. Un total pedido a la api es correcto en cualquier volumen.
+- **No se agrega un aviso de "datos posiblemente incompletos".** Era la salida obvia mientras el truncado existía, y el análisis previo la proponía. Con totales reales y paginación por estado el truncado **desaparece por construcción**, así que el aviso avisaría de algo que ya no pasa: una advertencia permanente que nunca se cumple enseña a ignorar las advertencias.
+- **La card sigue sin llevar su paginación a la URL.** El paginador unificado ofrece los dos modos y acá se usa el controlado. Se descartó pasar a URL: es un bloque embebido en una pantalla que ya tiene dos tablas paginadas, y compartir el `?page` entre las dos las acoplaría; además cambiaría el comportamiento de navegación, que el requerimiento pide explícitamente conservar (RF-5).
+- **La ventana es de 10 números centrada, y no una elipsis con primera y última.** El recorte anterior (`1-3` + última) tiene un defecto que no es de cantidad sino de orientación: **nunca muestra dónde está parado el usuario** — en la página 15 de 30 las páginas vecinas, las únicas a las que se salta de verdad, no están. Una ventana centrada da siempre las adyacentes; ajustarla a los extremos evita el hueco al principio y al final.
+- **La entrada de la card no cambia:** arranca en `Desarrollo`, con selector 5/10 y default 5 (RF-10). Es una pantalla de uso diario y el requerimiento corrige datos incorrectos, no rehace la interacción; mover el punto de entrada sería un costo de reaprendizaje sin nada a cambio.
+- **Un contador que falla degrada solo su tab.** Al ser 7 consultas independientes, se eligió que el fallo de una muestre un placeholder neutro y no un error de sección: el resto de los totales y la tabla del tab activo son correctos y útiles. Se descartó mostrar `0` ante un fallo — `0` es un dato, y confundirlo con "no se pudo saber" es peor que no mostrar nada.
+- **No se agregó componente al Design System.** El tipo `pagination` no tiene spec en `web` v0.1.0, pero **el gap es previo a este requerimiento**: la pantalla ya tenía dos paginadores. El catálogo es un scaffold placeholder de tres componentes y crear uno suelto acá lo desbalancea, igual que se decidió en REQ-001 y REQ-005. Anotado como gap conocido en la `## Revisión UX` de REQ-008 — con el matiz de que este requerimiento **reduce** la deuda: deja un solo paginador donde había dos, que es exactamente el estado en que conviene especificarlo cuando el DS se trabaje en serio.
