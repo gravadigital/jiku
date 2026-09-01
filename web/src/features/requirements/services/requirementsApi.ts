@@ -10,6 +10,7 @@ import type {
   RequirementReportItem,
   RequirementWorkedHours,
   TagSuggestion,
+  UpdateCommentPayload,
   UpdateRequirementPayload,
 } from '../types/requirement.types';
 
@@ -65,6 +66,18 @@ export const addRequirementActivity = async (
   payload: AddActivityPayload
 ): Promise<void> => {
   await apiClient.post(`/requirements/${reqid}/comments`, payload);
+};
+
+export const updateRequirementComment = async (
+  reqid: number,
+  cid: number,
+  payload: UpdateCommentPayload
+): Promise<void> => {
+  const { comment, fileIds } = payload;
+  await apiClient.patch(`/requirements/${reqid}/comments/${cid}`, {
+    comment,
+    ...(fileIds !== undefined ? { fileIds } : {}),
+  });
 };
 
 export const getTagSuggestions = async (

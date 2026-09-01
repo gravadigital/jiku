@@ -1,15 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
+import { useAttachments } from '@/features/attachments/hooks/useAttachments';
+import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
+import { commentErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
+import { Button, Tooltip } from '@/shared/components/ui';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
-import { calculateTimeSince } from '@/shared/utils/calculate-time-since';
+import { calculateTimeSince, formatDate } from '@/shared/utils';
+import { useUpdateRequirementComment } from '../../hooks/useUpdateRequirementComment';
 import { getActivityFieldLabel, getActivityValueLabel } from '../../utils/requirementHelpers';
+import { RequirementRichTextEditor } from '../RequirementRichTextEditor';
 import styles from './RequirementActivityFeed.module.scss';
 import type { RequirementActivity, RequirementState } from '../../types/requirement.types';
+import type { RequirementRichTextEditorHandle } from '../RequirementRichTextEditor';
 
 interface RequirementActivityFeedProps {
   readonly activity: RequirementActivity[];
+  /** Requisito dueño del feed. Necesario para el hook de edición de comentarios (S-048). */
+  readonly reqid: number;
 }
 
 const STATE_LABELS: Record<RequirementState, string> = {
@@ -29,6 +40,51 @@ function formatStateLabel(value: string | null): string {
 
 function getActorName(entry: RequirementActivity): string {
   return entry.changedByUser?.name ?? entry.changedBy;
+}
+
+/**
+ * Resuelve el nombre de quien hizo la ultima edicion de un comentario, buscandolo entre los
+ * `changedByUser` de las entradas que el feed ya trae. La api no manda un `editedByUser`
+ * propio (S-047), asi que no hay otro dato del que salir: si el id de `editedBy` no aparece
+ * como autor de ninguna entrada del mismo feed, se degrada a "(editado)" sin nombre en vez
+ * de mostrar el id crudo (CA-5, AC-2).
+ */
+function resolveEditorName(
+  editedBy: string,
+  allActivity: RequirementActivity[]
+): string | null {
+  const match = allActivity.find((entry) => entry.changedByUser?.id === editedBy);
+  return match?.changedByUser?.name ?? null;
+}
+
+/**
+ * Texto de la marca "(editado)" / "(editado por X)". Depende exclusivamente de `editedAt`:
+ * una entrada con `previousValue` no vacio pero sin `editedAt` (edicion hecha por la ruta
+ * vieja, previa a S-047) NO la muestra (CA-6, CA-7) — es texto, no solo estilo, para que un
+ * lector de pantalla la anuncie junto al resto de la entrada (AC-4 de la pantalla).
+ *
+ * Sin Tooltip propio: la fecha de edicion se anuncia en el tooltip combinado de `.time`
+ * (junto a la de creacion), no en uno separado — así lo pide el screen.md ("el tooltip de la
+ * fecha vive en el mismo tooltip que la de creación").
+ */
+function editedMarkLabel(entry: RequirementActivity, allActivity: RequirementActivity[]): string | null {
+  if (!entry.editedAt) return null;
+
+  const editedByOther = entry.editedBy !== null && entry.editedBy !== entry.changedBy;
+  const editorName = editedByOther ? resolveEditorName(entry.editedBy as string, allActivity) : null;
+  return editedByOther && editorName ? `(editado por ${editorName})` : '(editado)';
+}
+
+/**
+ * Mensaje del tooltip combinado de fecha: siempre la fecha de creacion, y ademas la de la
+ * ultima edicion cuando el comentario tiene `editedAt` (AC-8 de detalle-requisito / AC-9 de
+ * detalle-tarea: "el tooltip de la fecha puede mostrar cuándo fue la última edición junto a
+ * la de creación").
+ */
+function dateTooltipMessage(createdAt: string, editedAt: string | null): string {
+  const base = `Creación: ${formatDate(new Date(createdAt))}`;
+  if (!editedAt) return base;
+  return `${base} · Editado: ${formatDate(new Date(editedAt))}`;
 }
 
 /**
@@ -120,7 +176,139 @@ function formatGeneric(entry: RequirementActivity): React.ReactNode {
   );
 }
 
-export function RequirementActivityFeed({ activity }: RequirementActivityFeedProps) {
+/**
+ * Formulario inline de edicion de un comentario (Tarea 4). Reutiliza el mismo editor del
+ * alta, sin toggle de visibilidad (CA-8): el campo es inmutable despues de creado. Los
+ * adjuntos se editan en la Tarea 5; por ahora guarda con el `fileIds` extraido del propio
+ * comentario original, para no perder los que ya tenia.
+ */
+function CommentEditForm({
+  entry,
+  reqid,
+  onDone,
+  onCancel,
+}: {
+  readonly entry: RequirementActivity;
+  readonly reqid: number;
+  readonly onDone: () => void;
+  readonly onCancel: () => void;
+}) {
+  const editorRef = useRef<RequirementRichTextEditorHandle>(null);
+  const [isEmpty, setIsEmpty] = useState(entry.newValue.trim().length === 0);
+  const [removedLinkIds, setRemovedLinkIds] = useState<Set<number>>(new Set());
+  const { mutate, isPending } = useUpdateRequirementComment(reqid);
+  // El texto ya guardado referencia sus adjuntos como [attach:N] (id de VINCULO), nunca
+  // como [file:N]: por eso la fuente de la lista visible y del fileId de cada adjunto
+  // existente es useAttachments, no un parseo del texto (Tarea 5, nota tecnica central).
+  const { data: existingAttachments = [] } = useAttachments('requirement_comment', entry.id);
+
+  const visibleAttachments = existingAttachments.filter((a) => !removedLinkIds.has(a.id));
+
+  React.useEffect(() => {
+    editorRef.current?.focus();
+  }, []);
+
+  const handleSave = () => {
+    const comment = editorRef.current?.getValue() ?? '';
+    if (!comment.trim()) return;
+
+    const keptFileIds = visibleAttachments.map((a) => a.fileId);
+    // extractFileIds solo encuentra placeholders [file:N]: los adjuntos preexistentes
+    // (leidos arriba de useAttachments) usan [attach:N] y nunca aparecen aca, asi que no
+    // hay doble conteo entre las dos fuentes.
+    const uploadedFileIds = extractFileIds(comment);
+    const fileIdSet = new Set([...keptFileIds, ...uploadedFileIds]);
+    const hadOrHasAttachments = existingAttachments.length > 0 || uploadedFileIds.length > 0;
+
+    mutate(
+      {
+        cid: entry.id,
+        comment: comment.trim(),
+        // AC-6: se manda la clave (incluso vacia) apenas hubo o hay algun adjunto en juego;
+        // se omite solo cuando el comentario nunca tuvo adjuntos y no se subio ninguno.
+        ...(hadOrHasAttachments ? { fileIds: Array.from(fileIdSet) } : {}),
+      },
+      {
+        onSuccess: () => {
+          toast.success('Comentario editado');
+          onDone();
+        },
+        onError: (error: unknown) => {
+          toast.error(commentErrorMessage(error, 'Hubo un error al editar el comentario'));
+          // Los tres codigos de error que esta pantalla puede ver (autoria, tipo de entrada,
+          // comentario borrado) son casos que no deberian alcanzarse desde una UI actualizada
+          // (red de seguridad, no flujo previsto): se vuelve a lectura con el contenido
+          // original, que es el que sigue guardado porque la escritura no se aplico (CA-10).
+          onCancel();
+        },
+      }
+    );
+  };
+
+  return (
+    <>
+      <RequirementRichTextEditor
+        ref={editorRef}
+        initialValue={entry.newValue}
+        ariaLabel="Editar comentario"
+        onChange={(value) => setIsEmpty(value.trim().length === 0)}
+        disabled={isPending}
+      />
+      {visibleAttachments.length > 0 && (
+        <ul className={styles.attachmentList}>
+          {visibleAttachments.map((attachment) => (
+            <li key={attachment.id} className={styles.attachmentItem}>
+              <span>{attachment.fileName}</span>
+              <button
+                type="button"
+                className={styles.removeAttachmentButton}
+                aria-label={`Quitar ${attachment.fileName}`}
+                onClick={() =>
+                  setRemovedLinkIds((prev) => new Set(prev).add(attachment.id))
+                }
+                disabled={isPending}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className={styles.editFormActions}>
+        <Button
+          label="Cancelar"
+          variant="secondary"
+          onClick={() => {
+            setRemovedLinkIds(new Set());
+            onCancel();
+          }}
+          disabled={isPending}
+        />
+        <Button label="Guardar" variant="primary" onClick={handleSave} disabled={isEmpty || isPending} loading={isPending} />
+      </div>
+    </>
+  );
+}
+
+export function RequirementActivityFeed({ activity, reqid }: RequirementActivityFeedProps) {
+  const { data: session } = useSession();
+  // Criterio de comparacion elegido para AC-5/CA-4: session.user.id, no session.user.zitadelId.
+  // `changedBy` viaja desde `core` como el mismo userId que `ObjectiveComment` ya compara con
+  // `useCurrentUser().id` (que a su vez lee `session.user.id`) para su propio gate de autoria.
+  // Usar `zitadelId` aca introduciria un segundo criterio para el mismo dato sin necesidad.
+  const currentUserId = session?.user?.id;
+  const isAdmin = Boolean(session?.user?.roles?.includes('admin'));
+  // Un solo id en edicion implementa "se edita de a uno por vez" (AC-7) sin lógica extra:
+  // abrir otro reemplaza el valor y la entrada anterior vuelve a lectura sola.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const editButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  const handleCancelEdit = (entryId: number) => {
+    setEditingId(null);
+    // Devuelve el foco al boton que abrio la edicion (accesibilidad de detalle-requisito).
+    requestAnimationFrame(() => editButtonRefs.current.get(entryId)?.focus());
+  };
+
   if (activity.length === 0) {
     return <div className={styles.empty}>Sin actividad registrada</div>;
   }
@@ -137,6 +325,10 @@ export function RequirementActivityFeed({ activity }: RequirementActivityFeedPro
         const isResolution = entry.typeOfActivity === 'resolution';
         const showText = isComment || isResolution;
         const timeAgo = `hace ${calculateTimeSince(new Date(entry.createdAt))}`;
+        const canEdit =
+          isComment && Boolean(currentUserId) && (entry.changedBy === currentUserId || isAdmin);
+        const isEditingThis = editingId === entry.id;
+        const editedLabel = editedMarkLabel(entry, sortedActivity);
 
         return (
           <div key={entry.id} className={styles.entry}>
@@ -193,13 +385,55 @@ export function RequirementActivityFeed({ activity }: RequirementActivityFeedPro
                   </span>
                 )}
               </div>
-              {showText && (
-                <div className={styles.comment}>
-                  <MarkdownViewer content={entry.newValue} />
+              {isEditingThis ? (
+                <div className={styles.editForm}>
+                  <CommentEditForm
+                    entry={entry}
+                    reqid={reqid}
+                    onDone={() => setEditingId(null)}
+                    onCancel={() => handleCancelEdit(entry.id)}
+                  />
                 </div>
+              ) : (
+                showText && (
+                  <div className={styles.comment}>
+                    <MarkdownViewer content={entry.newValue} />
+                  </div>
+                )
               )}
-              <div className={`${styles.time}${showText ? ` ${styles.timeAfterComment}` : ''}`}>
-                {timeAgo}
+              <div className={styles.footerRow}>
+                <Tooltip message={dateTooltipMessage(entry.createdAt, entry.editedAt)}>
+                  <div className={`${styles.time}${showText ? ` ${styles.timeAfterComment}` : ''}`}>
+                    {timeAgo}
+                    {editedLabel && <span className={styles.editedLabel}> {editedLabel}</span>}
+                  </div>
+                </Tooltip>
+                {canEdit && !isEditingThis && (
+                  <button
+                    type="button"
+                    ref={(el) => {
+                      if (el) editButtonRefs.current.set(entry.id, el);
+                      else editButtonRefs.current.delete(entry.id);
+                    }}
+                    className={styles.editButton}
+                    aria-label="Editar comentario"
+                    onClick={() => setEditingId(entry.id)}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           </div>

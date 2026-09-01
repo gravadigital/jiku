@@ -1,7 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useCurrentUser } from '@root/hooks/use-current-user';
 import { ObjectiveHistoryList } from './ObjectiveHistoryList';
 import type { ObjectiveActivity } from '@/shared/types';
 
@@ -11,9 +10,15 @@ vi.mock('@/lib/auth', () => ({
   auth: () => Promise.resolve(null),
 }));
 
+let sessionData: { user: { id: string; roles: string[] } } | null = null;
+
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: null }),
+  useSession: () => ({ data: sessionData }),
 }));
+
+function mockSession(userId: string, roles: string[] = ['user']) {
+  sessionData = { user: { id: userId, roles } };
+}
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -30,12 +35,12 @@ vi.mock('react-toastify', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-vi.mock('@root/hooks/use-current-user', () => ({
-  useCurrentUser: vi.fn(),
-}));
-
 vi.mock('@/features/objectives/services/commentsApi', () => ({
   updateComment: vi.fn(),
+}));
+
+vi.mock('@/features/attachments/hooks/useAttachments', () => ({
+  useAttachments: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('@/features/attachments/components/MarkdownViewer', () => ({
@@ -55,6 +60,8 @@ const baseComment: ObjectiveActivity = {
   projectId: 5,
   user: { id: 'u-1', name: 'Ana Pérez', email: 'ana@grava.io' },
   visibilityLevel: 'internal',
+  editedAt: null,
+  editedBy: null,
 };
 
 const serviceStateActivity: ObjectiveActivity = {
@@ -73,6 +80,8 @@ const serviceStateActivity: ObjectiveActivity = {
     identityType: 'service',
   },
   visibilityLevel: 'public',
+  editedAt: null,
+  editedBy: null,
 };
 
 const personStateActivity: ObjectiveActivity = {
@@ -104,7 +113,7 @@ const serviceComment: ObjectiveActivity = {
 describe('ObjectiveHistoryList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useCurrentUser).mockReturnValue(null);
+    sessionData = null;
   });
 
   it('firma cada comentario con el nombre del usuario de Jiku', () => {
@@ -135,7 +144,7 @@ describe('ObjectiveHistoryList', () => {
   });
 
   it('deja editar su propio comentario aunque el backend mande externalUserId', () => {
-    vi.mocked(useCurrentUser).mockReturnValue({ id: 'u-1', name: 'Ana Pérez' });
+    mockSession('u-1');
 
     const comentarioConCamposExternos = {
       ...baseComment,
@@ -151,20 +160,42 @@ describe('ObjectiveHistoryList', () => {
     expect(screen.getByRole('button', { name: 'Editar comentario' })).toBeInTheDocument();
   });
 
-  it('marca "(editado)" solo cuando el comentario tiene previousValue', () => {
-    const { unmount } = render(
-      <ObjectiveHistoryList objectiveId={42} objectiveActivity={[baseComment]} />
-    );
-    expect(screen.queryByText('(editado)')).not.toBeInTheDocument();
-    unmount();
-
+  // TS-32 (CA-6, CA-7): la marca depende de editedAt, no de previousValue
+  it('TS-32: no muestra "(editado)" con previousValue pero sin editedAt (S-048)', () => {
     render(
       <ObjectiveHistoryList
         objectiveId={42}
-        objectiveActivity={[{ ...baseComment, previousValue: 'texto viejo' }]}
+        objectiveActivity={[{ ...baseComment, previousValue: 'texto viejo', editedAt: null }]}
+      />
+    );
+    expect(screen.queryByText('(editado)')).not.toBeInTheDocument();
+  });
+
+  it('muestra "(editado)" cuando el comentario tiene editedAt y el editor es el autor (S-048)', () => {
+    render(
+      <ObjectiveHistoryList
+        objectiveId={42}
+        objectiveActivity={[
+          { ...baseComment, editedAt: '2026-09-01T10:00:00.000Z', editedBy: 'u-1' },
+        ]}
       />
     );
     expect(screen.getByText('(editado)')).toBeInTheDocument();
+  });
+
+  // TS-33 (CA-5): pasa editedBy a ObjectiveComment para resolver "editado por X"
+  it('TS-33: muestra "(editado por X)" cuando editedBy difiere del autor (S-048)', () => {
+    const editor = { ...baseComment, id: 302, user: { id: 'u-2', name: 'Ana Gomez', email: 'ana@grava.io' } };
+    render(
+      <ObjectiveHistoryList
+        objectiveId={42}
+        objectiveActivity={[
+          { ...baseComment, editedAt: '2026-09-01T10:00:00.000Z', editedBy: 'u-2' },
+          editor,
+        ]}
+      />
+    );
+    expect(screen.getByText('(editado por Ana Gomez)')).toBeInTheDocument();
   });
 
   it('muestra los dos estados vacíos y los dos encabezados sin actividad', () => {
@@ -219,7 +250,7 @@ describe('ObjectiveHistoryList', () => {
     });
 
     it('TS-23: el comentario de un servicio no habilita ninguna acción para otro usuario', () => {
-      vi.mocked(useCurrentUser).mockReturnValue({ id: 'u1', name: 'Ana Pérez' });
+      mockSession('u1');
 
       render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[serviceComment]} />);
 
@@ -227,6 +258,15 @@ describe('ObjectiveHistoryList', () => {
       expect(
         screen.queryByRole('button', { name: 'Editar comentario' })
       ).not.toBeInTheDocument();
+    });
+
+    // TS-34 (CA-4, CA-5): admin edita el comentario de una identidad de servicio tambien
+    it('TS-34: un admin puede editar el comentario de una identidad de servicio', () => {
+      mockSession('u1', ['admin']);
+
+      render(<ObjectiveHistoryList objectiveId={12} objectiveActivity={[serviceComment]} />);
+
+      expect(screen.getByRole('button', { name: 'Editar comentario' })).toBeInTheDocument();
     });
 
     it('TS-24: sin historial ni comentarios no hay ninguna marca', () => {

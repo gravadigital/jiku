@@ -110,3 +110,32 @@ attachment that happens to have that id. Use `getPreviewUrl` / `getDownloadUrl` 
 ```ts
 function getFilePreviewUrl(fileId: number): string; // → /api/files/{fileId}/preview
 ```
+
+---
+
+## updateRequirementComment
+
+**Location:** `web/src/features/requirements/services/requirementsApi.ts`
+
+**Description:** Server Action that edits an already-published comment on a requirement's activity
+feed (S-048). `PATCH /requirements/{reqid}/comments/{cid}` — note the route is **plural**
+(`/comments/`), unlike the objective's singular `/comment/`. The payload never carries
+`visibilityLevel`: the api's `joi` schema rejects unknown fields, and visibility is immutable after
+creation (RF-8). `fileIds`, when passed, must be the **complete** set that should remain linked —
+not a delta.
+
+**Signature:**
+
+```ts
+async function updateRequirementComment(
+  reqid: number,
+  cid: number,
+  payload: { comment: string; fileIds?: number[] }
+): Promise<void>;
+```
+
+**Usage:**
+
+```ts
+await updateRequirementComment(12, 7, { comment: 'texto corregido', fileIds: [3, 9] });
+```

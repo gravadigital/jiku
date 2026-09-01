@@ -68,6 +68,18 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
     );
   };
 
+  /**
+   * Resuelve el nombre de quien hizo la ultima edicion de un comentario, buscandolo entre
+   * los autores que la propia lista de actividad ya trae. La api no manda un `editedByUser`
+   * propio (S-047), asi que no hay otro dato del que salir: si el id de `editedBy` no
+   * aparece como autor de ninguna entrada, se degrada a "(editado)" sin nombre en vez de
+   * mostrar el id crudo (mismo patron que RequirementActivityFeed, S-048).
+   */
+  const resolveEditorName = (editedBy: string): string | null => {
+    const match = objectiveActivity.find((entry) => entry.user.id === editedBy);
+    return match?.user.name ?? null;
+  };
+
   const renderComments = (commentActivities: ObjectiveActivity[]) => {
     if (commentActivities.length === 0) {
       return <div className={styles.noActivity}>No hay comentarios aún</div>;
@@ -82,12 +94,13 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
               authorId={comment.user.id || ''}
               authorIdentityType={comment.user.identityType}
               date={comment.createdAt}
-              updateDate={comment.updatedAt}
               content={comment.newValue}
-              previousValue={comment.previousValue}
               commentId={comment.id!}
               objectiveId={objectiveId}
               visibilityLevel={comment.visibilityLevel}
+              editedAt={comment.editedAt}
+              editedBy={comment.editedBy}
+              editedByName={comment.editedBy ? resolveEditorName(comment.editedBy) : null}
             />
           </li>
         ))}
