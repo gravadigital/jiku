@@ -446,10 +446,11 @@ describe('week-assigned-times.replace — el comando 21 (S-032)', () => {
   });
 
   describe('los gates estructurales', () => {
-    it('TS-35 · el registry declara 21 comandos, e incluye el 21 (CA-1)', () => {
+    it('TS-35 · el registry declara 23 comandos, e incluye el 21 (CA-1)', () => {
       // SUMAR EL COMANDO AL REGISTRO ES SUMAR EL ENDPOINT: `registerService` deriva un endpoint
       // por patrón de `patterns()`, así que este número ES el de `nats micro info jiku-commands`.
-      registry.patterns().length.should.equal(21);
+      // 23, no 21: REQ-011 (S-046) sumó los comandos 22 y 23.
+      registry.patterns().length.should.equal(23);
       registry.patterns().should.containEql('week-assigned-times.replace');
     });
   });

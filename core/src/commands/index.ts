@@ -6,10 +6,12 @@ import projectsEdit from './projects/projects-edit';
 import tasksNew from './tasks/tasks-new';
 import tasksEdit from './tasks/tasks-edit';
 import tasksComment from './tasks/tasks-comment';
+import tasksCommentEdit from './tasks/tasks-comment-edit';
 import requirementsNew from './requirements/requirements-new';
 import requirementsEdit from './requirements/requirements-edit';
 import requirementsResolve from './requirements/requirements-resolve';
 import requirementsComment from './requirements/requirements-comment';
+import requirementsCommentEdit from './requirements/requirements-comment-edit';
 import {
   requirementsSubscriptorsNew,
   requirementsSubscriptorsDelete,
@@ -34,10 +36,12 @@ export const registry = new CommandRegistry().registerAll([
   tasksNew,
   tasksEdit,
   tasksComment,
+  tasksCommentEdit,
   requirementsNew,
   requirementsEdit,
   requirementsResolve,
   requirementsComment,
+  requirementsCommentEdit,
   requirementsSubscriptorsNew,
   requirementsSubscriptorsDelete,
   attachmentsDelete,

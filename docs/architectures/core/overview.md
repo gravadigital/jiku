@@ -7,7 +7,7 @@ valida tokens** — eso sigue siendo trabajo de la api; lo que sí hace, y solo 
 consultas, es **leer roles** para decidir qué le recorta a cada caller.
 
 - **Tipo:** worker (consumidor de bus) · **Lenguaje:** node (TypeScript, `strict`) · **Path:** `core/`
-- **Expone:** **21 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
+- **Expone:** **23 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
   (`jiku-queries`), request/reply sin JetStream, **dos micro servicios sobre una sola conexión**
 - **Consume:** PostgreSQL `jiku` por **dos conexiones** —el usuario dueño para escribir, un rol de
   **solo lectura** para las consultas—, NATS, Zitadel (solo para su propio token)
@@ -121,14 +121,14 @@ lectura completa** y vive en `src/queries/`.
 |---|---|---|---|
 | `clients` | 2 | `commands/clients/` | "Actores" en la UI, `clients` en la base y en el bus |
 | `projects` | 2 | `commands/projects/` | Traduce `properties` ↔ `key_value_pairs` |
-| `tasks` | 3 | `commands/tasks/` | Tabla `objectives`. El edit calcula el historial a mano, antes de escribir |
-| `requirements` | 6 | `commands/requirements/` | El historial lo calcula el hook `@BeforeUpdate` del modelo |
+| `tasks` | 4 | `commands/tasks/` | Tabla `objectives`. El edit calcula el historial a mano, antes de escribir. Desde REQ-011 suma `tasks.{id}.comment.{cid}.edit` |
+| `requirements` | 7 | `commands/requirements/` | El historial lo calcula el hook `@BeforeUpdate` del modelo. Desde REQ-011 suma `requirements.{id}.comment.{cid}.edit` |
 | `times` | 5 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias. Desde REQ-007 suma `week-assigned-times.replace`, el reemplazo de la semana completa de la grilla |
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. **La api no tiene credenciales de S3** |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico más una ficha por recurso |
 
-**Son 21 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
+**Son 23 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
 de la columna es la verificación, no la fuente.
 
 Agregar un comando son tres pasos: el archivo bajo `src/commands/<entidad>/`, el registro en
@@ -178,7 +178,7 @@ puede publicar estos comandos. **Si esa política falla, core no tiene segunda l
 > Desde REQ-005 hay una compuerta que autoriza al **caller del subject** contra `users.roles` antes
 > de resolver el método, en los dos planos. **No cierra el hueco de arriba**: el canal de la api está
 > exento de ella —sin la exención, un evento de autenticación perdido dejaría a la api sin fila en
-> `users` y core rechazaría los 21 comandos con un 403—, y dentro de ese canal core sigue confiando
+> `users` y core rechazaría los 23 comandos con un 403—, y dentro de ese canal core sigue confiando
 > en el `creator`/`author`/`editor` del cuerpo.
 
 ## En el plano de CONSULTAS, core SÍ lee roles
@@ -304,7 +304,7 @@ llamen (`core/src/bus/consumer.ts:44-46`).
 
 | Documento | Contenido |
 |---|---|
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **21 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
+| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
 | [`docs/apis/core-queries.yaml`](../../apis/core-queries.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio. `meta.describe` es su reflejo en datos |
 | [`docs/flows/consulta-por-el-bus.md`](../../flows/consulta-por-el-bus.md) | El recorrido completo de una consulta, de la publicación al cursor |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida |

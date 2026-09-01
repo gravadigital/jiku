@@ -91,10 +91,10 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
    * Si vuelve a existir un rol de conector ACOTADO, este helper es el patrón a recuperar.
    */
 
-  it('TS-11 · internal-app autoriza LOS 21 comandos registrados, uno por uno', () => {
-    // Los 21 salen de `registry.patterns()` y no de una lista a mano. Eran 20 hasta que S-032
-    // registró `week-assigned-times.replace`, el comando 21.
-    COMMANDS.length.should.equal(21);
+  it('TS-11 · internal-app autoriza LOS 23 comandos registrados, uno por uno', () => {
+    // Los 23 salen de `registry.patterns()` y no de una lista a mano. Eran 21 hasta que S-046
+    // (REQ-011) registró los comandos 22 y 23.
+    COMMANDS.length.should.equal(23);
     for (const pattern of COMMANDS) {
       rolesAuthorize(['internal-app'], asMethod(pattern), 'commands').should.be.true();
     }
@@ -128,7 +128,7 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
     }
   });
 
-  it('S-030 TS-1/TS-2 · admin y user autorizan LOS MISMOS 18 por el canal DIRECTO', () => {
+  it('S-030 TS-1/TS-2 · admin y user autorizan LOS MISMOS 20 por el canal DIRECTO', () => {
     // LOS DOS COMANDOS DE SUSCRIPTORES SON LA EXCEPCIÓN EN EL CANAL DIRECTO: sus endpoints
     // declaran `hasAnyRole(['external-user'])`, así que un rol interno no puede suscribir a nadie
     // por HTTP. Dárselos para publicar SOLO sería AMPLIAR, no migrar.

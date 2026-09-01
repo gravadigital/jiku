@@ -229,7 +229,7 @@ export interface CommandEntity {
  * sigue siendo la mejor ilustración de la diferencia: la entrada del 21 está porque ALGUIEN LA
  * DECIDIÓ, no porque el default la haya tapado.
  *
- * LAS 21 CLAVES SON LAS DE `registry.patterns()`, ni una más ni una menos, y hay un gate que lo
+ * LAS 23 CLAVES SON LAS DE `registry.patterns()`, ni una más ni una menos, y hay un gate que lo
  * verifica contra el registry en vez de contra una lista a mano.
  *
  * DE DÓNDE SALE ESTE MAPA: de QUÉ RUTA DE ESCRITURA APLICA HOY LA CAPA 3 de la api, verificado con
@@ -237,7 +237,7 @@ export interface CommandEntity {
  * es lo que hace auditable la decisión, y sin él la lista parece arbitraria.
  */
 export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
-  // ── Los 13 que NO chequean entidad ──────────────────────────────────────────────────────────
+  // ── Los 14 que NO chequean entidad ──────────────────────────────────────────────────────────
   //
   // NINGUNA de sus rutas lleva `validateProjectPermissions` ni `canUserAccessEntity` hoy.
   //
@@ -251,6 +251,12 @@ export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
   'tasks.new': null, //                      api/lib/routes/objectives-post.ts — sin capa 3
   'tasks.{id}.edit': null, //                api/lib/routes/objectives-id-patch.ts — sin capa 3
   'tasks.{id}.comment': null, //             api/lib/routes/objectives-id-comments-post.ts — idem
+  // `null` COMO DECISIÓN, no como default (el mapa es cerrado y ausente DENIEGA). Sigue a los
+  // otros cinco de `tasks.*`: ninguna ruta de objetivos aplica la capa 3 hoy, y la de S-047
+  // migra un endpoint que tampoco la lleva. Declararle el chequeo sería ENDURECER, y esto MIGRA.
+  // Además es inalcanzable en la práctica: la compuerta de entidad solo corre con clase
+  // `external`, y `external-user` no tiene este comando por ningún canal.
+  'tasks.{id}.comment.{cid}.edit': null, // REQ-011 (S-046)
   // `attachments-post.ts:44` NO aplica capa 3 DELIBERADAMENTE: al pedir el ticket de subida
   // todavía no hay vínculo, así que "`canUserAccessEntity` no tiene sobre qué operar".
   'files.request-upload': null,
@@ -266,7 +272,7 @@ export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
   // DENIEGA (ADR-008).
   'week-assigned-times.replace': null, //    api/lib/routes/week-assigned-times-put.ts — sin capa 3
 
-  // ── Los 6 de requisitos, que sus rutas de opus SÍ chequean ──────────────────────────────────
+  // ── Los 7 de requisitos, que sus rutas de opus SÍ chequean ──────────────────────────────────
   //
   // `opus-requirements-*.ts` llevan `validateProjectPermissions`.
   //
@@ -288,6 +294,18 @@ export const COMMAND_ENTITY: Readonly<Record<string, CommandEntity | null>> = {
     source: { from: 'params', key: 'id' },
   },
   'requirements.{id}.comment': {
+    entityType: AttachmentEntityType.Requirement,
+    source: { from: 'params', key: 'id' },
+  },
+  // El gemelo de `requirements.{id}.comment`, y con el MISMO descriptor: el `{id}` del subject es
+  // el requisito, y el proyecto se resuelve desde ahí. Declararle menos que a su alta abriría en
+  // modo externo un camino que el alta no tiene.
+  //
+  // Se resuelve desde el REQUISITO (`params.id`), no desde el comentario (`params.cid`). El
+  // resolver `projectOfRequirementComment` existe y funcionaría, pero cuesta un `SELECT` más
+  // (comentario → requisito → proyecto) para llegar al mismo proyecto. La cadena corta es la
+  // correcta, y es la que ya usa el alta.
+  'requirements.{id}.comment.{cid}.edit': { // REQ-011 (S-046)
     entityType: AttachmentEntityType.Requirement,
     source: { from: 'params', key: 'id' },
   },

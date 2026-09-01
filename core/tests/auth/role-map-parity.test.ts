@@ -263,8 +263,8 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
     });
   }
 
-  it('TS-14b · los conteos derivados: 19 · 19 · 6 por el canal que cada rol usa', () => {
-    // LOS DOS ROLES INTERNOS EMPATAN EN 19, Y CADA UNO POR UN COMANDO DISTINTO — que es más
+  it('TS-14b · los conteos derivados: 21 · 21 · 6 por el canal que cada rol usa', () => {
+    // LOS DOS ROLES INTERNOS EMPATAN EN 21, Y CADA UNO POR UN COMANDO DISTINTO — que es más
     // interesante que el empate:
     //
     //   `user`  suma `requirements.{id}.subscriptors.new`, el comando SECUNDARIO de
@@ -273,10 +273,11 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
     //           `PUT /api/week-assigned-times` es la ÚNICA del producto con `x-roles: [admin]`
     //           sola — y por eso el comando 21 no está en `INTERNAL_COMMANDS`.
     //
-    // Los 18 compartidos siguen siendo los mismos: el empate es de conteo, no de contenido, así
-    // que las dos diferencias se afirman explícitamente abajo.
-    mapped('admin').length.should.equal(19);
-    mapped('user').length.should.equal(19);
+    // Los 20 compartidos siguen siendo los mismos (18 hasta S-046, que sumó los comandos 22 y 23
+    // de REQ-011): el empate es de conteo, no de contenido, así que las dos diferencias se
+    // afirman explícitamente abajo.
+    mapped('admin').length.should.equal(21);
+    mapped('user').length.should.equal(21);
     mapped('external-user').length.should.equal(6);
 
     const soloDeUser = mapped('user').filter((c) => !mapped('admin').includes(c));
@@ -295,7 +296,7 @@ describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-0
     // nombre. Su endpoint directo (`POST /opus/requirements/{reqid}/subscriptors`) es
     // `external-user` only, así que dárselo para publicar solo sería AMPLIAR.
     const directo = ROLE_METHODS['user'].commands as readonly string[];
-    directo.length.should.equal(18);
+    directo.length.should.equal(20);
     directo.includes('requirements.{id}.subscriptors.new').should.be.false();
 
     for (const role of PRODUCT_ROLES) {

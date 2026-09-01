@@ -74,6 +74,19 @@ export default class ObjectiveActivity extends Model {
   })
     changedBy!: string;
 
+  @Column({
+    type: DataType.DATE,
+    allowNull: true,
+  })
+    editedAt!: Date | null;
+
+  @ForeignKey(() => User)
+  @Column({
+    type: DataType.STRING(100),
+    allowNull: true,
+  })
+    editedBy!: string | null;
+
   @BelongsTo(() => Objective)
     objective!: Objective;
 

@@ -181,7 +181,7 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
     source.should.containEql('- access_denied');
   });
 
-  it('TS-80 · LOS 21 canales de comando listan `access_denied`, sin excepción (S-030, S-032)', () => {
+  it('TS-80 · LOS 23 canales de comando listan `access_denied`, sin excepción (S-030, S-032)', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
     const lines = source.split('\n');
 
@@ -245,7 +245,7 @@ describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16
       }
     }
 
-    channelToMessage.size.should.equal(21);
+    channelToMessage.size.should.equal(23);
 
     const sinCodigo = [...channelToMessage.entries()]
       .filter(([, msg]) => !(codesByMessage.get(msg) ?? []).includes('access_denied'))
@@ -311,18 +311,20 @@ describe('docs/architectures/core — la documentación describe el servicio que
     declared.should.have.length(12);
   });
 
-  it('TS-102 · `overview.md` dice VEINTIUNO comandos, y son los del registro (CA-18)', () => {
+  it('TS-102 · `overview.md` dice VEINTITRÉS comandos, y son los del registro (CA-18)', () => {
     const overview = arch('overview.md');
 
     // `17 comandos` SE CONSERVA: es el rastro de la vez ANTERIOR que este número se desactualizó,
     // y este test es lo que ató el documento al registry para que no volviera a pasar. En S-032
-    // volvió a pasar —el comando 21— y el gate hizo exactamente lo que tenía que hacer.
+    // volvió a pasar —el comando 21— y en S-046 (REQ-011) otra vez —los comandos 22 y 23—, y el
+    // gate hizo exactamente lo que tenía que hacer las dos veces.
     overview.should.not.containEql('17 comandos');
     overview.should.not.containEql('**20 comandos**');
-    overview.should.containEql('**21 comandos**');
+    overview.should.not.containEql('**21 comandos**');
+    overview.should.containEql('**23 comandos**');
     // El número se verifica contra el CÓDIGO, no contra otro documento: es el mismo tipo de dato
     // que ya se desactualizó dos veces.
-    commandRegistry.patterns().should.have.length(21);
+    commandRegistry.patterns().should.have.length(23);
   });
 
   it('TS-103 · `overview.md` describe el plano de consultas (CA-18)', () => {
