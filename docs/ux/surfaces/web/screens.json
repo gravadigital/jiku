@@ -3219,7 +3219,7 @@
             },
             {
               "label": "Título",
-              "width": "42%"
+              "width": "34%"
             },
             {
               "label": "Responsable",
@@ -3240,6 +3240,10 @@
             {
               "label": "Creación",
               "width": "8%"
+            },
+            {
+              "label": "Hs. Trab.",
+              "width": "8%"
             }
           ],
           "rows": [
@@ -3251,7 +3255,8 @@
               "badge:Desarrollo",
               "Mejora",
               "badge:Alta",
-              "18/08/2026"
+              "18/08/2026",
+              "12h 30m"
             ],
             [
               "1039",
@@ -3261,7 +3266,8 @@
               "badge:Planificación",
               "Funcionalidad",
               "badge:Media",
-              "12/08/2026"
+              "12/08/2026",
+              "—"
             ],
             [
               "1035",
@@ -3271,7 +3277,8 @@
               "badge:Revisión",
               "Incidencia",
               "badge:Urgente",
-              "05/08/2026"
+              "05/08/2026",
+              "8h 15m"
             ],
             [
               "1031",
@@ -3281,7 +3288,8 @@
               "badge:En cola",
               "Otro",
               "badge:Baja",
-              "28/07/2026"
+              "28/07/2026",
+              "1h 0m"
             ],
             [
               "1028",
@@ -3291,7 +3299,8 @@
               "badge:Desarrollo",
               "Funcionalidad",
               "badge:Media",
-              "21/07/2026"
+              "21/07/2026",
+              "3h 45m"
             ]
           ],
           "state_overrides": {
@@ -3299,7 +3308,7 @@
               "rows": []
             }
           },
-          "annotation": "fecha DD/MM/YYYY vía labelFromDate · el responsable se resume: con más de uno muestra el primero y un +N priorizando al líder, con la lista completa en el title · proyecto vacío \"—\", sin responsable \"Sin asignar\" · las filas son <tr onClick> sin role ni tabIndex: la tabla no es navegable por teclado pese a ser la única vía al detalle · con el default de cuatro estados no aparecen requisitos en analisis, resuelto ni cancelado [REQ-009 RF-5]"
+          "annotation": "fecha DD/MM/YYYY vía labelFromDate · el responsable se resume: con más de uno muestra el primero y un +N priorizando al líder, con la lista completa en el title · proyecto vacío \"—\", sin responsable \"Sin asignar\" · las filas son <tr onClick> sin role ni tabIndex: la tabla no es navegable por teclado pese a ser la única vía al detalle · con el default de cuatro estados no aparecen requisitos en analisis, resuelto ni cancelado [REQ-009 RF-5] · novena columna \"Hs. Trab.\" al final, después de \"Creación\": el ancho sale del título (42% → 34%), la única columna con holgura, y no de las compactas, para que el ellipsis global no recorte Proyecto ni Responsable · el <th> no ordena y no tiene que parecer ordenable [REQ-010 RF-6, RF-7, AC-12]"
         },
         {
           "name": "pill-estado",
@@ -3333,6 +3342,18 @@
             "empty"
           ],
           "annotation": "va dentro de su celda de tabla-requisitos · color por data-priority · valores: Sin prioridad · Baja · Media · Alta · Urgente"
+        },
+        {
+          "name": "celda-horas-trabajadas",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "12h 30m",
+          "hidden_in_states": [
+            "loading",
+            "empty"
+          ],
+          "annotation": "va dentro de su celda de la columna \"Hs. Trab.\" de tabla-requisitos · total formateado Xh Ym; sin horas cargadas muestra \"—\" (guion largo), que cubre por igual el 0 y el campo ausente, así que la celda se ve bien aunque la respuesta no lo traiga · suma las horas imputadas directamente al requisito más las de sus tareas, sin doble conteo, y es el mismo número que muestra el card del detalle · el total viaja en la misma respuesta que el resto de la fila: una request para la página entera, no una por fila · el encabezado no es clickeable, la columna es informativa y el listado no se ordena por horas [REQ-010 RF-4, RF-6, RF-7, AC-6, AC-7, AC-9, AC-12]"
         },
         {
           "name": "paginacion",
@@ -3385,7 +3406,7 @@
           "visible_only_in_states": [
             "loading"
           ],
-          "annotation": "<td colSpan={8}> dentro del cuerpo de la tabla: el isLoading del refetch reemplaza solo las filas"
+          "annotation": "<td colSpan={9}> dentro del cuerpo de la tabla: el isLoading del refetch reemplaza solo las filas · la columna de horas suma una y el colSpan la acompaña, si no la fila de carga se desalinea [REQ-010 RF-7]"
         },
         {
           "name": "vacio-requisitos",
@@ -3395,7 +3416,7 @@
           "visible_only_in_states": [
             "empty"
           ],
-          "annotation": "<td colSpan={8}> con los encabezados de la tabla visibles · no diferencia el empty de primer uso del empty por filtros, y como isError se ignora un fallo se ve igual: es la única ruta de listado del producto sin error.tsx · alcanzable por una combinación de estados sin resultados, y el mensaje no lo explica [REQ-009 AC-13]"
+          "annotation": "<td colSpan={9}> con los encabezados de la tabla —incluido \"Hs. Trab.\"— visibles · no diferencia el empty de primer uso del empty por filtros, y como isError se ignora un fallo se ve igual: es la única ruta de listado del producto sin error.tsx · alcanzable por una combinación de estados sin resultados, y el mensaje no lo explica [REQ-009 AC-13, REQ-010 RF-7]"
         }
       ],
       "layouts": {
@@ -3436,24 +3457,30 @@
           "tabla-requisitos",
           {
             "row": "pills-de-celda",
-            "annotation": "los tres pills se dibujan dentro de sus celdas de tabla-requisitos; acá se listan aparte para dejar sus variantes a la vista",
+            "annotation": "los tres pills y la celda de horas se dibujan dentro de sus celdas de tabla-requisitos; acá se listan aparte para dejar sus variantes a la vista",
             "cols": [
               {
-                "w": 4,
+                "w": 3,
                 "stack": [
                   "pill-estado"
                 ]
               },
               {
-                "w": 4,
+                "w": 3,
                 "stack": [
                   "pill-tipo"
                 ]
               },
               {
-                "w": 4,
+                "w": 3,
                 "stack": [
                   "pill-prioridad"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": [
+                  "celda-horas-trabajadas"
                 ]
               }
             ]
@@ -4051,6 +4078,74 @@
             "not found"
           ],
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en la fila \"Creado por\" de card-informacion-general y junto al autor de cada entrada de feed-actividad · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10); para una persona no hay bloque, no hay espacio reservado y no hay marca de \"es una persona\" · badge con texto visible y nombre accesible propio: se descartó el Tooltip de :hover que esta pantalla ya usa y que está registrado como inalcanzable por teclado"
+        },
+        {
+          "name": "card-horas-trabajadas",
+          "type": "card",
+          "category": "content",
+          "content": "Horas Trabajadas",
+          "annotation": "card de la columna derecha, última, después de \"Resolución\": contexto, etiquetas y resolución forman la secuencia de identificación y cierre, y el dato de horas es de consulta · se carga por su cuenta, con una consulta propia y no con el payload del requisito: si falla o tarda, el resto del detalle se renderiza igual y sigue operable · sin eventos de usuario: ni el total ni las filas del desglose son clickeables, y la card no agrega paradas al orden de foco [REQ-010 RF-8, Escenario B]",
+          "state_overrides": {
+            "empty": {
+              "annotation": "es el cuarto empty por sección de la pantalla y sigue la misma regla que los otros tres: la card se queda con su título, cambia su cuerpo. No desaparece — que un requisito en desarrollo no tenga horas imputadas es en sí un dato de gestión [REQ-010 AC-11]"
+            }
+          }
+        },
+        {
+          "name": "total-horas-trabajadas",
+          "type": "heading",
+          "category": "content",
+          "level": "h3",
+          "content": "5h 0m",
+          "annotation": "total formateado Xh Ym · suma las horas imputadas directamente al requisito más las de sus tareas, sin doble conteo. Es el mismo número que muestra la columna \"Hs. Trab.\" del listado, y siempre es igual a la suma del desglose de abajo [REQ-010 RF-3, AC-6, AC-10]",
+          "state_overrides": {
+            "empty": {
+              "annotation": "ausente en el sub-estado \"sin horas cargadas\": no se muestra \"0h 0m\" · ausente también en \"horas cargando\" y en \"horas no disponibles\" [REQ-010 AC-3, AC-11]"
+            }
+          }
+        },
+        {
+          "name": "desglose-horas-persona",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Ana García",
+              "subtitle": "3h 0m"
+            },
+            {
+              "title": "Beto Ruiz",
+              "subtitle": "2h 0m"
+            }
+          ],
+          "annotation": "una fila por persona — \"{Nombre} {Apellido}\" a la izquierda y sus horas formateadas Xh Ym a la derecha · de mayor a menor, la persona que más cargó primero · cada persona aparece una sola vez, con lo que imputó al requisito y a sus tareas ya sumado: no se separan las dos fuentes · es un desglose histórico, quien cargó horas aparece siempre, incluso si ya no está en el equipo o está deshabilitado — es lo que hace que la suma dé el total [REQ-010 RF-1, RF-2, RF-3, AC-2, AC-4, AC-10, AC-18]",
+          "state_overrides": {
+            "empty": {
+              "type": "empty-state",
+              "content": "Sin horas cargadas",
+              "annotation": "sub-estado \"sin horas cargadas\": el mensaje reemplaza al total y al desglose cuando el requisito no tiene ninguna hora imputada, ni directa ni en sus tareas · descartada la lista vacía [REQ-010 RF-8, AC-3, AC-11]"
+            }
+          }
+        },
+        {
+          "name": "vacio-horas-trabajadas",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "Sin horas cargadas",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "sub-estado \"sin horas cargadas\" (parent_state: default) · reemplaza al total y al desglose cuando el requisito no tiene ninguna hora imputada. La card sigue estando, no desaparece: que no haya horas es en sí un dato de gestión · descartado ocultar la card, porque una card que aparece y desaparece obliga a recordar si estaba [REQ-010 RF-8, AC-3, AC-11]"
+        },
+        {
+          "name": "cargando-horas-trabajadas",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando horas...",
+          "hidden_in_states": [
+            "not found"
+          ],
+          "annotation": "sub-estado \"horas cargando\" (parent_state: default), como progreso-subida-adjunto: no es el loading de la pantalla, que es solo de mutación · ocupa el cuerpo de la card mientras la consulta está en vuelo, y el resto de la pantalla se renderiza completo y es operable: header, workflow, tareas y feed no esperan a las horas · es el primer loading de esta pantalla que no viene de una mutación, porque la card tiene su propia consulta · el sub-estado \"horas no disponibles\" muestra en su lugar \"No se pudieron cargar las horas\" en el cuerpo de la card: existe como estado propio y no como toast porque sin él la falla se vería como \"Sin horas cargadas\", un requisito con horas pareciendo no tenerlas · ni la carga ni el resultado se anuncian: no hay región aria-live [REQ-010 Escenario B, AC-11]"
         }
       ],
       "layouts": {
@@ -4252,7 +4347,12 @@
                         ]
                       }
                     ]
-                  }
+                  },
+                  "card-horas-trabajadas",
+                  "total-horas-trabajadas",
+                  "desglose-horas-persona",
+                  "vacio-horas-trabajadas",
+                  "cargando-horas-trabajadas"
                 ]
               }
             ]

@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-01
 ---
 
 # Pantalla: Detalle de requisito
@@ -81,6 +81,11 @@ date: 2026-08-18
 | 36 | badge-resultado | badge | cancelado | content | desktop | visible_only_in_states: estado terminal / readonly | Muestra el resultado final |
 | 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 38 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
+| 39 | card-horas-trabajadas | card | — | content | desktop | todos los estados | Total de horas imputadas al requisito y su desglose por persona |
+| 40 | total-horas-trabajadas | heading | h3 | content | desktop | hidden_in_states: horas cargando, horas no disponibles | Total de horas del requisito, incluidas las de sus tareas |
+| 41 | desglose-horas-persona | list | — | content | desktop | hidden_in_states: horas cargando, horas no disponibles, sin horas cargadas | Una fila por persona con lo que imputó |
+| 42 | vacio-horas-trabajadas | empty-state | — | feedback | desktop | visible_only_in_states: sin horas cargadas | Mensaje cuando el requisito no tiene horas |
+| 43 | cargando-horas-trabajadas | loader | — | feedback | desktop | visible_only_in_states: horas cargando | Carga del card, independiente del resto de la pantalla |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
@@ -104,12 +109,15 @@ date: 2026-08-18
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-etiquetas (chip-etiqueta × N)
     - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado)
+    - card-horas-trabajadas (total-horas-trabajadas, desglose-horas-persona, vacio-horas-trabajadas *(sin horas)*, cargando-horas-trabajadas *(mientras carga)*) [REQ-010 RF-8]
 
 **Origen:** `RequirementDetail.module.scss:3-7` — `.container { display: grid; grid-template-columns: 1fr 420px; gap: 1.25rem; align-items: start; }`.
 
+**El card de horas va último en la columna derecha** [REQ-010 RF-8]. Las tres cards que ya están tienen un orden con sentido —contexto del requisito, sus etiquetas, su cierre— y el de horas es una lectura de consulta, no parte de ese recorrido: intercalarlo entre "Etiquetas" y "Resolución" partiría en dos la secuencia de identificación-y-cierre. Al final queda a la vista sin scroll en la mayoría de los requisitos y no compite con las acciones de resolución, que son las únicas de esa columna.
+
 **Las fracciones son aproximadas:** la columna derecha es de 420px fijos. A 1440px de viewport (contenido ~1118px) es ~7.5/12 + ~4.5/12; a 1920px, ~9.2/12 + ~2.8/12 [fuente: código-existente].
 
-**Comportamiento observado a ≤1023px** (fuera de los viewports declarados de la superficie): el encabezado se apila en columna (titulo-requisito, fila de badges, boton-volver + boton-editar) y el cuerpo pasa a columna única en el orden del DOM: card-contexto, card-estado, seccion-tareas, card-actividad, card-informacion-general, card-etiquetas, card-resolucion. En una columna la resolución queda al final, después del feed de actividad y del formulario de comentario, y la información general después de las tareas. Los dos módulos llevan un comentario de código que explica el porqué —tablet unificado con mobile por "pedido explícito del usuario", y el apilado del header para que los botones de ancho fijo no corten el título— (`RequirementDetail.module.scss:9-14`, `RequirementHeader.module.scss:7-13`) [fuente: código-existente].
+**Comportamiento observado a ≤1023px** (fuera de los viewports declarados de la superficie): el encabezado se apila en columna (titulo-requisito, fila de badges, boton-volver + boton-editar) y el cuerpo pasa a columna única en el orden del DOM: card-contexto, card-estado, seccion-tareas, card-actividad, card-informacion-general, card-etiquetas, card-resolucion, card-horas-trabajadas. En una columna la resolución queda al final, después del feed de actividad y del formulario de comentario, y la información general después de las tareas. Los dos módulos llevan un comentario de código que explica el porqué —tablet unificado con mobile por "pedido explícito del usuario", y el apilado del header para que los botones de ancho fijo no corten el título— (`RequirementDetail.module.scss:9-14`, `RequirementHeader.module.scss:7-13`) [fuente: código-existente].
 
 ## Contenido
 
@@ -355,6 +363,37 @@ date: 2026-08-18
 - Asset: nada
 - Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en los dos lugares de esta pantalla donde se muestra autoría: la fila `"Creado por"` de `card-informacion-general` y el autor de cada entrada de `feed-actividad`. Se renderiza **solo cuando esa identidad es de tipo servicio**; para una persona no hay bloque, no hay espacio reservado y no hay marca de "es una persona" (REQ-005 RF-3, RF-10). Es la primera vez que la interfaz representa un autor que no es alguien del equipo ni el cliente: desde REQ-005 un conector externo tiene fila en `users` y puede figurar como `created_by` de un requisito y como autor de una actividad (REQ-005 "Impacto en UX" pregunta 1)
 
+
+### card-horas-trabajadas
+- Texto/label: título `"Horas Trabajadas"`
+- Icono: nada
+- Asset: nada
+- Annotation: card de la columna derecha, **última**, después de `"Resolución"`. Se carga por su cuenta, con una consulta propia y no con el payload del requisito: **si falla o tarda, el resto del detalle se renderiza igual** [REQ-010 RF-8, Escenario B]
+
+### total-horas-trabajadas
+- Texto/label: el total formateado como `Xh Ym` — `"5h 0m"` para 300 minutos
+- Icono: nada
+- Asset: nada
+- Annotation: suma las horas imputadas directamente al requisito **más** las de sus tareas, sin doble conteo. Es el mismo número que muestra la columna `"Hs. Trab."` del listado, y siempre es igual a la suma del desglose de abajo [REQ-010 RF-3, AC-6, AC-10]
+
+### desglose-horas-persona
+- Texto/label: una fila por persona — `"{Nombre} {Apellido}"` a la izquierda y sus horas formateadas `Xh Ym` a la derecha. Ejemplo: `"Ana García"` · `"3h 0m"` / `"Beto Ruiz"` · `"2h 0m"`
+- Icono: nada
+- Asset: nada
+- Annotation: **de mayor a menor**, la persona que más cargó primero [REQ-010 RF-1, AC-10]. Cada persona aparece **una sola vez**, con lo que imputó al requisito y a sus tareas ya sumado: no se separan las dos fuentes [REQ-010 RF-2, AC-2]. **Es un desglose histórico:** quien cargó horas aparece siempre, incluso si ya no está en el equipo o está deshabilitado — es lo que hace que la suma dé el total [REQ-010 RF-3, AC-4, AC-18]
+
+### vacio-horas-trabajadas
+- Texto/label: `"Sin horas cargadas"`
+- Icono: nada
+- Asset: nada
+- Annotation: reemplaza al total y al desglose cuando el requisito no tiene ninguna hora imputada. **La card sigue estando**, no desaparece: que no haya horas es en sí un dato de gestión [REQ-010 RF-8, AC-11]
+
+### cargando-horas-trabajadas
+- Texto/label: `"Cargando horas..."`
+- Icono: nada
+- Asset: imagen del componente `<Loader>`
+- Annotation: ocupa el cuerpo de la card mientras la consulta está en vuelo. Es el único loader de la pantalla que no depende de una mutación: la card se carga sola, después del primer render del detalle [REQ-010 Escenario B]
+
 ## Estados
 
 ### default
@@ -365,12 +404,13 @@ date: 2026-08-18
 
 ### empty
 - Aplica: Sí (por sección; no hay empty global)
-- Mensajes: `"Sin actividad registrada"` · `"Sin etiquetas registradas"` · el empty de la tabla de tareas
+- Mensajes: `"Sin actividad registrada"` · `"Sin etiquetas registradas"` · `"Sin horas cargadas"` · el empty de la tabla de tareas
 - Cambios:
   - feed-actividad: se reemplaza por el mensaje (`RequirementActivityFeed.tsx:110`)
   - card-etiquetas: chip-etiqueta ausente, se muestra el mensaje (`RequirementDetail.tsx:374`)
   - tabla-tareas: el cuerpo se reemplaza por el mensaje (`RequirementDetail.tsx:196-200`)
   [fuente: código-existente]
+  - card-horas-trabajadas: ver el sub-estado **sin horas cargadas** más abajo. Es el cuarto empty por sección de esta pantalla, y sigue la misma regla que los otros tres: la card se queda, cambia su cuerpo [REQ-010 AC-11]
 
 ### loading
 - Aplica: Sí (solo durante las mutaciones)
@@ -389,6 +429,33 @@ date: 2026-08-18
   - boton-adjuntar: variant=disabled mientras hay una subida en curso (de a uno, RF-7)
   - boton-enviar-comentario: variant=disabled — enviar mientras el byte viaja vincularía un archivo incompleto, y el sistema no verifica que haya llegado (D-13)
 - **Por qué es nuevo:** hasta ahora la subida no tenía ninguna representación en esta pantalla. El byte pasaba por la api y el usuario esperaba sin saber cuánto faltaba
+
+### sin horas cargadas (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-010** (RF-8)
+- Mensaje: `"Sin horas cargadas"`
+- Cambios:
+  - vacio-horas-trabajadas: solo visible en este estado (visible_only_in_states)
+  - total-horas-trabajadas y desglose-horas-persona: ausentes — no se muestra `"0h 0m"` ni una lista vacía
+  - card-horas-trabajadas: presente, con su título. La card **no desaparece**
+- Disparado por un requisito sin ninguna hora imputada, ni directa ni en sus tareas: la respuesta trae el total en cero y el desglose vacío [REQ-010 RF-8, AC-3, AC-11]
+
+### horas cargando (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-010** (Escenario B)
+- Mensaje: `"Cargando horas..."`
+- Cambios:
+  - cargando-horas-trabajadas: solo visible en este estado (visible_only_in_states)
+  - total-horas-trabajadas, desglose-horas-persona y vacio-horas-trabajadas: ausentes
+  - **El resto de la pantalla se renderiza completo y es operable**: el header, el workflow, las tareas y el feed no esperan a las horas
+- **Es el primer loading de esta pantalla que no viene de una mutación.** Los demás loaders del detalle aparecen porque el usuario hizo algo (guardar, transicionar, comentar); este aparece solo, en el primer render, porque la card tiene su propia consulta [REQ-010 Escenario B]
+
+### horas no disponibles (parent_state: default)
+- Aplica: Sí — **estado nuevo con REQ-010** (Escenario B)
+- Mensaje: `"No se pudieron cargar las horas"`
+- Cambios:
+  - card-horas-trabajadas: presente, con el mensaje en el cuerpo en lugar del total y el desglose
+  - total-horas-trabajadas, desglose-horas-persona, vacio-horas-trabajadas: ausentes
+  - **El resto del detalle no se ve afectado.** Ninguna otra sección cambia y ninguna acción se bloquea
+- **Por qué existe como estado propio y no como toast:** es la contrapartida de que la card tenga su propia consulta. Sin este estado la falla se vería como `"Sin horas cargadas"` —un requisito con horas parecería no tenerlas—, que es el modo de falla peor: silencioso y con un dato falso en pantalla. Distinguir "no hay horas" de "no pude traerlas" es la razón de que el estado esté declarado [REQ-010 RF-8, AC-11]
 
 ### error de validación
 - Aplica: No — no implementado (ver gaps-as-is.md). No hay validación en esta pantalla: los campos del acordeón y de resolución se guardan sin reglas, `"Guardar"` persiste lo que haya, y la transición no exige que el campo del paso esté completo. El `"!"` del acordeón es informativo, no bloqueante (`RequirementStatusCard.tsx:302-307`). La única regla es que el comentario no puede estar vacío, y se expresa deshabilitando el botón sin mensaje (`RequirementActivityForm.tsx:24`, `:131`) [fuente: código-existente].
@@ -457,6 +524,7 @@ date: 2026-08-18
 - boton-enviar-comentario · on submit → `addActivity`; deshabilitado si el editor está vacío · `RequirementActivityForm.tsx:131`
 - boton-resolver-requisito · on click → `onUpdate({ state: 'resuelto' })` · `RequirementResolutionCard.tsx:81`
 - boton-cancelar-requisito · on click → `onUpdate({ state: 'cancelado' })` · `RequirementResolutionCard.tsx:85`
+- card-horas-trabajadas · **sin eventos de usuario**: es una card de lectura. Ni el total ni las filas del desglose son clickeables — no llevan a un reporte, a la persona ni a las horas de una tarea [REQ-010 RF-8]
 
 [fuente: código-existente]
 
@@ -466,6 +534,7 @@ date: 2026-08-18
 
 **Feedback:**
 - Update optimista: el valor de la pill cambia de inmediato
+- La card de horas tiene **su propio ciclo de carga y su propio error**, separados de los del requisito: se revalida sola y una falla suya no toca al resto de la pantalla [REQ-010 Escenario B]
 - Contador por tab de tarea
 - `"✓"` / `"!"` por campo del acordeón
 - Toasts de éxito y error
@@ -473,7 +542,7 @@ date: 2026-08-18
 
 ## Accesibilidad
 
-- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
+- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito. **`card-horas-trabajadas` no agrega paradas al orden de foco**: es de solo lectura y no tiene controles [REQ-010 RF-8]. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
 - **Landmarks y jerarquía:** hay un solo `<h1>` (titulo-requisito). **Los títulos de card no son encabezados:** son `<div className={styles.cardTitle}>` / `<span className={styles.cardTitle}>`, así que en una pantalla con 8 secciones la jerarquía tiene un solo nivel y **no se puede navegar por secciones** (`RequirementHeader.tsx:~171` vs `RequirementDetail.tsx:133`, `:149`, `:290`, `:302`, `:371`) [fuente: código-existente].
 - **Foco y teclado:** los overlays de esta pantalla son los tres `PillDropdown` del encabezado. Tienen el juego completo de ARIA (`aria-haspopup="listbox"`, `aria-expanded`, `role="listbox"`, `role="option"`, `aria-selected`, `aria-disabled`) y **cierran por click afuera**, pero **no cierran con `Escape` y no soportan navegación por flechas** pese al `role="listbox"` (`RequirementHeader.tsx:99-145`, `:88-93`). Los acordeones **tampoco cierran con `Escape`** (`RequirementStatusCard.tsx:116`) [fuente: código-existente].
 - **Propio de esta composición:**
@@ -484,6 +553,8 @@ date: 2026-08-18
   - **El símbolo `×` del stepper no tiene texto que lo explique**, aunque se lee como carácter (`RequirementStatusCard.tsx:339`); el nodo actual sí lleva `aria-current="step"` (`:328`).
   - **`boton-enviar-comentario` está `disabled` sin explicación:** no hay `aria-describedby` que diga que hace falta escribir un comentario (`RequirementActivityForm.tsx:131`).
   - **La marca de identidad automática no puede quedar solo en el color ni solo en un `title`.** Es un `badge` con texto visible (`"Automático"`) y nombre accesible propio; **se descartó resolverla con un `Tooltip` de `:hover`**, que es el patrón que esta pantalla ya usa para el motivo de una opción deshabilitada y que este mismo documento registra como inalcanzable por teclado y sin `aria-describedby` (REQ-005).
+  - **El título `"Horas Trabajadas"` hereda el problema de jerarquía de las demás cards:** como los otros siete títulos de sección, no es un encabezado sino un `div`, así que la card nueva **no** agrega un punto de navegación por secciones. La carencia es de la pantalla entera y este requerimiento no la cierra, pero la card la agrava en un grado: son ocho secciones sin jerarquía en vez de siete [REQ-010 RF-8].
+  - **Ni la carga ni el resultado de las horas se anuncian:** el card pasa de `"Cargando horas..."` a mostrar el total sin región `aria-live`, así que quien usa lector de pantalla y ya recorrió la columna derecha no se entera de que el contenido llegó. Es un gap que el estado de carga propio introduce —los demás loaders de la pantalla siguen a una acción del usuario, que sabe que algo está pasando— y queda registrado sin cerrarse acá [REQ-010 Escenario B].
   - Bien resueltos: la paginación de tareas es `<nav aria-label="Paginación">` con `aria-current="page"` (`RequirementDetail.tsx:227`, `:254`); todos los botones de icono llevan `aria-label`; el toggle de visibilidad lleva `aria-pressed`; los tres campos de resolución tienen `<label htmlFor>` correctamente asociados (`RequirementResolutionCard.tsx:102-145`); y el error de subida en el comentario lleva `role="alert"` (`RequirementActivityForm.tsx:76`).
   [fuente: código-existente]
 
@@ -514,3 +585,16 @@ date: 2026-08-18
 - **No se marca a las personas.** Se descartó un par simétrico (`"Persona"` / `"Automático"`): el caso normal no necesita etiqueta y etiquetarlo sumaría ruido a cada entrada del feed, que es el bloque de mayor densidad de la pantalla.
 - **No se agregó componente al Design System.** `badge` no tiene spec en `web` v0.1.0 —el catálogo sigue siendo el scaffold de tres componentes— pero **es un tipo que esta pantalla ya usa** en `codigo-requisito` y `badge-resultado`: el gap es previo y la marca no suma un compromiso nuevo. Anotado en la `## Revisión UX` de REQ-005.
 - **Pregunta abierta:** el `name` de un service user lo define su plantilla del auth-callout y hoy nadie lo revisa como microcopy. Si llega vacío o con un identificador técnico, esta pantalla lo muestra tal cual. Queda anotado; el fallback (`"—"` o un genérico) no se decide acá porque el dato es de despliegue.
+
+### REQ-010 — Horas cargadas por requisito (2026-09-01)
+
+- **El desglose vive en el detalle y el total en el listado, no al revés.** Son dos preguntas distintas: el listado responde "cuánto costó cada uno" de un vistazo sobre muchos requisitos, y el detalle responde "quién lo trabajó" sobre uno solo. **Descartado** llevar el desglose al listado —no hay lugar en una tabla de nueve columnas y obligaría a un tooltip o un overlay por fila— y **descartado** dejar el total solo en el detalle, que es exactamente lo que el requerimiento viene a resolver: no tener que abrir cada requisito para saber cuántas horas lleva [REQ-010 C.1, C.3].
+- **La card se carga sola, con su propia consulta, y no cuelga del payload del requisito.** Es la decisión de UX más consecuente del cambio: si el desglose viajara con el requisito, se recargaría en cada edición inline del header —que son muchas— y una falla suya rompería el detalle entero. Con consulta propia, el peor caso es una card que muestra su error mientras el resto de la pantalla funciona [REQ-010 Escenario B].
+- **`"No se pudieron cargar las horas"` es un estado declarado y no un toast.** Sin él, un fallo se vería como `"Sin horas cargadas"`: un requisito con horas mostrando que no las tiene. Es el modo de falla que más había que evitar, porque es silencioso y el dato falso es plausible [REQ-010 AC-11].
+- **La card se queda cuando no hay horas, con `"Sin horas cargadas"`.** **Descartado** ocultarla: que un requisito en desarrollo no tenga horas imputadas es en sí un dato de gestión, y una card que aparece y desaparece obliga a recordar si estaba [REQ-010 RF-8, AC-11].
+- **El total se muestra además del desglose, aunque sea la suma de lo que está debajo.** La redundancia es deliberada: la pregunta más frecuente es "cuánto lleva", y obligar a sumar mentalmente cinco filas para responderla sería peor que repetir un número [REQ-010 RF-8, AC-10].
+- **Una fila por persona, con las dos fuentes ya sumadas.** Que las horas se hayan imputado al requisito o a una de sus tareas es una distinción del modelo de datos, no de quien lee: la pregunta es cuánto puso cada uno. **Descartado** separar "directas" y "de tareas", que duplicaría filas de la misma persona y rompería la lectura de mayor a menor [REQ-010 RF-2, AC-2].
+- **El desglose es histórico y no filtra a nadie.** Quien cargó horas aparece siempre, aunque esté deshabilitado, tenga fecha de baja o no tenga usuario. Es a la vez una decisión de producto —el trabajo hecho no se borra cuando alguien se va— y la única forma de que la suma del desglose dé el total [REQ-010 RF-3, AC-4, AC-18].
+- **La card va última en la columna derecha.** Contexto, etiquetas y resolución forman una secuencia de identificación y cierre; el dato de horas es de consulta y no pertenece a esa secuencia. Al final no compite con los botones de resolver y cancelar, que son las únicas acciones de esa columna [REQ-010 RF-8].
+- **Nada de esto llega a `opus-web`.** Las horas son dato interno: el PRD es explícito en que mostrarle al cliente el tablero con horas y costos no es opción. El portal no tiene ni la card ni la columna, y el recorte no depende de un condicional de UI sino de que sus rutas son otras [REQ-010 RF-9, AC-16].
+- **[Auto] Design System — sin componentes nuevos.** Los cinco bloques usan tipos que la pantalla ya tiene: `card` (como las otras cuatro cards), `heading`, `list` (como `feed-actividad`), `empty-state` (como los tres empties por sección) y `loader`. Ningún tipo de bloque nuevo entra en la pantalla, y `loader` además está cubierto por el spec `Loader` del DS de `web`. Los tipos `card`, `list`, `heading` y `empty-state` no tienen spec en el catálogo (v0.1.0: Button, Loader, InputSelect), pero es una carencia preexistente y transversal —las cuatro cards actuales de esta misma pantalla ya la tienen— y no un gap que este requerimiento abra. Reponer el catálogo corresponde a `/product-design-system-update`.

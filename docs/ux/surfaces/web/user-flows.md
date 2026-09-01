@@ -114,12 +114,21 @@ lo ve en Opus sin que nadie se lo comunique.
      la selección, y **deseleccionar todos muestra los siete** [REQ-009 RF-4..RF-6].
    - La selección viaja en la URL, de modo que un recorte de estados se comparte como link y el
      paginador informa el total del conjunto filtrado [REQ-009 RF-7, RF-9].
+   - La columna **"Hs. Trab."** muestra en la misma fila cuántas horas lleva cada requisito, así
+     que la decisión de cuál abrir se toma con el esfuerzo ya invertido a la vista y sin salir del
+     listado [REQ-010 RF-7].
 2. El **stepper de workflow** muestra dónde está: `analisis → planificacion → en_cola →
    desarrollo → revision` [fuente: código-existente]
 3. El usuario completa los campos del **acordeón** que corresponden al estado actual
    (`analisis`→alcance, `planificacion`→propuesta y criterios, `en_cola`→cierre estimado)
 4. Avanza el estado desde el stepper
 5. El cambio se registra como **actividad pública** automáticamente y aparece en el feed
+
+En cualquier punto a partir del paso 1, la card **"Horas Trabajadas"** de la columna derecha
+responde cuánto lleva el requisito y quién lo trabajó, sin ir al reporte de período — que es el
+desvío que este flujo obligaba a hacer hasta ahora. La card **se carga por su cuenta**: si tarda o
+falla, el workflow se avanza igual, porque no es un paso del flujo sino contexto para decidir
+[REQ-010 RF-8, AC-10].
 
 ### Caminos alternativos
 

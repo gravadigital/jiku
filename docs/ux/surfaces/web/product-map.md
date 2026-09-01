@@ -37,8 +37,8 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
-| 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez | equipo-interno | solo desktop | C-13, REQ-009 |
-| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y resolver | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005 |
+| 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
+| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar, resolver y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
@@ -73,6 +73,22 @@ del grupo `(loggedin)` [fuente: código-existente].
 > requerimiento nombra dos paginadores y esos usan los suyos. **Queda un tercer paginador inline sin
 > unificar** en `detalle-requisito` (tabla de tareas del requisito), registrado como fuera de alcance
 > en el propio REQ [REQ-008 RF-1..RF-10].
+
+> **REQ-010 no agrega ni quita pantallas, y toca dos.** Hace visible un dato que ya existe en la
+> base y hoy solo se alcanza desde el reporte de período. **(1)** `listado-requisitos` gana una
+> novena columna, **"Hs. Trab."**, con el total formateado `Xh Ym` y `—` cuando es cero; el ancho
+> sale del 42% del título, la columna va última —después de "Creación"— y **no ordena**: ordenar por
+> un calculado obligaría a evaluarlo sobre todo el conjunto y no solo sobre la página, así que el
+> encabezado tiene que no parecer ordenable. La página entera se resuelve en **una sola request**,
+> no una por fila. **(2)** `detalle-requisito` gana la card **"Horas Trabajadas"** al final de la
+> columna derecha, con el total y el desglose por persona de mayor a menor, `"Sin horas cargadas"`
+> cuando no hay ninguna. La card **se carga con su propia consulta**, no con el payload del
+> requisito: se revalida sola y una falla suya no rompe el detalle, lo que suma tres sub-estados
+> nuevos a esa pantalla (*sin horas cargadas*, *horas cargando*, *horas no disponibles*). El
+> desglose es **histórico**: quien cargó horas aparece aunque ya no esté en el equipo. **Se verificó
+> que `reporte-horas` y `reporte-requisitos` no se tocan** —siguen siendo la vista de período, que
+> es lo que este requerimiento evita tener que abrir— y que **`opus-web` no se modifica**: las horas
+> son dato interno y no llegan al portal por ninguna vía [REQ-010 RF-6..RF-9].
 
 > **REQ-009 no agrega ni quita pantallas, y toca una.** El filtro de estado de
 > `listado-requisitos` pasa de selección única a **selección múltiple**, replicando el mecanismo que
