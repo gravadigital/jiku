@@ -6,6 +6,8 @@ import { ErrorCode } from '@jiku/nats-protocol';
 import { dispatch } from '../helpers/dispatch';
 
 const CREATOR = 'zitadel-sub-tasks';
+const OTHER_USER = 'zitadel-sub-tasks-2';
+const ADMIN_ID_TASKS = 'zitadel-sub-tasks-admin';
 
 /** Ver `requirements.test.ts`: el caller confiable se pide SIEMPRE explícito. */
 const TRUSTED = 'api-service-user-sub';
@@ -21,6 +23,14 @@ describe('tasks', () => {
   before(async () => {
     await User.create({
       id: CREATOR, name: 'Creador', username: 'creador-tasks', email: 'tasks@mail.com',
+    });
+    await User.create({
+      id: OTHER_USER, name: 'Otro', username: 'otro-tasks', email: 'otro-tasks@mail.com',
+    });
+    // SIN `roles` en la fila: el rol admin viaja SIEMPRE por el sobre de identidad
+    // (`actor: { id: ADMIN_ID_TASKS, roles: ['admin'] }`), nunca por `users.roles`.
+    await User.create({
+      id: ADMIN_ID_TASKS, name: 'Admin', username: 'admin-tasks', email: 'admin-tasks@mail.com',
     });
     const project = await Project.create({
       name: 'Proyecto Tasks', code: 'TASKS', status: 'activo', type: 'comercial',
@@ -49,7 +59,7 @@ describe('tasks', () => {
     await Requirement.destroy({ where: {} });
     await Person.destroy({ where: {} });
     await Project.destroy({ where: {} });
-    await User.destroy({ where: { id: CREATOR } });
+    await User.destroy({ where: { id: [CREATOR, OTHER_USER, ADMIN_ID_TASKS] } });
   });
 
   afterEach(async () => {
@@ -359,6 +369,122 @@ describe('tasks', () => {
       reply.errorCode!.should.equal('objective_not_found');
     });
   });
+
+  /** REQ-011 (S-046): `tasks.{id}.comment.{cid}.edit` — comando 23. */
+  describe('tasks.{id}.comment.{cid}.edit', () => {
+    let taskId: number;
+    let cid: number;
+
+    beforeEach(async () => {
+      const task = await Objective.create({
+        title: 'Para editar comentario', state: 'backlog', area: 'desarrollo', priority: 0,
+        projectId, createdBy: CREATOR,
+      });
+      taskId = task.id;
+
+      const activity = await ObjectiveActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        objectiveId: taskId,
+        changedBy: CREATOR,
+      });
+      cid = activity.id;
+    });
+
+    it('TS-2: el mismo comando existe para tareas', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'texto editado',
+      });
+
+      reply.status.should.equal('success');
+      (reply.data === undefined).should.be.true();
+      const activity = await ObjectiveActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto editado');
+      (activity!.editedBy as string).should.equal(CREATOR);
+      (activity!.editedAt === null).should.be.false();
+    });
+
+    it('TS-6: el admin edita un comentario ajeno de una tarea', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment.${cid}.edit`, {
+        comment: 'x', actor: { id: ADMIN_ID_TASKS, roles: ['admin'] },
+      });
+
+      reply.status.should.equal('success');
+      const activity = await ObjectiveActivity.findByPk(cid);
+      (activity!.editedBy as string).should.equal(ADMIN_ID_TASKS);
+      activity!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-8: rechazo por falta de autoría (tareas)', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment.${cid}.edit`, {
+        comment: 'x', actor: { id: OTHER_USER, roles: ['user'] },
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_OWNED);
+      const activity = await ObjectiveActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+      (activity!.editedAt === null).should.be.true();
+    });
+
+    it('TS-11: rechazo sobre una actividad que no es comentario (tareas)', async () => {
+      const titleActivity = await ObjectiveActivity.create({
+        typeOfActivity: 'title',
+        previousValue: 'antes',
+        newValue: 'después',
+        visibilityLevel: 'public',
+        objectiveId: taskId,
+        changedBy: CREATOR,
+      });
+
+      const reply = await dispatch(`tasks.${taskId}.comment.${titleActivity.id}.edit`, {
+        editor: CREATOR, comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.ACTIVITY_NOT_EDITABLE);
+      const reread = await ObjectiveActivity.findByPk(titleActivity.id);
+      reread!.newValue.should.equal('después');
+    });
+
+    it('TS-14: `visibilityLevel` en el payload se rechaza también en tareas', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x', visibilityLevel: 'public',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await ObjectiveActivity.findByPk(cid);
+      activity!.visibilityLevel.should.equal('internal');
+    });
+
+    it('TS-19: comentario inexistente en tareas', async () => {
+      const reply = await dispatch(`tasks.${taskId}.comment.999999.edit`, {
+        editor: CREATOR, comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+    });
+
+    it('TS-21: el comentario existe pero pertenece a OTRA tarea', async () => {
+      const otherTask = await Objective.create({
+        title: 'Otra tarea', state: 'backlog', area: 'desarrollo', priority: 0,
+        projectId, createdBy: CREATOR,
+      });
+
+      const reply = await dispatch(`tasks.${otherTask.id}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+      const activity = await ObjectiveActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+    });
+  });
 });
 
 
@@ -666,6 +792,29 @@ describe('tasks — vinculación de archivos (S-003)', () => {
         fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       }, TRUSTED);
       conOnce.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+  });
+
+  /** REQ-011 (S-046): adjuntos de `tasks.{id}.comment.{cid}.edit`, vía `syncFileLinks`. */
+  describe('tasks.{id}.comment.{cid}.edit — adjuntos (conjunto completo)', () => {
+    it('TS-24: `fileIds: []` desvincula todo', async () => {
+      const f1 = await makeFile();
+      const seeded = await dispatch(`tasks.${taskId}.comment`, {
+        author: UPLOADER_A, comment: 'con adjunto', fileIds: [f1.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+      const seededCid = (seeded as { data?: { id: number } }).data!.id;
+
+      const reply = await dispatch(`tasks.${taskId}.comment.${seededCid}.edit`, {
+        editor: UPLOADER_A, comment: 'sin adjuntos', fileIds: [],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      (await Attachment.count({
+        where: { entityType: 'objective_comment', entityId: seededCid },
+      })).should.equal(0);
+      // Se borra el VÍNCULO, nunca el archivo.
+      (await File.findByPk(f1.id))!.should.be.ok();
     });
   });
 

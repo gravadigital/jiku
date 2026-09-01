@@ -3,12 +3,14 @@ import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { CommandContext } from './types';
 
 /**
- * La vinculación de archivos a una entidad de dominio, compartida por los SEIS comandos que
+ * La vinculación de archivos a una entidad de dominio, compartida por los OCHO comandos que
  * reciben `fileIds` (`requirements.new`, `requirements.{id}.edit`, `requirements.{id}.comment`,
- * `tasks.new`, `tasks.{id}.edit`, `tasks.{id}.comment`).
+ * `requirements.{id}.comment.{cid}.edit`, `tasks.new`, `tasks.{id}.edit`, `tasks.{id}.comment`,
+ * `tasks.{id}.comment.{cid}.edit`). Los dos últimos son de REQ-011 y usan `syncFileLinks`, no
+ * `linkFiles`: reciben el conjunto completo, no un agregado.
  *
- * POR QUÉ ES UN HELPER Y NO SEIS COPIAS: la regla de titularidad es la garantía nueva del
- * REQ-001. Escrita seis veces, las seis pueden divergir —que es exactamente el modo de fallo que
+ * POR QUÉ ES UN HELPER Y NO OCHO COPIAS: la regla de titularidad es la garantía nueva del
+ * REQ-001. Escrita ocho veces, las ocho pueden divergir —que es exactamente el modo de fallo que
  * el docstring de `resolveActor` describe para la identidad—. Acá vive una sola vez.
  *
  * NO ES UNA CAPA DE REPOSITORIO NI DE SERVICIO (que la convención `commands` prohíbe): es un
@@ -21,7 +23,7 @@ import { CommandContext } from './types';
  * rollback del despachador es lo que garantiza que la entidad y sus vínculos queden juntos o
  * ninguno (CA-4).
  *
- * RECIBE EL ACTOR YA RESUELTO, no el campo crudo del payload. Los seis comandos llamadores
+ * RECIBE EL ACTOR YA RESUELTO, no el campo crudo del payload. Los ocho comandos llamadores
  * resuelven `resolveActor(ctx, payload.creator/author/editor, component)` UNA SOLA VEZ, arriba
  * de `execute()`, para usarlo también en `createdBy`/`changedBy` de la entidad. Si este helper
  * volviera a llamar a `resolveActor` con el campo crudo, la rama externa —la que loguea `warn`—

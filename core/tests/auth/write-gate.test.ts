@@ -841,26 +841,27 @@ describe('S-030 · la compuerta de escritura', () => {
       Object.keys(COMMAND_ENTITY).sort().should.deepEqual([...registry.patterns()].sort());
     });
 
-    it('TS-71d · (gate) los 13 comandos sin entidad llevan `null` EXPLÍCITO', () => {
+    it('TS-71d · (gate) los 14 comandos sin entidad llevan `null` EXPLÍCITO', () => {
       // `null` ("no hay entidad que chequear: PASA") y AUSENTE ("DENIEGA") son dos cosas
       // distintas, y confundirlas es un bug de seguridad en las dos direcciones.
       //
-      // ERAN 12 HASTA S-032: el comando 21 suma el suyo, y su `null` es una DECISIÓN y no un
-      // default — su ruta, `week-assigned-times-put.ts`, no lleva `validateProjectPermissions`,
-      // así que declararle el chequeo sería ENDURECER.
+      // ERAN 12 HASTA S-032, 13 HASTA S-046: el comando 21 sumó el suyo con la misma lógica que
+      // `tasks.{id}.comment.{cid}.edit` (REQ-011) suma ahora el suyo — su `null` es una DECISIÓN
+      // y no un default: ninguna ruta de `tasks.*` lleva `validateProjectPermissions`, así que
+      // declararle el chequeo sería ENDURECER.
       const conNull = Object.entries(COMMAND_ENTITY)
         .filter(([, descriptor]) => descriptor === null)
         .map(([command]) => command);
-      conNull.length.should.equal(13);
+      conNull.length.should.equal(14);
       // El que más importa: su ruta NO aplica capa 3 y su test de la api afirma que un
       // external-user sin ningún permiso de proyecto recibe 201.
       conNull.should.containEql('files.request-upload');
     });
 
     it('TS-71e · un comando AUSENTE del mapa DENIEGA en modo externo (D-6, ADR-008)', async () => {
-      // No es alcanzable por `dispatch()` —los 21 están todos declarados— así que se prueba
-      // contra la función. Es la rama que protege al comando 22 el día que alguien lo registre
-      // sin pasar por acá.
+      // No es alcanzable por `dispatch()` —los 23 están todos declarados— así que se prueba
+      // contra la función. Es la rama que protege al próximo comando el día que alguien lo
+      // registre sin pasar por acá.
       //
       // EL EJEMPLO CAMBIÓ EN S-032, no el escenario: acá se usaba `week-assigned-times.replace`
       // porque el comando 21 todavía no estaba declarado en el mapa. Ahora lo está, así que hace

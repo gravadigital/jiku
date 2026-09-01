@@ -11,6 +11,7 @@ import { isTransitionAllowed } from '../../src/commands/requirements/state-trans
 
 const CREATOR = 'zitadel-sub-reqs';
 const OTHER_USER = 'zitadel-sub-reqs-2';
+const ADMIN_ID_REQS = 'zitadel-sub-reqs-admin';
 
 /**
  * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`: el `caller` que ejercita la rama de la api, y desde
@@ -46,6 +47,12 @@ describe('requirements', () => {
     });
     await User.create({
       id: OTHER_USER, name: 'Otro', username: 'otro-reqs', email: 'otro-reqs@mail.com',
+    });
+    // SIN `roles` en la fila: el rol admin de estos tests viaja SIEMPRE por el sobre de
+    // identidad (`actor: { id: ADMIN_ID_REQS, roles: ['admin'] }`), nunca por `users.roles` —
+    // es la única forma de que `ctx.roles` sea realmente `['admin']` (REQ-011, CA-4).
+    await User.create({
+      id: ADMIN_ID_REQS, name: 'Admin', username: 'admin-reqs', email: 'admin-reqs@mail.com',
     });
     const project = await Project.create({
       name: 'Proyecto Reqs', code: 'REQS', status: 'activo', type: 'comercial',
@@ -667,6 +674,251 @@ describe('requirements', () => {
     });
   });
 
+  /** REQ-011 (S-046): `requirements.{id}.comment.{cid}.edit` — comandos 22/23. */
+  describe('requirements.{id}.comment.{cid}.edit', () => {
+    let requirementId: number;
+    let cid: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Para editar comentario', description: 'x', projectId, createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+
+      // Fixture con el MODELO, no despachando el comando de alta: más rápido, no depende de
+      // otro comando, y deja explícito el estado inicial que el test afirma.
+      const activity = await RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+      cid = activity.id;
+    });
+
+    it('TS-1: el autor edita el texto de su comentario', async () => {
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'texto editado' }
+      );
+
+      reply.status.should.equal('success');
+      (reply.data === undefined).should.be.true();
+
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto editado');
+      (activity!.editedBy as string).should.equal(CREATOR);
+      (activity!.editedAt instanceof Date).should.be.true();
+      activity!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-3: `editedAt` se pisa en cada edición y no hay tope de cantidad', async () => {
+      const r1 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v1',
+      });
+      const first = await RequirementActivity.findByPk(cid);
+
+      const r2 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v2',
+      });
+      const second = await RequirementActivity.findByPk(cid);
+
+      const r3 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v3',
+      });
+      const third = await RequirementActivity.findByPk(cid);
+
+      [r1, r2, r3].forEach((r) => r.status.should.equal('success'));
+      third!.newValue.should.equal('v3');
+      (third!.editedAt!.getTime() >= second!.editedAt!.getTime()).should.be.true();
+      (second!.editedAt!.getTime() >= first!.editedAt!.getTime()).should.be.true();
+    });
+
+    it('TS-4: el comando NO escribe `previous_value`', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo',
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.previousValue.should.equal('');
+      activity!.newValue.should.equal('nuevo');
+    });
+
+    it('TS-5: el admin edita un comentario ajeno — editedBy es el admin, changedBy no se toca', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'editado por admin', actor: { id: ADMIN_ID_REQS, roles: ['admin'] },
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('editado por admin');
+      (activity!.editedBy as string).should.equal(ADMIN_ID_REQS);
+      activity!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-7: rechazo por falta de autoría, sin rol admin', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'x', actor: { id: OTHER_USER, roles: ['user'] },
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+      (activity!.editedAt === null).should.be.true();
+      (activity!.editedBy === null).should.be.true();
+    });
+
+    it('TS-9: en el canal exento (`ctx.roles === []`) un no-autor es rechazado', async () => {
+      // Canal exento: caller = publicador confiable (el default de `dispatch()`), SIN clave
+      // `actor` en el payload. `[]` no habilita la excepción de admin.
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: OTHER_USER, comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-10: rechazo sobre una actividad que no es comentario', async () => {
+      const stateActivity = await RequirementActivity.create({
+        typeOfActivity: 'state',
+        previousValue: 'backlog',
+        newValue: 'activo',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${stateActivity.id}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.ACTIVITY_NOT_EDITABLE);
+      const reread = await RequirementActivity.findByPk(stateActivity.id);
+      reread!.newValue.should.equal('activo');
+      (reread!.editedAt === null).should.be.true();
+    });
+
+    it('TS-12: el chequeo de tipo corre ANTES que el de autoría', async () => {
+      const stateActivity = await RequirementActivity.create({
+        typeOfActivity: 'state',
+        previousValue: 'backlog',
+        newValue: 'activo',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+
+      // Ni autor ni admin, y tampoco es comentario: si el orden estuviera invertido,
+      // respondería `comment_not_owned`.
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${stateActivity.id}.edit`,
+        { comment: 'x', actor: { id: OTHER_USER, roles: ['user'] } }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.ACTIVITY_NOT_EDITABLE);
+    });
+
+    it('TS-13: `visibilityLevel` en el payload se rechaza', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x', visibilityLevel: 'public',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.visibilityLevel.should.equal('internal');
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-15: cualquier campo desconocido se rechaza', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x', attachmentIds: [1],
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-16: falla sin `comment` (campo requerido)', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR,
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-17: falla sin actor resoluble', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-18: comentario inexistente', async () => {
+      const before = await RequirementActivity.count();
+
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.999999.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+      (await RequirementActivity.count()).should.equal(before);
+    });
+
+    it('TS-20: el comentario existe pero pertenece a OTRO requisito', async () => {
+      const otherRequirement = await Requirement.create({
+        title: 'Otro requisito', description: 'x', projectId, createdBy: CREATOR,
+      });
+
+      const reply = await dispatch(
+        `requirements.${otherRequirement.id}.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-22: el requisito del subject no existe', async () => {
+      const reply = await dispatch(
+        `requirements.999999.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      // El comando va directo al par (id, requirementId): un requisito inexistente no tiene
+      // ningún comentario que coincida con ese par, así que responde `comment_not_found`.
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+    });
+
+    it('TS-25 (parcial, ver suite de adjuntos): con `fileIds` ausente el comando igual escribe el texto', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'solo texto',
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('solo texto');
+    });
+  });
+
   describe('requirements.{id}.subscriptors', () => {
     let requirementId: number;
 
@@ -1189,6 +1441,155 @@ describe('requirements — vinculación de archivos (S-003)', () => {
       } finally {
         warn.restore();
       }
+    });
+  });
+
+  /** REQ-011 (S-046): adjuntos de `requirements.{id}.comment.{cid}.edit`, vía `syncFileLinks`. */
+  describe('requirements.{id}.comment.{cid}.edit — adjuntos (conjunto completo)', () => {
+    let editCid: number;
+
+    beforeEach(async () => {
+      const activity = await RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: UPLOADER_A,
+      });
+      editCid = activity.id;
+    });
+
+    function links(): Promise<Attachment[]> {
+      return Attachment.findAll({
+        where: { entityType: 'requirement_comment', entityId: editCid }, order: [['id', 'ASC']],
+      });
+    }
+
+    it('TS-23: agrega uno nuevo y quita uno existente en la misma edición', async () => {
+      const f1 = await makeFile();
+      const f2 = await makeFile();
+      const f3 = await makeFile();
+      const seeded = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con adjuntos iniciales', fileIds: [f1.id, f2.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+      const before = await links();
+      const originalOfF1 = before.find((a) => a.fileId === f1.id)!;
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con adjuntos', fileIds: [f1.id, f3.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.map((a) => a.fileId).sort().should.deepEqual([f1.id, f3.id].sort());
+      // El vínculo de f1 CONSERVA su fila original: mismo id, mismo createdAt.
+      const nowOfF1 = after.find((a) => a.fileId === f1.id)!;
+      nowOfF1.id.should.equal(originalOfF1.id);
+      nowOfF1.createdAt.getTime().should.equal(originalOfF1.createdAt.getTime());
+      const f3File = await File.findByPk(f3.id);
+      f3File!.byteStatus.should.equal(ByteStatus.Uploaded);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('con adjuntos');
+      (activity!.editedAt === null).should.be.false();
+    });
+
+    it('TS-25: `fileIds` ausente no toca los vínculos', async () => {
+      const f1 = await makeFile();
+      const seeded = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con un adjunto', fileIds: [f1.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+      const before = await links();
+      before.length.should.equal(1);
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'solo texto',
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('solo texto');
+      // `fileIds` ausente (no `[]`): el vínculo previo SIGUE EXISTIENDO, misma fila.
+      const after = await links();
+      after.length.should.equal(1);
+      after[0].id.should.equal(before[0].id);
+      after[0].fileId!.should.equal(f1.id);
+    });
+
+    it('TS-26: la titularidad se valida solo sobre los ids NUEVOS', async () => {
+      const fB = await makeFile({ uploadedBy: UPLOADER_B });
+      const fA = await makeFile({ uploadedBy: UPLOADER_A });
+      // Vínculo previo a un archivo ajeno, armado A MANO en el fixture: ningún comando puede
+      // crearlo (la titularidad se lo impediría). Existe para probar que la revalidación NO
+      // ocurre sobre lo que ya estaba vinculado — es la asimetría deliberada de
+      // `link-files.ts` (titularidad solo sobre los ids nuevos del conjunto).
+      await Attachment.create({ entityType: 'requirement_comment', entityId: editCid, fileId: fB.id });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [fB.id, fA.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.map((a) => a.fileId).sort().should.deepEqual([fA.id, fB.id].sort());
+    });
+
+    it('TS-27: un `fileId` nuevo ajeno se rechaza y NO deja escritura parcial', async () => {
+      const fX = await makeFile({ uploadedBy: UPLOADER_B });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'texto nuevo', fileIds: [fX.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
+      (activity!.editedAt === null).should.be.true();
+      (activity!.editedBy === null).should.be.true();
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-28: sin excepción por rol — el admin tampoco vincula lo ajeno', async () => {
+      const fX = await makeFile({ uploadedBy: UPLOADER_B });
+      const adminActivity = await RequirementActivity.create({
+        typeOfActivity: 'comment', previousValue: '', newValue: 'original admin',
+        visibilityLevel: 'internal', requirementId, changedBy: ADMIN,
+      });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${adminActivity.id}.edit`, {
+        comment: 'x', fileIds: [fX.id], actor: { id: ADMIN, roles: ['admin'] },
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      const reread = await RequirementActivity.findByPk(adminActivity.id);
+      reread!.newValue.should.equal('original admin');
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-29: más de 10 `fileIds` se rechaza antes de la transacción', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-30: un `fileId` inexistente da `invalid_fields`, no `file_not_owned`', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [999999],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
     });
   });
 

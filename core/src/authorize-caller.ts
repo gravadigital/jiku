@@ -260,11 +260,11 @@ function allowedFor(
  */
 
 /**
- * LOS 18 COMANDOS DE LOS ROLES INTERNOS. `admin` y `user` reciben LA MISMA LISTA — ver el punto 1
+ * LOS 20 COMANDOS DE LOS ROLES INTERNOS. `admin` y `user` reciben LA MISMA LISTA — ver el punto 1
  * de arriba— así que se declara UNA VEZ y se referencia dos: dos copias divergirían en cuanto
  * alguien editara una.
  *
- * SON LOS 20 DEL REGISTRY MENOS LOS DOS DE SUSCRIPTORES, que son exclusivos de `external-user`.
+ * SON LOS 22 DEL REGISTRY MENOS LOS DOS DE SUSCRIPTORES, que son exclusivos de `external-user`.
  * El orden sigue al del registry, para que el diff contra `registry.patterns()` se lea de arriba
  * abajo.
  */
@@ -276,10 +276,12 @@ const INTERNAL_COMMANDS: readonly string[] = [
   'tasks.new', //                                      (b) POST /api/objectives — sin `x-roles`
   'tasks.{id}.edit', //                                (b) PATCH /api/objectives/{id} — sin `x-roles`
   'tasks.{id}.comment', //                             (b) POST /api/objectives/{id}/comments
+  'tasks.{id}.comment.{cid}.edit', //                  (a) [user, admin] — PATCH /api/objectives/{id}/comment/{cid}
   'requirements.new', //                               (a) [user, admin]
   'requirements.{id}.edit', //                         (a) [user, admin]
   'requirements.{id}.resolve', //                      (c) ninguna ruta lo publica — ver arriba
   'requirements.{id}.comment', //                      (a) [user, admin]
+  'requirements.{id}.comment.{cid}.edit', //           (a) [user, admin] — PATCH /api/requirements/{reqid}/comments/{cid}
   'attachments.{id}.delete', //                        (b) attachments-delete.ts — sin `hasAnyRole`
   'files.request-upload', //                           (b) attachments-post.ts — sin `hasAnyRole`
   'files.{fileId}.request-download', //                (b) attachments-download/preview — sin rol

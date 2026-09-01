@@ -358,6 +358,13 @@ export const ErrorCode = {
   COMMENT_NOT_FOUND: 'comment_not_found',
   TASK_NOT_FOUND: 'task_not_found',
 
+  // REQ-011 — emitidos por `requirements.{id}.comment.{cid}.edit` y
+  // `tasks.{id}.comment.{cid}.edit`. `COMMENT_NOT_OWNED`: el actor no es el autor del
+  // comentario y no tiene el rol `admin` (403). `ACTIVITY_NOT_EDITABLE`: la actividad existe
+  // pero `typeOfActivity !== 'comment'` (400).
+  COMMENT_NOT_OWNED: 'comment_not_owned',
+  ACTIVITY_NOT_EDITABLE: 'activity_not_editable',
+
   CLIENT_NOT_FOUND: 'client_not_found',
   PROJECT_NOT_FOUND: 'project_not_found',
   OBJECTIVE_NOT_FOUND: 'objective_not_found',
