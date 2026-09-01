@@ -305,7 +305,7 @@ describe('RequirementList — S-051', () => {
     });
 
     const stateLabel = await screen.findByText(
-      (content, element) => content === 'ESTADO' && element?.tagName.toLowerCase() === 'label'
+      (content, element) => content === 'Estados' && element?.tagName.toLowerCase() === 'label'
     );
     const container = stateLabel.closest('div') as HTMLElement;
     const input = within(container).getByRole('combobox');
@@ -331,7 +331,7 @@ describe('RequirementList — S-051', () => {
     );
 
     const stateLabel = await screen.findByText(
-      (content, element) => content === 'ESTADO' && element?.tagName.toLowerCase() === 'label'
+      (content, element) => content === 'Estados' && element?.tagName.toLowerCase() === 'label'
     );
     const container = stateLabel.closest('div') as HTMLElement;
     const input = within(container).getByRole('combobox');

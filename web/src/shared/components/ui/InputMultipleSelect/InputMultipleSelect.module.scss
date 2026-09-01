@@ -1,11 +1,65 @@
+// Modo formulario (default): mismo label y mismo aire que `InputText` e `InputSelect`, que son
+// sus vecinos en `ObjectiveSearchFilters`.
 .container {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 1rem;
+  min-width: 0;
 
-  label {
+  .label {
+    color: var(--color-general-text);
     font-family: var(--font-primary);
     font-size: 12px;
     line-height: 12px;
-    color: var(--color-general-text);
     padding-left: 1rem;
   }
+}
+
+// Modo compacto: fila de filtros. Mismos valores que `.fLabel` de `RequirementFilters`, para que
+// el label quede a la misma altura y tamaño que los de "Búsqueda", "Proyecto" y "Ordenar por".
+.compact {
+  margin-bottom: 0;
+
+  .label {
+    font-size: 0.875rem;
+    line-height: normal;
+    margin-bottom: 0.15rem;
+    padding-left: 0;
+  }
+}
+
+// Fila del menú: el check a la izquierda y la etiqueta.
+.option {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  align-items: center;
+  border: 1px solid var(--color-general-border);
+  border-radius: 0.25rem;
+  color: #fff;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  height: 1rem;
+  justify-content: center;
+  line-height: 1;
+  width: 1rem;
+}
+
+.checkboxChecked {
+  background-color: var(--color-button);
+  border-color: var(--color-button);
+}
+
+// El "+N" que resume los chips que no entran en la única línea del control.
+.overflowCount {
+  color: var(--color-general-text);
+  flex-shrink: 0;
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
 }

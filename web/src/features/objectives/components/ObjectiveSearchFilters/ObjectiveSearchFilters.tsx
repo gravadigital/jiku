@@ -121,7 +121,7 @@ export function ObjectiveSearchFilters() {
       </div>
       <div className={styles.stateSelect}>
         <InputMultipleSelect
-          label="Estado"
+          label="Estados"
           code="state"
           value={
             searchParams?.get('state') === 'all'

@@ -51,14 +51,17 @@ describe('RequirementFilters — S-051', () => {
     expect(style.textTransform).not.toBe('uppercase');
   });
 
-  // Actualizado por S-041: InputMultipleSelect renderiza el label en MAYÚSCULAS ("ESTADO"), a
-  // diferencia de los otros filtros. Se verifica por texto insensible a mayúsculas para no
-  // acoplar el test al case.
-  it('muestra label "Estado"', () => {
+  // El filtro admite varios estados a la vez, así que el label va en plural. Desde el arreglo de
+  // altura, `InputMultipleSelect` ya no fuerza mayúsculas y el label se ve como el de los demás
+  // filtros de la fila.
+  it('muestra label "Estados" sin uppercase', () => {
     render(<RequirementFilters filters={filters} onChange={onChange} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.getByText(/^estado$/i)).toBeInTheDocument();
+    const label = screen.getByText('Estados');
+    expect(label).toBeInTheDocument();
+    const style = window.getComputedStyle(label);
+    expect(style.textTransform).not.toBe('uppercase');
   });
 
   it('muestra label "Proyecto"', () => {
@@ -221,8 +224,10 @@ describe('RequirementFilters — S-051', () => {
     expect(screen.queryByText('Resuelto')).not.toBeInTheDocument();
   });
 
-  // TS-5 (S-041/CA-1): el filtro renderiza los cuatro chips del default
-  it('TS-5: renderiza los cuatro chips del default (S-041)', () => {
+  // TS-5 (S-041/CA-1): el default son cuatro estados. El control ocupa una sola línea, así que
+  // muestra los dos primeros como chip y resume los otros dos en "+2" en vez de envolverlos —
+  // envolver estiraba el campo y desalineaba la fila de filtros.
+  it('TS-5: refleja los cuatro estados del default en una sola línea (S-041)', () => {
     render(
       <RequirementFilters
         filters={{ ...filters, state: 'planificacion,en_cola,desarrollo,revision' }}
@@ -233,13 +238,12 @@ describe('RequirementFilters — S-051', () => {
 
     expect(screen.getByText('Planificación')).toBeInTheDocument();
     expect(screen.getByText('En cola')).toBeInTheDocument();
-    expect(screen.getByText('Desarrollo')).toBeInTheDocument();
-    expect(screen.getByText('Revisión')).toBeInTheDocument();
+    expect(screen.getByText('+2')).toBeInTheDocument();
     expect(screen.queryByText('Cancelado')).not.toBeInTheDocument();
   });
 
   function getStateSelectContainer(): HTMLElement {
-    return screen.getByText(/^estado$/i).closest('div') as HTMLElement;
+    return screen.getByText(/^estados$/i).closest('div') as HTMLElement;
   }
 
   // TS-6 (S-041/CA-4): con state='all' el control queda sin chips y muestra el placeholder
@@ -253,8 +257,8 @@ describe('RequirementFilters — S-051', () => {
   });
 
   // TS-7 (S-041/CA-4): la opción "Todos los estados" ya no existe en la lista de opciones.
-  // Nota: react-select con isMulti excluye del menú la opción ya seleccionada ("Desarrollo"),
-  // así que con un estado elegido el menú muestra las 6 restantes, no las 7 completas.
+  // El menú lista los siete estados del enum incluso con uno ya elegido ("Desarrollo"): es la
+  // única vista donde se ven todos, porque los chips del control se recortan en el "+N".
   it('TS-7: la opción "Todos los estados" no está en el desplegable (S-041)', () => {
     render(
       <RequirementFilters filters={{ ...filters, state: 'desarrollo' }} onChange={onChange} />,
@@ -266,8 +270,8 @@ describe('RequirementFilters — S-051', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' });
 
     const options = screen.getAllByRole('option').map((el) => el.textContent);
-    expect(options).not.toContain('Todos los estados');
-    expect(options).toHaveLength(6);
+    expect(options.some((text) => text?.includes('Todos los estados'))).toBe(false);
+    expect(options).toHaveLength(7);
   });
 
   // TS-8 (S-041/CA-2): las opciones se listan en el orden del enum, no alfabético
@@ -323,10 +327,12 @@ describe('RequirementFilters — S-051', () => {
       { wrapper: createWrapper() }
     );
 
-    const removeButton = screen.getByLabelText('Remove Revisión');
+    // Se quita uno de los chips visibles: los que exceden la línea están colapsados en el "+N"
+    // y se sacan desde el desplegable, no con una cruz propia.
+    const removeButton = screen.getByLabelText('Remove Planificación');
     fireEvent.click(removeButton);
 
-    expect(onChange).toHaveBeenCalledWith('state', 'planificacion,en_cola,desarrollo');
+    expect(onChange).toHaveBeenCalledWith('state', 'en_cola,desarrollo,revision');
   });
 
   // TS-11 (S-041/CA-4): quitar el último estado emite el sentinel 'all', no un string vacío
@@ -348,7 +354,7 @@ describe('RequirementFilters — S-051', () => {
       { wrapper: createWrapper() }
     );
 
-    const label = screen.getByText(/^estado$/i);
+    const label = screen.getByText(/^estados$/i);
     const htmlFor = label.getAttribute('for');
     expect(htmlFor).toBeTruthy();
     const control = document.getElementById(htmlFor as string);

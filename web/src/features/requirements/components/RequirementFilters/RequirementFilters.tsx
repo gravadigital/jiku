@@ -148,7 +148,8 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
       </div>
       <div className={styles.filterField} style={{ flex: 1.6 }}>
         <InputMultipleSelect
-          label="Estado"
+          compact
+          label="Estados"
           code="filter-state"
           placeholder="Todos los estados"
           options={STATE_OPTIONS}
