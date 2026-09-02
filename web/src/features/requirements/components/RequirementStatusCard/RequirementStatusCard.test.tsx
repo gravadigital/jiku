@@ -1132,8 +1132,8 @@ describe('RequirementStatusCard', () => {
     });
   });
 
-  describe('Para incidencias, "En cola" se filtra del stepper (CA-4/CA-5/CA-8)', () => {
-    it('TS-9: type=incidencia en Desarrollo muestra 4 pasos, sin "En cola"', () => {
+  describe('El stepper siempre muestra los 5 pasos de trabajo, sin recortar por tipo (REQ-012)', () => {
+    it('TS-12: type=incidencia en Desarrollo sigue mostrando los 5 pasos, "En cola" incluido', () => {
       render(
         <RequirementStatusCard
           requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
@@ -1141,9 +1141,9 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      expect(screen.queryByText('En cola')).not.toBeInTheDocument();
-      expect(screen.getAllByTestId('step-dot')).toHaveLength(4);
-      ['Análisis', 'Planificación', 'Desarrollo', 'Revisión'].forEach((label) => {
+      expect(screen.getByText('En cola')).toBeInTheDocument();
+      expect(screen.getAllByTestId('step-dot')).toHaveLength(5);
+      ['Análisis', 'Planificación', 'En cola', 'Desarrollo', 'Revisión'].forEach((label) => {
         expect(screen.getByText(label)).toBeInTheDocument();
       });
     });
@@ -1187,6 +1187,56 @@ describe('RequirementStatusCard', () => {
       expect(screen.getAllByTestId('step-dot')).toHaveLength(5);
       const activeStep = screen.getByText('En cola').closest('[aria-current="step"]');
       expect(activeStep).not.toBeNull();
+    });
+  });
+
+  describe('El botón de transición no desaparece en estado terminal — sugiere volver al trabajo (REQ-012, CA-3)', () => {
+    it('TS-9: con state resuelto, existe "Pasar a Desarrollo" junto con "Guardar"', () => {
+      render(
+        <RequirementStatusCard
+          requirement={{ ...baseRequirement, state: 'resuelto' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /pasar a desarrollo/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^guardar$/i })).toBeInTheDocument();
+    });
+
+    it('TS-10: con state cancelado, existe "Pasar a Desarrollo"', () => {
+      render(
+        <RequirementStatusCard
+          requirement={{ ...baseRequirement, state: 'cancelado' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /pasar a desarrollo/i })).toBeInTheDocument();
+    });
+
+    it('TS-11: click en "Pasar a Desarrollo" desde resuelto llama a onUpdate con state desarrollo y sin campos de resolución', () => {
+      const onUpdate = vi.fn();
+      render(
+        <RequirementStatusCard
+          requirement={{
+            ...baseRequirement,
+            state: 'resuelto',
+            resolutionType: 'error_interno',
+            resolutionConclusion: 'Se corrigió el cálculo',
+            resolutionComment: 'Ya está disponible',
+          }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /pasar a desarrollo/i }));
+
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      const payload = onUpdate.mock.calls[0][0];
+      expect(payload.state).toBe('desarrollo');
+      expect(payload).not.toHaveProperty('resolutionType');
+      expect(payload).not.toHaveProperty('resolutionConclusion');
+      expect(payload).not.toHaveProperty('resolutionComment');
     });
   });
 

@@ -437,7 +437,7 @@ describe('EditRequirementForm', () => {
     expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
   });
 
-  it('TS-12: para type=incidencia, el Select Estado NO ofrece "En cola" (6 opciones)', () => {
+  it('REQ-012: para type=incidencia, el Select Estado sigue ofreciendo "En cola" (7 opciones, sin recorte por tipo)', () => {
     render(<EditRequirementForm requirement={{ ...mockRequirement, type: 'incidencia' }} />, {
       wrapper: createWrapper(),
     });
@@ -446,15 +446,20 @@ describe('EditRequirementForm', () => {
     fireEvent.focus(estadoSelect);
     fireEvent.keyDown(estadoSelect, { key: 'ArrowDown' });
 
-    expect(screen.queryByText('En cola')).not.toBeInTheDocument();
-    ['Análisis', 'Planificación', 'Desarrollo', 'Revisión', 'Resuelto', 'Cancelado'].forEach(
-      (label) => {
-        expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-      }
-    );
+    [
+      'Análisis',
+      'Planificación',
+      'En cola',
+      'Desarrollo',
+      'Revisión',
+      'Resuelto',
+      'Cancelado',
+    ].forEach((label) => {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    });
   });
 
-  it('TS-13/TS-14: cambiar Tipo a incidencia con state=en_cola ya cargado no lo limpia, pero deja de ofrecerlo', () => {
+  it('REQ-012: cambiar Tipo a incidencia con state=en_cola ya cargado no lo limpia, y sigue ofreciéndolo', () => {
     render(
       <EditRequirementForm
         requirement={{ ...mockRequirement, type: 'funcionalidad', state: 'en_cola' }}
@@ -469,20 +474,18 @@ describe('EditRequirementForm', () => {
     fireEvent.keyDown(tipoSelect, { key: 'ArrowDown' });
     fireEvent.click(screen.getByText('Incidencia'));
 
-    // TS-13: el valor seleccionado del Select Estado sigue siendo "En cola", sin forzarse ni limpiarse.
+    // El valor seleccionado del Select Estado sigue siendo "En cola", sin forzarse ni limpiarse.
     expect(screen.getByText('En cola')).toBeInTheDocument();
 
-    // TS-14: al abrir el menú del Select Estado, "En cola" ya no aparece como opción del listado.
+    // Desde REQ-012, "En cola" sigue apareciendo como opción del listado también para incidencia.
     const estadoSelect = screen.getByLabelText(/^estado/i);
     fireEvent.focus(estadoSelect);
     fireEvent.keyDown(estadoSelect, { key: 'ArrowDown' });
 
-    const enColaMatches = screen.getAllByText('En cola');
-    // Solo debe quedar el nodo que muestra el valor actual seleccionado (fuera del menú de opciones);
-    // ninguno debe tener role="option".
-    enColaMatches.forEach((match) => {
-      expect(match.closest('[role="option"]')).toBeNull();
-    });
+    const enColaOptions = screen
+      .getAllByText('En cola')
+      .filter((match) => match.closest('[role="option"]') !== null);
+    expect(enColaOptions.length).toBeGreaterThan(0);
   });
 
   // `fileIds` conserva la semántica de conjunto COMPLETO que tenía

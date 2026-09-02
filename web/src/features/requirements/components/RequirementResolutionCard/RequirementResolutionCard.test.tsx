@@ -172,7 +172,7 @@ describe('RequirementResolutionCard', () => {
     expect(screen.queryByRole('button', { name: /^cancelar$/i })).not.toBeInTheDocument();
   });
 
-  it('no muestra ningún botón de "Reabrir" — la reapertura se hace desde el stepper de la Card Estado', () => {
+  it('TS-14: en estado Resuelto, muestra el botón "Reabrir" (REQ-012, CA-4)', () => {
     render(
       <RequirementResolutionCard
         requirement={{ ...baseRequirement, state: 'resuelto' }}
@@ -180,7 +180,118 @@ describe('RequirementResolutionCard', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: /reabrir/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
+  });
+
+  it('TS-15: en estado Cancelado, muestra el botón "Reabrir" junto al badge "Cancelado"', () => {
+    render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, state: 'cancelado' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Cancelado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
+  });
+
+  it('TS-16: en un estado de trabajo, no muestra "Reabrir" y sí "Resolver"/"Cancelar"', () => {
+    render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, state: 'desarrollo' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Reabrir' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resolver' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+  });
+
+  it('TS-17: click en "Reabrir" desde un requisito resuelto con los 3 campos cargados manda exactamente { state: "desarrollo" }', () => {
+    const onUpdate = vi.fn();
+    render(
+      <RequirementResolutionCard
+        requirement={{
+          ...baseRequirement,
+          state: 'resuelto',
+          resolutionType: 'error_interno',
+          resolutionConclusion: 'Se corrigió el cálculo',
+          resolutionComment: 'Ya está disponible',
+        }}
+        onUpdate={onUpdate}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'desarrollo' });
+  });
+
+  it('TS-18: "Reabrir" queda deshabilitado mientras hay una mutación en vuelo (isPending)', () => {
+    render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, state: 'resuelto' }}
+        onUpdate={vi.fn()}
+        isPending
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeDisabled();
+  });
+
+  it('TS-28: los campos de resolución siguen disabled con el requisito ya Resuelto', () => {
+    render(
+      <RequirementResolutionCard
+        requirement={{
+          ...baseRequirement,
+          type: 'incidencia',
+          state: 'resuelto',
+          resolutionType: 'error_interno',
+        }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Tipo de resolución')).toBeDisabled();
+    expect(screen.getByLabelText('Conclusión interna')).toBeDisabled();
+    expect(screen.getByLabelText('Nota para cliente')).toBeDisabled();
+  });
+
+  it('TS-29: en Resuelto se conservan "Cierre estimado", "Fecha de finalización" y "Reabrir"; no se ven "Resolver" ni "Cancelar"', () => {
+    render(
+      <RequirementResolutionCard
+        requirement={{
+          ...baseRequirement,
+          state: 'resuelto',
+          estimatedFinishDate: '2026-08-15T12:00:00Z',
+          activity: [
+            {
+              id: 1,
+              typeOfActivity: 'state',
+              previousValue: 'revision',
+              newValue: 'resuelto',
+              visibilityLevel: 'public',
+              changedBy: 'u1',
+              changedByUser: { id: 'u1', name: 'Iván López', email: 'ivan@grava.io' },
+              createdAt: '2026-09-02T10:00:00Z',
+              editedAt: null,
+              editedBy: null,
+            },
+          ],
+        }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Cierre estimado')).toBeInTheDocument();
+    expect(screen.getByText('15/08/2026')).toBeInTheDocument();
+    expect(screen.getByText('Fecha de finalización')).toBeInTheDocument();
+    expect(screen.getByText('02/09/2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^resolver$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^cancelar$/i })).not.toBeInTheDocument();
   });
 
   it('no existe ningún botón "Guardar" separado — los campos se guardan al confirmar Resolver', () => {
@@ -297,6 +408,77 @@ describe('RequirementResolutionCard', () => {
       expect(screen.getByLabelText('Conclusión interna')).toHaveValue(
         'El equipo confirmó el bug en el endpoint de horas'
       );
+    });
+  });
+
+  describe('TS-19/TS-22: resolver una funcionalidad no exige tipo ni conclusión (CA-5, D-5)', () => {
+    it('TS-19: para type=funcionalidad, no muestra Tipo de resolución ni Conclusión interna', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'funcionalidad', state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByLabelText('Tipo de resolución')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Conclusión interna')).not.toBeInTheDocument();
+    });
+
+    it('TS-20: para type=funcionalidad con los 3 campos en null, "Resolver" no está disabled', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{
+            ...baseRequirement,
+            type: 'funcionalidad',
+            state: 'desarrollo',
+            resolutionType: null,
+            resolutionConclusion: null,
+            resolutionComment: null,
+          }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Resolver' })).not.toBeDisabled();
+    });
+
+    it('TS-22: para type=incidencia, los tres campos de resolución están presentes', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText('Tipo de resolución')).toBeInTheDocument();
+      expect(screen.getByLabelText('Conclusión interna')).toBeInTheDocument();
+      expect(screen.getByLabelText('Nota para cliente')).toBeInTheDocument();
+    });
+
+    it('complemento: para type=mejora, tampoco se muestran los campos de resolución', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'mejora', state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByLabelText('Tipo de resolución')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Conclusión interna')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Nota para cliente')).not.toBeInTheDocument();
+    });
+
+    it('complemento: para type=otro, tampoco se muestran los campos de resolución', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'otro', state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByLabelText('Tipo de resolución')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Conclusión interna')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Nota para cliente')).not.toBeInTheDocument();
     });
   });
 
@@ -419,6 +601,194 @@ describe('RequirementResolutionCard', () => {
       expect(screen.getByLabelText('Tipo de resolución')).not.toBeDisabled();
       expect(screen.getByLabelText('Conclusión interna')).not.toBeDisabled();
       expect(screen.getByLabelText('Nota para cliente')).not.toBeDisabled();
+    });
+  });
+
+  describe('TS-23/TS-27: el formulario sugiere los valores de la resolución anterior al reresolver (CA-6, CA-7)', () => {
+    it('TS-23: tras reabrir, el formulario sugiere los valores anteriores', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'resuelto',
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Se corrigió el cálculo',
+        resolutionComment: 'Ya está disponible',
+      };
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={vi.fn()} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+      rerender(
+        <RequirementResolutionCard
+          requirement={{
+            ...requirement,
+            state: 'desarrollo',
+            resolutionType: null,
+            resolutionConclusion: null,
+            resolutionComment: null,
+          }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('error_interno');
+      expect(screen.getByLabelText('Conclusión interna')).toHaveValue('Se corrigió el cálculo');
+      expect(screen.getByLabelText('Nota para cliente')).toHaveValue('Ya está disponible');
+    });
+
+    it('TS-24: la sugerencia no se aplica si el requisito nunca tuvo resolución', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'resuelto',
+        resolutionType: null,
+        resolutionConclusion: null,
+        resolutionComment: null,
+      };
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={vi.fn()} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+      rerender(
+        <RequirementResolutionCard
+          requirement={{ ...requirement, state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('');
+      expect(screen.getByLabelText('Conclusión interna')).toHaveValue('');
+      expect(screen.getByLabelText('Nota para cliente')).toHaveValue('');
+    });
+
+    it('TS-25: los valores sugeridos son editables y se guardan los editados', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'resuelto',
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Se corrigió el cálculo',
+        resolutionComment: 'Ya está disponible',
+      };
+      const onUpdate = vi.fn();
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={onUpdate} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+      const reopened: Requirement = {
+        ...requirement,
+        state: 'desarrollo',
+        resolutionType: null,
+        resolutionConclusion: null,
+        resolutionComment: null,
+      };
+      rerender(<RequirementResolutionCard requirement={reopened} onUpdate={onUpdate} />);
+
+      fireEvent.change(screen.getByLabelText('Tipo de resolución'), {
+        target: { value: 'fuera_de_alcance' },
+      });
+      fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+        target: { value: 'Se decidió no hacerlo' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
+
+      const payloads = onUpdate.mock.calls.map((call) => call[0]);
+      expect(payloads).toContainEqual({ resolutionType: 'fuera_de_alcance' });
+      expect(payloads).toContainEqual({ resolutionConclusion: 'Se decidió no hacerlo' });
+      expect(payloads).not.toContainEqual({ resolutionType: 'error_interno' });
+      expect(payloads).not.toContainEqual({ resolutionConclusion: 'Se corrigió el cálculo' });
+      expect(payloads).toContainEqual({ state: 'resuelto' });
+    });
+
+    it('TS-26: aceptar la sugerencia sin editarla la guarda tal cual', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'resuelto',
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Se corrigió el cálculo',
+        resolutionComment: 'Ya está disponible',
+      };
+      const onUpdate = vi.fn();
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={onUpdate} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+      rerender(
+        <RequirementResolutionCard
+          requirement={{
+            ...requirement,
+            state: 'desarrollo',
+            resolutionType: null,
+            resolutionConclusion: null,
+            resolutionComment: null,
+          }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
+
+      const payloads = onUpdate.mock.calls.map((call) => call[0]);
+      expect(payloads).toContainEqual({ resolutionType: 'error_interno' });
+      expect(payloads).toContainEqual({ resolutionConclusion: 'Se corrigió el cálculo' });
+      expect(payloads).toContainEqual({ resolutionComment: 'Ya está disponible' });
+      expect(payloads).toContainEqual({ state: 'resuelto' });
+    });
+
+    it('TS-27: un requisito cancelado reabierto conserva sus campos por la vía normal (el servidor no limpia al salir de cancelado)', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'cancelado',
+        resolutionType: 'discutible',
+        resolutionConclusion: 'Sin acuerdo',
+      };
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={vi.fn()} />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+      rerender(
+        <RequirementResolutionCard
+          requirement={{ ...requirement, state: 'desarrollo' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('discutible');
+      expect(screen.getByLabelText('Conclusión interna')).toHaveValue('Sin acuerdo');
+    });
+
+    it('Regresión AC-8: un re-render con requirement de nueva referencia pero mismos valores no pisa un draft sin guardar', () => {
+      const requirement: Requirement = {
+        ...baseRequirement,
+        type: 'incidencia',
+        state: 'desarrollo',
+        resolutionConclusion: 'valor persistido',
+      };
+      const { rerender } = render(
+        <RequirementResolutionCard requirement={requirement} onUpdate={vi.fn()} />
+      );
+
+      fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+        target: { value: 'texto sin guardar' },
+      });
+
+      // Nueva referencia del objeto, mismos valores de los tres campos de resolución —
+      // simula el rollback optimista de useUpdateRequirement tras un error.
+      rerender(<RequirementResolutionCard requirement={{ ...requirement }} onUpdate={vi.fn()} />);
+
+      expect(screen.getByLabelText('Conclusión interna')).toHaveValue('texto sin guardar');
     });
   });
 });

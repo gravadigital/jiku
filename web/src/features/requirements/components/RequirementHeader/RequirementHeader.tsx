@@ -158,13 +158,6 @@ export function RequirementHeader({ requirement, onUpdate, isPending }: Requirem
 
   const canEdit = !!onUpdate;
 
-  // Para incidencias, "En cola" no se ofrece como opción — salvo que el requisito ya
-  // esté en ese estado (dato heredado), en cuyo caso se sigue mostrando como valor actual.
-  const stateOptions =
-    requirement.type === 'incidencia' && state !== 'en_cola'
-      ? STATE_OPTIONS.filter((o) => o.value !== 'en_cola')
-      : STATE_OPTIONS;
-
   return (
     <div className={styles.pageHeader}>
       <div className={styles.headerLeft}>
@@ -174,7 +167,7 @@ export function RequirementHeader({ requirement, onUpdate, isPending }: Requirem
 
           <PillDropdown
             value={state}
-            options={stateOptions}
+            options={STATE_OPTIONS}
             badgeClass={`${styles.badge} ${styles.badgeState}`}
             dataAttr="data-state"
             disabled={!canEdit || isPending}

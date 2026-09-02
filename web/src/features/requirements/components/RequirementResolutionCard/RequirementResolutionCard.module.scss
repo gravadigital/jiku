@@ -60,6 +60,15 @@
   }
 }
 
+// Reutiliza el estilo secundario de .cancelButton (D-3: no se introduce el componente
+// <Button> para un solo botón). Único override: ocupa el ancho completo en vez de
+// `flex: 1`, porque no comparte fila con otro botón como "Cancelar" sí lo hace.
+.reopenButton {
+  @extend .cancelButton;
+  flex: none;
+  width: 100%;
+}
+
 .resultBadge {
   display: flex;
   align-items: center;
@@ -95,10 +104,6 @@
     margin: 0;
     word-break: break-word;
   }
-}
-
-.rowLast {
-  margin-bottom: 0;
 }
 
 .resolutionFields {
