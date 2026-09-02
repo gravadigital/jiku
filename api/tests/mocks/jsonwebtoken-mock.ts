@@ -98,6 +98,35 @@ const internalTokens: Record<string, DecodedToken> = {
       }
     }
   },
+  // REQ-012/S-049 (TS-21, CA-14): roles MIXTOS ['user', 'external-user']. Necesario para
+  // ejercitar `access_denied` end-to-end desde HTTP: un `external-user` puro nunca llega a la
+  // compuerta de entidad de `core` (`authorizeEntityAccess`) porque el mapa rol->método ya lo
+  // corta antes con `caller_not_authorized` (ver TS-9/TS-10/TS-21 con `token_04_external_user`
+  // más abajo). Con roles mixtos, el método SÍ está autorizado (por `user`), pero
+  // `resolveCallerClass` (core/src/caller-class.ts) elige la clase MÁS RESTRICTIVA -> cae en
+  // `external` por precedencia, y ahí sí corre la compuerta de entidad sobre
+  // `user_project_permissions`. Sub distinto a propósito, para no acoplar este caso al
+  // fixture de otro describe.
+  token_07_user_and_external_mixed: {
+    aud: [
+      IDENTITY_CLIENT_ID,
+      '275672248377933829'
+    ],
+    exp: 1720959138,
+    iat: 1720887138,
+    iss: IDENTITY_ISSUER,
+    jti: '275802564547575007',
+    nbf: 1720887138,
+    sub: 'zitadel-sub-07',
+    'urn:zitadel:iam:org:project:roles': {
+      'user': {
+        '275648673470218245': 'grava.id.grava.io'
+      },
+      'external-user': {
+        '275648673470218245': 'grava.id.grava.io'
+      }
+    }
+  },
   // S-034 (TS-12, CA-14): un external-user AUTENTICADO sin NINGUNA fila en
   // user_project_permissions -- a diferencia de zitadel-sub-04, que algunos tests le crean
   // una fila de permiso. Sub distinto a propósito, para no acoplar este caso al fixture de
