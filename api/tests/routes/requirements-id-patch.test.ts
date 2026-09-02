@@ -3,7 +3,7 @@ import 'should';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, AttachmentEntityType, File, Person, PersonRequirement, Project, Requirement, RequirementActivity, RetentionStatus, User } from '@jiku/models';
+import { Attachment, AttachmentEntityType, File, Person, PersonRequirement, Project, Requirement, RequirementActivity, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
 import { fakeBus } from '../mocks/bus';
 
 describe('PATCH /api/requirements/:reqid', () => {
@@ -96,12 +96,18 @@ describe('PATCH /api/requirements/:reqid', () => {
       .expect(401);
   });
 
-  it('should return 404 when requirement does not exist', () => {
+  // TS-22 de Test Scenarios (REQ-012/S-049): el 404 sale de validateRequirement, ANTES de
+  // publicar el comando -- verificado leyendo fakeBus.last, que no debe registrar un
+  // requirements.9999.edit.
+  it('TS-22: should return 404 when requirement does not exist, without publishing the command', () => {
     return request(application)
       .patch('/api/requirements/9999')
       .set('Authorization', 'Bearer token_01_user')
       .send({ title: 'Test' })
-      .expect(404);
+      .expect(404)
+      .then(() => {
+        fakeBus.sent.length.should.equal(0);
+      });
   });
 
   // TS-18 (S-064): valor de state inválido retorna 400 invalid_fields
@@ -208,29 +214,29 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  // TS-3 (S-064, revertido por S-033): la reapertura desde resuelto ya NO se permite — CA-7
-  // declara `resuelto` y `cancelado` terminales, sin ninguna transición de salida.
-  it('TS-3: should reject reopening a requirement from resuelto (terminal state, CA-7)', () => {
+  // TS-3 (S-064, revertido por S-033, reabierto por REQ-012/S-049): la secuencia de estados (C-15)
+  // se deroga. `resuelto` deja de ser terminal: la reapertura se acepta.
+  it('TS-3: should allow reopening a requirement from resuelto (no longer terminal, REQ-012)', () => {
     return request(application)
       .patch('/api/requirements/3')
       .set('Authorization', 'Bearer token_01_user')
       .send({ state: 'desarrollo' })
-      .expect(400)
+      .expect(200)
       .then((response) => {
-        response.body.code.should.equal('invalid_state_transition');
+        response.body.state.should.equal('desarrollo');
       });
   });
 
-  // TS-4 (S-064, revertido por S-033): la reapertura desde cancelado ya NO se permite — mismo
-  // motivo que TS-3 (CA-7).
-  it('TS-4: should reject reopening a requirement from cancelado (terminal state, CA-7)', () => {
+  // TS-4 (S-064, revertido por S-033, reabierto por REQ-012/S-049): mismo motivo que TS-3 —
+  // `cancelado` también deja de ser terminal.
+  it('TS-4: should allow reopening a requirement from cancelado (no longer terminal, REQ-012)', () => {
     return request(application)
       .patch('/api/requirements/4')
       .set('Authorization', 'Bearer token_01_user')
       .send({ state: 'analisis' })
-      .expect(400)
+      .expect(200)
       .then((response) => {
-        response.body.code.should.equal('invalid_state_transition');
+        response.body.state.should.equal('analisis');
       });
   });
 
@@ -334,10 +340,10 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
   });
 
-  // TS-2 (S-064, revertido por S-033): revision → analisis ya NO es una transición libre — la
-  // tabla de C-15 (S-033) solo permite un paso hacia atrás en la secuencia (CA-5), y esto son
-  // cuatro. Pasa a probar el rechazo, que es el comportamiento vigente.
-  it('TS-2: should reject a multi-step backward transition from revision to analisis', () => {
+  // TS-2 (S-064, revertido por S-033, reabierto por REQ-012/S-049): revision → analisis vuelve a
+  // ser una transición libre — la tabla de secuencia de C-15 (S-033) se deroga por completo, no
+  // solo se relaja: cualquier salto hacia atrás se acepta, sean cuatro pasos o uno.
+  it('TS-2: should allow a multi-step backward transition from revision to analisis (REQ-012)', () => {
     return Requirement.create({
       id: 13,
       title: 'Req revision para TS-2',
@@ -354,19 +360,148 @@ describe('PATCH /api/requirements/:reqid', () => {
         .patch('/api/requirements/13')
         .set('Authorization', 'Bearer token_01_user')
         .send({ state: 'analisis' })
-        .expect(400)
+        .expect(200)
     ).then((response) => {
-      response.body.code.should.equal('invalid_state_transition');
+      response.body.state.should.equal('analisis');
     });
+  });
+
+  // TS-2 de Test Scenarios (S-049): salto de dos pasos desde analisis, no solo uno — cubre el
+  // caso "saltea varios estados a la vez", no solo "saltea el inmediato siguiente".
+  it('TS-2b: should allow a two-step forward jump from analisis to desarrollo (REQ-012)', () => {
+    return Requirement.create({
+      id: 200,
+      title: 'Req analisis para salto de dos pasos',
+      description: 'Desc',
+      type: 'funcionalidad',
+      priority: 'sin_prioridad',
+      state: 'analisis',
+      estimatedFinishDate: '2026-07-01',
+      projectId: 1,
+      tags: null,
+      createdBy: 'zitadel-sub-01',
+    }).then(() =>
+      request(application)
+        .patch('/api/requirements/200')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ state: 'desarrollo' })
+        .expect(200)
+    ).then((response) => {
+      response.body.state.should.equal('desarrollo');
+    });
+  });
+
+  // TS-5 de Test Scenarios (S-049): cancelado deja de ser terminal — otro caso además de TS-4,
+  // saliendo hacia un estado distinto (en_cola) para no depender de un único destino.
+  it('TS-5b: should allow reopening from cancelado to en_cola (REQ-012)', () => {
+    return Requirement.create({
+      id: 201,
+      title: 'Req cancelado para reapertura a en_cola',
+      description: 'Desc',
+      type: 'funcionalidad',
+      priority: 'sin_prioridad',
+      state: 'cancelado',
+      estimatedFinishDate: '2026-07-01',
+      projectId: 1,
+      tags: null,
+      createdBy: 'zitadel-sub-01',
+    }).then(() =>
+      request(application)
+        .patch('/api/requirements/201')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ state: 'en_cola' })
+        .expect(200)
+    ).then((response) => {
+      response.body.state.should.equal('en_cola');
+    });
+  });
+
+  // TS-18 de Test Scenarios (S-049): mitigación de R1 — el salto libre sigue siendo auditable
+  // aunque ya no sea prevenible. La actividad de tipo state se sigue registrando igual que antes.
+  it('TS-18: should still register a state activity on a free jump (REQ-012, R1 mitigation)', () => {
+    return Requirement.create({
+      id: 202,
+      title: 'Req analisis para actividad de salto libre',
+      description: 'Desc',
+      type: 'funcionalidad',
+      priority: 'sin_prioridad',
+      state: 'analisis',
+      estimatedFinishDate: '2026-07-01',
+      projectId: 1,
+      tags: null,
+      createdBy: 'zitadel-sub-01',
+    }).then(() =>
+      request(application)
+        .patch('/api/requirements/202')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ state: 'resuelto' })
+        .expect(200)
+    ).then(() =>
+      RequirementActivity.findOne({ where: { requirementId: 202, typeOfActivity: 'state' } })
+    ).then((activity) => {
+      activity!.previousValue.should.equal('analisis');
+      activity!.newValue.should.equal('resuelto');
+      activity!.visibilityLevel.should.equal('public');
+    });
+  });
+
+  // TS-23 de Test Scenarios (REQ-012/S-049, CA-16): invalid_state_transition sigue mapeado a
+  // 400 en STATUS_BY_ERROR_CODE aunque ya nadie lo emita -- misma política que
+  // invalid_attachment_id. Este es el ÚNICO uso legítimo de fakeBus.reply() en toda la story:
+  // es un camino de error que ya no se puede fabricar contra core real, precisamente porque
+  // el emisor desapareció. Sin este doble no habría forma de ejercitar la entrada del mapa
+  // que CA-16 obliga a conservar.
+  it('TS-23: should still map invalid_state_transition to 400 (CA-16, no emitter, kept in the catalog)', () => {
+    fakeBus.reply('requirements.1.edit', {
+      status: 'failure',
+      errorCode: 'invalid_state_transition',
+      errorMessage: 'no debería ocurrir: sin emisor tras REQ-012',
+    });
+
+    return request(application)
+      .patch('/api/requirements/1')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ state: 'desarrollo' })
+      .expect(400)
+      .then((response) => {
+        response.body.code.should.equal('invalid_state_transition');
+      });
+  });
+
+  // TS-24 de Test Scenarios (REQ-012/S-049): bus caído en una transición libre -> 503, igual
+  // que cualquier otro comando. La apertura de transiciones no cambia el manejo de fallas de
+  // transporte.
+  it('TS-24: should return 503 service_unavailable when the bus is down on a free transition', () => {
+    fakeBus.failWithNoResponders();
+
+    return request(application)
+      .patch('/api/requirements/1')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ state: 'desarrollo' })
+      .expect(503)
+      .then((response) => {
+        response.body.code.should.equal('service_unavailable');
+      });
   });
 
   describe('resolución de incidencias (S-082)', () => {
     before(() => {
-      return User.create({ id: 'zitadel-sub-04', name: 'User 04', username: 'user04', email: 'user04@mail.com' });
+      // Proyecto 302 y zitadel-sub-07 (token_07_user_and_external_mixed, roles mixtos): SIN
+      // fila en user_project_permissions -- lo usa el test de precedencia de TS-21
+      // (REQ-012/S-049, CA-14).
+      return User.create({ id: 'zitadel-sub-04', name: 'User 04', username: 'user04', email: 'user04@mail.com' })
+        .then(() => User.create({ id: 'zitadel-sub-07', name: 'User 07 Mixto', username: 'user07mix', email: 'user07mix@mail.com' }))
+        .then(() => Project.create({
+          id: 302, name: 'Project sin permiso', code: 'P302', type: 'comercial',
+          status: 'activo', initDate: new Date(), createdBy: 'zitadel-sub-01',
+        }));
     });
 
     after(() => {
-      return User.destroy({ where: { id: 'zitadel-sub-04' } });
+      return UserProjectPermission.destroy({ where: { userId: ['zitadel-sub-04', 'zitadel-sub-07'] } })
+        .then(() => User.destroy({ where: { id: ['zitadel-sub-04', 'zitadel-sub-07'] } }))
+        .then(() => Requirement.destroy({ where: { projectId: 302 } }))
+        .then(() => Project.destroy({ where: { id: 302 } }));
     });
 
     // TS-12 (S-066): regla de resolution_required sin cambios para incidencia creada en en_cola
@@ -582,9 +717,10 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-8 (S-033): C-17 ya no se acota a incidencia — core la aplica a todo `type` (H-1 del
-    // Story Plan de S-033/api). Antes de esta story este mismo caso esperaba 200.
-    it('TS-8: should return 400 resolution_required when resolving any requirement type without type nor conclusion', () => {
+    // TS-8 (S-033, revertido por REQ-012/S-049): C-17 vuelve a acotarse a `incidencia`
+    // (core/src/commands/requirements/requirements-edit.ts:99). Una `funcionalidad` ya no exige
+    // tipo ni conclusión para resolverse — CA-6.
+    it('TS-8: should allow resolving a funcionalidad without type nor conclusion (REQ-012)', () => {
       return Requirement.create({
         id: 77,
         title: 'Funcionalidad TS-8',
@@ -600,6 +736,111 @@ describe('PATCH /api/requirements/:reqid', () => {
           .patch('/api/requirements/77')
           .set('Authorization', 'Bearer token_01_user')
           .send({ state: 'resuelto' })
+          .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('resuelto');
+        (response.body.resolutionType === null).should.be.true();
+        (response.body.resolutionConclusion === null).should.be.true();
+      });
+    });
+
+    // TS-7 de Test Scenarios (REQ-012/S-049): mismo caso que TS-8 pero con type `mejora` — la
+    // regla se testea en su límite: los tres tipos no-incidencia, no solo uno.
+    it('TS-7b: should allow resolving a mejora without type nor conclusion (REQ-012)', () => {
+      return Requirement.create({
+        id: 203,
+        title: 'Mejora sin resolución',
+        description: 'Desc',
+        type: 'mejora',
+        priority: 'media',
+        state: 'revision',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/203')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto' })
+          .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('resuelto');
+      });
+    });
+
+    // TS-8b de Test Scenarios (REQ-012/S-049): mismo caso con type `otro`.
+    it('TS-8b: should allow resolving an otro without type nor conclusion (REQ-012)', () => {
+      return Requirement.create({
+        id: 204,
+        title: 'Otro sin resolución',
+        description: 'Desc',
+        type: 'otro',
+        priority: 'media',
+        state: 'desarrollo',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/204')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto' })
+          .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('resuelto');
+      });
+    });
+
+    // TS-11 / TS-12 de Test Scenarios (REQ-012/S-049): la `incidencia` sigue exigiendo tipo y
+    // conclusión — la regla no desaparece, se acota. El rollback del despachador (ADR-003) se
+    // verifica releyendo la base directo, no por GET: sin escritura de estado ni actividad.
+    it('TS-11: should return 400 resolution_required for an incidencia without resolution, and roll back (REQ-012, ADR-003)', () => {
+      return Requirement.create({
+        id: 205,
+        title: 'Incidencia sin resolución para rollback',
+        description: 'Desc',
+        type: 'incidencia',
+        priority: 'alta',
+        state: 'desarrollo',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/205')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto' })
+          .expect(400)
+      ).then((response) => {
+        response.body.code.should.equal('resolution_required');
+        return Requirement.findByPk(205);
+      }).then((req) => {
+        // el estado no cambió: el rollback del despachador no dejó nada escrito
+        req!.state.should.equal('desarrollo');
+        return RequirementActivity.findOne({ where: { requirementId: 205, typeOfActivity: 'state' } });
+      }).then((activity) => {
+        (activity === null).should.be.true();
+      });
+    });
+
+    // TS-13 de Test Scenarios (REQ-012/S-049, CA-15): el tipo se lee de la fila, no del payload
+    // — el intento de reclasificar en el mismo PATCH no esquiva la regla de `incidencia`.
+    it('TS-13b: should evaluate resolution_required from the stored type, not the payload (CA-15)', () => {
+      return Requirement.create({
+        id: 206,
+        title: 'Incidencia que intenta reclasificarse',
+        description: 'Desc',
+        type: 'incidencia',
+        priority: 'alta',
+        state: 'desarrollo',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/206')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto', type: 'funcionalidad' })
           .expect(400)
       ).then((response) => {
         response.body.code.should.equal('resolution_required');
@@ -607,8 +848,8 @@ describe('PATCH /api/requirements/:reqid', () => {
     });
 
     // TS-2 de Test Scenarios (S-033): la misma funcionalidad, con tipo y conclusión en el
-    // mismo PATCH, sí se resuelve — cubre la rama de aceptación de la regla ampliada sin
-    // depender de `incidencia` para probar el camino feliz.
+    // mismo PATCH, sí se resuelve — ahora esos campos son opcionales, no prohibidos, para una
+    // funcionalidad (REQ-012).
     it('should resolve a funcionalidad when type and conclusion are sent in the same PATCH', () => {
       return Requirement.create({
         id: 81,
@@ -740,9 +981,45 @@ describe('PATCH /api/requirements/:reqid', () => {
       });
     });
 
-    // TS-6 de Test Scenarios (S-033): salto de estado inválido — core lo rechaza con
-    // invalid_state_transition, la api traduce igual que cualquier otro error del bus.
-    it('should return 400 invalid_state_transition when skipping states (analisis to desarrollo)', () => {
+    // TS-21 de Test Scenarios (REQ-012/S-049, CA-14): access_denied se evalúa ANTES que
+    // cualquier regla de transición o de resolución. El requisito vive en el proyecto 302,
+    // donde zitadel-sub-07 (token_07_user_and_external_mixed) NO tiene fila en
+    // user_project_permissions. Es una incidencia SIN datos de resolución: si la
+    // autorización no cortara primero, la respuesta sería 400 resolution_required, no 403
+    // access_denied -- el test detecta justo esa precedencia.
+    //
+    // Por qué roles MIXTOS y no token_04_external_user (external-user puro): un external-user
+    // puro nunca llega a la compuerta de entidad -- lo corta antes el mapa rol->método de core
+    // con caller_not_authorized (ver TS-9/TS-10/TS-21 más abajo, que prueban justo eso). Con
+    // roles mixtos el método SÍ está autorizado (por `user`), pero `resolveCallerClass` elige
+    // la clase MÁS RESTRICTIVA y cae en `external`, activando el chequeo de
+    // user_project_permissions -- el mismo patrón que usa core/tests/commands/requirements.test.ts
+    // (TS-38) para este caso.
+    it('TS-21: should return 403 access_denied before evaluating resolution_required (CA-14)', () => {
+      return Requirement.create({
+        id: 212,
+        title: 'Incidencia en proyecto sin permiso',
+        description: 'Desc',
+        type: 'incidencia',
+        priority: 'alta',
+        state: 'desarrollo',
+        projectId: 302,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/212')
+          .set('Authorization', 'Bearer token_07_user_and_external_mixed')
+          .send({ state: 'resuelto' })
+          .expect(403)
+      ).then((response) => {
+        response.body.code.should.equal('access_denied');
+      });
+    });
+
+    // TS-6 de Test Scenarios (S-033, reabierto por REQ-012/S-049): saltear estados deja de
+    // rechazarse — la secuencia (C-15) se deroga, la transición se acepta.
+    it('TS-1: should allow skipping states (analisis to desarrollo, REQ-012)', () => {
       return Requirement.create({
         id: 82,
         title: 'Funcionalidad TS-6 (S-033)',
@@ -758,9 +1035,9 @@ describe('PATCH /api/requirements/:reqid', () => {
           .patch('/api/requirements/82')
           .set('Authorization', 'Bearer token_01_user')
           .send({ state: 'desarrollo' })
-          .expect(400)
+          .expect(200)
       ).then((response) => {
-        response.body.code.should.equal('invalid_state_transition');
+        response.body.state.should.equal('desarrollo');
       });
     });
 
@@ -1359,6 +1636,169 @@ describe('PATCH /api/requirements/:reqid', () => {
           response.body.state.should.equal('planificacion');
           response.body.scheduledAt.should.equal(firstScheduledAt);
         });
+    });
+
+    // TS-16 de Test Scenarios (REQ-012/S-049, CA-11): salir de `resuelto` hacia un estado NO
+    // terminal limpia los tres datos de resolución en el mismo update
+    // (core/.../requirements-edit.ts:134-144).
+    it('TS-16: should clear resolution data when leaving resuelto to a non-terminal state (CA-11)', () => {
+      return Requirement.create({
+        id: 208,
+        title: 'Incidencia resuelta para reapertura',
+        description: 'Desc',
+        type: 'incidencia',
+        priority: 'alta',
+        state: 'resuelto',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+        resolutionType: 'otro',
+        resolutionConclusion: 'conclusión',
+        resolutionComment: 'comentario',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/208')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'desarrollo' })
+          .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('desarrollo');
+        (response.body.resolutionType === null).should.be.true();
+        (response.body.resolutionConclusion === null).should.be.true();
+        (response.body.resolutionComment === null).should.be.true();
+        // Verificación de R2: la limpieza NO deja una actividad de tipo `resolution` que
+        // preserve los valores anteriores — el hook (@BeforeUpdate en
+        // packages/models/src/requirement.model.ts) solo registra `activityLog` para `title`,
+        // `description` y `state`. La información de resolución se pierde al reabrir. Se
+        // reporta como hallazgo en el resumen de implementación (no se agrega el registro
+        // desde `api`: el hook vive en `core`/`packages/models`, fuera de alcance de este plan).
+        return RequirementActivity.findOne({ where: { requirementId: 208, typeOfActivity: 'resolution' } });
+      }).then((activity) => {
+        (activity === null).should.be.true();
+      });
+    });
+
+    // TS-17 de Test Scenarios (REQ-012/S-049, CA-11): resuelto → cancelado NO limpia los datos
+    // de resolución. Verificado contra core/src/commands/requirements/requirements-edit.ts:134-
+    // 138: `leavesResolved` excluye explícitamente `payload.state === Cancelado` además de
+    // `Resuelto` — ambos son terminales y la limpieza solo aplica al reabrir hacia un estado
+    // real de trabajo.
+    it('TS-17: should NOT clear resolution data when moving from resuelto to cancelado (CA-11)', () => {
+      return Requirement.create({
+        id: 209,
+        title: 'Incidencia resuelta para cancelar',
+        description: 'Desc',
+        type: 'incidencia',
+        priority: 'alta',
+        state: 'resuelto',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+        resolutionType: 'otro',
+        resolutionConclusion: 'conclusión',
+        resolutionComment: 'comentario',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/209')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'cancelado' })
+          .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('cancelado');
+        response.body.resolutionType.should.equal('otro');
+        response.body.resolutionConclusion.should.equal('conclusión');
+        response.body.resolutionComment.should.equal('comentario');
+      });
+    });
+
+    // TS-14 de Test Scenarios (REQ-012/S-049, CA-9): inProgressAt conserva la PRIMERA fecha al
+    // reabrir — write-once, a diferencia de finishedAt.
+    it('TS-14b: should keep the first inProgressAt date when reopened (CA-9)', () => {
+      let firstInProgressAt: string;
+
+      return Requirement.create({
+        id: 210,
+        title: 'Req para inProgressAt write-once',
+        description: 'Desc',
+        type: 'funcionalidad',
+        priority: 'sin_prioridad',
+        state: 'analisis',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+        scheduledAt: null,
+        inProgressAt: null,
+        inReviewAt: null,
+        finishedAt: null,
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/210')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'desarrollo' })
+          .expect(200)
+      ).then((response) => {
+        firstInProgressAt = response.body.inProgressAt;
+        (firstInProgressAt !== null).should.be.true();
+        return request(application)
+          .patch('/api/requirements/210')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto' })
+          .expect(200);
+      }).then(() => request(application)
+        .patch('/api/requirements/210')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ state: 'desarrollo' })
+        .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('desarrollo');
+        response.body.inProgressAt.should.equal(firstInProgressAt);
+      });
+    });
+
+    // TS-15 de Test Scenarios (REQ-012/S-049, CA-10): finishedAt deja de ser write-once — se
+    // reescribe en cada entrada a resuelto. Sin mockdate: las fechas se comparan entre sí
+    // (distinta / no nula), no contra un valor fijo — congelar el reloj rompería justo la
+    // distinción que este test necesita.
+    it('TS-15: should overwrite finishedAt on each new resolution (CA-10)', () => {
+      let firstFinishedAt: string;
+
+      return Requirement.create({
+        id: 211,
+        title: 'Req para finishedAt re-escribible',
+        description: 'Desc',
+        type: 'funcionalidad',
+        priority: 'sin_prioridad',
+        state: 'desarrollo',
+        projectId: 1,
+        tags: null,
+        createdBy: 'zitadel-sub-01',
+      }).then(() =>
+        request(application)
+          .patch('/api/requirements/211')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'resuelto' })
+          .expect(200)
+      ).then((response) => {
+        firstFinishedAt = response.body.finishedAt;
+        (firstFinishedAt !== null).should.be.true();
+        return request(application)
+          .patch('/api/requirements/211')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ state: 'desarrollo' })
+          .expect(200);
+      }).then(() => request(application)
+        .patch('/api/requirements/211')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ state: 'resuelto' })
+        .expect(200)
+      ).then((response) => {
+        response.body.state.should.equal('resuelto');
+        (response.body.finishedAt !== null).should.be.true();
+        // no-write-once: la segunda resolución produce una fecha distinta de la primera.
+        // Si aparece intermitencia por resolución de columna, la aserción robusta sería
+        // new Date(F2).getTime() >= new Date(F1).getTime() -- no agregar sleep.
+        response.body.finishedAt.should.not.equal(firstFinishedAt);
+      });
     });
 
     // TS-17: estado sin cambio real no genera actividad

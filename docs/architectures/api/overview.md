@@ -169,14 +169,20 @@ resuelve sin tipo y conclusión"*, **ya no está en la api**:
 
 | Regla que estaba acá | Dónde vive ahora | Código |
 |---|---|---|
-| Tipo + conclusión obligatorios al resolver — antes acotada a `incidencia` | `core` · `requirements.{id}.edit` y `.resolve` (mismo validador, C-17) — **ampliada a todo `type`, no solo `incidencia`** | `resolution_required` → 400 |
-| La secuencia de estados del requisito (`analisis → planificacion → en_cola → desarrollo → revision`, con la excepción de `incidencia` saltando `en_cola`) — **nunca vivió en el servidor**, solo en el stepper de `web` | `core` · tabla de transiciones (C-15, `state-transitions.ts`) | `invalid_state_transition` → 400 |
+| Tipo + conclusión obligatorios al resolver — acotada a `incidencia` | `core` · `requirements.{id}.edit` y `.resolve` (mismo validador, C-17) | `resolution_required` → 400 |
 
-**El status HTTP no cambió: 400 en los dos casos.** Lo que cambió es el alcance: la regla de
-tipo+conclusión ahora aplica a cualquier tipo de requisito, no solo `incidencia`, porque `core`
-la aplica sin esa condición. Y la secuencia de estados, que antes solo `web` respetaba, ahora la
-rechaza cualquier caller que la salte — `web`, el portal (`opus-web`), o una persona publicando
-directamente por el bus.
+**El status HTTP no cambió: 400.**
+
+### Lo que REQ-012 (S-049) derogó de nuevo
+
+S-033 había ampliado la regla de tipo+conclusión a **todo** `type`, y REQ-012 la **acotó de nuevo a
+`incidencia`** — la fila de arriba ya refleja el estado final. Y S-033 había agregado una tabla de
+transiciones de estado en `core` (`state-transitions.ts`, código `invalid_state_transition` → 400);
+REQ-012 **la elimina sin reemplazo**: cualquier valor del enum `requirement_state` es alcanzable
+desde cualquier otro, sin validar secuencia, por cualquier caller — `web`, el portal (`opus-web`),
+o una persona publicando directamente por el bus. `invalid_state_transition` queda en el catálogo
+de `@jiku/nats-protocol` **sin emisor** (misma política que `invalid_attachment_id`), y el PATCH de
+requisitos deja de poder devolverlo.
 
 ## Integraciones
 

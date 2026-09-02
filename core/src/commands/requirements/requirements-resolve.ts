@@ -1,10 +1,9 @@
 import joi from 'joi';
-import { Requirement, RequirementActivity, RequirementActivityType, RequirementResolution, RequirementState, VisibilityLevel } from '@jiku/models';
+import { Requirement, RequirementActivity, RequirementActivityType, RequirementResolution, RequirementState, RequirementType, VisibilityLevel } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { resolveActor } from '../resolve-actor';
-import { isTransitionAllowed } from './state-transitions';
 
 const COMPONENT = 'requirements.resolve';
 
@@ -50,23 +49,18 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
       return failure(ErrorCode.REQUIREMENT_NOT_FOUND, 'Requirement not found');
     }
 
-    // LA TABLA DE TRANSICIONES (C-15, S-033): `resolve` comparte EL MISMO validador que
-    // `edit` (CA-11) — deja de ser superficie muerta *de facto* (H-2). Acá el destino siempre
-    // es `Resuelto`, así que el chequeo se reduce a si el estado ACTUAL puede resolverse (los
-    // terminales `resuelto`/`cancelado` no pueden, CA-7).
-    if (!isTransitionAllowed(requirement.state, RequirementState.Resuelto, requirement.type)) {
-      return failure(ErrorCode.INVALID_STATE_TRANSITION, 'Transición de estado no permitida');
-    }
-
-    // C-17: tipo y conclusión son obligatorios al resolver, venga del camino que venga
-    // (CA-10) — sin acotarlo a `incidencia`, a diferencia de la regla que reemplaza. `type`
-    // siempre viene en el payload (el schema lo exige); solo falta chequear conclusión.
-    const conclusion = payload.conclusion ?? requirement.resolutionConclusion;
-    if (!conclusion) {
-      return failure(
-        ErrorCode.RESOLUTION_REQUIRED,
-        'Se requiere tipo y conclusión para resolver un requisito'
-      );
+    // C-17, acotado a `incidencia` (REQ-012). `type` del payload es el tipo de RESOLUCIÓN
+    // (`RequirementResolution`), que no tiene nada que ver con el tipo del REQUISITO
+    // (`requirement.type`, `RequirementType`) — son dos enums distintos con el mismo nombre de
+    // campo, y confundirlos acá haría que la regla se evalúe contra el valor equivocado.
+    if (requirement.type === RequirementType.Incidencia) {
+      const conclusion = payload.conclusion ?? requirement.resolutionConclusion;
+      if (!conclusion) {
+        return failure(
+          ErrorCode.RESOLUTION_REQUIRED,
+          'Se requiere tipo y conclusión para resolver un requisito'
+        );
+      }
     }
 
     const previousState = requirement.state;
