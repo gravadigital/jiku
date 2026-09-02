@@ -217,7 +217,11 @@ export default class Requirement extends Model {
       if (next === RequirementState.Planificacion && !req.scheduledAt)  req.scheduledAt  = new Date();
       if (next === RequirementState.Desarrollo    && !req.inProgressAt) req.inProgressAt = new Date();
       if (next === RequirementState.Revision      && !req.inReviewAt)   req.inReviewAt   = new Date();
-      if (next === RequirementState.Resuelto      && !req.finishedAt)   req.finishedAt   = new Date();
+      // ASIMETRÍA DELIBERADA (REQ-012): las tres marcas de arriba son write-once —conservan la
+      // PRIMERA entrada a cada estado— pero `finishedAt` se reescribe en CADA entrada a
+      // `resuelto`, porque un requisito reabierto y vuelto a resolver tiene una fecha de
+      // resolución nueva, y la vieja ya no describe nada.
+      if (next === RequirementState.Resuelto)                            req.finishedAt   = new Date();
     }
 
     req.activityLog = changes;

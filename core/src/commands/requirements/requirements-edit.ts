@@ -5,7 +5,6 @@ import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
-import { isTransitionAllowed } from './state-transitions';
 
 const COMPONENT = 'requirements.edit';
 
@@ -94,19 +93,18 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       }
     }
 
-    // LA TABLA DE TRANSICIONES (C-15, S-033): `edit` es el canal por el que REALMENTE llega la
-    // resolución (H-2 del Story Plan — `resolve` no tiene ruta HTTP que lo publique), así que
-    // el validador va acá y no solo en `resolve`. `type` se lee de LA FILA
-    // (`requirement.type`), nunca de `payload.type`, aunque el mismo payload también lo traiga
-    // para cambiar la clasificación: se evalúa contra el valor PRE-cambio (H-4) — un caller no
-    // puede declararse `incidencia` en el mismo request para saltear `en_cola`.
+    // REQ-012: las transiciones de estado son libres — cualquier valor del enum es alcanzable
+    // desde cualquier otro. `edit` es el canal por el que REALMENTE llega la resolución.
     if (payload.state !== undefined && payload.state !== requirement.state) {
-      if (!isTransitionAllowed(requirement.state, payload.state, requirement.type)) {
-        return failure(ErrorCode.INVALID_STATE_TRANSITION, 'Transición de estado no permitida');
-      }
-      if (payload.state === RequirementState.Resuelto) {
-        // C-17: tipo y conclusión son obligatorios al resolver, venga del camino que venga
-        // (CA-10) — sin acotarlo a `incidencia`, a diferencia de la regla que reemplaza.
+      // C-17, acotado de nuevo a `incidencia` (REQ-012): para `funcionalidad`, `mejora` y `otro`
+      // el tipo y la conclusión son siempre opcionales. `type` se lee de LA FILA
+      // (`requirement.type`), nunca de `payload.type`, aunque el mismo payload lo traiga para
+      // reclasificar: se evalúa contra el valor PRE-cambio, así que un caller no puede
+      // declararse otro tipo en el mismo request para esquivar la regla.
+      if (
+        payload.state === RequirementState.Resuelto
+        && requirement.type === RequirementType.Incidencia
+      ) {
         const resolutionType = payload.resolutionType ?? requirement.resolutionType;
         const resolutionConclusion = payload.resolutionConclusion ?? requirement.resolutionConclusion;
         if (!resolutionType || !resolutionConclusion) {
@@ -123,6 +121,28 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       'estimatedFinishDate', 'tags', 'state', 'scope', 'technicalSolution',
       'acceptanceCriteria', 'resolutionType', 'resolutionConclusion', 'resolutionComment',
     ]);
+
+    // REAPERTURA (REQ-012): al salir de `resuelto` hacia un estado NO TERMINAL, los datos de la
+    // resolución dejan de describir la fila y se limpian. Los tres juntos, porque son una sola
+    // cosa —el motivo por el que se cerró— y dejar uno solo produciría una fila que dice haberse
+    // resuelto "por error interno" sin conclusión ni comentario.
+    //
+    // EN EL MISMO `update`: la limpieza y el cambio de estado son atómicos POR CONSTRUCCIÓN, no
+    // dos escrituras que hay que acordarse de coordinar.
+    //
+    // Se aplica DESPUÉS de `pickPresent` y con `?? null` para que un valor EXPLÍCITO del payload
+    // gane: el caller que reabre y en el mismo request escribe un `resolutionComment` está siendo
+    // más específico que esta regla.
+    const leavesResolved = requirement.state === RequirementState.Resuelto
+      && payload.state !== undefined
+      && payload.state !== RequirementState.Resuelto
+      && payload.state !== RequirementState.Cancelado;
+
+    if (leavesResolved) {
+      changes.resolutionType = payload.resolutionType ?? null;
+      changes.resolutionConclusion = payload.resolutionConclusion ?? null;
+      changes.resolutionComment = payload.resolutionComment ?? null;
+    }
 
     if (Object.keys(changes).length > 0) {
       // El hook @BeforeUpdate del modelo calcula `activityLog` y, cuando cambia el

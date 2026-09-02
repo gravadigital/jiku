@@ -105,13 +105,11 @@ return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
 
 ### Deuda conocida del catálogo
 
-- **Un código se emite como literal** en vez de la constante: `resolution_required`
-  (`requirements-resolve.ts:49`). El valor es correcto pero está duplicado a mano. Al tocar ese
-  archivo, pasalo a la constante.
-
-  > **S-031 pagó dos de las tres.** `worked_time_not_found` y `unworked_time_not_found` estaban
-  > como literal y pasaron a `ErrorCode.WORKED_TIME_NOT_FOUND` / `ErrorCode.UNWORKED_TIME_NOT_FOUND`
-  > al tocar los dos comandos de borrado de tiempos. Queda `resolution_required`.
+  > **S-049 pagó la última.** `resolution_required` se emitía como literal en
+  > `requirements-edit.ts` y `requirements-resolve.ts`; al tocar los dos archivos para acotar la
+  > regla a `incidencia` (REQ-012) pasó a `ErrorCode.RESOLUTION_REQUIRED` en los dos. Con eso, la
+  > deuda del literal (que S-031 ya había pagado dos de tres: `worked_time_not_found` y
+  > `unworked_time_not_found`) queda saldada por completo.
 
 - **Tres códigos declarados que ningún comando emite**: `invalid_state_transition`, `stage_not_found`
   y `unknown_command` (que sí se emite, pero **la api no lo mapea a HTTP** y cae en un 500

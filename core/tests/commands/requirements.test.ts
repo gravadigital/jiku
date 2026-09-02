@@ -2,12 +2,13 @@ import 'mocha';
 import 'should';
 import sinon from 'sinon';
 import { Op } from 'sequelize';
-import { Attachment, ByteStatus, File, Objective, ObjectiveActivity, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, RequirementSubscriptor, RetentionStatus, User } from '@jiku/models';
+import { Attachment, ByteStatus, File, Objective, ObjectiveActivity, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, RequirementState, RequirementSubscriptor, RetentionStatus, User } from '@jiku/models';
 import { ErrorCode } from '@jiku/nats-protocol';
+import * as fs from 'fs';
+import * as path from 'path';
 import logger from '../../src/logger';
 import { dispatch } from '../helpers/dispatch';
 import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
-import { isTransitionAllowed } from '../../src/commands/requirements/state-transitions';
 
 const CREATOR = 'zitadel-sub-reqs';
 const OTHER_USER = 'zitadel-sub-reqs-2';
@@ -207,9 +208,10 @@ describe('requirements', () => {
 
     it('completa las marcas de tiempo al cambiar de estado', async () => {
       // Fixture propio, NO el `requirementId` del `beforeEach` compartido (que sigue en
-      // `analisis` a propósito para los demás tests de este describe): con la tabla de
-      // transiciones de S-033, `analisis -> desarrollo` saltea `planificacion` y `en_cola` y
-      // se rechaza. `en_cola -> desarrollo` es la celda válida más cercana.
+      // `analisis` a propósito para los demás tests de este describe). Desde REQ-012 (S-049)
+      // las transiciones son libres, así que `analisis -> desarrollo` también sería válido; se
+      // mantiene `en_cola -> desarrollo` porque es el caso más simple, sin relación con ninguna
+      // restricción de secuencia.
       const requirement = await Requirement.create({
         title: 'En cola', description: 'x', projectId, createdBy: CREATOR,
         state: 'en_cola',
@@ -289,8 +291,8 @@ describe('requirements', () => {
     });
 
     it('registra la actividad del cambio de estado', async () => {
-      // S-033 / CA-10: tipo y conclusión son obligatorios al resolver, para cualquier `type` de
-      // requisito -- no solo `incidencia`.
+      // El fixture es `type: 'otro'` (no `incidencia`): desde REQ-012 la conclusión es opcional
+      // para ese tipo, así que mandarla acá no afirma nada sobre la obligatoriedad de la regla.
       await dispatch(`requirements.${requirementId}.resolve`, {
         editor: CREATOR, type: 'otro', conclusion: 'Resuelto',
       });
@@ -316,6 +318,21 @@ describe('requirements', () => {
 
       const unchanged = await Requirement.findByPk(incidencia.id);
       unchanged!.state.should.equal('desarrollo');
+    });
+
+    it('TS-7 · resuelve una funcionalidad sin tipo ni conclusión (REQ-012: acotado a incidencia)', async () => {
+      const funcionalidad = await Requirement.create({
+        title: 'Funcionalidad', description: 'x', projectId, createdBy: CREATOR,
+        type: 'funcionalidad', state: 'resuelto',
+      });
+
+      const reply = await dispatch(`requirements.${funcionalidad.id}.resolve`, {
+        editor: CREATOR, type: 'otro', conclusion: 'Rehecho',
+      });
+      reply.status.should.equal('success');
+
+      const updated = await Requirement.findByPk(funcionalidad.id);
+      updated!.resolutionConclusion!.should.equal('Rehecho');
     });
 
     it('falla sin type', async () => {
@@ -349,62 +366,7 @@ describe('requirements', () => {
     });
   });
 
-  describe('isTransitionAllowed — la función pura (S-033)', () => {
-    it('cubre la secuencia lineal completa', () => {
-      isTransitionAllowed('analisis' as any, 'planificacion' as any, null).should.be.true();
-      isTransitionAllowed('planificacion' as any, 'en_cola' as any, null).should.be.true();
-      isTransitionAllowed('en_cola' as any, 'desarrollo' as any, null).should.be.true();
-      isTransitionAllowed('desarrollo' as any, 'revision' as any, null).should.be.true();
-    });
-
-    it('rechaza un salto de dos pasos', () => {
-      isTransitionAllowed('analisis' as any, 'desarrollo' as any, null).should.be.false();
-    });
-
-    it('planificacion -> desarrollo solo con type === incidencia', () => {
-      isTransitionAllowed('planificacion' as any, 'desarrollo' as any, 'incidencia' as any).should.be.true();
-      isTransitionAllowed('planificacion' as any, 'desarrollo' as any, 'funcionalidad' as any).should.be.false();
-      isTransitionAllowed('planificacion' as any, 'desarrollo' as any, null).should.be.false();
-      isTransitionAllowed('planificacion' as any, 'desarrollo' as any, undefined).should.be.false();
-    });
-
-    it('resuelto y cancelado no tienen transición de salida', () => {
-      isTransitionAllowed('resuelto' as any, 'planificacion' as any, null).should.be.false();
-      isTransitionAllowed('resuelto' as any, 'cancelado' as any, null).should.be.false();
-      isTransitionAllowed('cancelado' as any, 'analisis' as any, null).should.be.false();
-      isTransitionAllowed('cancelado' as any, 'resuelto' as any, null).should.be.false();
-    });
-
-    it('el retroceso de un paso se permite', () => {
-      isTransitionAllowed('desarrollo' as any, 'en_cola' as any, null).should.be.true();
-      isTransitionAllowed('revision' as any, 'desarrollo' as any, null).should.be.true();
-      isTransitionAllowed('en_cola' as any, 'planificacion' as any, null).should.be.true();
-    });
-
-    it('cancelado es alcanzable desde cualquier estado no terminal', () => {
-      isTransitionAllowed('analisis' as any, 'cancelado' as any, null).should.be.true();
-      isTransitionAllowed('planificacion' as any, 'cancelado' as any, null).should.be.true();
-      isTransitionAllowed('en_cola' as any, 'cancelado' as any, null).should.be.true();
-      isTransitionAllowed('desarrollo' as any, 'cancelado' as any, null).should.be.true();
-      isTransitionAllowed('revision' as any, 'cancelado' as any, null).should.be.true();
-    });
-
-    it('resuelto es alcanzable desde cualquier estado no terminal (camino de resolución)', () => {
-      isTransitionAllowed('analisis' as any, 'resuelto' as any, null).should.be.true();
-      isTransitionAllowed('planificacion' as any, 'resuelto' as any, null).should.be.true();
-      isTransitionAllowed('en_cola' as any, 'resuelto' as any, null).should.be.true();
-      isTransitionAllowed('desarrollo' as any, 'resuelto' as any, null).should.be.true();
-      isTransitionAllowed('revision' as any, 'resuelto' as any, null).should.be.true();
-    });
-
-    it('es una función pura: mismo input, mismo output', () => {
-      const a = isTransitionAllowed('planificacion' as any, 'en_cola' as any, null);
-      const b = isTransitionAllowed('planificacion' as any, 'en_cola' as any, null);
-      a.should.equal(b);
-    });
-  });
-
-  describe('el workflow de estados (S-033)', () => {
+  describe('el workflow de estados sin secuencia (S-049)', () => {
     /** Crea un requisito ya en `state`, opcionalmente con `type`. Reduce la repetición de las
      * celdas de la tabla — cada test sigue siendo legible por separado. */
     async function createRequirement(
@@ -418,28 +380,22 @@ describe('requirements', () => {
       return requirement.id;
     }
 
-    it('TS-1 · analisis -> planificacion se acepta', async () => {
-      const id = await createRequirement('analisis');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'planificacion',
+    /** Crea un requisito ya resuelto, con sus datos de resolución y sus marcas cargadas. Es el
+     * fixture de la REAPERTURA: los tests de S-049 necesitan una fila que YA pasó por el ciclo. */
+    async function createResolvedRequirement(overrides: Record<string, unknown> = {}): Promise<number> {
+      const requirement = await Requirement.create({
+        title: 'Resuelto', description: 'x', projectId, createdBy: CREATOR,
+        state: 'resuelto', type: 'incidencia',
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Conclusión',
+        resolutionComment: 'Comentario',
+        ...overrides,
       });
-      reply.status.should.equal('success');
-      const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('planificacion');
-    });
+      return requirement.id;
+    }
 
-    it('TS-2 · planificacion -> en_cola se acepta', async () => {
-      const id = await createRequirement('planificacion');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'en_cola',
-      });
-      reply.status.should.equal('success');
-      const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('en_cola');
-    });
-
-    it('TS-3 · en_cola -> desarrollo se acepta', async () => {
-      const id = await createRequirement('en_cola');
+    it('TS-1 · salto hacia adelante salteando un paso, en una funcionalidad', async () => {
+      const id = await createRequirement('planificacion', 'funcionalidad');
       const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, state: 'desarrollo',
       });
@@ -448,141 +404,151 @@ describe('requirements', () => {
       requirement!.state.should.equal('desarrollo');
     });
 
-    it('TS-4 · desarrollo -> revision se acepta', async () => {
-      const id = await createRequirement('desarrollo');
+    it('TS-2 · salto de dos pasos (analisis -> desarrollo)', async () => {
+      const id = await createRequirement('analisis', 'funcionalidad');
       const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'revision',
+        editor: CREATOR, state: 'desarrollo',
       });
       reply.status.should.equal('success');
       const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('revision');
+      requirement!.state.should.equal('desarrollo');
     });
 
-    it('TS-5 · revision -> resuelto (edit) se acepta solo con tipo+conclusión completos', async () => {
-      const id = await createRequirement('revision', 'funcionalidad');
+    it('TS-3 · transición hacia atrás', async () => {
+      const id = await createRequirement('revision');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'analisis',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('analisis');
+    });
+
+    it('TS-4 · resuelto deja de ser terminal', async () => {
+      const id = await createRequirement('resuelto');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+    });
+
+    it('TS-5 · cancelado deja de ser terminal', async () => {
+      const id = await createRequirement('cancelado');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'en_cola',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('en_cola');
+    });
+
+    it('TS-6 · cancelado -> resuelto en una funcionalidad, sin resolución', async () => {
+      const id = await createRequirement('cancelado', 'funcionalidad');
       const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, state: 'resuelto',
-        resolutionType: 'otro', resolutionConclusion: 'Listo',
       });
       reply.status.should.equal('success');
       const requirement = await Requirement.findByPk(id);
       requirement!.state.should.equal('resuelto');
     });
 
-    it('TS-6 · analisis -> desarrollo se rechaza (salto de dos pasos)', async () => {
-      const id = await createRequirement('analisis', 'funcionalidad');
+    it('TS-8 · resolver una funcionalidad sin tipo ni conclusión, por .edit', async () => {
+      const id = await createRequirement('revision', 'funcionalidad');
       const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'desarrollo',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-7 · planificacion -> desarrollo en una incidencia se acepta (excepción)', async () => {
-      const id = await createRequirement('planificacion', 'incidencia');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'desarrollo',
+        editor: CREATOR, state: 'resuelto',
       });
       reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+    });
+
+    it('TS-9 · resolver una mejora sin tipo ni conclusión', async () => {
+      const id = await createRequirement('revision', 'mejora');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-10 · resolver un otro sin tipo ni conclusión', async () => {
+      const id = await createRequirement('revision', 'otro');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-11 · resolver un requisito sin type (NULL) sin resolución', async () => {
+      const id = await createRequirement('revision', null);
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-12 · resolver una incidencia con tipo y conclusión, por .edit', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+        resolutionType: 'error_interno', resolutionConclusion: 'Se corrigió el cálculo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Se corrigió el cálculo');
+    });
+
+    it('TS-13 · resolver una incidencia con la conclusión ya almacenada, sin mandarla en el payload', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      await Requirement.update(
+        { resolutionType: 'error_interno', resolutionConclusion: 'Conclusión previa' },
+        { where: { id } }
+      );
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.resolutionConclusion!.should.equal('Conclusión previa');
+    });
+
+    it('TS-14 · rechazo de incidencia sin resolución, por .edit, sin escribir nada', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (await RequirementActivity.count({ where: { requirementId: id } })).should.equal(0);
+    });
+
+    it('TS-15 · rechazo de incidencia sin resolución, por .resolve', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.resolve`, {
+        editor: CREATOR, type: 'error_interno',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
       const requirement = await Requirement.findByPk(id);
       requirement!.state.should.equal('desarrollo');
     });
 
-    it('TS-8 · planificacion -> desarrollo en una funcionalidad se rechaza (mismo estado, distinto type)', async () => {
-      const id = await createRequirement('planificacion', 'funcionalidad');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'desarrollo',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-9 · retroceso de un paso se acepta (desarrollo -> en_cola)', async () => {
-      const id = await createRequirement('desarrollo');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'en_cola',
-      });
-      reply.status.should.equal('success');
-      const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('en_cola');
-    });
-
-    it('TS-10 · cancelado alcanzable desde analisis', async () => {
-      const id = await createRequirement('analisis');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'cancelado',
-      });
-      reply.status.should.equal('success');
-      const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('cancelado');
-    });
-
-    it('TS-11 · cancelado alcanzable desde revision', async () => {
-      const id = await createRequirement('revision');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'cancelado',
-      });
-      reply.status.should.equal('success');
-      const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('cancelado');
-    });
-
-    it('TS-12 · resuelto es terminal: resuelto -> planificacion se rechaza', async () => {
-      const id = await createRequirement('resuelto');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'planificacion',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-13 · cancelado es terminal: cancelado -> analisis se rechaza', async () => {
-      const id = await createRequirement('cancelado');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'analisis',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-14 · resuelto -> resuelto por .resolve se rechaza (terminal, no solo .edit)', async () => {
-      const id = await createRequirement('resuelto');
-      const reply = await dispatch(`requirements.${id}.resolve`, {
-        editor: CREATOR, type: 'otro', conclusion: 'x',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-15 · la transición inválida por .edit y por .resolve devuelve el mismo código', async () => {
-      const idResolve = await createRequirement('cancelado');
-      const replyResolve = await dispatch(`requirements.${idResolve}.resolve`, {
-        editor: CREATOR, type: 'otro', conclusion: 'x',
-      });
-
-      const idEdit = await createRequirement('cancelado');
-      const replyEdit = await dispatch(`requirements.${idEdit}.edit`, {
-        editor: CREATOR, state: 'resuelto',
-        resolutionType: 'otro', resolutionConclusion: 'x',
-      });
-
-      replyResolve.status.should.equal('failure');
-      replyEdit.status.should.equal('failure');
-      replyResolve.errorCode!.should.equal(replyEdit.errorCode!);
-      replyResolve.errorCode!.should.equal('invalid_state_transition');
-    });
-
-    it('TS-16 · edit a resuelto sin resolutionType se rechaza', async () => {
-      const id = await createRequirement('revision', 'funcionalidad');
-      const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, state: 'resuelto', resolutionConclusion: 'x',
-      });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('resolution_required');
-    });
-
-    it('TS-17 · edit a resuelto sin resolutionConclusion se rechaza', async () => {
-      const id = await createRequirement('revision', 'funcionalidad');
+    it('TS-16 · rechazo de incidencia con solo resolutionType, sin conclusión, por .edit', async () => {
+      const id = await createRequirement('revision', 'incidencia');
       const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, state: 'resuelto', resolutionType: 'otro',
       });
@@ -590,40 +556,291 @@ describe('requirements', () => {
       reply.errorCode!.should.equal('resolution_required');
     });
 
-    it('TS-20 · type se lee de la fila, no del payload: un salto no cuela declarándose incidencia', async () => {
-      const id = await createRequirement('planificacion', 'funcionalidad');
+    it('TS-17 · rechazo de incidencia con solo resolutionConclusion, sin tipo, por .edit', async () => {
+      const id = await createRequirement('revision', 'incidencia');
       const reply = await dispatch(`requirements.${id}.edit`, {
-        editor: CREATOR, type: 'incidencia', state: 'desarrollo',
+        editor: CREATOR, state: 'resuelto', resolutionConclusion: 'x',
       });
       reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
+      reply.errorCode!.should.equal('resolution_required');
     });
 
-    it('TS-21 · requisito sin type (NULL) en planificacion -> desarrollo se rechaza', async () => {
-      const id = await createRequirement('planificacion', null);
+    it('TS-18 · el tipo se lee de la fila: una incidencia no esquiva la regla declarándose funcionalidad', async () => {
+      const id = await createRequirement('revision', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, type: 'funcionalidad', state: 'resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.type!.should.equal('incidencia');
+    });
+
+    it('TS-19 · el tipo se lee de la fila: una funcionalidad no gana la regla declarándose incidencia', async () => {
+      const id = await createRequirement('revision', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, type: 'incidencia', state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.type!.should.equal('incidencia');
+    });
+
+    it('TS-20 · limpieza de los tres datos de resolución al salir de resuelto', async () => {
+      const id = await createResolvedRequirement();
       const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, state: 'desarrollo',
       });
-      reply.status.should.equal('failure');
-      reply.errorCode!.should.equal('invalid_state_transition');
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+      (requirement!.resolutionComment === null).should.be.true();
     });
 
-    it('TS-22 · un edit sin campo state no dispara ninguna validación de transición', async () => {
-      const id = await createRequirement('cancelado');
+    it('TS-21 · la limpieza no ocurre al pasar de resuelto a cancelado (destino terminal)', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'cancelado',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('cancelado');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
+    });
+
+    it('TS-22 · la limpieza no ocurre en una edición que no cambia el estado', async () => {
+      const id = await createResolvedRequirement();
       const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, title: 'Nuevo título',
       });
       reply.status.should.equal('success');
       const requirement = await Requirement.findByPk(id);
-      requirement!.state.should.equal('cancelado');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
     });
 
-    it('TS-23 · requirement_not_found sigue teniendo prioridad sobre la validación de transición', async () => {
-      const reply = await dispatch('requirements.999999.edit', {
+    it('TS-23 · un valor de resolución explícito en el mismo payload que saca de resuelto gana sobre la limpieza', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo', resolutionComment: 'Nota de reapertura',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+      requirement!.resolutionComment!.should.equal('Nota de reapertura');
+    });
+
+    it('TS-24 · inProgressAt conserva la primera fecha al reentrar a desarrollo', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createResolvedRequirement({ inProgressAt: originalDate });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.inProgressAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-25 · finishedAt se reescribe al reentrar a resuelto', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo', 'funcionalidad');
+      await Requirement.update({ finishedAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.finishedAt!.getTime().should.be.above(originalDate.getTime());
+    });
+
+    it('TS-26 · finishedAt no se toca al salir de resuelto', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createResolvedRequirement({ finishedAt: originalDate });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.finishedAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-27 · scheduledAt sigue siendo write-once', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo');
+      await Requirement.update({ scheduledAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
         editor: CREATOR, state: 'planificacion',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.scheduledAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-28 · inReviewAt sigue siendo write-once', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo');
+      await Requirement.update({ inReviewAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'revision',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.inReviewAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-29 · la actividad de tipo state se sigue registrando en un salto que antes se rechazaba', async () => {
+      const id = await createRequirement('analisis', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findOne({
+        where: { requirementId: id, typeOfActivity: 'state' },
+      });
+      activity!.previousValue.should.equal('analisis');
+      activity!.newValue.should.equal('desarrollo');
+      activity!.changedBy.should.equal(CREATOR);
+      activity!.visibilityLevel.should.equal('public');
+    });
+
+    it('TS-30 · un edit que manda el mismo estado no registra actividad ni dispara la limpieza', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const stateActivity = await RequirementActivity.findOne({
+        where: { requirementId: id, typeOfActivity: 'state' },
+      });
+      (stateActivity === null).should.be.true();
+      const requirement = await Requirement.findByPk(id);
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
+    });
+
+    it('TS-31 · el requisito inexistente sigue fallando antes de cualquier regla', async () => {
+      const reply = await dispatch('requirements.999999.edit', {
+        editor: CREATOR, state: 'desarrollo',
       });
       reply.status.should.equal('failure');
       reply.errorCode!.should.equal('requirement_not_found');
+    });
+
+    it('TS-32 · un state fuera del enum sigue siendo invalid_fields', async () => {
+      const id = await createRequirement('analisis');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'inventado',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    describe('invalid_state_transition quedó sin emisor (S-049)', () => {
+      it('TS-33 · sigue definido en el catálogo del protocolo', () => {
+        ErrorCode.INVALID_STATE_TRANSITION.should.equal('invalid_state_transition');
+      });
+
+      it('TS-34 · ningún archivo de core/src/ lo emite', () => {
+        const srcDir = path.join(__dirname, '../../src');
+        const offenders: string[] = [];
+
+        function walk(dir: string): void {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              walk(full);
+            } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+              const content = fs.readFileSync(full, 'utf-8');
+              if (content.includes('invalid_state_transition') || content.includes('INVALID_STATE_TRANSITION')) {
+                offenders.push(full);
+              }
+            }
+          }
+        }
+
+        walk(srcDir);
+        offenders.should.deepEqual([]);
+      });
+
+      it('TS-35 · el archivo state-transitions.ts ya no existe', () => {
+        const removedPath = path.join(__dirname, '../../src/commands/requirements/state-transitions.ts');
+        fs.existsSync(removedPath).should.be.false();
+      });
+    });
+
+    it('TS-36 · los siete estados son alcanzables desde los siete (barrido completo)', async () => {
+      const states = Object.values(RequirementState);
+      for (const from of states) {
+        for (const to of states) {
+          if (from === to) continue;
+          const id = await createRequirement(from, 'funcionalidad');
+          const reply = await dispatch(`requirements.${id}.edit`, { editor: CREATOR, state: to });
+          reply.status.should.equal('success', `${from} -> ${to} debería aceptarse`);
+          const requirement = await Requirement.findByPk(id);
+          requirement!.state.should.equal(to, `${from} -> ${to} no quedó escrito`);
+        }
+      }
+    });
+
+    describe('regresión de autorización (CA-13, CA-14)', () => {
+      const WF_EXTERNAL = 'sub-s049-externo';
+
+      before(async () => {
+        // Fila real en `users` con el rol `external-user`: sin fila, `dispatch()` cae en el
+        // mismo `caller_not_authorized` pero por "sin fila", que no es lo que este test afirma
+        // (queda cubierto igual, pero la intención es "el ROL no alcanza").
+        await User.create({
+          id: WF_EXTERNAL, name: 'Externo', username: 's049-externo',
+          email: 's049-externo@test.local', roles: ['external-user'],
+        });
+      });
+
+      after(async () => {
+        await User.destroy({ where: { id: WF_EXTERNAL } });
+      });
+
+      it('TS-37 · external-user sigue sin poder publicar requirements.edit (regresión de autorización)', async () => {
+        const id = await createRequirement('analisis', 'funcionalidad');
+        const reply = await dispatch(
+          `requirements.${id}.edit`,
+          { editor: WF_EXTERNAL, state: 'desarrollo' },
+          WF_EXTERNAL
+        );
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+        const requirement = await Requirement.findByPk(id);
+        requirement!.state.should.equal('analisis');
+      });
+
+      it('TS-38 · access_denied se evalúa antes que cualquier regla de resolución', async () => {
+        // `MIX` — roles `['user','external-user']` — pasa la compuerta de rol (unión) pero cae
+        // en clase `external` por precedencia, así que el chequeo de entidad SÍ se ejecuta. Sin
+        // fila en `UserProjectPermission` para el proyecto de este requisito, la respuesta tiene
+        // que ser `access_denied`, no `resolution_required`, aunque la incidencia no tenga
+        // resolución cargada.
+        const MIX = 'sub-s049-mixto';
+        await User.create({
+          id: MIX, name: 'Mixto', username: 's049-mixto',
+          email: 's049-mixto@test.local', roles: ['user', 'external-user'],
+        });
+        try {
+          const id = await createRequirement('desarrollo', 'incidencia');
+          const reply = await dispatch(
+            `requirements.${id}.edit`,
+            { editor: MIX, state: 'resuelto' },
+            MIX
+          );
+          reply.status.should.equal('failure');
+          reply.errorCode!.should.equal(ErrorCode.ACCESS_DENIED);
+        } finally {
+          await User.destroy({ where: { id: MIX } });
+        }
+      });
     });
   });
 
