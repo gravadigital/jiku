@@ -146,6 +146,23 @@ status: Draft - Importado desde código existente
   api la aplicaba sobre `PATCH /requirements/:reqid` y el comando `requirements.{id}.resolve` que
   la implementa **no lo publica ninguna ruta**, así que del lado del escritor no se aplicaba.
 
+  **REQ-012 deroga la secuencia y acota la resolución.** Tres cambios de comportamiento, **ninguno
+  de esquema** — el enum conserva sus siete valores y ninguna fila existente se vuelve inválida:
+  - **`state` pierde sus transiciones declaradas.** La tabla que REQ-007 introdujo en `core` se da
+    de baja: **cualquier valor del enum es alcanzable desde cualquier otro**, hacia adelante y
+    hacia atrás. **`resuelto` y `cancelado` dejan de ser terminales**: un requisito se puede
+    reabrir. El código `invalid_state_transition` queda **sin emisor** para requisitos.
+  - **C-17 vuelve a valer solo para `incidencia`.** La ampliación de REQ-007 —*"aplica a todos los
+    tipos"*— queda derogada: solo un requisito de tipo `incidencia` exige `resolutionType` y
+    `resolutionConclusion` para entrar a `resuelto`. Para `funcionalidad`, `mejora` y `otro` los
+    tres campos de resolución son **siempre opcionales**. `resolution_required` sobrevive, con
+    alcance reducido a `incidencia`.
+  - **Las marcas temporales ganan semántica frente a la reapertura**, que antes no podía ocurrir:
+    `inProgressAt` conserva **la primera** entrada a `desarrollo` y no se sobrescribe al reentrar;
+    `finishedAt` refleja siempre **la última** resolución. Los tres campos de resolución
+    (`resolutionType`, `resolutionConclusion`, `resolutionComment`) **se limpian** al salir de
+    `resuelto` hacia un estado no terminal.
+
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
   (**varchar, no date**, opt), `state` (enum: backlog/activo/en_revision/finalizado/cancelado,
@@ -397,9 +414,9 @@ para que el pedido tenga trazabilidad desde que entra hasta que se cierra.
 |---|---|---|---|---|---|---|---|
 | C-13 | Listar requisitos | U-01, U-02 | Requisito | READ | paginación 15/20/25, filtros y orden | Tooltip de responsables múltiples | api · web |
 | C-14 | Crear requisito | U-01, U-02 | Requisito | CREATE | `title` (req), `description` (req), `projectId` (req), `type` (opt), `priority` (opt, default `sin_prioridad`), `responsiblePersonIds` (opt), `tags` (opt) | Nace en `analisis`. **El primero de `responsiblePersonIds` queda como líder: el orden es información** | core |
-| C-15 | Avanzar el workflow de estados | U-01, U-02 | Requisito | ACTION | `state` (enum, 7 valores) | Secuencia: `analisis → planificacion → en_cola → desarrollo → revision`. **Una `incidencia` saltea `en_cola`** | **web (solo UI)** — ver NFR-S07 |
+| C-15 | Cambiar el estado del requisito | U-01, U-02 | Requisito | ACTION | `state` (enum, 7 valores) | **REQ-012: sin secuencia.** Cualquier estado es alcanzable desde cualquier otro, hacia adelante y hacia atrás; **`resuelto` y `cancelado` no son terminales**. Deroga la tabla de transiciones de REQ-007 (D-5): `invalid_state_transition` deja de emitirse para requisitos | — (no hay validación de secuencia; la autorización por rol y proyecto sigue intacta) |
 | C-16 | Editar campos de estado en acordeón | U-01, U-02 | Requisito | UPDATE | `scope`, `technicalSolution`, `acceptanceCriteria`, `estimatedFinishDate` | Los campos se abren según el estado: `analisis`→alcance, `planificacion`→propuesta y criterios, `en_cola`→cierre estimado | web (solo UI) |
-| C-17 | Resolver o cancelar un requisito | U-01, U-02 | Requisito | ACTION | `state` (`resuelto`/`cancelado`), `resolutionType` (opt), `resolutionConclusion` (opt) | **Es un comando propio (`requirements.{id}.resolve`)**, no parte del edit: la transición no puede ocurrir por accidente. **Una incidencia no se resuelve sin tipo y conclusión** | api (tipo+conclusión) · core (conclusión) |
+| C-17 | Resolver o cancelar un requisito | U-01, U-02 | Requisito | ACTION | `state` (`resuelto`/`cancelado`), `resolutionType` (opt), `resolutionConclusion` (opt) | **REQ-012: la obligatoriedad vuelve a valer solo para `incidencia`.** Una incidencia no entra a `resuelto` sin tipo y conclusión (`resolution_required`); para `funcionalidad`, `mejora` y `otro` los tres campos son **siempre opcionales**. Al salir de `resuelto` hacia un estado no terminal los datos de resolución **se limpian** | core (solo para `incidencia`) |
 | C-18 | Etiquetar con clave:valor | U-01, U-02 | Requisito | UPDATE | `tags` (lista `{key,value}`) | Sugerencias desde `GET /requirements/tags/suggestions`, consultadas con contains de `jsonb` | api |
 | C-19 | Comentar un requisito | U-01, U-02, U-03 | Actividad | CREATE | `comment` (text, req), `visibilityLevel` (enum, opt) | **Solo los comentarios permiten elegir visibilidad.** Desde el portal se crean siempre `public` | core · opus-web (fuerza public) |
 | C-20 | Ver el feed de actividad | U-01, U-02, U-03 | Actividad | READ | — | Mezcla comentarios y cambios de campo en orden cronológico. **U-03 solo ve los `public`** | api (filtro) |
@@ -410,12 +427,20 @@ para que el pedido tenga trazabilidad desde que entra hasta que se cierra.
 | C-82 | Editar un comentario de requisito | U-01, U-02 (autor o `admin`) | Actividad | UPDATE | `comment`, `fileIds` (opt) | REQ-011. Solo el autor o `admin`; `visibilityLevel` **inmutable**; registra `editedAt`/`editedBy`; no dispara notificación (no hay canal aún) | core |
 
 **Criterios de Aceptación:**
-- DADO un requisito de tipo `incidencia` en estado `planificacion`,
-  CUANDO se avanza el stepper,
-  ENTONCES pasa a `desarrollo` (saltea `en_cola`).
+- DADO un requisito en cualquier estado (REQ-012),
+  CUANDO se lo lleva a cualquier otro estado del enum —hacia adelante, hacia atrás, o saliendo de
+  `resuelto` o `cancelado`—,
+  ENTONCES la transición se acepta y **no** se devuelve `invalid_state_transition`.
+- DADO un requisito de tipo `funcionalidad`, `mejora` u `otro` (REQ-012),
+  CUANDO se lo pasa a `resuelto` sin `resolutionType` ni `resolutionConclusion`,
+  ENTONCES se resuelve correctamente.
 - DADO un requisito de tipo `incidencia` sin `resolutionConclusion`,
   CUANDO se intenta resolver,
   ENTONCES falla con `resolution_required` y **no se escribe nada** (rollback del despachador).
+- DADO un requisito reabierto que vuelve a entrar a `desarrollo` (REQ-012),
+  CUANDO se guarda,
+  ENTONCES `inProgressAt` conserva **la primera** fecha y `finishedAt` refleja **la última**
+  resolución.
 - DADO un requisito creado con `responsiblePersonIds: [7, 3, 9]`,
   CUANDO se guarda,
   ENTONCES la persona 7 queda marcada como líder.
@@ -729,7 +754,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | NFR-S04 | Access token fuera del navegador | El token **nunca** llega al bundle: se inyecta en el servidor en ambos frontends | Inspección del bundle | **[implementado]** |
 | NFR-S05 | Vida de la sesión | 12 h (`web`); token vencido fuerza re-login en ambos | Config de NextAuth | **[implementado]** |
 | NFR-S06 | Aislamiento entre clientes | Un `external-user` accede **solo** a proyectos con fila en `user_project_permissions`, resuelto desde 9 tipos de entidad | Tests de autorización | **[implementado]** |
-| NFR-S07 | Reglas de workflow del lado del servidor | Las transiciones de estado de requisito (incluido el salteo de `en_cola` para incidencias) **hoy solo se validan en `web`** | Revisión de código | **[hueco conocido]** |
+| NFR-S07 | Reglas de workflow del lado del servidor | **REQ-012 — decisión explícita, no hueco.** El requisito **no tiene** secuencia de estados: cualquier transición es válida por cualquier canal, y `resuelto`/`cancelado` no son terminales. Lo que sí es autoritativo en `core` es la resolución de una `incidencia` (tipo + conclusión, `resolution_required`) y la autorización por rol y por proyecto | Tests de `core` sobre `requirements.{id}.edit` | **[decisión de producto]** |
 | NFR-S08 | Allowlist del proxy del portal | El proxy catch-all de `opus-web` **no filtra paths ni métodos**: expone toda la superficie de `/api/opus/*` a cualquier usuario logueado | Revisión de código | **[hueco conocido — mitigado por NFR-S06]** |
 | NFR-S09 | Escritura solo desde `core` | La api conecta en solo lectura por credenciales. **Dos excepciones**: la fila de `attachments` y `PUT /api/week-assigned-times`. (Hasta REQ-011 hubo una tercera no declarada acá: `PATCH /api/objectives/{id}/comment/{cid}` escribía con el ORM sin publicar comando; REQ-011 la cerró migrando el endpoint al comando `tasks.{id}.comment.{cid}.edit`, así que vuelven a ser dos de verdad) | Permisos de PostgreSQL | **[implementado con excepciones]** |
 | NFR-S10 | Defensa del bus | La política del auth-callout es la **única** defensa: core confía en el `creator`/`author`/`editor` del cuerpo sin verificar | Config de Zitadel + NATS | **[implementado — sin segunda línea]** |
@@ -838,9 +863,11 @@ Ordenadas por impacto en el producto:
    el onboarding de cualquier cliente nuevo**.
 2. **¿La suscripción a un requisito debería notificar?** Existe la capacidad de suscribirse y
    **ningún canal por el que llegue nada**. Un cliente se suscribe y no pasa nada.
-3. **¿Las reglas de workflow de requisitos deben ser autoritativas en el servidor?** Hoy la
-   secuencia de estados y el salteo de `en_cola` para incidencias **solo viven en `web`**
-   (NFR-S07). Cualquier cliente HTTP puede saltar a cualquier estado.
+3. ~~**¿Las reglas de workflow de requisitos deben ser autoritativas en el servidor?**~~
+   **Cerrada por REQ-012:** no hay secuencia que hacer autoritativa. El producto decidió que el
+   cambio de estado es libre por los dos canales y que `resuelto`/`cancelado` no son terminales
+   (NFR-S07). Lo autoritativo en `core` queda acotado a la resolución de una `incidencia` y a la
+   autorización.
 4. **¿Un usuario interno debería poder operar desde el portal de clientes?** Hoy puede cambiar
    estado y prioridad inline desde `opus-web` (C-66).
 5. **¿El proxy catch-all de `opus-web` debería tener allowlist?** Su seguridad depende

@@ -4,8 +4,8 @@ title: Escritura por el bus — el recorrido completo de un comando de jiku-comm
 type: feature
 status: Draft
 created: 2026-08-25
-last_updated: 2026-08-25
-stories: [S-029, S-030, S-031, S-032, S-033, S-035]
+last_updated: 2026-09-01
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049]
 ---
 
 # Escritura por el Bus
@@ -269,8 +269,7 @@ Misma precedencia que el plano de lectura — *gana el más restrictivo*: `exter
 | Tope diario de 1440, horas **y** ausencias | — | `worked-times` / `unworked-times` | `daily_limit_exceeded` |
 | Solo `admin` edita la grilla semanal | C-38 | **El mapa** — no depende del payload | `caller_not_authorized` |
 | No se modifican semanas pasadas | C-36 | `week-assigned-times.replace` | `invalid_date_range` |
-| Transición de estado del requisito | C-15 | `requirements.{id}.edit` **y** `.resolve`, mismo validador | `invalid_state_transition` |
-| Tipo + conclusión al resolver | C-17 | El mismo validador | `resolution_required` |
+| Tipo + conclusión al resolver **una `incidencia`** | C-17 | `requirements.{id}.edit` **y** `.resolve`, mismo validador | `resolution_required` |
 | `documentacion` / `diseño` / `board_de_tareas` como URI | C-07 | `projects.new` / `.edit` | `invalid_fields` |
 | Límites de subida y doble lista blanca | C-50 | `files.request-upload` — **ya estaba en core** | `file_too_large`, `file_type_not_allowed` |
 | Titularidad del archivo al vincular | — | Los ocho comandos con `fileIds` — REQ-011 suma los dos de edición de comentario | `file_not_owned` |
@@ -283,6 +282,12 @@ el primero es *"¿podés tocar ESTA entidad?"* y lo decide el comando con la fil
 es *"¿tu rol habilita este método?"* y lo decide el mapa antes de tocar el dominio. **Es además el
 código que los dos frontends ya conocen** para este caso, que es lo que hace que el contrato HTTP no
 cambie.
+
+**REQ-012 deroga la fila de transición de estado del requisito** (C-15): la tabla de transiciones
+que REQ-007 (D-5) había declarado en `core` se da de baja y cualquier estado es alcanzable desde
+cualquier otro, sin validación. `invalid_state_transition` queda en el catálogo de
+`@jiku/nats-protocol` **sin emisor** para requisitos — misma política que `invalid_attachment_id` —
+así que un lector no lo busque en vano en este flujo.
 
 ### Paso 5: La transacción cierra
 

@@ -590,37 +590,38 @@ channels:
         description: Requirement id (`requirements.id`).
         schema:
           type: string
-    x-req-007-state-workflow: |
-      **REQ-007 (S-033) — the state transition table.** C-15 never existed on the server: it lived
-      only in `web`. It is declared here as DATA, the same shape as the role -> method map, and
-      validated **where the transition happens**, which is this channel.
+    x-req-012-state-workflow: |
+      **REQ-012 — state transitions are free, by product decision.** `x-req-007-state-workflow`
+      (the transition table REQ-007/S-033 introduced) is DEROGATED here, not forgotten: C-15 goes
+      back to having no sequence on the server. **Every value of the `requirement_state` enum is
+      reachable from every other value**, forward or backward, including the two that used to be
+      terminal (`resuelto`, `cancelado` can both be left and re-entered).
 
-      ```
-      analisis  ->  planificacion  ->  en_cola  ->  desarrollo  ->  revision
-                           └──────── incidencia ────────┘
-      ```
+      `invalid_state_transition` is **no longer emitted** by this command (kept in
+      `@jiku/nats-protocol`'s catalog without an emitter — same policy already applied to
+      `invalid_attachment_id`, see the catalog note in this file).
 
-      | From | To (allowed) |
-      |---|---|
-      | `analisis` | `planificacion` |
-      | `planificacion` | `en_cola`, **`desarrollo` only if `type === 'incidencia'`** |
-      | `en_cola` | `desarrollo` |
-      | `desarrollo` | `revision` |
-      | `revision` | `resuelto` |
-      | *any non-terminal state* | `cancelado` |
-      | *any non-terminal state* | `resuelto` **through the resolution path** (requires type + conclusion, C-17) |
-      | `resuelto`, `cancelado` | *(terminal)* |
-      | *one step back in the sequence* | allowed |
+      **What survives from C-17 (resolution requirements) — acotado again to `incidencia`.** A
+      transition into `resuelto` requires `resolutionType` and `resolutionConclusion` **only when
+      `requirement.type === 'incidencia'`**; for `funcionalidad`, `mejora` and `otro` both fields
+      stay always optional. `type` is read from the ROW, not from the payload — a caller declaring
+      itself a different type in the same request does not bypass the rule. If the payload omits
+      `resolutionConclusion`/`resolutionType` but the row already has one stored, the stored value
+      is accepted. Missing both, for an `incidencia`: `resolution_required`, and the dispatcher's
+      rollback leaves nothing written (ADR-003).
 
-      Anything else: `invalid_state_transition`. A transition into `resuelto` without resolution
-      type or conclusion: `resolution_required`.
+      **New: leaving `resuelto` clears the resolution.** When the transition moves the requirement
+      OUT of `resuelto` into a non-terminal state, `resolutionType`, `resolutionConclusion` and
+      `resolutionComment` are set to `null` in the SAME update — the state change and the cleanup
+      are atomic by construction, not two writes.
 
-      **`type` is read from the ROW, not from the payload** — a caller declaring itself an
-      `incidencia` to skip `en_cola` would otherwise be forging the exception.
+      **Timestamps, asymmetric on purpose.** `scheduledAt`, `inProgressAt` and `inReviewAt` stay
+      write-once (the FIRST entry into each state). `finishedAt` is the exception: it is rewritten
+      on every entry into `resuelto`, so it always reflects the LAST resolution, not the first —
+      see `packages/models/src/requirement.model.ts`.
 
-      **Existing rows in a state the sequence does not explain are NOT migrated.** The rule is
-      about transitions, not about stored state, and since `cancelado` is reachable from any
-      non-terminal state, none of them is trapped.
+      **This does not touch authorization.** The role -> method map and the dispatcher's entity
+      check are unrelated planes and neither changes because of this note.
     publish:
       operationId: requirementsEdit
       summary: Edit a requirement
@@ -633,21 +634,21 @@ channels:
     description: |
       Resolve a requirement: moves it to `resuelto` and stores the reason.
 
-      **REQ-007 (S-033) — C-17 applies to every type, not just `incidencia`.** No requirement is
-      resolved without a resolution type and a conclusion — `resolution_required` otherwise. If
-      the conclusion is missing from the payload, the one already stored on the requirement is
-      accepted.
+      **REQ-012 — C-17 is acotado again to `incidencia`.** REQ-007 (S-033) had widened it to
+      "every type, not just `incidencia`"; that widening is DEROGATED here. Only a requirement of
+      type `incidencia` requires a resolution type and a conclusion to enter `resuelto` —
+      `resolution_required` otherwise. For `funcionalidad`, `mejora` and `otro` both fields stay
+      always optional. If the conclusion is missing from the payload but the one already stored on
+      the requirement exists, the stored value is accepted (unchanged by this request).
 
-      > **NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced (REQ-007, S-033).** It is
-      > implemented and tested, and resolution still comes in through `requirements.{id}.edit`,
-      > which accepts `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly
-      > that reason.
+      > **NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced.** It is implemented and tested,
+      > and resolution still comes in through `requirements.{id}.edit`, which accepts
+      > `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly that reason.
+      > Both channels share the SAME validator, so the `incidencia`-only rule applies **whichever
+      > way the change arrives**.
       >
-      > **What changed.** This note used to end with *"the mandatory-conclusion rule lives only
-      > here, so today it is not enforced"*. **That is derogated.** Both channels now share the
-      > SAME validator — the state transition table (C-15) and the mandatory type + conclusion
-      > (C-17) — so the rule applies **whichever way the change arrives**. Validating only here
-      > would have left it exactly as unenforced as before.
+      > **The state transition table (C-15) that used to be validated alongside C-17 here is gone
+      > (REQ-012): `invalid_state_transition` is no longer emitted by this command either.**
     parameters:
       id:
         description: Requirement id (`requirements.id`).
@@ -1175,9 +1176,9 @@ components:
         - requirement_not_found
         - invalid_responsible_person
         - file_not_owned
-        # REQ-007 — S-033. The state workflow (C-15) and the mandatory type + conclusion (C-17)
-        # are validated HERE, because this is the channel resolution actually comes in through.
-        - invalid_state_transition
+        # REQ-012: invalid_state_transition removed from this list — state transitions are free.
+        # resolution_required survives, acotado again to type === 'incidencia' (C-17), because
+        # this is the channel resolution actually comes in through.
         - resolution_required
         - internal_error
         - access_denied
@@ -1214,7 +1215,8 @@ components:
         $ref: '#/components/schemas/RequirementsResolvePayload'
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
-      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, invalid_state_transition, internal_error, access_denied]
+      # REQ-012: invalid_state_transition removed — state transitions are free.
+      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error, access_denied]
 
     RequirementsComment:
       name: RequirementsComment
@@ -1644,9 +1646,14 @@ components:
         - invalid_date_range
         - already_subscribed
         - subscription_not_found
+        # CÓDIGO SIN EMISOR desde REQ-012: `requirements.{id}.edit` y `.resolve` dejaron de
+        # emitirlo — las transiciones de estado son libres (C-15 sin secuencia). SE CONSERVA a
+        # propósito, misma política que `invalid_attachment_id`: el catálogo no está cerrado,
+        # `@jiku/nats-protocol` es compartido (ADR-005) y ningún criterio de aceptación pide
+        # retirarlo.
         - invalid_state_transition
         - stage_not_found
-        - resolution_required
+        - resolution_required   # REQ-012: acotado de nuevo a type === 'incidencia' (C-17)
         # REQ-007 — "can you touch THIS entity?", decided by THE GATE with the row in front of
         # it. NOT the same question as `caller_not_authorized`, which is "does your role enable
         # this method?" and is decided by the role -> method map before touching the domain.

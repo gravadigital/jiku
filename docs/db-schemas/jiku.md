@@ -259,13 +259,27 @@ llama `properties` y viaja como lista de `{code, value}`.
 | `acceptance_criteria` | `TEXT` | NULL |
 
 Un hook `@BeforeUpdate` mantiene las cuatro marcas temporales de estado (`scheduled_at`,
-`in_progress_at`, `in_review_at`, `finished_at`).
+`in_progress_at`, `in_review_at`, `finished_at`), con una asimetría desde REQ-012:
+**`scheduled_at`, `in_progress_at` e `in_review_at` son write-once** (conservan la **primera**
+fecha de entrada a cada estado; reentradas no las sobrescriben), mientras que **`finished_at` se
+reescribe en cada entrada a `resuelto`**, así que refleja siempre la **última** resolución. Antes
+de REQ-012 las cuatro se comportaban igual (write-once); dejó de ser así porque un requisito
+`resuelto` puede reabrirse y volver a resolverse.
 
 Los tags se consultan con un contains de `jsonb`:
 `tags @> '[{"key": "...", "value": "..."}]'::jsonb`.
 
 > Los tres campos de resolución se separaron en `20260721_01`. Una **incidencia** no pasa a
-> `resuelto` sin tipo y conclusión — regla que valida la api, no la base.
+> `resuelto` sin tipo y conclusión — regla que valida `core`, no la base (REQ-012: acotada de
+> nuevo a `type === 'incidencia'`; para el resto de los tipos son siempre opcionales). Al salir de
+> `resuelto` hacia un estado no terminal, los tres campos se limpian (`NULL`) en el mismo `update`
+> que cambia el estado (REQ-012).
+>
+> **Las transiciones de `state` no tienen restricción de secuencia.** REQ-007 (D-5) había
+> declarado una tabla de transiciones válidas en `core`, con `resuelto` y `cancelado` como
+> terminales; REQ-012 la deroga: cualquier valor del enum es alcanzable desde cualquier otro,
+> hacia adelante o hacia atrás, y ningún estado es terminal. El enum conserva sus siete valores
+> sin cambios.
 
 #### `objectives` — tareas
 `objective` en HTTP y en la base, `task` en el bus.

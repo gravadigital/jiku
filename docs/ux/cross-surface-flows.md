@@ -104,7 +104,7 @@ Es el flujo que hace que el producto reemplace los mails de status.
 
 | # | Superficie | Quién | Acción |
 |---|---|---|---|
-| 1 | web | equipo-interno | Avanza el estado de un requisito en el stepper |
+| 1 | web | equipo-interno | Cambia el estado de un requisito — con el botón de transición, o con la pill, que **desde REQ-012 lleva a cualquiera de los siete estados** [REQ-012 RF-1, RF-12] |
 | 2 | — | *(sistema)* | Registra la actividad y **decide su visibilidad automáticamente**: `state`, `title` y `description` → `public`; el resto → `internal` |
 | 3 | opus-web | cliente | La próxima vez que entra, ve el estado nuevo en el tablero y el cambio en el feed |
 
@@ -125,6 +125,16 @@ Es el flujo que hace que el producto reemplace los mails de status.
 | Comentario | Depende: **es el único donde el usuario elige** |
 | Horas imputadas | ❌ Nunca — no existen en la superficie del cliente |
 | Tareas | ❌ Nunca — el cliente no las ve |
+
+> **Desde REQ-012 el avance puede ir hacia atrás, y el cliente lo ve igual.** Las transiciones son
+> libres en los dos sentidos y `resuelto` deja de ser terminal (RF-1, RF-2), así que un requisito que
+> el cliente vio cerrado puede volver a `desarrollo` en su tablero. Es `public` como cualquier cambio
+> de estado, así que **cruza sin nada que lo explique**: la regla de visibilidad no distingue avance
+> de retroceso. La nota para cliente de la resolución, además, **se borra al reabrir** (RF-10), de
+> modo que el cliente puede perder un texto que ya había leído. No se diseña tratamiento acá —el
+> requerimiento no lo pide y `opus-web` no se modifica— pero es la consecuencia cross-surface del
+> cambio, y queda registrada como tal: es el punto donde una decisión interna se vuelve visible
+> afuera sin mediación [REQ-012 RF-2, RF-10, CA-3, CA-12].
 
 ### La discontinuidad
 

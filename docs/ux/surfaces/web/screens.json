@@ -3598,9 +3598,8 @@
               "annotation": "deshabilitada sin spinner: no usa <Button loading> sino un <button> nativo · el valor ya cambió por el update optimista"
             },
             "terminal": {
-              "state": "disabled",
               "content": "Cancelado",
-              "annotation": "el readonly no alcanza al resto de la pantalla: la pill sigue disponible aunque el requisito esté resuelto o cancelado"
+              "annotation": "REQ-012: la pill NO se deshabilita en resuelto ni cancelado — son estados de los que ahora se sale. Ofrece siempre los siete estados, sin recorte y sin excepción por tipo: el descarte de \"En cola\" para incidencia (RequirementHeader.tsx:161-166) se elimina [REQ-012 RF-1, RF-2, RF-12, CA-6]"
             },
             "error de sistema": {
               "annotation": "toast: error.message o \"Error al actualizar el requisito\" · el update optimista se revierte (RequirementDetail.tsx:108)"
@@ -3695,7 +3694,7 @@
           "category": "content",
           "fill": 0.6,
           "content": "Análisis ✓ · Planificación ✓ · En cola ✓ · Desarrollo (4) · Revisión (5)",
-          "annotation": "5 nodos con conectores y un símbolo por nodo (✓, × o el número), no una barra · flujo NEXT_WORK_STEP: analisis → planificacion → en_cola → desarrollo → revision; para incidencias saltea en_cola (RequirementStatusCard.tsx:353-355, :44-49, :55-58)"
+          "annotation": "cinco pasos del recorrido de trabajo (analisis → planificacion → en_cola → desarrollo → revision; las incidencias saltean en_cola). REQ-012: esa secuencia describe el recorrido habitual, no lo permitido — el stepper sigue mostrando dónde está el requisito pero ya NO recorta a dónde se puede ir. El stepper informa, la pill decide [REQ-012 RF-1, RF-12]"
         },
         {
           "name": "paso-workflow",
@@ -3736,13 +3735,14 @@
           "category": "input",
           "variant": "primary",
           "content": "Revisión →",
-          "hidden_in_states": [
-            "terminal"
-          ],
           "annotation": "`${getTransitionLabel(...)} →` · manda los campos cambiados más el nuevo estado en una sola mutación · en Revisión, Resuelto y Cancelado no hay destino y \"Guardar\" queda solo · la transición no exige que el campo del paso esté completo (RequirementStatusCard.tsx:390, :295-298)",
           "state_overrides": {
             "loading": {
               "variant": "disabled"
+            },
+            "terminal": {
+              "content": "Guardar",
+              "annotation": "REQ-012: el botón es un atajo al paso siguiente, no la única salida. En Resuelto y Cancelado no hay paso sugerido dentro del recorrido de trabajo —volver al trabajo vive en boton-reabrir-requisito—, así que queda \"Guardar\" solo. Que no haya sugerencia ya no significa que no haya transición posible: la pill las ofrece todas [REQ-012 RF-2, RF-12]"
             }
           }
         },
@@ -4027,7 +4027,7 @@
           "state_overrides": {
             "terminal": {
               "paragraph": "Fecha de finalización: 22/08/2026",
-              "annotation": "resuelto o cancelado: la card muestra la fecha de finalización y el resultado en vez de los botones (RequirementResolutionCard.tsx:150-158)"
+              "annotation": "resuelto o cancelado: la card muestra la fecha de finalización y el resultado en vez de los botones (RequirementResolutionCard.tsx:150-158). REQ-012: el estado terminal deja de ser terminal — sigue siendo un estado de cierre (los tres campos quedan disabled mientras está cerrado) pero ya no es una salida sin retorno: boton-reabrir-requisito aparece junto a badge-resultado y pill-estado deja de deshabilitarse. Al reabrir, tipo, conclusión y nota para cliente vuelven a vacío; al volver a resolver el formulario sugiere esos mismos valores [REQ-012 RF-2, RF-10, RF-11, CA-3, CA-4, CA-12, CA-13]"
             }
           }
         },
@@ -4038,7 +4038,7 @@
           "state": "closed",
           "label": "Tipo de resolución",
           "content": "Seleccioná una opción",
-          "annotation": "<select id=\"resolution-type\"> nativo con <label htmlFor>, visible solo para requisitos de type incidencia (RequirementResolutionCard.tsx:101-119)",
+          "annotation": "solo para type: incidencia (RequirementResolutionCard.tsx:101-119). REQ-012: el servidor exige este campo solo para incidencia — confirma lo que la pantalla ya hacía y cierra el callejón en que resolver una funcionalidad terminaba en 400 resolution_required sin haber ofrecido el campo. Al reresolver llega precargado con el valor anterior, editable [REQ-012 RF-5, RF-6, RF-11, CA-8, CA-13]",
           "state_overrides": {
             "terminal": {
               "state": "disabled",
@@ -4053,7 +4053,7 @@
           "state": "default",
           "label": "Conclusión interna",
           "content": "Describí la conclusión interna de esta incidencia...",
-          "annotation": "<textarea id=\"resolution-conclusion\"> con <label htmlFor>, visible solo para requisitos de type incidencia · se guarda sin reglas de validación (RequirementResolutionCard.tsx:120-131)",
+          "annotation": "solo para type: incidencia. Obligatoria solo para incidencia; precargada con la conclusión de la resolución anterior al reresolver, editable antes de guardar [REQ-012 RF-5, RF-6, RF-11, CA-13]",
           "state_overrides": {
             "terminal": {
               "state": "disabled"
@@ -4067,7 +4067,7 @@
           "state": "default",
           "label": "Nota para cliente",
           "content": "Describí la resolución de esta incidencia...",
-          "annotation": "<textarea id=\"resolution-comment\"> con <label htmlFor>, visible solo para requisitos de type incidencia (RequirementResolutionCard.tsx:133-145)",
+          "annotation": "solo para type: incidencia. Precargada con la nota de la resolución anterior al reresolver [REQ-012 RF-11, CA-13]",
           "state_overrides": {
             "terminal": {
               "state": "disabled"
@@ -4115,6 +4115,22 @@
             "terminal"
           ],
           "annotation": "\"Resuelto\" / \"Cancelado\" en el lugar de los botones (RequirementResolutionCard.tsx:28-30, :155-158)"
+        },
+        {
+          "name": "boton-reabrir-requisito",
+          "type": "button",
+          "category": "input",
+          "content": "Reabrir",
+          "variant": "secondary",
+          "visible_only_in_states": [
+            "terminal"
+          ],
+          "annotation": "aparece solo en resuelto y cancelado, junto a badge-resultado, y devuelve el requisito a desarrollo. \"Reabrir\" y no \"Volver a abrir\" ni \"Retomar\": es la palabra del equipo y no se confunde con \"Cancelar\", que en esta card cancela el requisito. Al confirmarse limpia los tres campos de resolución —tipo, conclusión y nota para cliente—, así que el aviso de esa pérdida es parte de la acción. Sin ConfirmDialog: la card no confirma ninguna de sus tres transiciones (gap registrado) [REQ-012 RF-2, RF-10, CA-3, CA-4, CA-12]",
+          "state_overrides": {
+            "loading": {
+              "variant": "disabled"
+            }
+          }
         },
         {
           "name": "progreso-subida-adjunto",
@@ -4440,7 +4456,23 @@
                   "campo-tipo-resolucion",
                   "campo-conclusion",
                   "campo-nota-cliente",
-                  "badge-resultado",
+                  {
+                    "row": "resultado-cerrado",
+                    "cols": [
+                      {
+                        "w": 7,
+                        "stack": [
+                          "badge-resultado"
+                        ]
+                      },
+                      {
+                        "w": 5,
+                        "stack": [
+                          "boton-reabrir-requisito"
+                        ]
+                      }
+                    ]
+                  },
                   {
                     "row": "acciones-resolucion",
                     "cols": [

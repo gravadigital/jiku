@@ -687,19 +687,24 @@ paths:
       description: |
         Publica `requirements.{id}.edit` y rearma la respuesta.
 
-        > **REQ-007 (S-033) — `- ELIMINADO`, deja de ser regla propia de la api.**
+        > **REQ-012 — la secuencia de estados (C-15) se deroga; C-17 se acota de nuevo a
+        > `incidencia`.**
         >
-        > Acá decía: *"**Regla propia de la api:** una incidencia no pasa a `resuelto` sin tipo y
-        > conclusión de resolución […] devuelve `resolution_required` (400) — **un código que no
-        > está en el protocolo del bus**"*. **Ahora está.**
+        > - **C-15** (la secuencia de estados): la nota de REQ-007 decía *"nace en `core` con esta
+        >   entrega: hasta hoy vivía únicamente en `web`"*. **Eso se deroga.** `core` deja de
+        >   validar secuencia: un requisito alcanza cualquier estado desde cualquier otro, hacia
+        >   adelante o atrás, incluidos `resuelto` y `cancelado` (dejan de ser terminales).
+        >   `invalid_state_transition` **deja de emitirse** para requisitos — ya no aparece entre
+        >   los códigos que este endpoint puede devolver.
+        > - **C-17** (tipo + conclusión al resolver) la sigue aplicando `core` en
+        >   `requirements.{id}.edit` **y** en `.resolve`, con el mismo validador, pero **solo
+        >   cuando `type === 'incidencia'`**. Para `funcionalidad`, `mejora` y `otro` ambos campos
+        >   son siempre opcionales. Devuelve `resolution_required` cuando falta, con el mismo
+        >   status **400**.
         >
-        > - **C-17** (tipo + conclusión al resolver) la aplica `core` en
-        >   `requirements.{id}.edit` **y** en `.resolve`, con el mismo validador, y devuelve
-        >   `resolution_required`. El status sigue siendo **400**
-        > - **C-15** (la secuencia de estados) **nace en `core`** con esta entrega: hasta hoy vivía
-        >   únicamente en `web`. Una transición inválida devuelve `invalid_state_transition` → 400
-        >
-        > **El contrato HTTP no cambia:** mismo status, mismo código.
+        > **El bloque `'400'` no cambia de forma:** `resolution_required` sigue siendo 400 y el
+        > ejemplo de abajo sigue siendo válido. Lo que cambia es que `invalid_state_transition` ya
+        > no es un código posible de esta respuesta.
       x-roles: [user, admin]
       x-bus-command: requirements.{id}.edit
       requestBody:

@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-01
 ---
 
 # Pantalla: Tablero de requisitos
@@ -274,6 +274,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 ### error de validación
 - Aplica: No — no implementado (ver gaps-as-is.md). La pantalla no tiene formulario propio. Los cambios de estado y prioridad **no validan transiciones en el cliente**: el dropdown ofrece los siete estados siempre, en cualquier orden
 - **REQ-007: ahora el servidor sí valida, y el rechazo llega acá sin nombre.** `core` gana la tabla de transiciones de `requirements.state` (C-15) y rechaza el salto inválido con `invalid_state_transition` → **400** (CA-22), con la excepción de `incidencia`, que puede saltear `en_cola` (CA-23). Es el único lugar del producto donde ese rechazo es **fácil de provocar**: en `web` el stepper impone el orden, pero acá el dropdown sigue ofreciendo los siete estados a un rol interno, así que elegir mal es un clic. Lo que ve el usuario es el toast genérico `"Error al actualizar el estado"` (`useUpdateRequirement.ts:26-32`), que **descarta el `message` del `ApiError`**: el motivo existe del lado del servidor y la superficie lo tira. **No se diseña el mensaje acá:** REQ-007 declara `opus-web` sin cambios de UI, y el arreglo real es recortar el dropdown a las transiciones válidas, que es una decisión de producto ligada a la pregunta abierta 2 de la superficie (si un rol interno debería poder operar desde el portal). Queda registrado como gap que **nace con este REQ**, no como uno preexistente
+- **REQ-012 cierra ese gap sin tocar esta pantalla.** La tabla de transiciones se da de baja entera y `invalid_state_transition` **deja de emitirse** para requisitos (RF-1, RF-4): el dropdown de siete estados sin orden, que era lo que hacía el rechazo fácil de provocar acá, **pasa a ser correcto** —era la superficie la que estaba alineada con la decisión de producto, y el servidor el que se había adelantado—. No hay mensaje que diseñar ni dropdown que recortar. El toast genérico `"Error al actualizar el estado"` sigue descartando el `message` del `ApiError`, pero eso vuelve a ser lo que era antes de REQ-007: **deuda preexistente del portal**, no un gap con causa nombrable. La única causa de rechazo que queda en esta pantalla es resolver una `incidencia` sin tipo ni conclusión (`resolution_required`), alcanzable desde el dropdown por un rol interno y **no cubierta por el toast** — se registra como el resto del gap, con la misma decisión de no diseñar mensaje acá [REQ-012 RF-1, RF-4, RF-5, CA-5]
 
 ### error de sistema / sin conexión
 - Aplica: No — no implementado (ver gaps-as-is.md). Las siete queries pueden fallar y la pantalla renderiza el tablero con las siete secciones en cero, indistinguible de un proyecto sin requisitos: `requirements/page.tsx:153-196` solo evalúa `isLoading`, nunca `isError`. Si además falla `useProjects`, el breadcrumb muestra el literal "Proyecto" y nada avisa (`requirements/page.tsx:132-135`)
@@ -307,11 +308,11 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 
 **Validaciones:**
 - Ninguna en esta pantalla.
-- Los cambios de estado y prioridad no validan transiciones: un requisito puede pasar de `analisis` a `resuelto` directamente. Solo se descarta re-seleccionar el valor actual (`ListRequirementRow.tsx:130`).
+- Los cambios de estado y prioridad no validan transiciones: un requisito puede pasar de `analisis` a `resuelto` directamente. Solo se descarta re-seleccionar el valor actual (`ListRequirementRow.tsx:130`). **Desde REQ-012 eso ya no es una omisión de la pantalla sino el comportamiento declarado del producto**: las transiciones son libres en los dos canales, así que no hay nada que validar [REQ-012 RF-1, RF-3].
 
 **Feedback:**
 - Cambio de estado/prioridad exitoso → toast "Requisito actualizado correctamente" · `useUpdateRequirement.ts:19`
-- Fallido → toast "Error al actualizar el estado" o "Error al actualizar la prioridad" · `:26-32`. **Desde REQ-007 ese texto fijo cubre una causa nueva y evitable**: la transición de estado inválida que `core` rechaza con `invalid_state_transition` (CA-22) — ver el estado `error de validación`
+- Fallido → toast "Error al actualizar el estado" o "Error al actualizar la prioridad" · `:26-32`. **REQ-007 le había sumado una causa nueva y evitable** —la transición inválida rechazada con `invalid_state_transition` (CA-22)— y **REQ-012 se la quita**: ese rechazo deja de existir para requisitos (RF-1, RF-4). El texto fijo vuelve a cubrir solo fallas genéricas, más un caso puntual: resolver una `incidencia` sin tipo ni conclusión — ver el estado `error de validación`
 - **Sin update optimista:** el pill no cambia hasta que vuelve el refetch de las siete queries.
 
 ## Accesibilidad
@@ -352,3 +353,11 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - **Mobile queda sin marca, y es una consecuencia y no un olvido.** `card-requisito-mobile` no muestra autor, así que no hay dónde ponerla; el cliente en mobile lo descubre al abrir el requisito. Se descartó agregarle autor a la card para poder marcarlo: es la representación más reducida de las tres a propósito, y sumarle un dato para poder anotarlo invierte el orden de las razones.
 - **Consistencia con `detalle-requisito` y con `web`.** Mismo bloque, mismo microcopy `"Automático"`. El requisito es la misma entidad en las dos superficies y no puede tener dos vocabularios de autoría.
 - **No se agregó componente al Design System.** `badge` no tiene spec en `opus-web` v0.1.0 pero es un tipo que esta pantalla ya usa en `pill-estado` y `pill-prioridad`: el gap es previo al delta. Anotado en la `## Revisión UX` de REQ-005.
+
+### REQ-012 — Transiciones libres y resolución solo para incidencias (2026-09-01)
+
+- **No cambia ningún bloque, y cierra el gap que REQ-007 había abierto acá.** Es la contracara exacta de la entrada anterior: aquel REQ mudó la secuencia de estados a `core` y dejó a esta pantalla como el lugar más fácil del producto para provocar un rechazo; REQ-012 **da de baja la secuencia entera** (RF-1, RF-4), así que el rechazo deja de existir y el dropdown de siete estados sin orden pasa a ser correcto sin que nadie lo toque. **La superficie no estaba equivocada: estaba adelantada.**
+- **Se descartó recortar el dropdown, que era el arreglo que la entrada de REQ-007 dejó anotado.** Ya no hay transiciones inválidas que excluir. Se deja constancia explícita para que quien lea aquella nota no ejecute un arreglo que ahora rompería el comportamiento buscado.
+- **El toast genérico vuelve a ser deuda preexistente, no un gap con causa.** Sigue descartando el `message` del `ApiError`, pero ya no cubre una falla nombrable y evitable: vuelve a la categoría del resto del silencio de errores de esta pantalla, que es deuda relevada del código. La distinción que la entrada de REQ-007 se preocupó por mantener se resuelve sola.
+- **Queda una sola causa de rechazo alcanzable desde acá, y es menor.** Un rol interno puede llevar una `incidencia` a `resuelto` desde el dropdown sin tipo ni conclusión, y el servidor rechaza con `resolution_required` (RF-5, CA-14). El toast tampoco lo nombra. **No se diseña el mensaje:** REQ-012 declara `opus-web` sin cambios de UI, y el caso depende de la pregunta abierta 2 de la superficie —si un rol interno debería poder operar el estado desde el portal—, que es la misma raíz de siempre y sigue sin resolverse acá.
+- **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla, ni bloque alguno.

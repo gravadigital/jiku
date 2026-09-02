@@ -86,6 +86,19 @@ el gap bloqueante de navegación en mobile.
 > que existe. **tablero-requisitos** no cambia de bloques pero gana un motivo de rechazo nuevo —la
 > transición de estado inválida que `core` empieza a validar (CA-22)— que su toast fijo no nombra.
 > Ver [`screens/proyectos-redireccion.md`](screens/proyectos-redireccion.md).
+>
+> **Actualización — REQ-012 revierte ese motivo de rechazo.** La tabla de transiciones se da de baja
+> y `invalid_state_transition` deja de emitirse (RF-1, RF-4), así que el gap que esta nota registraba
+> en **tablero-requisitos** se cierra sin tocar la superficie: su dropdown de siete estados sin orden
+> pasa a ser el comportamiento correcto. El resto de la nota de REQ-007 sigue vigente.
+
+> **REQ-012 no agrega ni quita pantallas ni overlays, y no cambia ningún bloque de esta superficie.**
+> El portal es beneficiario del requerimiento sin participar de él: la libertad de transición rige
+> por igual en los dos canales (RF-3), y el único rechazo que su dropdown podía provocar
+> —`invalid_state_transition`— deja de existir. Queda alcanzable un solo caso, menor: resolver una
+> `incidencia` sin tipo ni conclusión, que el toast genérico tampoco nombra y que **no se diseña
+> acá**, por la misma razón de siempre —que un rol interno opere el estado desde el portal es la
+> pregunta abierta 2 de la superficie, sin resolver [REQ-012 RF-1, RF-3, RF-4, RF-5].
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de

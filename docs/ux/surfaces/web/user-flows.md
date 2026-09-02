@@ -118,10 +118,13 @@ lo ve en Opus sin que nadie se lo comunique.
      que la decisión de cuál abrir se toma con el esfuerzo ya invertido a la vista y sin salir del
      listado [REQ-010 RF-7].
 2. El **stepper de workflow** muestra dónde está: `analisis → planificacion → en_cola →
-   desarrollo → revision` [fuente: código-existente]
+   desarrollo → revision` [fuente: código-existente]. **Desde REQ-012 el stepper ubica pero no
+   restringe**: el recorrido que dibuja es el habitual, no el único posible (RF-1, RF-12)
 3. El usuario completa los campos del **acordeón** que corresponden al estado actual
    (`analisis`→alcance, `planificacion`→propuesta y criterios, `en_cola`→cierre estimado)
-4. Avanza el estado desde el stepper
+4. Avanza el estado — con el **botón de transición**, que guarda los campos y va al paso siguiente
+   en una sola acción, o con la **pill del header**, que desde REQ-012 lleva a cualquiera de los
+   siete estados sin pasar por los intermedios (RF-12, CA-6)
 5. El cambio se registra como **actividad pública** automáticamente y aparece en el feed
 
 En cualquier punto a partir del paso 1, la card **"Horas Trabajadas"** de la columna derecha
@@ -132,12 +135,34 @@ falla, el workflow se avanza igual, porque no es un paso del flujo sino contexto
 
 ### Caminos alternativos
 
-- **Es una incidencia** — El workflow **saltea `en_cola`**: de `planificacion` pasa directo a
-  `desarrollo`.
+- **Ir a cualquier estado, en cualquier orden** — Camino **nuevo desde REQ-012**, y el que cambia la
+  naturaleza del flujo: la secuencia dejó de ser una regla. Desde la **pill de estado** del header se
+  llega a cualquiera de los siete estados desde cualquier otro, hacia adelante o hacia atrás, sin
+  validación de secuencia ni en la pantalla ni en el servidor (RF-1, CA-1, CA-2, CA-6). El
+  **stepper sigue mostrando el recorrido de trabajo** —`analisis → planificacion → en_cola →
+  desarrollo → revision`— porque es cómo el equipo lee dónde está un requisito, pero ya no recorta a
+  dónde puede ir: **informa, no decide**. El botón de transición sigue siendo el atajo al paso
+  siguiente cuando ese paso es el que se quiere.
+- **Es una incidencia** — El recorrido habitual **saltea `en_cola`**: de `planificacion` pasa directo
+  a `desarrollo`. **Desde REQ-012 es una costumbre, no una restricción**: `"En cola"` vuelve a estar
+  entre las opciones de la pill para las incidencias, porque el servidor ya no distingue por tipo al
+  cambiar de estado (RF-1, RF-12).
+- **Reabrir un requisito cerrado** — Camino **nuevo desde REQ-012**. `resuelto` y `cancelado` dejan
+  de ser terminales: desde la card de resolución, el botón **"Reabrir"** devuelve el requisito a
+  `desarrollo` (RF-2, CA-3, CA-4). **Reabrir borra los datos de resolución** —tipo, conclusión y nota
+  para cliente— en la misma escritura que cambia el estado (RF-10, CA-12); cuando el requisito se
+  vuelva a resolver, el formulario **sugiere esos mismos valores** para que nadie tenga que
+  reescribirlos (RF-11, CA-13). La fecha de finalización **se conserva** hasta que haya una nueva
+  resolución, y `finishedAt` refleja siempre la última (RF-9, CA-11).
 - **Editar clasificación inline** — Estado, tipo y prioridad se cambian desde los
   **pills-dropdown** del header (overlay O-04), sin entrar a edición.
 - **Cerrar el requisito** — `resuelto` y `cancelado` **no están en el stepper**: viven en la card
-  de resolución. Para una incidencia, se exigen tipo y conclusión.
+  de resolución (y, desde REQ-012, también en la pill como cualquier otro estado). **Tipo y
+  conclusión se exigen solo si el requisito es de tipo `incidencia`** — para `funcionalidad`,
+  `mejora` y `otro` son siempre opcionales y el formulario no los pide (RF-5, RF-6, CA-7, CA-8).
+  Hasta REQ-012 el servidor los reclamaba para todos los tipos mientras la pantalla los ofrecía solo
+  para incidencias: resolver una `funcionalidad` desde acá **era imposible**, y ese callejón es lo
+  que el requerimiento cierra.
 - **Comentar** — El feed acepta comentarios con **visibilidad elegible** (interno / público) y
   adjuntos embebidos. Es el único punto donde el usuario decide la visibilidad.
 - **Adjuntar un archivo al comentario** — Se sube **de a uno por vez, con progreso real**, y el
@@ -169,16 +194,21 @@ falla, el workflow se avanza igual, porque no es un paso del flujo sino contexto
 ### Errores y recuperación
 
 - **Resolver una incidencia sin conclusión** — Falla con `resolution_required`. El usuario completa
-  y reintenta; nada quedó a medias.
-- **Salto de estado inválido** — **El stepper lo previene, y desde REQ-007 el servidor también.**
-  Hasta acá la regla vivía **solo en `web`** (NFR-S07) y cualquier otro cliente podía saltar a
-  cualquier estado; REQ-007 la muda a `core` como tabla de transiciones declarada (C-15), validada
-  donde ocurre la transición y no solo al resolver, y la rechaza con `invalid_state_transition`
-  → **400** (CA-22). La excepción sigue en pie: una `incidencia` puede saltear `en_cola` (CA-23).
-  **Para quien usa esta pantalla no cambia nada** —el stepper sigue impidiendo elegir mal—, y por
-  eso el caso se registra sin diseñar mensaje. **Donde sí se vuelve alcanzable es en el portal**,
-  cuyo dropdown ofrece los siete estados a un rol interno sin orden: ver
-  [`opus-web/screens/tablero-requisitos.md`](../opus-web/screens/tablero-requisitos.md).
+  y reintenta; nada quedó a medias. **Desde REQ-012 es el único error de regla de dominio que queda
+  en este flujo**, y solo alcanza a los requisitos de tipo `incidencia` (RF-5, CA-14). El tipo se lee
+  de la fila y no del payload, así que reclasificar el requisito en la misma operación no esquiva la
+  regla. Si la conclusión ya estaba almacenada, se acepta la almacenada (RF-7, CA-15).
+- **Salto de estado inválido** — **Deja de existir desde REQ-012.** REQ-007 había mudado la secuencia
+  a `core` como tabla de transiciones declarada (C-15) y la rechazaba con `invalid_state_transition`
+  → **400**; REQ-012 **la da de baja entera**, por decisión de producto y no por omisión: cualquier
+  estado es alcanzable desde cualquier otro, por las dos webs y por la api NATS por igual (RF-1,
+  RF-3, RF-4, CA-1..CA-5). El código `invalid_state_transition` **queda en el catálogo sin emisor
+  para requisitos** —igual que `invalid_attachment_id`— así que no hay que buscarlo: ya no lo produce
+  nadie. **Esto cierra el gap que REQ-007 abrió en el portal**, cuyo dropdown ofrecía los siete
+  estados sin orden y era el lugar donde el rechazo era fácil de provocar: desaparece sin que nadie
+  toque `opus-web` (ver [`opus-web/screens/tablero-requisitos.md`](../opus-web/screens/tablero-requisitos.md)).
+  La contrapartida aceptada es que **el salto ya no se previene, se audita**: cada cambio de estado
+  sigue registrándose como actividad en el feed (C-21).
 - **Adjunto de otra persona** — Falla con *"No podés adjuntar un archivo que subió otra persona"*
   (REQ-001 RF-12). No hay recuperación posible más que subirlo de nuevo, y es deliberado.
 - **Editar un comentario que ya no se puede editar** — Falla con *"No podés editar un comentario
@@ -207,7 +237,14 @@ nueva. **En Opus, el cliente ve el mismo cambio** — es actividad pública.
 ### Criterios de éxito
 
 - El usuario debería saber **qué falta completar** para avanzar, sin conocer el proceso de memoria
-- El paso a `resuelto` no debería poder ocurrir por accidente durante una edición
+- El paso a `resuelto` no debería poder ocurrir por accidente durante una edición. **Desde REQ-012
+  el criterio se cumple de otra manera:** no por prevención —la transición ya no se puede impedir,
+  es libre por decisión de producto— sino porque **es reversible**, con `"Reabrir"` en la card de
+  resolución (RF-2). El riesgo se corrió de lugar: lo que ahora conviene no hacer por accidente es
+  **reabrir**, que sí destruye los datos de resolución (RF-10)
+- Un requisito que no es una incidencia debería poder resolverse **sin inventar una conclusión**.
+  Se cumple desde REQ-012: hasta acá no se podía resolver en absoluto desde esta pantalla (RF-6,
+  CA-7, CA-8)
 - El usuario debería poder distinguir **qué escribió una persona y qué escribió un servicio** sin
   tener que reconocer nombres — **se cumple desde REQ-005** con la marca de autoría automática
 

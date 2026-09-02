@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.2"
+version: "1.3"
 date: 2026-09-01
 ---
 
@@ -46,18 +46,18 @@ date: 2026-09-01
 | 1 | encabezado-requisito | header | — | layout | desktop | todos los estados | Título, badges y acciones |
 | 2 | titulo-requisito | heading | h1 | content | desktop | todos los estados | Título del requisito |
 | 3 | codigo-requisito | badge | — | content | desktop | todos los estados | Identificador `#{id}` |
-| 4 | pill-estado | dropdown | closed / open · disabled | input | desktop | state_overrides: loading→disabled; estado terminal→disabled | Cambia el estado in-place |
+| 4 | pill-estado | dropdown | closed / open · disabled | input | desktop | state_overrides: loading→disabled | Cambia el estado in-place, a cualquiera de los siete [REQ-012 RF-12] |
 | 5 | pill-tipo | dropdown | closed / open · disabled | input | desktop | state_overrides: loading→disabled | Cambia el tipo in-place |
 | 6 | pill-prioridad | dropdown | closed / open · disabled | input | desktop | state_overrides: loading→disabled | Cambia la prioridad in-place |
 | 7 | boton-volver | link | — | navigation | desktop | todos los estados | Vuelve al listado |
 | 8 | boton-editar | link | — | navigation | desktop | todos los estados | Va a la edición |
 | 9 | card-contexto | card | — | content | desktop | todos los estados | Descripción en markdown |
 | 10 | card-estado | card | — | content | desktop | todos los estados | Workflow del requisito |
-| 11 | stepper-workflow | progress-bar | 5 pasos · current / done / skipped | content | desktop | todos los estados | Avance por los pasos del flujo |
+| 11 | stepper-workflow | progress-bar | 5 pasos · current / done / skipped | content | desktop | todos los estados | Ubica el requisito en el recorrido de trabajo; ya no restringe a dónde puede ir [REQ-012 RF-12] |
 | 12 | paso-workflow | badge | current / done / pendiente / skipped | content | desktop | todos los estados | Un nodo del stepper |
 | 13 | acordeon-campo | section | abierto / cerrado · met / missing | input | desktop | todos los estados | Campo del paso, editable |
 | 14 | boton-guardar-campos | button | primary · small | input | desktop | state_overrides: loading→disabled | Persiste los campos cambiados |
-| 15 | boton-transicion | button | primary | input | desktop | state_overrides: loading→disabled; estado terminal→ausente | Guarda y avanza de paso |
+| 15 | boton-transicion | button | primary | input | desktop | state_overrides: loading→disabled | Guarda y mueve al siguiente paso sugerido; presente también en estado terminal [REQ-012 RF-2, RF-12] |
 | 16 | seccion-tareas | section | — | content | desktop | todos los estados | Tareas vinculadas |
 | 17 | tabs-estado-tarea | tabs | 5 estados | navigation | desktop | todos los estados | Filtra la tabla por estado |
 | 18 | tabla-tareas | table | — | content | desktop | todos los estados | Lista de tareas del estado activo |
@@ -73,12 +73,13 @@ date: 2026-09-01
 | 28 | card-etiquetas | card | — | content | desktop | todos los estados | Etiquetas del requisito |
 | 29 | chip-etiqueta | badge | — | content | desktop | todos los estados | Una etiqueta, con botón de borrar |
 | 30 | card-resolucion | card | abierto / resuelto / cancelado | content | desktop | todos los estados | Cierre del requisito |
-| 31 | campo-tipo-resolucion | dropdown | closed · disabled | input | desktop | visible_only_in_states: requisito de tipo incidencia; state_overrides: estado terminal→disabled | Tipo de resolución |
-| 32 | campo-conclusion | text-input | default · disabled | input | desktop | visible_only_in_states: requisito de tipo incidencia; state_overrides: estado terminal→disabled | Conclusión interna |
+| 31 | campo-tipo-resolucion | dropdown | closed · disabled | input | desktop | visible_only_in_states: requisito de tipo incidencia; state_overrides: estado terminal→disabled | Tipo de resolución — **obligatorio solo para `incidencia`** [REQ-012 RF-5, RF-6] |
+| 32 | campo-conclusion | text-input | default · disabled | input | desktop | visible_only_in_states: requisito de tipo incidencia; state_overrides: estado terminal→disabled | Conclusión interna — obligatoria solo para `incidencia` [REQ-012 RF-5, RF-6] |
 | 33 | campo-nota-cliente | text-input | default · disabled | input | desktop | visible_only_in_states: requisito de tipo incidencia; state_overrides: estado terminal→disabled | Nota para cliente |
 | 34 | boton-cancelar-requisito | button | error | input | desktop | hidden_in_states: estado terminal / readonly | Cancela el requisito |
 | 35 | boton-resolver-requisito | button | primary | input | desktop | hidden_in_states: estado terminal / readonly | Resuelve el requisito |
 | 36 | badge-resultado | badge | cancelado | content | desktop | visible_only_in_states: estado terminal / readonly | Muestra el resultado final |
+| 49 | boton-reabrir-requisito | button | secondary | input | desktop | visible_only_in_states: estado terminal / readonly | Saca al requisito de `resuelto` o `cancelado` y lo devuelve al trabajo [REQ-012 RF-2, CA-3, CA-4] |
 | 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 38 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
 | 39 | card-horas-trabajadas | card | — | content | desktop | todos los estados | Total de horas imputadas al requisito y su desglose por persona |
@@ -95,6 +96,8 @@ date: 2026-09-01
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
 `card-estado`, `seccion-tareas`, `acordeon-campo`, `formulario-comentario` y `card-resolucion` se relevaron como `card` / `section`: son compuestos sin tipo propio en el diccionario. `stepper-workflow` se relevó como `progress-bar` por ser lo más cercano del diccionario: no es una barra, son 5 nodos con conectores y un símbolo por nodo (`✓`, `×` o el número). El chrome es compartido; los pills-dropdown están documentados aparte [fuente: código-existente].
+
+**REQ-012** suma un solo bloque (49) y **no introduce ningún tipo nuevo**: `boton-reabrir-requisito` es un `button`, como los otros doce de la pantalla. El resto del delta de REQ-012 no agrega bloques —cambia la **visibilidad** y el **contenido** de bloques que ya existen: `pill-estado` deja de deshabilitarse en estado terminal, `boton-transicion` deja de desaparecer en él, y los tres campos de resolución dejan de ser obligatorios salvo para `incidencia`. **La condición de visibilidad de los campos de resolución no cambia**: siguen mostrándose solo para `incidencia`, que es lo que `web` ya hacía y lo que el REQ viene a confirmar del lado del servidor, no a revertir.
 
 **REQ-011** suma cinco bloques al feed (44-48). Ninguno introduce un tipo nuevo: `boton-editar-comentario`, `boton-cancelar-edicion` y `boton-guardar-edicion` son `button`; `editor-comentario-edicion` es el mismo `text-input` que ya usa `editor-comentario` —el editor se reutiliza, no se duplica—; y `marca-comentario-editado` es un `badge`, como `codigo-requisito` y `marca-identidad-automatica`. **`toggle-visibilidad` no aparece en la lista**: el modo edición no lo ofrece, porque la visibilidad de un comentario es inmutable desde su creación (REQ-011 RF-8, CA-8).
 
@@ -115,7 +118,7 @@ date: 2026-09-01
   - col ~5/12 (420px fijos): columna derecha
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-etiquetas (chip-etiqueta × N)
-    - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado)
+    - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado, boton-reabrir-requisito *(solo en estado terminal, en la misma fila que badge-resultado)*) [REQ-012]
     - card-horas-trabajadas (total-horas-trabajadas, desglose-horas-persona, vacio-horas-trabajadas *(sin horas)*, cargando-horas-trabajadas *(mientras carga)*) [REQ-010 RF-8]
 
 **Origen:** `RequirementDetail.module.scss:3-7` — `.container { display: grid; grid-template-columns: 1fr 420px; gap: 1.25rem; align-items: start; }`.
@@ -150,7 +153,7 @@ date: 2026-09-01
 - Texto/label: el estado actual · opciones `"Análisis"` · `"Planificación"` · `"En cola"` · `"Desarrollo"` · `"Revisión"` · `"Resuelto"` · `"Cancelado"`
 - Icono: nada
 - Asset: nada
-- Annotation: **el update es optimista** (`useUpdateRequirement.ts:36-43`), así que el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error. **Regla de negocio:** para `type: 'incidencia'`, `"En cola"` se saca de las opciones salvo que el requisito ya esté ahí (`RequirementHeader.tsx:161-166`, `:175-184`, `:23-30`) [fuente: código-existente]
+- Annotation: **el update es optimista** (`useUpdateRequirement.ts:36-43`), así que el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error. **Desde REQ-012 la lista es siempre la misma: los siete estados, sin recorte y sin excepción por tipo.** El descarte de `"En cola"` para `type: 'incidencia'` (`RequirementHeader.tsx:161-166`, `:23-30`) **se elimina**: era el reflejo en la UI de la secuencia que `core` dejó de validar, y sostenerlo dejaría a la pantalla impidiendo algo que el servidor ya acepta. La pill tampoco se deshabilita en `resuelto` ni en `cancelado`: son estados de los que ahora se sale [REQ-012 RF-1, RF-2, RF-12, CA-6]
 
 ### pill-tipo
 - Texto/label: el tipo actual · opciones `"Sin tipo"` · `"Funcionalidad"` · `"Mejora"` · `"Incidencia"` · `"Otro"`
@@ -192,7 +195,7 @@ date: 2026-09-01
 - Texto/label: sin texto propio — contiene los 5 nodos
 - Icono: nada
 - Asset: nada
-- Annotation: `RequirementStatusCard.tsx:353-355`. **Flujo de trabajo** (`NEXT_WORK_STEP`, `:44-49`): `analisis → planificacion → en_cola → desarrollo → revision`. Para incidencias (`NEXT_WORK_STEP_INCIDENCIA`, `:55-58`): `analisis → planificacion → desarrollo → revision`, salteando `en_cola` [fuente: código-existente]
+- Annotation: `RequirementStatusCard.tsx:353-355`. **Flujo de trabajo** (`NEXT_WORK_STEP`, `:44-49`): `analisis → planificacion → en_cola → desarrollo → revision`. Para incidencias (`NEXT_WORK_STEP_INCIDENCIA`, `:55-58`): `analisis → planificacion → desarrollo → revision`, salteando `en_cola` [fuente: código-existente]. **Desde REQ-012 esa secuencia describe el recorrido habitual, no lo permitido**: el stepper sigue mostrando los cinco pasos de trabajo en su orden —es cómo el equipo lee dónde está un requisito— pero ya **no recorta a dónde se puede ir**. Cualquier estado se alcanza desde la pill; el stepper informa, la pill decide [REQ-012 RF-1, RF-12]
 
 ### paso-workflow
 - Texto/label: pasos `"Análisis"` · `"Planificación"` · `"En cola"` · `"Desarrollo"` · `"Revisión"`, cada uno con su descripción verbatim:
@@ -226,7 +229,7 @@ date: 2026-09-01
 - Texto/label: `` `${getTransitionLabel(...)} →` `` — p.ej. `"Desarrollo →"`
 - Icono: flecha (dentro del texto)
 - Asset: nada
-- Annotation: con siguiente paso disponible convive con `"Guardar"` y hace las dos cosas en una acción. En `Revisión`, `Resuelto` y `Cancelado` no hay destino, así que `"Guardar"` queda solo (`RequirementStatusCard.tsx:390`, `:290-294`) [fuente: código-existente]
+- Annotation: con siguiente paso disponible convive con `"Guardar"` y hace las dos cosas en una acción (`RequirementStatusCard.tsx:390`, `:290-294`) [fuente: código-existente]. **Desde REQ-012 el botón es un atajo al paso siguiente, no la única salida.** En `Revisión` sigue sin haber paso siguiente dentro del recorrido de trabajo, así que `"Guardar"` queda solo; en `Resuelto` y `Cancelado` el destino es **volver al trabajo**, y esa acción vive en `boton-reabrir-requisito`, no acá. Que el botón no aparezca en un estado ya **no significa que no haya transición posible**: significa que no hay una *sugerida*, y la pill las ofrece todas [REQ-012 RF-2, RF-12]
 
 ### seccion-tareas
 - Texto/label: título `"Tareas"`; botón de alta sin texto con `aria-label="Nueva tarea"`
@@ -362,13 +365,13 @@ date: 2026-09-01
 - Texto/label: `"Tipo de resolución"` · opción vacía `"Seleccioná una opción"`
 - Icono: nada
 - Asset: nada
-- Annotation: `<select id="resolution-type">` nativo, solo para `type: 'incidencia'` (`RequirementResolutionCard.tsx:102-104`, `:112`, `:58`, `:101-119`)
+- Annotation: `<select id="resolution-type">` nativo, solo para `type: 'incidencia'` (`RequirementResolutionCard.tsx:102-104`, `:112`, `:58`, `:101-119`). **Desde REQ-012 el servidor exige este campo solo para `incidencia`**, que es exactamente lo que esta pantalla ya hacía: el cambio **confirma** el comportamiento actual en vez de modificarlo, y cierra el callejón sin salida en que resolver una `funcionalidad` desde acá terminaba en `400 resolution_required` sin que la UI hubiera ofrecido nunca el campo [REQ-012 RF-5, RF-6, CA-8]. **Al reresolver un requisito que ya tuvo resolución previa, el campo llega precargado con el valor anterior**, editable antes de guardar [REQ-012 RF-11, CA-13]
 
 ### campo-conclusion
 - Texto/label: `"Conclusión interna"` · placeholder `"Describí la conclusión interna de esta incidencia..."`
 - Icono: nada
 - Asset: nada
-- Annotation: `<textarea id="resolution-conclusion">`, solo para incidencias (`RequirementResolutionCard.tsx:127`, `:120-131`)
+- Annotation: `<textarea id="resolution-conclusion">`, solo para incidencias (`RequirementResolutionCard.tsx:127`, `:120-131`). **Precargado con la conclusión de la resolución anterior al reresolver**, editable antes de guardar [REQ-012 RF-11, CA-13]
 
 ### campo-nota-cliente
 - Texto/label: `"Nota para cliente"` · placeholder `"Describí la resolución de esta incidencia..."`
@@ -430,6 +433,12 @@ date: 2026-09-01
 - Icono: nada
 - Asset: imagen del componente `<Loader>`
 - Annotation: ocupa el cuerpo de la card mientras la consulta está en vuelo. Es el único loader de la pantalla que no depende de una mutación: la card se carga sola, después del primer render del detalle [REQ-010 Escenario B]
+
+### boton-reabrir-requisito
+- Texto/label: `"Reabrir"`
+- Icono: nada
+- Asset: nada
+- Annotation: aparece **solo** en `resuelto` y `cancelado`, al lado de badge-resultado, y devuelve el requisito a `desarrollo`. Es el par simétrico de boton-resolver-requisito y boton-cancelar-requisito: los tres son transiciones de la card de resolución, y desde REQ-012 las tres son reversibles. **`"Reabrir"` y no `"Volver a abrir"` ni `"Retomar"`**: es la palabra que el equipo ya usa para esto y la que no se confunde con `"Cancelar"`, que en esta card cancela el requisito y no la acción. **Al confirmarse limpia los tres campos de resolución** —tipo, conclusión y nota para cliente—, así que el aviso de esa pérdida es parte de la acción y no de un estado posterior [REQ-012 RF-2, RF-10, CA-3, CA-4, CA-12]
 
 ## Estados
 
@@ -534,6 +543,8 @@ date: 2026-09-01
   - **Resuelto** (`state === 'resuelto'`): card-resolucion muestra `"Fecha de finalización"` en vez de los botones; campo-tipo-resolucion, campo-conclusion y campo-nota-cliente quedan `disabled` (`isClosed`); boton-cancelar-requisito y boton-resolver-requisito ocultos (hidden_in_states) (`RequirementResolutionCard.tsx:55`, `:150-153`)
   - **Cancelado** (`state === 'cancelado'`): badge-resultado `"Cancelado"` en vez de los botones; campos deshabilitados; el stepper marca los pasos no recorridos con `"×"` (`RequirementResolutionCard.tsx:56`, `:154-158`)
   [fuente: código-existente]
+- **Desde REQ-012 el estado terminal deja de ser terminal.** Sigue siendo un estado *de cierre* —la card muestra la fecha de finalización o el badge del resultado, y los tres campos de resolución quedan `disabled` mientras el requisito está cerrado— pero ya no es una salida sin retorno: `boton-reabrir-requisito` aparece junto a badge-resultado y `pill-estado` deja de deshabilitarse, así que el requisito puede volver al trabajo desde cualquiera de los dos [REQ-012 RF-2, CA-3, CA-4].
+- **Al reabrir, los datos de resolución se pierden**: tipo, conclusión y nota para cliente vuelven a vacío al guardar. El usuario ve la card volver a su forma editable y **sin** lo que había cargado. Cuando vuelva a resolver, el formulario **sugiere esos mismos valores** para que no tenga que reescribirlos [REQ-012 RF-10, RF-11, CA-12, CA-13].
 - **El readonly no alcanza al resto de la pantalla:** las pills de estado, tipo y prioridad, el acordeón y las acciones de tarea siguen disponibles.
 
 ### estados del stepper (parent_state: default)
@@ -555,6 +566,7 @@ date: 2026-09-01
 
 ### confirmación al resolver, cancelar o borrar etiqueta
 - Aplica: No — no implementado (ver gaps-as-is.md). `"Resolver"` y `"Cancelar"` disparan la transición terminal **directo, sin `ConfirmDialog`**, siendo las dos acciones menos reversibles de la pantalla (`RequirementResolutionCard.tsx:81`, `:85`). El chip de etiqueta se borra al click, también sin confirmar (`RequirementDetail.tsx:380-388`) [fuente: código-existente].
+- **REQ-012 cambia el argumento sin cerrar el gap.** Resolver y cancelar **dejan de ser las acciones menos reversibles**: ahora se deshacen con `"Reabrir"`. A cambio, `"Reabrir"` estrena la pérdida de datos que ninguna de las dos tenía —limpia tipo, conclusión y nota para cliente (RF-10)— y es la acción de la pantalla que más pide una confirmación. **No se diseña acá:** el requerimiento no lo pide y la pantalla no tiene `ConfirmDialog` para ninguna de sus tres transiciones, así que sumarlo a una sola dejaría la card confirmando lo reversible y no lo destructivo. Queda anotado como el gap que ahora **más conviene cerrar** de los tres, y con el mismo alcance: las tres acciones de la card, juntas.
 
 ## Interacciones
 
@@ -576,6 +588,8 @@ date: 2026-09-01
 - boton-guardar-edicion · on submit → manda el texto y el **conjunto completo** de `fileIds` que debe quedar; al volver `success` se invalida el detalle y el feed se refresca [REQ-011 Escenario A pasos 1 y 7]
 - boton-resolver-requisito · on click → `onUpdate({ state: 'resuelto' })` · `RequirementResolutionCard.tsx:81`
 - boton-cancelar-requisito · on click → `onUpdate({ state: 'cancelado' })` · `RequirementResolutionCard.tsx:85`
+- boton-reabrir-requisito · on click → `onUpdate({ state: 'desarrollo' })`; el servidor limpia los tres campos de resolución en la misma escritura, así que la card vuelve a su forma editable y vacía sin un paso intermedio [REQ-012 RF-2, RF-10, Escenario 2]
+- pill-estado · seleccionar un estado **cualquiera**, incluidos `resuelto` y `cancelado` y incluidos los que están hacia atrás → misma mutación de siempre, sin validación de secuencia en el cliente. **Si el destino es `resuelto` y el requisito es de tipo `incidencia` sin tipo ni conclusión cargados, el servidor rechaza** con `resolution_required`: es la única transición que puede fallar por regla de dominio [REQ-012 RF-1, RF-5, CA-14]
 - card-horas-trabajadas · **sin eventos de usuario**: es una card de lectura. Ni el total ni las filas del desglose son clickeables — no llevan a un reporte, a la persona ni a las horas de una tarea [REQ-010 RF-8]
 
 [fuente: código-existente]
@@ -584,7 +598,9 @@ date: 2026-09-01
 - editor-comentario · no vacío tras `trim()` → boton-enviar-comentario queda `disabled`, sin mensaje · `RequirementActivityForm.tsx:24`, `:131`
 - editor-comentario-edicion · no vacío tras `trim()` → boton-guardar-edicion queda `disabled`, sin mensaje [REQ-011]
 - **Quién puede editar no es una validación de esta pantalla, es una condición de visibilidad.** El botón aparece solo para el autor o para un `admin`; la regla se vuelve a verificar del lado del servidor y el rechazo llega como toast, no como validación de formulario (CA-10, CA-15) [REQ-011 D-1]
-- **Ninguna otra.** No hay reglas sobre los campos del workflow ni sobre los de resolución [fuente: código-existente].
+- **Ninguna otra en el cliente.** No hay reglas sobre los campos del workflow ni sobre los de resolución [fuente: código-existente].
+- **La única regla de dominio que sobrevive a REQ-012 vive en el servidor y no se replica acá**: resolver una `incidencia` exige tipo y conclusión (`resolution_required` → 400). La pantalla no la valida antes de enviar —sigue sin haber validación de formulario en esta card— así que el rechazo llega como toast. **Se mantiene deliberadamente así**: es el mismo comportamiento de hoy y el único caso de error que el requerimiento conserva [REQ-012 RF-5, CA-14].
+- **Desde REQ-012 la pantalla ya no previene ninguna transición.** La secuencia dejó de ser regla, así que no hay nada que validar: cualquier estado es un destino legítimo [REQ-012 RF-1, RF-4].
 
 **Feedback:**
 - Update optimista: el valor de la pill cambia de inmediato
@@ -596,7 +612,7 @@ date: 2026-09-01
 
 ## Accesibilidad
 
-- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → **boton-editar-comentario de cada comentario editable, en el orden del feed** → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito. **`card-horas-trabajadas` no agrega paradas al orden de foco**: es de solo lectura y no tiene controles [REQ-010 RF-8]. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
+- **Orden de foco:** pill-estado → pill-tipo → pill-prioridad → boton-volver → boton-editar → acordeon-campo × 4 (encabezado y editor) → boton-guardar-campos → boton-transicion → tabs-estado-tarea → filas de tabla-tareas (**no enfocables**, ver abajo) → paginacion-tareas → **boton-editar-comentario de cada comentario editable, en el orden del feed** → editor-comentario → boton-adjuntar → toggle-visibilidad → boton-enviar-comentario → botón de borrar de cada chip-etiqueta → campo-tipo-resolucion → campo-conclusion → campo-nota-cliente → boton-cancelar-requisito → boton-resolver-requisito → **boton-reabrir-requisito** *(en su lugar cuando el requisito está cerrado: los dos anteriores no están, así que la card aporta una sola parada en vez de dos)* [REQ-012]. **`card-horas-trabajadas` no agrega paradas al orden de foco**: es de solo lectura y no tiene controles [REQ-010 RF-8]. **Las filas de tabla-tareas son `<tr onClick>` sin `role`, sin `tabIndex` y sin handler de teclado**, así que quedan fuera del orden de foco pese a ser la vía a cada tarea (`RequirementDetail.tsx:~206`) [fuente: código-existente].
 - **Landmarks y jerarquía:** hay un solo `<h1>` (titulo-requisito). **Los títulos de card no son encabezados:** son `<div className={styles.cardTitle}>` / `<span className={styles.cardTitle}>`, así que en una pantalla con 8 secciones la jerarquía tiene un solo nivel y **no se puede navegar por secciones** (`RequirementHeader.tsx:~171` vs `RequirementDetail.tsx:133`, `:149`, `:290`, `:302`, `:371`) [fuente: código-existente].
 - **Foco y teclado:** los overlays de esta pantalla son los tres `PillDropdown` del encabezado. Tienen el juego completo de ARIA (`aria-haspopup="listbox"`, `aria-expanded`, `role="listbox"`, `role="option"`, `aria-selected`, `aria-disabled`) y **cierran por click afuera**, pero **no cierran con `Escape` y no soportan navegación por flechas** pese al `role="listbox"` (`RequirementHeader.tsx:99-145`, `:88-93`). Los acordeones **tampoco cierran con `Escape`** (`RequirementStatusCard.tsx:116`) [fuente: código-existente].
 - **Propio de esta composición:**
@@ -666,3 +682,15 @@ date: 2026-09-01
 - **Editar no genera una entrada nueva en el feed.** El comentario cambia en su lugar. **Descartado** registrar la edición como actividad: duplicaría cada corrección de tipeo en un feed que ya es largo, y la marca "(editado)" ya deja la traza donde importa. También significa que la edición **no notifica** —regla declarada para cuando exista canal (RF-10, CA-9).
 - **Nada de esto llega al portal.** El cliente no ve la marca de edición ni puede editar, sin importar si el comentario es público y sin importar si lo escribió él (RF-6, RF-7, CA-5, CA-6). El dato de edición **no viaja** en la lectura del portal, así que la omisión no depende de un condicional de interfaz que alguien pueda olvidar [REQ-011 D-3, D-5].
 - **[Auto] Design System — sin componentes nuevos.** Los cinco bloques usan tipos que la pantalla ya tiene: `button` × 3 (cubierto además por el spec `Button` del catálogo), `text-input` —el mismo `editor-comentario` reutilizado— y `badge`, como `codigo-requisito`, `chip-etiqueta` y `marca-identidad-automatica`. Ningún tipo de bloque nuevo entra en la pantalla. `text-input` y `badge` no tienen spec en el catálogo (v0.1.0: Button, Loader, InputSelect), pero es la misma carencia preexistente y transversal que ya arrastran los bloques actuales de esta pantalla, no un gap que este requerimiento abra. Reponer el catálogo corresponde a `/product-design-system-update`.
+
+### REQ-012 — Transiciones libres y resolución solo para incidencias (2026-09-01)
+
+- **El stepper deja de ser una regla y pasa a ser un mapa, y esa es la decisión de fondo.** Hasta acá los cinco nodos hacían dos trabajos a la vez: mostraban dónde está el requisito y **decidían a dónde podía ir**. REQ-012 le saca el segundo (RF-1, RF-12), y la tentación era sacar el stepper entero: si ya no restringe, ¿para qué está? Se descartó porque el trabajo que queda es el que más se usa —de un vistazo, en qué punto del recorrido está esto— y porque los campos del acordeón siguen colgando de cada paso. **El stepper informa, la pill decide.** Es un reparto explícito, y sin él la pantalla tendría dos controles de estado compitiendo.
+- **`"En cola"` vuelve a la lista de la pill para las incidencias.** Era el último resto de la secuencia dentro de la UI: la pill escondía esa opción para `type: 'incidencia'` porque el flujo la salteaba. Sostenerlo dejaría a la pantalla impidiendo lo único que el servidor ya acepta sin condiciones, que es exactamente la clase de desajuste que este requerimiento viene a cerrar (RF-1, RF-12, CA-6).
+- **Reabrir es un botón propio y no solo un cambio de pill.** Con transiciones libres, sacar un requisito de `resuelto` ya era posible desde `pill-estado`, así que el botón es estrictamente redundante. Se agregó igual porque la reapertura es **la capacidad nueva** del requerimiento (RF-2, CA-3, CA-4) y esconderla dentro de un dropdown de siete opciones la haría indistinguible de un cambio de estado cualquiera. Va en la card de resolución, no en el header: es donde el requisito se cerró, y es donde está el dato que la reapertura borra.
+- **`"Reabrir"` devuelve a `desarrollo` y no al estado anterior.** Volver al estado previo suena más fiel pero es peor: nadie recuerda desde dónde se cerró un requisito, y reabrir uno cancelado en `analisis` para retomar el trabajo obligaría a un segundo cambio de estado inmediato. `desarrollo` es lo que se quiere hacer al reabrir. **Descartado** también ofrecer un selector de destino en el botón: duplicaría la pill, que ya está ahí para eso.
+- **La pérdida de los datos de resolución se avisa en la acción, no después.** Reabrir limpia tipo, conclusión y nota para cliente (RF-10), y es lo único destructivo que el requerimiento agrega. Queda declarado en el bloque y en el estado terminal para que la implementación no lo descubra al final. **La confirmación previa no se diseña acá** —ver el estado `confirmación al resolver, cancelar o borrar etiqueta`—: la card no confirma ninguna de sus otras dos transiciones, y confirmar una sola dejaría el gap peor repartido de lo que está.
+- **Sugerir la resolución anterior, no conservarla.** Al reresolver, los campos llegan precargados con lo que había (RF-11, CA-13). Es la respuesta a que la limpieza de RF-10 destruye texto que alguien escribió: se borra del dato, pero se le devuelve al usuario como sugerencia editable. **Descartado** no limpiar y dejar los valores viejos vivos en la fila: un requisito reabierto llevaría la conclusión de un cierre que ya no vale, y el cliente la vería en el portal.
+- **Se descartó rediseñar el error de la incidencia sin conclusión.** Es el único caso de error que el requerimiento conserva (CA-14) y hoy llega como toast del servidor, sin validación previa en la card. Ponerle validación de formulario ahora sería alcance inventado: la card no valida nada más, y el caso no cambió — cambió todo lo que lo rodeaba.
+- **Lo que esta pantalla gana no es libertad, es coherencia.** El callejón sin salida que el requerimiento cierra —resolver una `funcionalidad` desde acá terminaba en `400` porque la UI nunca ofrecía los campos que el servidor exigía— se arregla **sin tocar esta pantalla en ese punto**: `web` ya mostraba los campos solo para `incidencia`, y es `core` el que vuelve a esa regla (RF-5, RF-6, CA-8). Queda registrado porque es la clase de arreglo que, no documentado, alguien "corrige" en el lugar equivocado.
+- **[Auto] Design System — sin componentes nuevos.** El delta agrega **un solo bloque**, `boton-reabrir-requisito`, y es un `button`: el tipo mejor cubierto de la pantalla, con spec propio (`Button`) en el catálogo de `web` v0.1.0. Todo el resto del delta cambia visibilidad, contenido y estados de bloques que ya existen —`pill-estado`, `stepper-workflow`, `boton-transicion`, los tres campos de resolución— sin introducir ningún tipo nuevo. **Sin gaps**, y sin la carencia transversal que arrastraban los deltas anteriores: acá el único tipo que entra está especificado.

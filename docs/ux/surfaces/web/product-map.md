@@ -38,7 +38,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
-| 13 | detalle-requisito | Ver un requisito, avanzar su workflow, comentar y editar los comentarios propios, resolver y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011 |
+| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
@@ -105,6 +105,22 @@ del grupo `(loggedin)` [fuente: código-existente].
 > lectura del portal, así que la ausencia no depende de un condicional de interfaz
 > [REQ-011 RF-1..RF-8].
 
+> **REQ-012 no agrega ni quita pantallas, y toca una: `detalle-requisito`.** Lo que cambia no es la
+> superficie sino **una regla que la atravesaba**: la secuencia de estados deja de existir. La pill
+> de estado (O-04) ofrece los siete estados desde cualquier otro —hacia adelante y hacia atrás— y
+> deja de deshabilitarse en `resuelto` y `cancelado`, que **dejan de ser terminales**; el
+> **stepper conserva sus cinco pasos pero pasa a informar en vez de restringir**, y esa distinción
+> es toda la decisión de diseño del requerimiento. La pantalla gana **un solo bloque**, el botón
+> **"Reabrir"** en la card de resolución, que devuelve un requisito cerrado a `desarrollo` y
+> **borra los datos de resolución** al hacerlo; al volver a resolver, el formulario los sugiere para
+> que nadie los reescriba. La otra mitad del requerimiento **no cambia esta pantalla en absoluto**:
+> tipo y conclusión vuelven a exigirse solo para `incidencia`, que es lo que `web` ya hacía —el
+> arreglo ocurre en `core`, y cierra el callejón en que resolver una `funcionalidad` desde acá
+> terminaba en un rechazo por campos que la interfaz nunca ofrecía. **`opus-web` no se modifica y
+> gana igual:** el rechazo `invalid_state_transition` que REQ-007 había hecho fácil de provocar
+> desde su dropdown **desaparece del producto**, así que el gap registrado en `tablero-requisitos`
+> se cierra sin tocar una línea de esa superficie [REQ-012 RF-1..RF-6, RF-10..RF-12].
+
 > **REQ-009 no agrega ni quita pantallas, y toca una.** El filtro de estado de
 > `listado-requisitos` pasa de selección única a **selección múltiple**, replicando el mecanismo que
 > `listado-tareas` ya usa: la selección viaja en la URL como lista separada por comas, el default al
@@ -148,7 +164,7 @@ Ninguno es ruta. **Origen:** `docs/analysis/ux/web/screens/_overlays.md` [fuente
 | O-01 | Vista previa de adjunto | modal (`role="dialog"`, `aria-modal`) | detalle-proyecto · botón "Preview" de un adjunto | Ver imagen o PDF sin salir de la pantalla. **REQ-001:** suma el caso "el archivo no está disponible" (RF-21, CA-15) |
 | O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) | Confirmar una acción destructiva |
 | O-03 | Dropdown de estado de tarea | dropdown | listado-tareas · tag de estado; cards de tarea | Cambiar estado inline sin abrir el detalle |
-| O-04 | Pills-dropdown de estado/tipo/prioridad | dropdown (`role="listbox"`) | detalle-requisito · header | Editar los tres campos de clasificación inline |
+| O-04 | Pills-dropdown de estado/tipo/prioridad | dropdown (`role="listbox"`) | detalle-requisito · header | Editar los tres campos de clasificación inline. **REQ-012:** el de estado ofrece los siete estados siempre —sin recorte por secuencia y sin la excepción que escondía `"En cola"` para las incidencias— y deja de deshabilitarse en `resuelto` y `cancelado` (RF-1, RF-12) |
 | O-05 | Dropdown de tipo de proyecto | dropdown (checkboxes) | reporte-horas | Filtrar el reporte por tipo de proyecto |
 | O-06 | Date-picker de fecha de cierre | dropdown (por portal) | tareas-por-proyecto, tareas-por-responsable · etiqueta de fecha | Editar la fecha estimada desde la card |
 | O-07 | Menú de `react-select` | dropdown | 6 pantallas con selects de búsqueda | Selección con búsqueda y agrupación |
