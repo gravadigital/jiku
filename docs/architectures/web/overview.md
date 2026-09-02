@@ -269,9 +269,9 @@ Estas reglas están implementadas en `web`. **No son autoritativas** — hay que
 
 | Regla | Dónde |
 |---|---|
-| Flujo de requisito `analisis → planificacion → en_cola → desarrollo → revision` | `RequirementStatusCard.tsx:44-49` |
-| Los requisitos de tipo `incidencia` saltean `en_cola` | `RequirementStatusCard.tsx:55-58`, `RequirementHeader.tsx:164-166` |
-| El cierre a `resuelto`/`cancelado` no está en el stepper; vive en la card de resolución | `RequirementStatusCard.tsx:43`, `RequirementResolutionCard.tsx:81-85` |
+| Recorrido habitual de trabajo `analisis → planificacion → en_cola → desarrollo → revision` — desde REQ-012 es una sugerencia del stepper y del botón de transición, no una restricción: la pill de estado permite ir a cualquiera de los siete estados, en cualquier orden | `RequirementStatusCard.tsx:44-51` |
+| Para incidencias, el atajo de transición saltea `en_cola` por costumbre del recorrido — no es una restricción: la pill sigue ofreciendo `en_cola` para cualquier tipo | `RequirementStatusCard.tsx:60-67` |
+| El cierre a `resuelto`/`cancelado` se sugiere desde la card de estado (botón de transición) y se confirma desde la card de resolución; desde REQ-012 ambos estados dejaron de ser terminales y se reabren con `"Reabrir"` | `RequirementStatusCard.tsx:44-67`, `RequirementResolutionCard.tsx:115-121` |
 | Los campos de resolución solo se piden para incidencias | `RequirementResolutionCard.tsx:58` |
 | Solo `admin` edita la grilla de asignación semanal | `WeeklyAllocationTable.tsx:79` |
 | La precarga de la semana anterior solo ocurre para `admin` y con la semana vacía | `WeeklyAllocationTable.tsx:176`, `:203-205` |

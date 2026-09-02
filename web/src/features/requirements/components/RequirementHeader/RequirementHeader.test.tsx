@@ -250,18 +250,24 @@ describe('RequirementHeader', () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it('TS-8: para type=incidencia, la Pill Estado NO ofrece "En cola" entre las opciones', () => {
+  it('TS-1/TS-3: para type=incidencia, la Pill Estado ofrece "En cola" entre las 7 opciones y seleccionarla dispara onUpdate', () => {
+    const onUpdate = vi.fn();
     render(
       <RequirementHeader
-        requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
-        onUpdate={vi.fn()}
+        requirement={{ ...baseRequirement, type: 'incidencia', state: 'planificacion' }}
+        onUpdate={onUpdate}
       />
     );
 
-    fireEvent.click(screen.getByText('Desarrollo'));
+    fireEvent.click(screen.getByText('Planificación'));
 
-    expect(screen.queryByRole('option', { name: 'En cola' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('option')).toHaveLength(6);
+    expect(screen.getAllByRole('option')).toHaveLength(7);
+    const enColaOption = screen.getByRole('option', { name: 'En cola' });
+    expect(enColaOption).toBeInTheDocument();
+
+    fireEvent.click(enColaOption);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'en_cola' });
   });
 
   it('TS-10: para otro tipo, la Pill Estado sigue ofreciendo "En cola" (7 opciones)', () => {
@@ -276,6 +282,57 @@ describe('RequirementHeader', () => {
 
     expect(screen.getByRole('option', { name: 'En cola' })).toBeInTheDocument();
     expect(screen.getAllByRole('option')).toHaveLength(7);
+  });
+
+  it('TS-4: la Pill Estado no está deshabilitada con el requisito en "resuelto"', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'resuelto' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
+    expect(stateButton).not.toBeDisabled();
+
+    fireEvent.click(stateButton);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(7);
+  });
+
+  it('TS-5: la Pill Estado no está deshabilitada con el requisito en "cancelado"', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'cancelado' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const stateButton = document.querySelector('[data-state="cancelado"]') as HTMLButtonElement;
+    expect(stateButton).not.toBeDisabled();
+
+    fireEvent.click(stateButton);
+    expect(screen.getAllByRole('option')).toHaveLength(7);
+  });
+
+  it('TS-7: la Pill Estado sigue deshabilitada mientras hay una mutación en vuelo (isPending)', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'resuelto' }}
+        onUpdate={vi.fn()}
+        isPending
+      />
+    );
+
+    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
+    expect(stateButton).toBeDisabled();
+  });
+
+  it('TS-8: la Pill Estado está deshabilitada si no hay onUpdate (readonly)', () => {
+    render(<RequirementHeader requirement={{ ...baseRequirement, state: 'resuelto' }} />);
+
+    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
+    expect(stateButton).toBeDisabled();
   });
 
   it('TS-16: incidencia ya en "En cola" sigue mostrando ese valor en la Pill Estado', () => {

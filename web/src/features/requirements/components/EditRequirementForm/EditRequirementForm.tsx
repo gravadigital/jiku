@@ -269,12 +269,6 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
       value: String(p.id),
     }));
 
-  // Para incidencias, "En cola" no se ofrece como opción — salvo que el requisito ya
-  // esté en ese estado (dato heredado), en cuyo caso value se resuelve contra la lista
-  // completa (STATE_OPTIONS) y sigue mostrándose sin forzarse ni limpiarse.
-  const stateOptions =
-    form.type === 'incidencia' ? STATE_OPTIONS.filter((o) => o.value !== 'en_cola') : STATE_OPTIONS;
-
   function handleAddTag() {
     if (!tagKey.trim() || !tagValue.trim()) return;
     setTags((prev) => [...prev, { key: tagKey.trim(), value: tagValue.trim() }]);
@@ -527,7 +521,7 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
               inputId="edit-state"
               aria-label="Estado"
               styles={selectStyles}
-              options={stateOptions}
+              options={STATE_OPTIONS}
               value={STATE_OPTIONS.find((o) => o.value === form.state) ?? STATE_OPTIONS[0]}
               onChange={(opt) => setForm((f) => ({ ...f, state: opt?.value ?? 'analisis' }))}
             />

@@ -38,24 +38,31 @@ const STATE_LABELS: Record<RequirementState, string> = {
   cancelado: 'Cancelado',
 };
 
-// Siguiente paso del flujo natural de trabajo — el botón de transición solo permite
-// avanzar a este destino, nunca retroceder ni saltar a un paso elegido libremente.
-// "Revisión" no tiene siguiente: pasar a Resuelto/Cancelado ahora vive en RequirementResolutionCard.
+// Siguiente paso del flujo natural de trabajo — el botón de transición es un atajo al
+// destino habitual, no la única salida posible (desde REQ-012 cualquier estado se
+// alcanza libremente desde la pill). "Revisión" sigue sin destino sugerido acá: cerrar
+// el requisito vive en RequirementResolutionCard. Resuelto/Cancelado sugieren volver al
+// trabajo (mismo destino que "Reabrir"), para no ofrecer dos vueltas distintas a lo mismo.
 const NEXT_WORK_STEP: Partial<Record<RequirementState, RequirementState>> = {
   analisis: 'planificacion',
   planificacion: 'en_cola',
   en_cola: 'desarrollo',
   desarrollo: 'revision',
+  resuelto: 'desarrollo',
+  cancelado: 'desarrollo',
 };
 
-// Para incidencias, "En cola" no forma parte del flujo — Planificación transiciona
-// directo a Desarrollo. No se ofrece transición desde en_cola porque una incidencia
-// nueva nunca debería llegar ahí; si ya está en en_cola por dato heredado (CA-8), el
-// paso se sigue mostrando pero no se ofrece un "siguiente paso" automático desde él.
+// Para incidencias, "En cola" no forma parte del recorrido habitual — Planificación
+// sugiere Desarrollo directo, por costumbre y no por restricción (el servidor ya no
+// distingue por tipo). No se ofrece atajo desde en_cola porque una incidencia nueva
+// nunca debería llegar ahí; si ya está en en_cola por dato heredado, el paso se sigue
+// mostrando pero no se ofrece un "siguiente paso" automático desde él.
 const NEXT_WORK_STEP_INCIDENCIA: Partial<Record<RequirementState, RequirementState>> = {
   analisis: 'planificacion',
   planificacion: 'desarrollo',
   desarrollo: 'revision',
+  resuelto: 'desarrollo',
+  cancelado: 'desarrollo',
 };
 
 // Un paso de trabajo tuvo actividad real si aparece como origen o destino de alguna
@@ -263,16 +270,13 @@ export function RequirementStatusCard({
 
   const isIncidencia = requirement.type === 'incidencia';
 
-  // Para incidencias, "En cola" se filtra del stepper — salvo que el estado actual
-  // ya sea en_cola (dato heredado, CA-8), en cuyo caso se muestran los 5 pasos igual
-  // para no "perder" el paso real en el que está el requisito.
-  const visibleSteps =
-    isIncidencia && state !== 'en_cola'
-      ? INLINE_STEPS.filter((s) => s.value !== 'en_cola')
-      : INLINE_STEPS;
+  // El stepper muestra siempre los cinco pasos de trabajo, para cualquier tipo: es
+  // cómo el equipo lee dónde está el requisito. Desde REQ-012 ya no recorta a dónde se
+  // puede ir — eso lo decide la pill de estado, no el stepper.
+  const visibleSteps = INLINE_STEPS;
 
-  // El stepper es puramente informativo — el único destino posible es el siguiente
-  // paso natural del flujo, nunca uno elegido navegando.
+  // El destino sugerido por el botón de transición — un atajo al paso siguiente
+  // habitual, no la única transición posible (la pill ofrece las siete, sin recorte).
   const nextStepMap = isIncidencia ? NEXT_WORK_STEP_INCIDENCIA : NEXT_WORK_STEP;
   const transitionTarget = nextStepMap[state] ?? null;
 
@@ -290,8 +294,9 @@ export function RequirementStatusCard({
   // "Guardar" siempre está disponible (persiste solo los campos cambiados, sin
   // transicionar). Con siguiente paso disponible, "Pasar a X" convive con "Guardar" y
   // permite guardar + transicionar en una sola acción (S-087: dejaron de ser
-  // mutuamente excluyentes). Sin siguiente paso (Revisión, Resuelto, Cancelado),
-  // "Guardar" es el único botón — no hay destino de transición que ofrecer.
+  // mutuamente excluyentes). Desde REQ-012, Resuelto y Cancelado también sugieren un
+  // destino (volver a Desarrollo): el único estado sin siguiente paso es Revisión —
+  // el cierre desde ahí vive en RequirementResolutionCard, no en este botón.
   const handleTransition = () => {
     if (!transitionTarget) return;
     onUpdate({ ...changedFieldsPayload(), state: transitionTarget });

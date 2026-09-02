@@ -59,9 +59,29 @@ export function RequirementResolutionCard({
 
   const [drafts, setDrafts] = useState<ResolutionDrafts>(() => draftsFromRequirement(requirement));
 
+  // Sugerencia capturada al reabrir (ver handleReopen): los tres valores que el
+  // requisito tenía justo antes de que el servidor los limpiara. Vive solo en este
+  // componente — no sobrevive a un reload — y nunca pisa un valor real: el efecto de
+  // abajo solo la aplica cuando el requirement trae los tres campos vacíos.
+  const [suggestion, setSuggestion] = useState<ResolutionDrafts | null>(null);
+
+  // Deps por VALOR (no `[requirement]`): un rollback de useUpdateRequirement puede
+  // re-renderizar con un objeto `requirement` de nueva referencia pero mismos valores —
+  // si las deps fueran el objeto completo, esto pisaría con el valor persistido
+  // cualquier draft de texto que el usuario todavía no guardó, perdiendo lo que estaba
+  // escribiendo. `suggestion` tampoco entra en las deps: si entrara, el setSuggestion
+  // del click en "Reabrir" volvería a disparar este efecto y pisaría cualquier edición
+  // en curso sobre la sugerencia recién aplicada.
   useEffect(() => {
-    setDrafts(draftsFromRequirement(requirement));
-  }, [requirement]);
+    const fromRequirement = draftsFromRequirement(requirement);
+    const isEmpty = Object.values(fromRequirement).every((v) => v === '');
+    setDrafts(isEmpty && suggestion ? suggestion : fromRequirement);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    requirement.resolutionType,
+    requirement.resolutionConclusion,
+    requirement.resolutionComment,
+  ]);
 
   const handleDraftChange = (field: keyof ResolutionDrafts, value: string) => {
     setDrafts((prev) => ({ ...prev, [field]: value }));
@@ -83,6 +103,20 @@ export function RequirementResolutionCard({
 
   const handleCancel = () => {
     onUpdate({ state: 'cancelado' });
+  };
+
+  // Devuelve el requisito al trabajo. No manda ningún campo de resolución: el servidor
+  // limpia los tres en la misma escritura, pero un valor explícito en el payload
+  // ganaría sobre esa limpieza (RF-10) — por eso NO se llama a saveChangedFields() acá.
+  // Antes de eso, captura los valores actuales como sugerencia: es el único instante en
+  // que todavía están disponibles, porque el servidor los va a limpiar en esta misma
+  // escritura (ver "Hallazgo bloqueante" del Story Plan — no hay forma de recuperarlos
+  // después desde ninguna respuesta de la api).
+  const handleReopen = () => {
+    const previous = draftsFromRequirement(requirement);
+    const hasSomething = Object.values(previous).some((v) => v !== '');
+    if (hasSomething) setSuggestion(previous);
+    onUpdate({ state: 'desarrollo' });
   };
 
   return (
@@ -147,14 +181,34 @@ export function RequirementResolutionCard({
       )}
 
       {isResolved ? (
-        <dl className={`${styles.row} ${styles.rowLast}`}>
-          <dt>Fecha de finalización</dt>
-          <dd>{formatDate(getResolutionDate(requirement))}</dd>
-        </dl>
+        <>
+          <dl className={styles.row}>
+            <dt>Fecha de finalización</dt>
+            <dd>{formatDate(getResolutionDate(requirement))}</dd>
+          </dl>
+          <button
+            type="button"
+            className={styles.reopenButton}
+            onClick={handleReopen}
+            disabled={isPending}
+          >
+            Reabrir
+          </button>
+        </>
       ) : isClosed ? (
-        <div className={`${styles.resultBadge} ${styles.resultBadgeCancelled}`}>
-          {RESULT_LABELS[state as 'resuelto' | 'cancelado']}
-        </div>
+        <>
+          <div className={`${styles.resultBadge} ${styles.resultBadgeCancelled}`}>
+            {RESULT_LABELS[state as 'resuelto' | 'cancelado']}
+          </div>
+          <button
+            type="button"
+            className={styles.reopenButton}
+            onClick={handleReopen}
+            disabled={isPending}
+          >
+            Reabrir
+          </button>
+        </>
       ) : (
         <div className={styles.actions}>
           <button
