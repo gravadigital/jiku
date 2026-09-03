@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import ReactSelect from 'react-select';
 import { useProjects } from '@/features/projects/hooks/useProjects';
+import { Input, Select } from '@/shared/components/ui';
 import { InputMultipleSelect } from '@/shared/components/ui/InputMultipleSelect';
 import styles from './RequirementFilters.module.scss';
 import type { RequirementFilters as Filters } from '../../types/requirement.types';
@@ -43,67 +43,6 @@ const SORT_OPTIONS: { label: string; value: string }[] = [
   { label: 'Prioridad', value: 'priority' },
 ];
 
-const selectStyles = {
-  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-    ...base,
-    height: '40px',
-    minHeight: '40px',
-    border: `1px solid #e6e8ed`,
-    borderRadius: '8px',
-    boxShadow: 'none',
-    outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
-    fontSize: '0.875rem',
-    fontWeight: 400,
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    '&:hover': { border: '1px solid #e6e8ed' },
-  }),
-  valueContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    height: '40px',
-    padding: '0 0.875rem',
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'nowrap' as const,
-  }),
-  input: (base: Record<string, unknown>) => ({
-    ...base,
-    margin: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-  }),
-  indicatorsContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    height: '40px',
-    display: 'flex',
-    alignItems: 'center',
-  }),
-  indicatorSeparator: () => ({ display: 'none' }),
-  menu: (base: Record<string, unknown>) => ({
-    ...base,
-    zIndex: 10,
-    fontSize: '0.875rem',
-    borderRadius: '8px',
-    border: '1px solid #e6e8ed',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-  }),
-  option: (base: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
-    ...base,
-    backgroundColor: state.isSelected ? '#DA2C6A' : state.isFocused ? '#e6e8ed' : '#fff',
-    color: state.isSelected ? '#fff' : '#1F2633',
-    cursor: 'pointer',
-  }),
-  singleValue: (base: Record<string, unknown>) => ({
-    ...base,
-    color: '#1F2633',
-    margin: 0,
-    display: 'flex',
-    alignItems: 'center',
-    height: '100%',
-  }),
-  placeholder: (base: Record<string, unknown>) => ({ ...base, color: '#aaa' }),
-};
-
 interface RequirementFiltersProps {
   readonly filters: Filters;
   readonly onChange: (key: keyof Filters, value: string) => void;
@@ -123,8 +62,8 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInput(e.target.value);
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
   }, []);
 
   const projectOptions: { label: string; value: string }[] = [
@@ -136,17 +75,16 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
 
   return (
     <div className={styles.filterSection}>
-      <div className={styles.filterField} style={{ flex: 2 }}>
-        <label className={styles.fLabel}>Búsqueda</label>
-        <input
-          type="text"
-          className={styles.fInput}
+      <div className={styles.filterField}>
+        <Input
+          variant="search"
+          label="Búsqueda"
           placeholder="Buscar requisito"
           value={searchInput}
           onChange={handleSearchChange}
         />
       </div>
-      <div className={styles.filterField} style={{ flex: 1.6 }}>
+      <div className={styles.filterField}>
         <InputMultipleSelect
           compact
           label="Estados"
@@ -166,30 +104,23 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
           }
         />
       </div>
-      <div className={styles.filterField} style={{ flex: 1.2 }}>
-        <label className={styles.fLabel}>Proyecto</label>
-        <ReactSelect
-          inputId="filter-project"
-          styles={selectStyles}
+      <div className={styles.filterField}>
+        <Select
+          variant="single"
+          label="Proyecto"
+          placeholder="Todos los proyectos"
           options={projectOptions}
-          value={
-            projectOptions.find((o) => o.value === String(filters.projectId ?? '')) ??
-            projectOptions[0]
-          }
-          onChange={(opt) => onChange('projectId', opt?.value ?? '')}
+          value={String(filters.projectId ?? '')}
+          onChange={(value) => onChange('projectId', value)}
         />
       </div>
-      <div className={styles.filterField} style={{ flex: 1 }}>
-        <label className={styles.fLabel}>Ordenar por</label>
-        <ReactSelect
-          inputId="filter-sort"
-          styles={selectStyles}
+      <div className={styles.filterField}>
+        <Select
+          variant="single"
+          label="Ordenar por"
           options={SORT_OPTIONS}
-          value={
-            SORT_OPTIONS.find((o) => o.value === (filters.sort ?? 'recent')) ?? SORT_OPTIONS[0]
-          }
-          onChange={(opt) => onChange('sort', opt?.value ?? '')}
-          isSearchable={false}
+          value={filters.sort ?? 'recent'}
+          onChange={(value) => onChange('sort', value)}
         />
       </div>
     </div>

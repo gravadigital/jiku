@@ -1,106 +1,46 @@
-.card {
-  background: #fff;
-  border: 1.5px solid #e6e8ed;
-  border-radius: 10px;
-  padding: 1.25rem 1.375rem;
-  box-shadow: var(--box-shadow);
-}
-
-.cardTitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #000;
-  margin: 0 0 0.875rem 0;
-}
-
 .actions {
   display: flex;
   flex-direction: row;
-  gap: 0.625rem;
+  gap: var(--space-inline-sm);
 }
 
-.resolveButton {
-  height: 34px;
-  padding: 0 1.125rem;
-  border-radius: 8px;
-  border: none;
-  background: var(--color-button, #da2c6a);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 700;
-  cursor: pointer;
+.actions > * {
   flex: 1;
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-}
-
-.cancelButton {
-  height: 34px;
-  padding: 0 1.125rem;
-  border-radius: var(--radius-buttons);
-  border: 1.5px solid var(--color-button);
-  background: #fff;
-  color: var(--color-button);
-  font-size: 0.875rem;
-  font-weight: 700;
-  cursor: pointer;
-  flex: 1;
-  transition: opacity 0.15s;
-
-  &:hover:not(:disabled) {
-    opacity: 0.85;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-}
-
-// Reutiliza el estilo secundario de .cancelButton (D-3: no se introduce el componente
-// <Button> para un solo botón). Único override: ocupa el ancho completo en vez de
-// `flex: 1`, porque no comparte fila con otro botón como "Cancelar" sí lo hace.
-.reopenButton {
-  @extend .cancelButton;
-  flex: none;
-  width: 100%;
 }
 
 .resultBadge {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9375rem;
-  font-weight: 700;
+  padding: var(--space-inline-md) var(--space-stack-md);
+  border-radius: var(--radius-action);
+  font-family: var(--text-card-title-family);
+  font-size: var(--font-size-15);
+  font-weight: var(--text-card-title-weight);
 }
 
 .resultBadgeCancelled {
-  background: #f3f4f6;
-  color: #5f6d7f;
+  background: var(--bg-tint-neutral);
+  color: var(--text-secondary);
 }
 
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: var(--space-inline-sm);
   align-items: baseline;
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin: 0 0 0.875rem 0;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  line-height: var(--text-body-default-leading);
+  margin: 0 0 var(--space-stack-md) 0;
 
   dt {
-    font-weight: 400;
-    color: var(--color-general-text);
+    font-weight: var(--text-body-default-weight);
+    color: var(--text-secondary);
   }
 
   dd {
-    color: #626a81;
+    color: var(--text-secondary);
     margin: 0;
     word-break: break-word;
   }
@@ -109,37 +49,6 @@
 .resolutionFields {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 0.875rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-}
-
-.fieldLabel {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1f2633;
-}
-
-.inlineFormTextarea,
-.inlineFormInput {
-  display: block;
-  width: 100%;
-  margin-top: 0.45rem;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  padding: 0.5rem 0.625rem;
-  font-size: 0.875rem;
-  color: #1f2633;
-  background: #fff;
-  box-sizing: border-box;
-  font-family: inherit;
-}
-
-.inlineFormTextarea {
-  min-height: 110px;
-  resize: vertical;
+  gap: var(--space-inline-md);
+  margin-bottom: var(--space-stack-md);
 }

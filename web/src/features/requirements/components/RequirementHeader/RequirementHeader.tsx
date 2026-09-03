@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Tooltip } from '@/shared/components/ui/Tooltip/Tooltip';
+import React from 'react';
+import { Badge, Button, STATE_TO_FAMILY, type BadgeFamily } from '@/shared/components/ui';
 import { getTypeLabel } from '../../utils/requirementHelpers';
 import styles from './RequirementHeader.module.scss';
 import type {
@@ -55,154 +54,111 @@ const PRIORITY_OPTIONS: { label: string; value: RequirementPriority }[] = [
   { label: 'Urgente', value: 'urgente' },
 ];
 
-interface PillDropdownProps<T extends string> {
-  value: T;
-  options: { label: string; value: T }[];
-  badgeClass: string;
-  dataAttr: string;
-  disabled?: boolean;
-  disabledValues?: T[];
-  disabledTooltip?: string;
-  prefix?: React.ReactNode;
-  onChange: (value: T) => void;
-  getLabel?: (value: T) => string;
-}
+const PRIORITY_LABELS: Record<RequirementPriority, string> = {
+  sin_prioridad: 'Sin prioridad',
+  baja: 'Baja',
+  media: 'Media',
+  alta: 'Alta',
+  urgente: 'Urgente',
+};
 
-function PillDropdown<T extends string>({
-  value,
-  options,
-  badgeClass,
-  dataAttr,
-  disabled,
-  disabledValues,
-  disabledTooltip,
-  prefix,
-  onChange,
-  getLabel,
-}: PillDropdownProps<T>) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  const label = options.find((o) => o.value === value)?.label ?? getLabel?.(value) ?? value;
-
-  return (
-    <div className={styles.pillWrapper} ref={ref}>
-      <button
-        type="button"
-        className={`${badgeClass} ${disabled ? styles.pillDisabled : styles.pillClickable}`}
-        {...{ [dataAttr]: value }}
-        onClick={() => !disabled && setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        disabled={disabled}
-      >
-        {prefix}
-        {label}
-        {!disabled && <span className={styles.pillChevron}>▾</span>}
-      </button>
-      {open && (
-        <div className={styles.pillMenu} role="listbox">
-          {options.map((opt) => {
-            const isDisabled = disabledValues?.includes(opt.value);
-            const optionButton = (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={opt.value === value}
-                aria-disabled={isDisabled}
-                className={`${styles.pillMenuItem} ${opt.value === value ? styles.pillMenuItemActive : ''} ${isDisabled ? styles.pillMenuItemDisabled : ''}`}
-                onClick={() => {
-                  setOpen(false);
-                  if (isDisabled || opt.value === value) return;
-                  onChange(opt.value);
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-
-            if (isDisabled && disabledTooltip) {
-              return (
-                <Tooltip key={opt.value} content={disabledTooltip}>
-                  {optionButton}
-                </Tooltip>
-              );
-            }
-
-            return optionButton;
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+// La prioridad no forma parte de STATE_TO_FAMILY (ese mapa cubre los estados del requisito):
+// tiene su propia correspondencia, del spec de Badge.
+const PRIORITY_TO_FAMILY: Record<RequirementPriority, BadgeFamily> = {
+  sin_prioridad: 'neutral',
+  baja: 'neutral',
+  media: 'review',
+  alta: 'urgent',
+  urgente: 'urgent',
+};
 
 export function RequirementHeader({ requirement, onUpdate, isPending }: RequirementHeaderProps) {
-  const { id, title } = requirement;
-  // Sin estado local: la Pill es 100% controlada por `requirement` (React Query es la
+  const { id, title, state, type, priority } = requirement;
+  void isPending;
+
+  // Sin estado local: los badges son 100% controlados por `requirement` (React Query es la
   // única fuente de verdad). Si una mutación falla, el rollback optimista del hook
   // (useUpdateRequirement) revierte el cache y este componente refleja ese valor de
-  // inmediato en el siguiente render — sin necesitar sincronización manual vía useEffect,
-  // que antes podía quedar "pegada" al valor optimista si el prop nunca llegaba a cambiar.
-  const { state, type, priority } = requirement;
-
+  // inmediato en el siguiente render.
   const canEdit = !!onUpdate;
+
+  const handleStateChange = (value: string) => {
+    if (value === state) return;
+    onUpdate?.({ state: value as RequirementState });
+  };
+
+  const handleTypeChange = (value: string) => {
+    const current = type ?? '';
+    if (value === current) return;
+    onUpdate?.({ type: (value === '' ? null : value) as RequirementType });
+  };
+
+  const handlePriorityChange = (value: string) => {
+    if (value === priority) return;
+    onUpdate?.({ priority: value as RequirementPriority });
+  };
+
+  const typeLabel = getTypeLabel((type ?? '') as RequirementType);
 
   return (
     <div className={styles.pageHeader}>
       <div className={styles.headerLeft}>
         <h1 className={styles.reqTitle}>{title}</h1>
         <div className={styles.badgesRow}>
-          <span className={styles.reqCode}>#{id}</span>
+          <Badge variant="outline" label={`#${id}`} />
 
-          <PillDropdown
-            value={state}
-            options={STATE_OPTIONS}
-            badgeClass={`${styles.badge} ${styles.badgeState}`}
-            dataAttr="data-state"
-            disabled={!canEdit || isPending}
-            prefix={<span className={styles.dot} />}
-            onChange={(v) => onUpdate?.({ state: v })}
-            getLabel={(value) => STATE_LABELS[value]}
-          />
+          {canEdit ? (
+            <Badge
+              variant="editable"
+              family={STATE_TO_FAMILY[state] ?? 'neutral'}
+              label={STATE_LABELS[state]}
+              options={STATE_OPTIONS}
+              onChange={handleStateChange}
+            />
+          ) : (
+            <Badge
+              variant="state"
+              family={STATE_TO_FAMILY[state] ?? 'neutral'}
+              label={STATE_LABELS[state]}
+            />
+          )}
 
-          <PillDropdown
-            value={type ?? ''}
-            options={TYPE_OPTIONS}
-            badgeClass={`${styles.badge} ${styles.badgeType}`}
-            dataAttr="data-type"
-            disabled={!canEdit || isPending}
-            onChange={(v) => onUpdate?.({ type: (v === '' ? null : v) as RequirementType })}
-            getLabel={(value) => getTypeLabel(value as RequirementType)}
-          />
+          {canEdit ? (
+            <Badge
+              variant="editable"
+              family="neutral"
+              label={typeLabel}
+              options={TYPE_OPTIONS}
+              onChange={handleTypeChange}
+            />
+          ) : (
+            <Badge variant="outline" label={typeLabel} />
+          )}
 
-          <PillDropdown
-            value={priority}
-            options={PRIORITY_OPTIONS}
-            badgeClass={`${styles.badge} ${styles.badgePriority}`}
-            dataAttr="data-priority"
-            disabled={!canEdit || isPending}
-            onChange={(v) => onUpdate?.({ priority: v })}
-          />
+          {canEdit ? (
+            <Badge
+              variant="editable"
+              family={PRIORITY_TO_FAMILY[priority]}
+              label={PRIORITY_LABELS[priority]}
+              options={PRIORITY_OPTIONS}
+              onChange={handlePriorityChange}
+            />
+          ) : (
+            <Badge
+              variant="outline"
+              family={PRIORITY_TO_FAMILY[priority]}
+              label={PRIORITY_LABELS[priority]}
+            />
+          )}
         </div>
       </div>
       <div className={styles.headerActions}>
-        <Link href="/requirements" className={styles.backButton}>
+        <Button variant="secondary-nav" href="/requirements">
           Volver
-        </Link>
-        <Link href={`/requirements/${id}/edit`} className={styles.editButton}>
+        </Button>
+        <Button variant="secondary-nav" href={`/requirements/${id}/edit`}>
           Editar
-        </Link>
+        </Button>
       </div>
     </div>
   );

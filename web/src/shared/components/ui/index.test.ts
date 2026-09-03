@@ -99,8 +99,12 @@ describe('barrel de shared/components/ui', () => {
     expect(barrel).toContain(`export { ${nombre} } from './${nombre}';`);
   });
 
-  it('tiene exactamente 34 exports', () => {
-    expect(barrel.match(/^export \{/gm)).toHaveLength(34);
+  // S-057: se agrega `export { STATE_TO_FAMILY } from './Badge';` — el mapa estado→familia que
+  // las pantallas de dominio (RequirementList, S-057) consumen sin reimplementarlo. El export de
+  // sólo-tipos (`export type { BadgeVariant, BadgeFamily, BadgeOption }`) no matchea este regex,
+  // que busca únicamente `export {` (exports de valor).
+  it('tiene exactamente 35 exports', () => {
+    expect(barrel.match(/^export \{/gm)).toHaveLength(35);
   });
 
   it.each(CARPETAS_MUERTAS_UI)('la carpeta de %s ya no existe en ui/', (nombre) => {

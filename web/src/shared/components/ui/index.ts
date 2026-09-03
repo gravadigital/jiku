@@ -3,6 +3,8 @@ export { AddButton } from './AddButton';
 export { AutomatedIdentityBadge } from './AutomatedIdentityBadge';
 export { Avatar } from './Avatar';
 export { Badge } from './Badge';
+export { STATE_TO_FAMILY } from './Badge';
+export type { BadgeVariant, BadgeFamily, BadgeOption } from './Badge';
 export { Button } from './Button';
 export { Card } from './Card';
 export { CommentEditor } from './CommentEditor';

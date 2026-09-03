@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import path from 'path';
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -60,6 +62,23 @@ const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
+
+// S-057: `Select` del DS reemplazó a `react-select` (TS-22 del guardia). No tiene búsqueda por
+// escritura (decisión 4 del Story Plan): se abre con click, nunca con focus+ArrowDown, y las
+// opciones se eligen por click directo sobre el role="option".
+async function selectDsOption(labelMatcher: RegExp, optionText: string) {
+  const select = screen.getByLabelText(labelMatcher);
+  fireEvent.click(select);
+  fireEvent.click(await screen.findByRole('option', { name: optionText }));
+}
+
+// El control `multiple` de `Select` NO cierra el menú al elegir una opción (a diferencia de
+// `single`), así que sucesivas elecciones no necesitan reabrirlo con otro click.
+async function selectMultipleOption(labelMatcher: RegExp, optionText: string, isFirst = false) {
+  const select = screen.getByLabelText(labelMatcher);
+  if (isFirst) fireEvent.click(select);
+  fireEvent.click(await screen.findByRole('option', { name: optionText }));
+}
 
 const mockMutate = vi.fn();
 
@@ -135,10 +154,12 @@ describe('EditRequirementForm', () => {
   });
 
   // TS-06: campo Proyecto es read-only
-  it('TS-06: el campo Proyecto está deshabilitado', () => {
+  // S-057: migra a `Input variant="locked"`, cuya convención del DS es `readOnly` (deja el
+  // valor seleccionable/copiable, sin sacarlo del tab order) en vez de `disabled`.
+  it('TS-06: el campo Proyecto es de solo lectura (Input variant="locked")', () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
     const proyectoInput = screen.getByLabelText(/proyecto/i);
-    expect(proyectoInput).toBeDisabled();
+    expect(proyectoInput).toHaveAttribute('readonly');
   });
 
   // TS-07: submit llama a useUpdateRequirement con el payload correcto
@@ -181,29 +202,27 @@ describe('EditRequirementForm', () => {
   });
 
   // TS-09: validación título requerido
-  it('TS-09: título vacío muestra "(obligatorio)" y no llama a updateRequirement', async () => {
+  // S-057: Título migró a `Input` del DS, que no muestra un texto de error propio en este
+  // formulario — la validación sigue bloqueando el submit, que es lo que importa.
+  it('TS-09: título vacío no llama a updateRequirement', async () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
     fireEvent.change(screen.getByLabelText(/^título/i), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     await waitFor(() => {
-      const titleLabel = screen.getByText('Título', { exact: false }).closest('label');
-      expect(titleLabel).toHaveTextContent('(obligatorio)');
+      expect(mockMutate).not.toHaveBeenCalled();
     });
-    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   // S-088 (CA-3, TS-5): Título de solo espacios no pasa validación en edición
-  it('TS-5: Título con solo espacios en blanco muestra "(obligatorio)" y no llama a updateRequirement', async () => {
+  it('TS-5: Título con solo espacios en blanco no llama a updateRequirement', async () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
     fireEvent.change(screen.getByLabelText(/^título/i), { target: { value: '  ' } });
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     await waitFor(() => {
-      const titleLabel = screen.getByText('Título', { exact: false }).closest('label');
-      expect(titleLabel).toHaveTextContent('(obligatorio)');
+      expect(mockMutate).not.toHaveBeenCalled();
     });
-    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   // S-088 (CA-3, TS-13): Título con espacios circundantes y contenido real sigue siendo válido en edición
@@ -226,10 +245,7 @@ describe('EditRequirementForm', () => {
   it('TS-10: guardar con "Sin tipo" seleccionado envía type: null y llama a updateRequirement', async () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
 
-    const tipoSelect = screen.getByLabelText(/^tipo/i);
-    fireEvent.focus(tipoSelect);
-    fireEvent.keyDown(tipoSelect, { key: 'ArrowDown' });
-    fireEvent.click(screen.getByText('Sin tipo'));
+    await selectDsOption(/^tipo/i, 'Sin tipo');
 
     fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -264,17 +280,19 @@ describe('EditRequirementForm', () => {
     });
   });
 
-  // link Volver apunta a /requirements/[reqid]
-  it('el link Volver apunta a /requirements/42', () => {
+  // S-057: "Volver" migra a `Button variant="secondary-nav"`, que no renderiza un <a> real —
+  // navega vía `useRouter().push()` en el click.
+  it('el botón Volver navega a /requirements/42 al hacer click', () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
-    const volver = screen.getByRole('link', { name: /volver/i });
-    expect(volver).toHaveAttribute('href', '/requirements/42');
+    const volver = screen.getByRole('button', { name: /volver/i });
+    fireEvent.click(volver);
+    expect(mockPush).toHaveBeenCalledWith('/requirements/42');
   });
 
   // etiqueta existente se muestra precargada
   it('muestra las etiquetas existentes del requisito', () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
-    expect(screen.getByLabelText('Eliminar tag env:prod')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Eliminar tag env:prod' })).toBeInTheDocument();
   });
 
   // TS-15/TS-17 (AC-11): multi-select de responsables
@@ -345,10 +363,7 @@ describe('EditRequirementForm', () => {
         wrapper: createWrapper(),
       });
 
-      const responsableSelect = screen.getByLabelText(/^responsable/i);
-      fireEvent.focus(responsableSelect);
-      fireEvent.keyDown(responsableSelect, { key: 'ArrowDown' });
-      fireEvent.click(await screen.findByText('Rita Díaz'));
+      await selectMultipleOption(/^responsable/i, 'Rita Díaz', true);
 
       fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -408,8 +423,7 @@ describe('EditRequirementForm', () => {
     render(<EditRequirementForm requirement={mockRequirement} />, { wrapper: createWrapper() });
 
     const estadoSelect = screen.getByLabelText(/^estado/i);
-    fireEvent.focus(estadoSelect);
-    fireEvent.keyDown(estadoSelect, { key: 'ArrowDown' });
+    fireEvent.click(estadoSelect);
 
     const expectedLabels = [
       'Análisis',
@@ -421,11 +435,8 @@ describe('EditRequirementForm', () => {
       'Cancelado',
     ];
     expectedLabels.forEach((label) => {
-      const matches = screen.getAllByText(label);
-      expect(matches.length).toBeGreaterThan(0);
-      matches.forEach((match) => {
-        expect(match.closest('[aria-disabled="true"]')).toBeNull();
-      });
+      const option = screen.getByRole('option', { name: label });
+      expect(option).not.toHaveAttribute('aria-disabled', 'true');
     });
   });
 
@@ -443,8 +454,7 @@ describe('EditRequirementForm', () => {
     });
 
     const estadoSelect = screen.getByLabelText(/^estado/i);
-    fireEvent.focus(estadoSelect);
-    fireEvent.keyDown(estadoSelect, { key: 'ArrowDown' });
+    fireEvent.click(estadoSelect);
 
     [
       'Análisis',
@@ -455,11 +465,11 @@ describe('EditRequirementForm', () => {
       'Resuelto',
       'Cancelado',
     ].forEach((label) => {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+      expect(screen.getByRole('option', { name: label })).toBeInTheDocument();
     });
   });
 
-  it('REQ-012: cambiar Tipo a incidencia con state=en_cola ya cargado no lo limpia, y sigue ofreciéndolo', () => {
+  it('REQ-012: cambiar Tipo a incidencia con state=en_cola ya cargado no lo limpia, y sigue ofreciéndolo', async () => {
     render(
       <EditRequirementForm
         requirement={{ ...mockRequirement, type: 'funcionalidad', state: 'en_cola' }}
@@ -469,23 +479,16 @@ describe('EditRequirementForm', () => {
 
     expect(screen.getByText('En cola')).toBeInTheDocument();
 
-    const tipoSelect = screen.getByLabelText(/^tipo/i);
-    fireEvent.focus(tipoSelect);
-    fireEvent.keyDown(tipoSelect, { key: 'ArrowDown' });
-    fireEvent.click(screen.getByText('Incidencia'));
+    await selectDsOption(/^tipo/i, 'Incidencia');
 
     // El valor seleccionado del Select Estado sigue siendo "En cola", sin forzarse ni limpiarse.
     expect(screen.getByText('En cola')).toBeInTheDocument();
 
     // Desde REQ-012, "En cola" sigue apareciendo como opción del listado también para incidencia.
     const estadoSelect = screen.getByLabelText(/^estado/i);
-    fireEvent.focus(estadoSelect);
-    fireEvent.keyDown(estadoSelect, { key: 'ArrowDown' });
+    fireEvent.click(estadoSelect);
 
-    const enColaOptions = screen
-      .getAllByText('En cola')
-      .filter((match) => match.closest('[role="option"]') !== null);
-    expect(enColaOptions.length).toBeGreaterThan(0);
+    expect(screen.getByRole('option', { name: 'En cola' })).toBeInTheDocument();
   });
 
   // `fileIds` conserva la semántica de conjunto COMPLETO que tenía
@@ -575,9 +578,9 @@ describe('EditRequirementForm', () => {
       target: { value: 'Con dos archivos ![file:1] y ![file:2]' },
     });
 
-    const volver = screen.getByRole('link', { name: /volver/i });
-    expect(volver).toHaveAttribute('href', `/requirements/${mockRequirement.id}`);
+    const volver = screen.getByRole('button', { name: /volver/i });
     fireEvent.click(volver);
+    expect(mockPush).toHaveBeenCalledWith(`/requirements/${mockRequirement.id}`);
 
     expect(deleteAttachment).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -600,5 +603,23 @@ describe('EditRequirementForm', () => {
     });
     expect(toast.error).not.toHaveBeenCalledWith('File not owned');
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  // ===== S-057 (CA-2): unificación del breakpoint de paneles =====
+  describe('CA-2: breakpoints', () => {
+    const scssContent = readFileSync(
+      path.resolve(__dirname, './EditRequirementForm.module.scss'),
+      'utf8'
+    );
+
+    it('TS-33: el corte de paneles usa 1023px, nunca 1024px', () => {
+      expect(scssContent).toMatch(/@media\s*\(max-width:\s*1023px\)/);
+      expect(scssContent).not.toMatch(/@media\s*\(max-width:\s*1024px\)/);
+    });
+
+    it('TS-34: el corte de 640px que sigue vigente queda intacto', () => {
+      const matches = scssContent.match(/@media\s*\(max-width:\s*640px\)/g) ?? [];
+      expect(matches.length).toBe(1);
+    });
   });
 });

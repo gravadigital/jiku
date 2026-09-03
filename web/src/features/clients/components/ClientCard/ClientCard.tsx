@@ -1,5 +1,4 @@
-import { Badge, Button, Card } from '@/shared/components/ui';
-import type { BadgeFamily } from '@/shared/components/ui';
+import { Badge, Button, Card, type BadgeFamily } from '@/shared/components/ui';
 import styles from './ClientCard.module.scss';
 import type { Client, ClientStatus } from '@/features/clients/types/client.types';
 import type { SyntheticEvent } from 'react';

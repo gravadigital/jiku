@@ -9,6 +9,20 @@ vi.mock('@/features/projects/hooks/useProjects', () => ({
   useProjects: vi.fn(),
 }));
 
+// El barrel `@/shared/components/ui` (Button, Input, Select, que este componente consume
+// desde S-057) arrastra transitivamente CommentEditor -> @/features/objectives -> auth. Sin
+// estos mocks, la resolución real de 'next-auth' falla al buscar 'next/server' en este
+// entorno de test.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -162,9 +176,8 @@ describe('RequirementsReportFilters', () => {
     );
 
     const select = screen.getByLabelText(/proyecto/i);
-    fireEvent.focus(select);
-    fireEvent.keyDown(select, { key: 'ArrowDown' });
-    fireEvent.click(screen.getByText('Proyecto Alpha'));
+    fireEvent.click(select);
+    fireEvent.click(screen.getByRole('option', { name: 'Proyecto Alpha' }));
 
     expect(onProjectIdChange).toHaveBeenCalledWith('1');
   });

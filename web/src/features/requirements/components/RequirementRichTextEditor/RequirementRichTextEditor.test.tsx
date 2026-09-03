@@ -102,14 +102,18 @@ describe('RequirementRichTextEditor', () => {
     expect(handle.getValue()).toBe('');
   });
 
+  // S-057: el botón visible de la toolbar migró a `Button` del DS, cuyo nombre accesible es
+  // el texto visible "Adjuntar" (no "Adjuntar archivo", que sigue siendo el aria-label del
+  // <input type="file"> oculto — un elemento distinto, sin rol "button" para las queries de
+  // Testing Library).
   it('renderiza el botón de adjuntar', () => {
     renderEditor();
-    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adjuntar' })).toBeInTheDocument();
   });
 
   it('el botón de adjuntar es type=button', () => {
     renderEditor();
-    const btn = screen.getByRole('button', { name: 'Adjuntar archivo' });
+    const btn = screen.getByRole('button', { name: 'Adjuntar' });
     expect(btn).toHaveAttribute('type', 'button');
   });
 

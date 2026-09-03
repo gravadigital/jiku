@@ -109,6 +109,14 @@ function extractBlock(source: string, selectorPattern: RegExp): string {
 
 const mockUpdateMutate = vi.fn();
 
+// S-057: `Pagination` usa `Select variant="inline"` para el tamaño de página — un
+// <button role="combobox"> que no reacciona a `fireEvent.change`. Se abre con click y se
+// elige la opción por su label visible.
+function changePageSize(size: number) {
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: `${size} por página` }));
+}
+
 describe('RequirementDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -195,8 +203,11 @@ describe('RequirementDetail', () => {
     const rightColumn = screen.getByText('Información General').closest(
       '[class*="rightColumn"]'
     ) as HTMLElement;
+    // S-057: `RequirementResolutionCard` migró al componente `Card` del DS, cuyo título
+    // resuelve a `[class*="title"]` (un heading), no al `[class*="cardTitle"]` que todavía
+    // usan sus hermanas sin migrar (Task 7). Se combinan ambos selectores, en orden de DOM.
     const cardTitles = Array.from(
-      rightColumn.querySelectorAll('[class*="cardTitle"]')
+      rightColumn.querySelectorAll('[class*="cardTitle"], [class*="title"]')
     ).map((el) => el.textContent);
 
     expect(cardTitles).toEqual([
@@ -312,16 +323,16 @@ describe('RequirementDetail', () => {
       expect(screen.getByText('Sin tareas en esta etapa')).toBeInTheDocument();
     });
 
-    it('TS-10: la fila de un objetivo es clickeable y abre el objetivo en una nueva pestaña', () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    // S-057: el título de la fila migró a un <Link target="_blank"> (Table no ofrece un
+    // mecanismo de click de fila) — se verifica el destino del enlace, no `window.open`.
+    it('TS-10: el título del objetivo enlaza a /objectives/1 en una pestaña nueva', () => {
       render(<RequirementDetail requirement={{ ...baseRequirement, linkedObjectives }} />, {
         wrapper: createWrapper(),
       });
 
-      fireEvent.click(screen.getByText('Obj A'));
-
-      expect(openSpy).toHaveBeenCalledWith('/objectives/1', '_blank');
-      openSpy.mockRestore();
+      const link = screen.getByRole('link', { name: 'Obj A' });
+      expect(link).toHaveAttribute('href', '/objectives/1');
+      expect(link).toHaveAttribute('target', '_blank');
     });
 
     it('columna Responsable usa formato "Nombre +N" cuando hay más de un responsable', () => {
@@ -332,14 +343,16 @@ describe('RequirementDetail', () => {
       expect(screen.getByText('Ana Pérez +1')).toBeInTheDocument();
     });
 
+    // S-057: `Pagination` usa `Select variant="inline"` — un <button role="combobox"> cuyas
+    // opciones (<li role="option">) solo están en el DOM con el menú abierto.
     it('incluye selector de tamaño de página con opciones 5 y 10', () => {
       render(<RequirementDetail requirement={{ ...baseRequirement, linkedObjectives }} />, {
         wrapper: createWrapper(),
       });
 
-      const select = screen.getByRole('combobox');
-      expect(within(select).getByRole('option', { name: '5 por página' })).toBeInTheDocument();
-      expect(within(select).getByRole('option', { name: '10 por página' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('combobox'));
+      expect(screen.getByRole('option', { name: '5 por página' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: '10 por página' })).toBeInTheDocument();
     });
 
     describe('Paginado unificado con el de detalle de proyecto (S-039)', () => {
@@ -391,7 +404,7 @@ describe('RequirementDetail', () => {
           { wrapper: createWrapper() }
         );
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        changePageSize(5);
 
         for (let i = 1; i <= 10; i += 1) {
           expect(screen.getByRole('button', { name: `Página ${i}` })).toBeInTheDocument();
@@ -414,7 +427,7 @@ describe('RequirementDetail', () => {
           { wrapper: createWrapper() }
         );
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        changePageSize(5);
         fireEvent.click(screen.getByRole('button', { name: 'Página 10' }));
         fireEvent.click(screen.getByRole('button', { name: 'Página 13' }));
 
@@ -489,7 +502,7 @@ describe('RequirementDetail', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Página 3' }));
 
         expect(() =>
-          fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } })
+          changePageSize(10)
         ).not.toThrow();
 
         expect(screen.getByText('Obj 1')).toBeInTheDocument();
@@ -517,6 +530,12 @@ describe('RequirementDetail', () => {
         expect(screen.getByRole('button', { name: 'Página anterior' })).not.toBeDisabled();
       });
 
+      // S-057: `Pagination` (componente único del DS) aporta el selector de tamaño de página
+      // vía `Select variant="inline"`, montado dentro del propio <nav> — a diferencia del
+      // <select> crudo de antes, que vivía fuera del paginador. Deja de tener sentido afirmar
+      // que están en contenedores distintos: ahora comparten uno solo, que es justamente lo
+      // que TS-12 (más abajo) confirma como el objetivo de "un paginador único, sin código
+      // duplicado".
       it('TS-10: el selector de tamaño de página sigue presente y con sus dos opciones', () => {
         render(
           <RequirementDetail
@@ -527,11 +546,10 @@ describe('RequirementDetail', () => {
 
         const select = screen.getByRole('combobox');
         expect(select).toBeInTheDocument();
-        expect(within(select).getByRole('option', { name: '5 por página' })).toBeInTheDocument();
-        expect(within(select).getByRole('option', { name: '10 por página' })).toBeInTheDocument();
-        expect(
-          screen.getByRole('navigation', { name: 'Paginación' })
-        ).not.toContainElement(select);
+        fireEvent.click(select);
+        expect(screen.getByRole('option', { name: '5 por página' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: '10 por página' })).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Paginación' })).toContainElement(select);
       });
 
       it('TS-11: cambiar el tamaño de página resetea a la página 1 sin tocar la URL', () => {
@@ -542,9 +560,9 @@ describe('RequirementDetail', () => {
           { wrapper: createWrapper() }
         );
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        changePageSize(5);
         fireEvent.click(screen.getByRole('button', { name: 'Página 4' }));
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '10' } });
+        changePageSize(10);
 
         expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute(
           'aria-current',
@@ -562,7 +580,7 @@ describe('RequirementDetail', () => {
           { wrapper: createWrapper() }
         );
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+        changePageSize(5);
 
         // El paginador compartido (S-054) reutiliza '‹'/'›' en sus propias flechas, así
         // que ya no sirven para detectar al paginador inline descartado — lo que importa

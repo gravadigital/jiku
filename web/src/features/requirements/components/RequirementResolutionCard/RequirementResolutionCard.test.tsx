@@ -4,6 +4,35 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RequirementResolutionCard } from './RequirementResolutionCard';
 import type { Requirement } from '../../types/requirement.types';
 
+const RESOLUTION_TYPE_LABELS: Record<string, string> = {
+  error_interno: 'Error interno',
+  fuera_de_alcance: 'Fuera de alcance',
+  error_externo: 'Error externo',
+  discutible: 'Discutible',
+  otro: 'Otro',
+};
+
+// S-057: `Select` no es un <select> nativo — no reacciona a `fireEvent.change`. Se abre con
+// click y se elige la opción por su label visible.
+function selectResolutionType(value: string) {
+  fireEvent.click(screen.getByLabelText('Tipo de resolución'));
+  fireEvent.click(screen.getByRole('option', { name: RESOLUTION_TYPE_LABELS[value] }));
+}
+
+// El barrel `@/shared/components/ui` (Button, Card, Input, Select, que este componente
+// consume desde S-057) arrastra transitivamente CommentEditor -> @/features/objectives -> auth.
+// Sin estos mocks, la resolución real de 'next-auth' falla al buscar 'next/server' en este
+// entorno de test. Mismo patrón que RequirementList.test.tsx / RequirementHeader.test.tsx.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 const baseRequirement: Requirement = {
   id: 5,
   title: 'Req test',
@@ -372,7 +401,9 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('discutible');
+      // S-057: `Select` no es un <select> nativo — es un <button role="combobox"> que
+      // muestra el label de la opción elegida, no su value.
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveTextContent('Discutible');
     });
 
     it('sin Tipo de resolución cargado, el select muestra "Seleccioná una opción" como opción por defecto', () => {
@@ -388,8 +419,11 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByRole('option', { name: 'Seleccioná una opción' })).toBeInTheDocument();
-      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('');
+      // S-057: `Select` no tiene una opción "vacía" propia — sin selección, el control
+      // muestra directamente el texto de `placeholder`.
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveTextContent(
+        'Seleccioná una opción'
+      );
     });
 
     it('la Conclusión interna ya guardada se muestra como texto libre en el textarea', () => {
@@ -492,9 +526,7 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      fireEvent.change(screen.getByLabelText('Tipo de resolución'), {
-        target: { value: 'error_interno' },
-      });
+      selectResolutionType('error_interno');
       fireEvent.change(screen.getByLabelText('Conclusión interna'), {
         target: { value: 'Bug en el endpoint de horas' },
       });
@@ -542,9 +574,7 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      fireEvent.change(screen.getByLabelText('Tipo de resolución'), {
-        target: { value: 'error_interno' },
-      });
+      selectResolutionType('error_interno');
       fireEvent.click(screen.getByRole('button', { name: /^cancelar$/i }));
 
       expect(onUpdate).toHaveBeenCalledTimes(1);
@@ -633,7 +663,7 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('error_interno');
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveTextContent('Error interno');
       expect(screen.getByLabelText('Conclusión interna')).toHaveValue('Se corrigió el cálculo');
       expect(screen.getByLabelText('Nota para cliente')).toHaveValue('Ya está disponible');
     });
@@ -660,7 +690,9 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('');
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveTextContent(
+        'Seleccioná una opción'
+      );
       expect(screen.getByLabelText('Conclusión interna')).toHaveValue('');
       expect(screen.getByLabelText('Nota para cliente')).toHaveValue('');
     });
@@ -690,9 +722,7 @@ describe('RequirementResolutionCard', () => {
       };
       rerender(<RequirementResolutionCard requirement={reopened} onUpdate={onUpdate} />);
 
-      fireEvent.change(screen.getByLabelText('Tipo de resolución'), {
-        target: { value: 'fuera_de_alcance' },
-      });
+      selectResolutionType('fuera_de_alcance');
       fireEvent.change(screen.getByLabelText('Conclusión interna'), {
         target: { value: 'Se decidió no hacerlo' },
       });
@@ -765,7 +795,7 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toHaveValue('discutible');
+      expect(screen.getByLabelText('Tipo de resolución')).toHaveTextContent('Discutible');
       expect(screen.getByLabelText('Conclusión interna')).toHaveValue('Sin acuerdo');
     });
 
@@ -790,5 +820,74 @@ describe('RequirementResolutionCard', () => {
 
       expect(screen.getByLabelText('Conclusión interna')).toHaveValue('texto sin guardar');
     });
+  });
+});
+
+// S-057 (Task 1) — TS-9 a TS-11: fijan el comportamiento de cierre/reapertura contra el
+// código SIN MIGRAR. Tienen que seguir pasando sin modificarse una vez migrada la card a
+// `Card variant="panel"` + `Select` + `Input variant="textarea"` (Task 5).
+describe('S-057: preservación de comportamiento (CA-3) — card de resolución', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('TS-9: la card de resolución sigue resolviendo igual, con el mismo payload', () => {
+    const onUpdate = vi.fn();
+    render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, type: 'incidencia', state: 'analisis' }}
+        onUpdate={onUpdate}
+      />
+    );
+
+    selectResolutionType('error_interno');
+    fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+      target: { value: 'Se corrigió el cálculo' },
+    });
+    fireEvent.change(screen.getByLabelText('Nota para cliente'), {
+      target: { value: 'Ya está disponible' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
+
+    expect(onUpdate).toHaveBeenCalledWith({ resolutionType: 'error_interno' });
+    expect(onUpdate).toHaveBeenCalledWith({ resolutionConclusion: 'Se corrigió el cálculo' });
+    expect(onUpdate).toHaveBeenCalledWith({ resolutionComment: 'Ya está disponible' });
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'resuelto' });
+  });
+
+  it('TS-10: la card de resolución sigue reabriendo igual', () => {
+    const onUpdate = vi.fn();
+    render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, state: 'cancelado' }}
+        onUpdate={onUpdate}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'desarrollo' });
+  });
+
+  it('TS-11: los campos de resolución siguen visibles solo para incidencia', () => {
+    const { rerender } = render(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, type: 'mejora' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByLabelText('Tipo de resolución')).toBeNull();
+
+    rerender(
+      <RequirementResolutionCard
+        requirement={{ ...baseRequirement, type: 'incidencia' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Tipo de resolución')).toBeInTheDocument();
   });
 });

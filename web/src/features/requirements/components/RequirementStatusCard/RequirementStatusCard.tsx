@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Accordion, Button, Card, Stepper } from '@/shared/components/ui';
 import { MarkdownEditorWithPreview } from '@/shared/components/ui/MarkdownEditorWithPreview';
 import styles from './RequirementStatusCard.module.scss';
 import type {
@@ -8,6 +9,7 @@ import type {
   RequirementState,
   UpdateRequirementPayload,
 } from '../../types/requirement.types';
+import type { StepperStep } from '@/shared/components/ui/Stepper';
 
 interface RequirementStatusCardProps {
   readonly requirement: Requirement;
@@ -15,18 +17,18 @@ interface RequirementStatusCardProps {
   readonly isPending?: boolean;
 }
 
-interface StepDefinition {
-  label: string;
-  value: RequirementState;
-}
-
-const INLINE_STEPS: StepDefinition[] = [
-  { label: 'Análisis', value: 'analisis' },
-  { label: 'Planificación', value: 'planificacion' },
-  { label: 'En cola', value: 'en_cola' },
-  { label: 'Desarrollo', value: 'desarrollo' },
-  { label: 'Revisión', value: 'revision' },
+// Los cinco pasos de trabajo son fijos: resuelto/cancelado NO son nodos del stepper — son
+// estados de cierre que se ven en el badge (RequirementHeader) y se alcanzan desde la card
+// de resolución (RequirementResolutionCard).
+const STEPS: readonly StepperStep[] = [
+  { key: 'analisis', label: 'Análisis' },
+  { key: 'planificacion', label: 'Planificación' },
+  { key: 'en_cola', label: 'En cola' },
+  { key: 'desarrollo', label: 'Desarrollo' },
+  { key: 'revision', label: 'Revisión' },
 ];
+
+const WORK_STEP_KEYS = STEPS.map((step) => step.key) as RequirementState[];
 
 const STATE_LABELS: Record<RequirementState, string> = {
   analisis: 'Análisis',
@@ -85,73 +87,8 @@ const STEP_DESCRIPTIONS: Partial<Record<RequirementState, string>> = {
   resuelto: 'El requisito fue resuelto y no requiere más trabajo.',
 };
 
-function getTransitionLabel(target: RequirementState, steps: StepDefinition[]): string {
-  const label =
-    steps.find((step) => step.value === target)?.label ??
-    INLINE_STEPS.find((step) => step.value === target)?.label ??
-    target;
-  return `Pasar a ${label}`;
-}
-
-interface FieldAccordionProps {
-  readonly label: string;
-  readonly value: string | null;
-  readonly draft: string;
-  readonly onDraftChange: (value: string) => void;
-  readonly placeholder?: string;
-  readonly disabled?: boolean;
-  readonly open: boolean;
-  readonly onToggle: () => void;
-  readonly inputType?: 'textarea' | 'date';
-}
-
-function FieldAccordion({
-  label,
-  value,
-  draft,
-  onDraftChange,
-  placeholder,
-  disabled,
-  open,
-  onToggle,
-  inputType = 'textarea',
-}: FieldAccordionProps) {
-  const met = !!value;
-
-  return (
-    <div className={`${styles.accItem} ${met ? styles.fieldMet : styles.fieldMissing}`}>
-      <button type="button" className={styles.accHead} onClick={onToggle} aria-expanded={open}>
-        <span className={styles.fieldLabelRow}>
-          <span className={styles.fieldIcon}>{met ? '✓' : '!'}</span>
-          <span className={styles.fieldLabel}>{label}</span>
-        </span>
-        <span className={`${styles.accChevron} ${open ? styles.accChevronOpen : ''}`}>▾</span>
-      </button>
-      {open && (
-        <div className={styles.accBody}>
-          {inputType === 'date' ? (
-            <input
-              aria-label={label}
-              type="date"
-              className={styles.inlineFormInput}
-              value={draft.slice(0, 10)}
-              onChange={(e) => onDraftChange(e.target.value)}
-              disabled={disabled}
-            />
-          ) : (
-            <MarkdownEditorWithPreview
-              ariaLabel={label}
-              value={draft}
-              onChange={onDraftChange}
-              placeholder={placeholder}
-              disabled={disabled}
-              initialMode={met ? 'preview' : 'edit'}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
+function getTransitionLabel(target: RequirementState): string {
+  return `Pasar a ${STATE_LABELS[target]}`;
 }
 
 type FieldDrafts = {
@@ -194,14 +131,6 @@ const DEFAULT_OPEN_FIELDS_BY_STATE: Partial<Record<RequirementState, (keyof Fiel
   en_cola: ['estimatedFinishDate'],
 };
 
-function computeOpenFields(state: RequirementState): Record<keyof FieldDrafts, boolean> {
-  const defaultOpen = DEFAULT_OPEN_FIELDS_BY_STATE[state] ?? [];
-  return Object.fromEntries(FIELDS.map((f) => [f.key, defaultOpen.includes(f.key)])) as Record<
-    keyof FieldDrafts,
-    boolean
-  >;
-}
-
 const FIELDS: FieldConfig[] = [
   {
     key: 'scope',
@@ -236,9 +165,6 @@ export function RequirementStatusCard({
 }: RequirementStatusCardProps) {
   const { state } = requirement;
   const [drafts, setDrafts] = useState<FieldDrafts>(() => draftsFromRequirement(requirement));
-  const [openFields, setOpenFields] = useState<Record<keyof FieldDrafts, boolean>>(() =>
-    computeOpenFields(requirement.state)
-  );
 
   // Alcance, Propuesta y Criterios de aceptación se muestran siempre, sin importar
   // el estado del requisito — al recibir un requirement actualizado (tras guardar)
@@ -257,23 +183,7 @@ export function RequirementStatusCard({
     requirement.estimatedFinishDate,
   ]);
 
-  // El campo desplegado por defecto sigue al `state` real (CA-2 a CA-5) — al transicionar
-  // (éxito real, no optimista) el panel correspondiente al nuevo paso se despliega
-  // automáticamente y el resto vuelve a colapsarse, sin requerir click manual del usuario.
-  useEffect(() => {
-    setOpenFields(computeOpenFields(requirement.state));
-  }, [requirement.state]);
-
-  const toggleField = (field: keyof FieldDrafts) => {
-    setOpenFields((prev) => ({ ...prev, [field]: !prev[field] }));
-  };
-
   const isIncidencia = requirement.type === 'incidencia';
-
-  // El stepper muestra siempre los cinco pasos de trabajo, para cualquier tipo: es
-  // cómo el equipo lee dónde está el requisito. Desde REQ-012 ya no recorta a dónde se
-  // puede ir — eso lo decide la pill de estado, no el stepper.
-  const visibleSteps = INLINE_STEPS;
 
   // El destino sugerido por el botón de transición — un atajo al paso siguiente
   // habitual, no la única transición posible (la pill ofrece las siete, sin recorte).
@@ -312,92 +222,87 @@ export function RequirementStatusCard({
     onUpdate(payload);
   };
 
-  const renderStep = (step: StepDefinition, i: number) => {
-    const stepIdx = i;
-    const currentIdx = visibleSteps.findIndex((s) => s.value === state);
-    const isCurrent = state === step.value;
-    // Si el estado actual es Resuelto/Cancelado, ya se superó todo el flujo de trabajo
-    // para llegar ahí — los 5 pasos de trabajo se muestran superados (color/conector).
-    const reachedTerminal = state === 'resuelto' || state === 'cancelado';
-    const isDone = reachedTerminal || (currentIdx !== -1 && stepIdx < currentIdx);
-    // Si terminó Cancelado, un paso "superado" sin actividad real registrada (nunca se
-    // pasó por ahí) se marca con × en vez de ✓, para no sugerir que se completó.
-    const skippedOnCancel =
-      state === 'cancelado' && isDone && !hasStepActivity(step.value, requirement);
-
-    return (
-      <div
-        key={step.value}
-        className={styles.step}
-        data-step={step.value}
-        aria-current={isCurrent ? 'step' : undefined}
-      >
-        {i > 0 && (
-          <div
-            className={`${styles.stepConnector} ${isDone || isCurrent ? styles.stepConnectorDone : ''}`}
-          />
-        )}
-        <div
-          className={`${styles.stepDot} ${isCurrent ? styles.stepDotCurrent : ''} ${isDone ? styles.stepDotDone : ''}`}
-          data-testid="step-dot"
-        >
-          {skippedOnCancel ? '×' : isDone ? '✓' : stepIdx + 1}
-        </div>
-        <span className={`${styles.stepLabel} ${isCurrent ? styles.stepLabelCurrent : ''}`}>
-          {step.label}
-        </span>
-      </div>
-    );
-  };
+  // Un estado terminal (resuelto/cancelado) no es un nodo del stepper: `currentKey` queda
+  // fuera de `steps`, así que se representa recorriendo los cinco pasos vía `doneKeys` —
+  // sin esto, el cálculo por defecto de Stepper los dejaría todos en `pending`.
+  const reachedTerminal = state === 'resuelto' || state === 'cancelado';
+  const doneKeys = reachedTerminal ? WORK_STEP_KEYS : undefined;
+  // Cancelado: los pasos "recorridos" sin actividad real registrada se marcan con × en vez
+  // de ✓, para no sugerir que se completaron.
+  const skippedKeys =
+    state === 'cancelado'
+      ? WORK_STEP_KEYS.filter((step) => !hasStepActivity(step, requirement))
+      : undefined;
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardTitle}>Estado - {STATE_LABELS[state]}</div>
+    <Card variant="panel" title={`Estado - ${STATE_LABELS[state]}`} headingLevel="h2">
       {STEP_DESCRIPTIONS[state] && <p className={styles.stepDesc}>{STEP_DESCRIPTIONS[state]}</p>}
 
       <div className={styles.stepperRow}>
-        <div className={styles.stepper}>{visibleSteps.map(renderStep)}</div>
+        <Stepper steps={STEPS} currentKey={state} doneKeys={doneKeys} skippedKeys={skippedKeys} />
       </div>
 
       <div className={styles.panel}>
         <div className={styles.fieldGroup}>
-          {FIELDS.map((field) => (
-            <FieldAccordion
-              key={field.key}
-              label={field.label}
-              value={field.value(requirement)}
-              draft={drafts[field.key]}
-              onDraftChange={(value) => handleDraftChange(field.key, value)}
-              placeholder={field.placeholder}
-              inputType={field.inputType}
-              disabled={isPending}
-              open={openFields[field.key]}
-              onToggle={() => toggleField(field.key)}
-            />
-          ))}
+          {FIELDS.map((field) => {
+            const value = field.value(requirement);
+            const met = !!value;
+            const defaultExpanded = (DEFAULT_OPEN_FIELDS_BY_STATE[state] ?? []).includes(
+              field.key
+            );
+
+            return (
+              // `key` incluye el `state`: Accordion es no controlado (solo `defaultExpanded`
+              // al montar), así que al transicionar de estado se remonta para resincronizar
+              // el despliegue por defecto al nuevo paso (CA-2 a CA-5).
+              <Accordion
+                key={`${field.key}-${state}`}
+                title={field.label}
+                status={met ? 'done' : 'pending'}
+                defaultExpanded={defaultExpanded}
+                headingLevel="h4"
+              >
+                {field.inputType === 'date' ? (
+                  <input
+                    aria-label={field.label}
+                    type="date"
+                    className={styles.inlineFormInput}
+                    value={drafts[field.key].slice(0, 10)}
+                    onChange={(e) => handleDraftChange(field.key, e.target.value)}
+                    disabled={isPending}
+                  />
+                ) : (
+                  <MarkdownEditorWithPreview
+                    ariaLabel={field.label}
+                    value={drafts[field.key]}
+                    onChange={(v) => handleDraftChange(field.key, v)}
+                    placeholder={field.placeholder}
+                    disabled={isPending}
+                    initialMode={met ? 'preview' : 'edit'}
+                  />
+                )}
+              </Accordion>
+            );
+          })}
         </div>
 
         <div className={styles.panelActions}>
-          <button
-            type="button"
-            className={styles.btnSmallPrimary}
-            onClick={handleSaveFields}
-            disabled={isPending}
-          >
+          <Button variant="primary" onClick={handleSaveFields} disabled={isPending}>
             Guardar
-          </button>
+          </Button>
           {transitionTarget && (
-            <button
-              type="button"
-              className={styles.transitionButton}
+            <Button
+              variant="flow"
+              icon="→"
+              iconTrailing
               onClick={handleTransition}
               disabled={isPending}
             >
-              {getTransitionLabel(transitionTarget, visibleSteps)} →
-            </button>
+              {getTransitionLabel(transitionTarget)}
+            </Button>
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

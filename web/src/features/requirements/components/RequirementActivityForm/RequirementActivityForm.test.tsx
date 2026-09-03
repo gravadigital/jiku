@@ -75,7 +75,7 @@ describe('RequirementActivityForm', () => {
 
   it('botón Enviar está deshabilitado cuando el editor está vacío', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
-    expect(screen.getByTestId('submit-button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled();
   });
 
   it('TS-10: el área de comentario tiene alto fijo de 170px con scroll', () => {
@@ -103,8 +103,13 @@ describe('RequirementActivityForm', () => {
     expect(screen.getByText('Público')).toBeInTheDocument();
   });
 
-  it('TS-13: SCSS de sendBtn usa var(--color-button)', () => {
-    expect(scssContent).toMatch(/\.sendBtn[\s\S]*?background:\s*var\(--color-button\)/);
+  // S-057: "Enviar" migró a `Button variant="primary"`, cuyo color de fondo lo resuelve el
+  // propio componente del DS vía `--button-primary-bg` — el módulo de esta pantalla ya no
+  // declara ningún `.sendBtn` propio.
+  it('TS-13 (ajustado): no queda ningún estilo de botón hecho a mano en el módulo', () => {
+    expect(scssContent).not.toMatch(/\.sendBtn/);
+    expect(scssContent).not.toMatch(/\.attachIconBtn/);
+    expect(scssContent).not.toMatch(/\.visToggleBtn/);
   });
 
   it('TS-14: footer contiene Adjuntar, toggle Interno/Público y Enviar en ese orden', () => {
@@ -121,22 +126,27 @@ describe('RequirementActivityForm', () => {
     expect(within(footer).getByText('Enviar')).toBeInTheDocument();
   });
 
-  it('visibilidad por defecto es internal (botón Interno tiene data-active="true")', () => {
+  // S-057: el toggle migró a `ToggleGroup` (role="radiogroup"), que marca la opción activa con
+  // `aria-checked`, no con `data-active`.
+  it('visibilidad por defecto es internal (radio "Interno" con aria-checked="true")', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
-    expect(screen.getByRole('button', { name: /interno/i })).toHaveAttribute('data-active', 'true');
-    expect(screen.getByRole('button', { name: /público/i })).toHaveAttribute(
-      'data-active',
+    expect(screen.getByRole('radio', { name: /interno/i })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: /público/i })).toHaveAttribute(
+      'aria-checked',
       'false'
     );
   });
 
   it('al hacer click en Público, cambia visibilidad activa', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
-    const publicoBtn = screen.getByRole('button', { name: /público/i });
+    const publicoBtn = screen.getByRole('radio', { name: /público/i });
     fireEvent.click(publicoBtn);
-    expect(publicoBtn).toHaveAttribute('data-active', 'true');
-    expect(screen.getByRole('button', { name: /interno/i })).toHaveAttribute(
-      'data-active',
+    expect(publicoBtn).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: /interno/i })).toHaveAttribute(
+      'aria-checked',
       'false'
     );
   });
@@ -151,7 +161,7 @@ describe('RequirementActivityForm', () => {
     const input = getFileInput();
     const clickSpy = vi.spyOn(input, 'click');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar archivo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adjuntar' }));
 
     expect(clickSpy).toHaveBeenCalled();
   });
@@ -228,7 +238,7 @@ describe('RequirementActivityForm', () => {
       expect(hasAttachmentNode()).toBe(true);
     });
 
-    fireEvent.click(screen.getByTestId('submit-button'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
     expect(mockAddActivity).toHaveBeenCalledWith(
       expect.objectContaining({ fileIds: [100] }),
@@ -247,7 +257,7 @@ describe('RequirementActivityForm', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
 
     fireEvent.change(getTextarea(), { target: { value: 'Hola' } });
-    fireEvent.click(screen.getByTestId('submit-button'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
     expect(toast.error).toHaveBeenCalledWith(
       'No podés adjuntar un archivo que subió otra persona'
@@ -268,13 +278,13 @@ describe('RequirementActivityForm', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('submit-button')).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled();
     });
-    expect(screen.getByRole('button', { name: 'Adjuntar archivo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Adjuntar' })).toBeDisabled();
     const bar = screen.getByRole('progressbar');
     expect(bar).toHaveAttribute('aria-valuenow', '40');
     expect(screen.getByText('Subiendo doc.pdf... 40%')).toBeInTheDocument();
-    expect(screen.getByTestId('submit-button')).toHaveAttribute('aria-describedby');
+    expect(screen.getByRole('button', { name: 'Enviar' })).toHaveAttribute('aria-describedby');
   });
 
   it('TS-41 (CA-1): sin subida no hay barra de progreso ni texto "Subiendo"', () => {
@@ -293,7 +303,7 @@ describe('RequirementActivityForm', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
 
     fireEvent.change(getTextarea(), { target: { value: 'Hola' } });
-    fireEvent.click(screen.getByTestId('submit-button'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
     expect(toast.error).toHaveBeenCalledWith('Adjunto inválido');
     expect(getTextarea().value).toBe('Hola');
@@ -306,7 +316,7 @@ describe('RequirementActivityForm', () => {
     render(<RequirementActivityForm reqid={5} />, { wrapper: createWrapper() });
 
     fireEvent.change(getTextarea(), { target: { value: 'Hola' } });
-    fireEvent.click(screen.getByTestId('submit-button'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
     await waitFor(() => {
       expect(getTextarea().value).toBe('');

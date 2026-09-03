@@ -1,258 +1,51 @@
-.card {
-  background: #fff;
-  border: 1.5px solid #e6e8ed;
-  border-radius: 10px;
-  padding: 1.25rem 1.375rem;
-  box-shadow: var(--box-shadow);
-}
-
-.cardTitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #000;
-  margin: 0 0 0.25rem 0;
-}
-
 .stepperRow {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.stepper {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-  flex: 1;
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  min-width: 84px;
-  position: relative;
-}
-
-.stepConnector {
-  position: absolute;
-  top: 14px;
-  left: -50%;
-  width: 100%;
-  height: 2px;
-  background: #e6e8ed;
-  z-index: 0;
-}
-
-.stepConnectorDone {
-  background: var(--color-button, #da2c6a);
-}
-
-.stepDot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 2px solid #e6e8ed;
-  background: #fff;
-  color: #5f6d7f;
-  z-index: 1;
-  padding: 0;
-}
-
-.stepDotDone {
-  background: var(--color-button, #da2c6a);
-  border-color: var(--color-button, #da2c6a);
-  color: #fff;
-}
-
-.stepDotCurrent {
-  border-color: var(--color-button, #da2c6a);
-  color: var(--color-button, #da2c6a);
-  box-shadow: 0 0 0 4px rgba(218, 44, 106, 0.14);
-}
-
-.stepLabel {
-  margin-top: 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #5f6d7f;
-  text-align: center;
-}
-
-.stepLabelCurrent {
-  color: var(--color-button, #da2c6a);
-  font-weight: 600;
+  margin-bottom: var(--space-stack-md);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-inline-md);
 }
 
 .stepDesc {
-  font-size: 0.875rem;
-  color: var(--color-general-text, #5f6d7f);
-  line-height: 1.5;
-  margin: 0 0 1.25rem 0;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  font-weight: var(--text-body-default-weight);
+  line-height: var(--text-body-default-leading);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-stack-md) 0;
 }
 
-.fieldLabelRow {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.3rem;
-}
-
-/* ── Acordeones de Alcance / Propuesta / Criterios de aceptación / Cierre estimado ── */
-/* Se renderizan acoplados: un solo borde compartido, redondeado solo en las
-   esquinas externas, sin separación entre ítems consecutivos. */
+/* Se renderizan acoplados: un único contenedor con borde compartido, sin separación entre
+   ítems consecutivos — el patrón visual que ya traía el módulo hecho a mano. */
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-action);
   overflow: hidden;
-}
-
-.accItem {
-  border-left: 3px solid #e6e8ed;
-  border-bottom: 1px solid #e6e8ed;
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.accItem.fieldMet {
-  border-left-color: #22c55e;
-}
-
-.accItem.fieldMissing {
-  border-left-color: #eab308;
-}
-
-.accHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  background: #fafbfb;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-
-  .fieldLabelRow {
-    margin-bottom: 0;
-  }
-}
-
-.accChevron {
-  font-size: 0.7rem;
-  color: #626a81;
-  transition: transform 0.15s;
-  flex-shrink: 0;
-}
-
-.accChevronOpen {
-  transform: rotate(0deg);
-}
-
-.accChevron:not(.accChevronOpen) {
-  transform: rotate(-90deg);
-}
-
-.accBody {
-  padding: 0.75rem;
-}
-
-.fieldLabel {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1f2633;
-}
-
-.fieldIcon {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.625rem;
-  font-weight: 700;
-  flex-shrink: 0;
-  color: #fff;
-}
-
-.fieldMet .fieldIcon {
-  background: #16a34a;
-}
-
-.fieldMissing .fieldIcon {
-  background: #d97706;
 }
 
 .inlineFormInput {
   display: block;
   width: 100%;
-  margin-top: 0.45rem;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  padding: 0.5rem 0.625rem;
-  font-size: 0.875rem;
-  color: #1f2633;
-  background: #fff;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-action);
+  padding: var(--space-inline-sm) var(--space-inline-md);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--text-primary);
+  background: var(--bg-surface);
   box-sizing: border-box;
-  font-family: inherit;
 }
 
 .panelActions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.btnSmallPrimary {
-  background: #fff;
-  color: var(--color-button, #da2c6a);
-  border: 1.5px solid var(--color-button, #da2c6a);
-  border-radius: 8px;
-  padding: 0.5rem 1.125rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-}
-
-.transitionButton {
-  padding: 0.5rem 1.125rem;
-  border-radius: 8px;
-  border: none;
-  background: var(--color-button, #da2c6a);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
+  gap: var(--space-inline-sm);
+  margin-top: var(--space-inline-sm);
 }

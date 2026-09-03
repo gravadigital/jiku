@@ -6,10 +6,6 @@ import * as useProjectsModule from '@/features/projects/hooks/useProjects';
 import { RequirementFilters } from './RequirementFilters';
 import type { RequirementFilters as Filters } from '../../types/requirement.types';
 
-function getProjectSelectContainer(): HTMLElement {
-  return screen.getByText('Proyecto').closest('div') as HTMLElement;
-}
-
 const mockProjects = [
   { id: 3, name: 'Zeta' },
   { id: 1, name: 'Alfa' },
@@ -24,8 +20,16 @@ vi.mock('@/features/auth/hooks/usePersons', () => ({
   usePersons: vi.fn(() => ({ data: [] })),
 }));
 
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(() => ({ data: null })),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 function createWrapper() {
@@ -142,16 +146,15 @@ describe('RequirementFilters — S-051', () => {
     expect(input.value).toBe('log');
   });
 
-  // Fix: el selector de Proyecto listaba en el orden crudo de useProjects (desordenado) y no
-  // permitía buscar. Debe ordenar alfabéticamente y ser buscable, igual que en CreateRequirementForm.
+  // Fix: el selector de Proyecto listaba en el orden crudo de useProjects (desordenado). Debe
+  // ordenar alfabéticamente. S-057: migrado a `Select`, que no tiene búsqueda por escritura
+  // (ver decisión 4 del Story Plan) — el test de typeahead se retira, no se adapta.
   it('el selector de Proyecto lista las opciones ordenadas alfabéticamente por nombre', () => {
     render(<RequirementFilters filters={filters} onChange={onChange} />, {
       wrapper: createWrapper(),
     });
 
-    const container = getProjectSelectContainer();
-    const input = within(container).getByRole('combobox');
-    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.click(screen.getByLabelText('Proyecto'));
 
     const options = screen.getAllByRole('option').map((el) => el.textContent);
     expect(options).toEqual(['Todos los proyectos', 'Alfa', 'Beta', 'Zeta']);
@@ -165,21 +168,6 @@ describe('RequirementFilters — S-051', () => {
     expect(useProjectsModule.useProjects).toHaveBeenCalledWith({
       filters: { state: 'analisis,activo' },
     });
-  });
-
-  it('el selector de Proyecto permite buscar por texto (no es isSearchable=false)', () => {
-    render(<RequirementFilters filters={filters} onChange={onChange} />, {
-      wrapper: createWrapper(),
-    });
-
-    const container = getProjectSelectContainer();
-    const input = within(container).getByRole('combobox');
-    fireEvent.keyDown(input, { key: 'ArrowDown' });
-    fireEvent.change(input, { target: { value: 'Bet' } });
-
-    expect(screen.getByText('Beta')).toBeInTheDocument();
-    expect(screen.queryByText('Alfa')).not.toBeInTheDocument();
-    expect(screen.queryByText('Zeta')).not.toBeInTheDocument();
   });
 
   // Regresión: al cambiar de página, el Suspense padre remonta RequirementFilters con
