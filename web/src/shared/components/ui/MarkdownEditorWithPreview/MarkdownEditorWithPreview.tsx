@@ -7,9 +7,9 @@ import styles from './MarkdownEditorWithPreview.module.scss';
 
 type EditorMode = 'edit' | 'preview';
 
-const MODE_OPTIONS: { key: EditorMode; label: string }[] = [
-  { key: 'edit', label: 'Editar' },
-  { key: 'preview', label: 'Vista previa' },
+const MODE_OPTIONS: { value: EditorMode; label: string }[] = [
+  { value: 'edit', label: 'Editar' },
+  { value: 'preview', label: 'Vista previa' },
 ];
 
 interface MarkdownEditorWithPreviewProps {
@@ -33,7 +33,12 @@ export function MarkdownEditorWithPreview({
 
   return (
     <div className={styles.container}>
-      <ToggleGroup options={MODE_OPTIONS} value={mode} onChange={setMode} />
+      <ToggleGroup
+        label="Modo del editor"
+        options={MODE_OPTIONS}
+        value={mode}
+        onChange={(next) => setMode(next as EditorMode)}
+      />
 
       {mode === 'edit' ? (
         <textarea

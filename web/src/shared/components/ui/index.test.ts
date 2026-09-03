@@ -26,6 +26,7 @@ const LAYOUT_DIR = path.resolve(__dirname, '../layout');
 const MUERTOS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect'] as const;
 const VIVOS_UI = [
   'AddButton',
+  'Accordion',
   'AutomatedIdentityBadge',
   'Avatar',
   'Badge',
@@ -35,6 +36,8 @@ const VIVOS_UI = [
   'ConfirmDialog',
   'DateLabel',
   'DatePicker',
+  'Dropzone',
+  'EmptyState',
   'FinishDateLabel',
   'Input',
   'InputDate',
@@ -80,6 +83,9 @@ const CARPETAS_VIVAS_UI = [
   'Tabs',
   'ViewHeader',
   'WeekNav',
+  'Accordion',
+  'Dropzone',
+  'EmptyState',
 ];
 
 describe('barrel de shared/components/ui', () => {
@@ -93,8 +99,8 @@ describe('barrel de shared/components/ui', () => {
     expect(barrel).toContain(`export { ${nombre} } from './${nombre}';`);
   });
 
-  it('tiene exactamente 31 exports', () => {
-    expect(barrel.match(/^export \{/gm)).toHaveLength(31);
+  it('tiene exactamente 34 exports', () => {
+    expect(barrel.match(/^export \{/gm)).toHaveLength(34);
   });
 
   it.each(CARPETAS_MUERTAS_UI)('la carpeta de %s ya no existe en ui/', (nombre) => {

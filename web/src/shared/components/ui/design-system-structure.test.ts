@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Barrido transversal (Task 10 de S-054) sobre los ocho componentes de datos y
-// navegación: tokens, foco y composición de clases. Complementa
-// `design-system-foundations.test.ts` (S-052/S-053), que cubre los componentes base.
+// Barrido transversal (Task 10 de S-054, extendido por T-9 de S-055) sobre los
+// componentes de datos, navegación, feedback y contenido: tokens, foco y
+// composición de clases. Complementa `design-system-foundations.test.ts`
+// (S-052/S-053), que cubre los componentes base.
 
 const UI_DIR = __dirname;
 
-const NEW_COMPONENTS = [
+// Los ocho de S-054: datos y navegación.
+const DATA_NAV_COMPONENTS = [
   'Table',
   'Stepper',
   'Avatar',
@@ -18,6 +20,18 @@ const NEW_COMPONENTS = [
   'Pagination',
   'WeekNav',
 ] as const;
+
+// Los seis de S-055: feedback y contenido (tres nuevos, tres migrados).
+const FEEDBACK_COMPONENTS = [
+  'EmptyState',
+  'Dropzone',
+  'Accordion',
+  'Tooltip',
+  'ConfirmDialog',
+  'ToggleGroup',
+] as const;
+
+const NEW_COMPONENTS = [...DATA_NAV_COMPONENTS, ...FEEDBACK_COMPONENTS] as const;
 
 const OLD_SYSTEM_TOKENS = [
   '--color-button',
@@ -38,7 +52,7 @@ function readComponentTsx(component: string): string {
   return fs.readFileSync(path.join(UI_DIR, component, `${component}.tsx`), 'utf-8');
 }
 
-describe('TS-76: ningún componente nuevo suprime el foco sin reemplazo', () => {
+describe('S-055 TS-80/TS-81: ningún componente nuevo suprime el foco sin reemplazo', () => {
   it.each(NEW_COMPONENTS)('%s no usa el mixin focus-ring (violeta) viejo', (component) => {
     const source = readModuleScss(component);
     expect(source).not.toMatch(/@include\s+focus-ring\b/);
@@ -59,7 +73,7 @@ describe('TS-76: ningún componente nuevo suprime el foco sin reemplazo', () => 
   );
 });
 
-describe('TS-77: los ocho componentes consumen tokens, no hex literales', () => {
+describe('S-055 TS-78/TS-79: los componentes consumen tokens, no hex literales', () => {
   it.each(NEW_COMPONENTS)('%s no contiene hexadecimales crudos en su CSS', (component) => {
     const source = readModuleScss(component);
     // Se descartan las líneas de comentario (// ...), donde puede aparecer un hex
@@ -79,7 +93,7 @@ describe('TS-77: los ocho componentes consumen tokens, no hex literales', () => 
   });
 });
 
-describe('TS-79: los tokens de avatar resuelven a los semánticos del spec', () => {
+describe('S-054 TS-79: los tokens de avatar resuelven a los semánticos del spec', () => {
   it('--avatar-bg resuelve a var(--bg-inverse) y --avatar-text a var(--text-inverse)', () => {
     const source = fs.readFileSync(
       path.resolve(UI_DIR, '../../../styles/_component.scss'),
@@ -90,15 +104,56 @@ describe('TS-79: los tokens de avatar resuelven a los semánticos del spec', () 
   });
 });
 
-describe('TS-80: ningún componente nuevo usa template strings para clases condicionales', () => {
+describe('S-055 TS-82: ningún componente nuevo usa template strings para clases condicionales', () => {
   it.each(NEW_COMPONENTS)('%s compone clases condicionales con cn(), no con template strings', (component) => {
     const source = readComponentTsx(component);
     expect(source).not.toMatch(/\$\{styles\.[a-zA-Z]+\}/);
   });
 });
 
-describe('TS-78: los ocho componentes tienen su archivo de test', () => {
+describe('S-055 TS-77: los componentes tienen su archivo de test', () => {
   it.each(NEW_COMPONENTS)('%s tiene %s.test.tsx', (component) => {
     expect(fs.existsSync(path.join(UI_DIR, component, `${component}.test.tsx`))).toBe(true);
   });
+});
+
+describe('S-055 TS-83/TS-84: los tokens de componente de S-055 quedaron declarados y resuelven a semánticos', () => {
+  const componentScssSource = fs.readFileSync(
+    path.resolve(UI_DIR, '../../../styles/_component.scss'),
+    'utf-8'
+  );
+
+  const NEW_COMPONENT_TOKENS = [
+    '--empty-radius',
+    '--empty-bg',
+    '--dropzone-text',
+    '--dropzone-icon-size',
+    '--dropzone-hover-border',
+    '--accordion-radius',
+    '--accordion-title',
+    '--accordion-chevron',
+    '--accordion-pending-mark',
+    '--accordion-done-mark',
+    '--toggle-bg',
+    '--toggle-item-text',
+    '--toggle-item-active-text',
+    '--tooltip-radius',
+    '--tooltip-font',
+  ];
+
+  it.each(NEW_COMPONENT_TOKENS)('%s está declarado en _component.scss', (token) => {
+    expect(componentScssSource).toContain(`${token}:`);
+  });
+
+  it.each(NEW_COMPONENT_TOKENS)(
+    '%s resuelve a var(--...) — nunca a un primitivo ni a un hex',
+    (token) => {
+      const line = componentScssSource
+        .split('\n')
+        .find((candidate) => candidate.trim().startsWith(`${token}:`));
+      expect(line).toBeDefined();
+      expect(line).toMatch(/:\s*var\(--[a-z0-9-]+\)/);
+      expect(line).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    }
+  );
 });

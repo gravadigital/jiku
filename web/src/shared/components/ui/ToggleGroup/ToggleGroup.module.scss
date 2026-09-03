@@ -1,42 +1,79 @@
 @use '@/styles' as *;
 
+.wrapper {
+  @include flex-column;
+  gap: var(--space-2);
+  width: fit-content;
+}
+
 .container {
-  @include flex-start;
-  gap: 0;
-  background-color: var(--color-general-disabled);
-  border-radius: var(--radius-items);
-  padding: 3px;
+  display: flex;
+  align-items: center;
   width: fit-content;
 }
 
 .option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 25px;
-  border: none;
-  font-family: var(--font-primary);
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1.2;
-  padding: 0 0.8rem;
-  border-radius: calc(var(--radius-items) - 3px);
+  @include button-reset;
+  @include flex-center;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--toggle-radius);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--toggle-item-text);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  background-color: transparent;
-  color: var(--color-general-text);
-  @include focus-ring;
 
-  &:hover:not(:disabled) {
-    filter: brightness(0.95);
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:disabled {
+    color: var(--text-disabled);
+    cursor: not-allowed;
   }
 
   &.active {
-    background-color: var(--color-button);
-    color: var(--color-background);
+    background: var(--toggle-active-bg);
+    color: var(--toggle-item-active-text);
+  }
+}
 
-    &:hover:not(:disabled) {
-      filter: brightness(0.9);
-    }
+// segmented: segmentos unidos en un contenedor de tinte grafito, sin gap entre ítems.
+.segmented {
+  background: var(--toggle-bg);
+  border-radius: var(--toggle-radius);
+  padding: 3px;
+  gap: 0;
+}
+
+// range-pill: pills independientes con borde claro, gap entre ellas.
+.rangePill {
+  gap: var(--space-1);
+
+  .option {
+    border: 1px solid var(--border-default);
+  }
+}
+
+// stepper-value: valores cortos + escape a valor libre, mismo layout que range-pill.
+.stepperValue {
+  gap: var(--space-1);
+
+  .option {
+    border: 1px solid var(--border-default);
+  }
+}
+
+// day-chip: chips de día, gap entre ellas.
+.dayChip {
+  gap: var(--space-1);
+
+  .option {
+    border: 1px solid var(--border-default);
   }
 }

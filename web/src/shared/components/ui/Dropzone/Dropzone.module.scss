@@ -1,0 +1,81 @@
+@use '@/styles' as *;
+
+.wrapper {
+  @include flex-column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.zone {
+  @include flex-column-center;
+  gap: var(--space-2);
+  width: 100%;
+  border-radius: var(--dropzone-radius);
+  border: 1px dashed var(--dropzone-border);
+  background: var(--dropzone-bg);
+  padding: var(--space-8) var(--space-4);
+  cursor: pointer;
+  text-align: center;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:hover {
+    border-color: var(--dropzone-hover-border);
+  }
+}
+
+.uploading {
+  @include flex-center;
+  gap: var(--space-2);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--dropzone-text);
+}
+
+.icon {
+  font-size: var(--dropzone-icon-size);
+  color: var(--dropzone-text);
+  line-height: 1;
+}
+
+.instruction {
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--dropzone-text);
+  cursor: pointer;
+}
+
+.restriction {
+  font-family: var(--text-field-label-family);
+  font-size: var(--text-field-label-size);
+  color: var(--dropzone-text);
+  margin: 0;
+}
+
+.input {
+  @include visually-hidden;
+}
+
+.dragover {
+  border-style: solid;
+  border-color: var(--border-focus);
+  background: var(--bg-active-subtle);
+}
+
+.error {
+  border-color: var(--state-urgent-border);
+}
+
+.rejection {
+  font-family: var(--text-field-label-family);
+  font-size: var(--text-field-label-size);
+  color: var(--state-urgent-text);
+  margin: 0;
+}

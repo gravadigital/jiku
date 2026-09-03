@@ -25,8 +25,8 @@ import type { ApiError } from '@/lib/axios';
 type AttendanceMode = 'presente' | 'ausente';
 
 const ATTENDANCE_MODE_OPTIONS = [
-  { key: 'presente' as AttendanceMode, label: 'Presente' },
-  { key: 'ausente' as AttendanceMode, label: 'Ausente' },
+  { value: 'presente' as AttendanceMode, label: 'Presente' },
+  { value: 'ausente' as AttendanceMode, label: 'Ausente' },
 ] as const;
 
 const reasonSelectStyles = {
@@ -261,7 +261,12 @@ export function WorkedTimesPage() {
 
         <hr className={styles.divider} />
 
-        <ToggleGroup options={ATTENDANCE_MODE_OPTIONS} value={mode} onChange={handleModeChange} />
+        <ToggleGroup
+          label="Modo de asistencia"
+          options={ATTENDANCE_MODE_OPTIONS}
+          value={mode}
+          onChange={(next) => handleModeChange(next as AttendanceMode)}
+        />
 
         <hr className={styles.divider} />
 

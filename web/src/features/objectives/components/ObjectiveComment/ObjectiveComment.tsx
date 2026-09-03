@@ -173,7 +173,7 @@ export function ObjectiveComment({
           <span className={styles.authorName}>{authorName}</span>
           <AutomatedIdentityBadge identityType={authorIdentityType} />
           <Tooltip
-            message={visibilityLevel === 'public' ? 'Visible para externos' : 'Solo interno'}
+            content={visibilityLevel === 'public' ? 'Visible para externos' : 'Solo interno'}
           >
             <span className={styles.visibilityBadge} data-level={visibilityLevel}>
               {visibilityLevel === 'public' ? '👁' : '🔒'}
@@ -181,7 +181,7 @@ export function ObjectiveComment({
           </Tooltip>
         </div>
         <div className={styles.headerRight}>
-          <Tooltip message={dateTooltipMessage(date, editedAt)}>
+          <Tooltip content={dateTooltipMessage(date, editedAt)}>
             <span className={styles.commentDate}>
               {' Hace '}
               {calculateTimeSince(new Date(date))}

@@ -120,12 +120,20 @@
   --range-pill-radius: var(--radius-pill);
   --range-pill-bg: var(--bg-tint-neutral);
   --range-pill-active-bg: var(--bg-active);
+  // Completado por S-055 (spec toggle-group.md): fondo del contenedor `segmented` y
+  // los dos tokens de texto del ítem (secundario en reposo, sobre-acción al elegir).
+  --toggle-bg: var(--bg-tint-neutral);
+  --toggle-item-text: var(--text-secondary);
+  --toggle-item-active-text: var(--text-on-action);
 
   // ============================================
   // Empty (empty state)
   // ============================================
   --empty-icon-color: var(--text-secondary);
   --empty-text-color: var(--text-secondary);
+  // Completado por S-055 (spec empty-state.md): superficie de apoyo en niebla, radio 14.
+  --empty-radius: var(--radius-surface);
+  --empty-bg: var(--bg-surface-sunken);
 
   // ============================================
   // Dropzone
@@ -133,12 +141,27 @@
   --dropzone-radius: var(--radius-surface);
   --dropzone-border: var(--border-default);
   --dropzone-bg: var(--bg-surface-sunken);
+  // Completado por S-055 (spec dropzone.md): texto secundario, icono 24px y borde de
+  // hover/dragover en verde agua (border.focus).
+  --dropzone-text: var(--text-secondary);
+  // dropzone.icon.size resuelve directo al primitivo icon.24 por definición normativa del DS
+  // (docs/design-system/web/tokens/component.md): el sistema no declara un tier semántico de
+  // tamaños de ícono, así que no hay un semántico intermedio que agregar aquí.
+  --dropzone-icon-size: var(--icon-24);
+  --dropzone-hover-border: var(--border-focus);
 
   // ============================================
   // Accordion
   // ============================================
   --accordion-border: var(--border-default);
   --accordion-header-text: var(--text-primary);
+  // Completado por S-055 (spec accordion.md): radio de superficie, tipografía de
+  // título y las dos marcas de completitud (ámbar «!» pendiente, verde «✓» completo).
+  --accordion-radius: var(--radius-surface);
+  --accordion-title: var(--text-card-title-family);
+  --accordion-chevron: var(--text-secondary);
+  --accordion-pending-mark: var(--state-review-full);
+  --accordion-done-mark: var(--state-resolved-full);
 
   // ============================================
   // Avatar
@@ -162,6 +185,10 @@
   // ============================================
   --tooltip-bg: var(--bg-inverse);
   --tooltip-text: var(--text-inverse);
+  // Completado por S-055 (spec tooltip.md): radio de acción (8px) y tipografía
+  // text.field-label (13/400).
+  --tooltip-radius: var(--radius-action);
+  --tooltip-font: var(--text-field-label-family);
 
   // ============================================
   // Pagination

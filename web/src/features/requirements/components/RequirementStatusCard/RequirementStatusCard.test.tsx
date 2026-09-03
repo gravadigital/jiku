@@ -931,7 +931,7 @@ describe('RequirementStatusCard', () => {
 
       expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Objetivo' })).toBeInTheDocument();
-      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-checked', 'true');
     });
 
     it('TS-2: vuelve a Editar sin perder el texto ingresado', () => {
@@ -1019,7 +1019,7 @@ describe('RequirementStatusCard', () => {
       openField('Alcance');
 
       expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByTestId('markdown-viewer')).toHaveTextContent('texto ya guardado');
     });
 
@@ -1034,7 +1034,7 @@ describe('RequirementStatusCard', () => {
       openField('Alcance');
 
       expect(screen.getByLabelText('Alcance')).toHaveValue('');
-      expect(screen.getByText('Editar')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText('Editar')).toHaveAttribute('aria-checked', 'true');
     });
 
     it('TS-7: Guardar funciona igual estando el campo en modo Vista previa', () => {

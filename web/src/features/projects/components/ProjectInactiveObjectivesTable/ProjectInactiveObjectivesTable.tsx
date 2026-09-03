@@ -20,20 +20,22 @@ function ObjectiveTitleCell({
   const spanRef = useRef<HTMLSpanElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
 
+  const titleSpan = (
+    <span
+      ref={spanRef}
+      onMouseEnter={() => {
+        if (spanRef.current) {
+          setIsTruncated(spanRef.current.scrollWidth > spanRef.current.clientWidth);
+        }
+      }}
+    >
+      {title}
+    </span>
+  );
+
   return (
     <td className={className}>
-      <Tooltip message={title} disableTooltip={!isTruncated}>
-        <span
-          ref={spanRef}
-          onMouseEnter={() => {
-            if (spanRef.current) {
-              setIsTruncated(spanRef.current.scrollWidth > spanRef.current.clientWidth);
-            }
-          }}
-        >
-          {title}
-        </span>
-      </Tooltip>
+      {isTruncated ? <Tooltip content={title}>{titleSpan}</Tooltip> : titleSpan}
     </td>
   );
 }

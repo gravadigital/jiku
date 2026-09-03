@@ -123,7 +123,7 @@ export function AttachmentItem({ attachment, onPreview, canDelete = false }: Att
       <ConfirmDialog
         open={showDeleteDialog}
         title="Eliminar archivo"
-        message="¿Estás seguro? El archivo se eliminará permanentemente en 7 días"
+        body={`Se va a eliminar el archivo ${attachment.fileName} en 7 días. Esta acción no se puede deshacer.`}
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDelete}

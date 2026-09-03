@@ -225,7 +225,7 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
       <ConfirmDialog
         open={deleteWorkedTargetId !== null}
         title="Eliminar registro"
-        message="¿Estás seguro de que querés eliminar este registro de horas?"
+        body="Se va a eliminar este registro de horas. Esta acción no se puede deshacer."
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDeleteWorked}
@@ -235,7 +235,7 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
       <ConfirmDialog
         open={deleteUnworkedTargetId !== null}
         title="Eliminar ausencia"
-        message="¿Querés eliminar este registro de ausencia?"
+        body="Se va a eliminar este registro de ausencia. Esta acción no se puede deshacer."
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDeleteUnworked}

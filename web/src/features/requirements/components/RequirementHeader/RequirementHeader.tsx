@@ -133,7 +133,7 @@ function PillDropdown<T extends string>({
 
             if (isDisabled && disabledTooltip) {
               return (
-                <Tooltip key={opt.value} message={disabledTooltip}>
+                <Tooltip key={opt.value} content={disabledTooltip}>
                   {optionButton}
                 </Tooltip>
               );

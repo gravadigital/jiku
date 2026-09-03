@@ -1,0 +1,34 @@
+@use '@/styles' as *;
+
+.container {
+  @include flex-column-center;
+  gap: var(--space-4);
+  background: var(--empty-bg);
+  border-radius: var(--empty-radius);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.message {
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  font-weight: var(--text-body-default-weight);
+  line-height: var(--text-body-default-leading);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+// Las tres variants no difieren en estilo — el spec no distingue su forma, solo el
+// mensaje y la presencia de acción (resuelta en el componente). Las clases existen
+// para que los tests puedan verificar cuál variant se aplicó.
+.list {
+  width: 100%;
+}
+
+.filtered {
+  width: 100%;
+}
+
+.scoped {
+  width: 100%;
+}

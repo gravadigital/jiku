@@ -29,10 +29,10 @@ export function AreaTag(props: AreaTagProps) {
 
   return (
     <div className={styles.labelContainer}>
-      <Tooltip message={area}>
+      <Tooltip content={area}>
         <span className={styles.areaLabel} data-area={area} />
       </Tooltip>
-      <Tooltip message={showProject ? projectName : tooltipContent}>
+      <Tooltip content={showProject ? projectName : tooltipContent}>
         <span className={styles.responsibleLabel}>
           {label}
           {!showProject && remainingPersonsCount > 0 && ` +${remainingPersonsCount}`}

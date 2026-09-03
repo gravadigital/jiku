@@ -55,7 +55,7 @@ export function ObjectiveHistoryList(props: ObjectiveHistoryListProps) {
                   </span>
                 </>
               )}{' '}
-              <Tooltip message={formatDate(new Date(activity.createdAt))}>
+              <Tooltip content={formatDate(new Date(activity.createdAt))}>
                 <span className={styles.commentDate}>
                   {' Hace '}
                   {calculateTimeSince(new Date(activity.createdAt))}

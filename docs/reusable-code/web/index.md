@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-09-03 (S-054)
+**Last updated:** 2026-09-03 (S-055)
 
 ## Components
 
-Total: 15
+Total: 21
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -24,6 +24,12 @@ Total: 15
 - **Tabs** (`web/src/shared/components/ui/Tabs/Tabs.tsx`) - Full ARIA tablist pattern with roving tabindex (arrows move, `Tab` enters/exits once); a tab with count 0 is never hidden or disabled.
 - **Pagination** (`web/src/shared/components/ui/Pagination/Pagination.tsx`) - Route-agnostic pagination (URL mode via `basePath`, or controlled via `onPageChange`); never hides — a single page or 0 items renders disabled; optional page-size selector and `aria-live` announcement.
 - **WeekNav** (`web/src/shared/components/ui/WeekNav/WeekNav.tsx`) - Week navigator (`Date` in/out): full range with month and year, resolves month/year crossovers, "Esta semana" always visible (marked, never hidden, when already current).
+- **EmptyState** (`web/src/shared/components/ui/EmptyState/EmptyState.tsx`) - The Design System's single empty-state message: `list`/`filtered`/`scoped` variants, `action` (a `Button`) rendered only in `list`, `aria-live="polite"` only in `filtered`, never `role="alert"`. Not wired into any screen yet — purely additive component (S-055).
+- **Dropzone** (`web/src/shared/components/ui/Dropzone/Dropzone.tsx`) - File-attach control with a real `<input type="file">` behind it (never drag-only): click, keyboard (`Enter`/`Space`) and drag-and-drop all open/trigger the same selection; `maxSize` (default 10 MB) is validated client-side before `onFiles` fires, with the rejection reason announced in an `aria-live` region.
+- **Accordion** (`web/src/shared/components/ui/Accordion/Accordion.tsx`) - Collapsible section for a requirement stage: `<button>` header inside a configurable heading level (`headingLevel`, default `h3`) with `aria-expanded`/`aria-controls`, panel `role="region"` with `hidden` when collapsed (removed from tab order, not just height 0). Completion mark (`pending` `!` / `done` `✓`) is announced in text (`"{title}, pendiente"`), never color-only.
+- **Tooltip** (`web/src/shared/components/ui/Tooltip/Tooltip.tsx`) - Migrated by S-055 to the Design System spec: `content`/`placement`/`delay` props, `role="tooltip"` linked via `aria-describedby`, appears on **hover and keyboard focus** (not hover-only), closes on `Esc` without moving focus, dark-blue background (`--tooltip-bg`, no longer the off-palette gray). All 8 existing consumers migrated to `content`.
+- **ConfirmDialog** (`web/src/shared/components/ui/ConfirmDialog/ConfirmDialog.tsx`) - Migrated by S-055 to the Design System spec: both actions render as `secondary-dismiss` (no primary, no red) — the warning lives entirely in the `title`/`body` text, never in color. Native `<dialog>` retained for free focus-trap/`Esc`; initial focus goes to Cancel, focus returns to the opener on close. `pending` disables both actions and marks confirm as busy.
+- **ToggleGroup** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - Migrated by S-055 to the Design System spec: real `role="radiogroup"`/`role="radio"` (not `aria-pressed` buttons), arrow-key roving selection with wraparound, four variants (`segmented`/`range-pill`/`stepper-value`/`day-chip`), `options` as `{ value, label }[]` (renamed from `{ key, label }`). `stepper-value` supports `allowOther` to escape to a free-text `Input`.
 
 ## Services
 
