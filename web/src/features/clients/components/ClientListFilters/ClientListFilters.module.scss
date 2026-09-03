@@ -1,10 +1,8 @@
-@use '@/styles/mixins' as *;
-
 .filterSection {
   display: flex;
   justify-content: space-between;
   align-items: stretch;
-  gap: 1rem;
+  gap: var(--space-4);
   flex-direction: row;
 
   & > div {
@@ -13,19 +11,5 @@
 
   & > div.search {
     flex: 2;
-  }
-}
-
-@include mobile {
-  .filterSection {
-    flex-direction: column;
-
-    & > div {
-      width: 100%;
-    }
-
-    & > div.search {
-      width: 100%;
-    }
   }
 }

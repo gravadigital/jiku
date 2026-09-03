@@ -226,8 +226,12 @@ describe('RequirementDetail', () => {
     expect(screen.getByText('No se pudieron cargar las horas')).toBeInTheDocument();
   });
 
-  // S-090 (CA-3, TS-6, no-regresión): el mixin mobile no se tocó en los componentes de referencia
-  it('S-090 TS-6 (no-regresión): ObjectiveDetails/ProjectDetails siguen usando @include mobile sin cambios', () => {
+  // S-090 (CA-3, TS-6, no-regresión): el mixin mobile no se tocó en el componente de referencia.
+  // `ProjectDetails` era el otro componente de referencia de S-090, pero S-056 (T-4) lo borró:
+  // era código muerto (cero consumidores fuera de su propia carpeta) que el propio Story Plan
+  // de S-056 identificó y eliminó junto con su SCSS. La aserción sobre él queda retirada porque
+  // el archivo que verificaba ya no existe por diseño, no por regresión.
+  it('S-090 TS-6 (no-regresión): ObjectiveDetails sigue usando @include mobile sin cambios', () => {
     const objectiveDetailsScss = fs.readFileSync(
       path.resolve(
         __dirname,
@@ -235,16 +239,8 @@ describe('RequirementDetail', () => {
       ),
       'utf8'
     );
-    const projectDetailsScss = fs.readFileSync(
-      path.resolve(
-        __dirname,
-        '../../../projects/components/ProjectDetails/ProjectDetails.module.scss'
-      ),
-      'utf8'
-    );
 
     expect(objectiveDetailsScss).toMatch(/@include\s+mobile/);
-    expect(projectDetailsScss).toMatch(/@include\s+mobile/);
   });
 
   it('TS-6: card "Contexto" renderiza con MarkdownViewer y texto de descripción', () => {

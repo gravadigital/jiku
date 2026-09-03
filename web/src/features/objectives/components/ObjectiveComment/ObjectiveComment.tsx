@@ -205,17 +205,17 @@ export function ObjectiveComment({
                 {visibleAttachments.map((attachment) => (
                   <li key={attachment.id} className={styles.attachmentItem}>
                     <span>{attachment.fileName}</span>
-                    <button
-                      type="button"
-                      className={styles.removeAttachmentButton}
+                    <Button
+                      fab
                       aria-label={`Quitar ${attachment.fileName}`}
+                      variant="secondary-dismiss"
                       onClick={() =>
                         setRemovedLinkIds((prev) => new Set(prev).add(attachment.id))
                       }
                       disabled={loading}
                     >
                       ×
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -248,14 +248,9 @@ export function ObjectiveComment({
                 </Button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={handleEdit}
-                className={styles.editButton}
-                aria-label="Editar comentario"
-              >
-                <Image src={editIcon} alt="Editar" width={15} height={15} />
-              </button>
+              <Button fab aria-label="Editar comentario" variant="secondary-dismiss" onClick={handleEdit}>
+                <Image src={editIcon} alt="" width={15} height={15} />
+              </Button>
             )}
           </div>
         ) : null}

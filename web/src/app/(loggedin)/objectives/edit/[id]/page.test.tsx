@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as usePersonsModule from '@/features/auth/hooks/usePersons';
 import * as useObjectiveModule from '@/features/objectives/hooks/useObjective';
@@ -20,38 +21,6 @@ vi.mock('next-auth/react', () => ({
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
-}));
-
-vi.mock('next/image', () => ({
-  default: ({ alt }: { alt: string }) => <img alt={alt} />,
-}));
-
-vi.mock('@/shared/components/ui/InputSelect/InputSelect', () => ({
-  InputSelect: ({
-    label,
-    code,
-    value,
-    onChange,
-    options,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    options?: { label: string; value: string }[];
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <select id={code} value={value || ''} onChange={(e) => onChange(e.target.value)}>
-        <option value="" />
-        {options?.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
 }));
 
 vi.mock('@/features/auth/hooks/usePersons');
@@ -87,6 +56,11 @@ const baseObjective = {
   visibilityLevel: 'internal',
 };
 
+async function chooseRequirement(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('combobox', { name: 'Requisito' }));
+  await user.click(screen.getByRole('option', { name: label }));
+}
+
 describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -118,7 +92,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Requisito')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
     });
     expect(useRequirementsModule.useRequirements).toHaveBeenCalledWith(
       expect.objectContaining({ filters: expect.objectContaining({ projectId: 5 }) })
@@ -137,7 +111,9 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect((document.getElementById('requirementId') as HTMLSelectElement).value).toBe('12');
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toHaveTextContent(
+        'REQ-12 Bug login'
+      );
     });
   });
 
@@ -146,6 +122,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
       data: { ...baseObjective, requirementId: 12 },
       isLoading: false,
     } as any);
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -153,13 +130,11 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(document.getElementById('requirementId')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
     });
 
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '15' },
-    });
-    fireEvent.click(screen.getByText('Guardar'));
+    await chooseRequirement(user, 'REQ-15 Otro');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockUpdateMutate).toHaveBeenCalledWith(
@@ -181,6 +156,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
 
   // TS-6: desvincular el requisito envía null explícito
   it('TS-6: selector "Requisito" incluye la opción "Sin requisito"', async () => {
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -188,12 +164,11 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(document.getElementById('requirementId')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
     });
 
-    const select = document.getElementById('requirementId') as HTMLSelectElement;
-    const options = Array.from(select.options).map((option) => option.textContent);
-    expect(options).toContain('Sin requisito');
+    await user.click(screen.getByRole('combobox', { name: 'Requisito' }));
+    expect(screen.getByRole('option', { name: 'Sin requisito' })).toBeInTheDocument();
   });
 
   it('TS-6: desvincular un requisito previamente asignado envía requirementId: null', async () => {
@@ -201,6 +176,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
       data: { ...baseObjective, requirementId: 12 },
       isLoading: false,
     } as any);
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -208,13 +184,13 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect((document.getElementById('requirementId') as HTMLSelectElement).value).toBe('12');
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toHaveTextContent(
+        'REQ-12 Bug login'
+      );
     });
 
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '' },
-    });
-    fireEvent.click(screen.getByText('Guardar'));
+    await chooseRequirement(user, 'Sin requisito');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockUpdateMutate).toHaveBeenCalledWith(
@@ -228,6 +204,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
   });
 
   it('TS-3 (caso base): objetivo sin requirementId inicial, guardar sin tocar el selector no incluye requirementId', async () => {
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -235,10 +212,10 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(document.getElementById('requirementId')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockUpdateMutate).toHaveBeenCalled();
@@ -261,6 +238,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
       data: { ...baseObjective, requirementId: 12 },
       isLoading: false,
     } as any);
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -268,13 +246,11 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(document.getElementById('requirementId')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
     });
 
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '15' },
-    });
-    fireEvent.click(screen.getByText('Guardar'));
+    await chooseRequirement(user, 'REQ-15 Otro');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('El requisito no pertenece al mismo proyecto');
@@ -299,6 +275,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     mockUpdateMutate.mockImplementation((_vars: any, options: any) => {
       options?.onSuccess?.();
     });
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -306,9 +283,9 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Guardar')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Tarea editada con éxito');
@@ -320,6 +297,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     mockUpdateMutate.mockImplementation((_vars: any, options: any) => {
       options?.onError?.({});
     });
+    const user = userEvent.setup();
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -327,12 +305,26 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Guardar')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Hubo un error al editar la tarea');
+    });
+  });
+
+  it('S-056 TS-16 / AC-4: el campo "Corresponde a..." es Input variant locked, no editable', async () => {
+    await act(async () => {
+      render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    await waitFor(() => {
+      const projectField = screen.getByLabelText('Corresponde a...') as HTMLInputElement;
+      expect(projectField).toHaveValue('Proyecto Alpha');
+      expect(projectField).toHaveAttribute('readonly');
     });
   });
 });

@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { DateLabel, FinishDateLabel } from '@/shared/components/ui';
+import { Card, DateLabel, FinishDateLabel } from '@/shared/components/ui';
 import { calculateDaysLeft } from '@/shared/utils';
 import questionIcon from '@root/assets/question-icon.svg';
 import scheduleIcon from '@root/assets/schedule-icon.svg';
@@ -57,6 +57,36 @@ const groupWorkedTimeByPerson = (workedTimeArray: WorkedTime[], allPersons?: Per
   return Object.values(groupedByPerson);
 };
 
+/**
+ * Sub-estado de vencimiento, preservado tal cual del código pre-migración: se usa para el
+ * texto de `DateLabel`/`FinishDateLabel`, aunque desde S-056 sólo `expired` tiñe la card
+ * (Card variant task-overdue, AC-5 de T-7: "el pie se tiñe SÓLO cuando está vencida").
+ */
+function getCardClass(
+  finishedAt: Date | null | undefined,
+  estimatedFinishDate: Date | null | undefined,
+  state: string
+): 'closeToDeadline' | 'expired' | 'finished' | 'default' | 'expiresToday' {
+  if (finishedAt) {
+    return 'finished';
+  }
+
+  if (estimatedFinishDate) {
+    const date = new Date(estimatedFinishDate);
+    const daysLeft = calculateDaysLeft(date);
+
+    if (daysLeft === 0) {
+      return 'expiresToday';
+    } else if (daysLeft < 0) {
+      return isOverdue(state, estimatedFinishDate) ? 'expired' : 'default';
+    } else if (daysLeft <= 7) {
+      return 'closeToDeadline';
+    }
+  }
+
+  return 'default';
+}
+
 export function ObjectiveCard({
   id,
   state,
@@ -82,45 +112,46 @@ export function ObjectiveCard({
   readonly allPersons?: Person[] | null;
 }) {
   const personUserIds = useMemo(() => new Set(persons.map((person) => person.userId)), [persons]);
-
-  const getCardClass = () => {
-    if (finishedAt) {
-      return 'finished';
-    }
-
-    if (estimatedFinishDate) {
-      const date = new Date(estimatedFinishDate);
-      const daysLeft = calculateDaysLeft(date);
-
-      if (daysLeft === 0) {
-        return 'expiresToday';
-      } else if (daysLeft < 0) {
-        return isOverdue(state, estimatedFinishDate) ? 'expired' : 'default';
-      } else if (daysLeft <= 7) {
-        return 'closeToDeadline';
-      }
-    }
-
-    return 'default';
-  };
+  const cardClass = getCardClass(finishedAt, estimatedFinishDate, state);
+  const isImResponsible = Boolean(user && personUserIds.has(user.id));
 
   return (
-    <Link href={`/objectives/${id}`} passHref>
-      <div className={styles.objectiveCardContainer} data-state={getCardClass()}>
-        <div className={styles.topComponent}>
-          <h3 className={styles.title}>{title}</h3>
-          {user && personUserIds.has(user.id) ? (
-            <div className={styles.starIcon}>
-              <Image
-                src={starIcon}
-                alt="responsable icon"
-                width={20}
-                height={20}
-                title="Soy parte de esta tarea"
-              />
-            </div>
-          ) : null}
-        </div>
+    <Link href={`/objectives/${id}`} className={styles.cardLink}>
+      <Card
+        variant={cardClass === 'expired' ? 'task-overdue' : 'task'}
+        title={title}
+        headingLevel="h3"
+        header={
+          isImResponsible ? (
+            <Image
+              src={starIcon}
+              alt=""
+              width={20}
+              height={20}
+              title="Soy parte de esta tarea"
+            />
+          ) : undefined
+        }
+        footer={
+          <div className={styles.bottomContent}>
+            <DateLabel date={createdAt} label="Creación" cardClass={cardClass} />
+            <DateLabel date={updatedAt} label="Modificación" cardClass={cardClass} />
+            <FinishDateLabel
+              objectiveId={id || 0}
+              state={state}
+              priority={priority}
+              estimatedFinishDate={estimatedFinishDate}
+              finishedAt={finishedAt}
+              area={area}
+              persons={persons}
+              title={title}
+              description={description}
+              cardClass={cardClass}
+              portalContainer={portalContainer}
+            />
+          </div>
+        }
+      >
         <div className={styles.middleContent}>
           <StateTag
             objectiveId={id || 0}
@@ -140,7 +171,7 @@ export function ObjectiveCard({
           />
         </div>
         <div className={styles.workedTimeContainer}>
-          <Image src={scheduleIcon} alt="schedule icon" height={20} />
+          <Image src={scheduleIcon} alt="" width={20} height={20} />
           <p className={styles.workedText}>
             {workedMinutes !== undefined && `${formatWorkedMinutes(workedMinutes)}`}
           </p>
@@ -160,28 +191,11 @@ export function ObjectiveCard({
                 : null}
             </div>
             {shouldRenderTooltip(workedTime!) ? (
-              <Image src={questionIcon} alt="question icon" height={16} />
+              <Image src={questionIcon} alt="" width={16} height={16} />
             ) : null}
           </div>
         </div>
-        <div className={styles.bottomContent}>
-          <DateLabel date={createdAt} label="Creación" cardClass={getCardClass()} />
-          <DateLabel date={updatedAt} label="Modificación" cardClass={getCardClass()} />
-          <FinishDateLabel
-            objectiveId={id || 0}
-            state={state}
-            priority={priority}
-            estimatedFinishDate={estimatedFinishDate}
-            finishedAt={finishedAt}
-            area={area}
-            persons={persons}
-            title={title}
-            description={description}
-            cardClass={getCardClass()}
-            portalContainer={portalContainer}
-          />
-        </div>
-      </div>
+      </Card>
     </Link>
   );
 }

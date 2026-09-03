@@ -24,6 +24,18 @@ vi.mock('@/features/projects/hooks/useCanUploadToProject', () => ({
   useCanUploadToProject: () => true,
 }));
 
+// El barrel completo de @/shared/components/ui arrastra (vía CommentEditor →
+// @/features/objectives) un uso de next-auth/react y de next-auth a nivel de módulo.
+vi.mock('next-auth', () => ({
+  default: vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() })),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: { user: { roles: [], zitadelId: 'z1' } } })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 describe('ProjectAttachmentsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();

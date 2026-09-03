@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { InputSelect, InputText } from '@/shared/components/ui';
+import { Input, Select } from '@/shared/components/ui';
 import styles from './ClientListFilters.module.scss';
 
 export function ClientListFilters() {
@@ -56,18 +56,17 @@ export function ClientListFilters() {
   return (
     <section className={styles.filterSection}>
       <div className={styles.search}>
-        <InputText
+        <Input
+          variant="search"
           label="Búsqueda"
-          code="search"
           value={search.value}
           onChange={(value) => setSearch({ initial: false, value })}
           placeholder="Buscar actor"
         />
       </div>
       <div>
-        <InputSelect
+        <Select
           label="Estado"
-          code="status"
           value={searchParams?.get('status') || 'all'}
           options={[
             { label: 'Todos', value: 'all' },
@@ -78,9 +77,8 @@ export function ClientListFilters() {
         />
       </div>
       <div>
-        <InputSelect
+        <Select
           label="Ordenar por"
-          code="sort"
           value={searchParams?.get('sort') || 'status-name'}
           options={[
             { label: 'Activos primero (A-Z)', value: 'status-name' },

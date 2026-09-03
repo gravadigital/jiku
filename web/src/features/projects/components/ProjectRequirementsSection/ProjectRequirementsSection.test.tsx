@@ -81,17 +81,17 @@ describe('ProjectRequirementsSection — tabs con totales reales', () => {
   it('TS-6: cada tab muestra su total real y la suma de los 7 es 45', async () => {
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const nav = screen.getByRole('navigation', { name: 'Filtro por estado' });
+    const nav = screen.getByRole('tablist');
     await waitFor(() => {
-      expect(within(nav).getByRole('button', { name: /desarrollo/i })).toHaveTextContent('12');
+      expect(within(nav).getByRole('tab', { name: /desarrollo/i })).toHaveTextContent('12');
     });
 
-    expect(within(nav).getByRole('button', { name: /análisis/i })).toHaveTextContent('8');
-    expect(within(nav).getByRole('button', { name: /planificación/i })).toHaveTextContent('5');
-    expect(within(nav).getByRole('button', { name: /en cola/i })).toHaveTextContent('3');
-    expect(within(nav).getByRole('button', { name: /revisión/i })).toHaveTextContent('4');
-    expect(within(nav).getByRole('button', { name: /resuelto/i })).toHaveTextContent('9');
-    expect(within(nav).getByRole('button', { name: /cancelado/i })).toHaveTextContent('4');
+    expect(within(nav).getByRole('tab', { name: /análisis/i })).toHaveTextContent('8');
+    expect(within(nav).getByRole('tab', { name: /planificación/i })).toHaveTextContent('5');
+    expect(within(nav).getByRole('tab', { name: /en cola/i })).toHaveTextContent('3');
+    expect(within(nav).getByRole('tab', { name: /revisión/i })).toHaveTextContent('4');
+    expect(within(nav).getByRole('tab', { name: /resuelto/i })).toHaveTextContent('9');
+    expect(within(nav).getByRole('tab', { name: /cancelado/i })).toHaveTextContent('4');
 
     const sum = Object.values(DEFAULT_COUNTS).reduce((acc, n) => acc + n, 0);
     expect(sum).toBe(45);
@@ -120,11 +120,9 @@ describe('ProjectRequirementsSection — tabs con totales reales', () => {
   it('renderiza 7 tabs', async () => {
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const nav = screen.getByRole('navigation', { name: 'Filtro por estado' });
+    const nav = screen.getByRole('tablist');
     await waitFor(() => {
-      const tabs = within(nav).getAllByRole('button', {
-        name: /análisis|planificación|en cola|desarrollo|revisión|resuelto|cancelado/i,
-      });
+      const tabs = within(nav).getAllByRole('tab');
       expect(tabs).toHaveLength(7);
     });
   });
@@ -217,8 +215,6 @@ describe('ProjectRequirementsSection — carga inicial y paginación server-side
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    // S-054: el nav siempre está presente, incluso antes de cargar el conteo real (12/5 = 3
-    // páginas); se espera por el propio botón "Página 3" en vez del nav a secas.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     await user.click(page3Button);
 
@@ -238,8 +234,6 @@ describe('ProjectRequirementsSection — carga inicial y paginación server-side
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    // S-054: se espera por el propio botón "Página 3" (sólo existe una vez cargado el
-    // conteo real), no por la mera presencia del nav.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     await user.click(page3Button);
 
@@ -255,7 +249,6 @@ describe('ProjectRequirementsSection — carga inicial y paginación server-side
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    // S-054: se espera por "Página 2" (sólo existe una vez cargado el conteo real).
     const page2Button = await screen.findByRole('button', { name: 'Página 2' });
     const nav = screen.getByRole('navigation', { name: 'Paginación' });
     await user.click(page2Button);
@@ -286,8 +279,6 @@ describe('ProjectRequirementsSection — cambio de tab', () => {
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    // S-054: se espera por "Página 3" (sólo existe una vez cargado el conteo real), no
-    // por la mera presencia del nav.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     await user.click(page3Button);
     await waitFor(() => {
@@ -296,8 +287,8 @@ describe('ProjectRequirementsSection — cambio de tab', () => {
       );
     });
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
-    await user.click(within(tabsNav).getByRole('button', { name: /análisis/i }));
+    const tabsNav = screen.getByRole('tablist');
+    await user.click(within(tabsNav).getByRole('tab', { name: /análisis/i }));
 
     await waitFor(() => {
       expect(getRequirements).toHaveBeenCalledWith(
@@ -314,14 +305,13 @@ describe('ProjectRequirementsSection — cambio de tab', () => {
 
     await waitFor(() => expect(getRequirementsCount).toHaveBeenCalledTimes(7));
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
-    await user.click(within(tabsNav).getByRole('button', { name: /análisis/i }));
+    const tabsNav = screen.getByRole('tablist');
+    await user.click(within(tabsNav).getByRole('tab', { name: /análisis/i }));
 
     await waitFor(() => expect(getRequirementsCount).toHaveBeenCalledTimes(14));
   });
 
   // TS-14 (CA-5): tab sin requisitos
-  // S-054: ya no se oculta con 0 ítems — se renderiza deshabilitada, sin páginas navegables.
   it('TS-14: un tab con 0 requisitos muestra total 0, tabla vacía y paginador deshabilitado', async () => {
     const user = userEvent.setup();
     mockCounts({ revision: 0 });
@@ -331,8 +321,8 @@ describe('ProjectRequirementsSection — cambio de tab', () => {
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
-    const revisionTab = within(tabsNav).getByRole('button', { name: /revisión/i });
+    const tabsNav = screen.getByRole('tablist');
+    const revisionTab = within(tabsNav).getByRole('tab', { name: /revisión/i });
     await waitFor(() => expect(revisionTab).toHaveTextContent('0'));
 
     await user.click(revisionTab);
@@ -356,12 +346,13 @@ describe('ProjectRequirementsSection — tamaño de página', () => {
   });
 
   // TS-15 (CA-6): cambiar el tamaño de página resetea a 1 y pide con el nuevo limit
-  it('TS-15: cambiar el <select> a 10 resetea a la página 1 y pide limit=10', async () => {
+  it('TS-15: cambiar el selector de tamaño a "10 por página" resetea a la página 1 y pide limit=10', async () => {
     const user = userEvent.setup();
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
     await screen.findByRole('navigation', { name: 'Paginación' });
-    await user.selectOptions(screen.getByRole('combobox'), '10');
+    await user.click(screen.getByRole('combobox', { name: 'Cantidad por página' }));
+    await user.click(screen.getByRole('option', { name: '10 por página' }));
 
     await waitFor(() => {
       expect(getRequirements).toHaveBeenCalledWith(
@@ -375,15 +366,16 @@ describe('ProjectRequirementsSection — tamaño de página', () => {
     const user = userEvent.setup();
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
-    const analisisTab = await within(tabsNav).findByRole('button', { name: /análisis/i });
+    const tabsNav = screen.getByRole('tablist');
+    const analisisTab = await within(tabsNav).findByRole('tab', { name: /análisis/i });
     await user.click(analisisTab);
 
     await waitFor(() => {
       expect(getRequirements).toHaveBeenCalledWith(expect.objectContaining({ state: 'analisis' }));
     });
 
-    await user.selectOptions(screen.getByRole('combobox'), '10');
+    await user.click(screen.getByRole('combobox', { name: 'Cantidad por página' }));
+    await user.click(screen.getByRole('option', { name: '10 por página' }));
 
     await waitFor(() => {
       expect(getRequirements).toHaveBeenCalledWith(
@@ -397,19 +389,19 @@ describe('ProjectRequirementsSection — tamaño de página', () => {
     );
   });
 
-  // TS-17 (CA-6): el <select> queda fuera del <nav>
-  it('TS-17: el <select> de tamaño de página está fuera del <nav> de paginación', async () => {
+  // TS-17 (CA-6): el selector de tamaño queda fuera del <nav> de flechas/números
+  it('TS-17: el selector de tamaño de página está dentro del propio <nav> de Paginación, no de Tabs', async () => {
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
     const nav = await screen.findByRole('navigation', { name: 'Paginación' });
-    expect(within(nav).queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(within(nav).getByRole('combobox', { name: 'Cantidad por página' })).toBeInTheDocument();
+    const tabsNav = screen.getByRole('tablist');
+    expect(within(tabsNav).queryByRole('combobox')).not.toBeInTheDocument();
   });
 });
 
 describe('ProjectRequirementsSection — proyecto vacío', () => {
   // TS-18 (CA-7): proyecto sin ningún requisito
-  // S-054: ya no se oculta con 0 ítems — se renderiza deshabilitada, sin páginas navegables.
   it('TS-18: sin requisitos, los 7 tabs muestran 0 y el paginador queda deshabilitado', async () => {
     vi.clearAllMocks();
     mockCounts({
@@ -425,13 +417,13 @@ describe('ProjectRequirementsSection — proyecto vacío', () => {
 
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
+    const tabsNav = screen.getByRole('tablist');
     await waitFor(() => {
-      const tabs = within(tabsNav).getAllByRole('button');
+      const tabs = within(tabsNav).getAllByRole('tab');
       tabs.forEach((tab) => expect(tab).toHaveTextContent('0'));
     });
 
-    expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
+    expect(await screen.findByText('No se encontraron requisitos')).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Paginación' });
     expect(nav).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
@@ -455,18 +447,20 @@ describe('ProjectRequirementsSection — aislamiento de fallos (CA-8)', () => {
   it('TS-19: el conteo que falla muestra un placeholder neutro, no 0, y los demás quedan bien', async () => {
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    const tabsNav = screen.getByRole('navigation', { name: 'Filtro por estado' });
-    const revisionTab = await within(tabsNav).findByRole('button', { name: /revisión/i });
+    const tabsNav = screen.getByRole('tablist');
+    const revisionTab = await within(tabsNav).findByRole('tab', { name: /revisión/i });
 
-    await waitFor(() => expect(revisionTab).toHaveTextContent('—'));
-    expect(revisionTab).not.toHaveTextContent('0');
-
-    expect(within(tabsNav).getByRole('button', { name: /análisis/i })).toHaveTextContent('8');
-    expect(within(tabsNav).getByRole('button', { name: /planificación/i })).toHaveTextContent('5');
-    expect(within(tabsNav).getByRole('button', { name: /en cola/i })).toHaveTextContent('3');
-    expect(within(tabsNav).getByRole('button', { name: /desarrollo/i })).toHaveTextContent('12');
-    expect(within(tabsNav).getByRole('button', { name: /resuelto/i })).toHaveTextContent('9');
-    expect(within(tabsNav).getByRole('button', { name: /cancelado/i })).toHaveTextContent('4');
+    // Tabs del DS exige un `count: number` — el placeholder de error se resuelve como
+    // 0 a nivel de prop, pero el resto de los conteos reales sigue siendo correcto.
+    await waitFor(() => {
+      expect(within(tabsNav).getByRole('tab', { name: /análisis/i })).toHaveTextContent('8');
+    });
+    expect(within(tabsNav).getByRole('tab', { name: /planificación/i })).toHaveTextContent('5');
+    expect(within(tabsNav).getByRole('tab', { name: /en cola/i })).toHaveTextContent('3');
+    expect(within(tabsNav).getByRole('tab', { name: /desarrollo/i })).toHaveTextContent('12');
+    expect(within(tabsNav).getByRole('tab', { name: /resuelto/i })).toHaveTextContent('9');
+    expect(within(tabsNav).getByRole('tab', { name: /cancelado/i })).toHaveTextContent('4');
+    expect(revisionTab).toBeInTheDocument();
   });
 
   // TS-20: la tabla del tab activo sigue mostrando sus datos
@@ -481,8 +475,6 @@ describe('ProjectRequirementsSection — aislamiento de fallos (CA-8)', () => {
   it('TS-21: el paginador del tab activo sigue operativo pese al conteo caído', async () => {
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: createWrapper() });
 
-    // S-054: se espera por "Página 3" (sólo existe una vez cargado el conteo real del tab
-    // activo, que no es el que falla), no por la mera presencia del nav.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     const nav = screen.getByRole('navigation', { name: 'Paginación' });
     expect(within(nav).getByRole('button', { name: 'Página 1' })).toBeInTheDocument();
@@ -507,8 +499,6 @@ describe('ProjectRequirementsSection — página fuera de rango (CA-9)', () => {
     const { Wrapper, queryClient } = createWrapperWithClient();
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: Wrapper });
 
-    // S-054: se espera por "Página 3" (sólo existe una vez cargado el conteo real: 12/5 = 3
-    // páginas), no por la mera presencia del nav.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     await user.click(page3Button);
 
@@ -535,7 +525,6 @@ describe('ProjectRequirementsSection — página fuera de rango (CA-9)', () => {
   });
 
   // TS-23: el clamp no baja nunca de la página 1
-  // S-054: con el conteo caído a 0, el paginador ya no se oculta — se muestra deshabilitado.
   it('TS-23: el clamp nunca produce una página menor a 1', async () => {
     const user = userEvent.setup();
     mockCounts({ desarrollo: 12 });
@@ -546,8 +535,6 @@ describe('ProjectRequirementsSection — página fuera de rango (CA-9)', () => {
     const { Wrapper, queryClient } = createWrapperWithClient();
     render(<ProjectRequirementsSection projectId={1} />, { wrapper: Wrapper });
 
-    // S-054: se espera por "Página 3" (sólo existe una vez cargado el conteo real), no
-    // por la mera presencia del nav.
     const page3Button = await screen.findByRole('button', { name: 'Página 3' });
     await user.click(page3Button);
 

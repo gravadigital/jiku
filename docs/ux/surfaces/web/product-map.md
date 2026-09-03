@@ -134,6 +134,37 @@ del grupo `(loggedin)` [fuente: código-existente].
 > sus siete tabs de un estado cada uno, y el contrato es compatible hacia atrás), y que **`opus-web`
 > no se modifica** [REQ-009 RF-4..RF-9, RF-11].
 
+> **REQ-013 no agrega ni quita pantallas ni overlays, y toca las 25.** Es el primer requerimiento de
+> la superficie que **no cambia qué se puede hacer sino con qué está hecho**: aplica el **Manual de
+> marca Jiku v1.0** vía el Design System `web` v2.4.0, que hasta acá era normativo y sin
+> implementar. Tres consecuencias user-visible. **(1) La identidad cambia en toda la superficie:**
+> el accent deja de ser el magenta `#DA2C6A` que este mapa registró desde el código y pasa al verde
+> agua `#61CCB9` sobre azul oscuro `#0B1934`, con fondo niebla `#F6F6F9`, y la tipografía Archivo
+> se reemplaza por **Sora** (títulos de vista y logotipo) + **Gabarito** (interfaz, datos,
+> microcopy). El logo del shell y del login pasa del `logoLayout.png` actual a los SVG del manual,
+> con archivo distinto por modo. **(2) Cada elemento de UI construido a mano se reemplaza por su
+> componente del DS** — 104 `<button>` sueltos en 48 archivos, tablas armadas con `div`, tarjetas
+> hechas a mano y las tres duplicaciones que [`gaps-as-is.md`](../../gaps-as-is.md) registró: un
+> único `Select`, un único `Loader` y una `Pagination` agnóstica de la ruta que absorbe las
+> reimplementaciones inline restantes. **Ninguna pantalla gana ni pierde bloques por esto:** un
+> bloque que ya existía cambia de implementación, no de existencia. **(3) La superficie gana modo
+> oscuro con selector**, y ahí sí hay un bloque nuevo: `selector-tema` en el shell de
+> `(loggedin)`, presente en las 21 pantallas autenticadas. La elección se persiste **solo en el
+> navegador**, por dispositivo: ninguna entidad del dominio cambia y no hay endpoint nuevo.
+>
+> **Lo que este REQ deliberadamente no toca**, y queda en FG-5: el microcopy de los 52 toasts, el
+> shell responsive —`web` sigue declarando `desktop` como viewport único, y el DS lo sostiene: el
+> `mobile` no se declara hasta que el shell lo cumpla—, los estados de error y vacío por pantalla
+> (se crea `EmptyState`, pero cablearlo en cada pantalla que hoy no tiene estado vacío no entra) y
+> la accesibilidad transversal. **Del responsive entra una sola cosa:** unificar el par de
+> breakpoints 1023/1024 px entre `detalle-requisito` y `alta-requisito`/`edicion-requisito`, que el
+> CHANGELOG del DS marca como error puntual y no como avance parcial de mobile. **Se verificó que
+> `opus-web` no se modifica** — es otra marca, con DS propio en `0.1.0`, y las dos superficies no
+> comparten ningún módulo de UI (ADR-006) — y que **el comportamiento no cambia en ninguna
+> pantalla**: en particular el reparto sobre el estado del requisito que dejó S-050 (stepper
+> informa cinco pasos · badge editable decide entre los siete · card de resolución cierra y reabre)
+> se conserva tal cual, y solo cambia su presentación [REQ-013 RF-1..RF-10, CA-1..CA-17].
+
 > **REQ-007 no agrega ni quita pantallas, y toca dos.** Habilitar `jiku-commands` para personas no
 > tiene interfaz: quien publica un comando lo hace desde un cliente NATS. Lo user-visible son dos
 > consecuencias. **(1)** El 401 `user_not_found` **desaparece de las 61 rutas de la api** (CA-12) y
@@ -191,6 +222,13 @@ La sidebar (`<Navbar>`) es persistente en las 21 pantallas autenticadas, con 6 �
 
 Más un **bloque de enlaces externos configurable** (variable `EXTERNAL_LINKS`; vacío = bloque
 oculto) y **Cerrar sesión**.
+
+**Desde REQ-013 el pie de la sidebar suma el `selector-tema`**, junto a Cerrar sesión: alterna
+entre modo claro y oscuro y es el único control nuevo que introduce ese requerimiento. Al ser parte
+del shell **está presente en las 21 pantallas autenticadas**, y por eso no se declara como bloque
+en la ficha de ninguna. La elección se persiste en el navegador y se aplica antes de la primera
+pintura, así que al volver a entrar la superficie ya abre en el modo elegido [REQ-013 RF-7, CA-11,
+CA-12].
 
 ### Navegación secundaria
 

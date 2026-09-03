@@ -1,20 +1,7 @@
-@use '@/styles' as *;
-
-$border: #e6e8ed;
-
 .pageWrapper {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  font-size: 0.875rem;
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
-
-  p, span, td, th, dt, dd, li, a, button {
-    font-size: inherit;
-    font-family: inherit;
-    line-height: inherit;
-  }
+  gap: var(--space-6);
 }
 
 .pageHeader {
@@ -24,64 +11,28 @@ $border: #e6e8ed;
 }
 
 .pageTitle {
-  font-family: 'Roboto', var(--font-primary);
-  font-size: 2rem;
-  font-weight: 700;
-  color: #000;
-  line-height: 1.1;
+  font-family: var(--text-view-title-family);
+  font-size: var(--text-view-title-size);
+  font-weight: var(--text-view-title-weight);
+  color: var(--text-primary);
+  line-height: var(--text-view-title-leading);
   margin: 0;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.backButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #fff;
-  color: var(--color-button);
-  border: 1.5px solid var(--color-button);
-  border-radius: 10px;
-  padding: 0.65rem 1.5rem;
-  font-family: var(--font-primary);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  &:hover {
-    opacity: 0.85;
-  }
-}
-
-.editButton {
-  background-color: var(--color-button);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 0.65rem 1.5rem;
-  font-family: var(--font-primary);
-  font-size: 0.9375rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  &:hover {
-    opacity: 0.9;
-  }
+  gap: var(--space-2);
 }
 
 .twoColumnLayout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 1.25rem;
+  gap: var(--space-4);
   align-items: start;
 
+  // Fuera de los viewports declarados de la superficie (`desktop` es el único): se
+  // preserva tal cual, sin invertir tiempo en un layout que la superficie no sirve.
   @media (max-width: 1200px) {
     grid-template-columns: 1fr;
   }
@@ -90,27 +41,11 @@ $border: #e6e8ed;
 .leftColumn {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-4);
 }
 
 .rightColumn {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-}
-
-.card {
-  background-color: #fff;
-  border: 1.5px solid $border;
-  border-radius: 10px;
-  padding: 1.25rem 1.375rem;
-  box-shadow: var(--box-shadow);
-}
-
-.cardTitle {
-  font-family: var(--font-primary);
-  font-size: 1rem;
-  font-weight: 600;
-  color: #000;
-  margin: 0 0 0.875rem 0;
+  gap: var(--space-4);
 }

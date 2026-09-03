@@ -1,11 +1,7 @@
 /* Components */
 export { ProjectCard } from './components/ProjectCard';
-export { ProjectDetails } from './components/ProjectDetails';
 export { ProjectListFilters } from './components/ProjectListFilters';
-export { ProjectPriorityTag } from './components/ProjectPriorityTag';
 export { ProjectsBoard } from './components/ProjectsBoard';
-export { TagProject as ProjectTag } from './components/TagProject';
-export { ProjectTypeTag } from './components/ProjectTypeTag';
 
 /* Hooks */
 export {

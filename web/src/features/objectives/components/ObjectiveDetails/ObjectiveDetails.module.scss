@@ -16,11 +16,11 @@
   }
 
   p {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     font-size: 1rem;
     line-height: 1.4;
     font-weight: 400;
-    color: var(--color-general-text);
+    color: var(--text-body);
 
     & > span {
       font-weight: bold;
@@ -29,7 +29,7 @@
 
   a {
     cursor: pointer;
-    color: var(--color-link);
+    color: var(--text-link);
   }
 
   a:hover {
@@ -42,11 +42,11 @@
   }
 
   h3 {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     font-size: 1rem;
     line-height: 1.2;
     font-weight: 600;
-    color: var(--color-general-title);
+    color: var(--text-primary);
 
     & > span {
       font-weight: bold;
@@ -57,41 +57,6 @@
     margin-top: 1rem;
   }
 
-  .middleContent {
-    .statusLabel {
-      font-family: var(--font-primary);
-      font-size: 0.875rem;
-      line-height: 1.2;
-      font-weight: 500;
-      color: var(--color-general-text);
-      display: inline-block;
-
-      &::after {
-        content: "";
-        display: inline-block;
-        width: 0.5rem;
-        height: 0.5rem;
-        border-radius: var(--radius-items);
-        margin-left: 0.2rem;
-      }
-      &[data-state="activo"]::after {
-        background-color: var(--color-status-activo);
-      }
-      &[data-state="backlog"]::after {
-        background-color: var(--color-status-backlog);
-      }
-      &[data-state="en_revision"]::after {
-        background-color: var(--color-status-en-revision);
-      }
-      &[data-state="finalizado"]::after {
-        background-color: var(--color-status-finalizado);
-      }
-      &[data-state="cancelado"]::after {
-        background-color: var(--color-status-cancelado);
-      }
-    }
-  }
-
   .descriptionTitle {
     margin-bottom: -1rem;
   }
@@ -99,9 +64,9 @@
   .metadataGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-lg);
+    gap: var(--space-6);
     align-items: start;
-    padding-top: var(--spacing-lg);
+    padding-top: var(--space-6);
 
     @include mobile {
       grid-template-columns: 1fr;
@@ -112,29 +77,29 @@
   .rightColumn {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--space-4);
   }
 
   .markdownContainer {
     padding: 1rem 1rem;
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-items);
-    background-color: var(--color-general-background);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-surface);
+    background-color: var(--bg-surface-sunken);
 
     .markdownContent {
       h1, h2, h3, h4, h5, h6 {
-        font-family: var(--font-primary);
+        font-family: var(--font-family-ui);
         font-weight: bold;
-        color: var(--color-general-title);
+        color: var(--text-primary);
         margin: 0.25rem 0;
       }
 
       p {
-        font-family: var(--font-primary);
+        font-family: var(--font-family-ui);
         font-size: 1rem;
         line-height: 1.4;
         font-weight: 400;
-        color: var(--color-general-text);
+        color: var(--text-body);
         margin: 0.25rem 0;
       }
 
@@ -148,7 +113,7 @@
       }
 
       a {
-        color: var(--color-link);
+        color: var(--text-link);
         text-decoration: underline;
       }
 
@@ -157,9 +122,9 @@
       }
 
       pre {
-        background-color: var(--color-general-disabled);
+        background-color: var(--bg-tint-neutral);
         padding: 1rem;
-        border-radius: var(--radius-items);
+        border-radius: var(--radius-action);
         overflow: auto;
         margin: 0.25rem 0;
         font-family: var(--fontStack-monospace, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace);

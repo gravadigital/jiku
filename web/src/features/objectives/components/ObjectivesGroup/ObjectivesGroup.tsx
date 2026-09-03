@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { usePersons } from '@/features/auth';
-import { AddButton } from '@/shared/components/ui';
+import { Button } from '@/shared/components/ui';
 import scheduleIcon from '@root/assets/schedule-icon2.svg';
 import { ObjectiveCard } from '../ObjectiveCard';
 import styles from './ObjectivesGroup.module.scss';
@@ -71,7 +71,9 @@ export function ObjectivesGroup({
               <div className={styles.monthHoursTooltip}>Trabajadas en el mes</div>
             </div>
           )}
-          <AddButton key="action-edit" href={buildHref()} />
+          <Button fab aria-label="Nueva tarea" href={buildHref()}>
+            +
+          </Button>
         </div>
       </h2>
       <div className={styles.containerObjectives}>

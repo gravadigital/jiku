@@ -1,7 +1,7 @@
 .pageWrapper {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .pageHeader {
@@ -11,164 +11,35 @@
 }
 
 .pageTitle {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--color-general-title);
+  font-family: var(--text-view-title-family);
+  font-size: var(--text-view-title-size);
+  font-weight: var(--text-view-title-weight);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .headerActions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-2);
   align-items: center;
-}
-
-.backButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 45px;
-  background: #fff;
-  color: var(--color-button);
-  border: 1.5px solid var(--color-button);
-  border-radius: 10px;
-  padding: 0 1.5rem;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.backButton:hover {
-  opacity: 0.85;
-}
-
-.saveButton {
-  height: 45px;
-  padding: 0 1.25rem;
-  background: var(--color-button);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-buttons);
-  font-size: 0.875rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.saveButton:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.card {
-  background: #fff;
-  border: 1.5px solid #e6e8ed;
-  border-radius: 10px;
-  padding: 1.25rem 1.375rem;
-  margin-bottom: 1rem;
-}
-
-.card:last-child {
-  margin-bottom: 0;
-}
-
-.cardTitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #000;
-  margin: 0 0 0.875rem 0;
 }
 
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem 2rem;
+  gap: var(--space-2) var(--space-6);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--space-1);
 }
 
 .fieldSpan3 {
   grid-row: span 3;
   display: flex;
   flex-direction: column;
-}
-
-.fieldSpan3 .fieldTextarea {
-  flex: 1;
-  min-height: 0;
-  resize: none;
-}
-
-.fieldLabel {
-  font-size: 0.875rem;
-  font-weight: 400;
-  color: var(--color-general-text);
-}
-
-.required {
-  color: var(--color-button);
-  margin-left: 2px;
-  font-size: 0.75rem;
-}
-
-.fieldInput {
-  display: block;
-  width: 100%;
-  height: 45px;
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  padding: 0 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: var(--color-general-title);
-  background: #fff;
-  box-sizing: border-box;
-}
-
-.fieldInput:focus {
-  outline: 2px solid var(--color-highlighted);
-}
-
-.fieldSelect {
-  display: block;
-  width: 100%;
-  height: 45px;
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  padding: 0 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: var(--color-general-title);
-  background: #fff;
-  box-sizing: border-box;
-  cursor: pointer;
-}
-
-.fieldSelect:focus {
-  outline: 2px solid var(--color-highlighted);
-}
-
-.fieldTextarea {
-  display: block;
-  width: 100%;
-  min-height: 140px;
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  padding: 0.625rem 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: var(--color-general-title);
-  background: #fff;
-  box-sizing: border-box;
-  resize: vertical;
-}
-
-.fieldTextarea:focus {
-  outline: 2px solid var(--color-highlighted);
 }
 
 .addPropCell {
@@ -179,68 +50,22 @@
 .addPropRow {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 0.5rem 0.75rem;
+  gap: var(--space-2) var(--space-4);
   align-items: end;
 }
 
 .addPropBtnWrap {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-}
-
-.addPropBtn {
-  display: inline-flex;
-  align-items: center;
-  height: 45px;
-  padding: 0 1.25rem;
-  background: var(--color-button);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-buttons);
-  font-size: 0.875rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-}
-
-.addPropBtn:hover {
-  opacity: 0.85;
+  gap: var(--space-1);
 }
 
 .dynamicPropRow {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
+  gap: var(--space-2);
+  align-items: end;
 
-.dynamicPropRow .fieldInput {
-  flex: 1;
-}
-
-.removePropBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  height: 45px;
-  width: 45px;
-  flex-shrink: 0;
-  margin: 7px 0 0;
-  padding: 0;
-  background: var(--color-button);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-buttons);
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  svg {
-    display: block;
+  > *:first-child {
+    flex: 1;
   }
-}
-
-.removePropBtn:hover {
-  opacity: 0.85;
 }

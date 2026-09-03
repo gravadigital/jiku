@@ -1,7 +1,6 @@
 'use client';
 import React, { type FormEvent, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import * as yup from 'yup';
@@ -10,17 +9,8 @@ import { useCreateObjective } from '@/features/objectives';
 import { useProjects } from '@/features/projects';
 import { useRequirements } from '@/features/requirements';
 import { PageLayout } from '@/shared/components/layout';
-import {
-  Button,
-  InputDate,
-  InputMultiplePersons,
-  InputSelect,
-  InputText,
-  InputTextarea,
-  Loader,
-  SectionCard,
-} from '@/shared/components/ui';
-import errorIcon from '@root/assets/error.svg';
+import { Button, Card, Input, Loader, Select } from '@/shared/components/ui';
+import { labelFromDate } from '@/shared/utils/dateFormatter';
 import styles from './styles.module.scss';
 
 interface Body {
@@ -68,6 +58,23 @@ const validationSchema = yup.object().shape({
   title: yup.string().required(),
   visibilityLevel: yup.string().required(),
 });
+
+function dateToInputValue(date: Date | null | undefined): string {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (isNaN(parsed.getTime())) return '';
+  try {
+    return labelFromDate(parsed, 'YYYY-MM-DD');
+  } catch {
+    return '';
+  }
+}
+
+function inputValueToDate(value: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 export default function Form() {
   const [canCreate, setCanCreate] = useState<{ valid: boolean | null }>({ valid: null });
@@ -157,7 +164,7 @@ export default function Form() {
   // Prepare options
   const personsOptions = persons.map((person) => ({
     label: `${person.firstName} ${person.lastName}`,
-    value: person.id ? Number(person.id) : 0,
+    value: person.id ? String(person.id) : '0',
   }));
 
   const projectsOptions: ProjectOption[] = allProjects.map((project) => ({
@@ -170,14 +177,11 @@ export default function Form() {
     value: requirement.id.toString(),
   }));
 
-  const mapIdToPerson = (id: string) => {
-    const person = personsOptions.find((option) => option.value === Number(id));
-    return person && person.value
-      ? { label: person.label, value: person.value.toString() }
-      : { label: id, value: id };
-  };
-
-  const handleInputChange = (field: string, value: string | string[], id: number) => {
+  const handleInputChange = (
+    field: string,
+    value: string | string[],
+    id: number
+  ) => {
     setFormsData((prevFormsData) => {
       return prevFormsData.map((formData) => {
         if (formData.id === id) {
@@ -268,37 +272,34 @@ export default function Form() {
     <PageLayout title="Tareas / crear" actions={buttons}>
       {formsData.map((form) => {
         return (
-          <SectionCard key={form.id!}>
+          <Card key={form.id!} variant="panel">
             <form onSubmit={handleSubmit}>
               <div className={styles.formContainer}>
                 <div className={styles.textareaCont}>
-                  <InputText
+                  <Input
                     label="Título"
-                    code="title"
                     value={form.title}
                     onChange={(value) => {
                       handleInputChange('title', value, form.id!);
                     }}
-                    error={fieldHasError('title', form.title)}
+                    error={fieldHasError('title', form.title) ? 'Este campo es requerido' : undefined}
                     placeholder="Título de la tarea"
                     required
                   />
-                  <InputSelect
+                  <Select
                     label="Corresponde a..."
-                    code="projectId"
                     value={form.projectId}
                     options={projectsOptions}
                     onChange={(value) => {
                       handleInputChange('projectId', value, form.id!);
                     }}
-                    error={fieldHasError('projectId', form.projectId)}
+                    error={fieldHasError('projectId', form.projectId) ? 'Elegí un proyecto' : undefined}
                     placeholder="Nombre del proyecto"
                     required
                   />
                   {Boolean(form.projectId) && (
-                    <InputSelect
+                    <Select
                       label="Requisito"
-                      code="requirementId"
                       value={form.requirementId || ''}
                       options={requirementsOptions}
                       onChange={(value) => {
@@ -307,67 +308,44 @@ export default function Form() {
                       placeholder="Seleccionar requisito (opcional)"
                     />
                   )}
-                  <InputMultiplePersons
+                  <Select
+                    variant="multiple"
                     label="Responsable(s)"
-                    code="personIds"
-                    value={form.personIds.map(mapIdToPerson)}
-                    options={personsOptions.map((person) => ({
-                      label: person.label,
-                      value: person.value.toString(),
-                    }))}
+                    value={form.personIds}
+                    options={personsOptions}
                     onChange={(value) => {
-                      handleInputChange(
-                        'personIds',
-                        value.map((option) => option.value),
-                        form.id!
-                      );
+                      handleInputChange('personIds', value, form.id!);
                     }}
-                    error={fieldHasError('personIds', form.personIds)}
+                    error={
+                      fieldHasError('personIds', form.personIds)
+                        ? 'Elegí al menos un responsable'
+                        : undefined
+                    }
                     placeholder="Nombre(s)"
                     required
                   />
-                  <InputSelect
+                  <Select
                     label="Área"
-                    code="area"
                     value={form.area}
                     options={[
-                      {
-                        label: 'Diseño',
-                        value: 'diseño',
-                      },
-                      {
-                        label: 'Desarrollo',
-                        value: 'desarrollo',
-                      },
-                      {
-                        label: 'Gestión',
-                        value: 'gestion',
-                      },
-                      {
-                        label: 'Investigación',
-                        value: 'investigacion',
-                      },
+                      { label: 'Diseño', value: 'diseño' },
+                      { label: 'Desarrollo', value: 'desarrollo' },
+                      { label: 'Gestión', value: 'gestion' },
+                      { label: 'Investigación', value: 'investigacion' },
                     ]}
                     onChange={(value) => {
                       handleInputChange('area', value, form.id!);
                     }}
-                    error={fieldHasError('area', form.area)}
+                    error={fieldHasError('area', form.area) ? 'Elegí un área' : undefined}
                     placeholder="Área de la tarea"
                     required
                   />
-                  <InputSelect
+                  <Select
                     label="Nivel de visibilidad"
-                    code="visibilityLevel"
                     value={form.visibilityLevel}
                     options={[
-                      {
-                        label: 'Público',
-                        value: 'public',
-                      },
-                      {
-                        label: 'Interno',
-                        value: 'internal',
-                      },
+                      { label: 'Público', value: 'public' },
+                      { label: 'Interno', value: 'internal' },
                     ]}
                     onChange={(value) => {
                       handleInputChange('visibilityLevel', value, form.id!);
@@ -377,26 +355,26 @@ export default function Form() {
                   />
                 </div>
                 <div className={styles.column}>
-                  <InputDate
+                  <Input
+                    variant="date"
                     label="Fecha de finalización estimada"
-                    code="estimatedFinishDate"
-                    value={form.estimatedFinishDate as Date}
+                    value={dateToInputValue(form.estimatedFinishDate)}
                     onChange={(value) => {
-                      handleInputChange('estimatedFinishDate', value, form.id!);
+                      handleInputChange('estimatedFinishDate', inputValueToDate(value) as any, form.id!);
                     }}
-                    error={fieldHasError(
-                      'estimatedFinishDate',
-                      form.estimatedFinishDate || new Date()
-                    )}
                   />
-                  <InputTextarea
-                    code="description"
+                  <Input
+                    variant="textarea"
                     label="Descripción"
                     value={form.description || ''}
                     onChange={(value) => {
                       handleInputChange('description', value, form.id!);
                     }}
-                    error={fieldHasError('description', form.description || '')}
+                    error={
+                      fieldHasError('description', form.description || '')
+                        ? 'Este campo es requerido'
+                        : undefined
+                    }
                     placeholder="Descripción de la tarea"
                     required
                   />
@@ -405,7 +383,6 @@ export default function Form() {
               <div className={styles.generalError}>
                 {form.invalid === true ? (
                   <div className={styles.invalidFormContainer}>
-                    <Image alt="error icon" src={errorIcon} height={20} />
                     <p>Revisá que no haya campos incompletos</p>
                   </div>
                 ) : null}
@@ -425,7 +402,7 @@ export default function Form() {
                 </Button>
               </div>
             </div>
-          </SectionCard>
+          </Card>
         );
       })}
     </PageLayout>

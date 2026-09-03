@@ -1,13 +1,4 @@
 .containerClients {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
 }
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: white;
-  border-radius: var(--radius-items);
-  box-shadow: var(--box-shadow);
-  overflow: hidden;
-} 

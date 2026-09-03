@@ -1,11 +1,10 @@
 'use client';
 import React, { type FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import ReactSelect from 'react-select';
 import { toast } from 'react-toastify';
 import * as yup from 'yup';
 import { useClients, useCreateProject } from '@/features/projects';
-import { Loader } from '@/shared/components/ui';
+import { Button, Card, Input, Loader, Select } from '@/shared/components/ui';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
 import styles from './styles.module.scss';
 
@@ -38,6 +37,13 @@ const defaultValues: Body = {
 };
 
 const FIXED_KEYS = ['board_de_tareas', 'diseño', 'documentacion'];
+
+const TYPE_OPTIONS = [
+  { label: 'Interno', value: 'interno' },
+  { label: 'Comercial', value: 'comercial' },
+  { label: 'Investigación', value: 'investigacion' },
+  { label: 'Propuesta', value: 'propuesta' },
+];
 
 const validationSchema = yup.object().shape({
   clientId: yup.number().nullable(),
@@ -83,59 +89,6 @@ function inputValueToDate(value: string): Date | null {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
-
-const selectStyles = {
-  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-    ...base,
-    height: '45px',
-    minHeight: '45px',
-    border: `1px solid var(--color-general-border)`,
-    borderRadius: 'var(--radius-items)',
-    boxShadow: 'none',
-    outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
-    fontSize: '0.9375rem',
-    fontWeight: 400,
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    '&:hover': { border: '1px solid var(--color-general-border)' },
-  }),
-  valueContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    padding: '0 0.75rem',
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'nowrap' as const,
-  }),
-  input: (base: Record<string, unknown>) => ({
-    ...base,
-    margin: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-  }),
-  indicatorsContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    height: '45px',
-    display: 'flex',
-    alignItems: 'center',
-  }),
-  indicatorSeparator: () => ({ display: 'none' }),
-  menu: (base: Record<string, unknown>) => ({
-    ...base,
-    zIndex: 10,
-    fontSize: '0.9375rem',
-    borderRadius: 'var(--radius-items)',
-    border: '1px solid var(--color-general-border)',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-  }),
-  option: (base: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
-    ...base,
-    backgroundColor: state.isSelected ? '#DA2C6A' : state.isFocused ? '#E2E8F0' : '#fff',
-    color: state.isSelected ? '#fff' : '#1F2633',
-    cursor: 'pointer',
-  }),
-  singleValue: (base: Record<string, unknown>) => ({ ...base, color: '#1F2633' }),
-  placeholder: (base: Record<string, unknown>) => ({ ...base, color: '#aaa' }),
-};
 
 export default function Form() {
   const [formData, setFormData] = useState(defaultValues);
@@ -226,196 +179,127 @@ export default function Form() {
 
   if (isLoadingClients) return <Loader label="Cargando..." />;
 
+  const clientOptions = clients.map((c) => ({ label: c.name, value: String(c.id ?? '') }));
+
   return (
     <div className={styles.pageWrapper}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Nuevo Proyecto</h1>
         <div className={styles.headerActions}>
-          <button type="button" className={styles.backButton} onClick={() => push('/projects')}>
+          <Button variant="secondary-nav" href="/projects">
             Volver
-          </button>
-          <button
-            type="button"
-            className={styles.saveButton}
+          </Button>
+          <Button
             onClick={processCreation}
             disabled={createProjectMutation.isPending}
+            loading={createProjectMutation.isPending}
           >
-            {createProjectMutation.isPending ? 'Guardando...' : 'Guardar'}
-          </button>
+            Guardar
+          </Button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Card: Información general */}
-        <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Información general</h2>
+        <Card variant="panel" title="Información general" headingLevel="h2">
           <div className={styles.formGrid}>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-name">
-                Nombre {!formData.name && <span className={styles.required}>(obligatorio)</span>}
-              </label>
-              <input
-                id="f-name"
-                className={styles.fieldInput}
-                type="text"
+              <Input
+                label="Nombre"
                 value={formData.name}
-                onChange={(e) => setField('name', e.target.value)}
+                onChange={(value) => setField('name', value)}
                 placeholder="Nombre del proyecto"
                 required
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-initDate">
-                Fecha de inicio{' '}
-                {!dateToInputValue(formData.initDate) && (
-                  <span className={styles.required}>(obligatorio)</span>
-                )}
-              </label>
-              <input
-                id="f-initDate"
-                className={styles.fieldInput}
-                type="date"
+              <Input
+                variant="date"
+                label="Fecha de inicio"
                 value={dateToInputValue(formData.initDate)}
-                onChange={(e) => setField('initDate', inputValueToDate(e.target.value))}
+                onChange={(value) => setField('initDate', inputValueToDate(value))}
                 required
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-code">
-                Código {!formData.code && <span className={styles.required}>(obligatorio)</span>}
-              </label>
-              <input
-                id="f-code"
-                className={styles.fieldInput}
-                type="text"
+              <Input
+                label="Código"
                 value={formData.code}
-                onChange={(e) => setField('code', e.target.value)}
+                onChange={(value) => setField('code', value)}
                 placeholder="Código del proyecto"
                 required
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-endDate">
-                Fecha de cierre estimada
-              </label>
-              <input
-                id="f-endDate"
-                className={styles.fieldInput}
-                type="date"
+              <Input
+                variant="date"
+                label="Fecha de cierre estimada"
                 value={dateToInputValue(formData.endDate)}
-                onChange={(e) => setField('endDate', inputValueToDate(e.target.value))}
+                onChange={(value) => setField('endDate', inputValueToDate(value))}
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-clientId">
-                Cliente
-              </label>
-              <ReactSelect
-                inputId="f-clientId"
-                instanceId="f-clientId"
-                styles={selectStyles}
+              <Select
+                label="Cliente"
                 placeholder="Cliente del proyecto"
-                value={
-                  clients
-                    .map((c) => ({ label: c.name, value: String(c.id) }))
-                    .find((o) => o.value === String(formData.clientId)) ?? null
-                }
-                onChange={(opt) => setField('clientId', opt ? Number(opt.value) : null)}
-                options={clients.map((c) => ({ label: c.name, value: String(c.id) }))}
-                isClearable
+                value={formData.clientId ? String(formData.clientId) : ''}
+                onChange={(value) => setField('clientId', value ? Number(value) : null)}
+                options={clientOptions}
               />
             </div>
 
             <div className={`${styles.field} ${styles.fieldSpan3}`}>
-              <label className={styles.fieldLabel} htmlFor="f-description">
-                Descripción{' '}
-                {!formData.description && <span className={styles.required}>(obligatorio)</span>}
-              </label>
-              <textarea
-                id="f-description"
-                className={styles.fieldTextarea}
+              <Input
+                variant="textarea"
+                label="Descripción"
                 value={formData.description}
-                onChange={(e) => setField('description', e.target.value)}
+                onChange={(value) => setField('description', value)}
                 placeholder="Descripción del proyecto"
                 required
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-type">
-                Tipo {!formData.type && <span className={styles.required}>(obligatorio)</span>}
-              </label>
-              <ReactSelect
-                inputId="f-type"
-                instanceId="f-type"
-                styles={selectStyles}
+              <Select
+                label="Tipo"
                 placeholder="Tipo de proyecto"
-                value={
-                  [
-                    { label: 'Interno', value: 'interno' },
-                    { label: 'Comercial', value: 'comercial' },
-                    { label: 'Investigación', value: 'investigacion' },
-                    { label: 'Propuesta', value: 'propuesta' },
-                  ].find((o) => o.value === formData.type) ?? null
-                }
-                onChange={(opt) => setField('type', opt?.value ?? '')}
-                options={[
-                  { label: 'Interno', value: 'interno' },
-                  { label: 'Comercial', value: 'comercial' },
-                  { label: 'Investigación', value: 'investigacion' },
-                  { label: 'Propuesta', value: 'propuesta' },
-                ]}
+                value={formData.type}
+                onChange={(value) => setField('type', value)}
+                options={TYPE_OPTIONS}
+                required
               />
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Card: Propiedades */}
-        <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Propiedades</h2>
+        <Card variant="panel" title="Propiedades" headingLevel="h2">
           <div className={styles.formGrid}>
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-documentacion">
-                Documentación
-              </label>
-              <input
-                id="f-documentacion"
-                className={styles.fieldInput}
-                type="text"
+              <Input
+                label="Documentación"
                 value={formData.keyValuePairs?.documentacion || ''}
-                onChange={(e) => setField('keyValuePairs.documentacion', e.target.value)}
+                onChange={(value) => setField('keyValuePairs.documentacion', value)}
                 placeholder="URL de documentación"
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-board">
-                Board de Tareas
-              </label>
-              <input
-                id="f-board"
-                className={styles.fieldInput}
-                type="text"
+              <Input
+                label="Board de Tareas"
                 value={formData.keyValuePairs?.board_de_tareas || ''}
-                onChange={(e) => setField('keyValuePairs.board_de_tareas', e.target.value)}
+                onChange={(value) => setField('keyValuePairs.board_de_tareas', value)}
                 placeholder="URL del board"
               />
             </div>
 
             <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="f-diseno">
-                Diseño
-              </label>
-              <input
-                id="f-diseno"
-                className={styles.fieldInput}
-                type="text"
+              <Input
+                label="Diseño"
                 value={formData.keyValuePairs?.diseño || ''}
-                onChange={(e) => setField('keyValuePairs.diseño', e.target.value)}
+                onChange={(value) => setField('keyValuePairs.diseño', value)}
                 placeholder="URL de diseño"
               />
             </div>
@@ -423,37 +307,16 @@ export default function Form() {
             {/* Propiedades dinámicas agregadas */}
             {dynamicPairs.map(([key, value]) => (
               <div key={key} className={styles.field}>
-                <label className={styles.fieldLabel}>{key}</label>
                 <div className={styles.dynamicPropRow}>
-                  <input
-                    className={styles.fieldInput}
-                    type="text"
+                  <Input
+                    label={key}
                     value={value || ''}
-                    onChange={(e) => setField(`keyValuePairs.${key}`, e.target.value)}
+                    onChange={(v) => setField(`keyValuePairs.${key}`, v)}
                     placeholder="Valor"
                   />
-                  <button
-                    type="button"
-                    className={styles.removePropBtn}
-                    onClick={() => handleRemovePair(key)}
-                    aria-label={`Eliminar link ${key}`}
-                  >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M2 4h12M6.5 4V2.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V4M6 7v4M10 7v4M3.5 4l.6 8.4a1 1 0 0 0 1 .93h5.8a1 1 0 0 0 1-.93L12.5 4"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
+                  <Button variant="secondary-dismiss" onClick={() => handleRemovePair(key)}>
+                    Eliminar {key}
+                  </Button>
                 </div>
               </div>
             ))}
@@ -462,41 +325,25 @@ export default function Form() {
             <div className={styles.addPropCell}>
               <div className={styles.addPropRow}>
                 <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="f-newKey">
-                    Clave
-                  </label>
-                  <input
-                    id="f-newKey"
-                    className={styles.fieldInput}
-                    type="text"
-                    placeholder="Clave"
-                    value={newKey}
-                    onChange={(e) => setNewKey(e.target.value)}
-                  />
+                  <Input label="Clave" placeholder="Clave" value={newKey} onChange={setNewKey} />
                 </div>
                 <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="f-newValue">
-                    Valor
-                  </label>
-                  <input
-                    id="f-newValue"
-                    className={styles.fieldInput}
-                    type="text"
+                  <Input
+                    label="Valor"
                     placeholder="Valor"
                     value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
+                    onChange={setNewValue}
                   />
                 </div>
                 <div className={styles.addPropBtnWrap}>
-                  <span className={styles.fieldLabel}>&nbsp;</span>
-                  <button type="button" className={styles.addPropBtn} onClick={handleAddPair}>
+                  <Button variant="secondary-dismiss" onClick={handleAddPair}>
                     Agregar
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </Card>
       </form>
     </div>
   );

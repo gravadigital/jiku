@@ -7,221 +7,36 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 .sectionTitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #000;
+  font-family: var(--text-card-title-family);
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
+  color: var(--text-primary);
   margin: 0;
 }
 
-.addBtn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #DA2C6A;
-  color: #fff;
-  border: none;
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.newBtn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #DA2C6A;
-  color: #fff;
-  border: none;
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid #e6e8ed;
-  margin-bottom: 1rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.tab {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #626a81;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0 0.5rem 0;
-  margin-right: 1.25rem;
-  margin-bottom: -1px;
-  white-space: nowrap;
-  font-family: system-ui, sans-serif;
-}
-
-.tab.active {
-  color: #DA2C6A;
-  border-bottom-color: #DA2C6A;
-}
-
-.tabLabel {
-  font-size: 0.875rem;
-  color: inherit !important;
-}
-
-.tabCount {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 10px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: transparent;
-  color: #626a81 !important;
-}
-
-.tab.active .tabCount {
-  background: #DA2C6A;
-  color: #fff !important;
-}
-
 .tableWrap {
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
-
-.reqTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  font-family: system-ui, sans-serif;
-  line-height: 1;
-}
-
-.reqTable thead th {
-  background: #fafbfb;
-  text-align: left;
-  padding: 0.875rem 1rem;
-  font-weight: 400;
-  color: #626a81;
-  border: none;
-  border-bottom: 1.5px solid #e6e8ed;
-  white-space: nowrap;
-}
-
-.reqTable thead th:nth-child(1) { width: 56px; }
-.reqTable thead th:nth-child(2) { width: auto; }
-.reqTable thead th:nth-child(3),
-.reqTable thead th:nth-child(4),
-.reqTable thead th:nth-child(5),
-.reqTable thead th:nth-child(6) { width: 1%; white-space: nowrap; }
-
-.reqTable tbody td {
-  padding: 0.875rem 1rem;
-  border: none;
-  border-bottom: 1px solid #e6e8ed;
-  color: #626a81;
-  font-weight: 400;
-  vertical-align: middle;
-  white-space: nowrap;
-  text-align: left;
-  max-width: none;
-}
-
-.reqTable tbody td:nth-child(2) { white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.reqTable tbody td:nth-child(3),
-.reqTable tbody td:nth-child(4),
-.reqTable tbody td:nth-child(5),
-.reqTable tbody td:nth-child(6) { width: 1%; }
-
-.reqTable tbody tr:last-child td { border-bottom: none; }
-.reqTable tbody tr:hover { background: #fafbfb; }
-
-.row {
-  cursor: pointer;
-}
-
-.row:hover .titleLink {
-  color: #DA2C6A;
-  text-decoration: underline;
-}
-
-.idCell { color: #626a81; }
 
 .titleLink {
-  color: #000;
-  font-weight: 400;
+  color: var(--text-primary);
+  font-weight: var(--text-table-data-weight);
   text-decoration: none;
-}
 
-.pill {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #626a81;
-}
-
-.priorityPill {
-  font-size: 0.875rem;
-  color: #626a81;
+  &:hover {
+    color: var(--text-link);
+    text-decoration: underline;
+  }
 }
 
 .paginationRow {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.25rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid #e6e8ed;
-
-  // El <nav> del paginador compartido trae `margin-top: 20px`, pensado para
-  // un uso standalone. Acá conviven como hermanos en una fila alineada a la
-  // derecha, así que se neutraliza para no desalinear el conjunto.
-  nav {
-    margin-top: 0;
-  }
-}
-
-.perPageSelect {
-  font-size: 0.875rem;
-  color: #626a81;
-  border: 1px solid #e6e8ed;
-  border-radius: 6px;
-  height: 28px;
-  padding: 0 0.5rem;
-  background: #fff;
-  margin-left: 0.5rem;
-  font-family: system-ui;
-}
-
-.emptyState {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: #626a81;
-  font-size: 0.875rem;
-  font-family: system-ui, sans-serif;
 }

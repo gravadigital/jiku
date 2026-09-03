@@ -1,12 +1,22 @@
 import React from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { Card } from '@/shared/components/ui';
 import { getProjectStatus } from '@/shared/utils';
-import calendar from '@root/assets/calendar.svg';
-import { ProjectPriorityTag } from '../ProjectPriorityTag';
-import { ProjectTypeTag } from '../ProjectTypeTag';
+import { PROJECT_STATUS_TO_FAMILY } from '../../utils/projectHelpers';
 import styles from './ProjectCard.module.scss';
 import type { Project } from '@/shared/types';
+
+const PRIORITY_FAMILY: Record<number, 'urgent' | 'review' | 'neutral'> = {
+  1: 'urgent',
+  2: 'review',
+};
+
+function formatDateRange(initDate: Date, endDate?: Date): string {
+  const start = initDate.toUTCString().slice(4, 16);
+  if (endDate && endDate.getTime() && !isNaN(endDate.getTime())) {
+    return `${start} - ${endDate.toUTCString().slice(4, 16)}`;
+  }
+  return start;
+}
 
 export function ProjectCard({
   name,
@@ -19,31 +29,19 @@ export function ProjectCard({
   priority,
 }: Project) {
   return (
-    <Link href={`/projects/${id}`} passHref>
-      <div className={styles.projectCardContainer}>
-        <div className={styles.headContent}>
-          <div className={styles.dateLabel}>
-            <Image src={calendar} alt="calendar icon" width={20} height={30} />
-            <span>
-              {initDate.toUTCString().slice(4, 16)}
-              {endDate && endDate.getTime() && !isNaN(endDate.getTime())
-                ? ` - ${endDate.toUTCString().slice(4, 16)}`
-                : null}
-            </span>
-          </div>
-        </div>
-        <div className={styles.middleContent}>
-          <span className={styles.statusLabel} data-status={status}>
-            {getProjectStatus(status)}
-          </span>
-          <h2 className={styles.title}>{name}</h2>
-          <p className={styles.description}>{description}</p>
-        </div>
-        <div className={styles.bottomContent}>
-          <ProjectTypeTag value={type} />
-          <ProjectPriorityTag value={priority} />
-        </div>
-      </div>
-    </Link>
+    <Card
+      variant="project"
+      title={name}
+      href={`/projects/${id}`}
+      headingLevel="h2"
+      status={{ family: PROJECT_STATUS_TO_FAMILY[status], label: getProjectStatus(status) }}
+      header={<span className={styles.dateLabel}>{formatDateRange(initDate, endDate)}</span>}
+      tags={[
+        { label: type, family: 'neutral' },
+        { label: `Prioridad ${priority}`, family: PRIORITY_FAMILY[priority] ?? 'neutral' },
+      ]}
+    >
+      <p className={styles.description}>{description}</p>
+    </Card>
   );
 }

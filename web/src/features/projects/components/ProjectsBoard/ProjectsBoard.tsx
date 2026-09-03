@@ -1,16 +1,26 @@
 import React from 'react';
 import { getProjects } from '@/features/projects';
+import { EmptyState } from '@/shared/components/ui';
 import { ProjectCard } from '../ProjectCard';
 import styles from './ProjectsBoard.module.scss';
 import type { Project, ProjectFilters } from '@/shared/types';
 
 export async function ProjectsBoard({ filters }: { readonly filters: ProjectFilters }) {
   const projects = await getProjects(filters);
+  const hasActiveFilters = Boolean(filters.search || filters.type || (filters.state && filters.state !== 'activo'));
 
   return (
     <div className={styles.gridContainer}>
       {projects.length === 0 ? (
-        <span className={styles.noProjects}>No hay proyectos que coincidan con estos filtros.</span>
+        <EmptyState
+          variant={hasActiveFilters ? 'filtered' : 'list'}
+          message={
+            hasActiveFilters
+              ? 'No hay proyectos que coincidan con estos filtros.'
+              : 'Todavía no hay proyectos.'
+          }
+          action={hasActiveFilters ? undefined : { children: 'Nuevo proyecto', href: '/projects/new' }}
+        />
       ) : (
         projects.map((project: Project) => {
           return (

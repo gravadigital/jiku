@@ -1,34 +1,17 @@
-@use '@/styles/mixins' as *;
+.titleLink {
+  color: var(--text-link);
+  font-weight: 600;
+  text-decoration: none;
 
-.tableContainer {
-  @include table-container;
-  padding-bottom:4rem;
-  width: 100%;
-
-  .priority {
-    text-align: center;
-  }
-
-  .smallTd {
-    width: 2rem;
-    overflow: visible;
-    text-align: center;
-  }
-
-  .closeToDeadline {
-    color: var(--color-button);
+  &:hover {
+    text-decoration: underline;
   }
 }
 
-.noObjectives{
-  margin-top: 3rem;
-  font-family: var(--font-primary);
-  font-size: 1.25rem;
-  line-height: 1.4;
-  font-weight: 400;
-  color: var(--color-general-text);
-  transform: translateY(-25px);
-  animation: fadeIn 250ms ease-out forwards;
-  text-align: center;
-  width: 100%;
+.finished {
+  color: var(--text-secondary);
+}
+
+.closeToDeadline {
+  color: var(--state-review-text);
 }

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer/MarkdownViewer';
 import { useClients } from '@/features/clients';
-import { Loader } from '@/shared/components/ui';
+import { Button, EmptyState, Loader } from '@/shared/components/ui';
 import { ClientCard } from '../ClientCard/ClientCard';
 import { ClientProjects } from '../ClientProjects/ClientProjects';
 import styles from './ClientsBoard.module.scss';
@@ -99,10 +99,19 @@ export function ClientsBoard({ filters }: ClientsBoardProps) {
   }
 
   const allFiltered = applyFilters(clients || [], filters);
+  const hasActiveFilters = Boolean(filters.search || filters.status);
 
   if (allFiltered.length === 0) {
     return (
-      <span className={styles.emptyState}>No hay actores que coincidan con estos filtros.</span>
+      <EmptyState
+        variant={hasActiveFilters ? 'filtered' : 'list'}
+        message={
+          hasActiveFilters
+            ? 'No hay actores que coincidan con estos filtros.'
+            : 'Todavía no hay actores.'
+        }
+        action={hasActiveFilters ? undefined : { children: 'Nuevo actor', href: '/clients/new' }}
+      />
     );
   }
 
@@ -142,9 +151,11 @@ export function ClientsBoard({ filters }: ClientsBoardProps) {
         })}
       </div>
       {showMore && (
-        <button type="button" className={styles.verMas} onClick={handleShowMore}>
-          Ver más
-        </button>
+        <div className={styles.verMas}>
+          <Button variant="secondary-dismiss" onClick={handleShowMore}>
+            Ver más
+          </Button>
+        </div>
       )}
     </div>
   );

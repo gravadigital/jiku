@@ -27,7 +27,7 @@ export default async function Projects({
       <main>
         <ProjectListFilters />
         <div className={styles.containerProjects}>
-          <Suspense fallback={<Loader label="Cagando..." />}>
+          <Suspense fallback={<Loader label="Cargando..." />}>
             <ProjectsBoard filters={filters} />
           </Suspense>
         </div>

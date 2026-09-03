@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as usePersonsModule from '@/features/auth/hooks/usePersons';
 import * as useCreateObjectiveModule from '@/features/objectives/hooks/useCreateObjective';
@@ -22,73 +23,6 @@ let mockSearchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => mockSearchParams,
-}));
-
-vi.mock('next/image', () => ({
-  default: ({ alt }: { alt: string }) => <img alt={alt} />,
-}));
-
-vi.mock('@/shared/components/ui/InputSelect/InputSelect', () => ({
-  InputSelect: ({
-    label,
-    code,
-    value,
-    onChange,
-    options,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    options?: { label: string; value: string }[];
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <select id={code} value={value || ''} onChange={(e) => onChange(e.target.value)}>
-        <option value="" />
-        {options?.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
-}));
-
-vi.mock('@/shared/components/ui/InputMultiplePersons/InputMultiplePersons', () => ({
-  InputMultiplePersons: ({
-    label,
-    code,
-    onChange,
-    options,
-  }: {
-    label: string;
-    code: string;
-    onChange: (v: { label: string; value: string }[]) => void;
-    options?: { label: string; value: string }[];
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <select
-        id={code}
-        multiple
-        onChange={(e) => {
-          const selected = Array.from(e.target.selectedOptions).map((o) => ({
-            label: o.textContent ?? '',
-            value: o.value,
-          }));
-          onChange(selected);
-        }}
-      >
-        {options?.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
 }));
 
 vi.mock('@/features/auth/hooks/usePersons');
@@ -118,6 +52,23 @@ function createWrapperWithClient() {
 
 const mockMutateAsync = vi.fn();
 
+/** Elige un proyecto en el Select del DS (combobox propio, sin <select> nativo). */
+async function chooseProject(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('combobox', { name: 'Corresponde a...' }));
+  await user.click(screen.getByRole('option', { name: label }));
+}
+
+async function chooseRequirement(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('combobox', { name: 'Requisito' }));
+  await user.click(screen.getByRole('option', { name: label }));
+}
+
+/** El Select variant multiple para Responsable(s) es un <div role="combobox">. */
+async function choosePerson(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('combobox', { name: 'Responsable(s)' }));
+  await user.click(screen.getByRole('option', { name: label }));
+}
+
 describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -143,21 +94,20 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
     mockMutateAsync.mockResolvedValue({});
   });
 
-  it('AC-7: muestra el selector "Requisito" cuando hay un proyecto seleccionado', () => {
+  it('AC-7: muestra el selector "Requisito" cuando hay un proyecto seleccionado', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
+    await chooseProject(user, 'Proyecto Alpha');
 
-    expect(screen.getByText('Requisito')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Requisito' })).toBeInTheDocument();
   });
 
-  it('TS-15 (AC-7): selector Requisito consulta useRequirements filtrado por projectId', () => {
+  it('TS-15 (AC-7): selector Requisito consulta useRequirements filtrado por projectId', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    const projectSelect = document.getElementById('projectId') as HTMLSelectElement;
-    fireEvent.change(projectSelect, { target: { value: '5' } });
+    await chooseProject(user, 'Proyecto Alpha');
 
     expect(useRequirementsModule.useRequirements).toHaveBeenCalledWith(
       expect.objectContaining({ filters: expect.objectContaining({ projectId: 5 }) })
@@ -165,22 +115,15 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   });
 
   it('TS-10 (AC-7): guardar con requisito seleccionado incluye requirementId en el payload', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '12' },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
+    await chooseRequirement(user, 'REQ-12 Bug login');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalled();
@@ -190,19 +133,14 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   });
 
   it('TS-13 (AC-10): guardar sin requisito no incluye requirementId en el payload', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Nueva tarea' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Nueva tarea');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalled();
@@ -211,21 +149,21 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
     expect(payload.requirementId).toBeUndefined();
   });
 
-  it('cambiar de proyecto limpia la selección de Requisito', () => {
+  it('cambiar de proyecto limpia la selección de Requisito', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '12' },
-    });
-    expect((document.getElementById('requirementId') as HTMLSelectElement).value).toBe('12');
+    await chooseProject(user, 'Proyecto Alpha');
+    await chooseRequirement(user, 'REQ-12 Bug login');
+    expect(screen.getByRole('combobox', { name: 'Requisito' })).toHaveTextContent(
+      'REQ-12 Bug login'
+    );
 
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '6' },
-    });
-    expect((document.getElementById('requirementId') as HTMLSelectElement).value).toBe('');
+    await chooseProject(user, 'Proyecto Beta');
+
+    expect(screen.getByRole('combobox', { name: 'Requisito' })).not.toHaveTextContent(
+      'REQ-12 Bug login'
+    );
   });
 
   // TS-11 (AC-8): autocompletado al crear objetivo desde un requisito
@@ -233,8 +171,12 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
     mockSearchParams = new URLSearchParams({ projectId: '5', requirementId: '12' });
     render(<Form />, { wrapper: createWrapper() });
 
-    expect((document.getElementById('projectId') as HTMLSelectElement).value).toBe('5');
-    expect((document.getElementById('requirementId') as HTMLSelectElement).value).toBe('12');
+    expect(screen.getByRole('combobox', { name: 'Corresponde a...' })).toHaveTextContent(
+      'Proyecto Alpha'
+    );
+    expect(screen.getByRole('combobox', { name: 'Requisito' })).toHaveTextContent(
+      'REQ-12 Bug login'
+    );
   });
 
   // TS-14: error requirement_project_mismatch muestra el mensaje del backend
@@ -244,23 +186,16 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
       code: 'requirement_project_mismatch',
       message: 'El requisito no pertenece al mismo proyecto',
     });
+    const user = userEvent.setup();
 
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
-    fireEvent.change(document.getElementById('requirementId') as HTMLSelectElement, {
-      target: { value: '12' },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
+    await chooseRequirement(user, 'REQ-12 Bug login');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('El requisito no pertenece al mismo proyecto');
@@ -276,19 +211,14 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
 
   it('TS-6 (S-067): crear con éxito dispara toast "Tareas creadas con éxito"', async () => {
     const { toast } = await import('react-toastify');
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Tareas creadas con éxito');
@@ -298,20 +228,15 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   it('TS-7 (S-067): error sin mensaje dispara toast "Error al crear algunas tareas"', async () => {
     const { toast } = await import('react-toastify');
     mockMutateAsync.mockRejectedValue({});
+    const user = userEvent.setup();
 
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Error al crear algunas tareas');
@@ -321,16 +246,13 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   // S-091 (CA-2, TS-1): redirect al requisito de origen tras crear con éxito, viniendo con ?requirementId
   it('S-091 TS-1: crear con éxito viniendo con requirementId en la URL redirige a /requirements/{id}', async () => {
     mockSearchParams = new URLSearchParams({ requirementId: '42', projectId: '5' });
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/requirements/42');
@@ -346,16 +268,13 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
     mockSearchParams = new URLSearchParams({ requirementId: '42', projectId: '5' });
     const { Wrapper, queryClient } = createWrapperWithClient();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const user = userEvent.setup();
     render(<Form />, { wrapper: Wrapper });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Fix login' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Fix login');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requirement', 42] });
@@ -364,19 +283,14 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
 
   // S-091 (CA-3, TS-2): sin requirementId en la URL, comportamiento sin cambios
   it('S-091 TS-2: crear con éxito sin requirementId en la URL sigue redirigiendo a /objectives', async () => {
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Nueva tarea' },
-    });
-    fireEvent.change(document.getElementById('projectId') as HTMLSelectElement, {
-      target: { value: '5' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Nueva tarea');
+    await chooseProject(user, 'Proyecto Alpha');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/objectives');
@@ -386,23 +300,20 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
   // S-091 (CA-2, TS-3, edge case): batch de 2 tareas clonadas, viniendo con requirementId en la URL
   it('S-091 TS-3: batch de tareas clonadas viniendo con requirementId en la URL redirige al requisito de origen', async () => {
     mockSearchParams = new URLSearchParams({ requirementId: '42', projectId: '5' });
+    const user = userEvent.setup();
     render(<Form />, { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByPlaceholderText('Título de la tarea'), {
-      target: { value: 'Primera tarea' },
-    });
-    fireEvent.change(document.getElementById('personIds') as HTMLSelectElement, {
-      target: { selectedIndex: 0 },
-    });
+    await user.type(screen.getByPlaceholderText('Título de la tarea'), 'Primera tarea');
+    await choosePerson(user, 'Ana Pérez');
 
-    fireEvent.click(screen.getByText('Clonar'));
+    await user.click(screen.getByRole('button', { name: 'Clonar' }));
 
+    // El clon copia el estado del form 1 (incluido personIds ya elegido), así que no hace
+    // falta re-elegir el responsable: sólo completar el título propio del segundo form.
     const titleInputs = screen.getAllByPlaceholderText('Título de la tarea');
-    fireEvent.change(titleInputs[1], { target: { value: 'Segunda tarea' } });
-    const personSelects = document.querySelectorAll('#personIds') as NodeListOf<HTMLSelectElement>;
-    fireEvent.change(personSelects[1], { target: { selectedIndex: 0 } });
+    await user.type(titleInputs[1], 'Segunda tarea');
 
-    fireEvent.click(screen.getByText('Guardar'));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
 
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(2);

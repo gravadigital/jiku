@@ -1,12 +1,12 @@
 .description {
-  font-family: var(--font-primary);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #626a81;
-  line-height: 1.5;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  font-weight: var(--text-body-default-weight);
+  color: var(--text-secondary);
+  line-height: var(--text-body-default-leading);
 }
 
 .empty {
-  color: #626a81;
+  color: var(--text-secondary);
   font-style: italic;
 }

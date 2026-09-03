@@ -1,1 +1,0 @@
-export { ProjectInactiveObjectivesTable } from './ProjectInactiveObjectivesTable';

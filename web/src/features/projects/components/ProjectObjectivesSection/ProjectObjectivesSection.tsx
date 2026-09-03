@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useObjectives } from '@/features/objectives/hooks/useObjectives';
+import { Button, Card, Pagination, Table, Tabs } from '@/shared/components/ui';
 import styles from './ProjectObjectivesSection.module.scss';
 import type { ObjectiveState } from '@/features/objectives/types/objective.types';
 import type { Objective } from '@/features/objectives/types/objective.types';
+import type { TableColumn, TableRow } from '@/shared/components/ui/Table';
 
 interface ProjectObjectivesSectionProps {
   readonly projectId: number;
@@ -19,6 +21,14 @@ const STATE_TABS: { label: string; value: ObjectiveState }[] = [
 ];
 
 const DEFAULT_PAGE_SIZE = 5;
+
+const COLUMNS: readonly TableColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'title', label: 'Título' },
+  { key: 'responsible', label: 'Responsable' },
+  { key: 'createdAt', label: 'Creación' },
+  { key: 'estimatedFinishDate', label: 'Cierre estimado' },
+];
 
 function formatDate(value: Date | string | null | undefined): string {
   if (!value) return '—';
@@ -57,152 +67,84 @@ export function ProjectObjectivesSection({ projectId }: ProjectObjectivesSection
     objectives.filter((o) => o.state === state).length;
 
   const visibleObjectives = objectives.filter((o) => o.state === activeState);
-  const totalPages = Math.ceil(visibleObjectives.length / pageSize);
   const paginated = visibleObjectives.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const handleTabChange = (state: ObjectiveState) => {
-    setActiveState(state);
+  const handleTabChange = (state: string) => {
+    setActiveState(state as ObjectiveState);
     setCurrentPage(1);
   };
 
-  const handlePageSizeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setPageSize(Number(event.target.value));
-    setCurrentPage(1);
-  };
+  const tabs = STATE_TABS.map((tab) => ({
+    key: tab.value,
+    label: tab.label,
+    count: countByState(tab.value),
+  }));
+
+  const rows: TableRow[] = paginated.map((obj: Objective) => ({
+    id: obj.id,
+    title: (
+      <a
+        href={`/objectives/${obj.id}`}
+        target="_blank"
+        rel="noreferrer"
+        className={styles.titleLink}
+      >
+        {obj.title}
+      </a>
+    ),
+    responsible:
+      obj.persons && obj.persons.length > 1 ? (
+        <span className={styles.personsLabel} title={formatPersonsFullList(obj.persons)}>
+          {formatPersons(obj.persons)}
+        </span>
+      ) : (
+        formatPersons(obj.persons)
+      ),
+    createdAt: formatDate(obj.createdAt),
+    estimatedFinishDate: formatDate(obj.estimatedFinishDate),
+  }));
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>Tareas</h2>
-        <button
-          type="button"
-          className={styles.newBtn}
-          aria-label="Nueva tarea"
-          onClick={() => router.push(`/objectives/new?projectId=${projectId}`)}
-        >
-          +
-        </button>
-      </div>
-
-      <nav className={styles.tabs} aria-label="Filtro por estado de tarea">
-        {STATE_TABS.map((tab) => {
-          const isActive = activeState === tab.value;
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              className={isActive ? `${styles.tab} ${styles.active}` : styles.tab}
-              onClick={() => handleTabChange(tab.value)}
-            >
-              <span className={styles.tabLabel}>{tab.label}</span>
-              <span className={styles.tabCount}>{countByState(tab.value)}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className={styles.tableWrap}>
-        <table className={styles.objTable}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Título</th>
-              <th>Responsable</th>
-              <th>Creación</th>
-              <th>Cierre estimado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={5} className={styles.emptyState}>
-                  Cargando tareas...
-                </td>
-              </tr>
-            ) : paginated.length === 0 ? (
-              <tr>
-                <td colSpan={5} className={styles.emptyState}>
-                  No se encontraron tareas
-                </td>
-              </tr>
-            ) : (
-              paginated.map((obj: Objective) => (
-                <tr
-                  key={obj.id}
-                  className={styles.row}
-                  onClick={() => window.open(`/objectives/${obj.id}`, '_blank')}
-                >
-                  <td className={styles.idCell}>{obj.id}</td>
-                  <td>
-                    <span className={styles.titleLink}>{obj.title}</span>
-                  </td>
-                  <td>
-                    {obj.persons && obj.persons.length > 1 ? (
-                      <span
-                        className={styles.personsLabel}
-                        title={formatPersonsFullList(obj.persons)}
-                      >
-                        {formatPersons(obj.persons)}
-                      </span>
-                    ) : (
-                      formatPersons(obj.persons)
-                    )}
-                  </td>
-                  <td>{formatDate(obj.createdAt)}</td>
-                  <td>{formatDate(obj.estimatedFinishDate)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        <div className={styles.pagination}>
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
+    <Card variant="panel">
+      <div className={styles.wrapper}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Tareas</h2>
+          <Button
+            fab
+            aria-label="Nueva tarea"
+            onClick={() => router.push(`/objectives/new?projectId=${projectId}`)}
           >
-            ‹
-          </button>
-          {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => i + 1)
-            .filter((page) => page <= 3 || page === Math.max(totalPages, 1))
-            .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
-              if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-              acc.push(page);
-              return acc;
-            }, [])
-            .map((item, idx) =>
-              item === 'ellipsis' ? (
-                <span key={`ellipsis-${idx}`} className={styles.ellipsis}>
-                  …
-                </span>
-              ) : (
-                <button
-                  key={item}
-                  type="button"
-                  className={`${styles.pageBtn}${currentPage === item ? ` ${styles.active}` : ''}`}
-                  onClick={() => setCurrentPage(item)}
-                  aria-current={currentPage === item ? 'page' : undefined}
-                >
-                  {item}
-                </button>
-              )
-            )}
-          <button
-            type="button"
-            className={styles.pageBtn}
-            onClick={() => setCurrentPage((p) => Math.min(Math.max(totalPages, 1), p + 1))}
-            disabled={currentPage === Math.max(totalPages, 1)}
-          >
-            ›
-          </button>
-          <select className={styles.perPageSelect} value={pageSize} onChange={handlePageSizeChange}>
-            <option value={5}>5 por página</option>
-            <option value={10}>10 por página</option>
-          </select>
+            +
+          </Button>
+        </div>
+
+        <Tabs tabs={tabs} activeKey={activeState} onChange={handleTabChange} />
+
+        <div className={styles.tableWrap}>
+          <Table
+            variant="light"
+            columns={COLUMNS}
+            rows={rows}
+            loading={isLoading}
+            ariaLabel="Tareas del proyecto"
+            emptyState={<span>No se encontraron tareas</span>}
+          />
+
+          <div className={styles.paginationRow}>
+            <Pagination
+              totalItems={visibleObjectives.length}
+              limit={pageSize}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              pageSizeOptions={[5, 10]}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

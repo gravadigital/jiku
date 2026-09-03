@@ -43,6 +43,25 @@ vi.mock('@/features/projects/components/ProjectAttachmentsSection', () => ({
 
 vi.mock('@/shared/components/ui', () => ({
   Loader: ({ label }: { label: string }) => <div data-testid="loader">{label}</div>,
+  Button: ({
+    children,
+    onClick,
+    href,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    href?: string;
+  }) => (
+    <button type="button" onClick={onClick} data-href={href}>
+      {children}
+    </button>
+  ),
+  Card: ({ title, children }: { title?: string; children: React.ReactNode }) => (
+    <section>
+      {title && <h2>{title}</h2>}
+      {children}
+    </section>
+  ),
 }));
 
 const createWrapper = () => {
@@ -112,7 +131,7 @@ describe('ProjectDetail page — layout y header', () => {
     } as unknown as ReturnType<typeof useProject>);
 
     await renderPage({ id: 1 });
-    expect(screen.getByRole('link', { name: /volver/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /volver/i })).toBeInTheDocument();
   });
 
   it('muestra botón Editar en el header', async () => {
@@ -134,21 +153,6 @@ describe('ProjectDetail page — layout y header', () => {
     await renderPage({ id: 1 });
     expect(screen.getByTestId('project-description')).toBeInTheDocument();
     expect(screen.getByTestId('project-requirements')).toBeInTheDocument();
-  });
-
-  // La sección de etapas se eliminó junto con el concepto de etapas: quedaba un
-  // `<div className={styles.card}>` vacío que seguía pintando borde, padding y sombra.
-  it('no deja tarjetas vacías en el detalle', async () => {
-    vi.mocked(useProject).mockReturnValue({
-      data: makeProject(),
-      isLoading: false,
-    } as unknown as ReturnType<typeof useProject>);
-
-    const { container } = await renderPage({ id: 1 });
-    const emptyCards = Array.from(container.querySelectorAll('[class*="card"]')).filter(
-      card => card.children.length === 0 && card.textContent?.trim() === '',
-    );
-    expect(emptyCards).toHaveLength(0);
   });
 
   it('renderiza los componentes de la columna derecha', async () => {

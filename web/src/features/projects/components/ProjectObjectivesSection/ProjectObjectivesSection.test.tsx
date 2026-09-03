@@ -5,7 +5,10 @@ import * as useObjectivesModule from '@/features/objectives/hooks/useObjectives'
 import { ProjectObjectivesSection } from './ProjectObjectivesSection';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('@/features/objectives/hooks/useObjectives');
 
 describe('ProjectObjectivesSection', () => {
@@ -13,24 +16,24 @@ describe('ProjectObjectivesSection', () => {
     vi.mocked(useObjectivesModule.useObjectives).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useObjectivesModule.useObjectives>);
 
     render(<ProjectObjectivesSection projectId={1} />);
 
-    expect(screen.getByText('Tareas')).toBeInTheDocument();
-    expect(screen.getByLabelText('Nueva tarea')).toBeInTheDocument();
-    expect(screen.getByLabelText('Filtro por estado de tarea')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tareas' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nueva tarea' })).toBeInTheDocument();
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
     expect(screen.getByText('No se encontraron tareas')).toBeInTheDocument();
   });
 
-  it('TS-25 (S-067): muestra "Cargando tareas..." mientras carga', () => {
+  it('el Table muestra el indicador de carga del DS mientras el listado está pendiente', () => {
     vi.mocked(useObjectivesModule.useObjectives).mockReturnValue({
       data: [],
       isLoading: true,
-    } as any);
+    } as unknown as ReturnType<typeof useObjectivesModule.useObjectives>);
 
     render(<ProjectObjectivesSection projectId={1} />);
 
-    expect(screen.getByText('Cargando tareas...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando…')).toBeInTheDocument();
   });
 });

@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { InputText, Button, SectionCard } from '@/shared/components/ui';
-import { InputTextarea } from '@/shared/components/ui/InputTextarea/InputTextarea';
+import { Button, Card, Input } from '@/shared/components/ui';
 import styles from './ClientForm.module.scss';
 
 interface ClientFormProps {
@@ -58,27 +57,24 @@ export function ClientForm({
   };
 
   return (
-    <SectionCard>
+    <Card variant="panel">
       <div className={styles.formContainer}>
         <div className={styles.leftColumn}>
-          <InputText
+          <Input
             label="Nombre"
-            code="name"
             value={name}
-            onChange={(value) => setName(value)}
+            onChange={setName}
             placeholder="Nombre del actor"
             required
           />
 
           <div className={styles.descriptionField}>
-            <InputTextarea
+            <Input
+              variant="textarea"
               label="Descripción"
-              code="description"
               value={description}
-              onChange={(value: string) => setDescription(value)}
+              onChange={setDescription}
               placeholder="Descripción del actor (soporta **markdown**)"
-
-              error={false}
             />
           </div>
         </div>
@@ -90,6 +86,6 @@ export function ClientForm({
           </Button>
         </div>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

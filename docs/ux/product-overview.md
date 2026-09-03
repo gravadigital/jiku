@@ -34,8 +34,11 @@ sino de **dos aplicaciones distintas** sobre la misma API.
   - Viewports: `desktop` (único) — **el shell impone un solo viewport**: la sidebar mide 290 px
     fijos y el layout de `(loggedin)` no tiene ningún media query, así que bajo ~1000 px no hay
     navegación posible. Tablet se comporta como desktop.
-  - Accent: `#DA2C6A` — magenta, tomado del código (`--color-button`), es el color de los botones
-    primarios. **No es color de marca declarado**: es el que el producto usa hoy.
+  - Accent: `#61CCB9` — verde agua, **color de marca declarado** por el Manual de marca Jiku v1.0 y
+    normativo desde el Design System `web` v2.4.0 (`color.brand.primary`). Es acento, nunca fondo de
+    página: el texto y la jerarquía los carga el azul oscuro `#0B1934` sobre fondo niebla `#F6F6F9`.
+    El magenta `#DA2C6A` que el relevamiento registró desde el código (`--color-button`) **queda
+    descontinuado**; REQ-013 es el requerimiento que lo reemplaza en toda la superficie.
   - 25 pantallas · 10 overlays
 
 - **opus-web** — Portal de clientes (marca **Opus**): un cliente sigue el avance de sus proyectos,
@@ -52,9 +55,12 @@ sino de **dos aplicaciones distintas** sobre la misma API.
 > ni la comparten a futuro.
 >
 > - **`web` → Jiku.** Tiene manual de marca propio (**Manual de marca Jiku v1.0**, septiembre
->   2026): verde agua `#61CCB9` sobre azul oscuro `#0B1934`, Sora + Gabarito. El accent
->   `#DA2C6A` que este inventario registra **queda descontinuado** — ver
+>   2026): verde agua `#61CCB9` sobre azul oscuro `#0B1934`, Sora + Gabarito. El magenta `#DA2C6A`
+>   que el relevamiento inicial había registrado desde el código **queda descontinuado**, y este
+>   inventario ya declara el accent nuevo — ver
 >   [mapeo del sistema anterior](../design-system/web/foundations/color.md#mapeo-del-sistema-anterior).
+>   **Aplicarlo al código es REQ-013**: hasta que esa migración termine, la web servida sigue
+>   mostrando el magenta aunque la documentación y los wireframes ya sean los nuevos.
 > - **`opus-web` → Opus.** Conserva su azul `#2563eb`, su stack de fuentes de sistema y su logo. Se
 >   presenta al cliente como «¡Bienvenido a OPUS!» con su propio `logo.png` y `title: 'Opus'`.
 >   **No tiene manual de marca todavía**; su Design System sigue relevado desde el código.

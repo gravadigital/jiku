@@ -4,10 +4,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Form from './page';
 
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
+vi.mock('next-auth', () => ({
+  default: vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() })),
+}));
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null }),
 }));
@@ -43,143 +47,19 @@ const mockProject = {
   },
 };
 
+const updateProjectMutate = vi.fn();
+
 vi.mock('@/features/projects', () => ({
   useClients: () => ({ data: [{ id: 1, name: 'Cliente A' }], isLoading: false }),
   useProject: () => ({ data: mockProject, isLoading: false }),
   useUpdateProject: () => ({
-    mutate: vi.fn(),
+    mutate: updateProjectMutate,
     isPending: false,
   }),
 }));
 
 vi.mock('@/shared/components/layout', () => ({
   PageLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@/shared/components/ui', () => ({
-  Button: ({ label, onClick }: { label: string; onClick: () => void }) => (
-    <button type="button" onClick={onClick}>
-      {label}
-    </button>
-  ),
-  InputDate: ({
-    label,
-    code,
-    value,
-    onChange,
-    required,
-  }: {
-    label: string;
-    code: string;
-    value: Date | null;
-    onChange: (v: string) => void;
-    required?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <input
-        id={code}
-        type="date"
-        value={
-          value instanceof Date && !isNaN(value.getTime()) ? value.toISOString().split('T')[0] : ''
-        }
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      />
-    </div>
-  ),
-  InputSelect: ({
-    label,
-    code,
-    value,
-    onChange,
-    options,
-    required,
-    placeholder,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    options?: { label: string; value: string }[];
-    required?: boolean;
-    placeholder?: string;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <select
-        id={code}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      >
-        <option value="">{placeholder}</option>
-        {options?.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
-  InputText: ({
-    label,
-    code,
-    value,
-    onChange,
-    placeholder,
-    required,
-    disabled,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    required?: boolean;
-    disabled?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <input
-        id={code}
-        type="text"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        disabled={disabled}
-      />
-    </div>
-  ),
-  InputTextarea: ({
-    label,
-    code,
-    value,
-    onChange,
-    placeholder,
-    required,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    required?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <textarea
-        id={code}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-      />
-    </div>
-  ),
-  Loader: ({ label }: { label: string }) => <div>{label}</div>,
-  SectionCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
@@ -191,7 +71,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-describe('ProjectEditForm — diseño S-050', () => {
+describe('ProjectEditForm — migración al Design System (S-056)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -200,8 +80,8 @@ describe('ProjectEditForm — diseño S-050', () => {
     render(<Form params={Promise.resolve({ id: 1 })} />, { wrapper: TestWrapper });
     await waitFor(
       () => {
-        expect(screen.getByText('Información general')).toBeInTheDocument();
-        expect(screen.getByText('Propiedades')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Información general' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Propiedades' })).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
@@ -219,11 +99,22 @@ describe('ProjectEditForm — diseño S-050', () => {
     );
   });
 
+  // TS-16: la edición migra sus tres selects conservando el valor actual del proyecto
+  it('TS-16: migra los tres selects (Cliente, Tipo, Estado) mostrando el valor actual', async () => {
+    render(<Form params={Promise.resolve({ id: 1 })} />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Cliente' })).toHaveTextContent('Cliente A');
+    });
+    expect(screen.getByRole('combobox', { name: 'Tipo' })).toHaveTextContent('Interno');
+    expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveTextContent('Activo');
+  });
+
   it('TS-3 (edit): campo Estado presente en información general', async () => {
     render(<Form params={Promise.resolve({ id: 1 })} />, { wrapper: TestWrapper });
     await waitFor(
       () => {
-        expect(screen.getByLabelText(/estado/i)).toBeInTheDocument();
+        expect(screen.getByRole('combobox', { name: 'Estado' })).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
@@ -244,44 +135,59 @@ describe('ProjectEditForm — diseño S-050', () => {
     );
   });
 
-  it('TS-8 (edit): agregar propiedad dinámica', async () => {
+  it('TS-8 (edit): agregar propiedad dinámica no dispara el submit', async () => {
     render(<Form params={Promise.resolve({ id: 1 })} />, { wrapper: TestWrapper });
     await waitFor(
       () => {
-        expect(screen.getByText('Información general')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Información general' })).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
-    const claveInput = screen.getByPlaceholderText(/clave/i);
-    const valorInput = screen.getByPlaceholderText(/valor/i);
+    const claveInput = screen.getByLabelText('Clave');
+    const valorInput = screen.getByLabelText('Valor');
     fireEvent.change(claveInput, { target: { value: 'repo' } });
     fireEvent.change(valorInput, { target: { value: 'https://github.com/x' } });
     const addBtn = screen.getByRole('button', { name: /agregar/i });
     fireEvent.click(addBtn);
     await waitFor(() => {
-      expect(screen.getByText('repo')).toBeInTheDocument();
+      expect(screen.getByLabelText('repo')).toBeInTheDocument();
     });
+    expect(updateProjectMutate).not.toHaveBeenCalled();
   });
 
-  it('TS-9 (edit): eliminar propiedad dinámica', async () => {
+  it('TS-9 (edit): eliminar propiedad dinámica no dispara el submit', async () => {
     render(<Form params={Promise.resolve({ id: 1 })} />, { wrapper: TestWrapper });
     await waitFor(
       () => {
-        expect(screen.getByText('Información general')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Información general' })).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
-    const claveInput = screen.getByPlaceholderText(/clave/i);
+    const claveInput = screen.getByLabelText('Clave');
     fireEvent.change(claveInput, { target: { value: 'repo' } });
     const addBtn = screen.getByRole('button', { name: /agregar/i });
     fireEvent.click(addBtn);
     await waitFor(() => {
-      expect(screen.getByText('repo')).toBeInTheDocument();
+      expect(screen.getByLabelText('repo')).toBeInTheDocument();
     });
-    const deleteBtn = screen.getByRole('button', { name: /eliminar link repo/i });
+    const deleteBtn = screen.getByRole('button', { name: /eliminar repo/i });
     fireEvent.click(deleteBtn);
     await waitFor(() => {
-      expect(screen.queryByText('repo')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('repo')).not.toBeInTheDocument();
     });
+    expect(updateProjectMutate).not.toHaveBeenCalled();
+  });
+
+  // TS-22: TS-22 no existe en este alcance; se agrega verificación de que no queda
+  // rastro de selectStyles ni react-select en el árbol renderizado.
+  it('TS-22: no queda rastro de selectStyles ni react-select en el árbol renderizado', async () => {
+    const { container } = render(<Form params={Promise.resolve({ id: 1 })} />, {
+      wrapper: TestWrapper,
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Cliente' })).toBeInTheDocument();
+    });
+    expect(container.querySelector('[class*="css-"]')).toBeNull();
+    expect(container.querySelector('[class*="react-select"]')).toBeNull();
   });
 });

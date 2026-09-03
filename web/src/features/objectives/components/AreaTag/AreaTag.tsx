@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tooltip } from '@/shared/components/ui';
+import { Badge, Tooltip } from '@/shared/components/ui';
 import styles from './AreaTag.module.scss';
 import type { IPerson } from '@/shared/types';
 
@@ -30,7 +30,9 @@ export function AreaTag(props: AreaTagProps) {
   return (
     <div className={styles.labelContainer}>
       <Tooltip content={area}>
-        <span className={styles.areaLabel} data-area={area} />
+        <span>
+          <Badge variant="area" family="neutral" label={area} />
+        </span>
       </Tooltip>
       <Tooltip content={showProject ? projectName : tooltipContent}>
         <span className={styles.responsibleLabel}>

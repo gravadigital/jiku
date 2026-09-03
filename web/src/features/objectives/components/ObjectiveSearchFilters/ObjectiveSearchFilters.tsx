@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getPersons } from '@/features/auth';
 import { getProjects } from '@/features/projects';
-import { InputMultipleSelect, InputSelect, InputText } from '@/shared/components/ui';
+import { Input, Select } from '@/shared/components/ui';
 import styles from './ObjectiveSearchFilters.module.scss';
 import type { Project } from '@/shared/types';
 
@@ -19,11 +19,6 @@ const stateOptions = [
   { label: 'Cancelado', value: 'cancelado' },
   { label: 'Finalizado', value: 'finalizado' },
 ];
-
-const getStateLabel = (value: string) => {
-  const stateOption = stateOptions.find((option) => option.value === value);
-  return stateOption ? stateOption.label : value;
-};
 
 const useDebouncedValue = (value: any, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -62,16 +57,8 @@ export function ObjectiveSearchFilters() {
   );
 
   const changeFilter = useCallback(
-    (field: string, value: string | { label: string; value: string }[]) => {
-      let formattedValue: string = '';
-
-      if (Array.isArray(value)) {
-        formattedValue = value.length === 0 ? 'all' : value.map((item) => item.value).join(',');
-      } else {
-        formattedValue = value;
-      }
-
-      router.push(`/objectives?${createQueryString(field, formattedValue)}`);
+    (field: string, value: string) => {
+      router.push(`/objectives?${createQueryString(field, value)}`);
     },
     [createQueryString, router]
   );
@@ -103,54 +90,35 @@ export function ObjectiveSearchFilters() {
     }
   }, [changeFilter, debouncedSearch]);
 
+  const selectedStates =
+    searchParams?.get('state') === 'all' ? [] : (searchParams?.get('state')?.split(',') ?? ['activo']);
+
   return (
     <section className={styles.filterSection}>
       <div className={styles.searchSelect}>
-        <InputText
+        <Input
+          variant="search"
           label="Búsqueda"
-          code="search"
           value={search.value}
-          onChange={(value) => {
-            setSearch({
-              initial: false,
-              value,
-            });
-          }}
+          onChange={(value) => setSearch({ initial: false, value })}
           placeholder="Buscar tarea"
         />
       </div>
       <div className={styles.stateSelect}>
-        <InputMultipleSelect
+        <Select
+          variant="multiple"
           label="Estados"
-          code="state"
-          value={
-            searchParams?.get('state') === 'all'
-              ? []
-              : searchParams
-                  ?.get('state')
-                  ?.split(',')
-                  .map((state) => ({ label: getStateLabel(state), value: state })) || [
-                  { label: 'Activo', value: 'activo' },
-                ]
-          }
-          options={[...stateOptions]}
+          value={selectedStates}
+          options={stateOptions}
           onChange={(value) => {
-            if (value.some((item) => item.value === 'all')) {
-              changeFilter(
-                'state',
-                value.length === 1 ? 'all' : value.filter((item) => item.value !== 'all')
-              );
-            } else {
-              changeFilter('state', value);
-            }
+            changeFilter('state', value.length === 0 ? 'all' : value.join(','));
           }}
           placeholder="Todos"
         />
       </div>
-      <div className={styles.projectSelect}>
-        <InputSelect
+      <div>
+        <Select
           label="Proyecto"
-          code="projectId"
           value={searchParams?.get('projectId') || 'all'}
           options={[{ label: 'Todos', value: 'all' }, ...projects]}
           onChange={(value) => {
@@ -159,9 +127,8 @@ export function ObjectiveSearchFilters() {
         />
       </div>
       <div>
-        <InputSelect
+        <Select
           label="Responsable"
-          code="personId"
           value={searchParams?.get('personId') || 'all'}
           options={[
             { label: 'Cualquiera', value: 'all' },
@@ -173,9 +140,8 @@ export function ObjectiveSearchFilters() {
         />
       </div>
       <div>
-        <InputSelect
+        <Select
           label="Área"
-          code="area"
           value={searchParams?.get('area') || 'all'}
           options={[
             { label: 'Todos', value: 'all' },
@@ -190,9 +156,8 @@ export function ObjectiveSearchFilters() {
         />
       </div>
       <div>
-        <InputSelect
+        <Select
           label="Ordenar por"
-          code="sort"
           value={searchParams?.get('sort') || '-createdAt'}
           options={[
             { label: 'Más recientes', value: '-createdAt' },

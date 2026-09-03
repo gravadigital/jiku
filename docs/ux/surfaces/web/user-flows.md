@@ -23,6 +23,20 @@ origin: relevamiento de código — brownfield
 | 3 | Planificar la capacidad de la semana | Reservar quién trabaja en qué antes de que la semana pase | equipo-interno (`admin`) |
 | 4 | Descomponer un requisito en tareas | Convertir un pedido en trabajo asignable | equipo-interno |
 
+> **REQ-013 no modifica ninguno de los cuatro flujos, y es el resultado esperado.** El
+> requerimiento aplica la identidad del Manual de marca Jiku v1.0 y reemplaza cada elemento de UI
+> hecho a mano por su componente del Design System: **cambia con qué está construido cada paso, no
+> cuáles son los pasos**. Los cuatro flujos conservan su trigger, su secuencia, sus caminos
+> alternativos y sus criterios de éxito. Vale la pena decirlo del flujo 2 en particular: el reparto
+> sobre el estado del requisito que dejó S-050 —el stepper informa los cinco pasos de trabajo, el
+> badge editable ofrece los siete estados, la card de resolución cierra y reabre— **se conserva tal
+> cual**, y lo único que cambia es cómo se ven esos tres controles.
+>
+> Lo único transversal que el requerimiento agrega no es un flujo sino una preferencia: el
+> **selector de tema** del shell, que alterna claro y oscuro y se recuerda en el navegador. No
+> resuelve ningún JTBD por sí solo ni tiene pasos que documentar —es un control de una sola
+> acción—, así que no se declara como flujo quinto [REQ-013 RF-10, CA-17].
+
 ---
 
 ## Flujo 1: Carga diaria de horas

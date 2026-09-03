@@ -1,21 +1,18 @@
 .filterSection {
   display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: 1rem;
-  flex-direction: row;
-  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--space-grid-gap);
+  flex-wrap: wrap;
 
   & > div {
-    width: calc(50% / 3);
+    flex: 1 1 160px;
   }
+
   & > div.searchSelect {
-    width: 30%;
+    flex: 2 1 220px;
   }
+
   & > div.stateSelect {
-    width: 35%;
-  }
-  & > div.projectSelect {
-    width: 25%;
+    flex: 1.5 1 200px;
   }
 }

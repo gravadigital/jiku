@@ -1,4 +1,5 @@
 import React from 'react';
+import { EmptyState } from '@/shared/components/ui';
 import styles from './ProjectProperties.module.scss';
 import type { Project } from '@/shared/types';
 
@@ -19,7 +20,7 @@ export function ProjectProperties({ project }: ProjectPropertiesProps) {
     : [];
 
   if (entries.length === 0) {
-    return <p className={styles.empty}>Sin propiedades definidas</p>;
+    return <EmptyState variant="scoped" message="Sin propiedades definidas" />;
   }
 
   return (
@@ -37,6 +38,7 @@ export function ProjectProperties({ project }: ProjectPropertiesProps) {
                   viewBox="0 0 12 12"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
                 >
                   <path
                     d="M2 10L10 2M10 2H5M10 2V7"

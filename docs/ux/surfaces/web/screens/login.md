@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-02
 ---
 
 # Pantalla: Login
@@ -155,3 +155,9 @@ date: 2026-08-18
 ## Decisiones y descartes
 
 - Pantalla documentada desde el código existente [fuente: código-existente]. No hay registro del rationale original; las decisiones se van a documentar cuando la pantalla se modifique.
+- **[REQ-013] La identidad cambia; la pantalla, no.** Esta ficha documenta *qué* hay en la pantalla y *para qué* está; el Manual de marca Jiku v1.0 cambia **con qué está construido**. El accent pasa del magenta `#DA2C6A` al verde agua `#61CCB9` sobre azul oscuro `#0B1934` con fondo niebla `#F6F6F9`, y Archivo se reemplaza por Sora (títulos de vista) + Gabarito (interfaz, datos, microcopy). Ningún bloque de esta pantalla se agrega, se elimina ni cambia de propósito por ese motivo [REQ-013 RF-1, RF-2, CA-1].
+- **[REQ-013] Cada elemento hecho a mano pasa a su componente del Design System.** Los bloques que esta ficha declara —botones, campos, selects, tarjetas, tablas, badges— se implementan con los componentes normativos de `docs/design-system/web/components/`, no con marcado propio. Es un cambio de implementación con consecuencia visible —dejan de haber dos botones que se ven distinto haciendo lo mismo— pero **no cambia la estructura declarada acá**: un bloque que ya existía sigue existiendo, con el mismo tipo y el mismo propósito [REQ-013 RF-3, RF-4, CA-5, CA-10].
+- **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
+- **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
+- **[REQ-013] El botón deja de ser un `<button>` con estilos propios.** Esta ficha registra que `boton-iniciar-sesion` no usa el componente compartido, y que por eso en estado `loading` queda sin nombre accesible y sin `aria-busy`. Al migrarlo al `Button` del DS —variant `session`, el que el spec define justamente para la entrada al sistema— el defecto de accesibilidad se cierra de paso: el componente emite `aria-busy` y conserva su nombre mientras carga. **El comportamiento no cambia:** sigue disparando el flujo OIDC, y que el botón no se deshabilite al cargar es un defecto aparte, registrado en `gaps-as-is.md`, que este REQ no resuelve [REQ-013 RF-4, CA-10].
+- **[REQ-013] El logo del manual entra donde hoy no hay ninguno.** La pantalla no muestra hoy ni nombre de producto ni logotipo: el único texto es `"Bienvenido"`, pintado con `--color-general-primary` (`#FF3C3C`), un color que la tabla de mapeo del DS manda al verde agua. Con la identidad nueva la firma Jiku aparece acá, con el SVG correspondiente al modo y respetando el área de resguardo que especifica `foundations/logo.md`. Es la primera pantalla que ve el usuario y hasta acá no decía de qué producto es [REQ-013 RF-1, CA-4].
