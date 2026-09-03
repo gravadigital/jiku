@@ -3,7 +3,6 @@ export { ClientCard } from './components/ClientCard/ClientCard';
 export { ClientForm } from './components/ClientForm/ClientForm';
 export { ClientListFilters } from './components/ClientListFilters/ClientListFilters';
 export { ClientsBoard } from './components/ClientsBoard/ClientsBoard';
-export { ClientsDrawer } from './components/ClientsDrawer/ClientsDrawer';
 export { ClientProjects } from './components/ClientProjects/ClientProjects';
 export { NewClientForm } from './components/NewClientForm/NewClientForm';
 

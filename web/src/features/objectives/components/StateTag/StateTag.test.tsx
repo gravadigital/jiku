@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as useUpdateObjectiveModule from '@/features/objectives/hooks/useUpdateObjective';
 import { StateTag } from './StateTag';
@@ -26,6 +27,7 @@ describe('StateTag', () => {
     mockUpdateMutate.mockImplementation((_vars: any, options: any) => {
       options?.onSuccess?.();
     });
+    const user = userEvent.setup();
 
     render(
       <StateTag
@@ -40,11 +42,30 @@ describe('StateTag', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Activo' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Backlog' }));
+    await user.click(screen.getByRole('button', { name: 'Estado: Activo' }));
+    await user.click(screen.getByRole('option', { name: 'Backlog' }));
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Se cambió el estado de la tarea a backlog');
     });
+  });
+
+  it('S-056 TS-3: usa Badge del DS con family de la familia correspondiente al estado', () => {
+    render(
+      <StateTag
+        area="desarrollo"
+        description={null}
+        estimatedFinishDate={null}
+        objectiveId={1}
+        persons={[]}
+        priority={0}
+        state="finalizado"
+        title="Tarea de prueba"
+      />
+    );
+
+    const button = screen.getByRole('button', { name: 'Estado: Finalizado' });
+    expect(button).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(button.className).toMatch(/familyResolved/);
   });
 });

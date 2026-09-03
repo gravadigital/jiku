@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useUpdateObjective } from '@/features/objectives/hooks/useUpdateObjective';
-import styles from './StateTag.module.scss';
+import { Badge } from '@/shared/components/ui';
 import type { UpdateObjectivePayload } from '@/features/objectives/types';
+import type { BadgeFamily } from '@/shared/components/ui/Badge';
 import type { Person } from '@/shared/types';
 
 interface StateTagProps {
@@ -25,17 +26,28 @@ const stateOptions = [
   { label: 'Finalizado', value: 'finalizado' },
 ];
 
+/**
+ * Mapeo estado de dominio de `objectives` (`activo`/`backlog`/`en_revision`/`cancelado`/
+ * `finalizado`) -> familia de color de `Badge`. Es un dominio de 5 estados distinto del que
+ * mapea `STATE_TO_FAMILY` (6 estados de `requirements`/`projects`), así que no lo reusa.
+ */
+export const OBJECTIVE_STATE_TO_FAMILY: Record<string, BadgeFamily> = {
+  activo: 'in-progress',
+  backlog: 'neutral',
+  cancelado: 'neutral',
+  en_revision: 'review',
+  finalizado: 'resolved',
+};
+
 export function StateTag(props: StateTagProps) {
   const { state, objectiveId, title, priority, estimatedFinishDate, area, persons, description } =
     props;
   const [selectedState, setSelectedState] = useState(state);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const personIds = persons.map((person) => person.id);
   const { mutate: updateObjective } = useUpdateObjective();
 
   const handleChange = (newValue: string) => {
     setSelectedState(newValue);
-    setIsDropdownOpen(false);
 
     const fieldsToUpdate: UpdateObjectivePayload = {
       area,
@@ -65,43 +77,15 @@ export function StateTag(props: StateTagProps) {
     );
   };
 
-  const handleOptionClick = (event: React.MouseEvent<HTMLButtonElement>, newValue: string) => {
-    event.stopPropagation();
-    event.preventDefault();
-    handleChange(newValue);
-  };
-
-  const handleButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    event.preventDefault();
-    setIsDropdownOpen(!isDropdownOpen);
-  };
+  const currentLabel = stateOptions.find((option) => option.value === selectedState)?.label ?? '';
 
   return (
-    <div className={styles.dropdown}>
-      <button
-        type="button"
-        className={styles.statusSelect}
-        data-state={selectedState}
-        onClick={handleButtonClick}
-      >
-        {stateOptions.find((option) => option.value === selectedState)?.label}
-      </button>
-      {isDropdownOpen ? (
-        <div className={styles.dropdownContent}>
-          {stateOptions.map((option) => (
-            <button
-              type="button"
-              key={option.value}
-              className={styles.statusSelectOption}
-              data-state={option.value}
-              onClick={(event) => handleOptionClick(event, option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <Badge
+      variant="editable"
+      family={OBJECTIVE_STATE_TO_FAMILY[selectedState] ?? 'neutral'}
+      label={currentLabel}
+      options={stateOptions}
+      onChange={handleChange}
+    />
   );
 }

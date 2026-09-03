@@ -304,3 +304,19 @@ resolvería —el suscriptor— sin ningún canal detrás.
 
 Es el contenido del feature group **FG-2**, y estos tres flujos son la mejor justificación de su
 prioridad.
+
+---
+
+> **REQ-013 no modifica ninguno de los tres flujos.** Aplica la identidad del Manual de marca Jiku
+> v1.0 sobre `web` y solo sobre `web`: cambia cómo se ve el lado interno de cada cruce, no qué dato
+> lo cruza ni cuándo. `opus-web` **no se toca** —otra marca, DS propio en `0.1.0`, y las dos
+> superficies no comparten ningún módulo de UI (ADR-006)—, así que el lado del cliente de los tres
+> flujos queda idéntico.
+>
+> Vale registrar la consecuencia visual, porque es deliberada y podría leerse como inconsistencia:
+> a partir de este requerimiento **las dos superficies se ven abiertamente distintas**. El verde
+> agua de Jiku y el azul de Opus no convergen, y no está previsto que converjan: Jiku firma lo
+> interno y Opus lo de cara al cliente. Un requisito que un cliente crea en Opus y el equipo
+> trabaja en Jiku **es el mismo dato bajo dos marcas**, y esa es la decisión, no un descuido
+> [REQ-013 CA-16, ADR-006].
+

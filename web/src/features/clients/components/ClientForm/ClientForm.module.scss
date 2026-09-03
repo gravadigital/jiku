@@ -1,19 +1,17 @@
-@use '@/styles/mixins' as *;
-
 .formContainer {
   display: grid;
-  gap: 1.5rem;
+  gap: var(--space-6);
   grid-template-columns: 1fr;
 }
 
 .leftColumn {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .descriptionField {
   textarea {
-    min-height: 18rem !important;
+    min-height: 18rem;
   }
 }
 
@@ -21,12 +19,12 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 1rem;
-  padding-top: 1rem;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
 }
 
 .errorText {
-  color: var(--color-button-delete);
+  color: var(--state-urgent-text);
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-field-label-size);
 }

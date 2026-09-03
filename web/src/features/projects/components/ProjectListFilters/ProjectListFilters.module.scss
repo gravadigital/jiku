@@ -1,15 +1,24 @@
+// El reparto original (buscador 50% + 3 filtros al 50%/3 c/u) sumaba 100% del ancho del
+// contenedor y encima el `gap: 1rem` se agregaba por fuera de esa cuenta con
+// `flex-wrap: nowrap`, así que la fila desbordaba y `overflow-x: hidden` del body recortaba
+// los últimos filtros sin dejar forma de alcanzarlos. `flex-basis` + `flex-grow` reparte el
+// espacio proporcionalmente (6/12 buscador + 2/12 por filtro) contemplando el gap adentro del
+// 100%, en vez de sumar porcentajes fijos por fuera de él.
 .filterSection {
   display: flex;
   justify-content: space-between;
   align-items: stretch;
-  gap: 1rem;
+  gap: var(--space-4);
   flex-direction: row;
   flex-wrap: nowrap;
+}
 
-  & > div {
-    width: calc(50% / 3);
-  }
-  & > div.search {
-    width: 50%;
-  }
+.search {
+  flex: 6 6 0;
+  min-width: 0;
+}
+
+.filter {
+  flex: 2 2 0;
+  min-width: 0;
 }

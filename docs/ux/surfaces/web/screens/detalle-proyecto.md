@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-02
 ---
 
 # Pantalla: Detalle de proyecto
@@ -385,3 +385,8 @@ date: 2026-08-18
 - **La entrada de la card no cambia:** arranca en `Desarrollo`, con selector 5/10 y default 5 (RF-10). Es una pantalla de uso diario y el requerimiento corrige datos incorrectos, no rehace la interacción; mover el punto de entrada sería un costo de reaprendizaje sin nada a cambio.
 - **Un contador que falla degrada solo su tab.** Al ser 7 consultas independientes, se eligió que el fallo de una muestre un placeholder neutro y no un error de sección: el resto de los totales y la tabla del tab activo son correctos y útiles. Se descartó mostrar `0` ante un fallo — `0` es un dato, y confundirlo con "no se pudo saber" es peor que no mostrar nada.
 - **No se agregó componente al Design System.** El tipo `pagination` no tiene spec en `web` v0.1.0, pero **el gap es previo a este requerimiento**: la pantalla ya tenía dos paginadores. El catálogo es un scaffold placeholder de tres componentes y crear uno suelto acá lo desbalancea, igual que se decidió en REQ-001 y REQ-005. Anotado como gap conocido en la `## Revisión UX` de REQ-008 — con el matiz de que este requerimiento **reduce** la deuda: deja un solo paginador donde había dos, que es exactamente el estado en que conviene especificarlo cuando el DS se trabaje en serio.
+- **[REQ-013] La identidad cambia; la pantalla, no.** Esta ficha documenta *qué* hay en la pantalla y *para qué* está; el Manual de marca Jiku v1.0 cambia **con qué está construido**. El accent pasa del magenta `#DA2C6A` al verde agua `#61CCB9` sobre azul oscuro `#0B1934` con fondo niebla `#F6F6F9`, y Archivo se reemplaza por Sora (títulos de vista) + Gabarito (interfaz, datos, microcopy). Ningún bloque de esta pantalla se agrega, se elimina ni cambia de propósito por ese motivo [REQ-013 RF-1, RF-2, CA-1].
+- **[REQ-013] Cada elemento hecho a mano pasa a su componente del Design System.** Los bloques que esta ficha declara —botones, campos, selects, tarjetas, tablas, badges— se implementan con los componentes normativos de `docs/design-system/web/components/`, no con marcado propio. Es un cambio de implementación con consecuencia visible —dejan de haber dos botones que se ven distinto haciendo lo mismo— pero **no cambia la estructura declarada acá**: un bloque que ya existía sigue existiendo, con el mismo tipo y el mismo propósito [REQ-013 RF-3, RF-4, CA-5, CA-10].
+- **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
+- **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
+- **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].

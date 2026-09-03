@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-09-02
 ---
 
 # Pantalla: Alta de requisito
@@ -341,4 +341,9 @@ El módulo declara además dos cortes propios (`@media (max-width: 1024px)` que 
 
 - **El límite de tamaño y las extensiones dejan de decidirse en el cliente.** Son configurables en caliente y los valida `core` (RF-6, RF-15). El mensaje de rechazo llega del servidor.
 - **Se agrega un modo de fallo que antes no existía:** intentar adjuntar un archivo subido por otra persona falla con *"No podés adjuntar un archivo que subió otra persona"* (RF-12, CA-10). En esta pantalla es improbable —el usuario adjunta lo que acaba de subir— pero es alcanzable si se recupera un formulario de otra sesión.
-
+- **[REQ-013] La identidad cambia; la pantalla, no.** Esta ficha documenta *qué* hay en la pantalla y *para qué* está; el Manual de marca Jiku v1.0 cambia **con qué está construido**. El accent pasa del magenta `#DA2C6A` al verde agua `#61CCB9` sobre azul oscuro `#0B1934` con fondo niebla `#F6F6F9`, y Archivo se reemplaza por Sora (títulos de vista) + Gabarito (interfaz, datos, microcopy). Ningún bloque de esta pantalla se agrega, se elimina ni cambia de propósito por ese motivo [REQ-013 RF-1, RF-2, CA-1].
+- **[REQ-013] Cada elemento hecho a mano pasa a su componente del Design System.** Los bloques que esta ficha declara —botones, campos, selects, tarjetas, tablas, badges— se implementan con los componentes normativos de `docs/design-system/web/components/`, no con marcado propio. Es un cambio de implementación con consecuencia visible —dejan de haber dos botones que se ven distinto haciendo lo mismo— pero **no cambia la estructura declarada acá**: un bloque que ya existía sigue existiendo, con el mismo tipo y el mismo propósito [REQ-013 RF-3, RF-4, CA-5, CA-10].
+- **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
+- **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
+- **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].
+- **[REQ-013] El corte de 1024px se unifica con el 1023px del detalle.** El formulario colapsa a una columna en `max-width: 1024px` y `detalle-requisito` lo hace en `1023px`: un píxel de diferencia entre pantallas hermanas del mismo dominio, que el CHANGELOG del DS marca como error puntual y no como avance parcial del mobile pendiente. Se unifican en un único valor. **El segundo corte en 640px no se toca**, como no se toca el resto de la deuda de breakpoints: sigue en FG-5 junto con la decisión de fondo sobre mobile [REQ-013 RF-9, CA-15].

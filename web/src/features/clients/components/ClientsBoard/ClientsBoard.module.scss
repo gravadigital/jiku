@@ -1,71 +1,23 @@
-@use '@/styles' as *;
-
 .boardContainer {
-  @include flex-column;
-  background: var(--color-background);
-  border-radius: var(--radius-cards);
-  box-shadow: var(--box-shadow);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .clientSection {
-  // group border handled by ClientCard
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .expandedContent {
-  background: var(--color-surface-alt);
-  border-top: none;
-  padding: var(--spacing-md);
-  animation: slideDown 0.2s ease;
-}
-
-.fullDescription {
-  font-size: 0.85rem;
-  color: var(--color-general-text);
-  line-height: 1.5;
-  margin: 0 0 0.75rem;
-  word-break: break-word;
-  white-space: normal;
-}
-
-.divider {
-  height: 1px;
-  background: var(--color-general-border);
-  margin: 1rem 0;
-}
-
-.emptyState {
-  color: var(--color-text-muted);
-  display: block;
-  padding: 2rem 0;
+  background: var(--bg-surface-sunken);
+  border-radius: var(--radius-surface);
+  padding: var(--space-4);
 }
 
 .verMas {
-  display: block;
-  text-align: center;
-  padding: 0.75rem 0;
-  background: none;
-  border: none;
-  color: var(--color-button);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  transition: opacity var(--transition-fast);
-
-  &:hover {
-    opacity: 0.8;
-  }
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 1000px;
-  }
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) 0;
 }

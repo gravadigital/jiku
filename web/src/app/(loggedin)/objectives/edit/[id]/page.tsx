@@ -7,16 +7,8 @@ import { usePersons } from '@/features/auth';
 import { useObjective, useUpdateObjective } from '@/features/objectives';
 import { useRequirements } from '@/features/requirements';
 import { PageLayout } from '@/shared/components/layout';
-import {
-  Button,
-  InputDate,
-  InputMultiplePersons,
-  InputSelect,
-  InputText,
-  InputTextarea,
-  Loader,
-  SectionCard,
-} from '@/shared/components/ui';
+import { Button, Card, Input, Loader, Select } from '@/shared/components/ui';
+import { labelFromDate } from '@/shared/utils/dateFormatter';
 import styles from './styles.module.scss';
 
 interface Body {
@@ -55,6 +47,23 @@ const validationSchema = yup.object().shape({
   title: yup.string().required(),
   visibilityLevel: yup.string().required(),
 });
+
+function dateToInputValue(date: Date | null | undefined): string {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (isNaN(parsed.getTime())) return '';
+  try {
+    return labelFromDate(parsed, 'YYYY-MM-DD');
+  } catch {
+    return '';
+  }
+}
+
+function inputValueToDate(value: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 export default function ObjectiveEdition({ params }: { readonly params: Promise<{ id: number }> }) {
   const { id } = use(params);
@@ -109,12 +118,12 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
   const objectivePersonsOptions =
     objective?.persons.map((person) => ({
       label: `${person.firstName} ${person.lastName}`,
-      value: person.id ? Number(person.id) : 0,
+      value: person.id ? String(person.id) : '0',
     })) ?? [];
 
   const allPersonsOptions = persons.map((person) => ({
     label: `${person.firstName} ${person.lastName}`,
-    value: person.id ? Number(person.id) : 0,
+    value: person.id ? String(person.id) : '0',
   }));
 
   const personsOptions = [
@@ -131,13 +140,6 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
     })),
     { label: 'Sin requisito', value: '' },
   ];
-
-  const mapIdToPerson = (idPersons: string) => {
-    const person = personsOptions.find((option) => option.value === Number(idPersons));
-    return person && person.value
-      ? { label: person.label, value: person.value.toString() }
-      : { label: idPersons, value: idPersons };
-  };
 
   const handleInputChange = (field: keyof Body, value: any) => {
     let updatedValue = value;
@@ -237,33 +239,23 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
 
   return (
     <PageLayout title="Tareas / editar" actions={buttons}>
-      <SectionCard>
+      <Card variant="panel">
         <form onSubmit={handleSubmit}>
           <div className={styles.formContainer}>
             <div className={styles.textareaCont}>
-              <InputText
+              <Input
                 label="Título"
-                code="title"
                 value={formData.title}
                 onChange={(value) => {
                   handleInputChange('title', value);
                 }}
-                error={fieldHasError('title', formData.title)}
+                error={fieldHasError('title', formData.title) ? 'Este campo es requerido' : undefined}
                 placeholder="Título de la tarea"
                 required
               />
-              <InputText
-                label="Corresponde a..."
-                code="projectName"
-                value={formData.projectName}
-                onChange={(value) => {
-                  handleInputChange('projectName', value);
-                }}
-                disabled
-              />
-              <InputSelect
+              <Input variant="locked" label="Corresponde a..." value={formData.projectName} onChange={() => {}} />
+              <Select
                 label="Requisito"
-                code="requirementId"
                 value={formData.requirementId || ''}
                 options={requirementsOptions}
                 onChange={(value) => {
@@ -271,163 +263,110 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
                 }}
                 placeholder="Seleccionar requisito (opcional)"
               />
-              <InputMultiplePersons
+              <Select
+                variant="multiple"
                 label="Responsable(s)"
-                code="personIds"
-                value={formData.personIds.map(mapIdToPerson)}
-                options={personsOptions.map((person) => ({
-                  label: person.label,
-                  value: person.value.toString(),
-                }))}
+                value={formData.personIds}
+                options={personsOptions}
                 onChange={(value) => {
-                  handleInputChange(
-                    'personIds',
-                    value.map((option) => option.value)
-                  );
+                  handleInputChange('personIds', value);
                 }}
-                error={fieldHasError('personIds', formData.personIds)}
+                error={
+                  fieldHasError('personIds', formData.personIds)
+                    ? 'Elegí al menos un responsable'
+                    : undefined
+                }
                 placeholder="Nombre(s)"
                 required
               />
-              <InputSelect
+              <Select
                 label="Área"
-                code="area"
                 value={formData.area}
                 options={[
-                  {
-                    label: 'Diseño',
-                    value: 'diseño',
-                  },
-                  {
-                    label: 'Desarrollo',
-                    value: 'desarrollo',
-                  },
-                  {
-                    label: 'Gestión',
-                    value: 'gestion',
-                  },
-                  {
-                    label: 'Investigación',
-                    value: 'investigacion',
-                  },
+                  { label: 'Diseño', value: 'diseño' },
+                  { label: 'Desarrollo', value: 'desarrollo' },
+                  { label: 'Gestión', value: 'gestion' },
+                  { label: 'Investigación', value: 'investigacion' },
                 ]}
                 onChange={(value) => {
                   handleInputChange('area', value);
                 }}
-                error={fieldHasError('area', formData.area)}
+                error={fieldHasError('area', formData.area) ? 'Elegí un área' : undefined}
                 placeholder="Área de la tarea"
                 required
               />
             </div>
             <div className={styles.column}>
-              <InputSelect
+              <Select
                 label="Estado"
-                code="state"
                 value={formData.state}
                 options={[
-                  {
-                    label: 'Activo',
-                    value: 'activo',
-                  },
-                  {
-                    label: 'Backlog',
-                    value: 'backlog',
-                  },
-                  {
-                    label: 'En revisión',
-                    value: 'en_revision',
-                  },
-                  {
-                    label: 'Finalizado',
-                    value: 'finalizado',
-                  },
-                  {
-                    label: 'Cancelado',
-                    value: 'cancelado',
-                  },
+                  { label: 'Activo', value: 'activo' },
+                  { label: 'Backlog', value: 'backlog' },
+                  { label: 'En revisión', value: 'en_revision' },
+                  { label: 'Finalizado', value: 'finalizado' },
+                  { label: 'Cancelado', value: 'cancelado' },
                 ]}
                 onChange={(value) => {
                   handleInputChange('state', value);
                 }}
-                error={fieldHasError('state', formData.state)}
+                error={fieldHasError('state', formData.state) ? 'Elegí un estado' : undefined}
                 placeholder="Estado de la tarea"
                 required
               />
-              <InputSelect
+              <Select
                 label="Prioridad"
-                code="priority"
                 value={formData.priority.toString()}
                 options={[
-                  {
-                    label: '0',
-                    value: '0',
-                  },
-                  {
-                    label: '1',
-                    value: '1',
-                  },
-                  {
-                    label: '2',
-                    value: '2',
-                  },
-                  {
-                    label: '3',
-                    value: '3',
-                  },
-                  {
-                    label: '4',
-                    value: '4',
-                  },
-                  {
-                    label: '5',
-                    value: '5',
-                  },
+                  { label: '0', value: '0' },
+                  { label: '1', value: '1' },
+                  { label: '2', value: '2' },
+                  { label: '3', value: '3' },
+                  { label: '4', value: '4' },
+                  { label: '5', value: '5' },
                 ]}
                 onChange={(value) => {
                   handleInputChange('priority', value);
                 }}
-                error={fieldHasError('priority', formData.priority.toString())}
+                error={
+                  fieldHasError('priority', formData.priority.toString())
+                    ? 'Elegí una prioridad'
+                    : undefined
+                }
                 placeholder="Prioridad de la tarea"
                 required
               />
-              <InputSelect
+              <Select
                 label="Nivel de visibilidad"
-                code="visibilityLevel"
                 value={formData.visibilityLevel}
                 options={[
-                  {
-                    label: 'Público',
-                    value: 'public',
-                  },
-                  {
-                    label: 'Interno',
-                    value: 'internal',
-                  },
+                  { label: 'Público', value: 'public' },
+                  { label: 'Interno', value: 'internal' },
                 ]}
                 onChange={(value) => {
                   handleInputChange('visibilityLevel', value);
                 }}
               />
-              <InputDate
+              <Input
+                variant="date"
                 label="Fecha de finalización estimada"
-                code="estimatedFinishDate"
-                value={formData.estimatedFinishDate as Date}
+                value={dateToInputValue(formData.estimatedFinishDate)}
                 onChange={(value) => {
-                  handleInputChange('estimatedFinishDate', value);
+                  handleInputChange('estimatedFinishDate', inputValueToDate(value));
                 }}
-                error={fieldHasError(
-                  'estimatedFinishDate',
-                  formData.estimatedFinishDate || new Date()
-                )}
               />
-              <InputTextarea
-                code="description"
+              <Input
+                variant="textarea"
                 label="Descripción"
                 value={formData.description || ''}
                 onChange={(value) => {
                   handleInputChange('description', value);
                 }}
-                error={fieldHasError('description', formData.description || '')}
+                error={
+                  fieldHasError('description', formData.description || '')
+                    ? 'Este campo es requerido'
+                    : undefined
+                }
                 placeholder="Descripción de la tarea"
                 required
               />
@@ -437,7 +376,7 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
             {generalError === true && <p>* Campos incompletos</p>}
           </div>
         </form>
-      </SectionCard>
+      </Card>
     </PageLayout>
   );
 }

@@ -1,6 +1,5 @@
 /* Components */
 export { AreaTag } from './components/AreaTag';
-export { DeleteObjectiveButton } from './components/DeleteObjectiveButton';
 export { ObjectiveCard } from './components/ObjectiveCard';
 export { ObjectiveComment } from './components/ObjectiveComment';
 export { ObjectiveDetails } from './components/ObjectiveDetails';
@@ -9,7 +8,6 @@ export { ObjectiveSearchFilters } from './components/ObjectiveSearchFilters';
 export { ObjectivesGroup } from './components/ObjectivesGroup';
 export { ObjectivesTable } from './components/ObjectivesTable';
 export { StateTag } from './components/StateTag';
-export { TableRow } from './components/TableRow';
 
 /* Hooks */
 export {

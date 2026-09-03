@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useRequirements } from '@/features/requirements/hooks/useRequirements';
 import { getRequirementsCount } from '@/features/requirements/services/requirementsApi';
 import { getTypeLabel, PRIORITY_LABELS } from '@/features/requirements/utils/requirementHelpers';
-import { Pagination } from '@/shared/components/ui/Pagination';
+import { Badge, Button, Card, Pagination, Tabs, Table } from '@/shared/components/ui';
 import styles from './ProjectRequirementsSection.module.scss';
 import type {
   Requirement,
+  RequirementPriority,
   RequirementState,
 } from '@/features/requirements/types/requirement.types';
+import type { BadgeFamily } from '@/shared/components/ui/Badge';
+import type { TableColumn, TableRow } from '@/shared/components/ui/Table';
 
 interface ProjectRequirementsSectionProps {
   readonly projectId: number;
@@ -28,7 +31,24 @@ const STATE_TABS: { label: string; value: RequirementState }[] = [
 
 const STATE_VALUES = STATE_TABS.map((tab) => tab.value);
 
+const PRIORITY_FAMILY: Record<RequirementPriority, BadgeFamily> = {
+  urgente: 'urgent',
+  alta: 'urgent',
+  media: 'review',
+  baja: 'neutral',
+  sin_prioridad: 'neutral',
+};
+
 const DEFAULT_PAGE_SIZE = 5;
+
+const COLUMNS: readonly TableColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'title', label: 'Título' },
+  { key: 'responsible', label: 'Responsable' },
+  { key: 'type', label: 'Tipo' },
+  { key: 'priority', label: 'Prioridad' },
+  { key: 'createdAt', label: 'Creación' },
+];
 
 function formatCreatedDate(value: string): string {
   const date = new Date(value);
@@ -68,116 +88,79 @@ export function ProjectRequirementsSection({ projectId }: ProjectRequirementsSec
     filters: { projectId, state: activeState, page, limit: pageSize },
   });
 
-  const handleTabChange = (state: RequirementState) => {
-    setActiveState(state);
+  const handleTabChange = (state: string) => {
+    setActiveState(state as RequirementState);
     setCurrentPage(1);
     queryClient.invalidateQueries({ queryKey: ['requirements-count'] });
   };
 
-  const handlePageSizeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setPageSize(Number(event.target.value));
-    setCurrentPage(1);
-  };
+  const tabs = STATE_TABS.map((tab, index) => ({
+    key: tab.value,
+    label: tab.label,
+    count: countResults[index].isError ? 0 : (countResults[index].data ?? 0),
+  }));
+
+  const rows: TableRow[] = requirements.map((req: Requirement) => ({
+    id: req.id,
+    title: (
+      <a
+        href={`/requirements/${req.id}`}
+        target="_blank"
+        rel="noreferrer"
+        className={styles.titleLink}
+      >
+        {req.title}
+      </a>
+    ),
+    responsible: formatResponsible(req.responsiblePeople),
+    type: getTypeLabel(req.type),
+    priority: (
+      <Badge variant="outline" family={PRIORITY_FAMILY[req.priority]} label={PRIORITY_LABELS[req.priority]} />
+    ),
+    createdAt: formatCreatedDate(req.createdAt),
+  }));
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>Requisitos</h2>
-        <button
-          type="button"
-          className={styles.newBtn}
-          aria-label="Nuevo requisito"
-          onClick={() => router.push(`/requirements/new?projectId=${projectId}`)}
-        >
-          +
-        </button>
-      </div>
-
-      <nav className={styles.tabs} aria-label="Filtro por estado">
-        {STATE_TABS.map((tab, index) => {
-          const isActive = activeState === tab.value;
-          const countQuery = countResults[index];
-          const countLabel = countQuery.isError ? '—' : (countQuery.data ?? '—');
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              className={isActive ? `${styles.tab} ${styles.active}` : styles.tab}
-              data-state={tab.value}
-              onClick={() => handleTabChange(tab.value)}
-            >
-              <span className={styles.tabLabel}>{tab.label}</span>
-              <span className={styles.tabCount}>{countLabel}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className={styles.tableWrap}>
-        <table className={styles.reqTable}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Título</th>
-              <th>Responsable</th>
-              <th>Tipo</th>
-              <th>Prioridad</th>
-              <th>Creación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className={styles.emptyState}>
-                  Cargando requisitos...
-                </td>
-              </tr>
-            ) : requirements.length === 0 ? (
-              <tr>
-                <td colSpan={6} className={styles.emptyState}>
-                  No se encontraron requisitos
-                </td>
-              </tr>
-            ) : (
-              requirements.map((req: Requirement) => (
-                <tr
-                  key={req.id}
-                  className={styles.row}
-                  onClick={() => window.open(`/requirements/${req.id}`, '_blank')}
-                >
-                  <td className={styles.idCell}>{req.id}</td>
-                  <td>
-                    <span className={styles.titleLink}>{req.title}</span>
-                  </td>
-                  <td>{formatResponsible(req.responsiblePeople)}</td>
-                  <td>{getTypeLabel(req.type)}</td>
-                  <td>
-                    <span className={styles.priorityPill}>{PRIORITY_LABELS[req.priority]}</span>
-                  </td>
-                  <td>{formatCreatedDate(req.createdAt)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        <div className={styles.paginationRow}>
-          <Pagination
-            totalItems={activeCount}
-            limit={pageSize}
-            currentPage={page}
-            onPageChange={setCurrentPage}
-          />
-          <select
-            className={styles.perPageSelect}
-            value={pageSize}
-            onChange={handlePageSizeChange}
+    <Card variant="panel">
+      <div className={styles.wrapper}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Requisitos</h2>
+          <Button
+            fab
+            aria-label="Nuevo requisito"
+            onClick={() => router.push(`/requirements/new?projectId=${projectId}`)}
           >
-            <option value={5}>5 por página</option>
-            <option value={10}>10 por página</option>
-          </select>
+            +
+          </Button>
+        </div>
+
+        <Tabs tabs={tabs} activeKey={activeState} onChange={handleTabChange} />
+
+        <div className={styles.tableWrap}>
+          <Table
+            variant="light"
+            columns={COLUMNS}
+            rows={rows}
+            loading={isLoading}
+            ariaLabel="Requisitos del proyecto"
+            emptyState={<span>No se encontraron requisitos</span>}
+          />
+
+          <div className={styles.paginationRow}>
+            <Pagination
+              totalItems={activeCount}
+              limit={pageSize}
+              currentPage={page}
+              onPageChange={setCurrentPage}
+              pageSizeOptions={[5, 10]}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

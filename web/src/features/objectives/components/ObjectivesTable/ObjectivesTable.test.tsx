@@ -108,4 +108,47 @@ describe('ObjectivesTable', () => {
     const params = new URLSearchParams(calledWith.split('?')[1]);
     expect(params.get('page')).toBe('17');
   });
+
+  it('S-056 TS-10: usa Table variant dense, con table real y sin fila teñida por estado', async () => {
+    vi.mocked(objectivesApi.getObjectivesCount).mockResolvedValue(1);
+    vi.mocked(objectivesApi.getObjectives).mockResolvedValue([
+      {
+        id: 3,
+        area: 'desarrollo',
+        createdAt: new Date('2026-01-01'),
+        description: null,
+        estimatedFinishDate: new Date('2026-09-25'),
+        finishedAt: null,
+        persons: [],
+        priority: 1,
+        project: { id: 1, name: 'Proyecto Alpha' },
+        state: 'activo',
+        title: 'Migrar formulario',
+      },
+    ] as any);
+
+    render(await ObjectivesTable({ filters: baseFilters }), { wrapper: createWrapper() });
+
+    const table = screen.getByRole('table');
+    expect(table).toBeInTheDocument();
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers.length).toBe(7);
+    headers.forEach((header) => expect(header).toHaveAttribute('scope', 'col'));
+    // El link a la tarea es el destino accesible de la fila, ninguna <tr> lleva tinte de estado.
+    expect(screen.getByRole('link', { name: 'Migrar formulario' })).toHaveAttribute(
+      'href',
+      '/objectives/3'
+    );
+  });
+
+  it('S-056 TS-4 (variante tareas): el vacío usa EmptyState variant filtered, sin role alert', async () => {
+    vi.mocked(objectivesApi.getObjectivesCount).mockResolvedValue(0);
+    vi.mocked(objectivesApi.getObjectives).mockResolvedValue([]);
+
+    render(await ObjectivesTable({ filters: baseFilters }), { wrapper: createWrapper() });
+
+    const empty = screen.getByText('No hay tareas que coincidan con estos filtros.');
+    expect(empty.closest('[aria-live="polite"]')).not.toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

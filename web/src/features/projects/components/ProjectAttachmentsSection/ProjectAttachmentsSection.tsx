@@ -2,6 +2,7 @@
 
 import { AttachmentsList, FileUploader } from '@/features/attachments';
 import { useCanUploadToProject } from '@/features/projects/hooks/useCanUploadToProject';
+import { Card } from '@/shared/components/ui';
 import styles from './ProjectAttachmentsSection.module.scss';
 
 interface ProjectAttachmentsSectionProps {
@@ -12,12 +13,11 @@ export function ProjectAttachmentsSection({ projectId }: ProjectAttachmentsSecti
   const canUpload = useCanUploadToProject();
 
   return (
-    <div className={styles.card}>
-      <h2 className={styles.title}>Archivos Adjuntos</h2>
+    <Card variant="panel" title="Archivos Adjuntos" headingLevel="h2">
       {canUpload && <FileUploader entityType="project" entityId={projectId} />}
-      <div style={{ marginTop: '0.75rem' }}>
+      <div className={styles.listWrapper}>
         <AttachmentsList entityType="project" entityId={projectId} />
       </div>
-    </div>
+    </Card>
   );
 }

@@ -5,7 +5,7 @@
   "viewports": [
     "desktop"
   ],
-  "accent_color": "#DA2C6A",
+  "accent_color": "#61CCB9",
   "grid_baseline": 8,
   "viewport_widths": {
     "desktop": 1440
@@ -2012,7 +2012,6 @@
           "name": "marca-identidad-automatica",
           "type": "badge",
           "category": "content",
-          "variant": "automatico",
           "content": "Automático",
           "hidden_in_states": [
             "loading"
@@ -4144,7 +4143,6 @@
           "name": "marca-identidad-automatica",
           "type": "badge",
           "category": "content",
-          "variant": "automatico",
           "content": "Automático",
           "hidden_in_states": [
             "loading",
@@ -6380,7 +6378,6 @@
           "name": "marca-identidad-automatica",
           "type": "badge",
           "category": "content",
-          "variant": "automatico",
           "content": "Automático",
           "hidden_in_states": [
             "empty"
@@ -8468,7 +8465,7 @@
           "name": "semaforo-dia",
           "type": "icon",
           "category": "content",
-          "icon": "circle",
+          "icon": "success",
           "content": "completed / partial / empty",
           "annotation": "<span className={cn(styles.dot, styles[status])}> (DaySelector.tsx:76): sin texto ni aria-label, el estado se comunica únicamente por color. empty (sin minutos) · partial (menos que el umbral) · completed (alcanzó o superó hoursPerDay, default 6h). Un fallo de la query deja todos los días en empty, idéntico a \"no cargué nada\""
         },

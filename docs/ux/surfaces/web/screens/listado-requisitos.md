@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.2"
-date: 2026-09-01
+version: "1.3"
+date: 2026-09-02
 ---
 
 # Pantalla: Listado de requisitos
@@ -314,3 +314,8 @@ Con `overflow-x: hidden` en el `body` (`globals.scss:172`) y 9 columnas de ancho
 - **El listado no muestra el desglose por persona.** Quién cargó las horas es una pregunta de detalle; en una tabla de nueve columnas no hay lugar y obligaría a un tooltip o un overlay por fila. El desglose vive en el card del detalle, a un click de distancia [REQ-010 C.1, C.3].
 - **`opus-web` no se toca.** Las horas son dato interno y el PRD es explícito en que el tablero con horas y costos no se le muestra al cliente. Ni la columna ni el card ni el campo llegan al portal [REQ-010 RF-9, AC-16].
 - **[Auto] Design System — sin componentes nuevos.** La celda se expresa con el tipo de bloque `paragraph`, que ya está en uso en esta misma pantalla (`cargando-tabla`), y la columna es una más de `tabla-requisitos`, que no cambia de tipo. Ningún tipo de bloque nuevo entra en la pantalla. El DS de `web` (v0.1.0, tres specs: Button, Loader, InputSelect) no cubre `table` ni `paragraph`, pero esa es una carencia preexistente y transversal de la superficie —la tabla ya existe y se usa en todas las pantallas de listado—, no un gap que este requerimiento abra: resolverla es reponer el catálogo entero, y corresponde a `/product-design-system-update`, no a este cambio.
+- **[REQ-013] La identidad cambia; la pantalla, no.** Esta ficha documenta *qué* hay en la pantalla y *para qué* está; el Manual de marca Jiku v1.0 cambia **con qué está construido**. El accent pasa del magenta `#DA2C6A` al verde agua `#61CCB9` sobre azul oscuro `#0B1934` con fondo niebla `#F6F6F9`, y Archivo se reemplaza por Sora (títulos de vista) + Gabarito (interfaz, datos, microcopy). Ningún bloque de esta pantalla se agrega, se elimina ni cambia de propósito por ese motivo [REQ-013 RF-1, RF-2, CA-1].
+- **[REQ-013] Cada elemento hecho a mano pasa a su componente del Design System.** Los bloques que esta ficha declara —botones, campos, selects, tarjetas, tablas, badges— se implementan con los componentes normativos de `docs/design-system/web/components/`, no con marcado propio. Es un cambio de implementación con consecuencia visible —dejan de haber dos botones que se ven distinto haciendo lo mismo— pero **no cambia la estructura declarada acá**: un bloque que ya existía sigue existiendo, con el mismo tipo y el mismo propósito [REQ-013 RF-3, RF-4, CA-5, CA-10].
+- **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
+- **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
+- **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].

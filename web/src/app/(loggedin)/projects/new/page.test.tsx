@@ -9,18 +9,24 @@ vi.mock('react-toastify', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
+vi.mock('next-auth', () => ({
+  default: vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() })),
+}));
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null }),
 }));
 
+const createProjectMutate = vi.fn();
+
 vi.mock('@/features/projects', () => ({
   useClients: () => ({ data: [{ id: 1, name: 'Cliente A' }], isLoading: false }),
   useCreateProject: () => ({
-    mutate: vi.fn(),
+    mutate: createProjectMutate,
     isPending: false,
   }),
 }));
@@ -29,153 +35,73 @@ vi.mock('@/shared/components/layout', () => ({
   PageLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock('@/shared/components/ui', () => ({
-  Button: ({ label, onClick }: { label: string; onClick: () => void }) => (
-    <button type="button" onClick={onClick}>
-      {label}
-    </button>
-  ),
-  InputDate: ({
-    label,
-    code,
-    value,
-    onChange,
-    required,
-  }: {
-    label: string;
-    code: string;
-    value: Date | null;
-    onChange: (v: string) => void;
-    required?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <input
-        id={code}
-        type="date"
-        value={
-          value instanceof Date && !isNaN(value.getTime()) ? value.toISOString().split('T')[0] : ''
-        }
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      />
-    </div>
-  ),
-  InputSelect: ({
-    label,
-    code,
-    value,
-    onChange,
-    options,
-    required,
-    placeholder,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    options?: { label: string; value: string }[];
-    required?: boolean;
-    placeholder?: string;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <select
-        id={code}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      >
-        <option value="">{placeholder}</option>
-        {options?.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  ),
-  InputText: ({
-    label,
-    code,
-    value,
-    onChange,
-    placeholder,
-    required,
-    disabled,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    required?: boolean;
-    disabled?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <input
-        id={code}
-        type="text"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        disabled={disabled}
-      />
-    </div>
-  ),
-  InputTextarea: ({
-    label,
-    code,
-    value,
-    onChange,
-    placeholder,
-    required,
-  }: {
-    label: string;
-    code: string;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    required?: boolean;
-  }) => (
-    <div>
-      <label htmlFor={code}>{label}</label>
-      <textarea
-        id={code}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-      />
-    </div>
-  ),
-  Loader: ({ label }: { label: string }) => <div>{label}</div>,
-  SectionCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
 function TestWrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-describe('ProjectNewForm — diseño S-050', () => {
+describe('ProjectNewForm — migración al Design System (S-056)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('TS-2: contiene dos cards con sus títulos', () => {
     render(<Form />, { wrapper: TestWrapper });
-    expect(screen.getByText('Información general')).toBeInTheDocument();
-    expect(screen.getByText('Propiedades')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Información general' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Propiedades' })).toBeInTheDocument();
   });
 
   it('TS-3: campos de información general presentes en el formulario', () => {
     render(<Form />, { wrapper: TestWrapper });
-    expect(screen.getByLabelText(/nombre/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/código/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/descripción/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Nombre/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Código/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Descripción/)).toBeInTheDocument();
+  });
+
+  // TS-13: el alta reemplaza react-select por Select del DS, sin clases css-* ni react-select
+  it('TS-13: usa Select del DS para Cliente, sin rastro de react-select', () => {
+    const { container } = render(<Form />, { wrapper: TestWrapper });
+
+    expect(screen.getByRole('combobox', { name: 'Cliente' })).toBeInTheDocument();
+    expect(container.querySelector('[class*="css-"]')).toBeNull();
+    expect(container.querySelector('[class*="react-select"]')).toBeNull();
+  });
+
+  // TS-14: Guardar invoca la mutation una sola vez y no depende del submit del <form>
+  it('TS-14: Guardar arma el payload con processCreation y no dispara el submit nativo', async () => {
+    render(<Form />, { wrapper: TestWrapper });
+
+    fireEvent.change(screen.getByLabelText(/^Nombre/), { target: { value: 'WashMach' } });
+    fireEvent.change(screen.getByLabelText(/^Código/), { target: { value: 'WM-01' } });
+    fireEvent.change(screen.getByLabelText(/^Descripción/), { target: { value: 'Lavado' } });
+    fireEvent.change(screen.getByLabelText(/Fecha de inicio/), {
+      target: { value: '2026-01-01' },
+    });
+
+    const selectTipo = screen.getByRole('combobox', { name: 'Tipo' });
+    fireEvent.click(selectTipo);
+    fireEvent.click(screen.getByRole('option', { name: 'Comercial' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => {
+      expect(createProjectMutate).toHaveBeenCalledTimes(1);
+    });
+    expect(createProjectMutate.mock.calls[0][0]).toMatchObject({
+      name: 'WashMach',
+      code: 'WM-01',
+      description: 'Lavado',
+      type: 'comercial',
+    });
+  });
+
+  // TS-15: "Volver" navega sin guardar
+  it('TS-15: "Volver" es secondary-nav y navega a /projects sin invocar la mutation', () => {
+    render(<Form />, { wrapper: TestWrapper });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(createProjectMutate).not.toHaveBeenCalled();
   });
 
   it('TS-1: labels sin uppercase (texto no todo en mayúsculas)', () => {
@@ -197,32 +123,35 @@ describe('ProjectNewForm — diseño S-050', () => {
     });
   });
 
-  it('TS-8: agregar propiedad dinámica', async () => {
+  // TS-17: "Agregar" no envía el formulario
+  it('TS-8 / TS-17: agregar propiedad dinámica no dispara el submit', async () => {
     render(<Form />, { wrapper: TestWrapper });
-    const claveInput = screen.getByPlaceholderText(/clave/i);
-    const valorInput = screen.getByPlaceholderText(/valor/i);
+    const claveInput = screen.getByLabelText('Clave');
+    const valorInput = screen.getByLabelText('Valor');
     fireEvent.change(claveInput, { target: { value: 'repo' } });
     fireEvent.change(valorInput, { target: { value: 'https://github.com/x' } });
     const addBtn = screen.getByRole('button', { name: /agregar/i });
     fireEvent.click(addBtn);
     await waitFor(() => {
-      expect(screen.getByText('repo')).toBeInTheDocument();
+      expect(screen.getByLabelText('repo')).toBeInTheDocument();
     });
+    expect(createProjectMutate).not.toHaveBeenCalled();
   });
 
-  it('TS-9: eliminar propiedad dinámica', async () => {
+  it('TS-9: eliminar propiedad dinámica no dispara el submit', async () => {
     render(<Form />, { wrapper: TestWrapper });
-    const claveInput = screen.getByPlaceholderText(/clave/i);
+    const claveInput = screen.getByLabelText('Clave');
     fireEvent.change(claveInput, { target: { value: 'repo' } });
     const addBtn = screen.getByRole('button', { name: /agregar/i });
     fireEvent.click(addBtn);
     await waitFor(() => {
-      expect(screen.getByText('repo')).toBeInTheDocument();
+      expect(screen.getByLabelText('repo')).toBeInTheDocument();
     });
-    const deleteBtn = screen.getByRole('button', { name: /eliminar link repo/i });
+    const deleteBtn = screen.getByRole('button', { name: /eliminar repo/i });
     fireEvent.click(deleteBtn);
     await waitFor(() => {
-      expect(screen.queryByText('repo')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('repo')).not.toBeInTheDocument();
     });
+    expect(createProjectMutate).not.toHaveBeenCalled();
   });
 });

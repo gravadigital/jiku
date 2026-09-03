@@ -3,17 +3,24 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
-import { ProjectPriorityTag } from '@/features/projects';
 import { useRequirement } from '@/features/requirements/hooks/useRequirement';
-import { SectionCard } from '@/shared/components/ui';
+import { Badge, Card } from '@/shared/components/ui';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { getObjectiveArea, getObjectiveState, getObjectiveVisibility } from '@/shared/utils';
+import { OBJECTIVE_STATE_TO_FAMILY } from '../StateTag';
 import styles from './ObjectiveDetails.module.scss';
+import type { BadgeFamily } from '@/shared/components/ui/Badge';
 import type { Objective } from '@/shared/types';
 
 interface ObjectiveDetailsProps {
   readonly objective: Objective;
 }
+
+/** Misma convención de `ProjectCard` (T-3): sólo 1 y 2 tienen familia propia, el resto neutral. */
+const PRIORITY_FAMILY: Record<number, BadgeFamily> = {
+  1: 'urgent',
+  2: 'review',
+};
 
 export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
   const { push } = useRouter();
@@ -58,10 +65,14 @@ export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
     }
   };
   return (
-    <SectionCard>
+    <Card variant="panel">
       <div className={styles.detailSection}>
         <div className={styles.priorityTagContainer}>
-          <ProjectPriorityTag value={objective.priority} />
+          <Badge
+            variant="card-tag"
+            family={PRIORITY_FAMILY[objective.priority] ?? 'neutral'}
+            label={`Prioridad ${objective.priority}`}
+          />
         </div>
 
         <div className={styles.metadataGrid}>
@@ -69,9 +80,11 @@ export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
             <p className={styles.middleContent}>
               <span>Estado</span>
               {': '}
-              <span className={styles.statusLabel} data-state={objective.state}>
-                {getObjectiveState(objective.state)}
-              </span>
+              <Badge
+                variant="state"
+                family={OBJECTIVE_STATE_TO_FAMILY[objective.state] ?? 'neutral'}
+                label={getObjectiveState(objective.state)}
+              />
             </p>
 
             <p>
@@ -174,6 +187,6 @@ export function ObjectiveDetails({ objective }: ObjectiveDetailsProps) {
           )}
         </div>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

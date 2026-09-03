@@ -1,25 +1,25 @@
 .grid {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: baseline;
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
 
   dt {
-    font-weight: 400;
-    color: var(--color-general-text);
+    font-weight: var(--text-body-default-weight);
+    color: var(--text-secondary);
   }
 
   dd {
-    color: #626a81;
+    color: var(--text-secondary);
     margin: 0;
     word-break: break-word;
   }
@@ -28,20 +28,12 @@
 .link {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  color: #DA2C6A;
+  gap: var(--space-1);
+  color: var(--text-link);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--text-card-title-weight);
 
   &:hover {
     text-decoration: underline;
   }
-}
-
-.empty {
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
-  color: #626a81;
-  font-style: italic;
-  margin: 0;
 }

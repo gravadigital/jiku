@@ -1,6 +1,5 @@
 'use client';
 import React, { use } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useProject } from '@/features/projects';
 import { ProjectAttachmentsSection } from '@/features/projects/components/ProjectAttachmentsSection';
@@ -9,7 +8,7 @@ import { ProjectGeneralInfo } from '@/features/projects/components/ProjectGenera
 import { ProjectObjectivesSection } from '@/features/projects/components/ProjectObjectivesSection';
 import { ProjectProperties } from '@/features/projects/components/ProjectProperties';
 import { ProjectRequirementsSection } from '@/features/projects/components/ProjectRequirementsSection';
-import { Loader } from '@/shared/components/ui';
+import { Button, Card, Loader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 
 export default function ProjectDetail({ params }: { readonly params: Promise<{ id: number }> }) {
@@ -31,43 +30,36 @@ export default function ProjectDetail({ params }: { readonly params: Promise<{ i
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{project.name}</h1>
         <div className={styles.headerActions}>
-          <Link href="/projects" className={styles.backButton}>
+          <Button variant="secondary-nav" href="/projects">
             Volver
-          </Link>
-          <button type="button" className={styles.editButton} onClick={handleEdit}>
+          </Button>
+          <Button variant="secondary-nav" onClick={handleEdit}>
             Editar
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className={styles.twoColumnLayout}>
         {/* Columna izquierda */}
         <div className={styles.leftColumn}>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>Descripción</h2>
+          <Card variant="panel" title="Descripción" headingLevel="h2">
             <ProjectDescription project={project} />
-          </div>
+          </Card>
 
-          <div className={styles.card}>
-            <ProjectRequirementsSection projectId={project.id!} />
-          </div>
+          <ProjectRequirementsSection projectId={project.id!} />
 
-          <div className={styles.card}>
-            <ProjectObjectivesSection projectId={project.id!} />
-          </div>
+          <ProjectObjectivesSection projectId={project.id!} />
         </div>
 
         {/* Columna derecha */}
         <div className={styles.rightColumn}>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>Información general</h2>
+          <Card variant="panel" title="Información general" headingLevel="h2">
             <ProjectGeneralInfo project={project} />
-          </div>
+          </Card>
 
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>Propiedades</h2>
+          <Card variant="panel" title="Propiedades" headingLevel="h2">
             <ProjectProperties project={project} />
-          </div>
+          </Card>
 
           <ProjectAttachmentsSection projectId={id} />
         </div>

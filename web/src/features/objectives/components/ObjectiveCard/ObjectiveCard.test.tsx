@@ -46,4 +46,33 @@ describe('ObjectiveCard', () => {
 
     expect(screen.getByTitle('Soy parte de esta tarea')).toBeInTheDocument();
   });
+
+  it('S-056 TS-18: usa Card con un único destino accesible a /objectives/{id}', () => {
+    render(<ObjectiveCard {...baseProps} />, { wrapper: createWrapper() });
+
+    const link = screen.getByRole('link', { name: /Tarea de prueba/ });
+    expect(link).toHaveAttribute('href', '/objectives/1');
+  });
+
+  it('S-056 TS-18: la tarea vencida usa Card variant task-overdue (pie en tono urgente)', () => {
+    const { container } = render(
+      <ObjectiveCard
+        {...baseProps}
+        estimatedFinishDate={new Date('2020-01-01')}
+        state="backlog"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    expect(container.querySelector('[class*="taskOverdue"]')).not.toBeNull();
+  });
+
+  it('S-056 TS-18: una tarea no vencida no aplica el tinte de vencido', () => {
+    const { container } = render(
+      <ObjectiveCard {...baseProps} estimatedFinishDate={new Date('2099-01-01')} />,
+      { wrapper: createWrapper() }
+    );
+
+    expect(container.querySelector('[class*="taskOverdue"]')).toBeNull();
+  });
 });

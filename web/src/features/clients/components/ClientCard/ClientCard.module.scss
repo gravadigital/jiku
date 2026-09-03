@@ -1,124 +1,57 @@
-@use '@/styles/mixins' as *;
-
-.group {
-  &:not(:last-child) {
-    border-bottom: 1px solid var(--color-general-border);
-  }
-}
-
 .row {
-  @include flex-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  background: none;
-  cursor: default;
-  font-family: var(--font-primary);
-  text-align: left;
-  transition: background-color var(--transition-fast);
-  position: relative;
-  overflow: hidden;
 }
 
-button.row {
+.disclosure {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   cursor: pointer;
+  text-align: left;
+  font-family: var(--text-body-default-family);
+  color: inherit;
+  list-style: none;
 
-  &:hover {
-    background-color: var(--color-surface-alt);
+  &::-webkit-details-marker {
+    display: none;
   }
-}
 
-.level1 {
-  @include heading-3;
-  background-color: var(--color-surface-alt);
-  font-weight: var(--font-weight-semibold);
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-action);
+  }
 }
 
 .chevron {
-  position: relative;
-  z-index: 1;
   display: inline-flex;
   width: 16px;
   flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-general-text);
-  margin-right: var(--spacing-sm);
+  font-size: var(--text-card-title-size);
+  color: var(--text-secondary);
+  transition: transform var(--duration-fast) ease;
 }
 
-.chevronUp {
-  transform: rotate(180deg);
-}
-
-.statusBadge {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  flex-shrink: 0;
-  margin-right: var(--spacing-sm);
-
-  &::before {
-    content: '';
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-  }
-
-  &.activo {
-    background: var(--color-badge-active-bg);
-    color: var(--color-badge-active);
-
-    &::before {
-      background: var(--color-status-activo);
-    }
-  }
-
-  &.inactivo {
-    background: var(--color-badge-finished-bg);
-    color: var(--color-badge-finished);
-
-    &::before {
-      background: var(--color-status-inactivo);
-    }
-  }
+.disclosure[open] .chevron {
+  transform: rotate(90deg);
 }
 
 .name {
-  position: relative;
-  z-index: 1;
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: var(--spacing-sm);
-}
-
-.editButton {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  background: var(--color-button);
-  border: 1px solid var(--color-button);
-  color: var(--color-background);
-  cursor: pointer;
-  flex-shrink: 0;
-  text-decoration: none;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
-
-  &:hover {
-    background: var(--color-background);
-    color: var(--color-button);
-    border-color: var(--color-button);
-  }
+  font-family: var(--text-card-title-family);
+  font-weight: var(--text-card-title-weight);
+  color: var(--text-primary);
 }

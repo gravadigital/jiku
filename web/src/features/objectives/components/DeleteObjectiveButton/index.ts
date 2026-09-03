@@ -1,1 +1,0 @@
-export { DeleteObjectiveButton } from './DeleteObjectiveButton';

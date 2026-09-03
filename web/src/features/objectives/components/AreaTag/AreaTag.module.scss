@@ -6,44 +6,11 @@
   max-width: 13rem;
 }
 
-.areaLabel {
-  border-radius: var(--radius-items);
-  display: flex;
-  align-items: center;
-  margin-right: 0.2rem;
-
-  &::before {
-    content: "";
-    width: 10px;
-    height: 10px;
-    margin-right: 0.2rem;
-  }
-  &[data-area="desarrollo"]::before {
-    background-color: var(--color-area-desarrollo);
-  }
-  &[data-area="diseño"]::before {
-    border-radius: var(--radius-items);
-    background-color: var(--color-area-diseño);
-  }
-  &[data-area="gestion"]::before {
-    background-color: var(--color-area-gestion);
-    width: 12px;
-    height: 11px;
-    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-  }
-  &[data-area="investigacion"]::before {
-    width: 12px;
-    height: 12px;
-    background-color: var(--color-area-investigacion);
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  }
-}
-
 .responsibleLabel {
   display: flex;
   align-items: center;
-  font-family: var(--font-primary);
-  color: var(--color-general-text);
+  font-family: var(--font-family-ui);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   line-height: 1.2;
   font-weight: 500;

@@ -2,15 +2,5 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   width: 100%;
-  gap:1rem;
-
-
-  .noProjects{
-    margin-top: 2rem;
-    transform: translateY(-25px);
-    animation: fadeIn 250ms ease-out forwards;
-    text-align: center;
-    width: 100%;
-  }
+  gap: var(--space-4);
 }
-

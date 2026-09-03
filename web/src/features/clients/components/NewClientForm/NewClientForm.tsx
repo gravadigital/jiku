@@ -2,8 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import * as yup from 'yup';
-import { InputText, Button, SectionCard } from '@/shared/components/ui';
-import { InputTextarea } from '@/shared/components/ui/InputTextarea/InputTextarea';
+import { Button, Card, Input } from '@/shared/components/ui';
 import styles from './NewClientForm.module.scss';
 
 interface NewClientFormProps {
@@ -55,31 +54,27 @@ export function NewClientForm({ onSubmit, loading = false }: NewClientFormProps)
   };
 
   return (
-    <SectionCard>
+    <Card variant="panel">
       <div className={styles.formContainer}>
         <div className={styles.leftColumn}>
-          <div className={styles.fieldCol}>
-            <InputText
-              label="Nombre"
-              code="name"
-              value={name}
-              onChange={(value) => setName(value)}
-              placeholder="Nombre del actor"
-              required
-            />
-            {errors.name && <p className={styles.error}>{errors.name}</p>}
-          </div>
+          <Input
+            label="Nombre"
+            value={name}
+            onChange={setName}
+            placeholder="Nombre del actor"
+            required
+            error={errors.name}
+          />
 
           <div className={styles.descriptionField}>
-            <InputTextarea
+            <Input
+              variant="textarea"
               label="Descripción"
-              code="description"
               value={description}
-              onChange={(value: string) => setDescription(value)}
+              onChange={setDescription}
               placeholder="Descripción del actor (soporta **markdown**)"
-              error={false}
+              error={errors.description}
             />
-            {errors.description && <p className={styles.error}>{errors.description}</p>}
           </div>
         </div>
 
@@ -90,6 +85,6 @@ export function NewClientForm({ onSubmit, loading = false }: NewClientFormProps)
           </Button>
         </div>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

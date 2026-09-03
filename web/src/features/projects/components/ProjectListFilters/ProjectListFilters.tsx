@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { InputSelect, InputText } from '@/shared/components/ui';
+import { Input, Select } from '@/shared/components/ui';
 import styles from './ProjectListFilters.module.scss';
 
 export function ProjectListFilters() {
@@ -56,9 +56,9 @@ export function ProjectListFilters() {
   return (
     <section className={styles.filterSection}>
       <div className={styles.search}>
-        <InputText
+        <Input
+          variant="search"
           label="Búsqueda"
-          code="search"
           value={search.value}
           onChange={(value) => {
             setSearch({
@@ -69,10 +69,9 @@ export function ProjectListFilters() {
           placeholder="Buscar proyecto"
         />
       </div>
-      <div>
-        <InputSelect
+      <div className={styles.filter}>
+        <Select
           label="Tipo"
-          code="type"
           value={searchParams?.get('type') || 'all'}
           options={[
             { label: 'Todos', value: 'all' },
@@ -86,10 +85,9 @@ export function ProjectListFilters() {
           }}
         />
       </div>
-      <div>
-        <InputSelect
+      <div className={styles.filter}>
+        <Select
           label="Estado"
-          code="state"
           value={state}
           options={[
             { label: 'Todos', value: 'all' },
@@ -101,20 +99,13 @@ export function ProjectListFilters() {
           ]}
           onChange={(value) => {
             setState(value);
-            const params = new URLSearchParams(searchParams?.toString());
-            if (value === 'all') {
-              params.delete('state');
-            } else {
-              params.set('state', value);
-            }
             changeFilter('state', value === 'all' ? '' : value);
           }}
         />
       </div>
-      <div>
-        <InputSelect
+      <div className={styles.filter}>
+        <Select
           label="Ordenar por"
-          code="sort"
           value={searchParams?.get('sort') || '-initDate'}
           options={[
             { label: 'Más recientes', value: '-initDate' },
