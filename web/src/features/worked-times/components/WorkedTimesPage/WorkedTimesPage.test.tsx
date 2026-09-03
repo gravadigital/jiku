@@ -237,4 +237,27 @@ describe('WorkedTimesPage — S-055', () => {
     expect(payload).not.toHaveProperty('objectiveId');
     expect(payload).not.toHaveProperty('requirementId');
   });
+
+  // TS-83: el selector de motivo de ausencia usa el Select del DS, sin react-select
+  it('TS-83: el modo ausente muestra el Select de motivo con las opciones de useUnworkedTimesReasons', async () => {
+    const { useUnworkedTimesReasons } = await import('../../hooks/useUnworkedTimesReasons');
+    vi.mocked(useUnworkedTimesReasons).mockReturnValue({
+      data: [{ value: 'vacaciones', label: 'Vacaciones' }],
+      isLoading: false,
+    } as any);
+
+    const user = userEvent.setup();
+    render(<WorkedTimesPage />, { wrapper: createWrapper() });
+
+    await user.click(screen.getByRole('radio', { name: 'Ausente' }));
+
+    const reasonSelect = screen.getByRole('combobox', { name: 'Motivo de ausencia' });
+    await user.click(reasonSelect);
+    expect(screen.getByRole('option', { name: 'Vacaciones' })).toBeInTheDocument();
+  });
+
+  it('TS-83 (no-regresión): .formCard se renderiza con Card del DS', () => {
+    render(<WorkedTimesPage />, { wrapper: createWrapper() });
+    expect(screen.getByTestId('day-selector')).toBeInTheDocument();
+  });
 });

@@ -2,8 +2,7 @@ import React, { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { WorkedTimesPage } from '@/features/worked-times';
 import { auth } from '@/lib/auth';
-import { PageLayout } from '@/shared/components/layout';
-import { Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +14,11 @@ export default async function WorkedTimes() {
   }
 
   return (
-    <PageLayout title="Horas Trabajadas">
-      <main>
-        <Suspense fallback={<Loader label="Cargando horas trabajadas..." />}>
-          <WorkedTimesPage />
-        </Suspense>
-      </main>
-    </PageLayout>
+    <>
+      <ViewHeader variant="list" title="Horas Trabajadas" />
+      <Suspense fallback={<Loader label="Cargando horas trabajadas..." />}>
+        <WorkedTimesPage />
+      </Suspense>
+    </>
   );
 }

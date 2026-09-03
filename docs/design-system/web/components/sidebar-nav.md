@@ -113,6 +113,7 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 | `activeKey` | `string` | — | Sección actual |
 | `user` | `{ name, initials }` | — | Identidad del pie |
 | `onLogout` | `() => void` | — | Salida de sesión |
+| `mode` | `"light" \| "dark"` | `"light"` | Modo de la firma: `light` resuelve a `jikuLogo.svg`, `dark` a `jikuLogoDark.svg`. El componente no detecta el tema — lo decide el consumidor (S-058) |
 
 ## Migración
 
@@ -132,6 +133,9 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 
 ## Historial
 
+- **1.1.0** (2026-09-03, story S-058) — Se agrega `mode` (`"light" | "dark"`, default `"light"`)
+  para resolver la firma correcta según el modo (CA-3: `jikuLogo.svg` / `jikuLogoDark.svg`).
+  Backward compatible: sin la prop, el comportamiento es el mismo de antes (MINOR).
 - **1.0.0** (2026-09-02) — Spec nuevo, desde el Manual de marca Jiku v1.0: sidebar de 300 px, ítem
   de 48 px con icono 22 px, activo como tarjeta blanca con barra verde agua de 3 px y subítem
   activo al 8 %, firma horizontal a 26 px reemplazando `logo-grava.png` (MINOR sobre el DS).

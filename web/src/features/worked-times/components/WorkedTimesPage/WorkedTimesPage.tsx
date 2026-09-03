@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import ReactSelect from 'react-select';
 import { toast } from 'react-toastify';
 import { usePersons } from '@/features/auth/hooks/usePersons';
 import { useHoursPerDay } from '@/features/time-allocation/hooks/useHoursPerDay';
+import { Card } from '@/shared/components/ui/Card';
 import { Select } from '@/shared/components/ui/Select';
 import { ToggleGroup } from '@/shared/components/ui/ToggleGroup';
 import { useCreateUnworkedTime } from '../../hooks/useCreateUnworkedTime';
@@ -28,25 +28,6 @@ const ATTENDANCE_MODE_OPTIONS = [
   { value: 'presente' as AttendanceMode, label: 'Presente' },
   { value: 'ausente' as AttendanceMode, label: 'Ausente' },
 ] as const;
-
-const reasonSelectStyles = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: (provided: any, state: any) => ({
-    ...provided,
-    '&:hover': { cursor: 'pointer' },
-    backgroundColor: '#fff',
-    border: '0.5px solid var(--color-general-border)',
-    borderRadius: 'var(--radius-items)',
-    color: 'var(--color-general-title)',
-    fontSize: 'var(--font-size-base)',
-    fontWeight: 400,
-    lineHeight: '1.5rem',
-    outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
-    width: '100%',
-  }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  input: (provided: any) => ({ ...provided, margin: 0, paddingTop: 0, paddingBottom: 0 }),
-};
 
 const formatDateStr = (d: Date): string => {
   const y = d.getFullYear();
@@ -238,73 +219,68 @@ export function WorkedTimesPage() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.formCard}>
-        {isAdmin && (
-          <>
-            <Select
-              label="Persona"
-              value={displayPersonId}
-              options={personOptions}
-              onChange={(value) => setSelectedPersonId(value)}
-              placeholder="Seleccionar persona..."
-            />
-            <hr className={styles.divider} />
-          </>
-        )}
+      <Card>
+        <div className={styles.formCard}>
+          {isAdmin && (
+            <>
+              <Select
+                label="Persona"
+                value={displayPersonId}
+                options={personOptions}
+                onChange={(value) => setSelectedPersonId(value)}
+                placeholder="Seleccionar persona..."
+              />
+              <hr className={styles.divider} />
+            </>
+          )}
 
-        <DaySelector
-          selectedDate={selectedDate}
-          onDayChange={setSelectedDate}
-          dailyMinutes={dailyMinutes}
-          completedThreshold={completedThreshold}
-        />
-
-        <hr className={styles.divider} />
-
-        <ToggleGroup
-          label="Modo de asistencia"
-          options={ATTENDANCE_MODE_OPTIONS}
-          value={mode}
-          onChange={(next) => handleModeChange(next as AttendanceMode)}
-        />
-
-        <hr className={styles.divider} />
-
-        {mode === 'presente' ? (
-          <TargetSelector
-            personId={effectivePersonId}
-            value={selectedTarget}
-            onSelect={setSelectedTarget}
+          <DaySelector
+            selectedDate={selectedDate}
+            onDayChange={setSelectedDate}
+            dailyMinutes={dailyMinutes}
+            completedThreshold={completedThreshold}
           />
-        ) : (
-          <div className={styles.absenceSelect}>
-            <label htmlFor="absence-reason">Motivo de ausencia:</label>
-            <ReactSelect
-              inputId="absence-reason"
-              instanceId="absence-reason"
-              options={reasonOptions}
-              value={reasonOptions.find((o) => o.value === selectedReason) ?? null}
-              onChange={(opt) => setSelectedReason(opt ? opt.value : '')}
-              placeholder={isLoadingReasons ? 'Cargando motivos...' : 'Seleccioná un motivo...'}
-              isClearable
-              styles={reasonSelectStyles}
-              noOptionsMessage={() => 'Sin resultados'}
+
+          <hr className={styles.divider} />
+
+          <ToggleGroup
+            label="Modo de asistencia"
+            options={ATTENDANCE_MODE_OPTIONS}
+            value={mode}
+            onChange={(next) => handleModeChange(next as AttendanceMode)}
+          />
+
+          <hr className={styles.divider} />
+
+          {mode === 'presente' ? (
+            <TargetSelector
+              personId={effectivePersonId}
+              value={selectedTarget}
+              onSelect={setSelectedTarget}
             />
-          </div>
-        )}
+          ) : (
+            <Select
+              label="Motivo de ausencia"
+              value={selectedReason}
+              options={reasonOptions}
+              onChange={(next) => setSelectedReason(next)}
+              placeholder={isLoadingReasons ? 'Cargando motivos...' : 'Seleccioná un motivo...'}
+            />
+          )}
 
-        <hr className={styles.divider} />
+          <hr className={styles.divider} />
 
-        <TimeButtons
-          selectedHours={selectedHours}
-          selectedMinutes={selectedMinutes}
-          onHoursChange={setSelectedHours}
-          onMinutesChange={setSelectedMinutes}
-          onSubmit={handleSubmit}
-          canSubmit={canSubmit}
-          isSubmitting={isSubmitting}
-        />
-      </div>
+          <TimeButtons
+            selectedHours={selectedHours}
+            selectedMinutes={selectedMinutes}
+            onHoursChange={setSelectedHours}
+            onMinutesChange={setSelectedMinutes}
+            onSubmit={handleSubmit}
+            canSubmit={canSubmit}
+            isSubmitting={isSubmitting}
+          />
+        </div>
+      </Card>
 
       <DayEntriesList date={selectedDate} personId={effectivePersonId} />
     </div>

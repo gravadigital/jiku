@@ -120,4 +120,22 @@ describe('Button', () => {
     const el = <Button size="small">Guardar</Button>;
     expect(el).toBeDefined();
   });
+
+  // S-058 (CA-4): en loading el nombre accesible se conserva vía aria-label, sin mostrar
+  // el label como texto plano (children string → aria-label; TS-4 sigue exigiendo que
+  // el texto visible desaparezca).
+  it('S-058: en loading conserva el nombre accesible del label anterior', () => {
+    render(<Button loading>Iniciar sesión</Button>);
+
+    const button = screen.getByRole('button', { name: 'Iniciar sesión' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Iniciar sesión')).not.toBeInTheDocument();
+  });
+
+  it('S-058: antes de loading no fuerza un aria-label (deja que el label visible lo resuelva)', () => {
+    render(<Button>Iniciar sesión</Button>);
+
+    const button = screen.getByRole('button', { name: 'Iniciar sesión' });
+    expect(button).not.toHaveAttribute('aria-label');
+  });
 });

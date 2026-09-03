@@ -4,8 +4,11 @@ import { useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useRequirements } from '@/features/requirements/hooks/useRequirements';
-import { ConfirmDialog, SectionCard } from '@/shared/components/ui';
-import { Spinner } from '@/shared/components/ui/Spinner';
+import { Button } from '@/shared/components/ui/Button';
+import { Card } from '@/shared/components/ui/Card';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { EmptyState } from '@/shared/components/ui/EmptyState';
+import { Loader } from '@/shared/components/ui/Loader';
 import { TintedIcon } from '@/shared/components/ui/TintedIcon';
 import objectivesLogo from '@root/assets/objetivosLogo.svg';
 import projectsLogo from '@root/assets/proyectosLogo.svg';
@@ -80,8 +83,11 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
   });
 
   const isLoading = workedTimesResult.isLoading || unworkedTimesResult.isLoading;
-  const workedEntries = workedTimesResult.data ?? [];
-  const unworkedEntries = unworkedTimesResult.data ?? [];
+  const workedEntries = useMemo(() => workedTimesResult.data ?? [], [workedTimesResult.data]);
+  const unworkedEntries = useMemo(
+    () => unworkedTimesResult.data ?? [],
+    [unworkedTimesResult.data]
+  );
 
   const { data: personObjectives = [] } = usePersonObjectives(personId);
   const { data: allRequirements = [] } = useRequirements({});
@@ -166,7 +172,7 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
   const isDeleting = deleteWorkedMutation.isPending || deleteUnworkedMutation.isPending;
 
   return (
-    <SectionCard>
+    <Card>
       <div className={styles.header}>
         <span className={styles.title}>Cargas del {formatDateLabel(date)}</span>
         <span className={styles.total}>Total: {formatMinutes(totalMinutes)}</span>
@@ -174,11 +180,13 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
 
       {isLoading && (
         <div className={styles.loading}>
-          <Spinner />
+          <Loader />
         </div>
       )}
 
-      {!isLoading && !hasEntries && <p className={styles.empty}>No hay cargas para este día</p>}
+      {!isLoading && !hasEntries && (
+        <EmptyState variant="scoped" message="No hay cargas para este día" />
+      )}
 
       {!isLoading && hasEntries && (
         <ul className={styles.list}>
@@ -189,15 +197,13 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
                 <TintedIcon src={icon.src} alt={icon.alt} className={styles.entryIcon} />
                 <span className={styles.entryLabel}>{getWorkedEntryLabel(entry)}</span>
                 <span className={styles.entryMinutes}>{formatMinutes(entry.minutes)}</span>
-                <button
-                  type="button"
-                  className={styles.deleteButton}
+                <Button
+                  variant="secondary-dismiss"
                   onClick={() => setDeleteWorkedTargetId(entry.id)}
                   disabled={isDeleting}
-                  aria-label={`Eliminar ${getWorkedEntryLabel(entry)}`}
                 >
-                  🗑️
-                </button>
+                  Borrar
+                </Button>
               </li>
             );
           })}
@@ -208,15 +214,13 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
                 {`Ausente → ${REASON_LABELS[entry.reason] ?? entry.reason}`}
               </span>
               <span className={styles.entryMinutes}>{formatMinutes(entry.minutes)}</span>
-              <button
-                type="button"
-                className={styles.deleteButton}
+              <Button
+                variant="secondary-dismiss"
                 onClick={() => setDeleteUnworkedTargetId(entry.id)}
                 disabled={isDeleting}
-                aria-label={`Eliminar ausencia: ${REASON_LABELS[entry.reason] ?? entry.reason}`}
               >
-                🗑️
-              </button>
+                Borrar
+              </Button>
             </li>
           ))}
         </ul>
@@ -241,6 +245,6 @@ export function DayEntriesList({ date, personId }: DayEntriesListProps) {
         onConfirm={handleConfirmDeleteUnworked}
         onCancel={() => setDeleteUnworkedTargetId(null)}
       />
-    </SectionCard>
+    </Card>
   );
 }

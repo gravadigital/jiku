@@ -1,0 +1,11 @@
+// Sólo home (app/page.tsx). El h1 global (globals.scss) sigue en pie para las demás páginas
+// que aún dependen de él — su baja es de S-060. Esta clase resuelve la escala del DS acá,
+// sin tocar el estilo de elemento global.
+.title {
+  font-family: var(--text-view-title-family);
+  font-size: var(--text-view-title-size);
+  font-weight: var(--text-view-title-weight);
+  letter-spacing: var(--text-view-title-tracking);
+  line-height: var(--text-view-title-leading);
+  color: var(--text-primary);
+}

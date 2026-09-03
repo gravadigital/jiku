@@ -3,6 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/shared/utils/cn';
 import jikuWordmark from '@root/assets/jikuLogo.svg';
+import jikuWordmarkDark from '@root/assets/jikuLogoDark.svg';
 import { Avatar } from '../Avatar';
 import { TintedIcon } from '../TintedIcon';
 import styles from './SidebarNav.module.scss';
@@ -38,18 +39,33 @@ export interface SidebarNavProps {
   readonly activeKey: string;
   readonly user: SidebarNavUser;
   readonly onLogout: () => void;
+  /**
+   * Modo de la firma (S-058): `light` resuelve a `jikuLogo.svg`, `dark` a
+   * `jikuLogoDark.svg`. Default `light`. El componente no detecta el tema — lo decide
+   * el consumidor, coherente con que tampoco consulta la ruta para `activeKey`.
+   */
+  readonly mode?: 'light' | 'dark';
 }
 
 function resolveIconSrc(icon: string): string {
   return icon;
 }
 
-export function SidebarNav({ items, activeKey, user, onLogout }: SidebarNavProps) {
+export function SidebarNav({ items, activeKey, user, onLogout, mode = 'light' }: SidebarNavProps) {
+  const wordmarkSrc =
+    mode === 'dark'
+      ? ((jikuWordmarkDark as unknown as { src?: string }).src ?? (jikuWordmarkDark as unknown as string))
+      : ((jikuWordmark as unknown as { src?: string }).src ?? (jikuWordmark as unknown as string));
+
   return (
     <nav className={styles.sidebar} aria-label="Navegación principal">
       <div className={styles.brand}>
+        {/* Firma según el modo (foundations/logo.md — "sobre azul oscuro el wordmark pasa
+            a niebla"). `mode` llega por prop: el componente no detecta el tema por sí
+            mismo. El estampado del atributo de tema en la raíz es responsabilidad de
+            S-059; el consumidor (el shell) es quien decide qué modo está activo hoy. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={resolveIconSrc((jikuWordmark as unknown as { src?: string }).src ?? (jikuWordmark as unknown as string))} alt="Jiku" height={26} />
+        <img src={resolveIconSrc(wordmarkSrc)} alt="Jiku" height={26} />
       </div>
       <ul className={styles.list}>
         {items.map((item) => {

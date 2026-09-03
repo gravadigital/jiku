@@ -4,13 +4,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'react-toastify';
 import { useProjects } from '@/features/projects/hooks/useProjects';
-import { Button, Loader } from '@/shared/components/ui';
-import { cn } from '@/shared/utils';
+import { Button } from '@/shared/components/ui/Button';
+import { EmptyState } from '@/shared/components/ui/EmptyState';
+import { Loader } from '@/shared/components/ui/Loader';
+import { Table, type TableColumn, type TableRow } from '@/shared/components/ui/Table';
+import { WeekNav } from '@/shared/components/ui/WeekNav';
 import { useHoursPerDay } from '../../hooks/useHoursPerDay';
 import { useSaveAllocations } from '../../hooks/useSaveAllocations';
 import { useWeekAllocations } from '../../hooks/useWeekAllocations';
 import { EditableCell } from '../EditableCell';
-import { WeekNavigator } from '../WeekNavigator';
 import styles from './WeeklyAllocationTable.module.scss';
 import type {
   PersonBasic,
@@ -18,7 +20,7 @@ import type {
   WeekAllocationSaveItem,
 } from '../../types/time-allocation.types';
 
-const getMonday = (date: Date | string): string => {
+const getMondayStr = (date: Date | string): string => {
   const d =
     typeof date === 'string'
       ? (() => {
@@ -35,11 +37,25 @@ const getMonday = (date: Date | string): string => {
   return `${y}-${m}-${dd}`;
 };
 
+// weekStart es un string 'YYYY-MM-DD' en todo el feature (API, hooks). WeekNav trabaja con
+// Date; estas dos funciones son la conversión en el borde, sin tocar weekFormat.ts.
+const weekStartStrToDate = (weekStart: string): Date => {
+  const [y, m, d] = weekStart.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+};
+
+const dateToWeekStartStr = (date: Date): string => {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const getPreviousWeekStart = (weekStart: string): string => {
   const [y, m, d] = weekStart.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   date.setDate(date.getDate() - 7);
-  return getMonday(date);
+  return getMondayStr(date);
 };
 
 const formatPercentage = (value: number): string => {
@@ -71,7 +87,7 @@ const PROJECT_GROUP_LABELS: Record<number, string> = {
 };
 
 export function WeeklyAllocationTable() {
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [weekStart, setWeekStart] = useState(() => getMondayStr(new Date()));
   const [localAllocations, setLocalAllocations] = useState<Record<string, number>>({});
   const [isPreloaded, setIsPreloaded] = useState(false);
 
@@ -92,8 +108,8 @@ export function WeeklyAllocationTable() {
 
   const saveMutation = useSaveAllocations();
 
-  const handleWeekChange = useCallback((newWeekStart: string) => {
-    setWeekStart(newWeekStart);
+  const handleWeekChange = useCallback((newWeekStartDate: Date) => {
+    setWeekStart(dateToWeekStartStr(newWeekStartDate));
     setIsPreloaded(false);
   }, []);
 
@@ -154,21 +170,21 @@ export function WeeklyAllocationTable() {
 
   const isWeekEditable = useCallback((week: string): boolean => {
     const today = new Date();
-    const currentMonday = getMonday(today);
+    const currentMonday = getMondayStr(today);
     const isSunday = today.getDay() === 0;
 
     if (isSunday) {
-      // On Sunday, only future weeks are editable
       return week > currentMonday;
     }
 
-    // On other days, current and future weeks are editable
     return week >= currentMonday;
   }, []);
 
   const isEditable = useMemo(() => {
     return isAdmin && isWeekEditable(weekStart);
   }, [isAdmin, weekStart, isWeekEditable]);
+
+  const isCurrentWeek = useMemo(() => weekStart === getMondayStr(new Date()), [weekStart]);
 
   const previousWeekStart = useMemo(() => getPreviousWeekStart(weekStart), [weekStart]);
 
@@ -245,7 +261,7 @@ export function WeeklyAllocationTable() {
       }
     });
     return overallocated;
-  }, [persons, getPersonTotalFromLocal, localAllocations]);
+  }, [persons, getPersonTotalFromLocal]);
 
   const hasChanges = useMemo(() => {
     const serverState: Record<string, number> = {};
@@ -278,26 +294,28 @@ export function WeeklyAllocationTable() {
           toast.success('Cambios guardados correctamente');
           setIsPreloaded(false);
         },
-        onError: (error: any) => {
-          const message = error.message || 'Error al guardar los cambios';
+        onError: (error: unknown) => {
+          const message = (error as { message?: string })?.message || 'Error al guardar los cambios';
           toast.error(message);
         },
       }
     );
   }, [localAllocations, weekStart, hoursPerDay, saveMutation]);
 
-  const renderCell = useCallback(
-    (personId: number, projectId: number) => {
-      const key = `${personId}-${projectId}`;
+  const renderCellContent = useCallback(
+    (person: PersonBasic, project: ProjectBasic): React.ReactNode => {
+      const key = `${person.id}-${project.id}`;
       const percentage = localAllocations[key] ?? 0;
-      const isOverallocated = overallocatedPersons.has(personId);
+      const isOverallocated = overallocatedPersons.has(person.id);
 
       if (isEditable) {
         return (
           <EditableCell
             key={key}
-            personId={personId}
-            projectId={projectId}
+            personId={person.id}
+            projectId={project.id}
+            personName={`${person.firstName} ${person.lastName}`}
+            projectName={project.name}
             value={percentage}
             onChange={(newPercentage) => {
               setLocalAllocations((prev) => ({ ...prev, [key]: newPercentage }));
@@ -312,63 +330,93 @@ export function WeeklyAllocationTable() {
       const isEmpty = percentage === 0;
 
       return (
-        <td
-          key={key}
-          className={cn(styles.cell, {
-            [styles.emptyCell]: isEmpty,
-            [styles.overallocated]: isOverallocated,
-          })}
-        >
-          <span className={styles.percentage}>{formatPercentage(percentage)}</span>
-          <span className={styles.hours}>{formatHours(hours)}</span>
-        </td>
+        <span className={isEmpty ? styles.emptyCell : undefined}>
+          <span className={isOverallocated ? styles.overallocatedText : styles.percentage}>
+            {formatPercentage(percentage)}
+          </span>{' '}
+          <span className={isOverallocated ? styles.overallocatedText : styles.hours}>
+            {formatHours(hours)}
+          </span>
+        </span>
       );
     },
     [localAllocations, isEditable, hoursPerDay, overallocatedPersons]
   );
 
-  const renderProjectTotalCell = useCallback(
-    (projectId: number) => {
-      const totalPercentage = getProjectTotalFromLocal(projectId);
-      const totalHours = (totalPercentage / 100) * hoursPerDay * 5;
+  const columns: TableColumn[] = useMemo(() => {
+    const personColumns: TableColumn[] = persons.map((person) => ({
+      key: `person-${person.id}`,
+      label: formatPersonName(person),
+    }));
+    return [
+      { key: 'project', label: 'Proyecto', scope: 'row' },
+      ...personColumns,
+      { key: 'total', label: 'Total' },
+    ];
+  }, [persons]);
 
-      return (
-        <td key={`total-project-${projectId}`} className={styles.totalCell}>
-          <span className={styles.hours}>{formatHours(totalHours)}</span>
-        </td>
-      );
-    },
-    [getProjectTotalFromLocal, hoursPerDay]
-  );
+  const rows: TableRow[] = useMemo(() => {
+    const projectRows: TableRow[] = [];
 
-  const renderPersonTotalCell = useCallback(
-    (personId: number) => {
-      const totalPercentage = getPersonTotalFromLocal(personId);
-      const totalHours = (totalPercentage / 100) * hoursPerDay * 5;
-      const isOverallocated = totalPercentage > 100;
+    for (const group of sortedProjects) {
+      group.projects.forEach((project, index) => {
+        const row: Record<string, React.ReactNode> = {
+          // El agrupador (versalitas, DS spec) va como texto pequeño encima del nombre del
+          // proyecto en la primera fila de cada grupo — Table no soporta una fila que abarque
+          // todas las columnas (colSpan), así que la agrupación se preserva de esta forma en
+          // vez de perderse.
+          project: (
+            <span className={styles.projectCell}>
+              {index === 0 && group.label && (
+                <span className={styles.groupLabel}>{group.label}</span>
+              )}
+              <span className={styles.projectName}>{project.name}</span>
+            </span>
+          ),
+        };
+        for (const person of persons) {
+          row[`person-${person.id}`] = renderCellContent(person, project);
+        }
+        const totalHours = (getProjectTotalFromLocal(project.id) / 100) * hoursPerDay * 5;
+        row.total = <span className={styles.totalCell}>{formatHours(totalHours)}</span>;
+        projectRows.push(row as TableRow);
+      });
+    }
 
-      return (
-        <td
-          key={`total-person-${personId}`}
-          className={cn(styles.totalCell, {
-            [styles.overallocated]: isOverallocated,
-          })}
-        >
-          <span className={styles.percentage}>{formatPercentage(totalPercentage)}</span>
-          <span className={styles.hours}>{formatHours(totalHours)}</span>
-        </td>
-      );
-    },
-    [getPersonTotalFromLocal, hoursPerDay]
-  );
+    if (projectRows.length > 0) {
+      const totalRow: Record<string, React.ReactNode> = {
+        project: <span className={styles.projectName}>Total</span>,
+      };
+      for (const person of persons) {
+        const totalPercentage = getPersonTotalFromLocal(person.id);
+        const totalHours = (totalPercentage / 100) * hoursPerDay * 5;
+        const isOverallocated = totalPercentage > 100;
+        totalRow[`person-${person.id}`] = (
+          <span className={isOverallocated ? styles.overallocatedText : undefined}>
+            {formatPercentage(totalPercentage)} · {formatHours(totalHours)}
+          </span>
+        );
+      }
+      totalRow.total = '';
+      projectRows.push(totalRow as TableRow);
+    }
+
+    return projectRows;
+  }, [sortedProjects, persons, renderCellContent, getProjectTotalFromLocal, getPersonTotalFromLocal, hoursPerDay]);
 
   return (
     <div className={styles.container}>
-      <WeekNavigator weekStart={weekStart} onWeekChange={handleWeekChange} />
+      <WeekNav
+        weekStart={weekStartStrToDate(weekStart)}
+        onChange={handleWeekChange}
+        isCurrentWeek={isCurrentWeek}
+      />
 
       {isPreloaded && (
-        <div className={styles.preloadBanner}>
-          <span>ℹ️ Valores precargados de la semana anterior</span>
+        // banner-precarga: alert info, gap `alert` aceptado por el REQ — se resuelve inline
+        // con tokens, sin componente (ver DS Gaps → Aceptados).
+        <div className={styles.preloadBanner} role="status">
+          <span>Valores precargados de la semana anterior</span>
         </div>
       )}
 
@@ -379,58 +427,24 @@ export function WeeklyAllocationTable() {
       )}
 
       {!isLoading && isError && (
-        <div className={styles.emptyState}>
+        // mensaje-error: alert error, gap `alert` aceptado. No comparte marcado con
+        // EmptyState (D-la ficha lo registra: hoy comparten .emptyState pese a ser distintos).
+        <div className={styles.errorState} role="alert">
           <p>No se pudieron cargar las asignaciones. Intentá de nuevo más tarde.</p>
         </div>
       )}
 
       {!isLoading && !isError && projects.length === 0 && (
-        <div className={styles.emptyState}>
-          <p>No hay proyectos con asignaciones para esta semana.</p>
-        </div>
+        <EmptyState variant="list" message="No hay proyectos con asignaciones para esta semana." />
       )}
 
       {!isLoading && !isError && projects.length > 0 && (
-        <div className={styles.tableContainer}>
-          <table>
-            <thead>
-              <tr>
-                <th className={styles.projectHeader}>Proyecto</th>
-                {persons.map((person) => (
-                  <th key={person.id}>{formatPersonName(person)}</th>
-                ))}
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedProjects.map((group) => (
-                <React.Fragment key={group.label}>
-                  <tr className={styles.groupRow}>
-                    <td className={styles.groupLabel} colSpan={persons.length + 2}>
-                      {group.label}
-                    </td>
-                  </tr>
-                  {group.projects.map((project) => (
-                    <tr key={project.id}>
-                      <td className={styles.projectCell}>
-                        <span className={styles.projectName}>{project.name}</span>
-                      </td>
-                      {persons.map((person) => renderCell(person.id, project.id))}
-                      {renderProjectTotalCell(project.id)}
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-              <tr className={styles.totalRow}>
-                <td className={styles.projectCell}>
-                  <span className={styles.projectName}>Total</span>
-                </td>
-                {persons.map((person) => renderPersonTotalCell(person.id))}
-                <td className={styles.totalCell} />
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <Table
+          variant="matrix"
+          columns={columns}
+          rows={rows}
+          ariaLabel="Asignación semanal de proyecto por persona"
+        />
       )}
 
       {isEditable && !isLoading && !isError && projects.length > 0 && (

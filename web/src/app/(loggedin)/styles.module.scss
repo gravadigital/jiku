@@ -1,18 +1,32 @@
+@use '@/styles' as *;
+
 .layoutContainer {
   display: flex;
   height: 100vh;
   overflow: hidden;
 }
 
+// D-4: se conserva el z-index: 10 literal. Corregir el orden de tokens (dropdown < navbar <
+// modal < tooltip) es un cambio breaking del DS (z.navbar hoy es mayor que z.modal/z.tooltip),
+// fuera de alcance de esta story. Ese literal es lo que hoy neutraliza el bug.
+//
+// D-3: el bloque de enlaces externos vive fuera de SidebarNav, apilado debajo dentro de este
+// mismo contenedor. SidebarNav ya trae su propio borde y fondo (es la pieza visual completa
+// del sidebar); este contenedor repite esos dos valores para que la costura entre ambos
+// bloques sea invisible.
 .sidebarContainer {
   position: relative;
   top: 0;
   left: 0;
-  width: 290px;
+  // El ancho real (300px) lo declara SidebarNav.module.scss; este contenedor sólo
+  // envuelve — no repite la medida para no tener dos fuentes del mismo layout.sidebar.width.
   height: 100vh;
-  background-color: var(--color-surface-light);
   overflow-y: auto;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
 }
 
 .mainContainer {
@@ -21,6 +35,44 @@
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
-  padding: 1rem 2rem;
-  background-color: var(--color-general-background);
+  // layout.content.padding del DS: 32px (antes 1rem 2rem = 16/32px).
+  padding: var(--space-8);
+  background-color: var(--bg-canvas);
+}
+
+// D-3: bloque de enlaces externos, renderizado en el shell junto a SidebarNav (no dentro).
+// Los logos de terceros conservan su color original — sin TintedIcon.
+.externalLinksGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  justify-content: center;
+  margin-top: auto;
+}
+
+.externalLinkItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-action);
+
+  img {
+    transition: transform var(--duration-slow) ease-out;
+  }
+
+  &:hover img {
+    transform: scale(1.2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    img {
+      transition: none;
+    }
+
+    &:hover img {
+      transform: none;
+    }
+  }
 }

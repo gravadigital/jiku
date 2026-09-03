@@ -10,7 +10,15 @@ interface TintedIconProps {
   readonly className?: string;
 }
 
-export function TintedIcon({ src, alt, color = '#DA2C6A', size = 20, className }: TintedIconProps) {
+// Default: color.brand.graphite (#626C78), el tono normativo para íconos/estructura del DS.
+// El magenta descontinuado (#DA2C6A) nunca es un default aceptable — ver TS-20/TS-49.
+export function TintedIcon({
+  src,
+  alt,
+  color = 'var(--color-graphite)',
+  size = 20,
+  className,
+}: TintedIconProps) {
   const resolvedSrc = typeof src === 'string' ? src : src.src;
 
   return (

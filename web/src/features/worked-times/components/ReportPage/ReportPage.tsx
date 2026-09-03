@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { useProjects } from '@/features/projects/hooks/useProjects';
-import { Spinner } from '@/shared/components/ui/Spinner';
+import { Loader } from '@/shared/components/ui/Loader';
 import { useReportByPerson } from '../../hooks/useReportByPerson';
 import { useReportByProject } from '../../hooks/useReportByProject';
 import { useUnworkedTimesReasons } from '../../hooks/useUnworkedTimesReasons';
@@ -126,7 +126,7 @@ export function ReportPage() {
 
       {activeQuery.isLoading ? (
         <div className={styles.loading}>
-          <Spinner />
+          <Loader />
         </div>
       ) : (
         <>

@@ -48,9 +48,9 @@ function mockQuery(data: unknown) {
 }
 
 async function selectProjectType(user: ReturnType<typeof userEvent.setup>, label: string) {
-  const trigger = screen.getByRole('button', { name: /Tipo de proyecto/ });
+  const trigger = screen.getByRole('combobox', { name: /Tipo de proyecto/ });
   await user.click(trigger);
-  await user.click(screen.getByRole('checkbox', { name: label }));
+  await user.click(screen.getByRole('option', { name: label }));
 }
 
 beforeEach(() => {
@@ -59,7 +59,7 @@ beforeEach(() => {
   mockedUseUnworkedTimesReportByPersons.mockReturnValue(new Map());
 });
 
-describe('ReportPage — S-071 (filtro por tipo de proyecto, dropdown de checkboxes)', () => {
+describe('ReportPage — S-071/S-058 (filtro por tipo de proyecto, Select multiple del DS)', () => {
   it('TS-16: sin tildes, muestra el reporte completo sin filtrar', () => {
     mockedUseReportByPerson.mockReturnValue(
       mockQuery([
@@ -87,7 +87,7 @@ describe('ReportPage — S-071 (filtro por tipo de proyecto, dropdown de checkbo
 
     expect(screen.getAllByText('2h 50m').length).toBeGreaterThan(0);
     expect(screen.getByText('Ivan Maldonado')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tipo de proyecto' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Tipo de proyecto' })).toBeInTheDocument();
   });
 
   it('TS-17: tildar "Comercial" muestra solo proyectos type=comercial y recalcula cards', async () => {
@@ -193,11 +193,11 @@ describe('ReportPage — S-071 (filtro por tipo de proyecto, dropdown de checkbo
     render(<ReportPage />);
     await user.click(screen.getByText('Por proyecto'));
 
-    const trigger = screen.getByRole('button', { name: /Tipo de proyecto/ });
+    const trigger = screen.getByRole('combobox', { name: /Tipo de proyecto/ });
     await user.click(trigger);
-    await user.click(screen.getByRole('checkbox', { name: 'Interno' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Investigación' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Propuesta' }));
+    await user.click(screen.getByRole('option', { name: 'Interno' }));
+    await user.click(screen.getByRole('option', { name: 'Investigación' }));
+    await user.click(screen.getByRole('option', { name: 'Propuesta' }));
     await user.keyboard('{Escape}');
 
     expect(screen.getByText('Interno Grava')).toBeInTheDocument();
@@ -427,7 +427,7 @@ describe('ReportPage — S-071 (filtro por tipo de proyecto, dropdown de checkbo
     render(<ReportPage />);
 
     await selectProjectType(user, 'Comercial');
-    await user.click(screen.getByRole('checkbox', { name: 'Comercial' }));
+    await user.click(screen.getByRole('option', { name: 'Comercial' }));
     await user.keyboard('{Escape}');
 
     expect(screen.getAllByText('2h 30m').length).toBeGreaterThan(0);
@@ -442,16 +442,27 @@ describe('ReportPage — S-071 (filtro por tipo de proyecto, dropdown de checkbo
     expect(distinctProjectsArgs.size).toBe(1);
   });
 
-  it('TS-19: el botón del filtro de tipo es hijo de styles.toggleGroup, hermano de ViewToggle', () => {
+  it('TS-19: el Select del filtro de tipo y el ViewToggle son hermanos, hijos del mismo contenedor', () => {
     mockedUseReportByPerson.mockReturnValue(mockQuery([]));
     mockedUseReportByProject.mockReturnValue(mockQuery([]));
     mockedUseProjects.mockReturnValue(mockQuery([]));
 
     render(<ReportPage />);
 
-    const filterButton = screen.getByRole('button', { name: 'Tipo de proyecto' });
-    const filterContainer = filterButton.parentElement;
+    // Select del DS: combobox -> controlWrapper -> container (raíz del componente).
+    const filterCombobox = screen.getByRole('combobox', { name: 'Tipo de proyecto' });
+    const filterRoot = filterCombobox.parentElement?.parentElement;
     const viewToggleContainer = screen.getByText('Por persona').parentElement;
-    expect(filterContainer?.parentElement).toBe(viewToggleContainer?.parentElement);
+    expect(filterRoot?.parentElement).toBe(viewToggleContainer?.parentElement);
+  });
+
+  it('el estado de carga usa el Loader del DS (role="status")', () => {
+    mockedUseReportByPerson.mockReturnValue({ data: [], isLoading: true, isError: false } as any);
+    mockedUseReportByProject.mockReturnValue(mockQuery([]));
+    mockedUseProjects.mockReturnValue(mockQuery([]));
+
+    render(<ReportPage />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 });

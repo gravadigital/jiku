@@ -1,35 +1,36 @@
 'use client';
-import React, { MouseEventHandler, ReactElement, useState } from 'react';
+import React, { ReactElement, useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { Spinner } from '@/shared/components/ui';
+import { Button } from '@/shared/components/ui/Button';
+import jikuWordmark from '@root/assets/jikuLogo.svg';
 import styles from './styles.module.scss';
 
 export default function Login(): ReactElement {
   const [loading, setLoading] = useState(false);
 
-  const login: MouseEventHandler = (event) => {
-    event.preventDefault();
+  const login = () => {
     setLoading(true);
     signIn('zitadel', { callbackUrl: '/login/enter' });
   };
 
-  const showLoader = () => {
-    if (loading) {
-      return <Spinner />;
-    }
-    return 'Iniciar sesión';
-  };
-
   return (
-    <form className={styles.formContainer}>
+    <div className={styles.formContainer}>
+      <div className={styles.brand}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={(jikuWordmark as unknown as { src?: string }).src ?? (jikuWordmark as unknown as string)}
+          alt="Jiku"
+          height={26}
+        />
+      </div>
       <header className={styles.header}>
         <h1 className={styles.loginTitle}>Bienvenido</h1>
       </header>
       <div>
-        <button className={styles.buttonBox} type="submit" onClick={login}>
-          {showLoader()}
-        </button>
+        <Button variant="session" onClick={login} loading={loading}>
+          Iniciar sesión
+        </Button>
       </div>
-    </form>
+    </div>
   );
 }

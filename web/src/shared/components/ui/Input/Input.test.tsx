@@ -99,4 +99,13 @@ describe('Input', () => {
 
     expect(onChange).toHaveBeenCalledTimes(3);
   });
+
+  // S-058: hideLabel oculta el label visualmente sin sacarlo del nombre accesible
+  it('S-058: hideLabel mantiene el nombre accesible pero oculta el label en pantalla', () => {
+    render(<Input label="Porcentaje" hideLabel value="" onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText('Porcentaje')).toBeInTheDocument();
+    const label = screen.getByText('Porcentaje');
+    expect(label.className).toMatch(/labelHidden/);
+  });
 });

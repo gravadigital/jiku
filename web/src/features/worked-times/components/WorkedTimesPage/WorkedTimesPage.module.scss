@@ -6,7 +6,6 @@
 }
 
 .formCard {
-  @include card-base;
   @include flex-column;
   gap: var(--spacing-lg);
 }
@@ -15,15 +14,4 @@
   border: none;
   border-top: 1px solid var(--color-general-border);
   margin: 0;
-}
-
-.absenceSelect {
-  @include flex-column;
-  gap: var(--spacing-xs);
-
-  label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-general-title);
-  }
 }

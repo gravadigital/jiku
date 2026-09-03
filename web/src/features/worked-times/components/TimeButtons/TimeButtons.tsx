@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
 import { useHoursPerDay } from '@/features/time-allocation/hooks/useHoursPerDay';
-import { Button } from '@/shared/components/ui';
-import { cn } from '@/shared/utils';
+import { Button } from '@/shared/components/ui/Button';
+import { ToggleGroup } from '@/shared/components/ui/ToggleGroup';
 import styles from './TimeButtons.module.scss';
 
 interface TimeButtonsProps {
@@ -29,97 +28,46 @@ export function TimeButtons({
 }: TimeButtonsProps) {
   const { data: hoursPerDayData } = useHoursPerDay();
   const maxHours = hoursPerDayData?.hoursPerDay ?? 6;
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customValue, setCustomValue] = useState('');
 
-  const hourOptions = Array.from({ length: maxHours + 1 }, (_, i) => i);
-  const isCustom = selectedHours > maxHours;
+  const hourOptions = Array.from({ length: maxHours + 1 }, (_, i) => ({
+    value: String(i),
+    label: String(i),
+  }));
 
-  const handleCustomConfirm = () => {
-    const value = parseInt(customValue, 10);
-    if (!isNaN(value) && value >= 0) {
-      onHoursChange(value);
-      setShowCustomInput(false);
-    }
-  };
-
-  const handleCustomKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCustomConfirm();
-    }
-  };
+  const minuteOptions = MINUTE_OPTIONS.map((m) => ({ value: String(m), label: String(m) }));
 
   const totalMinutes = selectedHours * 60 + selectedMinutes;
   const displayHours = Math.floor(totalMinutes / 60);
   const displayMinutes = totalMinutes % 60;
 
+  const handleHoursChange = (value: string) => {
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed) && parsed >= 0) {
+      onHoursChange(parsed);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.section}>
-        <span className={styles.label}>Horas:</span>
-        <div className={styles.buttons}>
-          {hourOptions.map((h) => (
-            <button
-              key={h}
-              type="button"
-              className={cn(styles.timeButton, {
-                [styles.selected]: selectedHours === h && !isCustom,
-              })}
-              onClick={() => {
-                onHoursChange(h);
-                setShowCustomInput(false);
-              }}
-              aria-pressed={selectedHours === h && !isCustom}
-            >
-              {h}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={cn(styles.timeButton, {
-              [styles.selected]: isCustom || showCustomInput,
-            })}
-            onClick={() => setShowCustomInput(true)}
-            aria-pressed={isCustom}
-          >
-            Otro
-          </button>
-        </div>
-        {showCustomInput && (
-          <div className={styles.customInput}>
-            <input
-              type="number"
-              min="0"
-              max="24"
-              value={customValue}
-              onChange={(e) => setCustomValue(e.target.value)}
-              onKeyDown={handleCustomKeyDown}
-              onBlur={handleCustomConfirm}
-              placeholder="Horas"
-              className={styles.input}
-              autoFocus
-            />
-          </div>
-        )}
+        <ToggleGroup
+          variant="stepper-value"
+          label="Horas"
+          options={hourOptions}
+          value={String(selectedHours)}
+          onChange={handleHoursChange}
+          allowOther
+        />
       </div>
 
       <div className={styles.section}>
-        <span className={styles.label}>Minutos:</span>
-        <div className={styles.buttons}>
-          {MINUTE_OPTIONS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={cn(styles.timeButton, {
-                [styles.selected]: selectedMinutes === m,
-              })}
-              onClick={() => onMinutesChange(m)}
-              aria-pressed={selectedMinutes === m}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        <ToggleGroup
+          variant="stepper-value"
+          label="Minutos"
+          options={minuteOptions}
+          value={String(selectedMinutes)}
+          onChange={(value) => onMinutesChange(parseInt(value, 10) || 0)}
+        />
       </div>
 
       <div className={styles.footer}>

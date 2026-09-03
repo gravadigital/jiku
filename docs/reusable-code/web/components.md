@@ -63,8 +63,8 @@ import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentity
 
 **Location:** `web/src/shared/components/ui/Button/Button.tsx`
 
-**Description:** The single button component of the Design System (`web` v2.4.1, spec `Button`
-v2.0.1) — five semantic variants (`primary`, `secondary-nav`, `secondary-dismiss`, `session`,
+**Description:** The single button component of the Design System (`web` v2.5.0, spec `Button`
+v2.0.2) — five semantic variants (`primary`, `secondary-nav`, `secondary-dismiss`, `session`,
 `flow`) plus a `fab` mode, all deriving their look from the component tokens `--button-*`. Renders
 `children` as the label (no `label: string` prop), has no `size` prop, and has no `type` prop (it
 is never a native form submit).
@@ -73,7 +73,10 @@ is never a native form submit).
   `secondary-dismiss` discards (light border). They are not interchangeable; the JSDoc above the
   component carries the full classification table used to pick one when migrating an existing use.
 - **`loading`** replaces the label with `<Loader variant="inline" size="sm" />` and sets
-  `aria-busy="true"`; it does not fire `onClick`.
+  `aria-busy="true"`; it does not fire `onClick`. **When `children` is a plain string, that text
+  is fixed as `aria-label` while loading (S-058)**, so the accessible name doesn't change to
+  "Cargando" mid-action — closed for the `session` variant's login/logout flows, where a screen
+  reader user must keep hearing "Iniciar sesión"/"Cerrar sesión" through the wait.
 - **`disabled`** sets `aria-disabled="true"` and does not fire `onClick` (the `<button>` itself is
   also natively `disabled`).
 - **`href`** is a local extension outside the spec: without an `onClick`, clicking navigates via
@@ -121,7 +124,7 @@ import { Button } from '@/shared/components/ui';
 
 **Location:** `web/src/shared/components/ui/Input/Input.tsx`
 
-**Description:** The single text-field component of the Design System (spec `Input` v1.0.0) — five
+**Description:** The single text-field component of the Design System (spec `Input` v1.1.0) — five
 variants (`text`, `textarea`, `date`, `search`, `locked`) sharing one 44px/radius-10 box. Always
 renders a real `<label htmlFor>` (the placeholder never substitutes for it), and `error` is a
 **string** (not a boolean): its presence both paints the error state and supplies the text that
@@ -131,6 +134,9 @@ renders a real `<label htmlFor>` (the placeholder never substitutes for it), and
   stroke-only `currentColor`, decorative `aria-hidden="true"`); `date` still accepts typed input.
 - `locked` renders `readOnly`, on a niebla (`--bg-surface-sunken`) background, with no focus ring.
 - Ids are generated with `useId()` — the consumer never has to pass a `code`/id itself.
+- **`hideLabel` (S-058)** visually hides the `<label>` without removing it from the accessible
+  name — for a dense grid of repeated fields (a `Table` `matrix` cell) where a visible label per
+  cell would repeat what the row/column headers already say. `label` is still required either way.
 
 **Interface:**
 
@@ -140,6 +146,7 @@ type InputVariant = 'text' | 'textarea' | 'date' | 'search' | 'locked';
 interface InputProps {
   readonly variant?: InputVariant;
   readonly label: string; // required — no placeholder-only fields
+  readonly hideLabel?: boolean; // default false — S-058
   readonly required?: boolean;
   readonly placeholder?: string;
   readonly error?: string; // presence activates the error state
@@ -553,7 +560,7 @@ import { Avatar } from '@/shared/components/ui';
 
 **Location:** `web/src/shared/components/ui/SidebarNav/SidebarNav.tsx`
 
-**Description:** The Design System's single sidebar navigation (spec `SidebarNav` v1.0.0). Fixed
+**Description:** The Design System's single sidebar navigation (spec `SidebarNav` v1.1.0). Fixed
 300px width, `<nav aria-label="Navegación principal">` with a real `<ul>/<li>` list; subitems
 nest inside their parent's `<li>`, never as siblings. The active item (or subitem) carries
 `aria-current="page"` and is marked with all three signals at once — white card background, 3px
@@ -561,13 +568,16 @@ aqua bar, and icon color `#12897A` (never the brand aqua itself, which fails con
 backgrounds) — so activity is never conveyed by color alone. Icons render through `TintedIcon`
 (color passed explicitly as `--nav-item-icon`/`--nav-item-active-icon`, never its magenta
 default), wrapped in an `aria-hidden` `<span>` since the label is always visible. The footer shows
-the user's `Avatar` + name and a logout control.
+the user's `Avatar` + name and a logout control. The wordmark switches between `jikuLogo.svg` and
+`jikuLogoDark.svg` via the `mode` prop (S-058) — the component does not detect the theme itself.
 
-**Receives `activeKey` and `user` by prop and calls neither `usePathname` nor `useSession`** — the
-consumer resolves those, which is what makes this component unit-testable without mounting a
-session or a router. This is a **new** component, coexisting with the legacy `Navbar` /
-`NavItem` / `NavSubItem` (which stay untouched, template-string class bug included); adopting it
-in `(loggedin)/layout.tsx` is S-058's job.
+**Receives `activeKey`, `user` and `mode` by prop and calls neither `usePathname` nor
+`useSession`** — the consumer resolves those, which is what makes this component unit-testable
+without mounting a session or a router. Adopted in `(loggedin)/layout.tsx` by S-058 (via the
+`ShellSidebar` client wrapper, `web/src/app/(loggedin)/ShellSidebar.tsx`, which resolves
+`activeKey` from `usePathname()` and wires `onLogout` to `signOut`), coexisting with the legacy
+`Navbar` / `NavItem` / `NavSubItem` (which stay untouched and unconsumed by the shell — their
+removal is S-060's job).
 
 **Interface:**
 
@@ -589,6 +599,7 @@ interface SidebarNavProps {
   readonly activeKey: string;
   readonly user: { readonly name: string; readonly initials: string };
   readonly onLogout: () => void;
+  readonly mode?: 'light' | 'dark'; // default 'light' — S-058
 }
 ```
 
@@ -602,6 +613,7 @@ import { SidebarNav } from '@/shared/components/ui';
   activeKey="projects"
   user={{ name: session.user.name, initials: getInitials(session.user.name) }}
   onLogout={() => signOut()}
+  mode="light"
 />
 ```
 
@@ -870,7 +882,7 @@ import { Dropzone } from '@/shared/components/ui';
 
 **Location:** `web/src/shared/components/ui/Accordion/Accordion.tsx`
 
-**Description:** The Design System's single collapsible section (spec `Accordion` v1.0.0), created
+**Description:** The Design System's single collapsible section (spec `Accordion` v1.1.0), created
 by S-055, for grouping the content of a requirement stage while showing at a glance whether it is
 complete. The header is a real `<button>` inside a configurable heading level (`headingLevel`
 prop, default `h3` — kept configurable so screens that consume it later can fit their own heading
@@ -883,6 +895,13 @@ completo") — the distinction is never color-only. `Enter`/`Space` toggle the h
 transition uses `motion.slow` (300ms), instantaneous under `prefers-reduced-motion`. Accordions are
 not meant to nest.
 
+**`title` accepts `ReactNode`, not just `string` (S-058).** A consumer with a rich row header
+(icon + text + figure — e.g. a hierarchical table's expandable row) can compose it without losing
+the real `<button>` this component provides. Set `showStatus={false}` to drop the completion glyph
+and its accessible echo for consumers with no pending/done concept (a data row, not a stage) — the
+`srOnly` echo only renders when `title` is a plain `string` (rich `title` supplies its own
+accessible content via its own elements, so echoing it back verbatim would duplicate it).
+
 **Interface:**
 
 ```tsx
@@ -890,8 +909,9 @@ type AccordionStatus = 'pending' | 'done';
 type HeadingLevel = 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
 interface AccordionProps {
-  readonly title: string;
+  readonly title: React.ReactNode; // string is still the recommended, typical case
   readonly status?: AccordionStatus; // default 'pending'
+  readonly showStatus?: boolean; // default true — S-058
   readonly defaultExpanded?: boolean; // default false
   readonly onToggle?: (expanded: boolean) => void;
   readonly headingLevel?: HeadingLevel; // default 'h3'

@@ -119,6 +119,7 @@ Un solo tamaño: **alto 44 px, radio 10 px**. El `textarea` crece en alto y cons
 |---|---|---|---|
 | `variant` | `"text" \| "textarea" \| "date" \| "search" \| "locked"` | `"text"` | Tipo de campo |
 | `label` | `string` | — | Label visible, **requerido** |
+| `hideLabel` | `boolean` | `false` | Oculta el label visualmente sin sacarlo del nombre accesible — para grillas densas de campos repetidos (una celda editable por fila × columna) donde el label visible repetiría el contexto que la tabla ya da. El label sigue siendo obligatorio, sólo cambia si se pinta |
 | `required` | `boolean` | `false` | Marca de obligatoriedad |
 | `placeholder` | `string` | — | Ejemplo o formato |
 | `error` | `string` | — | Mensaje de error; activa el state `error` |
@@ -150,6 +151,11 @@ Los tres componentes de campo del código (`InputText`, `InputTextarea`, `InputD
 
 ## Historial
 
+- **1.1.0** (2026-09-03, story S-058) — Se agrega `hideLabel` (default `false`) para ocultar el
+  label visualmente sin sacarlo del nombre accesible. Motivo: la grilla de asignación semanal
+  (`Table` variant `matrix`) tiene un campo editable por cruce de fila × columna; repetir un
+  label visible en cada celda no aporta información que la tabla no dé ya. Backward compatible
+  (MINOR).
 - **1.0.0** (2026-09-02) — Spec nuevo, desde el Manual de marca Jiku v1.0: radio 10 px, alto 44 px,
   foco y obligatoriedad en verde agua, bloqueado en niebla. Unifica `InputText`, `InputTextarea` e
   `InputDate` (MINOR sobre el DS).

@@ -1,41 +1,12 @@
 @use '@/styles' as *;
 
+// Grilla de tarjetas del DS: 4 columnas, gap 18px (layout.cards.grid).
 .cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-md);
+  gap: var(--space-grid-gap);
 
   @include mobile {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-
-.card {
-  @include flex-column;
-  align-items: center;
-  text-align: center;
-  background: var(--color-background);
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  padding: var(--spacing-md) var(--spacing-sm);
-  transition: box-shadow var(--transition-base);
-
-  &:hover {
-    box-shadow: var(--box-shadow);
-  }
-}
-
-.value {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-button);
-  line-height: 1.2;
-}
-
-.label {
-  font-size: var(--font-size-sm);
-  color: var(--color-general-text);
-  margin-top: var(--spacing-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }

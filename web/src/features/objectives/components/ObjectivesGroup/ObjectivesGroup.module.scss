@@ -4,7 +4,7 @@
   font-family: var(--font-family-ui);
   font-size: 1.2rem;
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -40,7 +40,7 @@
   font-family: var(--font-family-ui);
   font-size: 1rem;
   line-height: 1.2;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
   color: var(--text-link);
   white-space: nowrap;
   cursor: pointer;
@@ -63,7 +63,7 @@
   color: var(--text-inverse);
   font-size: 0.625rem;
   line-height: 1.2;
-  font-weight: 400;
+  font-weight: var(--font-weight-regular);
   z-index: 1000;
 
   &::after {

@@ -35,7 +35,7 @@
 }
 
 .authorName {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 0.875rem;
   color: var(--text-primary);
 }
@@ -80,7 +80,7 @@
       font-family: var(--font-family-ui);
       font-size: 0.9375rem;
       line-height: 1.5;
-      font-weight: 400;
+      font-weight: var(--font-weight-regular);
       color: var(--text-body);
       margin: 0.25rem 0;
 

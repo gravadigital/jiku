@@ -9,6 +9,13 @@ interface InputProps {
   readonly variant?: InputVariant;
   /** Label visible, requerido: el placeholder no lo reemplaza. */
   readonly label: string;
+  /**
+   * Oculta visualmente el label sin quitarlo del nombre accesible (S-058). Pensado para
+   * grillas densas de celdas repetidas (una tabla `matrix` con un campo por celda) donde
+   * el label visible de cada celda repetiría el contexto que la fila y la columna ya dan
+   * — el label sigue siendo obligatorio, sólo cambia si se pinta en pantalla.
+   */
+  readonly hideLabel?: boolean;
   readonly required?: boolean;
   readonly placeholder?: string;
   /** Mensaje de error; su sola presencia activa el state `error`. */
@@ -62,6 +69,7 @@ export function Input(props: InputProps) {
   const {
     variant = 'text',
     label,
+    hideLabel = false,
     required = false,
     placeholder,
     error,
@@ -94,7 +102,7 @@ export function Input(props: InputProps) {
 
   return (
     <div className={styles.container}>
-      <label htmlFor={inputId} className={styles.label}>
+      <label htmlFor={inputId} className={cn(styles.label, { [styles.labelHidden]: hideLabel })}>
         {label}
         {required && (
           <span className={styles.required} aria-hidden="true">
