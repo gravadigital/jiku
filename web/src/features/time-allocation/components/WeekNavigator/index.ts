@@ -1,1 +1,0 @@
-export { WeekNavigator } from './WeekNavigator';

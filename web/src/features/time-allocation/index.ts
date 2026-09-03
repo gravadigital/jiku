@@ -1,5 +1,4 @@
 /* Components */
-export { WeekNavigator } from './components/WeekNavigator';
 export { WeeklyAllocationTable } from './components/WeeklyAllocationTable';
 
 /* Hooks */

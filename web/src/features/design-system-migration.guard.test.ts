@@ -227,6 +227,17 @@ describe('S-056: guardia de regresión de la migración al Design System', () =>
       '--color-text-muted',
       '--radius-buttons',
       '--color-general-title',
+      // S-058: estos resuelven a valores del sistema viejo en _variables.scss y
+      // por eso escapan al regex de hexadecimales literales de TS-19/TS-20.
+      // `--color-button` es el magenta #DA2C6A que este REQ vino a dar de baja.
+      '--color-button',
+      '--color-surface-light',
+      '--color-general-text',
+      '--color-general-border',
+      '--font-size-base',
+      '--spacing-sm',
+      '--spacing-md',
+      '--spacing-lg',
     ];
 
     // Alcance: los 12 directorios de SCOPE_DIRS (S-058 amplía desde sólo requirements).

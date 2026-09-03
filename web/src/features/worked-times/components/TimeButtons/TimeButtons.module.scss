@@ -2,21 +2,21 @@
 
 .container {
   @include flex-column;
-  gap: var(--spacing-md);
+  gap: var(--space-4);
 }
 
 .section {
   @include flex-column;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .footer {
   @include flex-between;
-  margin-top: var(--spacing-sm);
+  margin-top: var(--space-2);
 }
 
 .total {
-  font-size: var(--font-size-base);
+  font-size: var(--text-body-default-size);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
 }
