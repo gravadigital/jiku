@@ -204,3 +204,41 @@ const theme = resolveTheme(cookieStore.get('jiku.theme')?.value); // server
 readStoredTheme(); // client, on mount reconciliation
 persistTheme('dark'); // client, on setTheme
 ```
+
+## parseExternalLinks
+
+**Location:** `web/src/shared/utils/parse-external-links.ts`
+
+**Description:** Parses the `EXTERNAL_LINKS` env-driven JSON
+(`[{"tool":"github","href":"https://...","label":"Código"}]`) into the list `ExternalLinksBlock`
+renders as icon links in the sidebar footer — team-infrastructure shortcuts (repo, chat, docs),
+not part of the product. `tool` selects the icon among a fixed set (`github`, `gitlab`,
+`hedgedoc`, `mattermost`, `mail`); an unrecognized `tool` falls back to the generic (GitHub) icon.
+Entries missing `href` or `label` are filtered out. A malformed JSON string is caught, logged with
+`console.error`, and degrades to an empty list — a bad env var must not take down navigation.
+
+Extracted from `Navbar` (S-060): the component was dead code since S-058 replaced it with
+`ShellSidebar`/`SidebarNav`, but survived because this was its only real export still consumed.
+The new module carries no `next-auth`, `next/image`, `usePathname` or SVG imports beyond what it
+actually needs.
+
+**Signature:**
+
+```ts
+interface ExternalLinkConfig {
+  readonly href: string;
+  readonly icon: string;
+  readonly label: string;
+}
+
+function parseExternalLinks(raw?: string): ExternalLinkConfig[];
+```
+
+**Usage:**
+
+```ts
+import { parseExternalLinks } from '@/shared/utils/parse-external-links';
+
+const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
+// [{ href: 'https://github.com/...', label: 'Código', icon: <github svg> }, ...]
+```

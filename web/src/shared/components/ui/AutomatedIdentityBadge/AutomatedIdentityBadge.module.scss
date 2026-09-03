@@ -9,7 +9,7 @@
 .badge[role='img'] {
   @include tag-base;
 
-  background-color: var(--color-surface-alt);
-  color: var(--color-general-text);
-  border: 1px solid var(--color-general-border);
+  background-color: var(--bg-tint-neutral);
+  color: var(--text-body);
+  border: 1px solid var(--border-default);
 }

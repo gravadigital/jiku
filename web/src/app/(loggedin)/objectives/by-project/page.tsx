@@ -1,6 +1,6 @@
 import { getProjectsObjectivesSummary, ProjectObjectiveSummary } from '@/features/projects';
 import { ProjectObjectives } from '@/features/projects';
-import { PageLayout } from '@/shared/components/layout';
+import { ViewHeader } from '@/shared/components/ui';
 import { ScrollToProject } from './ScrollToProject';
 
 export default async function Objectives() {
@@ -13,7 +13,8 @@ export default async function Objectives() {
   }
 
   return (
-    <PageLayout title="Tareas por proyecto">
+    <>
+      <ViewHeader variant="list" title="Tareas por proyecto" />
       <ScrollToProject />
       <main>
         {projectsList.map((projectData) => {
@@ -32,6 +33,6 @@ export default async function Objectives() {
           );
         })}
       </main>
-    </PageLayout>
+    </>
   );
 }

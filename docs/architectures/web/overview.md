@@ -87,23 +87,23 @@ web/
 ├── tests/setup.ts              jest-dom + polyfills (ResizeObserver, HTMLDialogElement)
 └── src/
     ├── app/                    App Router — 25 rutas, 7 route handlers, 3 layouts
-    │   ├── layout.tsx          root: fuente Archivo, <Providers>
+    │   ├── layout.tsx          root: fuentes Sora + Gabarito, <Providers>
     │   ├── providers.tsx       QueryClient + Session + Project + Sidebar
-    │   ├── globals.scss        reset + tokens en :root
-    │   ├── (loggedin)/         grupo protegido: auth() + redirect + Navbar + ToastContainer
+    │   ├── globals.scss        reset + estilos de elemento residuales + overrides de terceros
+    │   ├── (loggedin)/         grupo protegido: auth() + redirect + ShellSidebar + ToastContainer
     │   ├── login/              login OIDC y callback de entrada
     │   ├── unauthorized/       corte para external-user
     │   └── api/                BFF (7 handlers)
     ├── features/               8 dominios; ver "Módulos de dominio"
     ├── shared/
-    │   ├── components/ui/      33 componentes de interfaz
-    │   ├── components/layout/  Navbar, NavItem, NavSubItem, PageLayout, Header
-    │   ├── utils/              cn, fechas, mappers de enum a etiqueta, decodedToken
+    │   ├── components/ui/      33 componentes de interfaz (20 specs normativos del DS + soporte)
+    │   ├── components/layout/  sin componentes vivos (S-060: PageLayout, Navbar, NavItem, NavSubItem y Header, todos dados de baja — sus 12 páginas migraron a ViewHeader; su navegación, a ShellSidebar/SidebarNav)
+    │   ├── utils/              cn, fechas, mappers de enum a etiqueta, decodedToken, parseExternalLinks
     │   └── types/              re-exports + augmentación de next-auth
     ├── lib/                    auth.ts, axios.ts, queryClient.ts
     ├── contexts/               ProjectContext, SidebarContext
     ├── hooks/                  use-current-user, use-logout, use-session-monitor
-    ├── styles/                 _variables.scss (tokens), _mixins.scss (mixins, breakpoints)
+    ├── styles/                 tiers 1-3 (_reference/_semantic/_component), _variables.scss (legacy), _mixins.scss
     └── assets/                 SVG/PNG de navegación, logos externos, iconos de etapa
 ```
 
@@ -275,7 +275,7 @@ Estas reglas están implementadas en `web`. **No son autoritativas** — hay que
 | Los campos de resolución solo se piden para incidencias | `RequirementResolutionCard.tsx:58` |
 | Solo `admin` edita la grilla de asignación semanal | `WeeklyAllocationTable.tsx:79` |
 | La precarga de la semana anterior solo ocurre para `admin` y con la semana vacía | `WeeklyAllocationTable.tsx:176`, `:203-205` |
-| `external-user` no accede a asignación de tiempo ni horas trabajadas | `Navbar.tsx:158-165` y las 3 páginas |
+| `external-user` no accede a asignación de tiempo ni horas trabajadas | `ShellSidebar.tsx` (`getVisibleNavItems`) y las 3 páginas |
 | Campos obligatorios de proyecto, requisito y tarea | esquemas yup en cada formulario |
 
 ## Convenciones
@@ -341,27 +341,24 @@ muerto. En paralelo hay 14 `@media` crudas con 8 valores distintos (640, 767, 90
 
 ### Código muerto
 
-- **11 componentes sin ningún uso en JSX:** `Card`, `Header`, `Input`, `Textarea`,
-  `MarkdownEditor`, `MultiSelect`, `AttachmentDownload`, `ClientsDrawer`, `ProjectDetails`,
-  `ProjectActiveObjectives`, `ProjectInactiveObjectivesTable`. Ocho de ellos están exportados
-  desde el barrel de `shared/components/ui/`, así que aparecen como disponibles.
+**Cerrado por REQ-013 (S-060).** El barrel de `shared/components/ui/` ya no exporta ningún
+componente muerto: `Card` e `Input` dejaron de estarlo desde S-053 (pasaron a ser los
+fundacionales del DS), y `InputSelect`, `AddButton`, `InputDate`, `InputTextarea`,
+`InputMultiplePersons`, `DatePicker`, `SectionCard` y `Spinner` se dieron de baja al confirmarse
+cero usos. `Navbar`, `NavItem`, `NavSubItem`, `Header` y `PageLayout` también se dieron de baja
+(`shared/components/layout/` queda sin componentes vivos).
+
+Restante, fuera del alcance de REQ-013:
+
 - **`ProjectContext` y `SidebarContext`**, montados y sin consumidores.
 - **`GET /api/userinfo`** no tiene consumidores en el frontend.
 
 ### Inconsistencias estructurales
 
 - **Tres enfoques de formulario** conviviendo: `react-hook-form` + resolvers, yup manual con
-  `validateSync`, y `useState` crudo. Ver [`conventions/forms.md`](./conventions/forms.md).
-- **Dos enfoques de select**, con el objeto `selectStyles` de `react-select` duplicado en cinco
-  archivos.
-- **`Pagination` hardcodea `/objectives`** como destino (`Pagination.tsx:35`), así que solo sirve
-  en esa ruta. Las otras cuatro pantallas paginadas reimplementan su propia paginación inline.
-- **Los tokens de color están duplicados**: `globals.scss:4-77` y `_variables.scss:6-160`
-  declaran el mismo `:root` con los mismos valores.
-- **`PageLayout` usa `next/head`**, que no tiene efecto en el App Router (`PageLayout.tsx:17-21`).
-  El `<title>` real lo pone `metadata` en `layout.tsx`.
-- **Sin cobertura de tests:** `clients`, `time-allocation`, `contexts/`, `lib/` y
-  `shared/components/layout/` salvo `Navbar`.
+  `validateSync`, y `useState` crudo. Ver [`conventions/forms.md`](./conventions/forms.md). No es
+  una decisión de Design System — REQ-013 lo dejó explícitamente sin resolver.
+- **Sin cobertura de tests:** `clients`, `time-allocation`, `contexts/` y `lib/`.
 
 ### Contrato con la api
 

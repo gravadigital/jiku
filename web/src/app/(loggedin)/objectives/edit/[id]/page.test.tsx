@@ -257,7 +257,7 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
   });
 
-  it('TS-8 (S-067): muestra título "Tareas / editar" y placeholders "de la tarea"', async () => {
+  it('TS-8 (S-067) / TS-98 (S-060): muestra título "Tareas / editar" como <h1> y placeholders "de la tarea"', async () => {
     await act(async () => {
       render(<ObjectiveEdition params={Promise.resolve({ id: 30 })} />, {
         wrapper: createWrapper(),
@@ -265,7 +265,9 @@ describe('Objectives edit/[id]/page — campo Requisito (AC-7, AC-9)', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Tareas / editar')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Tareas / editar' })
+      ).toBeInTheDocument();
     });
     expect(screen.getByPlaceholderText('Título de la tarea')).toBeInTheDocument();
   });

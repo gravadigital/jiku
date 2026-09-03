@@ -26,6 +26,14 @@ vi.mock('@/features/requirements', () => ({
 }));
 
 describe('Requirements (listado)', () => {
+  it('TS-98 (S-060): muestra el título "Requisitos" como <h1> y el botón "Nuevo requisito"', async () => {
+    const searchParams = Promise.resolve({});
+    render(await Requirements({ searchParams }));
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Requisitos' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nuevo requisito' })).toBeInTheDocument();
+  });
+
   it('propaga el parámetro "search" de la URL a los filtros de RequirementList', async () => {
     const searchParams = Promise.resolve({ search: 'login' });
     render(await Requirements({ searchParams }));

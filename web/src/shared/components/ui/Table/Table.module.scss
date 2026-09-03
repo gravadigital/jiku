@@ -72,7 +72,7 @@
 
 .rowHeaderCell {
   height: var(--table-row-height);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .dataCell {

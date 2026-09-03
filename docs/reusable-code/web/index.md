@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-09-03 (S-059)
+**Last updated:** 2026-09-03 (S-060)
 
 ## Components
 
-Total: 22
+Total: 23
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -31,6 +31,7 @@ Total: 22
 - **ConfirmDialog** (`web/src/shared/components/ui/ConfirmDialog/ConfirmDialog.tsx`) - Migrated by S-055 to the Design System spec: both actions render as `secondary-dismiss` (no primary, no red) — the warning lives entirely in the `title`/`body` text, never in color. Native `<dialog>` retained for free focus-trap/`Esc`; initial focus goes to Cancel, focus returns to the opener on close. `pending` disables both actions and marks confirm as busy.
 - **ToggleGroup** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - Migrated by S-055 to the Design System spec: real `role="radiogroup"`/`role="radio"` (not `aria-pressed` buttons), arrow-key roving selection with wraparound, four variants (`segmented`/`range-pill`/`stepper-value`/`day-chip`), `options` as `{ value, label }[]` (renamed from `{ key, label }`). `stepper-value` supports `allowOther` to escape to a free-text `Input`.
 - **ThemeToggle** (`web/src/features/theme/components/ThemeToggle/ThemeToggle.tsx`) - The theme selector in the sidebar footer (S-059): a `ToggleGroup variant="segmented"` with `label="Tema"` and options `Claro`/`Oscuro`. No component-level DS spec of its own — reuses `ToggleGroup`'s (DS Gaps resolution: same role, no new component). Reads/writes the theme via `useTheme()`.
+- **ErrorPageContent** (`web/src/app/(loggedin)/ErrorPageContent.tsx`) - Shared body for the four `error.tsx` boundaries under `app/(loggedin)` that were the same component copied (`projects`, `objectives`, `objectives/by-project`, `objectives/by-responsible`): renders the `<h1>` and message with a component-scoped class over semantic tokens instead of the retired global `h1`/`p` rules (S-060). Takes an optional `message?: string`, matching `CustomError['message']`.
 
 ## Services
 
@@ -57,7 +58,7 @@ Total: 6
 
 ## Utils
 
-Total: 9
+Total: 10
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
@@ -68,6 +69,7 @@ Total: 9
 - **resolveTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Normalizes any value to `'light' | 'dark'`, defaulting to `'light'` for anything else (including `null`/`undefined`). Used on both the server (cookie) and the client (localStorage) so the two never disagree on what counts as valid.
 - **readStoredTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Reads `localStorage['jiku.theme']`, falling back to `'light'` if absent, invalid, or if `localStorage` throws (private mode, quota). Never throws.
 - **persistTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Writes the theme to `localStorage` and to a one-year, `Path=/`, `SameSite=Lax`, non-`HttpOnly` reflected cookie (`jiku.theme`) so the server can read it on the next render. Each write is independently guarded: a `localStorage` failure never blocks the cookie write.
+- **parseExternalLinks** (`web/src/shared/utils/parse-external-links.ts`) - Parses the `EXTERNAL_LINKS` JSON env-driven config (`[{"tool":"github","href":"...","label":"..."}]`) into the array `ExternalLinksBlock` renders in the sidebar footer; a malformed value logs and degrades to an empty list instead of crashing the shell. Extracted from `Navbar` (dead code, removed in S-060) into its own module with no `next-auth`/`next/image`/`usePathname` baggage.
 
 ## Types
 

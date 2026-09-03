@@ -1,12 +1,13 @@
 # Componentes (web)
 
-> **Normativos desde v2.0.0.** Los specs describen lo que cada componente **debe** ser según el
-> **Manual de marca Jiku v1.0**, no lo que el código hace hoy. Cada spec
-> lleva una sección **Migración** con la conversión desde el estado actual.
+> **Normativos e implementados desde v3.0.0.** Los specs describen cada componente según el
+> **Manual de marca Jiku v1.0**, y el código de `web` los implementa. Cada spec conserva su
+> sección **Migración** como referencia histórica de la conversión.
 >
-> **Los 21 specs están en `status: normativo`.** Las dos decisiones que `v2.0.0` había dejado
+> **Los 20 specs están en `status: normativo`.** Las dos decisiones que `v2.0.0` había dejado
 > marcadas —etapas del stepper y presentación de la acción destructiva— se resolvieron en
-> `v2.1.0`; ver el [CHANGELOG](../CHANGELOG.md).
+> `v2.1.0`; ver el [CHANGELOG](../CHANGELOG.md). `InputSelect` fue el único `deprecated`: se dio
+> de baja en `v3.0.0` una vez confirmados los cero usos (S-060).
 
 ## Especificados
 
@@ -49,12 +50,6 @@
 | Dropzone | [dropzone.md](dropzone.md) | normativo |
 | Accordion | [accordion.md](accordion.md) | normativo |
 | Tooltip | [tooltip.md](tooltip.md) | normativo |
-
-### Deprecados
-
-| Componente | Spec | Reemplazado por |
-|---|---|---|
-| InputSelect | [input-select.md](input-select.md) | [Select](select.md) — se conserva ≥1 release |
 
 ## El reparto del estado del requisito
 

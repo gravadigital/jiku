@@ -1,7 +1,6 @@
 import React from 'react';
 import { ObjectiveDetails, ObjectiveHistoryList, getObjectiveById } from '@/features/objectives';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, CommentEditor } from '@/shared/components/ui';
+import { CommentEditor, ViewHeader } from '@/shared/components/ui';
 
 export default async function ObjectiveDetail({
   params,
@@ -12,27 +11,24 @@ export default async function ObjectiveDetail({
   const objective = await getObjectiveById(id);
 
   return (
-    <PageLayout
-      title={objective.title}
-      actions={[
-        <Button
-          key="action-back"
-          variant="secondary-nav"
-          href={`/objectives/by-project#project-${objective.projectId}`}
-        >
-          Volver
-        </Button>,
-        <Button key="action-edit" variant="secondary-nav" href={`/objectives/edit/${id}`}>
-          Editar
-        </Button>,
-      ]}
-    >
+    <>
+      {/*
+        "Volver" no vuelve a donde se venía: siempre va a la misma tarea por proyecto,
+        sin importar por dónde se entró (docs/ux/surfaces/web/screens/detalle-tarea.md).
+        Ese destino fijo es exactamente el rol de `parent` en variant breadcrumb.
+      */}
+      <ViewHeader
+        variant="breadcrumb"
+        title={objective.title}
+        parent={{ label: 'Volver', href: `/objectives/by-project#project-${objective.projectId}` }}
+        action={{ children: 'Editar', href: `/objectives/edit/${id}` }}
+      />
       <ObjectiveDetails objective={objective} />
       <ObjectiveHistoryList
         objectiveActivity={objective.ObjectiveActivity || []}
         objectiveId={id}
       />
       <CommentEditor objectiveId={id} />
-    </PageLayout>
+    </>
   );
 }

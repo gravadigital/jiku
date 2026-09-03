@@ -3,6 +3,44 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [3.0.0] - 2026-09-03
+
+Cierre de REQ-013: última story del split (S-060). El DS pasa de «normativo — en implementación»
+a **normativo — implementado**: la identidad nueva y los 21 componentes que el manual describía
+están efectivamente en el código de `web`, sin código deprecado pendiente.
+
+### Removido
+
+- **`components/input-select.md`** (v2.0.0 → removido): el spec declaraba «se conserva al menos
+  un release para que los 18 usos existentes tengan una referencia mientras se migran» —
+  condición cumplida: S-053 construyó `Select` único, y S-056/S-057/S-058 migraron todas las
+  pantallas. El componente `InputSelect` (`web/src/shared/components/ui/InputSelect/`) se eliminó
+  del código en la misma story, con **cero usos verificados** antes de la baja. Remover un
+  componente es breaking change según la política de versionado de este DS (**MAJOR**).
+
+### Cambiado
+
+- **`README.md`**: estado de «normativo — en implementación (S-058 en curso)» a **implementado**.
+  La cita inicial sobre la paleta rosa y la tipografía Archivo, que ya no era cierta, se
+  reescribe. La tabla «Lo que queda» pierde las filas de migración de paleta/tipografía y de
+  código muerto del barrel (cerradas); conserva el microcopy de toasts, la clasificación de
+  `secondary` de `Button` y el shell responsive, que siguen fuera del alcance de REQ-013.
+- **`components/README.md`**: `components/` pasa de «20 specs + 1 deprecado» a **20 specs**, todos
+  `status: normativo`.
+
+### Notas de cierre (informativas, no versionadas)
+
+Como parte del mismo cierre (S-060), quedaron saldados fuera de este DS pero relevantes para su
+estado real:
+
+- El magenta descontinuado (`#DA2C6A`, `--color-button`) que sobrevivía en producción vía
+  `InputMultipleSelect` → `RequirementFilters` se migró a tokens semánticos — era el último uso
+  en pantalla del color que este DS vino a dar de baja.
+- `docs/architectures/web/conventions/styling.md`, `overview.md` y `docs/ux/gaps-as-is.md` se
+  actualizaron para reflejar el estado real del código (ver esos documentos).
+- No existe primitivo tipográfico (`Heading`/`Text`) en este DS — queda anotado como candidato a
+  `/product-design-system-update`, fuera del alcance de esta story.
+
 ## [2.5.0] - 2026-09-03
 
 Ampliaciones additivas de `Accordion` y `SidebarNav` durante la implementación de la story S-058.

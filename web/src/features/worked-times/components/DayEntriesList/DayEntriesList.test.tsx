@@ -9,7 +9,7 @@ import { getWorkedTimes } from '../../services/workedTimesApi';
 import { DayEntriesList } from './DayEntriesList';
 import type { WorkedTimeEntry } from '../../types/worked-time.types';
 
-// DayEntriesList importa ConfirmDialog/SectionCard desde el barrel @/shared/components/ui,
+// DayEntriesList importa ConfirmDialog desde @/shared/components/ui/ConfirmDialog,
 // que arrastra módulos server de next-auth. Se stubean para aislar el componente.
 vi.mock('next-auth', () => ({
   default: vi.fn(() => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() })),

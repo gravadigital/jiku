@@ -1,9 +1,9 @@
 @use '@/styles' as *;
 
 .viewer {
-  color: var(--color-general-text);
-  line-height: var(--line-height-normal);
-  font-size: var(--font-size-base);
+  color: var(--text-body);
+  line-height: var(--text-body-default-leading);
+  font-size: var(--text-body-default-size);
   overflow-x: auto;
   max-width: 100%;
 
@@ -20,14 +20,14 @@
   }
 
   p {
-    font-size: var(--font-size-base);
-    line-height: var(--line-height-normal);
+    font-size: var(--text-body-default-size);
+    line-height: var(--text-body-default-leading);
     margin-bottom: 5px;
   }
 
   ul,
   ol {
-    margin-left: var(--spacing-lg);
+    margin-left: var(--space-8);
     margin-bottom: 5px;
   }
 
@@ -40,16 +40,16 @@
   }
 
   code {
-    background: var(--color-surface-light);
+    background: var(--bg-tint-neutral);
     padding: 0.2em 0.4em;
-    border-radius: var(--radius-items);
-    font-size: var(--font-size-base);
+    border-radius: var(--radius-field);
+    font-size: var(--text-body-default-size);
   }
 
   pre {
-    background: var(--color-surface-light);
-    padding: var(--spacing-md);
-    border-radius: var(--radius-items);
+    background: var(--bg-tint-neutral);
+    padding: var(--space-4);
+    border-radius: var(--radius-field);
     overflow-x: auto;
     margin-bottom: 5px;
 
@@ -60,17 +60,17 @@
   }
 
   a {
-    color: var(--color-link-primary);
+    color: var(--text-link);
 
     &:hover {
-      color: var(--color-link-primary-hover);
+      opacity: 0.8;
     }
   }
 
   blockquote {
-    border-left: 3px solid var(--color-border-default);
-    padding-left: var(--spacing-md);
-    color: var(--color-text-muted);
+    border-left: 3px solid var(--border-default);
+    padding-left: var(--space-4);
+    color: var(--text-secondary);
     margin-bottom: 5px;
   }
 
@@ -80,14 +80,14 @@
     width: auto;
     height: auto;
     object-fit: contain;
-    border-radius: var(--radius-items);
+    border-radius: var(--radius-field);
     display: block;
     margin-bottom: 5px;
   }
 
   table {
     width: 100%;
-    font-size: var(--font-size-base);
+    font-size: var(--text-body-default-size);
     margin-bottom: 5px;
   }
 
@@ -99,7 +99,7 @@
 
   .blankLine {
     display: block;
-    font-size: var(--font-size-base);
-    line-height: var(--line-height-tight);
+    font-size: var(--text-body-default-size);
+    line-height: var(--font-leading-title);
   }
 }

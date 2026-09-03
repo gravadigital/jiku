@@ -4,43 +4,48 @@
   align-items: center;
   position: relative;
 
+  // El token legacy que resolvía "por vencer" al magenta descontinuado de marca vivía acá,
+  // fuera del alcance del guardia original — segundo leak de marca en producción además del
+  // de InputMultipleSelect (S-060, ver foundations/color.md#mapeo-del-sistema-anterior).
+  // Los cuatro estados se resuelven con las familias de sistema del DS: amber para "por
+  // vencer", rojo para "vencido", verde para "finalizado".
   &[data-state="closeToDeadline"] {
-    color: var(--color-objective-close-to-deadline);
+    color: var(--state-review-text);
   }
 
   &[data-state="expiresToday"] {
-    color: var(--color-objective-close-to-deadline);
+    color: var(--state-review-text);
   }
 
   &[data-state="expired"] {
-    color: var(--color-objective-expired);
+    color: var(--state-urgent-text);
   }
 
   &[data-state="finished"] {
-    color: var(--color-objective-finished);
+    color: var(--state-resolved-text);
   }
 
   &[data-state="default"] {
-    color: var(--color-general-text);
+    color: var(--text-body);
   }
 
   span {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     display: flex;
     align-items: center;
     gap: 0.3rem;
     font-size: 1rem;
     line-height: 1.2;
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: inherit;
   }
 
   p {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     margin: 0;
     font-size: 0.65rem;
     line-height: 1.2;
-    font-weight: 400;
+    font-weight: var(--font-weight-regular);
     color: inherit;
   }
 }

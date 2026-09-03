@@ -202,10 +202,12 @@ describe('Objectives new/page — campo Requisito (AC-7, AC-9, AC-10)', () => {
     });
   });
 
-  it('TS-5 (S-067): muestra título "Tareas / crear" y placeholder "Título de la tarea"', () => {
+  it('TS-5 (S-067) / TS-98 (S-060): muestra título "Tareas / crear" como <h1> y placeholder "Título de la tarea"', () => {
     render(<Form />, { wrapper: createWrapper() });
 
-    expect(screen.getByText('Tareas / crear')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Tareas / crear' })
+    ).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Título de la tarea')).toBeInTheDocument();
   });
 

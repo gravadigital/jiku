@@ -1,6 +1,6 @@
 import React from 'react';
 import { ObjectivesGroup, getObjectives } from '@/features/objectives';
-import { PageLayout } from '@/shared/components/layout';
+import { ViewHeader } from '@/shared/components/ui';
 import type { Objective, ObjectiveFilters } from '@/features/objectives';
 import type { Person } from '@/shared/types';
 
@@ -64,7 +64,8 @@ export default async function Objectives() {
     });
 
   return (
-    <PageLayout title="Tareas por responsable">
+    <>
+      <ViewHeader variant="list" title="Tareas por responsable" />
       <main>
         {personsList.map((person) => {
           const fullName = `${person.person.firstName}
@@ -80,6 +81,6 @@ export default async function Objectives() {
           );
         })}
       </main>
-    </PageLayout>
+    </>
   );
 }

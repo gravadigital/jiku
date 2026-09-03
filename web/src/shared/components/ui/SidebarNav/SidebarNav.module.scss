@@ -60,9 +60,10 @@
 }
 
 // Activo: las tres señales a la vez — tarjeta blanca + barra verde agua de 3px +
-// elevation.raised + icono en #12897A (NUNCA el verde agua de marca sobre fondo claro).
-// El color del icono en sí se decide en el .tsx (prop `color` de TintedIcon), no acá:
-// TintedIcon lo aplica vía máscara CSS, así que no hay nada que sobreescribir en cascada.
+// elevation.raised + icono en --nav-item-active-icon (NUNCA el verde agua de marca sobre
+// fondo claro). El color del icono en sí se decide en el .tsx (prop `color` de TintedIcon),
+// no acá: TintedIcon lo aplica vía máscara CSS, así que no hay nada que sobreescribir en
+// cascada.
 .linkActive {
   background-color: var(--nav-item-active-bg);
   box-shadow: var(--nav-item-active-shadow);
@@ -118,7 +119,7 @@
 
 .userName {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--font-size-13);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;

@@ -17,16 +17,16 @@
   border: none;
   outline: none;
   background: transparent;
-  font-family: var(--font-primary);
+  font-family: var(--font-family-ui);
   font-size: 0.875rem;
-  color: #1f2633;
+  color: var(--text-body);
   line-height: 1.5;
   padding: 0;
   height: auto;
   overflow: hidden;
 
   &::placeholder {
-    color: var(--color-text-placeholder, #a0aec0);
+    color: var(--text-disabled);
   }
 
   &:disabled {

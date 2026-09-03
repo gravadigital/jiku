@@ -11,8 +11,9 @@ import projectsLogo from '@root/assets/proyectosLogo.svg';
 import requirementsLogo from '@root/assets/requisitosLogo.svg';
 import timeAllocationLogo from '@root/assets/schedule-icon.svg';
 
-// Reproduce los 6 ítems y 5 subítems de la navegación actual (Navbar.tsx), con sus rutas
-// exactas. `key` es lo que el shell resuelve a partir de la ruta — SidebarNav no la consulta.
+// Reproduce los 6 ítems y 5 subítems de la navegación de Navbar (dado de baja en S-060 tras
+// ser reemplazado por este shell), con sus rutas exactas. `key` es lo que el shell resuelve
+// a partir de la ruta — SidebarNav no la consulta.
 const NAV_ITEMS: SidebarNavItem[] = [
   { key: 'clients', label: 'Actores', icon: actoresLogo, href: '/clients' },
   { key: 'projects', label: 'Proyectos', icon: projectsLogo, href: '/projects' },
@@ -55,8 +56,9 @@ const NAV_ITEMS: SidebarNavItem[] = [
   },
 ];
 
-// Ítems fuera del alcance de `external-user`: reproduce getVisibleNavItems() de Navbar.tsx.
-// Rama prácticamente inalcanzable (el layout ya redirige a /unauthorized), pero no se elimina.
+// Ítems fuera del alcance de `external-user`: reproduce el getVisibleNavItems() que tenía
+// el Navbar dado de baja en S-060. Rama prácticamente inalcanzable (el layout ya redirige
+// a /unauthorized), pero no se elimina.
 function getVisibleNavItems(isExternalUser: boolean): SidebarNavItem[] {
   if (isExternalUser) {
     return NAV_ITEMS.filter((item) => item.key !== 'time-allocation' && item.key !== 'worked-times');
@@ -64,9 +66,9 @@ function getVisibleNavItems(isExternalUser: boolean): SidebarNavItem[] {
   return NAV_ITEMS;
 }
 
-// Mapeo ruta → activeKey. Reproduce Navbar.tsx: startsWith para los ítems, y el caso
-// `exact: true` del subítem "Carga" (Navbar.tsx:91), que startsWith solo no distingue de
-// "Visualización" (ambos empiezan con /worked-times).
+// Mapeo ruta → activeKey. Reproduce el criterio que tenía Navbar (dado de baja en S-060):
+// startsWith para los ítems, y el caso `exact: true` del subítem "Carga", que startsWith
+// solo no distingue de "Visualización" (ambos empiezan con /worked-times).
 function resolveActiveKey(pathname: string): string {
   if (pathname === '/worked-times') return 'worked-times-load';
   if (pathname.startsWith('/worked-times/report')) return 'worked-times-report';

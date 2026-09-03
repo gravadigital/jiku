@@ -8,8 +8,7 @@ import { usePersons } from '@/features/auth';
 import { useCreateObjective } from '@/features/objectives';
 import { useProjects } from '@/features/projects';
 import { useRequirements } from '@/features/requirements';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Card, Input, Loader, Select } from '@/shared/components/ui';
+import { Button, Card, Input, Loader, Select, ViewHeader } from '@/shared/components/ui';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
 import styles from './styles.module.scss';
 
@@ -232,19 +231,6 @@ export default function Form() {
     processCreation();
   };
 
-  const buttons = [
-    <Button
-      key="action-1"
-      onClick={() => {
-        processCreation();
-      }}
-      loading={createObjectiveMutation.isPending}
-      disabled={createObjectiveMutation.isPending}
-    >
-      Guardar
-    </Button>,
-  ];
-
   const cloneForm = (id: number) => {
     let targetForm = formsData.find((form) => form.id! === id);
     if (!targetForm) {
@@ -269,7 +255,19 @@ export default function Form() {
   }
 
   return (
-    <PageLayout title="Tareas / crear" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Tareas / crear"
+        action={{
+          children: 'Guardar',
+          onClick: () => {
+            processCreation();
+          },
+          loading: createObjectiveMutation.isPending,
+          disabled: createObjectiveMutation.isPending,
+        }}
+      />
       {formsData.map((form) => {
         return (
           <Card key={form.id!} variant="panel">
@@ -405,6 +403,6 @@ export default function Form() {
           </Card>
         );
       })}
-    </PageLayout>
+    </>
   );
 }

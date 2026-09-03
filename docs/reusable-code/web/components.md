@@ -575,9 +575,9 @@ the user's `Avatar` + name and a logout control. The wordmark switches between `
 `useSession`** — the consumer resolves those, which is what makes this component unit-testable
 without mounting a session or a router. Adopted in `(loggedin)/layout.tsx` by S-058 (via the
 `ShellSidebar` client wrapper, `web/src/app/(loggedin)/ShellSidebar.tsx`, which resolves
-`activeKey` from `usePathname()` and wires `onLogout` to `signOut`), coexisting with the legacy
-`Navbar` / `NavItem` / `NavSubItem` (which stay untouched and unconsumed by the shell — their
-removal is S-060's job).
+`activeKey` from `usePathname()` and wires `onLogout` to `signOut`). The legacy `Navbar` /
+`NavItem` / `NavSubItem` it coexisted with were removed in S-060 — `SidebarNav` is now the only
+navigation component.
 
 **Interface:**
 
@@ -953,4 +953,39 @@ function ThemeToggle(): JSX.Element;
 import { ThemeToggle } from '@/features/theme';
 
 <ThemeToggle />
+```
+
+## ErrorPageContent
+
+**Location:** `web/src/app/(loggedin)/ErrorPageContent.tsx`
+
+**Description:** Shared body for the four `error.tsx` route boundaries under `app/(loggedin)`
+(`projects`, `objectives`, `objectives/by-project`, `objectives/by-responsible`) that were the
+exact same component copied four times, each relying on the global bare `h1`/`p` rules in
+`globals.scss`. Extracted in S-060 as the precondition for retiring those global rules: the
+`<h1>` and `<p>` now carry their own component-scoped class over semantic tokens
+(`--text-view-title-*`, `--text-secondary`) instead of an unclassed element selector. Not part of
+the Design System's component specs — a route-boundary helper, not a DS primitive — following the
+same "class propia, no primitivo nuevo" pattern `app/login/enter/error.tsx` already used.
+
+**Interface:**
+
+```tsx
+interface ErrorPageContentProps {
+  readonly message?: string; // matches CustomError['message'] — string | undefined
+}
+
+function ErrorPageContent(props: ErrorPageContentProps): JSX.Element;
+```
+
+**Usage:**
+
+```tsx
+'use client';
+import { ErrorPageContent } from '../ErrorPageContent';
+import type { CustomError } from '@/shared/types';
+
+export default function ErrorPage({ error }: { readonly error: CustomError }) {
+  return <ErrorPageContent message={error.message} />;
+}
 ```

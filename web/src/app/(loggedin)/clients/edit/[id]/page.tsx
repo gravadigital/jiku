@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { useClient, useUpdateClient } from '@/features/clients';
 import { ClientForm } from '@/features/clients/components/ClientForm/ClientForm';
-import { PageLayout } from '@/shared/components/layout';
-import { Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 
 export default function EditClient({ params }: { readonly params: Promise<{ id: number }> }) {
@@ -49,7 +48,8 @@ export default function EditClient({ params }: { readonly params: Promise<{ id: 
   }
 
   return (
-    <PageLayout title="Editar actor">
+    <>
+      <ViewHeader variant="list" title="Editar actor" />
       <div className={styles.wrapper}>
         <ClientForm
           initialValues={initialValues}
@@ -59,6 +59,6 @@ export default function EditClient({ params }: { readonly params: Promise<{ id: 
           clientId={id}
         />
       </div>
-    </PageLayout>
+    </>
   );
 }

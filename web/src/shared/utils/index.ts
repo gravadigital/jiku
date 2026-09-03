@@ -10,3 +10,5 @@ export { getObjectiveVisibility } from './get-objective-visibility';
 export { getProjectStatus } from './get-project-status';
 export { transformYupErrors } from './transform-yup-errors';
 export { decodedToken } from './decoded-token';
+export { parseExternalLinks } from './parse-external-links';
+export type { ExternalLinkConfig } from './parse-external-links';

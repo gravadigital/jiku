@@ -1,7 +1,26 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { InputMultipleSelect } from './InputMultipleSelect';
+
+const COMPONENT_DIR = __dirname;
+const OLD_SYSTEM_TOKENS = [
+  '--font-primary',
+  '--color-error',
+  '--color-text-muted',
+  '--radius-buttons',
+  '--color-general-title',
+  '--color-button',
+  '--color-surface-light',
+  '--color-general-text',
+  '--color-general-border',
+  '--font-size-base',
+  '--spacing-sm',
+  '--spacing-md',
+  '--spacing-lg',
+];
 
 const OPTIONS = [
   { label: 'Análisis', value: 'analisis' },
@@ -228,7 +247,7 @@ describe('InputMultipleSelect', () => {
   });
 
   // El modo compacto es el de las filas de filtros; el default sigue siendo el de formulario,
-  // que es el que usa ObjectiveSearchFilters junto a InputText e InputSelect.
+  // que es el que usa ObjectiveSearchFilters junto a Input y Select.
   it('colapsa el excedente también en modo compacto', () => {
     render(
       <InputMultipleSelect
@@ -257,5 +276,47 @@ describe('InputMultipleSelect', () => {
     );
 
     expect(screen.getByText('Estados')).toBeInTheDocument();
+  });
+
+  // TS-102/TS-103/TS-104 (S-060): InputMultipleSelect es el único consumidor de
+  // RequirementFilters y mantenía vivo el magenta descontinuado (--color-button) en
+  // producción — el hallazgo más serio del plan de esta story.
+  describe('deuda de tokens legacy (T5)', () => {
+    const tsxSource = fs.readFileSync(
+      path.join(COMPONENT_DIR, 'InputMultipleSelect.tsx'),
+      'utf-8'
+    );
+    const scssSource = fs.readFileSync(
+      path.join(COMPONENT_DIR, 'InputMultipleSelect.module.scss'),
+      'utf-8'
+    );
+
+    it('TS-102: no queda el magenta descontinuado en el .tsx ni en el .module.scss', () => {
+      const magentaPattern = new RegExp('#DA2C6' + '[AB]', 'i');
+      expect(tsxSource).not.toMatch(magentaPattern);
+      expect(scssSource).not.toMatch(magentaPattern);
+    });
+
+    it('TS-103: --color-button no se consume ni en el .tsx ni en el .module.scss', () => {
+      expect(tsxSource).not.toMatch(/--color-button\b/);
+      expect(scssSource).not.toMatch(/--color-button\b/);
+    });
+
+    it.each(OLD_SYSTEM_TOKENS)('TS-104: el .tsx no consume el token legacy %s', (token) => {
+      expect(tsxSource).not.toContain(token);
+    });
+
+    it.each(OLD_SYSTEM_TOKENS)('TS-104: el .module.scss no consume el token legacy %s', (token) => {
+      expect(scssSource).not.toContain(token);
+    });
+
+    it('TS-104: sin hex literal en el .tsx (fuera de comentarios)', () => {
+      const withoutComments = tsxSource.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(withoutComments).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    });
+
+    it('TS-104: sin hex literal en el .module.scss', () => {
+      expect(scssSource).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    });
   });
 });

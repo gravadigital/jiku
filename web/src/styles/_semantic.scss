@@ -153,14 +153,6 @@
   // Layout
   // ============================================
   --nav-width: var(--layout-sidebar-width);
-
-  // ============================================
-  // Alias de compatibilidad — baja definitiva en S-060
-  // ============================================
-  // --font-primary se mantiene como alias de --font-ui durante la migración de los 117 módulos
-  // existentes. No declarar en el tier reference: es tier semántico porque referencia un
-  // primitivo vía var().
-  --font-primary: var(--font-family-ui);
 }
 
 // ============================================

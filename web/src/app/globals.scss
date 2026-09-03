@@ -1,7 +1,7 @@
 @use '@/styles' as *;
 
 *{
-  font-family: var(--font-primary);
+  font-family: var(--font-family-ui);
   box-sizing: border-box;
   padding: 0;
   margin: 0;
@@ -35,7 +35,7 @@ body {
   overflow-x: hidden;
   background-color: var(--bg-canvas);
   color: var(--text-body);
-  font-family: var(--font-ui);
+  font-family: var(--font-family-ui);
 }
 
 article, aside, details, figcaption, figure,
@@ -69,7 +69,7 @@ table {
 th, td {
   padding: 0.5rem 1rem;
   text-align: left;
-  border: 3px solid var(--color-general-disabled);
+  border: 3px solid var(--border-default);
   border-top: none;
   text-align: center;
   vertical-align: middle;
@@ -87,36 +87,21 @@ td span {
 }
 
 th {
-  background-color: var(--color-general-disabled);
-  color: var(--color-text-dark);
+  background-color: var(--border-default);
+  color: var(--text-primary);
   padding: 1rem;
   text-align: center;
   vertical-align: middle;
 }
 tr:hover {
-  background-color: var(--color-surface-hover);
+  background-color: var(--bg-active-subtle);
 }
 
-h1{
-  font-family: var(--font-primary);
-  font-size: 2rem;
-  line-height: 2rem;
-  font-weight: 800;
-}
-
-h2{
-  font-family: var(--font-primary);
-  font-size: 1rem;
-  line-height: 1rem;
-  font-weight: 600;
-}
-
-p {
-  font-family: var(--font-primary);
-  font-size: 0.75rem;
-  line-height: 0.75rem;
-  font-weight: 400;
-}
+// S-060 (T7): las reglas globales h1/h2/p (font-family legacy, tamaños y peso fuera de
+// escala) se dan de baja. Cada vista resuelve su propia tipografía con tokens semánticos
+// (--text-view-title-*, --text-body-default-*, etc.) sobre clase propia, no sobre el
+// selector de elemento desnudo. Precondición cumplida: PageLayout ya no las usa (T4) y los
+// 4 error.tsx que dependían del h1/p global migraron a ErrorPageContent con clase propia.
 
 span{
   font-size: 1.25rem;
@@ -127,12 +112,12 @@ input {
   display: block;
   margin-top: 7px;
   width: 100%;
-  background: var(--color-background);
+  background: var(--bg-surface);
   box-sizing: border-box;
   height: 40px;
-  border-radius: 9px;
+  border-radius: var(--radius-field);
   padding: 0.45rem 2.7rem 0.45rem 0.9rem;
-  border: 1px solid var(--color-general-border);
+  border: 1px solid var(--border-default);
   font-size: .8125rem;
   font-weight: 400;
   line-height: 1.5;
@@ -144,14 +129,15 @@ input {
 }
 
 .react-datepicker {
-  box-shadow: var(--box-shadow) !important;
+  box-shadow: var(--elevation-surface) !important;
   background-color: var(--bg-surface) !important;
   color: var(--text-body) !important;
 }
 
-// S-059 TS-37: --color-button (#DA2C6A, magenta descontinuado) ya no se usa acá. El seleccionado
-// pasa al acento del DS (--bg-action-primary, #61CCB9, sin cambios entre modos) con
-// --text-on-action (azul oscuro, 9.8:1) en vez de blanco fijo.
+// S-059 TS-37: el token legacy que resolvía al magenta descontinuado ya no se usa acá. El
+// seleccionado pasa al acento del DS (--bg-action-primary, sin cambios entre modos) con
+// --text-on-action (azul oscuro, 9.8:1) en vez de blanco fijo. Ver
+// foundations/color.md#mapeo-del-sistema-anterior para los valores exactos (S-060).
 .react-datepicker__day--selected {
   background-color: var(--bg-action-primary) !important;
   color: var(--text-on-action) !important;
@@ -167,7 +153,7 @@ input {
 
 .react-datepicker__navigation  {
   background-color: var(--bg-action-primary) !important;
-  border-radius: var(--radius-items) !important;
+  border-radius: var(--radius-field) !important;
   width: 1.5rem !important;
   height: 1.5rem !important;
   overflow: visible !important;
@@ -180,16 +166,16 @@ input {
 
 .CodeMirror, .CodeMirror-scroll {
 	min-height: 13rem !important;
-  border-bottom-left-radius: var(--radius-items) !important;
-  border-bottom-right-radius: var(--radius-items) !important;
+  border-bottom-left-radius: var(--radius-field) !important;
+  border-bottom-right-radius: var(--radius-field) !important;
   background-color: var(--bg-surface) !important;
   color: var(--text-body) !important;
 }
 
 .editor-toolbar{
   background-color: var(--bg-surface);
-  border-top-left-radius: var(--radius-items) !important;
-  border-top-right-radius: var(--radius-items) !important;
+  border-top-left-radius: var(--radius-field) !important;
+  border-top-right-radius: var(--radius-field) !important;
 }
 
 // ============================================

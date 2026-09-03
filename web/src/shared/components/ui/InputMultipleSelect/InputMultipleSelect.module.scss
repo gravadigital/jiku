@@ -1,4 +1,4 @@
-// Modo formulario (default): mismo label y mismo aire que `InputText` e `InputSelect`, que son
+// Modo formulario (default): mismo label y mismo aire que `InputText` y `Select`, que son
 // sus vecinos en `ObjectiveSearchFilters`.
 .container {
   display: flex;
@@ -7,8 +7,8 @@
   min-width: 0;
 
   .label {
-    color: var(--color-general-text);
-    font-family: var(--font-primary);
+    color: var(--text-body);
+    font-family: var(--font-family-ui);
     font-size: 12px;
     line-height: 12px;
     padding-left: 1rem;
@@ -37,9 +37,9 @@
 
 .checkbox {
   align-items: center;
-  border: 1px solid var(--color-general-border);
-  border-radius: 0.25rem;
-  color: #fff;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-action);
+  color: var(--text-on-action);
   display: inline-flex;
   flex-shrink: 0;
   font-size: 0.6875rem;
@@ -49,16 +49,18 @@
   width: 1rem;
 }
 
+// Recorrido: verde agua pleno + ✓ en azul oscuro (--text-on-action), el mismo tratamiento
+// que el DS usa para el estado "activo" en otros controles (ver Stepper.nodeDone).
 .checkboxChecked {
-  background-color: var(--color-button);
-  border-color: var(--color-button);
+  background-color: var(--bg-active);
+  border-color: var(--bg-active);
 }
 
 // El "+N" que resume los chips que no entran en la única línea del control.
 .overflowCount {
-  color: var(--color-general-text);
+  color: var(--text-body);
   flex-shrink: 0;
-  font-family: var(--font-primary);
+  font-family: var(--font-family-ui);
   font-size: 0.75rem;
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
