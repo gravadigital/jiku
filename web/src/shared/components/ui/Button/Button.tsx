@@ -88,7 +88,13 @@ export function Button(props: ButtonProps) {
     ariaDescribedBy,
     fab = false,
   } = props;
-  const ariaLabel = fab ? (props as ButtonFabProps)['aria-label'] : undefined;
+  // En loading el contenido visible pasa a ser el Loader ("Cargando…"), así que sin ayuda
+  // el nombre accesible del botón cambiaría con él. Cuando `children` es texto plano (el
+  // caso normativo del spec: 1-3 palabras) se fija como `aria-label` explícito para que el
+  // nombre accesible no cambie al entrar en loading (S-058, CA-4). No pisa el `aria-label`
+  // del FAB, que ya es explícito y obligatorio por su cuenta.
+  const loadingLabel = loading && typeof children === 'string' ? children : undefined;
+  const ariaLabel = fab ? (props as ButtonFabProps)['aria-label'] : loadingLabel;
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (disabled || loading) return;

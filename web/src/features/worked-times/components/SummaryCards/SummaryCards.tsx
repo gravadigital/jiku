@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { Card } from '@/shared/components/ui/Card';
 import styles from './SummaryCards.module.scss';
 import type { ReportByPerson, ReportByProject } from '../../types/worked-time.types';
 import type { ReportView } from '../ViewToggle';
@@ -59,22 +60,13 @@ export function SummaryCards({ dataByPerson, dataByProject, activeView }: Summar
 
   return (
     <div className={styles.cards}>
-      <div className={styles.card}>
-        <span className={styles.value}>{formatHours(stats.totalMinutes)}</span>
-        <span className={styles.label}>Total horas</span>
-      </div>
-      <div className={styles.card}>
-        <span className={styles.value}>{stats.personCount}</span>
-        <span className={styles.label}>Personas</span>
-      </div>
-      <div className={styles.card}>
-        <span className={styles.value}>{stats.projectCount}</span>
-        <span className={styles.label}>Proyectos</span>
-      </div>
-      <div className={styles.card}>
-        <span className={styles.value}>{formatHours(stats.avgMinutes)}</span>
-        <span className={styles.label}>Promedio / persona</span>
-      </div>
+      <Card variant="metric" metrics={[{ label: 'Total horas', value: formatHours(stats.totalMinutes) }]} />
+      <Card variant="metric" metrics={[{ label: 'Personas', value: String(stats.personCount) }]} />
+      <Card variant="metric" metrics={[{ label: 'Proyectos', value: String(stats.projectCount) }]} />
+      <Card
+        variant="metric"
+        metrics={[{ label: 'Promedio / persona', value: formatHours(stats.avgMinutes) }]}
+      />
     </div>
   );
 }

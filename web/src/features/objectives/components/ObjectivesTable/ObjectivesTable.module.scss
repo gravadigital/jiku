@@ -1,6 +1,6 @@
 .titleLink {
   color: var(--text-link);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
 
   &:hover {

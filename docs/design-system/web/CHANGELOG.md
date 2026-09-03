@@ -3,6 +3,36 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.5.0] - 2026-09-03
+
+Ampliaciones additivas de `Accordion` y `SidebarNav` durante la implementación de la story S-058.
+
+### Cambiado
+
+- **`components/accordion.md`** (v1.0.0 → v1.1.0): `title` amplía su tipo de `string` a
+  `ReactNode` — todo uso existente con `string` sigue siendo válido, no rompe. Se agrega
+  `showStatus` (default `true`) para omitir la marca de completitud `!`/`✓` y su eco accesible en
+  consumidores sin ese concepto. Motivo: una fila expandible de tabla jerárquica (ícono + texto +
+  cifra) necesitaba el patrón de disclosure accesible de `Accordion` (`<button
+  aria-expanded aria-controls>` + panel `role="region"` con `hidden`) sin forzar contenido rico
+  dentro de un `title: string`, y sin la marca de completitud, ajena a una fila de datos (MINOR).
+- **`components/sidebar-nav.md`** (v1.0.0 → v1.1.0): se agrega `mode` (`"light" | "dark"`,
+  default `"light"`) para resolver la firma correcta según el modo (CA-3 de S-058: `jikuLogo.svg`
+  en claro, `jikuLogoDark.svg` en oscuro). El componente no detecta el tema por sí mismo — lo
+  decide el consumidor. Backward compatible (MINOR).
+- **`components/input.md`** (v1.0.0 → v1.1.0): se agrega `hideLabel` (default `false`) para
+  ocultar el label visualmente sin sacarlo del nombre accesible, pensado para grillas densas de
+  campos repetidos (la celda editable de `Table` variant `matrix` en `asignacion-tiempo`).
+  Backward compatible (MINOR).
+
+### Corregido
+
+- **`components/button.md`** (v2.0.1 → v2.0.2): la implementación no cumplía lo que el spec ya
+  declaraba («el label del botón no cambia de significado» en `loading`) — el nombre accesible
+  pasaba a "Cargando" mientras el spinner reemplazaba el contenido visible. Ahora, cuando
+  `children` es texto plano, `loading` fija ese texto como `aria-label` explícito. Es el defecto
+  que motivó la CA-4 de S-058 en el botón de `login`. Sin cambio de contrato de API (PATCH).
+
 ## [2.4.1] - 2026-09-02
 
 Corrección de un hecho documental, sin cambio normativo (story S-052).

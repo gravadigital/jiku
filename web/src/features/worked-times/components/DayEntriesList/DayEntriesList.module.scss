@@ -2,31 +2,24 @@
 
 .header {
   @include flex-between;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--space-4);
 }
 
 .title {
-  font-size: var(--font-size-base);
+  font-size: var(--text-body-default-size);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-general-title);
+  color: var(--text-primary);
 }
 
 .total {
-  font-size: var(--font-size-base);
+  font-size: var(--text-body-default-size);
   font-weight: var(--font-weight-bold);
-  color: var(--color-button);
+  color: var(--text-link);
 }
 
 .loading {
   @include flex-center;
-  padding: var(--spacing-lg);
-}
-
-.empty {
-  text-align: center;
-  color: var(--color-general-text);
-  font-size: var(--font-size-sm);
-  padding: var(--spacing-lg);
+  padding: var(--space-6);
 }
 
 .list {
@@ -34,15 +27,15 @@
   padding: 0;
   margin: 0;
   @include flex-column;
-  gap: var(--spacing-sm);
+  gap: var(--space-2);
 }
 
 .entry {
   @include flex-between;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-surface-light);
-  border-radius: var(--radius-items);
-  gap: var(--spacing-md);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-tint-neutral);
+  border-radius: var(--radius-surface);
+  gap: var(--space-4);
 }
 
 .entryIcon {
@@ -52,31 +45,13 @@
 .entryLabel {
   flex: 1;
   font-size: var(--font-size-sm);
-  color: var(--color-general-title);
+  color: var(--text-primary);
   @include truncate;
 }
 
 .entryMinutes {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-general-text);
+  color: var(--text-secondary);
   white-space: nowrap;
-}
-
-.deleteButton {
-  @include button-reset;
-  @include focus-ring;
-  padding: var(--spacing-xs);
-  font-size: var(--font-size-md);
-  opacity: 0.6;
-  transition: opacity var(--transition-fast);
-
-  &:hover:not(:disabled) {
-    opacity: 1;
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
 }

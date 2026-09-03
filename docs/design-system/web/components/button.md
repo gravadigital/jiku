@@ -188,6 +188,12 @@ texto `#0B1934`.
 
 ## Historial
 
+- **2.0.2** (2026-09-03, story S-058) — Corrige la implementación para cumplir lo que este spec
+  ya declaraba («el label del botón no cambia de significado» en loading): cuando `children` es
+  texto plano, `loading` fija ese texto como `aria-label` explícito del `<button>`, así el
+  nombre accesible no pasa a "Cargando" mientras el spinner reemplaza el contenido visible. Antes
+  de esta corrección el nombre accesible sí cambiaba — el defecto que motivó la CA-4 de S-058 en
+  el botón de `login`. No cambia contrato de API (PATCH).
 - **2.0.1** (2026-09-02) — Se enlaza la decisión sobre la acción destructiva, ya resuelta en
   `confirm-dialog.md`: no se agrega variant `destructive` (PATCH).
 - **2.0.0** (2026-09-02) — Reespecificado desde el Manual de marca Jiku v1.0. Fondo verde agua con

@@ -19,7 +19,7 @@
     font-family: var(--font-family-ui);
     font-size: 1rem;
     line-height: 1.4;
-    font-weight: 400;
+    font-weight: var(--font-weight-regular);
     color: var(--text-body);
 
     & > span {
@@ -45,7 +45,7 @@
     font-family: var(--font-family-ui);
     font-size: 1rem;
     line-height: 1.2;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--text-primary);
 
     & > span {
@@ -98,7 +98,7 @@
         font-family: var(--font-family-ui);
         font-size: 1rem;
         line-height: 1.4;
-        font-weight: 400;
+        font-weight: var(--font-weight-regular);
         color: var(--text-body);
         margin: 0.25rem 0;
       }

@@ -8,10 +8,21 @@ type AccordionStatus = 'pending' | 'done';
 type HeadingLevel = 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
 interface AccordionProps {
-  /** Nombre de la etapa, con el término de dominio. No indicar acá que está pendiente. */
-  readonly title: string;
+  /**
+   * Nombre de la etapa, con el término de dominio. No indicar acá que está pendiente.
+   * Acepta `ReactNode` (S-058): un consumidor de fila de datos (ícono + texto + cifra) puede
+   * componer contenido rico en la cabecera sin dejar de usar el `<button>` real del componente.
+   * El uso típico —un `string` simple— sigue siendo válido y es el recomendado por el spec.
+   */
+  readonly title: React.ReactNode;
   /** Marca de completitud. `pending`: «!» ámbar. `done`: «✓» verde. */
   readonly status?: AccordionStatus;
+  /**
+   * Oculta la marca de completitud y el eco accesible redundante. Pensado para consumidores
+   * (S-058: filas expandibles de una tabla jerárquica) sin concepto de "pendiente/completo",
+   * donde el propio `title` (texto + ícono con `alt`) ya es su nombre accesible completo.
+   */
+  readonly showStatus?: boolean;
   readonly defaultExpanded?: boolean;
   readonly onToggle?: (expanded: boolean) => void;
   /** Nivel del heading que envuelve la cabecera. No se anidan acordeones. */
@@ -32,6 +43,7 @@ const STATUS_GLYPH: Record<AccordionStatus, string> = {
 export function Accordion({
   title,
   status = 'pending',
+  showStatus = true,
   defaultExpanded = false,
   onToggle,
   headingLevel: Heading = 'h3',
@@ -59,13 +71,17 @@ export function Accordion({
           aria-controls={panelId}
           onClick={handleToggle}
         >
-          <span className={cn(styles.mark, styles[status])} aria-hidden="true">
-            {STATUS_GLYPH[status]}
-          </span>
+          {showStatus && (
+            <span className={cn(styles.mark, styles[status])} aria-hidden="true">
+              {STATUS_GLYPH[status]}
+            </span>
+          )}
           <span className={styles.title}>{title}</span>
-          <span className={styles.srOnly}>
-            {title}, {STATUS_LABEL[status]}
-          </span>
+          {showStatus && typeof title === 'string' && (
+            <span className={styles.srOnly}>
+              {title}, {STATUS_LABEL[status]}
+            </span>
+          )}
           <span className={styles.chevron} aria-hidden="true">
             ›
           </span>

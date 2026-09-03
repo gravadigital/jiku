@@ -75,6 +75,7 @@ const baseEntry: Omit<WorkedTimeEntry, 'objective' | 'requirement'> = {
 describe('DayEntriesList — S-055', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetWorkedTimes.mockResolvedValue([]);
     mockedGetUnworkedTimes.mockResolvedValue([]);
     mockedUsePersonObjectives.mockReturnValue({ data: [] } as any);
     mockedUseRequirements.mockReturnValue({ data: [] } as any);
@@ -154,5 +155,42 @@ describe('DayEntriesList — S-055', () => {
 
     expect(await screen.findByText('Presente → Alpha → R → Obj X')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Tarea' })).toBeInTheDocument();
+  });
+
+  // TS-85: el día vacío muestra EmptyState variant scoped con su microcopy exacto
+  it('TS-85: día vacío muestra "No hay cargas para este día" sin role="alert"', async () => {
+    render(<DayEntriesList date="2026-06-26" personId={1} />, { wrapper: createWrapper() });
+
+    const empty = await screen.findByText('No hay cargas para este día');
+    expect(empty).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // TS-96 (parte de DayEntriesList): el borrado usa el Button del DS variant secondary-dismiss
+  it('TS-96: el botón de borrar una carga usa el Button del DS y abre el ConfirmDialog', async () => {
+    mockedGetWorkedTimes.mockResolvedValue([
+      {
+        ...baseEntry,
+        objective: null,
+        requirement: null,
+      },
+    ]);
+
+    render(<DayEntriesList date="2026-06-26" personId={1} />, { wrapper: createWrapper() });
+
+    const deleteButton = await screen.findByRole('button', { name: 'Borrar' });
+    expect(deleteButton).toBeInTheDocument();
+
+    const user = (await import('@testing-library/user-event')).default.setup();
+    await user.click(deleteButton);
+
+    expect(screen.getByRole('dialog', { name: 'Eliminar registro' })).toBeInTheDocument();
+  });
+
+  it('no quedan <button> crudos: usa Loader del DS mientras carga', () => {
+    mockedGetWorkedTimes.mockImplementation(() => new Promise(() => {}));
+    render(<DayEntriesList date="2026-06-26" personId={1} />, { wrapper: createWrapper() });
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 });

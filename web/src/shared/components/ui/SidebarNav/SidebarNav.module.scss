@@ -4,7 +4,11 @@
   width: 300px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  // flex (no height: 100%) para poder compartir un contenedor flex-column vertical con un
+  // hermano (S-058: el bloque de enlaces externos, fuera del componente por decisión D-3)
+  // sin perder el llenado a full-height cuando SidebarNav es el único hijo.
+  flex: 1 1 auto;
+  min-height: 0;
   border-right: 1px solid var(--border-default);
   background-color: var(--bg-surface);
 }

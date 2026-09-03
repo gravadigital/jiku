@@ -107,8 +107,9 @@ La transición usa **`motion.slow`** (300 ms) — es el caso de mayor recorrido 
 
 | Prop | Tipo | Default | Descripción |
 |---|---|---|---|
-| `title` | `string` | — | Nombre de la etapa |
+| `title` | `ReactNode` | — | Nombre de la etapa. Un `string` simple es el uso recomendado; acepta contenido rico (ícono + texto + cifra) para consumidores de fila de datos, ver `showStatus` |
 | `status` | `"pending" \| "done"` | `"pending"` | Marca de completitud |
+| `showStatus` | `boolean` | `true` | En `false`, omite la marca de completitud y su eco accesible — para consumidores sin concepto de pendiente/completo (una fila expandible de tabla, por ejemplo), donde `title` ya es el nombre accesible completo |
 | `defaultExpanded` | `boolean` | `false` | Estado inicial |
 | `onToggle` | `(expanded) => void` | — | Callback |
 
@@ -122,6 +123,12 @@ La transición usa **`motion.slow`** (300 ms) — es el caso de mayor recorrido 
 
 ## Historial
 
+- **1.1.0** (2026-09-03, story S-058) — `title` amplía su tipo de `string` a `ReactNode` (backward
+  compatible: todo uso existente con `string` sigue siendo válido). Se agrega `showStatus` para
+  omitir la marca de completitud en consumidores sin ese concepto. Motivo: la migración de
+  `HierarchicalTable` (tabla jerárquica de horas, 4 niveles) necesita cabeceras de fila con ícono +
+  texto + cifra, algo que `title: string` no podía expresar, sin renunciar al `<button>` accesible
+  real del componente (MINOR sobre el DS).
 - **1.0.0** (2026-09-02) — Spec nuevo, desde el Manual de marca Jiku v1.0: radio 14 px, marca de
   completitud `!` / `✓` que distingue por glifo además de por color, apertura con `motion.slow`
   (MINOR sobre el DS).

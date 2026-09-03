@@ -11,6 +11,19 @@
   color: var(--text-primary);
 }
 
+// hideLabel (S-058): visualmente oculto, sigue siendo el nombre accesible del campo.
+.labelHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .required {
   color: var(--border-required);
 }

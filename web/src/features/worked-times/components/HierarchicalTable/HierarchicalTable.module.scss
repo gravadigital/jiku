@@ -2,92 +2,79 @@
 
 .table {
   @include flex-column;
-  background: var(--color-background);
-  border-radius: var(--radius-cards);
-  box-shadow: var(--box-shadow);
+  background: var(--bg-surface);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-surface);
   overflow: hidden;
 }
 
 .group {
   &:not(:last-child) {
-    border-bottom: 1px solid var(--color-general-border);
+    border-bottom: 1px solid var(--border-default);
   }
 }
 
-.row {
-  @include flex-between;
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
-  background: none;
-  cursor: default;
-  font-family: var(--font-primary);
-  text-align: left;
-  transition: background-color var(--transition-fast);
+// Envuelve cada Accordion: contexto de posicionamiento para la barra de proporción
+// (barra-proporcion, gap `chart` aceptado por el REQ), decorativa y detrás del contenido.
+.rowWrapper {
   position: relative;
   overflow: hidden;
 
   &:hover {
-    background-color: var(--color-surface-alt);
+    background-color: var(--bg-surface-sunken);
   }
 }
 
-button.row {
-  cursor: pointer;
-}
-
-.level1 {
-  @include heading-3;
-  background-color: var(--color-surface-alt);
-  font-weight: var(--font-weight-semibold);
-}
-
-.level2 {
-  @include body-text;
-  padding-left: calc(var(--spacing-md) + var(--spacing-lg));
-  font-size: var(--font-size-base);
-  color: var(--color-general-title);
-}
-
-.level3 {
-  @include body-text;
-  padding-left: calc(var(--spacing-md) + var(--spacing-2xl));
-  font-size: var(--font-size-sm);
-}
-
-.level4 {
-  @include body-text;
-  padding-left: calc(var(--spacing-md) + var(--spacing-2xl) + var(--spacing-lg));
-  font-size: var(--font-size-sm);
-}
-
-// Proportion bar background
+// Proportion bar background — tinte agua del DS, no el magenta descontinuado.
 .barBg {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  border-radius: var(--radius-items);
-  background: rgba(218, 44, 106, 0.14);
+  border-radius: var(--radius-action);
+  background: var(--state-in-progress-tint);
   pointer-events: none;
+  z-index: 0;
+}
+
+// Contenido de la cabecera del Accordion: mismo layout horizontal que la fila legacy.
+.rowContent {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.level3,
+.level4 {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+}
+
+.level3 {
+  padding-left: calc(var(--space-4) + var(--space-12));
+}
+
+.level4 {
+  padding-left: calc(var(--space-4) + var(--space-12) + var(--space-6));
 }
 
 // Percentage text
 .pct {
-  position: relative;
-  z-index: 1;
   flex-shrink: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  margin-left: var(--spacing-sm);
+  font-size: var(--text-body-default-size);
+  color: var(--text-secondary);
+  margin-left: var(--space-2);
   min-width: 2.5rem;
   text-align: right;
 }
 
 // Avatar circle
 .avatar {
-  position: relative;
-  z-index: 1;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -95,66 +82,38 @@ button.row {
   align-items: center;
   justify-content: center;
   font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  color: var(--color-background);
+  font-size: var(--text-body-default-size);
+  color: var(--text-inverse);
   flex-shrink: 0;
-  margin-right: var(--spacing-sm);
+  margin-right: var(--space-2);
 }
 
 .avatarSm {
   width: 26px;
   height: 26px;
-  font-size: var(--font-size-xs);
-}
-
-.chevron {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  width: 16px;
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-general-text);
-  margin-right: var(--spacing-sm);
+  font-size: var(--font-size-11);
 }
 
 .entryIcon {
-  position: relative;
-  z-index: 1;
   flex-shrink: 0;
-  margin-right: var(--spacing-xs);
+  margin-right: var(--space-1);
 }
 
 .name {
-  position: relative;
-  z-index: 1;
   flex: 1;
   @include truncate;
 }
 
 .code {
-  @include body-text;
-  margin-left: var(--spacing-sm);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  margin-left: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
 }
 
 .hours {
-  position: relative;
-  z-index: 1;
   flex-shrink: 0;
   font-weight: var(--font-weight-medium);
-  color: var(--color-general-title);
-  margin-left: var(--spacing-md);
-  font-size: var(--font-size-base);
-}
-
-.empty {
-  @include flex-center;
-  padding: var(--spacing-2xl);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-md);
-  background: var(--color-background);
-  border-radius: var(--radius-cards);
-  box-shadow: var(--box-shadow);
+  color: var(--text-primary);
+  margin-left: var(--space-4);
+  font-size: var(--text-body-default-size);
 }

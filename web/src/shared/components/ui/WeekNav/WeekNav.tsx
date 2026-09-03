@@ -11,7 +11,7 @@ export interface WeekNavProps {
 }
 
 /**
- * `WeekNavigator` (features/time-allocation) sigue en su lugar: su migración a este
+ * Reemplaza a `WeekNavigator` (features/time-allocation), dado de baja en S-058.
  * componente es de S-058. No se borra acá.
  */
 export function WeekNav({ weekStart, onChange, isCurrentWeek }: WeekNavProps) {

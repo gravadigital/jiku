@@ -4,99 +4,70 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { ProjectTypeFilterDropdown } from './ProjectTypeFilterDropdown';
 
-describe('ProjectTypeFilterDropdown — S-071', () => {
-  it('TS-9: click en el botón abre el panel con los 4 checkboxes', async () => {
+const openDropdown = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('combobox'));
+};
+
+describe('ProjectTypeFilterDropdown — S-058 (migrado al Select del DS, variant multiple)', () => {
+  it('TS-88: es un role="combobox" con aria-expanded; las opciones son role="option" con aria-selected', async () => {
     const user = userEvent.setup();
     render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto' }));
+    const trigger = screen.getByRole('combobox');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
-    expect(screen.getByRole('checkbox', { name: 'Comercial' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Interno' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Investigación' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Propuesta' })).toBeInTheDocument();
+    await openDropdown(user);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('option', { name: 'Comercial' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Interno' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Investigación' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Propuesta' })).toBeInTheDocument();
   });
 
-  it('TS-10: tildar "Comercial" invoca onChange y el panel permanece abierto', async () => {
+  it('TS-88: elegir "Comercial" invoca onChange y el panel permanece abierto', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<ProjectTypeFilterDropdown value={[]} onChange={onChange} />);
 
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Comercial' }));
+    await openDropdown(user);
+    await user.click(screen.getByRole('option', { name: 'Comercial' }));
 
     expect(onChange).toHaveBeenCalledWith(['comercial']);
-    expect(screen.getByRole('checkbox', { name: 'Comercial' })).toBeInTheDocument();
   });
 
-  it('TS-11: destildar un tipo ya tildado invoca onChange sin ese tipo', async () => {
+  it('TS-88: destildar un tipo ya elegido invoca onChange sin ese tipo', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<ProjectTypeFilterDropdown value={['comercial', 'interno']} onChange={onChange} />);
 
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto (2)' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Comercial' }));
+    await openDropdown(user);
+    await user.click(screen.getByRole('option', { name: 'Comercial' }));
 
     expect(onChange).toHaveBeenCalledWith(['interno']);
   });
 
-  it('TS-12: el botón muestra el contador cuando hay tipos tildados', () => {
-    render(<ProjectTypeFilterDropdown value={['comercial', 'interno']} onChange={vi.fn()} />);
-
-    expect(screen.getByRole('button', { name: 'Tipo de proyecto (2)' })).toBeInTheDocument();
-  });
-
-  it('TS-13: el botón no muestra contador cuando no hay tildes', () => {
-    render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
-
-    expect(screen.getByRole('button', { name: 'Tipo de proyecto' })).toBeInTheDocument();
-  });
-
-  it('TS-14: click afuera del panel lo cierra', async () => {
-    const user = userEvent.setup();
-    render(
-      <div>
-        <ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />
-        <button type="button">afuera</button>
-      </div>
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto' }));
-    expect(screen.getByRole('checkbox', { name: 'Comercial' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'afuera' }));
-
-    expect(screen.queryByRole('checkbox', { name: 'Comercial' })).not.toBeInTheDocument();
-  });
-
-  it('TS-15: tecla Escape cierra el panel', async () => {
+  it('TS-88: Esc cierra el panel y devuelve el foco al control', async () => {
     const user = userEvent.setup();
     render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto' }));
-    expect(screen.getByRole('checkbox', { name: 'Comercial' })).toBeInTheDocument();
+    const trigger = screen.getByRole('combobox');
+    await openDropdown(user);
+    expect(screen.getByRole('option', { name: 'Comercial' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
-    expect(screen.queryByRole('checkbox', { name: 'Comercial' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Comercial' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
-  it('muestra las 4 opciones en el orden Comercial, Interno, Investigación, Propuesta', async () => {
-    const user = userEvent.setup();
-    render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: 'Tipo de proyecto' }));
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(
-      checkboxes.map((cb) => cb.getAttribute('aria-label') ?? cb.closest('label')?.textContent)
-    ).toEqual(['Comercial', 'Interno', 'Investigación', 'Propuesta']);
+  it('no hay checkboxes a mano ni <button> crudo: el control es el combobox del Select del DS', async () => {
+    const { container } = render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeInTheDocument();
   });
 
-  it('el botón indica visualmente que es desplegable con un chevron', () => {
+  it('el label del control refleja el label conceptual "Tipo de proyecto"', () => {
     render(<ProjectTypeFilterDropdown value={[]} onChange={vi.fn()} />);
-
-    const trigger = screen.getByRole('button', { name: 'Tipo de proyecto' });
-    expect(trigger.querySelector('[aria-hidden="true"]')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Tipo de proyecto/ })).toBeInTheDocument();
   });
 });

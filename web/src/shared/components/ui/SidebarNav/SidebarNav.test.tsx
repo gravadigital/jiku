@@ -143,4 +143,34 @@ describe('SidebarNav', () => {
     expect(source).not.toMatch(/usePathname/);
     expect(source).not.toMatch(/useSession/);
   });
+
+  // S-058 (TS-57, TS-58, TS-60): la firma según el modo, con texto alternativo, sin duplicarse
+  it('TS-57/TS-60: renderiza exactamente una imagen con nombre accesible "Jiku"', () => {
+    render(<SidebarNav items={ITEMS} activeKey="projects" user={USER} onLogout={vi.fn()} />);
+
+    const logos = screen.getAllByRole('img', { name: 'Jiku' });
+    expect(logos).toHaveLength(1);
+    expect(logos[0]).toHaveAttribute('height', '26');
+  });
+
+  // El PNG descontinuado (ver tests/tokens.test.ts TS-23) no debe reaparecer en ningún src.
+  const discontinuedLogoPattern = new RegExp('logo' + 'Layout', 'i');
+
+  it('TS-58: mode="light" (default) y mode="dark" resuelven a SVG distintos, ninguno el PNG descontinuado', () => {
+    const { unmount } = render(
+      <SidebarNav items={ITEMS} activeKey="projects" user={USER} onLogout={vi.fn()} />
+    );
+    const lightSrc = screen.getByRole('img', { name: 'Jiku' }).getAttribute('src');
+    expect(lightSrc).not.toMatch(discontinuedLogoPattern);
+    unmount();
+
+    render(
+      <SidebarNav items={ITEMS} activeKey="projects" user={USER} onLogout={vi.fn()} mode="dark" />
+    );
+    const darkSrc = screen.getByRole('img', { name: 'Jiku' }).getAttribute('src');
+    expect(darkSrc).not.toMatch(discontinuedLogoPattern);
+
+    // Los dos SVG son archivos distintos (claro vs oscuro): su contenido no coincide.
+    expect(darkSrc).not.toBe(lightSrc);
+  });
 });

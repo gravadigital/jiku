@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useState } from 'react';
-import { Button } from '@/shared/components/ui/Button';
+import { Input } from '@/shared/components/ui/Input';
+import { ToggleGroup } from '@/shared/components/ui/ToggleGroup';
 import styles from './PeriodFilter.module.scss';
 
 type PeriodOption = 'this-week' | 'last-week' | 'this-month' | 'last-month' | 'custom';
@@ -58,12 +59,12 @@ function getLastMonthRange(): { dateFrom: string; dateTo: string } {
   return { dateFrom: formatDate(first), dateTo: formatDate(last) };
 }
 
-const PERIOD_OPTIONS: Array<{ key: PeriodOption; label: string }> = [
-  { key: 'this-week', label: 'Esta semana' },
-  { key: 'last-week', label: 'Semana pasada' },
-  { key: 'this-month', label: 'Este mes' },
-  { key: 'last-month', label: 'Mes pasado' },
-  { key: 'custom', label: 'Rango personalizado' },
+const PERIOD_OPTIONS: Array<{ value: PeriodOption; label: string }> = [
+  { value: 'this-week', label: 'Esta semana' },
+  { value: 'last-week', label: 'Semana pasada' },
+  { value: 'this-month', label: 'Este mes' },
+  { value: 'last-month', label: 'Mes pasado' },
+  { value: 'custom', label: 'Rango personalizado' },
 ];
 
 export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterProps) {
@@ -72,11 +73,12 @@ export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterP
   const [customTo, setCustomTo] = useState(dateTo);
 
   const handlePeriodClick = useCallback(
-    (period: PeriodOption) => {
-      setActivePeriod(period);
+    (period: string) => {
+      const typedPeriod = period as PeriodOption;
+      setActivePeriod(typedPeriod);
 
       let range: { dateFrom: string; dateTo: string };
-      switch (period) {
+      switch (typedPeriod) {
         case 'this-week':
           range = getThisWeekRange();
           break;
@@ -101,8 +103,7 @@ export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterP
   );
 
   const handleCustomFromChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
+    (value: string) => {
       setCustomFrom(value);
       if (value && customTo) {
         onPeriodChange(value, customTo);
@@ -112,8 +113,7 @@ export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterP
   );
 
   const handleCustomToChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
+    (value: string) => {
       setCustomTo(value);
       if (customFrom && value) {
         onPeriodChange(customFrom, value);
@@ -124,44 +124,23 @@ export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterP
 
   return (
     <div className={styles.container}>
-      <div className={styles.buttons}>
-        {PERIOD_OPTIONS.map((option) => (
-          <Button
-            key={option.key}
-            variant={activePeriod === option.key ? 'primary' : 'secondary-dismiss'}
-            onClick={() => handlePeriodClick(option.key)}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
+      <ToggleGroup
+        variant="range-pill"
+        label="Período del reporte"
+        options={PERIOD_OPTIONS}
+        value={activePeriod}
+        onChange={handlePeriodClick}
+      />
 
       {activePeriod === 'custom' && (
         <div className={styles.customRange}>
-          <div className={styles.dateField}>
-            <label className={styles.dateLabel} htmlFor="report-date-from">
-              DESDE
-            </label>
-            <input
-              id="report-date-from"
-              type="date"
-              className={styles.dateInput}
-              value={customFrom}
-              onChange={handleCustomFromChange}
-            />
-          </div>
-          <div className={styles.dateField}>
-            <label className={styles.dateLabel} htmlFor="report-date-to">
-              HASTA
-            </label>
-            <input
-              id="report-date-to"
-              type="date"
-              className={styles.dateInput}
-              value={customTo}
-              onChange={handleCustomToChange}
-            />
-          </div>
+          <Input
+            variant="date"
+            label="Desde"
+            value={customFrom}
+            onChange={handleCustomFromChange}
+          />
+          <Input variant="date" label="Hasta" value={customTo} onChange={handleCustomToChange} />
         </div>
       )}
     </div>

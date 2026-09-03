@@ -1,8 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { cn } from '@/shared/utils';
-import styles from './DaySelector.module.scss';
+import { ToggleGroup } from '@/shared/components/ui/ToggleGroup';
 
 type DayStatus = 'completed' | 'partial' | 'empty';
 
@@ -26,6 +25,20 @@ const getDayStatus = (minutes: number | undefined, threshold: number): DayStatus
   if (!minutes || minutes === 0) return 'empty';
   if (minutes >= threshold) return 'completed';
   return 'partial';
+};
+
+// El semáforo de cada día no se comunica sólo con color: cada estado suma un símbolo
+// y una palabra al label del chip, visible en el texto además del tinte del token.
+const STATUS_MARK: Record<DayStatus, string> = {
+  completed: '●',
+  partial: '◐',
+  empty: '○',
+};
+
+const STATUS_LABEL: Record<DayStatus, string> = {
+  completed: 'completo',
+  partial: 'parcial',
+  empty: 'sin carga',
 };
 
 export function DaySelector({
@@ -55,29 +68,21 @@ export function DaySelector({
     return allDays;
   }, []);
 
+  const options = days.map((day) => {
+    const status = getDayStatus(dailyMinutes[day.date], completedThreshold);
+    return {
+      value: day.date,
+      label: `${day.label} ${STATUS_MARK[status]} ${STATUS_LABEL[status]}`,
+    };
+  });
+
   return (
-    <div className={styles.container}>
-      <div className={styles.days}>
-        {days.map((day) => {
-          const status = getDayStatus(dailyMinutes[day.date], completedThreshold);
-          return (
-            <button
-              key={day.date}
-              type="button"
-              className={cn(styles.dayButton, {
-                [styles.selected]: day.date === selectedDate,
-                [styles.today]: day.isToday,
-              })}
-              onClick={() => onDayChange(day.date)}
-              aria-pressed={day.date === selectedDate}
-              aria-current={day.isToday ? 'date' : undefined}
-            >
-              {day.label}
-              <span className={cn(styles.dot, styles[status])} />
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <ToggleGroup
+      variant="day-chip"
+      label="Elegir día a cargar"
+      options={options}
+      value={selectedDate}
+      onChange={onDayChange}
+    />
   );
 }

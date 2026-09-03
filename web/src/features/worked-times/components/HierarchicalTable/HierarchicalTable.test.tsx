@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -395,5 +397,56 @@ describe('HierarchicalTable — agrupación jerárquica por requisito (S-070)', 
     await user.click(sinTareaNode);
 
     expect(screen.getByText('Ana Gomez')).toBeInTheDocument();
+  });
+});
+
+describe('HierarchicalTable — migración al Accordion del DS (S-058)', () => {
+  it('TS-90: la fila de nivel 1 expone aria-expanded que pasa de false a true al operarla por teclado', async () => {
+    const user = userEvent.setup();
+    render(<HierarchicalTable dataByPerson={byPerson} activeView="by-person" />);
+
+    const header = screen.getByRole('button', { name: /Ivan Maldonado/ });
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+
+    header.focus();
+    await user.keyboard('{Enter}');
+
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('TS-90: el panel colapsado está hidden (fuera del tab order), no sólo con altura 0', async () => {
+    const user = userEvent.setup();
+    render(<HierarchicalTable dataByPerson={byPerson} activeView="by-person" />);
+
+    await user.click(screen.getByText('Ivan Maldonado'));
+    const projectHeader = screen.getByRole('button', { name: /Verifarma - CheckList/ });
+    const panelId = projectHeader.getAttribute('aria-controls');
+    const panel = document.getElementById(panelId!);
+    expect(panel).toHaveAttribute('hidden');
+
+    await user.click(projectHeader);
+    expect(panel).not.toHaveAttribute('hidden');
+  });
+
+  it('no hay <button> crudos: todas las filas expandibles usan el Accordion del DS', () => {
+    const content = fs.readFileSync(path.resolve(__dirname, './HierarchicalTable.tsx'), 'utf8');
+    expect(content).not.toMatch(/<button/);
+  });
+
+  it('no hay hexadecimales hardcodeados en el componente ni en su módulo scss', () => {
+    const tsxContent = fs.readFileSync(path.resolve(__dirname, './HierarchicalTable.tsx'), 'utf8');
+    const scssContent = fs.readFileSync(
+      path.resolve(__dirname, './HierarchicalTable.module.scss'),
+      'utf8'
+    );
+    const hexPattern = /#[0-9a-fA-F]{3,8}\b/g;
+    expect(tsxContent.match(hexPattern)).toBeNull();
+    expect(scssContent.match(hexPattern)).toBeNull();
+  });
+
+  it('el mensaje vacío usa EmptyState variant list con el microcopy exacto', () => {
+    render(<HierarchicalTable dataByPerson={[]} activeView="by-person" />);
+    expect(screen.getByText('No hay horas registradas para este período')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import './globals.scss';
 import React from 'react';
+import styles from './styles.module.scss';
 /*
 import {redirect} from 'next/navigation';
 
@@ -9,5 +10,5 @@ export default function Home() {
 */
 
 export default function App() {
-  return <h1>Home</h1>;
+  return <h1 className={styles.title}>Home</h1>;
 }

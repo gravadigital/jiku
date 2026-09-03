@@ -1,12 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { cn } from '@/shared/utils';
+import { Input } from '@/shared/components/ui/Input';
 import styles from './EditableCell.module.scss';
 
 interface EditableCellProps {
   readonly personId: number;
   readonly projectId: number;
+  /** Nombre completo de la persona, para el nombre accesible del campo (TS-95). */
+  readonly personName: string;
+  /** Nombre del proyecto, para el nombre accesible del campo (TS-95). */
+  readonly projectName: string;
   readonly value: number;
   readonly onChange: (value: number) => void;
   readonly hoursPerDay: number;
@@ -14,7 +18,7 @@ interface EditableCellProps {
 }
 
 export function EditableCell(props: EditableCellProps) {
-  const { value, onChange, isOverallocated = false } = props;
+  const { personName, projectName, value, onChange, hoursPerDay, isOverallocated = false } = props;
   const [inputValue, setInputValue] = useState(value.toString());
 
   // Sync inputValue with value prop when it changes
@@ -28,20 +32,19 @@ export function EditableCell(props: EditableCellProps) {
     onChange(numValue);
   };
 
+  const hours = (parseFloat(inputValue) / 100 || 0) * hoursPerDay * 5;
+  const hoursLabel = hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`;
+
   return (
-    <td
-      className={cn(styles.editableCell, {
-        [styles.overallocated]: isOverallocated,
-      })}
-    >
-      <input
-        type="number"
+    <span className={isOverallocated ? styles.overallocated : undefined}>
+      <Input
+        variant="text"
+        label={`Porcentaje de capacidad de ${personName} en ${projectName}`}
+        hideLabel
         value={inputValue}
-        onChange={(e) => handleChange(e.target.value)}
-        min="0"
-        step="0.1"
-        className={styles.input}
+        onChange={handleChange}
       />
-    </td>
+      <span className={styles.hours}>{hoursLabel}</span>
+    </span>
   );
 }

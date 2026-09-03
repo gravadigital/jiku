@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation';
 import { ToastContainer } from 'react-toastify';
 import { SessionMonitor } from '@/components/SessionMonitor';
 import { auth } from '@/lib/auth';
-import { Navbar } from '@/shared/components/layout';
 import { Loader } from '@/shared/components/ui';
+import { ExternalLinksBlock } from './ExternalLinksBlock';
+import { ShellSidebar } from './ShellSidebar';
 import styles from './styles.module.scss';
 
 export const dynamic = 'force-dynamic';
@@ -19,11 +20,16 @@ export default async function Layout({ children }: { readonly children: React.Re
   if (session.user?.roles?.includes('external-user')) {
     redirect('/unauthorized');
   }
+
+  const isExternalUser = session.user?.roles?.includes('external-user') ?? false;
+  const userName = session.user?.name ?? '';
+
   return (
     <div className={styles.layoutContainer}>
       <SessionMonitor />
       <aside className={styles.sidebarContainer}>
-        <Navbar appName={process.env.APP_NAME} externalLinks={process.env.EXTERNAL_LINKS} />
+        <ShellSidebar isExternalUser={isExternalUser} userName={userName} />
+        <ExternalLinksBlock externalLinks={process.env.EXTERNAL_LINKS} />
       </aside>
       <main className={styles.mainContainer}>
         <Suspense fallback={<Loader label="Cargando..." />}>{children}</Suspense>

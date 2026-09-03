@@ -1,52 +1,13 @@
-@use '@/styles' as *;
-
-.editableCell {
-  padding: var(--spacing-xs);
-  vertical-align: middle;
-
-  .input {
-    width: 80px;
-    height: 32px;
-    padding: var(--spacing-xs);
-    font-size: var(--font-size-base);
-    text-align: right;
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-items);
-
-    &:focus {
-      outline: 2px solid var(--color-highlighted);
-      border-color: var(--color-highlighted);
-    }
-
-    &::placeholder {
-      color: var(--color-text-placeholder);
-    }
-  }
-
-  .hours {
-    display: block;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    margin-top: var(--spacing-xs);
-  }
+.hours {
+  display: block;
+  font-size: var(--text-body-default-size);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
 }
 
-.editableCell.overallocated {
-  background-color: rgba(251, 3, 63, 0.1);
-
-  .input {
-    color: var(--color-objective-expired);
-    border-color: var(--color-objective-expired);
-    font-weight: var(--font-weight-bold);
-
-    &:focus {
-      outline-color: var(--color-objective-expired);
-      border-color: var(--color-objective-expired);
-    }
-  }
-
+.overallocated {
   .hours {
-    color: var(--color-objective-expired);
+    color: var(--state-urgent-text);
     font-weight: var(--font-weight-bold);
   }
 }

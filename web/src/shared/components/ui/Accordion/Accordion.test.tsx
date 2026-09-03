@@ -169,4 +169,40 @@ describe('Accordion', () => {
     const header = screen.getByRole('button', { name: /Alcance/ });
     expect(header.closest('h1,h2,h3,h4,h5,h6')).not.toBeNull();
   });
+
+  // S-058: title acepta ReactNode para consumidores de fila de datos (ícono + texto + cifra)
+  it('S-058: title acepta ReactNode (ícono + texto), el botón real sigue siendo el header', () => {
+    render(
+      <Accordion
+        title={
+          <>
+            <img alt="Requisito" src="req.svg" />
+            <span>Login SSO</span>
+            <span>2h 30m</span>
+          </>
+        }
+      >
+        <p>Contenido</p>
+      </Accordion>
+    );
+
+    expect(screen.getByRole('img', { name: 'Requisito' })).toBeInTheDocument();
+    expect(screen.getByText('Login SSO')).toBeInTheDocument();
+    expect(screen.getByText('2h 30m')).toBeInTheDocument();
+    expect(screen.getByText('Login SSO').closest('button')).not.toBeNull();
+  });
+
+  // S-058: showStatus=false omite la marca de completitud y su eco accesible
+  it('S-058: showStatus=false no renderiza la marca de completitud ni su eco', () => {
+    render(
+      <Accordion title="Fila de datos" showStatus={false}>
+        <p>Contenido</p>
+      </Accordion>
+    );
+
+    expect(screen.queryByText('!')).not.toBeInTheDocument();
+    expect(screen.queryByText('✓')).not.toBeInTheDocument();
+    expect(screen.queryByText('Fila de datos, pendiente')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fila de datos' })).toBeInTheDocument();
+  });
 });

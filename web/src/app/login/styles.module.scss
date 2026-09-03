@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 50%;
-  background-color: var(--color-background);
+  background-color: var(--bg-surface);
   padding: 0;
   height: 100%;
 }
@@ -18,87 +18,51 @@
 .formContainer {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  align-items: center;
+  gap: var(--space-8);
 }
 
-.inputSection {
-  & > div {
-    margin: 1rem 0;
-  }
+// Firma horizontal (mínimo 120px de ancho — foundations/logo.md § Firma horizontal).
+// El resguardo de 1x se cubre con el gap del contenedor: no hay divisor ni borde que lo invada.
+.brand {
+  display: flex;
+  align-items: center;
 }
 
 .header {
-  & > h1 {
-    font-family: var(--font-primary);
-    font-size: 2rem;
-    line-height: 1.2;
-    font-weight: 800;
-    color: var(--color-general-primary);
-    margin-bottom: .3rem;
-  }
-
-  & > p {
-    font-family: var(--font-primary);
-    font-size: .9rem;
-    line-height: 1.4;
-    color: var(--color-general-text);
-    font-weight: bold;
-  }
-}
-
-.inputBox {
   display: flex;
   flex-direction: column;
-  gap: .3rem;
-
-  & > input {
-    border-radius: 10px;
-    border: .1rem solid var(--color-text-placeholder);
-    padding: 1rem 1rem;
-    font-family: var(--font-primary);
-    font-size: 1rem;
-    line-height: 1.5;
-    color: var(--color-general-title);
-  }
-
-  & > input:focus {
-    outline: none;
-  }
-
-  & > input::placeholder {
-    color: var(--color-text-placeholder);
-  }
-
+  align-items: center;
 }
 
-.buttonBox {
-  border-radius: var(--radius-items);
-  text-align: center;
-  cursor: pointer;
-  border: none;
-  width: 100%;
-  background-color: var(--color-general-primary);
-  padding: 1.2rem;
-  font-family: var(--font-primary);
-  font-size: 1rem;
-  line-height: 1.2;
-  color: var(--color-background);
-  font-weight: bold;
+.loginTitle {
+  font-family: var(--text-view-title-family);
+  font-size: var(--text-view-title-size);
+  font-weight: var(--text-view-title-weight);
+  letter-spacing: var(--text-view-title-tracking);
+  line-height: var(--text-view-title-leading);
+  color: var(--text-primary);
 }
 
+// Panel decorativo: azul oscuro + trama de puntos al 10% + dos halos (verde agua arriba
+// izquierda, grafito abajo derecha) — foundations/logo.md § Panel decorativo de login.
+// Único fondo con textura del sistema; reemplaza el fondo con imagen y gradiente anteriores.
 .right {
   flex: 0 0 50%;
-  background-color: var(--color-surface-light);
-  background-image: url('../../assets/loginBackground.png');
-  background-size: cover;
   height: 100%;
+  background-color: var(--bg-inverse);
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(97, 204, 185, 0.35) 0%, transparent 35%),
+    radial-gradient(circle at 85% 85%, rgba(98, 108, 120, 0.35) 0%, transparent 35%),
+    radial-gradient(circle, rgba(246, 246, 249, 0.1) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    16px 16px;
+  // 20px se conserva literal a propósito: la UI Preview del Story Plan de S-058 lo anota
+  // explícitamente como "radio 20px izq. (se conserva)", y no hay token de radio en 20px
+  // (8/10/14/999px son los cuatro valores de la escala) — no hay un token al que resolver
+  // sin cambiar el valor visual, que el REQ no pide tocar acá.
   border-top-left-radius: 20px;
   border-bottom-left-radius: 20px;
-}
-
-.error {
-  font-family: var(--font-primary);
-  font-size: 0.875rem;
-  line-height: 1.4;
-  color: var(--color-general-primary);
 }

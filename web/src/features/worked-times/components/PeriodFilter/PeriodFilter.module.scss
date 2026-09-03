@@ -2,32 +2,11 @@
 
 .container {
   @include flex-column;
-  gap: var(--spacing-sm);
-}
-
-.buttons {
-  @include flex-start;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .customRange {
   @include flex-start;
-  gap: var(--spacing-md);
+  gap: var(--space-4);
   margin-top: var(--spacing-xs);
-}
-
-.dateField {
-  @include flex-column;
-  gap: var(--spacing-xs);
-}
-
-.dateLabel {
-  @include label-text;
-}
-
-.dateInput {
-  @include input-base;
-  width: auto;
-  min-width: 160px;
 }
