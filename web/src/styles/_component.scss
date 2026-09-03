@@ -197,3 +197,15 @@
   --pagination-active-text: var(--text-on-action);
   --pagination-text: var(--text-secondary);
 }
+
+// ============================================
+// Modo oscuro (S-059) — la única fuga de color del tier: --nav-item-icon apunta a un primitivo
+// (--color-graphite) en vez de a un semántico, así que no cascadea solo desde el bloque oscuro
+// de _semantic.scss y necesita su propia redeclaración acá.
+// :root[data-theme='dark'] (no [data-theme='dark'] suelto) por el mismo checker de selectores
+// puros de CSS Modules que exige el bloque de _semantic.scss.
+// --nav-item-active-icon (var(--text-link)) NO se toca: es acento, fijo en los dos modos.
+// ============================================
+:root[data-theme='dark'] {
+  --nav-item-icon: var(--color-dark-primary);
+}

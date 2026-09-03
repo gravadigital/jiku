@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { redirect, usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ThemeProvider } from '@/features/theme';
 import { auth } from '@/lib/auth';
 import Layout from './layout';
 
@@ -49,13 +50,15 @@ describe('(loggedin)/layout — shell con SidebarNav (S-058)', () => {
     mockedUsePathname.mockReturnValue('/worked-times');
   });
 
-  async function renderShell(overrides: { roles?: string[]; name?: string } = {}) {
+  async function renderShell(
+    overrides: { roles?: string[]; name?: string; theme?: 'light' | 'dark' } = {}
+  ) {
     vi.mocked(auth).mockResolvedValue({
       user: { roles: overrides.roles ?? ['admin'], name: overrides.name ?? 'Ana Torres' },
     } as any);
 
     const element = await Layout({ children: React.createElement('div', null, 'contenido') });
-    return render(element);
+    return render(<ThemeProvider initialTheme={overrides.theme ?? 'light'}>{element}</ThemeProvider>);
   }
 
   // TS-53: el shell renderiza SidebarNav con los 6 ítems y sus subítems
@@ -174,5 +177,97 @@ describe('(loggedin)/layout — shell con SidebarNav (S-058)', () => {
     await renderShell({ roles: ['user'] });
     expect(screen.getByRole('link', { name: 'Asignación de Tiempo' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Horas Trabajadas' })).toBeInTheDocument();
+  });
+});
+
+describe('(loggedin)/layout — selector de tema en el pie (S-059)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedUsePathname.mockReturnValue('/worked-times');
+  });
+
+  async function renderShell(theme: 'light' | 'dark' = 'light') {
+    vi.mocked(auth).mockResolvedValue({
+      user: { roles: ['admin'], name: 'Ana Torres' },
+    } as any);
+
+    const element = await Layout({ children: React.createElement('div', null, 'contenido') });
+    return render(<ThemeProvider initialTheme={theme}>{element}</ThemeProvider>);
+  }
+
+  // TS-26
+  it('TS-26: el selector aparece en el pie con nombre accesible "Tema" y dos radios', async () => {
+    await renderShell();
+
+    expect(screen.getByRole('radiogroup', { name: 'Tema' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Claro' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Oscuro' })).toBeInTheDocument();
+  });
+
+  // TS-27
+  it('TS-27: con tema dark, el selector marca "Oscuro" como vigente', async () => {
+    await renderShell('dark');
+
+    expect(screen.getByRole('radio', { name: 'Oscuro' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Claro' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  // TS-31 — mismo criterio que SidebarNav.test.tsx TS-58: los SVG se inlinean como data URI en
+  // los tests, así que se compara el wordmark por su color de relleno (niebla en oscuro, azul
+  // oscuro en claro), no por nombre de archivo.
+  it('TS-31: con tema dark, la firma resuelve al wordmark claro (#F6F6F9), no al azul oscuro', async () => {
+    await renderShell('dark');
+
+    const logoSrc = screen.getByRole('img', { name: 'Jiku' }).getAttribute('src');
+    expect(logoSrc).toContain('F6F6F9');
+    expect(logoSrc).not.toContain('0B1934');
+  });
+
+  it('TS-31: con tema light, la firma resuelve al wordmark azul oscuro (#0B1934)', async () => {
+    await renderShell('light');
+
+    const logoSrc = screen.getByRole('img', { name: 'Jiku' }).getAttribute('src');
+    expect(logoSrc).toContain('0B1934');
+    expect(logoSrc).not.toContain('F6F6F9');
+  });
+
+  // TS-32
+  it('TS-32: ShellSidebar deriva mode del tema vigente, sin default fijo a "light"', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, './ShellSidebar.tsx'), 'utf8');
+    expect(source).toMatch(/useTheme\(\)/);
+    expect(source).not.toMatch(/mode\s*=\s*'light'/);
+  });
+
+  // Regresión: el resto del shell (nav, logout, enlaces externos) sigue funcionando con el
+  // ThemeProvider montado.
+  it('el shell sigue funcionando con el ThemeProvider montado (regresión)', async () => {
+    await renderShell();
+
+    expect(screen.getByRole('link', { name: 'Proyectos' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cerrar sesión|salir/i })).toBeInTheDocument();
+  });
+
+  // TS-35
+  it('TS-35: sin localStorage disponible, el shell completo renderiza y cae a claro', async () => {
+    const original = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('SecurityError');
+      },
+    });
+
+    try {
+      await renderShell();
+
+      expect(screen.getByRole('radio', { name: 'Claro' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
+    } finally {
+      if (original) {
+        Object.defineProperty(window, 'localStorage', original);
+      }
+    }
   });
 });

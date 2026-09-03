@@ -173,4 +173,28 @@ describe('SidebarNav', () => {
     // Los dos SVG son archivos distintos (claro vs oscuro): su contenido no coincide.
     expect(darkSrc).not.toBe(lightSrc);
   });
+
+  // S-059: el pie gana un slot opcional y aditivo para el selector de tema.
+  it('S-059: sin footerSlot, el pie se ve exactamente como hoy (identidad + salida, nada más)', () => {
+    render(<SidebarNav items={ITEMS} activeKey="projects" user={USER} onLogout={vi.fn()} />);
+
+    expect(screen.getByText('Andrés Vandoni')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /salir|cerrar sesión/i })).toBeInTheDocument();
+  });
+
+  it('S-059: con footerSlot, el contenido se renderiza en el pie, encima de "Salir"', () => {
+    render(
+      <SidebarNav
+        items={ITEMS}
+        activeKey="projects"
+        user={USER}
+        onLogout={vi.fn()}
+        footerSlot={<div data-testid="theme-slot">Selector de tema</div>}
+      />
+    );
+
+    expect(screen.getByTestId('theme-slot')).toBeInTheDocument();
+    expect(screen.getByText('Andrés Vandoni')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /salir|cerrar sesión/i })).toBeInTheDocument();
+  });
 });

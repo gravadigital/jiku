@@ -1,0 +1,22 @@
+@use '@/styles' as *;
+
+// Pie de la sidebar (300px fijos). ToggleGroup (segmented) se dimensiona a su contenido
+// (width: fit-content en el componente): con dos labels cortos ("Claro"/"Oscuro") entra sin
+// desbordar el pie sin necesidad de forzar el ancho — ver Story Plan S-059 Tarea 5.
+.themeToggle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+// Label visible (no sólo aria-label): el pie ya tiene nombre + Salir, dos segmentos sueltos sin
+// encabezado no se leen como "tema".
+.label {
+  font-family: var(--text-filter-label-family);
+  font-size: var(--text-filter-label-size);
+  font-weight: var(--text-filter-label-weight);
+  letter-spacing: var(--text-filter-label-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}

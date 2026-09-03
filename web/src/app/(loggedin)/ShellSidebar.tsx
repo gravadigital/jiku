@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { ThemeToggle, useTheme } from '@/features/theme';
 import { SidebarNav, type SidebarNavItem } from '@/shared/components/ui/SidebarNav';
 import actoresLogo from '@root/assets/actoresLogo.svg';
 import externalLogoHoras from '@root/assets/ExternalLogos/horas.svg';
@@ -88,14 +89,16 @@ function resolveActiveKey(pathname: string): string {
 interface ShellSidebarProps {
   readonly isExternalUser: boolean;
   readonly userName: string;
-  /** Modo de la firma (S-058): `dark` cuando el layout raíz estampe `data-theme="dark"` (S-059). */
-  readonly mode?: 'light' | 'dark';
 }
 
-export function ShellSidebar({ isExternalUser, userName, mode = 'light' }: ShellSidebarProps) {
+export function ShellSidebar({ isExternalUser, userName }: ShellSidebarProps) {
   const pathname = usePathname();
   const items = getVisibleNavItems(isExternalUser);
   const activeKey = resolveActiveKey(pathname);
+  // El shell es el consumidor correcto de useTheme(): SidebarNav no detecta el tema por sí
+  // mismo (igual que no consulta la ruta para activeKey), así que `mode` se deriva acá,
+  // no dentro de SidebarNav (S-059, cierra lo que S-058 dejó pendiente).
+  const { theme } = useTheme();
 
   const handleLogout = () => {
     return signOut({ callbackUrl: '/login' });
@@ -107,7 +110,8 @@ export function ShellSidebar({ isExternalUser, userName, mode = 'light' }: Shell
       activeKey={activeKey}
       user={{ name: userName, initials: '' }}
       onLogout={handleLogout}
-      mode={mode}
+      mode={theme}
+      footerSlot={<ThemeToggle />}
     />
   );
 }

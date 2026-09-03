@@ -117,3 +117,39 @@ mutate(
   { onSuccess: () => toast.success('Comentario editado'), onError: (error) => toast.error(...) }
 );
 ```
+
+## useTheme / useThemeOptional
+
+**Location:** `web/src/features/theme/context/ThemeProvider.tsx`
+
+**Description:** Reads and writes the current theme (S-059). `useTheme()` throws
+(`"useTheme debe usarse dentro de ThemeProvider"`) when used outside `ThemeProvider`;
+`useThemeOptional()` returns `null` instead, for consumers that can render without a theme
+opinion. `setTheme` is the **only** way the theme changes: it stamps
+`document.documentElement.dataset.theme`, persists to `localStorage` + a reflected cookie via
+`persistTheme`, and does not touch `fetch`, Server Actions, or TanStack Query — the theme is UI
+state, never domain state. Follows the same context pattern as `useActiveProject`/`useSidebar`
+(`src/contexts/`): `createContext<T | null>(null)`, actions in `useCallback`, value in `useMemo`.
+
+**Signature:**
+
+```ts
+type Theme = 'light' | 'dark';
+
+interface ThemeContextValue {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+}
+
+function useTheme(): ThemeContextValue; // throws outside ThemeProvider
+function useThemeOptional(): ThemeContextValue | null; // never throws
+```
+
+**Usage:**
+
+```tsx
+import { useTheme } from '@/features/theme';
+
+const { theme, setTheme } = useTheme();
+setTheme(theme === 'dark' ? 'light' : 'dark');
+```

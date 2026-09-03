@@ -131,6 +131,17 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - [Tabs](./tabs.md) — navegación secundaria dentro de una vista.
 - [Avatar](./avatar.md) — identidad en el pie.
 
+## Nota pendiente (story S-059, sin bump de versión)
+
+El pie (anatomía, punto 5) suma desde REQ-013 un `selector-tema`, junto a Cerrar sesión —
+declarado de forma normativa en `product-map.md` («el pie de la sidebar suma el `selector-tema`,
+junto a Cerrar sesión»), pero esta ficha todavía no lo documenta en su anatomía ni en su API.
+S-059 lo implementó reutilizando `ToggleGroup` variant `segmented` (ver `toggle-group.md`) y
+agregando `footerSlot?: React.ReactNode` a la API de `SidebarNav` — aditivo, sin la prop el pie
+se ve igual que antes. Queda para el próximo `/product-design-system-update` (MINOR, aditivo):
+sumar el punto 5 de Anatomía ("Pie — identidad de la persona, selector de tema y salida de
+sesión") y la fila `footerSlot` a la tabla de API.
+
 ## Historial
 
 - **1.1.0** (2026-09-03, story S-058) — Se agrega `mode` (`"light" | "dark"`, default `"light"`)

@@ -98,12 +98,22 @@
   color: var(--text-primary);
 }
 
+// Columna: identidad (fila), luego el slot opcional (S-059: el selector de tema), luego Salir —
+// «el pie de la sidebar suma el selector-tema, junto a Cerrar sesión» (product-map.md). Sin
+// footerSlot, .footerIdentity + el botón quedan igual que antes de S-059 (gap entre filas, no
+// entre los elementos de la identidad — ese gap vive en .footerIdentity).
 .footer {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
   border-top: 1px solid var(--border-default);
+}
+
+.footerIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .userName {

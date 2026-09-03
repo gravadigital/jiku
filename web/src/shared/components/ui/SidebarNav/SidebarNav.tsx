@@ -45,13 +45,27 @@ export interface SidebarNavProps {
    * el consumidor, coherente con que tampoco consulta la ruta para `activeKey`.
    */
   readonly mode?: 'light' | 'dark';
+  /**
+   * Contenido adicional del pie (S-059: el selector de tema), renderizado ENCIMA de
+   * «Salir» — «el pie de la sidebar suma el selector-tema, junto a Cerrar sesión»
+   * (product-map.md). Prop aditiva y opcional: sin ella, el pie se ve exactamente igual
+   * que antes de S-059.
+   */
+  readonly footerSlot?: React.ReactNode;
 }
 
 function resolveIconSrc(icon: string): string {
   return icon;
 }
 
-export function SidebarNav({ items, activeKey, user, onLogout, mode = 'light' }: SidebarNavProps) {
+export function SidebarNav({
+  items,
+  activeKey,
+  user,
+  onLogout,
+  mode = 'light',
+  footerSlot,
+}: SidebarNavProps) {
   const wordmarkSrc =
     mode === 'dark'
       ? ((jikuWordmarkDark as unknown as { src?: string }).src ?? (jikuWordmarkDark as unknown as string))
@@ -113,8 +127,11 @@ export function SidebarNav({ items, activeKey, user, onLogout, mode = 'light' }:
         })}
       </ul>
       <div className={styles.footer}>
-        <Avatar name={user.name} size="md" nameVisible />
-        <span className={styles.userName}>{user.name}</span>
+        <div className={styles.footerIdentity}>
+          <Avatar name={user.name} size="md" nameVisible />
+          <span className={styles.userName}>{user.name}</span>
+        </div>
+        {footerSlot}
         <button type="button" className={styles.logoutButton} onClick={onLogout} aria-label="Cerrar sesión">
           Salir
         </button>

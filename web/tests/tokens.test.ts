@@ -16,6 +16,10 @@ const logoMd = readFileSync(
   join(root, '../docs/design-system/web/foundations/logo.md'),
   'utf8'
 );
+const cardModuleScss = readFileSync(
+  join(root, 'src/shared/components/ui/Card/Card.module.scss'),
+  'utf8'
+);
 
 function grep(pattern: string, dir = 'src'): string {
   try {
@@ -135,6 +139,102 @@ describe('Tier 2 — Semantic (S-052)', () => {
   });
 });
 
+describe('Modo oscuro — capa semántica completa (S-059)', () => {
+  // Bloque oscuro completo (no sólo los 4 que S-052 dejó preparados), aislado del :root base.
+  const darkBlockMatch = semanticScss.match(/:root\[data-theme=['"]dark['"]\]\s*\{([^}]*)\}/);
+  const darkBlock = darkBlockMatch ? darkBlockMatch[1] : '';
+  const dark = extractDeclarations(darkBlock);
+
+  const OLD_SYSTEM_TOKENS = [
+    '--font-primary',
+    '--color-error',
+    '--color-text-muted',
+    '--radius-buttons',
+    '--color-general-title',
+    '--color-button',
+    '--color-surface-light',
+    '--color-general-text',
+    '--color-general-border',
+    '--font-size-base',
+    '--spacing-sm',
+    '--spacing-md',
+    '--spacing-lg',
+  ];
+
+  it('S-059 TS-1: el bloque oscuro redeclara los 13 tokens de fondo/texto/borde', () => {
+    const expectedKeys = [
+      '--bg-canvas',
+      '--bg-surface',
+      '--bg-surface-sunken',
+      '--bg-inverse',
+      '--bg-action-disabled',
+      '--bg-tint-neutral',
+      '--text-primary',
+      '--text-body',
+      '--text-secondary',
+      '--text-disabled',
+      '--text-inverse',
+      '--border-default',
+      '--border-strong',
+    ];
+    for (const key of expectedKeys) {
+      expect(dark[key], `${key} no está declarado en el bloque oscuro`).toBeDefined();
+    }
+  });
+
+  it('S-059 TS-1b: el bloque oscuro redeclara los 12 tintes y bordes de estado, sin tocar los plenos', () => {
+    const families = ['resolved', 'in-progress', 'review', 'urgent', 'analysis', 'neutral'];
+    for (const family of families) {
+      expect(dark[`--state-${family}-tint`], `--state-${family}-tint`).toBeDefined();
+      expect(dark[`--state-${family}-border`], `--state-${family}-border`).toBeDefined();
+      expect(dark[`--state-${family}-full`], `--state-${family}-full no debe redeclararse`).toBeUndefined();
+    }
+  });
+
+  it('S-059 TS-1c: el bloque oscuro redeclara las sombras con valores que no son azul oscuro', () => {
+    for (const key of ['--elevation-surface', '--elevation-raised', '--focus-ring']) {
+      expect(dark[key], key).toBeDefined();
+    }
+    // Se resuelven a primitivos --shadow-dark-*, nunca a los --shadow-* claros sobre rgba(11,25,52,…)
+    expect(dark['--elevation-surface']).not.toBe('var(--shadow-card)');
+    expect(dark['--elevation-raised']).not.toBe('var(--shadow-active)');
+  });
+
+  it('S-059 TS-2: el acento NO se redeclara en el bloque oscuro', () => {
+    const accentTokens = [
+      '--bg-action-primary',
+      '--bg-active',
+      '--border-action',
+      '--border-focus',
+      '--border-required',
+      '--text-link',
+      '--text-on-action',
+    ];
+    for (const token of accentTokens) {
+      expect(dark[token], `${token} no debería redeclararse en oscuro`).toBeUndefined();
+    }
+  });
+
+  it('S-059 TS-2b: el bloque oscuro queda plano, sin reglas anidadas (regex de TS-8 captura hasta focus-ring)', () => {
+    expect(darkBlock).toMatch(/--focus-ring:\s*[^;]+;/);
+  });
+
+  it('S-059 TS-3: los valores oscuros resuelven a los primitivos --color-dark-* del DS, no a inversiones', () => {
+    expect(dark['--bg-canvas']).toBe('var(--color-dark-canvas)');
+    expect(dark['--bg-surface']).toBe('var(--color-dark-surface)');
+    expect(dark['--text-primary']).toBe('var(--color-dark-text)');
+    expect(dark['--text-body']).toBe('var(--color-dark-text)');
+  });
+
+  it('S-059 TS-6: ningún token de OLD_SYSTEM_TOKENS aparece en el bloque oscuro', () => {
+    for (const token of OLD_SYSTEM_TOKENS) {
+      expect(darkBlock.includes(token), `${token} no debería aparecer en el bloque oscuro`).toBe(
+        false
+      );
+    }
+  });
+});
+
 describe('Tier 3 — Component (S-052)', () => {
   const semNames = new Set(Object.keys(extractDeclarations(semanticScss)));
   const comp = extractDeclarations(componentScss);
@@ -191,6 +291,71 @@ describe('Tier 3 — Component (S-052)', () => {
     expect(comp['--nav-item-active-bar']).toBe('var(--bg-active)');
     expect(comp['--nav-subitem-active-bg']).toBe('var(--bg-active-subtle)');
     expect(comp['--nav-wordmark']).toBe('var(--text-wordmark-family)');
+  });
+});
+
+describe('Modo oscuro — fugas fuera de la capa semántica (S-059)', () => {
+  const bodyRuleMatch = globalsScss.match(/html,\s*\nbody\s*\{([^}]*)\}/);
+  const bodyRule = bodyRuleMatch ? bodyRuleMatch[1] : '';
+
+  const spanRuleMatch = globalsScss.match(/(?:^|\n)span\s*\{([^}]*)\}/);
+  const spanRule = spanRuleMatch ? spanRuleMatch[1] : '';
+
+  const componentDarkBlockMatch = componentScss.match(
+    /:root\[data-theme=['"]dark['"]\]\s*\{([^}]*)\}/
+  );
+  const componentDark = componentDarkBlockMatch
+    ? extractDeclarations(componentDarkBlockMatch[1])
+    : {};
+  // El :root base de _component.scss, aislado del bloque oscuro (para no pisar el valor claro).
+  const componentBaseRootMatch = componentScss.match(/^:root\s*\{([\s\S]*?)\n\}/m);
+  const componentBase = componentBaseRootMatch
+    ? extractDeclarations(componentBaseRootMatch[1])
+    : {};
+
+  it('S-059 TS-7: html/body pintan el fondo con --bg-canvas, no con el token viejo', () => {
+    expect(bodyRule).toMatch(/background-color:\s*var\(--bg-canvas\);/);
+    expect(bodyRule).not.toMatch(/--color-general-background/);
+  });
+
+  it('S-059 TS-8: html/body declaran color de texto tokenizado', () => {
+    expect(bodyRule).toMatch(/color:\s*var\(--text-body\);/);
+  });
+
+  it('S-059 TS-8b: la regla de elemento span ya no fuerza --color-text-dark', () => {
+    expect(spanRule).not.toMatch(/--color-text-dark/);
+    // El font-size 1.25rem es deuda de modo claro fuera de alcance: sigue igual.
+    expect(spanRule).toMatch(/font-size:\s*1\.25rem;/);
+  });
+
+  it('S-059 TS-5: _component.scss redeclara --nav-item-icon en el bloque oscuro', () => {
+    expect(componentDark['--nav-item-icon']).toBe('var(--color-dark-primary)');
+    // En claro sigue apuntando al primitivo grafito, sin cambios.
+    expect(componentBase['--nav-item-icon']).toBe('var(--color-graphite)');
+  });
+
+  it('S-059 TS-4: Card conserva su patrón de referencia de override oscuro', () => {
+    const comp = extractDeclarations(componentScss);
+    expect(comp['--card-border-dark']).toBe('none');
+    expect(cardModuleScss).toMatch(/:root\[data-theme=['"]dark['"]\]\s*\.card\s*\{/);
+    expect(cardModuleScss).toMatch(/border:\s*var\(--card-border-dark\);/);
+  });
+
+  it('S-059 TS-8d: el guardia de :root de globals.scss (TS-13) sigue vigente', () => {
+    const rootBlocks = globalsScss.match(/(?<!\[data-theme=['"]dark['"]\]\s*)^:root\s*\{/gm);
+    expect(rootBlocks).toBeNull();
+  });
+
+  it('S-059 TS-37: el magenta descontinuado (--color-button) no sobrevive en los overrides de terceros', () => {
+    const datepickerSelectedMatch = globalsScss.match(
+      /\.react-datepicker__day--selected\s*\{([^}]*)\}/
+    );
+    const navigationMatch = globalsScss.match(/\.react-datepicker__navigation\s*\{([^}]*)\}/);
+
+    expect(datepickerSelectedMatch).not.toBeNull();
+    expect(navigationMatch).not.toBeNull();
+    expect(datepickerSelectedMatch![1]).not.toMatch(/--color-button/);
+    expect(navigationMatch![1]).not.toMatch(/--color-button/);
   });
 });
 

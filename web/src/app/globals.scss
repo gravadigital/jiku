@@ -33,7 +33,8 @@ body {
   scroll-behavior: smooth;
   max-width: 100vw;
   overflow-x: hidden;
-  background-color: var(--color-general-background);
+  background-color: var(--bg-canvas);
+  color: var(--text-body);
   font-family: var(--font-ui);
 }
 
@@ -119,7 +120,7 @@ p {
 
 span{
   font-size: 1.25rem;
-  color: var(--color-text-dark);
+  color: inherit;
 }
 
 input {
@@ -144,23 +145,28 @@ input {
 
 .react-datepicker {
   box-shadow: var(--box-shadow) !important;
+  background-color: var(--bg-surface) !important;
+  color: var(--text-body) !important;
 }
 
+// S-059 TS-37: --color-button (#DA2C6A, magenta descontinuado) ya no se usa acá. El seleccionado
+// pasa al acento del DS (--bg-action-primary, #61CCB9, sin cambios entre modos) con
+// --text-on-action (azul oscuro, 9.8:1) en vez de blanco fijo.
 .react-datepicker__day--selected {
-  background-color: var(--color-button )!important;
-  color: white;
+  background-color: var(--bg-action-primary) !important;
+  color: var(--text-on-action) !important;
 }
 
 .react-datepicker__day--keyboard-selected{
-  background-color: var(--color-general-disabled)!important;
+  background-color: var(--bg-tint-neutral) !important;
 }
 
 .react-datepicker__header {
-  background-color: var(--color-background) !important;
+  background-color: var(--bg-surface) !important;
 }
 
 .react-datepicker__navigation  {
-  background-color: var(--color-button ) !important;
+  background-color: var(--bg-action-primary) !important;
   border-radius: var(--radius-items) !important;
   width: 1.5rem !important;
   height: 1.5rem !important;
@@ -168,7 +174,7 @@ input {
 }
 
 .react-datepicker__navigation-icon::before {
-  border-color: var(--color-background) !important;
+  border-color: var(--bg-surface) !important;
   top: 5px !important;
 }
 
@@ -176,10 +182,12 @@ input {
 	min-height: 13rem !important;
   border-bottom-left-radius: var(--radius-items) !important;
   border-bottom-right-radius: var(--radius-items) !important;
+  background-color: var(--bg-surface) !important;
+  color: var(--text-body) !important;
 }
 
 .editor-toolbar{
-  background-color: var(--color-background);
+  background-color: var(--bg-surface);
   border-top-left-radius: var(--radius-items) !important;
   border-top-right-radius: var(--radius-items) !important;
 }

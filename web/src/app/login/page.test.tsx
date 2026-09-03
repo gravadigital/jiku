@@ -68,4 +68,10 @@ describe('login/page — TS-66 a TS-73', () => {
     render(<Login />);
     expect(screen.getByRole('heading', { level: 1, name: 'Bienvenido' })).toBeInTheDocument();
   });
+
+  // TS-33 (S-059): las rutas públicas no montan el selector de tema (vive en el shell de (loggedin)).
+  it('S-059 TS-33: no monta el selector de tema (no hay sidebar en esta ruta)', () => {
+    render(<Login />);
+    expect(screen.queryByRole('radiogroup', { name: 'Tema' })).not.toBeInTheDocument();
+  });
 });

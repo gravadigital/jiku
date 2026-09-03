@@ -124,3 +124,20 @@ interface AuthorUser {
   identityType?: IdentityType;
 }
 ```
+
+## Theme / THEME_STORAGE_KEY
+
+**Location:** `web/src/features/theme/types/theme.types.ts`
+
+**Description:** `Theme` is the whole type surface of the theme module (S-059): exactly two
+values, no `'system'`/`'auto'` — the story fixes light as the default and does not read
+`prefers-color-scheme`. `THEME_STORAGE_KEY` is the single constant naming both the `localStorage`
+key and the cookie (`'jiku.theme'`), declared once so client and server never desync on a
+duplicated string literal.
+
+**Interface:**
+
+```ts
+type Theme = 'light' | 'dark';
+const THEME_STORAGE_KEY = 'jiku.theme';
+```

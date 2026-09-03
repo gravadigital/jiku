@@ -164,9 +164,10 @@
 }
 
 // ============================================
-// Modo oscuro — preparado, no activado en esta story (S-059 lo dispara)
+// Modo oscuro (S-059) — paleta propia del DS, no una inversión de la clara
 // ============================================
-// El acento (--bg-action-primary) NO se redeclara: no cambia entre modos.
+// El acento (--bg-action-primary, --bg-active, --border-action, --border-focus,
+// --border-required, --text-link, --text-on-action) NO se redeclara: no cambia entre modos.
 // :root[data-theme='dark'] (en vez de [data-theme='dark'] a secas) porque este parcial también
 // se reenvía dentro de *.module.scss vía `@use '@/styles' as *`, y el checker de "selectores
 // puros" de CSS Modules exige que un selector global venga anclado a :root (igual que el :root
@@ -174,6 +175,34 @@
 :root[data-theme='dark'] {
   --bg-canvas: var(--color-dark-canvas);
   --bg-surface: var(--color-dark-surface);
+  --bg-surface-sunken: var(--color-dark-canvas);
+  --bg-inverse: var(--color-dark-surface);
+  --bg-action-disabled: var(--color-dark-surface);
+  --bg-tint-neutral: var(--color-dark-surface);
+
   --text-primary: var(--color-dark-text);
   --text-body: var(--color-dark-text);
+  --text-secondary: var(--color-dark-primary);
+  --text-disabled: var(--color-dark-primary);
+  --text-inverse: var(--color-dark-text);
+
+  --border-default: var(--color-dark-surface);
+  --border-strong: var(--color-dark-primary);
+
+  --state-resolved-tint: var(--color-dark-tint-green);
+  --state-resolved-border: var(--color-dark-tint-border-green);
+  --state-in-progress-tint: var(--color-dark-tint-aqua);
+  --state-in-progress-border: var(--color-dark-tint-border-aqua);
+  --state-review-tint: var(--color-dark-tint-amber);
+  --state-review-border: var(--color-dark-tint-border-amber);
+  --state-urgent-tint: var(--color-dark-tint-red);
+  --state-urgent-border: var(--color-dark-tint-border-red);
+  --state-analysis-tint: var(--color-dark-tint-violet);
+  --state-analysis-border: var(--color-dark-tint-border-violet);
+  --state-neutral-tint: var(--color-dark-tint-graphite);
+  --state-neutral-border: var(--color-dark-tint-border-graphite);
+
+  --elevation-surface: var(--shadow-dark-card);
+  --elevation-raised: var(--shadow-dark-active);
+  --focus-ring: var(--shadow-dark-focus);
 }

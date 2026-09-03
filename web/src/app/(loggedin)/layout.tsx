@@ -1,12 +1,12 @@
 import React, { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { ToastContainer } from 'react-toastify';
 import { SessionMonitor } from '@/components/SessionMonitor';
 import { auth } from '@/lib/auth';
 import { Loader } from '@/shared/components/ui';
 import { ExternalLinksBlock } from './ExternalLinksBlock';
 import { ShellSidebar } from './ShellSidebar';
 import styles from './styles.module.scss';
+import { ThemedToastContainer } from './ThemedToastContainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,18 +34,7 @@ export default async function Layout({ children }: { readonly children: React.Re
       <main className={styles.mainContainer}>
         <Suspense fallback={<Loader label="Cargando..." />}>{children}</Suspense>
       </main>
-      <ToastContainer
-        position="top-right"
-        autoClose={2000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
+      <ThemedToastContainer />
     </div>
   );
 }

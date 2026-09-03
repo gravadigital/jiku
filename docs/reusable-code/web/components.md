@@ -928,3 +928,29 @@ import { Accordion } from '@/shared/components/ui';
   <ScopeForm />
 </Accordion>
 ```
+
+## ThemeToggle
+
+**Location:** `web/src/features/theme/components/ThemeToggle/ThemeToggle.tsx`
+
+**Description:** The theme selector shown in the sidebar footer, next to "Salir" (S-059). No
+component-level spec of its own in the Design System: it's a thin wrapper around `ToggleGroup`
+`variant="segmented"` — the DS Gaps resolution for `selector-tema` was "reuse `ToggleGroup`, don't
+create a new component" (its role — two exclusive, always-visible options, radiogroup semantics —
+matches `ToggleGroup`'s spec point for point). Reads and writes the theme via `useTheme()`; holds
+no `localStorage` logic of its own (that's `ThemeProvider`'s job).
+
+**Interface:**
+
+```tsx
+function ThemeToggle(): JSX.Element;
+// No props — reads/writes the ambient theme via useTheme().
+```
+
+**Usage:**
+
+```tsx
+import { ThemeToggle } from '@/features/theme';
+
+<ThemeToggle />
+```
