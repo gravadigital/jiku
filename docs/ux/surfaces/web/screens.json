@@ -4157,7 +4157,7 @@
           "type": "card",
           "category": "content",
           "content": "Horas Trabajadas",
-          "annotation": "card de la columna derecha, última, después de \"Resolución\": contexto, etiquetas y resolución forman la secuencia de identificación y cierre, y el dato de horas es de consulta · se carga por su cuenta, con una consulta propia y no con el payload del requisito: si falla o tarda, el resto del detalle se renderiza igual y sigue operable · sin eventos de usuario: ni el total ni las filas del desglose son clickeables, y la card no agrega paradas al orden de foco [REQ-010 RF-8, Escenario B]",
+          "annotation": "card de la columna derecha, segunda, entre \"Información General\" y \"Etiquetas\": las horas se leen junto a los datos de identificación del requisito —proyecto, responsables, esfuerzo invertido en una sola pasada—, y etiquetas y resolución quedan después como clasificación y cierre · el cuerpo es una lista con el desglose por persona arriba y el total al pie, separado por una regla · se carga por su cuenta, con una consulta propia y no con el payload del requisito: si falla o tarda, el resto del detalle se renderiza igual y sigue operable · sin eventos de usuario: ni el total ni las filas del desglose son clickeables, y la card no agrega paradas al orden de foco [REQ-010 RF-8, Escenario B; RequirementDetail.tsx:340-348]",
           "state_overrides": {
             "empty": {
               "annotation": "es el cuarto empty por sección de la pantalla y sigue la misma regla que los otros tres: la card se queda con su título, cambia su cuerpo. No desaparece — que un requisito en desarrollo no tenga horas imputadas es en sí un dato de gestión [REQ-010 AC-11]"
@@ -4170,7 +4170,7 @@
           "category": "content",
           "level": "h3",
           "content": "5h 0m",
-          "annotation": "total formateado Xh Ym · suma las horas imputadas directamente al requisito más las de sus tareas, sin doble conteo. Es el mismo número que muestra la columna \"Hs. Trab.\" del listado, y siempre es igual a la suma del desglose de abajo [REQ-010 RF-3, AC-6, AC-10]",
+          "annotation": "total formateado Xh Ym · va al pie de la card, como última fila del desglose, separado por una regla y con el label \"Total\" destacado · suma las horas imputadas directamente al requisito más las de sus tareas, sin doble conteo. Es el mismo número que muestra la columna \"Hs. Trab.\" del listado, y siempre es igual a la suma de las filas de arriba [REQ-010 RF-3, AC-6, AC-10]",
           "state_overrides": {
             "empty": {
               "annotation": "ausente en el sub-estado \"sin horas cargadas\": no se muestra \"0h 0m\" · ausente también en \"horas cargando\" y en \"horas no disponibles\" [REQ-010 AC-3, AC-11]"
@@ -4434,6 +4434,11 @@
                 "stack": [
                   "card-informacion-general",
                   "marca-identidad-automatica",
+                  "card-horas-trabajadas",
+                  "desglose-horas-persona",
+                  "total-horas-trabajadas",
+                  "vacio-horas-trabajadas",
+                  "cargando-horas-trabajadas",
                   "card-etiquetas",
                   {
                     "row": "chips-etiquetas",
@@ -4489,12 +4494,7 @@
                         ]
                       }
                     ]
-                  },
-                  "card-horas-trabajadas",
-                  "total-horas-trabajadas",
-                  "desglose-horas-persona",
-                  "vacio-horas-trabajadas",
-                  "cargando-horas-trabajadas"
+                  }
                 ]
               }
             ]
