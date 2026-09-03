@@ -17,10 +17,14 @@ export default async function ObjectiveDetail({
       actions={[
         <Button
           key="action-back"
-          label="Volver"
+          variant="secondary-nav"
           href={`/objectives/by-project#project-${objective.projectId}`}
-        />,
-        <Button key="action-edit" label="Editar" href={`/objectives/edit/${id}`} />,
+        >
+          Volver
+        </Button>,
+        <Button key="action-edit" variant="secondary-nav" href={`/objectives/edit/${id}`}>
+          Editar
+        </Button>,
       ]}
     >
       <ObjectiveDetails objective={objective} />

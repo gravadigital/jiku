@@ -138,16 +138,18 @@ export function AttachmentPlaceholder({
       <span className={styles.actions}>
         {sizeLabel && <span className={styles.sizeInline}>{sizeLabel}</span>}
         {onRemove ? (
-          <Button label="Eliminar" onClick={onRemove} size="small" variant="secondary" />
+          <Button variant="secondary-dismiss" onClick={onRemove}>
+            Eliminar
+          </Button>
         ) : (
           <Button
-            label="Descargar"
+            variant="secondary-dismiss"
             onClick={handleDownload}
-            size="small"
-            variant="secondary"
             disabled={isDownloading}
             loading={isDownloading}
-          />
+          >
+            Descargar
+          </Button>
         )}
       </span>
     </span>

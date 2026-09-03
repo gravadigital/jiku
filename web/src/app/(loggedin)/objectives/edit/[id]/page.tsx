@@ -219,13 +219,14 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
   const buttons = [
     <Button
       key="action-1"
-      label="Guardar"
       onClick={() => {
         processEdition();
       }}
       loading={updateObjectiveMutation.isPending}
       disabled={false}
-    />,
+    >
+      Guardar
+    </Button>,
   ];
 
   const isLoading = isLoadingObjective || isLoadingPersons || !formInitialized;

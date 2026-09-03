@@ -1,47 +1,109 @@
-@use '@/styles/mixins' as *;
-
-.buttonContainer {
+.button {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: var(--button-height);
+  border-radius: var(--button-radius);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
   cursor: pointer;
+  font-family: var(--button-font);
+  font-size: var(--text-body-default-size);
+  font-weight: var(--text-body-default-weight);
+  line-height: var(--text-body-default-leading);
+  transition: background-color var(--duration-fast) ease, filter var(--duration-fast) ease;
 
-  button {
-    background-color: var(--color-button);
-    border-radius: var(--radius-items);
-    padding: 1rem 2rem;
-    height: 3rem;
-    width: auto;
-    cursor: pointer;
-    @include focus-ring;
+  &:focus {
+    outline: none;
+  }
 
-    &[data-disabled] {
-      pointer-events: none;
-      cursor: none;
-      background-color: var(--color-general-disabled);
-    }
+  &:focus-visible {
+    box-shadow: var(--button-focus);
+  }
 
-    &.primary,
-    &.secondary {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      font-family: var(--font-primary);
-      color: var(--color-background);
-      font-size: 1rem;
-      line-height: 1.2;
-      font-weight: 700;
-    }
-
-    &.secondary {
-      background-color: var(--color-background);
-      color: var(--color-button);
-      border: 1px solid var(--color-button);
-    }
+  &:disabled {
+    cursor: not-allowed;
+    background-color: var(--button-disabled-bg);
+    color: var(--button-disabled-text);
+    border-color: var(--button-disabled-border);
   }
 }
 
-.small button {
-  padding: 0.4rem 0.8rem !important;
-  height: auto !important;
-  font-size: 0.85rem !important;
+.icon {
+  display: inline-flex;
+  width: var(--icon-16);
+  height: var(--icon-16);
+}
+
+.label {
+  display: inline-flex;
+}
+
+.primary {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border-color: var(--button-primary-border);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
+
+  &:active:not(:disabled) {
+    filter: brightness(0.88);
+  }
+}
+
+.secondaryNav {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border-color: var(--button-secondary-border-nav);
+
+  &:hover:not(:disabled) {
+    background-color: var(--bg-surface-sunken);
+  }
+}
+
+.secondaryDismiss {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border-color: var(--button-secondary-border-dismiss);
+
+  &:hover:not(:disabled) {
+    background-color: var(--bg-surface-sunken);
+  }
+}
+
+.session {
+  height: var(--button-session-height);
+  border-radius: var(--button-session-radius);
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
+}
+
+.flow {
+  background-color: var(--button-flow-bg);
+  color: var(--button-flow-text);
+  flex-direction: row;
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
+}
+
+.fab {
+  width: var(--button-height);
+  height: var(--button-height);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+
+  .label {
+    display: none;
+  }
 }

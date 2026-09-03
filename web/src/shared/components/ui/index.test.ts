@@ -21,16 +21,21 @@ vi.mock('next-auth/react', () => ({
 const UI_DIR = __dirname;
 const LAYOUT_DIR = path.resolve(__dirname, '../layout');
 
-const MUERTOS_UI = ['Card', 'Input', 'Textarea', 'MarkdownEditor', 'MultiSelect'] as const;
+// Card e Input eran nombres muertos hasta S-053: la story los reescribió como los
+// componentes fundacionales nuevos del Design System, así que dejaron de estar libres.
+const MUERTOS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect'] as const;
 const VIVOS_UI = [
   'AddButton',
   'AutomatedIdentityBadge',
+  'Badge',
   'Button',
+  'Card',
   'CommentEditor',
   'ConfirmDialog',
   'DateLabel',
   'DatePicker',
   'FinishDateLabel',
+  'Input',
   'InputDate',
   'InputMultiplePersons',
   'InputMultipleSelect',
@@ -46,16 +51,12 @@ const VIVOS_UI = [
   'Tooltip',
 ] as const;
 
-const CARPETAS_MUERTAS_UI = [
-  'Card',
-  'Input',
-  'Textarea',
-  'MarkdownEditor',
-  'MultiSelect',
-  'AttachmentDownload',
-];
+const CARPETAS_MUERTAS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect', 'AttachmentDownload'];
 
 const CARPETAS_VIVAS_UI = [
+  'Badge',
+  'Card',
+  'Input',
   'InputText',
   'InputTextarea',
   'SectionCard',
@@ -78,8 +79,8 @@ describe('barrel de shared/components/ui', () => {
     expect(barrel).toContain(`export { ${nombre} } from './${nombre}';`);
   });
 
-  it('tiene exactamente 21 exports', () => {
-    expect(barrel.match(/^export \{/gm)).toHaveLength(21);
+  it('tiene exactamente 24 exports', () => {
+    expect(barrel.match(/^export \{/gm)).toHaveLength(24);
   });
 
   it.each(CARPETAS_MUERTAS_UI)('la carpeta de %s ya no existe en ui/', (nombre) => {

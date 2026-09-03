@@ -1,35 +1,164 @@
-@use '@/styles/mixins' as *;
-
 .container {
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
-  label {
-    font-family: var(--font-primary);
-    font-size: 12px;
-    line-height: 12px;
-    color: var(--color-general-text);
-    padding-left: 1rem;
+.label {
+  font-family: var(--text-field-label-family);
+  font-size: var(--text-field-label-size);
+  font-weight: var(--text-field-label-weight);
+  color: var(--text-primary);
+}
+
+.required {
+  color: var(--border-required);
+}
+
+.controlWrapper {
+  position: relative;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--select-height);
+  border-radius: var(--select-radius);
+  border: 1px solid var(--select-border);
+  background-color: var(--select-bg);
+  color: var(--select-text);
+  padding: 0 var(--space-2);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
   }
 
-  select {
-    display: block;
-    margin-top: 7px;
-    width: 100%;
-    background-color: var(--color-background);
-    box-sizing: border-box;
-    height: 50px;
-    border-radius: var(--radius-items);
-    padding: 0.5rem 1rem;
-    border: 0.5px solid var(--color-general-border);
-    font-family: var(--font-primary);
-    font-size: 1rem;
-    font-weight: 400;
-    line-height: 1.5rem;
-    color: var(--color-general-title);
-    @include focus-ring;
-
-    &:hover {
-      cursor: pointer;
-    }
+  &:focus-visible {
+    border-color: var(--select-border-focus);
+    box-shadow: var(--input-focus-ring);
   }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.inline {
+  padding: 0 var(--space-1);
+  width: auto;
+}
+
+.open {
+  box-shadow: var(--elevation-raised);
+}
+
+.locked {
+  background-color: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.error {
+  border-color: var(--state-urgent-border);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.placeholder {
+  color: var(--text-disabled);
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: var(--icon-16);
+  height: var(--icon-16);
+  color: var(--text-secondary);
+  transition: transform var(--duration-fast) ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-tint-neutral);
+  padding: 0 var(--space-2);
+}
+
+.chipRemove {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-raised);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.option {
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.optionActive {
+  background-color: var(--bg-surface-sunken);
+}
+
+.optionSelected {
+  background-color: var(--bg-active-subtle);
+}
+
+.errorMessage {
+  margin: 0;
+  color: var(--state-urgent-text);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
 }

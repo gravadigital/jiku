@@ -20,7 +20,7 @@ export default async function Projects({
     type: resolvedSearchParams.type || undefined,
   };
 
-  const buttons = [<Button key="action-1" label="Nuevo proyecto" href="/projects/new" />];
+  const buttons = [<Button key="action-1" href="/projects/new">Nuevo proyecto</Button>];
 
   return (
     <PageLayout title="Proyectos" actions={buttons}>

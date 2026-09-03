@@ -231,13 +231,14 @@ export default function Form() {
   const buttons = [
     <Button
       key="action-1"
-      label="Guardar"
       onClick={() => {
         processCreation();
       }}
       loading={createObjectiveMutation.isPending}
       disabled={createObjectiveMutation.isPending}
-    />,
+    >
+      Guardar
+    </Button>,
   ];
 
   const cloneForm = (id: number) => {
@@ -413,11 +414,15 @@ export default function Form() {
             <div className={styles.buttonsContainer}>
               <div className={styles.deleteFormButton}>
                 {formsData.length > 1 && (
-                  <Button label="Borrar" onClick={() => deleteForm(form.id!)} />
+                  <Button variant="secondary-dismiss" onClick={() => deleteForm(form.id!)}>
+                    Borrar
+                  </Button>
                 )}
               </div>
               <div className={styles.cloneButtonContainer}>
-                <Button label="Clonar" onClick={() => cloneForm(form.id!)} />
+                <Button variant="secondary-dismiss" onClick={() => cloneForm(form.id!)}>
+                  Clonar
+                </Button>
               </div>
             </div>
           </SectionCard>

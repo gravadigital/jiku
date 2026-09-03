@@ -191,12 +191,13 @@ export function CommentEditor(props: CommentEditorProps) {
         <AttachFileButton onFileReady={handleFileReady} disabled={loading || isUploading} />
         <Button
           key="save-comment"
-          label="Guardar"
           onClick={handleSubmit}
           loading={loading}
           disabled={isEmpty || isUploading}
           ariaDescribedBy={isUploading ? 'comment-upload-in-progress' : undefined}
-        />
+        >
+          Guardar
+        </Button>
         {isUploading && (
           <span id="comment-upload-in-progress" className={styles.srOnly}>
             Hay una subida en curso: esperá a que el archivo termine de subir para guardar

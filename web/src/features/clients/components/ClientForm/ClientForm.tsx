@@ -85,7 +85,9 @@ export function ClientForm({
 
         <div className={styles.buttonRow}>
           {generalError && <p className={styles.errorText}>{generalError}</p>}
-          <Button label={submitLabel} onClick={processSubmit} loading={loading} />
+          <Button onClick={processSubmit} loading={loading}>
+            {submitLabel}
+          </Button>
         </div>
       </div>
     </SectionCard>

@@ -243,10 +243,9 @@ export function WorkedTimesPage() {
           <>
             <Select
               label="Persona"
-              code="person-selector"
               value={displayPersonId}
               options={personOptions}
-              onChange={setSelectedPersonId}
+              onChange={(value) => setSelectedPersonId(value)}
               placeholder="Seleccionar persona..."
             />
             <hr className={styles.divider} />

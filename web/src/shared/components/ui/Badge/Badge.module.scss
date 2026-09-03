@@ -1,0 +1,131 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--badge-radius);
+  border: 1px solid transparent;
+  font-family: var(--text-filter-label-family);
+  font-size: var(--text-filter-label-size);
+  font-weight: var(--text-filter-label-weight);
+  letter-spacing: var(--text-filter-label-tracking, 0.04em);
+  text-transform: uppercase;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: var(--badge-dot-size);
+  height: var(--badge-dot-size);
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.text {
+  white-space: nowrap;
+}
+
+.glyph {
+  flex-shrink: 0;
+  width: var(--icon-14);
+  height: var(--icon-14);
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: var(--icon-14);
+  height: var(--icon-14);
+}
+
+.editable {
+  cursor: pointer;
+  background: none;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.outline {
+  background: transparent;
+}
+
+.area {
+  background: transparent;
+}
+
+.cardTag {
+  background-color: var(--bg-tint-neutral);
+  color: var(--text-secondary);
+}
+
+.menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  min-width: 160px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-raised);
+}
+
+.option {
+  padding: var(--space-2);
+  cursor: pointer;
+  text-transform: none;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+
+  &:hover {
+    background-color: var(--bg-surface-sunken);
+  }
+}
+
+.familyResolved {
+  background-color: var(--state-resolved-tint);
+  border-color: var(--state-resolved-border);
+  color: var(--state-resolved-text);
+}
+
+.familyInProgress {
+  background-color: var(--state-in-progress-tint);
+  border-color: var(--state-in-progress-border);
+  color: var(--state-in-progress-text);
+}
+
+.familyReview {
+  background-color: var(--state-review-tint);
+  border-color: var(--state-review-border);
+  color: var(--state-review-text);
+}
+
+.familyUrgent {
+  background-color: var(--state-urgent-tint);
+  border-color: var(--state-urgent-border);
+  color: var(--state-urgent-text);
+}
+
+.familyAnalysis {
+  background-color: var(--state-analysis-tint);
+  border-color: var(--state-analysis-border);
+  color: var(--state-analysis-text);
+}
+
+.familyNeutral {
+  background-color: var(--state-neutral-tint);
+  border-color: var(--state-neutral-border);
+  color: var(--state-neutral-text);
+}

@@ -128,11 +128,11 @@ export function PeriodFilter({ dateFrom, dateTo, onPeriodChange }: PeriodFilterP
         {PERIOD_OPTIONS.map((option) => (
           <Button
             key={option.key}
-            label={option.label}
-            size="small"
-            variant={activePeriod === option.key ? 'primary' : 'secondary'}
+            variant={activePeriod === option.key ? 'primary' : 'secondary-dismiss'}
             onClick={() => handlePeriodClick(option.key)}
-          />
+          >
+            {option.label}
+          </Button>
         ))}
       </div>
 

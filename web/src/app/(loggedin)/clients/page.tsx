@@ -19,7 +19,7 @@ export default async function Clients({
     status: (resolvedSearchParams.status as ClientFilters['status']) || undefined,
   };
 
-  const buttons = [<Button key="action-1" label="Nuevo actor" href="/clients/new" />];
+  const buttons = [<Button key="action-1" href="/clients/new">Nuevo actor</Button>];
 
   return (
     <PageLayout title="Actores" actions={buttons}>

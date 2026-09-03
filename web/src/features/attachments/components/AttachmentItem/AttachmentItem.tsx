@@ -94,32 +94,29 @@ export function AttachmentItem({ attachment, onPreview, canDelete = false }: Att
 
       <div className={styles.actions}>
         {getPreviewType(attachment.mimeType) !== 'unsupported' && (
-          <Button
-            label="Preview"
-            onClick={onPreview}
-            size="small"
-            variant="secondary"
-            disabled={isUnavailable}
-          />
+          <Button variant="secondary-dismiss" onClick={onPreview} disabled={isUnavailable}>
+            Preview
+          </Button>
         )}
         <Button
-          label="Download"
+          variant="secondary-dismiss"
           onClick={handleDownload}
-          size="small"
-          variant="secondary"
           disabled={isDownloading || isUnavailable}
           loading={isDownloading}
-        />
+        >
+          Download
+        </Button>
         {/* Eliminar sigue habilitado a propósito: es la única salida útil que
             le queda al usuario con un adjunto sin contenido. */}
         {canDelete && (
           <Button
-            label="Eliminar"
+            variant="secondary-dismiss"
             onClick={() => setShowDeleteDialog(true)}
-            size="small"
             disabled={isDeleting}
             loading={isDeleting}
-          />
+          >
+            Eliminar
+          </Button>
         )}
       </div>
 

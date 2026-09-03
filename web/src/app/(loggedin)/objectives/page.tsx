@@ -25,7 +25,7 @@ export default async function Objectives({
     state: resolvedSearchParams.state || 'activo',
   };
 
-  const buttons = [<Button key="action-1" label="Nueva tarea" href="/objectives/new" />];
+  const buttons = [<Button key="action-1" href="/objectives/new">Nueva tarea</Button>];
   return (
     <PageLayout title="Tareas" actions={buttons}>
       <main>
