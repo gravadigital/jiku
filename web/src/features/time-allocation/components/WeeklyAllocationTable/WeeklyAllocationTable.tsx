@@ -435,12 +435,9 @@ export function WeeklyAllocationTable() {
 
       {isEditable && !isLoading && !isError && projects.length > 0 && (
         <div className={styles.saveButtonContainer}>
-          <Button
-            label="Guardar"
-            onClick={handleSave}
-            loading={saveMutation.isPending}
-            disabled={!hasChanges}
-          />
+          <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!hasChanges}>
+            Guardar
+          </Button>
         </div>
       )}
     </div>

@@ -126,12 +126,9 @@ export function TimeButtons({
         <span className={styles.total}>
           Total seleccionado: {displayHours}h {displayMinutes}min
         </span>
-        <Button
-          label="Cargar horas"
-          onClick={onSubmit}
-          disabled={!canSubmit}
-          loading={isSubmitting}
-        />
+        <Button onClick={onSubmit} disabled={!canSubmit} loading={isSubmitting}>
+          Cargar horas
+        </Button>
       </div>
     </div>
   );

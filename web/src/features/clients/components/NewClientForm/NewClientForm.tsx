@@ -85,7 +85,9 @@ export function NewClientForm({ onSubmit, loading = false }: NewClientFormProps)
 
         <div className={styles.buttonRow}>
           {generalError && <p className={styles.errorText}>{generalError}</p>}
-          <Button label="Guardar" loading={loading} onClick={processSubmit} />
+          <Button loading={loading} onClick={processSubmit}>
+            Guardar
+          </Button>
         </div>
       </div>
     </SectionCard>

@@ -3,13 +3,19 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-09-01 (S-048)
+**Last updated:** 2026-09-02 (S-053)
 
 ## Components
 
-Total: 1
+Total: 7
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
+- **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
+- **Input** (`web/src/shared/components/ui/Input/Input.tsx`) - The Design System's single text field: five variants (`text`, `textarea`, `date`, `search`, `locked`), string `error` driving `aria-invalid`/`aria-describedby`.
+- **Select** (`web/src/shared/components/ui/Select/Select.tsx`) - The Design System's single selector: hand-rolled combobox (no `react-select`), four variants including removable-chip `multiple`, fully keyboard-operable.
+- **Loader** (`web/src/shared/components/ui/Loader/Loader.tsx`) - The Design System's single loading indicator: `block`/`inline`, `role="status"`, single default microcopy `"Cargando…"`.
+- **Badge** (`web/src/shared/components/ui/Badge/Badge.tsx`) - The Design System's single status/tag pill: five variants, `editable` is a control that always offers all seven domain states.
+- **Card** (`web/src/shared/components/ui/Card/Card.tsx`) - The Design System's single card container: five variants, one accessible destination when navigable, fluid width.
 
 ## Services
 

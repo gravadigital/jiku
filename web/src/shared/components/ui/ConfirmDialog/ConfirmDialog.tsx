@@ -58,19 +58,12 @@ export function ConfirmDialog({
         <h3 className={styles.title}>{title}</h3>
         <p className={styles.message}>{message}</p>
         <div className={styles.actions}>
-          <Button
-            label={cancelLabel}
-            onClick={onCancel}
-            size="small"
-            variant="secondary"
-            disabled={actionsDisabled}
-          />
-          <Button
-            label={confirmLabel}
-            onClick={onConfirm}
-            size="small"
-            disabled={actionsDisabled}
-          />
+          <Button variant="secondary-dismiss" onClick={onCancel} disabled={actionsDisabled}>
+            {cancelLabel}
+          </Button>
+          <Button onClick={onConfirm} disabled={actionsDisabled}>
+            {confirmLabel}
+          </Button>
         </div>
       </div>
     </dialog>

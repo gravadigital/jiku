@@ -232,17 +232,20 @@ export function ObjectiveComment({
               <>
                 <Button
                   key="action-cancel"
+                  variant="secondary-dismiss"
                   onClick={handleCancel}
-                  label="Cancelar"
                   disabled={loading}
-                />
+                >
+                  Cancelar
+                </Button>
                 <Button
                   key="action-save"
                   onClick={handleSave}
-                  label="Guardar"
                   disabled={isEmpty || loading}
                   loading={loading}
-                />
+                >
+                  Guardar
+                </Button>
               </>
             ) : (
               <button

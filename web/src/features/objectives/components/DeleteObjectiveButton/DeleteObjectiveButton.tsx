@@ -12,5 +12,9 @@ export function DeleteObjectiveButton({ id }: { readonly id: number }) {
     push('/objectives/');
   };
 
-  return <Button label="Eliminar" onClick={handleClick} />;
+  return (
+    <Button variant="secondary-dismiss" onClick={handleClick}>
+      Eliminar
+    </Button>
+  );
 }

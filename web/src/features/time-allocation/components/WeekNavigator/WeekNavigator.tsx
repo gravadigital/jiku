@@ -88,11 +88,17 @@ export function WeekNavigator({ weekStart, onWeekChange }: WeekNavigatorProps) {
   return (
     <div className={styles.container}>
       <div className={styles.navigation}>
-        <Button label="‹ Anterior" onClick={handlePrevious} size="small" />
+        <Button variant="secondary-nav" onClick={handlePrevious}>
+          ‹ Anterior
+        </Button>
         <span className={styles.rangeLabel}>{rangeLabel}</span>
         <div className={styles.rightActions}>
-          <Button label="Esta semana" onClick={handleToday} disabled={isCurrentWeek} size="small" />
-          <Button label="Siguiente ›" onClick={handleNext} size="small" />
+          <Button variant="secondary-nav" onClick={handleToday} disabled={isCurrentWeek}>
+            Esta semana
+          </Button>
+          <Button variant="secondary-nav" onClick={handleNext}>
+            Siguiente ›
+          </Button>
         </div>
       </div>
     </div>

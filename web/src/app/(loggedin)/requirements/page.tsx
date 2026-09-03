@@ -40,7 +40,7 @@ export default async function Requirements({
       title="Requisitos"
       actions={[
         <div key="new-req" className={styles.newReqButton}>
-          <Button label="Nuevo requisito" href="/requirements/new" />
+          <Button href="/requirements/new">Nuevo requisito</Button>
         </div>,
       ]}
     >
