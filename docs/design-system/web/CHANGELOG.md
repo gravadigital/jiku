@@ -3,6 +3,18 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.4.1] - 2026-09-02
+
+Corrección de un hecho documental, sin cambio normativo (story S-052).
+
+### Corregido
+
+- **`foundations/logo.md`** (v1.0.0 → v1.0.1): decía que los SVG de interfaz «no viven en este
+  repositorio» y que los provee diseño externamente. Es falso desde S-052: los 5 SVG (firma
+  horizontal y completa, claro y oscuro, más el símbolo) ya viven en `web/src/assets/`, migrados
+  desde `_new-design/`. Ninguna regla normativa cambia (variantes, mínimos, resguardo, usos
+  incorrectos).
+
 ## [2.4.0] - 2026-09-02
 
 Cierre de la última decisión abierta: **el comportamiento responsive**. Era la **pregunta abierta 6

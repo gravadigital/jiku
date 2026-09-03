@@ -1,12 +1,18 @@
 import './globals.scss';
 import React from 'react';
-import { Archivo as archivoFont } from 'next/font/google';
+import { Sora, Gabarito } from 'next/font/google';
 import Providers from './providers';
 
-const reemKufi = archivoFont({
+const sora = Sora({
   subsets: ['latin'],
-  variable: '--font-primary',
-  weight: ['100', '400', '500', '600', '700'],
+  variable: '--font-display',
+  weight: ['700'],
+});
+
+const gabarito = Gabarito({
+  subsets: ['latin'],
+  variable: '--font-ui',
+  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata = {
@@ -17,7 +23,7 @@ export const metadata = {
 export default function RootLayout({ children }: { readonly children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={reemKufi.className}>
+      <body className={`${sora.variable} ${gabarito.variable} ${gabarito.className}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

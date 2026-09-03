@@ -1,80 +1,4 @@
-@use '@/styles/variables';
-
-:root {
-  --box-shadow: 0 2px 6px -2px rgb(0 0 0 / 16%), 0 2px 6px 0 rgb(0 0 0 / 12%);
-  --box-shadow-hover: 0 4px 12px -2px rgb(0 0 0 / 20%), 0 4px 12px 0 rgb(0 0 0 / 16%);
-  --color-general-title: #1F2633;
-  --color-general-text: #5f6d7f;
-  --color-general-background: #F5F2F0;
-  --color-general-border: #E2E8F0;
-  --color-general-primary: #FF3C3C;
-  --color-general-disabled: #D9D9D9;
-  --color-button: #DA2C6A;
-  --color-button-delete: #FB033F;
-  --color-highlighted: rgb(54, 0, 136);
-  --color-status-analisis: #208CEF;
-  --color-status-activo: #2EBE27;
-  --color-status-cancelado: #FB033F;
-  --color-status-inactivo: #5F6D7F;
-  --color-status-finalizado: #B8CBDD;
-  --color-status-backlog: #5F6D7F;
-  --color-status-en-revision: #208CEF;
-  --color-area-diseño: #6B5FF8;
-  --color-area-gestion: #9AD183;
-  --color-area-desarrollo: #06DAF6;
-  --color-area-investigacion: #FF6363;
-  --color-objective-close-to-deadline: #DA2C6A;
-  --color-objective-expired: #FB2A2A;
-  --color-objective-finished: #AAAAAA;
-  --radius-items: 0.5rem;
-  --radius-cards: 1rem;
-
-  // Colores de Texto Adicionales
-  --color-text-dark: #222;
-  --color-text-muted: #666;
-  --color-text-light: #888;
-  --color-text-placeholder: #a0aec0;
-
-  // Colores de Superficie
-  --color-background: #ffffff;
-  --color-surface-light: #f5f5f5;
-  --color-surface-hover: #e0e0e0;
-  --color-surface-alt: #f8f9fa;
-  --color-tooltip-bg: #625F5F;
-
-  // Colores de Borde Adicionales
-  --color-border-light: #ccc;
-  --color-border-default: #ddd;
-  --color-border-medium: #e5e5e5;
-
-  // Colores de Prioridad (Proyectos)
-  --color-priority-0: #FBC403;
-  --color-priority-1: #ffa800;
-  --color-priority-2: #ff8b04;
-  --color-priority-3: #FB6B03;
-  --color-priority-4: #ff472f;
-  --color-priority-5: #FB033F;
-
-  // Semanticos
-  //
-  // Heredan los valores de los viejos --color-stage-{active,finished}: el concepto
-  // de etapas se elimino, pero estos dos pares se usaban como verde/rojo genericos.
-  --color-success: #004D20;
-  --color-success-bg: #CCFFE1;
-  --color-danger: #d32f2f;
-  --color-danger-bg: #fabec8;
-
-  // Colores de Badge
-  --color-badge-active: #2e7d32;
-  --color-badge-active-bg: #e8f5e8;
-  --color-badge-finished: #757575;
-  --color-badge-finished-bg: #f5f5f5;
-
-  // Colores de Links
-  --color-link: #0000ff;
-  --color-link-primary: #ed2c6c;
-  --color-link-primary-hover: #a31342;
-}
+@use '@/styles' as *;
 
 *{
   font-family: var(--font-primary);
@@ -110,7 +34,7 @@ body {
   max-width: 100vw;
   overflow-x: hidden;
   background-color: var(--color-general-background);
-  font-family: var(--font);
+  font-family: var(--font-ui);
 }
 
 article, aside, details, figcaption, figure,

@@ -1,0 +1,168 @@
+// Tier 3 — Component tokens
+//
+// Traduce intención -> propiedad de un componente concreto. Copiado verbatim de
+// docs/design-system/web/tokens/component.md (DS web v2.4.0), formato
+// {componente}.{variant}.{propiedad}.{estado}.
+//
+// Regla del tier: cada component token DEBE resolver a un semántico, no a un primitivo ni a
+// un hex. Cero referencias a _reference.scss, cero hexadecimales crudos.
+//
+// Familias declaradas: button, input, select, badge, card, table, nav (sidebar), tab, stepper,
+// toggle + range-pill, empty, dropzone, accordion, avatar, loader, tooltip, pagination.
+
+:root {
+  // ============================================
+  // Button (incluye session, flow, fab)
+  // ============================================
+  --button-radius: var(--radius-action);
+  --button-height: var(--size-40);
+  --button-font: var(--text-body-default-family);
+  --button-primary-bg: var(--bg-action-primary);
+  --button-primary-text: var(--text-on-action);
+  --button-primary-border: transparent;
+  --button-disabled-bg: var(--bg-action-disabled);
+  --button-disabled-text: var(--text-disabled);
+  --button-disabled-border: var(--border-default);
+  --button-secondary-bg: var(--bg-action-secondary);
+  --button-secondary-text: var(--text-primary);
+  --button-secondary-border-nav: var(--border-action);
+  --button-secondary-border-dismiss: var(--border-default);
+  --button-session-radius: var(--radius-field);
+  --button-session-height: var(--size-46);
+  --button-flow-bg: var(--bg-action-primary);
+  --button-flow-text: var(--text-on-action);
+  --button-focus: var(--focus-ring);
+  // fab hereda radio, alto y colores de la variante primary; no declara tokens propios.
+
+  // ============================================
+  // Input
+  // ============================================
+  --input-radius: var(--radius-field);
+  --input-height: var(--size-44);
+  --input-bg: var(--bg-surface);
+  --input-text: var(--text-primary);
+  --input-border: var(--border-default);
+  --input-border-focus: var(--border-focus);
+  --input-focus-ring: var(--focus-ring);
+
+  // ============================================
+  // Select — hereda la forma de input
+  // ============================================
+  --select-radius: var(--radius-field);
+  --select-height: var(--size-44);
+  --select-bg: var(--bg-surface);
+  --select-text: var(--text-primary);
+  --select-border: var(--border-default);
+  --select-border-focus: var(--border-focus);
+
+  // ============================================
+  // Badge
+  // ============================================
+  --badge-radius: var(--radius-pill);
+  --badge-dot-size: 8px;
+
+  // ============================================
+  // Card
+  // ============================================
+  --card-radius: var(--radius-surface);
+  --card-bg: var(--bg-surface);
+  --card-border: var(--border-default);
+  --card-shadow: var(--elevation-surface);
+  --card-padding: var(--space-padding-card);
+  --card-bg-dark: var(--bg-surface);
+  --card-border-dark: none;
+
+  // ============================================
+  // Table
+  // ============================================
+  --table-header-bg: var(--bg-inverse);
+  --table-header-text: var(--text-inverse);
+  --table-row-height: var(--size-48);
+  --table-data-font: var(--text-table-data-family);
+  --table-border: var(--border-default);
+
+  // ============================================
+  // Nav (sidebar)
+  // ============================================
+  --nav-item-height: var(--size-48);
+  --nav-subitem-indent: var(--size-44);
+  --nav-item-font: var(--text-nav-item-family);
+  --nav-icon-size: var(--icon-22);
+  --nav-subicon-size: var(--icon-19);
+  --nav-item-active-bg: var(--bg-surface);
+  --nav-item-active-bar: var(--bg-active);
+  --nav-item-active-shadow: var(--elevation-raised);
+  --nav-item-active-icon: var(--text-link);
+  --nav-subitem-active-bg: var(--bg-active-subtle);
+  --nav-item-icon: var(--color-graphite);
+  --nav-wordmark: var(--text-wordmark-family);
+
+  // ============================================
+  // Tab
+  // ============================================
+  --tab-active-border: var(--border-action);
+  --tab-active-text: var(--text-primary);
+  --tab-inactive-text: var(--text-secondary);
+
+  // ============================================
+  // Stepper
+  // ============================================
+  --stepper-active-bg: var(--bg-active);
+  --stepper-inactive-bg: var(--bg-tint-neutral);
+  --stepper-text: var(--text-primary);
+
+  // ============================================
+  // Toggle + range-pill
+  // ============================================
+  --toggle-radius: var(--radius-pill);
+  --toggle-active-bg: var(--bg-active);
+  --toggle-inactive-bg: var(--bg-tint-neutral);
+  --range-pill-radius: var(--radius-pill);
+  --range-pill-bg: var(--bg-tint-neutral);
+  --range-pill-active-bg: var(--bg-active);
+
+  // ============================================
+  // Empty (empty state)
+  // ============================================
+  --empty-icon-color: var(--text-secondary);
+  --empty-text-color: var(--text-secondary);
+
+  // ============================================
+  // Dropzone
+  // ============================================
+  --dropzone-radius: var(--radius-surface);
+  --dropzone-border: var(--border-default);
+  --dropzone-bg: var(--bg-surface-sunken);
+
+  // ============================================
+  // Accordion
+  // ============================================
+  --accordion-border: var(--border-default);
+  --accordion-header-text: var(--text-primary);
+
+  // ============================================
+  // Avatar
+  // ============================================
+  --avatar-radius: var(--radius-pill);
+  --avatar-bg: var(--bg-tint-neutral);
+  --avatar-text: var(--text-primary);
+
+  // ============================================
+  // Loader
+  // ============================================
+  --loader-color: var(--bg-action-primary);
+  --loader-duration: var(--duration-slow);
+
+  // ============================================
+  // Tooltip
+  // ============================================
+  --tooltip-bg: var(--bg-inverse);
+  --tooltip-text: var(--text-inverse);
+
+  // ============================================
+  // Pagination
+  // ============================================
+  --pagination-active-bg: var(--bg-active);
+  --pagination-active-text: var(--text-on-action);
+  --pagination-text: var(--text-secondary);
+}
