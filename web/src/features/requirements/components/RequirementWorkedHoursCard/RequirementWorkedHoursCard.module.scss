@@ -7,26 +7,26 @@
 .breakdown {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-inline-sm);
   margin: 0;
 }
 
 .breakdownRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: var(--space-1);
   align-items: baseline;
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  line-height: var(--text-body-default-leading);
 
   dt {
-    font-weight: 400;
-    color: var(--color-general-text);
+    font-weight: var(--text-body-default-weight);
+    color: var(--text-secondary);
   }
 
   dd {
-    color: #626a81;
+    color: var(--text-secondary);
     margin: 0;
     word-break: break-word;
   }
@@ -36,27 +36,29 @@
 .totalRow {
   @extend .breakdownRow;
 
-  border-top: 1px solid #e6e8ed;
-  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-inline-sm);
 
   dt {
-    font-weight: 600;
-    color: var(--color-general-title);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
   }
 
   dd {
-    font-weight: 600;
-    color: var(--color-general-title);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
   }
 }
 
 .emptyText {
-  font-size: 0.875rem;
-  color: var(--color-general-text);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
 .errorText {
-  font-size: 0.875rem;
-  color: var(--color-general-text);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--text-secondary);
 }

@@ -7,7 +7,7 @@ import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer
 import { useAttachments } from '@/features/attachments/hooks/useAttachments';
 import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
 import { commentErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
-import { Button, Tooltip } from '@/shared/components/ui';
+import { Avatar, Button, Tooltip } from '@/shared/components/ui';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { calculateTimeSince, formatDate } from '@/shared/utils';
 import { useUpdateRequirementComment } from '../../hooks/useUpdateRequirementComment';
@@ -99,23 +99,6 @@ function ActorName({ entry }: { readonly entry: RequirementActivity }) {
       <AutomatedIdentityBadge identityType={entry.changedByUser?.identityType} />
     </>
   );
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
-}
-
-const AVATAR_COLORS = ['#43a047', '#1e88e5', '#e53935', '#8e24aa', '#f4511e', '#00897b'];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 function formatStateChange(entry: RequirementActivity): React.ReactNode {
@@ -259,17 +242,14 @@ function CommentEditForm({
           {visibleAttachments.map((attachment) => (
             <li key={attachment.id} className={styles.attachmentItem}>
               <span>{attachment.fileName}</span>
-              <button
-                type="button"
-                className={styles.removeAttachmentButton}
-                aria-label={`Quitar ${attachment.fileName}`}
-                onClick={() =>
-                  setRemovedLinkIds((prev) => new Set(prev).add(attachment.id))
-                }
+              <Button
+                variant="secondary-dismiss"
+                onClick={() => setRemovedLinkIds((prev) => new Set(prev).add(attachment.id))}
                 disabled={isPending}
               >
-                ×
-              </button>
+                <span aria-hidden="true">×</span>
+                <span className={styles.srOnly}>Quitar {attachment.fileName}</span>
+              </Button>
             </li>
           ))}
         </ul>
@@ -340,12 +320,7 @@ export function RequirementActivityFeed({ activity, reqid }: RequirementActivity
 
         return (
           <div key={entry.id} className={styles.entry}>
-            <div
-              className={styles.avatar}
-              style={{ background: getAvatarColor(getActorName(entry)) }}
-            >
-              {getInitials(getActorName(entry))}
-            </div>
+            <Avatar variant="person" name={getActorName(entry)} size="sm" />
             <div className={styles.body}>
               <div className={styles.entryRow}>
                 <div className={styles.text}>
@@ -417,30 +392,18 @@ export function RequirementActivityFeed({ activity, reqid }: RequirementActivity
                   </div>
                 </Tooltip>
                 {canEdit && !isEditingThis && (
-                  <button
-                    type="button"
+                  <span
                     ref={(el) => {
-                      if (el) editButtonRefs.current.set(entry.id, el);
+                      const button = el?.querySelector('button') ?? null;
+                      if (button) editButtonRefs.current.set(entry.id, button);
                       else editButtonRefs.current.delete(entry.id);
                     }}
-                    className={styles.editButton}
-                    aria-label="Editar comentario"
-                    onClick={() => setEditingId(entry.id)}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    </svg>
-                  </button>
+                    <Button variant="secondary-dismiss" onClick={() => setEditingId(entry.id)}>
+                      <span aria-hidden="true">✎</span>
+                      <span className={styles.srOnly}>Editar comentario</span>
+                    </Button>
+                  </span>
                 )}
               </div>
             </div>

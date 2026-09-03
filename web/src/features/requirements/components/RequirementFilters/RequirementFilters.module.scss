@@ -2,9 +2,9 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 1rem;
+  gap: var(--space-inline-md);
   flex-wrap: nowrap;
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--space-stack-md);
 }
 
 .filterField {
@@ -13,28 +13,18 @@
   min-width: 0;
 }
 
-.fLabel {
-  font-size: 0.875rem;
-  font-weight: 400;
-  color: var(--color-general-text);
-  display: block;
-  margin-bottom: 0.15rem;
+.filterField:nth-child(1) {
+  flex: 4.1;
 }
 
-.fInput {
-  height: 40px;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  padding: 0 0.875rem;
-  font-size: 0.875rem;
-  color: var(--color-general-title);
-  width: 100%;
-  box-sizing: border-box;
-  background: #fff;
-  font-family: system-ui, sans-serif;
+.filterField:nth-child(2) {
+  flex: 3.3;
 }
 
-.fInput:focus {
-  outline: 2px solid var(--color-highlighted, #DA2C6A);
+.filterField:nth-child(3) {
+  flex: 2.5;
 }
 
+.filterField:nth-child(4) {
+  flex: 2.1;
+}

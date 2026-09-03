@@ -4,11 +4,17 @@ import React, { useCallback, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
 import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
+import { Button, ToggleGroup } from '@/shared/components/ui';
 import { useAddRequirementActivity } from '../../hooks/useAddRequirementActivity';
 import { RequirementRichTextEditor } from '../RequirementRichTextEditor';
 import styles from './RequirementActivityForm.module.scss';
 import type { VisibilityLevel } from '../../types/requirement.types';
 import type { RequirementRichTextEditorHandle } from '../RequirementRichTextEditor';
+
+const VISIBILITY_OPTIONS = [
+  { value: 'internal', label: 'Interno' },
+  { value: 'public', label: 'Público' },
+];
 
 interface RequirementActivityFormProps {
   readonly reqid: number;
@@ -43,8 +49,8 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
   }, []);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
+    (e?: React.FormEvent) => {
+      e?.preventDefault();
       const comment = editorRef.current?.getValue() ?? '';
       if (!comment.trim()) return;
 
@@ -113,76 +119,31 @@ export function RequirementActivityForm({ reqid }: RequirementActivityFormProps)
       )}
 
       <div className={styles.activityFormFooter}>
-        <button
-          type="button"
-          className={styles.attachIconBtn}
-          aria-label="Adjuntar archivo"
+        <Button
+          variant="secondary-dismiss"
           disabled={isPending || isUploading}
           onClick={handleAttachClick}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
           Adjuntar
-        </button>
+        </Button>
 
-        <div className={styles.visToggle}>
-          <button
-            type="button"
-            className={styles.visToggleBtn}
-            data-active={visibility === 'internal'}
-            onClick={() => setVisibility('internal')}
-            aria-pressed={visibility === 'internal'}
-            aria-label="Comentario interno"
-          >
-            Interno
-          </button>
-          <button
-            type="button"
-            className={styles.visToggleBtn}
-            data-active={visibility === 'public'}
-            onClick={() => setVisibility('public')}
-            aria-pressed={visibility === 'public'}
-            aria-label="Comentario público"
-          >
-            Público
-          </button>
-        </div>
+        <ToggleGroup
+          variant="segmented"
+          label="Visibilidad del comentario"
+          options={VISIBILITY_OPTIONS}
+          value={visibility}
+          onChange={(value) => setVisibility(value as VisibilityLevel)}
+        />
 
-        <button
-          type="submit"
-          className={styles.sendBtn}
+        <Button
+          variant="primary"
+          onClick={handleSubmit}
           disabled={isEmpty || isPending || isUploading}
-          aria-label="Enviar comentario"
-          aria-describedby={isUploading ? 'activity-upload-in-progress' : undefined}
-          data-testid="submit-button"
+          loading={isPending}
+          ariaDescribedBy={isUploading ? 'activity-upload-in-progress' : undefined}
         >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
           Enviar
-        </button>
+        </Button>
         {isUploading && (
           <span id="activity-upload-in-progress" className={styles.srOnly}>
             Hay una subida en curso: esperá a que el archivo termine de subir para enviar

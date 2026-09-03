@@ -98,31 +98,32 @@ describe('RequirementList — S-051', () => {
     });
   });
 
-  // TS-2: Estado como texto plano sin dot
-  it('TS-2: estado se muestra como texto plano sin dot ni fondo', async () => {
+  // TS-2 (S-057): el estado se muestra con el componente Badge, con familia de STATE_TO_FAMILY
+  it('TS-2: estado se muestra con Badge, con la familia resuelta por STATE_TO_FAMILY', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
       expect(screen.getAllByText('Análisis').length).toBeGreaterThan(0);
     });
-    const dots = document.querySelectorAll('[class*="stateDot"]');
-    expect(dots.length).toBe(0);
+    // mockRequirement.state === 'analisis', que no está en STATE_TO_FAMILY: cae al
+    // default 'neutral' (comportamiento documentado, no un bug de esta migración).
+    const stateBadge = screen.getByText('Análisis').closest('span')?.parentElement;
+    expect(stateBadge?.className).toMatch(/familyNeutral/);
   });
 
-  // TS-3: Prioridad como texto plano sin fondo
-  it('TS-3: prioridad se muestra como texto plano sin priorityPill', async () => {
+  // TS-3 (S-057): la prioridad se muestra con Badge, con la familia del mapa de prioridad
+  it('TS-3: prioridad se muestra con Badge, con family "urgent" para prioridad alta', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
       expect(screen.getAllByText('Alta').length).toBeGreaterThan(0);
     });
-    const pills = document.querySelectorAll('[class*="priorityPill"]');
-    expect(pills.length).toBe(0);
+    const priorityBadge = screen.getByText('Alta').closest('span')?.parentElement;
+    expect(priorityBadge?.className).toMatch(/familyUrgent/);
   });
 
   // TS-5: Creación muestra createdAt formateado
   it('TS-5: Creación muestra createdAt formateado', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
     await waitFor(() => {
-      // createdAt: '2026-06-21T00:00:00Z' → algún formato de fecha con 2026
       const cells = document.querySelectorAll('td');
       const dateCell = Array.from(cells).find((td) => td.textContent?.includes('2026'));
       expect(dateCell).toBeTruthy();
@@ -187,15 +188,19 @@ describe('RequirementList — S-051', () => {
     });
   });
 
-  // TS-11: sin requisitos → mensaje vacío con colSpan 9 (S-045: 8 -> 9)
-  it('TS-11: sin requisitos muestra mensaje vacío con colSpan 9 (S-045)', async () => {
+  // TS-11 (S-057): sin requisitos, EmptyState variant="filtered" (hay filtro de estado default)
+  it('TS-11: sin requisitos muestra el EmptyState, sin invitar a crear', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([]);
-    render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
+    render(<RequirementList filters={{ ...filters, state: 'desarrollo' }} />, {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => {
       expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
     });
-    const td = screen.getByText('No se encontraron requisitos').closest('td');
-    expect(td?.getAttribute('colSpan') ?? td?.getAttribute('colspan')).toBe('9');
+    expect(screen.queryByRole('button', { name: /nuevo/i })).not.toBeInTheDocument();
+    // El <thead> se sigue viendo: Table renderiza el emptyState fuera del <table>, sin ocultar
+    // el encabezado.
+    expect(screen.getByText('ID')).toBeInTheDocument();
   });
 
   // TS-12: paginación — botón activo tiene data-active
@@ -207,16 +212,13 @@ describe('RequirementList — S-051', () => {
     });
   });
 
-  // Click en la fila abre el detalle del requisito en una pestaña nueva
-  it('click en la fila abre /requirements/{id} en una pestaña nueva', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+  // Navegación al detalle: el título de la fila es el enlace accesible (S-057: Table no
+  // ofrece click de fila, así que la navegación vive en la celda de título).
+  it('el título de la fila enlaza a /requirements/{id}', async () => {
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
 
-    const title = await screen.findByText('Req test');
-    fireEvent.click(title.closest('tr') as HTMLElement);
-
-    expect(openSpy).toHaveBeenCalledWith('/requirements/5', '_blank');
-    openSpy.mockRestore();
+    const link = await screen.findByRole('link', { name: 'Req test' });
+    expect(link).toHaveAttribute('href', '/requirements/5');
   });
 
   // Sin tabs de estado (el prototipo no los tiene)
@@ -283,12 +285,8 @@ describe('RequirementList — S-051', () => {
       { wrapper: createWrapper() }
     );
 
-    const label = await screen.findByText(
-      (content, element) => content === 'Proyecto' && element?.tagName.toLowerCase() === 'label'
-    );
-    const container = label.closest('div') as HTMLElement;
-    const input = within(container).getByRole('combobox');
-    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    const projectSelect = await screen.findByLabelText('Proyecto');
+    fireEvent.click(projectSelect);
     const option = screen.getAllByRole('option').find((o) => o.textContent === 'Todos los proyectos');
     fireEvent.click(option as HTMLElement);
 
@@ -473,7 +471,8 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     expect(within(nav).getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
   });
 
-  // TS-4: el empty state convive con el selector de tamaño de página (CA-2)
+  // TS-4 (S-057): el empty state convive con el selector de tamaño de página, que ahora lo
+  // aporta Pagination (onPageSizeChange), no un <select> crudo
   it('TS-4: el selector de tamaño de página sigue visible con el empty state', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([]);
     vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(0);
@@ -485,9 +484,10 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     await waitFor(() => {
       expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
     });
-    const select = screen.getByLabelText('Elementos por página') as HTMLSelectElement;
-    expect(select).toBeInTheDocument();
-    expect(select.value).toBe('15');
+    expect(document.querySelector('select')).toBeNull();
+    const pageSizeControl = screen.getByLabelText('Cantidad por página');
+    expect(pageSizeControl).toBeInTheDocument();
+    expect(pageSizeControl).toHaveTextContent('15 por página');
   });
 
   // TS-5: la última página deshabilita la flecha "siguiente" (CA-1)
@@ -600,7 +600,8 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     expect(document.querySelectorAll('[class*="pageBtn"]').length).toBe(0);
   });
 
-  // TS-11: cambiar el tamaño de página resetea la página a 1 (CA-1)
+  // TS-11 (S-057): cambiar el tamaño de página (vía Pagination.onPageSizeChange) resetea la
+  // página a 1
   it('TS-11: cambiar el tamaño de página resetea "page" a 1', async () => {
     vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(32);
     mockSearchParams = new URLSearchParams('page=3&state=desarrollo');
@@ -609,8 +610,9 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       { wrapper: createWrapper() }
     );
 
-    const select = await screen.findByLabelText('Elementos por página');
-    fireEvent.change(select, { target: { value: '25' } });
+    const pageSizeControl = await screen.findByLabelText('Cantidad por página');
+    fireEvent.click(pageSizeControl);
+    fireEvent.click(screen.getByRole('option', { name: '25 por página' }));
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalled();
@@ -761,17 +763,15 @@ describe('RequirementList — S-045 (columna "Hs. Trab.")', () => {
     fireEvent.click(th);
 
     expect(mockPush).not.toHaveBeenCalled();
-    expect(th).not.toHaveAttribute('onclick');
-    expect(th).not.toHaveAttribute('role', 'button');
-    expect(th).not.toHaveAttribute('tabindex');
+    expect(th.closest('th')).not.toHaveAttribute('aria-sort');
   });
 
-  // TS-10: la fila de carga usa colSpan={9} (CA-7)
-  it('TS-10: la fila de carga usa colSpan={9} (CA-7)', async () => {
+  // TS-10 (S-057): la fila de carga usa el estado `loading` de Table (role="status"), no un
+  // <td colSpan> armado a mano
+  it('TS-10: mientras carga, Table muestra el estado de carga accesible', async () => {
     vi.mocked(requirementsApi.getRequirements).mockReturnValue(new Promise(() => {}));
     render(<RequirementList filters={filters} />, { wrapper: createWrapper() });
 
-    const td = await screen.findByText('Cargando requisitos...');
-    expect(td.closest('td')).toHaveAttribute('colSpan', '9');
+    expect(await screen.findByText('Cargando…')).toHaveAttribute('role', 'status');
   });
 });

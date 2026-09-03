@@ -1,15 +1,14 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Select from 'react-select';
 import { toast } from 'react-toastify';
 import * as Yup from 'yup';
 import { extractFileIds } from '@/features/attachments/utils/extractFileIds';
 import { fileErrorMessage } from '@/features/attachments/utils/fileErrorMessages';
 import { usePersons } from '@/features/auth';
 import { useProjects } from '@/features/projects/hooks/useProjects';
+import { Badge, Button, Card, Input, Select } from '@/shared/components/ui';
 import { transformYupErrors } from '@/shared/utils/transform-yup-errors';
 import { useCreateRequirement } from '../../hooks/useCreateRequirement';
 import { useRequirementTagSuggestions } from '../../hooks/useRequirementTagSuggestions';
@@ -57,139 +56,6 @@ const VISIBILITY_OPTIONS = [
   { label: 'Público', value: 'public' },
   { label: 'Interno', value: 'internal' },
 ];
-
-const selectStyles = {
-  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-    ...base,
-    height: '40px',
-    minHeight: '40px',
-    border: state.isFocused ? '1px solid var(--color-highlighted)' : '1px solid #e6e8ed',
-    borderRadius: '8px',
-    boxShadow: 'none',
-    outline: 'none',
-    fontSize: '0.875rem',
-    fontWeight: 400,
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    '&:hover': {
-      border: state.isFocused ? '1px solid var(--color-highlighted)' : '1px solid #e6e8ed',
-    },
-  }),
-  valueContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    padding: '0 0.75rem',
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'nowrap' as const,
-  }),
-  input: (base: Record<string, unknown>) => ({
-    ...base,
-    margin: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-  }),
-  indicatorsContainer: (base: Record<string, unknown>) => ({
-    ...base,
-    height: '40px',
-    display: 'flex',
-    alignItems: 'center',
-  }),
-  indicatorSeparator: () => ({ display: 'none' }),
-  menu: (base: Record<string, unknown>) => ({
-    ...base,
-    zIndex: 10,
-    fontSize: '0.875rem',
-    borderRadius: '8px',
-    border: '1px solid #e6e8ed',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-  }),
-  option: (base: Record<string, unknown>, state: { isSelected: boolean; isFocused: boolean }) => ({
-    ...base,
-    backgroundColor: state.isSelected ? '#DA2C6A' : state.isFocused ? '#E2E8F0' : '#fff',
-    color: state.isSelected ? '#fff' : '#1F2633',
-    cursor: 'pointer',
-  }),
-  singleValue: (base: Record<string, unknown>) => ({ ...base, color: '#1F2633' }),
-  placeholder: (base: Record<string, unknown>) => ({ ...base, color: '#aaa' }),
-};
-
-// Estilos calcados de InputMultiplePersons (usado en creación/edición de tarea) para que el
-// multi-select de Responsables se comporte igual: chips que no se achican, wrap sin altura fija.
-const responsibleSelectStyles = {
-  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-    ...base,
-    '&:hover': { cursor: 'pointer' },
-    backgroundColor: '#fff',
-    border: '0.5px solid var(--color-general-border)',
-    borderRadius: 'var(--radius-items)',
-    boxSizing: 'border-box' as const,
-    color: 'var(--color-general-title)',
-    fontSize: '1rem',
-    fontWeight: 400,
-    lineHeight: '1.5rem',
-    outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
-    width: '100%',
-  }),
-  multiValue: (base: Record<string, unknown>, state: { index: number }) => ({
-    ...base,
-    alignItems: 'center',
-    backgroundColor: state.index === 0 ? '#D9D9D9' : '#f5f2f0',
-    borderRadius: 'var(--radius-items)',
-    color: '#666',
-    display: 'flex',
-    fontFamily: 'var(--font-primary)',
-    fontSize: '1rem',
-    margin: '5px',
-    padding: '2px 6px',
-  }),
-  multiValueLabel: (base: Record<string, unknown>, state: { index: number }) => ({
-    ...base,
-    color: state.index === 0 ? '#000' : 'var(--color-general-title)',
-  }),
-  multiValueRemove: (base: Record<string, unknown>) => ({
-    cursor: 'pointer',
-    ...base,
-    '&:hover': { color: 'darkred' },
-    background: 'none',
-    border: 'none',
-    color: 'red',
-    fontSize: '1rem',
-    marginLeft: '5px',
-  }),
-  input: (base: Record<string, unknown>) => ({
-    ...base,
-    margin: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-  }),
-  placeholder: (base: Record<string, unknown>) => ({
-    ...base,
-    fontSize: '0.875rem',
-    color: '#aaa',
-  }),
-};
-
-const selectStylesDisabled = {
-  ...selectStyles,
-  control: (base: Record<string, unknown>, _state: { isFocused: boolean }) => ({
-    ...base,
-    height: '40px',
-    minHeight: '40px',
-    border: '1px solid #e6e8ed',
-    borderRadius: '8px',
-    boxShadow: 'none',
-    outline: 'none',
-    fontSize: '0.875rem',
-    fontWeight: 400,
-    backgroundColor: '#f0f1f3',
-    opacity: 0.7,
-    cursor: 'not-allowed',
-    pointerEvents: 'none' as const,
-  }),
-  dropdownIndicator: () => ({ display: 'none' }),
-  indicatorsContainer: () => ({ display: 'none' }),
-  singleValue: (base: Record<string, unknown>) => ({ ...base, color: '#1f2633' }),
-};
 
 const schema = Yup.object({
   title: Yup.string()
@@ -261,12 +127,9 @@ export function CreateRequirementForm() {
 
   const todayISO = new Date().toISOString().split('T')[0];
 
-  const projectOptions = [
-    { label: 'Seleccionar proyecto...', value: '' },
-    ...[...projects]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((p) => ({ label: p.name, value: String(p.id) })),
-  ];
+  const projectOptions = [...projects]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => ({ label: p.name, value: String(p.id) }));
 
   const responsibleOptions = persons
     .filter((p) => p.id != null)
@@ -306,8 +169,11 @@ export function CreateRequirementForm() {
     setTagValue(value);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // `Button` renderiza `type="button"` fijo y no acepta prop `type`: no puede ser el submit
+  // nativo de un `<form>`. La mecánica de submit se preserva disparando el mismo handler por
+  // `onClick` que hoy corre en `onSubmit` — no se cambia el componente compartido.
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
     setErrors({});
 
     const dataToValidate = {
@@ -354,23 +220,6 @@ export function CreateRequirementForm() {
     });
   }
 
-  const tagIcon = (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l7.29-7.29a1 1 0 0 0 0-1.42L12 2z" />
-      <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none" />
-    </svg>
-  );
-
   return (
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <header className={styles.pageHeader}>
@@ -378,18 +227,18 @@ export function CreateRequirementForm() {
           <h1 className={styles.title}>Nuevo Requisito</h1>
         </div>
         <div className={styles.headerActions}>
-          <Link href="/requirements" className={styles.backButton}>
+          <Button variant="secondary-nav" href="/requirements">
             Volver
-          </Link>
-          <button
-            type="submit"
-            className={styles.submitButton}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
             disabled={isPending || isUploading}
-            aria-busy={isPending}
-            aria-describedby={isUploading ? 'create-upload-in-progress' : undefined}
+            loading={isPending}
+            ariaDescribedBy={isUploading ? 'create-upload-in-progress' : undefined}
           >
             {isPending ? 'Creando...' : 'Crear Requisito'}
-          </button>
+          </Button>
           {isUploading && (
             <span id="create-upload-in-progress" className={styles.srOnly}>
               Hay una subida en curso: esperá a que el archivo termine de subir para guardar
@@ -401,21 +250,13 @@ export function CreateRequirementForm() {
       <div className={styles.panels}>
         {/* Panel izquierdo */}
         <div className={styles.panelLeft} ref={panelLeftRef}>
-          <div className={styles.panelCard}>
-            <h2 className={styles.panelTitle}>Detalle</h2>
-
+          <Card variant="panel" title="Detalle" headingLevel="h2">
             <div className={styles.field}>
-              <label htmlFor="title" className={styles.fieldLabel}>
-                Título{' '}
-                {!form.title.trim() && <span className={styles.required}>(obligatorio)</span>}
-              </label>
-              <input
-                id="title"
-                type="text"
-                className={styles.fieldInput}
-                aria-label="Título"
+              <Input
+                variant="text"
+                label="Título"
                 value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                onChange={(value) => setForm((f) => ({ ...f, title: value }))}
                 required
               />
             </div>
@@ -435,25 +276,21 @@ export function CreateRequirementForm() {
                 onUploadingChange={setIsUploading}
               />
             </div>
-          </div>
+          </Card>
 
           {/* Etiquetas */}
-          <div className={styles.tagsSection}>
-            <label className={styles.tagsLabel}>Etiquetas</label>
-
+          <Card variant="panel" title="Etiquetas" headingLevel="h2">
             {tagSuggestions.length > 0 && (
               <div className={styles.suggestions}>
                 {tagSuggestions.flatMap((s) =>
                   s.values.map((v) => (
-                    <button
+                    <Button
                       key={`${s.key}:${v}`}
-                      type="button"
-                      className={styles.suggestionChip}
+                      variant="secondary-dismiss"
                       onClick={() => handleSuggestionClick(s.key, v)}
                     >
-                      {tagIcon}
                       {s.key}: {v}
-                    </button>
+                    </Button>
                   ))
                 )}
               </div>
@@ -462,194 +299,142 @@ export function CreateRequirementForm() {
             <div className={styles.tagList}>
               {tags.map((tag, i) => (
                 <span key={i} className={styles.chip}>
-                  {tagIcon}
-                  {tag.key}: {tag.value}
-                  <button
-                    type="button"
-                    className={styles.chipRemove}
-                    onClick={() => handleRemoveTag(i)}
-                    aria-label={`Eliminar tag ${tag.key}:${tag.value}`}
-                  >
-                    ×
-                  </button>
+                  <Badge variant="card-tag" label={`${tag.key}: ${tag.value}`} />
+                  <Button variant="secondary-dismiss" onClick={() => handleRemoveTag(i)}>
+                    <span aria-hidden="true">×</span>
+                    <span className={styles.srOnly}>
+                      Eliminar tag {tag.key}:{tag.value}
+                    </span>
+                  </Button>
                 </span>
               ))}
             </div>
 
             <div className={styles.tagInputRow}>
-              <div className={styles.tagField}>
-                <label htmlFor="tagKey" className={styles.tagFieldLabel}>
-                  Clave
-                </label>
-                <input
-                  id="tagKey"
-                  type="text"
-                  className={styles.tagInput}
-                  aria-label="Clave"
-                  value={tagKey}
-                  onChange={(e) => setTagKey(e.target.value)}
-                />
-              </div>
-              <div className={styles.tagField}>
-                <label htmlFor="tagValue" className={styles.tagFieldLabel}>
-                  Valor
-                </label>
-                <input
-                  id="tagValue"
-                  type="text"
-                  className={styles.tagInput}
-                  aria-label="Valor"
-                  value={tagValue}
-                  onChange={(e) => setTagValue(e.target.value)}
-                />
-              </div>
-              <button
-                type="button"
-                className={styles.addTagButton}
+              <Input
+                variant="text"
+                label="Clave"
+                value={tagKey}
+                onChange={setTagKey}
+              />
+              <Input
+                variant="text"
+                label="Valor"
+                value={tagValue}
+                onChange={setTagValue}
+              />
+              <Button
+                variant="secondary-dismiss"
                 onClick={handleAddTag}
                 disabled={!tagKey.trim() || !tagValue.trim()}
               >
                 Agregar
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Panel derecho — Información general */}
         <aside className={styles.panelRight} ref={panelRightRef}>
-          <h2 className={styles.panelTitle}>Información general</h2>
+          <Card variant="panel" title="Información general" headingLevel="h2">
+            <div className={styles.field}>
+              <Select
+                variant="single"
+                label="Proyecto"
+                required
+                placeholder="Seleccionar proyecto..."
+                options={projectOptions}
+                value={form.projectId}
+                onChange={handleProjectChange}
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="projectId" className={styles.fieldLabel}>
-              Proyecto {!form.projectId && <span className={styles.required}>(obligatorio)</span>}
-            </label>
-            <Select
-              inputId="projectId"
-              aria-label="Proyecto"
-              styles={selectStyles}
-              options={projectOptions}
-              value={projectOptions.find((o) => o.value === form.projectId) ?? projectOptions[0]}
-              onChange={(opt) => handleProjectChange(opt?.value ?? '')}
-              placeholder="Seleccionar proyecto..."
-            />
-          </div>
+            <div className={styles.field}>
+              <Select
+                variant="locked"
+                label="Estado"
+                options={STATE_OPTIONS}
+                value={form.state}
+                onChange={() => {}}
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="state" className={styles.fieldLabel}>
-              Estado
-            </label>
-            <Select
-              inputId="state"
-              aria-label="Estado"
-              styles={selectStylesDisabled}
-              isDisabled
-              options={STATE_OPTIONS}
-              value={STATE_OPTIONS.find((o) => o.value === form.state) ?? STATE_OPTIONS[0]}
-              onChange={() => {}}
-            />
-          </div>
+            <div className={styles.field}>
+              <Select
+                variant="single"
+                label="Tipo"
+                placeholder="Sin tipo"
+                options={TYPE_OPTIONS}
+                value={form.type}
+                onChange={(value) => setForm((f) => ({ ...f, type: value }))}
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="type" className={styles.fieldLabel}>
-              Tipo
-            </label>
-            <Select
-              inputId="type"
-              aria-label="Tipo"
-              styles={selectStyles}
-              options={TYPE_OPTIONS}
-              value={TYPE_OPTIONS.find((o) => o.value === form.type) ?? TYPE_OPTIONS[0]}
-              onChange={(opt) => setForm((f) => ({ ...f, type: opt?.value ?? '' }))}
-            />
-          </div>
+            <div className={styles.field}>
+              <Select
+                variant="single"
+                label="Prioridad"
+                options={PRIORITY_OPTIONS}
+                value={form.priority}
+                onChange={(value) => setForm((f) => ({ ...f, priority: value }))}
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="priority" className={styles.fieldLabel}>
-              Prioridad
-            </label>
-            <Select
-              inputId="priority"
-              aria-label="Prioridad"
-              styles={selectStyles}
-              options={PRIORITY_OPTIONS}
-              value={PRIORITY_OPTIONS.find((o) => o.value === form.priority) ?? PRIORITY_OPTIONS[0]}
-              onChange={(opt) =>
-                setForm((f) => ({ ...f, priority: opt?.value ?? 'sin_prioridad' }))
-              }
-            />
-          </div>
+            <div className={styles.field}>
+              <Select
+                variant="single"
+                label="Visibilidad"
+                options={VISIBILITY_OPTIONS}
+                value={form.visibilityLevel}
+                onChange={(value) => setForm((f) => ({ ...f, visibilityLevel: value }))}
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="visibilityLevel" className={styles.fieldLabel}>
-              Visibilidad
-            </label>
-            <Select
-              inputId="visibilityLevel"
-              aria-label="Visibilidad"
-              styles={selectStyles}
-              options={VISIBILITY_OPTIONS}
-              value={
-                VISIBILITY_OPTIONS.find((o) => o.value === form.visibilityLevel) ??
-                VISIBILITY_OPTIONS[0]
-              }
-              onChange={(opt) =>
-                setForm((f) => ({ ...f, visibilityLevel: opt?.value ?? 'public' }))
-              }
-            />
-          </div>
+            <div className={styles.field}>
+              <Select
+                variant="multiple"
+                label="Responsable(s)"
+                placeholder="Seleccionar responsable(s)..."
+                options={responsibleOptions}
+                value={form.responsiblePersonIds}
+                onChange={(values) =>
+                  setForm((f) => ({
+                    ...f,
+                    responsiblePersonIds: values,
+                  }))
+                }
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="responsiblePersonIds" className={styles.fieldLabel}>
-              Responsable(s)
-            </label>
-            <Select
-              inputId="responsiblePersonIds"
-              aria-label="Responsable(s)"
-              isMulti
-              isClearable={false}
-              placeholder="Seleccionar responsable(s)..."
-              styles={responsibleSelectStyles}
-              options={responsibleOptions}
-              value={form.responsiblePersonIds
-                .map((id) => responsibleOptions.find((o) => o.value === id))
-                .filter((o): o is { label: string; value: string } => !!o)}
-              onChange={(opts) =>
-                setForm((f) => ({
-                  ...f,
-                  responsiblePersonIds: (opts ?? []).map((opt) => opt.value),
-                }))
-              }
-            />
-          </div>
+            <div className={styles.field}>
+              <label htmlFor="createdAt" className={styles.fieldLabel}>
+                Fecha de creación
+              </label>
+              <input
+                id="createdAt"
+                type="date"
+                className={styles.fieldInput}
+                aria-label="Fecha de creación"
+                value={todayISO}
+                disabled
+                readOnly
+              />
+            </div>
 
-          <div className={styles.field}>
-            <label htmlFor="createdAt" className={styles.fieldLabel}>
-              Fecha de creación
-            </label>
-            <input
-              id="createdAt"
-              type="date"
-              className={styles.fieldInput}
-              aria-label="Fecha de creación"
-              value={todayISO}
-              disabled
-              readOnly
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label htmlFor="estimatedFinishDate" className={styles.fieldLabel}>
-              Fecha de finalización estimada
-            </label>
-            <input
-              id="estimatedFinishDate"
-              type="date"
-              className={styles.fieldInput}
-              aria-label="Fecha de finalización estimada"
-              value={form.estimatedFinishDate}
-              onChange={(e) => setForm((f) => ({ ...f, estimatedFinishDate: e.target.value }))}
-            />
-          </div>
+            <div className={styles.field}>
+              <label htmlFor="estimatedFinishDate" className={styles.fieldLabel}>
+                Fecha de finalización estimada
+              </label>
+              <input
+                id="estimatedFinishDate"
+                type="date"
+                className={styles.fieldInput}
+                aria-label="Fecha de finalización estimada"
+                value={form.estimatedFinishDate}
+                onChange={(e) => setForm((f) => ({ ...f, estimatedFinishDate: e.target.value }))}
+              />
+            </div>
+          </Card>
         </aside>
       </div>
     </form>

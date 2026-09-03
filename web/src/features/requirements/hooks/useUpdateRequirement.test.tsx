@@ -6,6 +6,20 @@ import { RequirementHeader } from '../components/RequirementHeader/RequirementHe
 import { useUpdateRequirement } from './useUpdateRequirement';
 import type { Requirement } from '../types/requirement.types';
 
+// El barrel `@/shared/components/ui` (Badge, Button, que RequirementHeader consume desde
+// S-057) arrastra transitivamente CommentEditor -> @/features/objectives -> auth. Sin estos
+// mocks, la resolución real de 'next-auth' falla al buscar 'next/server' en este entorno de
+// test. Mismo patrón que RequirementList.test.tsx / RequirementHeader.test.tsx.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

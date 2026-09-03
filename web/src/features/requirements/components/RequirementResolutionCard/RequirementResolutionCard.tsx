@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Button, Card, Input, Select } from '@/shared/components/ui';
 import { RESOLUTION_TYPE_OPTIONS } from '../../utils/resolutionHelpers';
 import styles from './RequirementResolutionCard.module.scss';
 import type { Requirement, UpdateRequirementPayload } from '../../types/requirement.types';
@@ -120,9 +121,7 @@ export function RequirementResolutionCard({
   };
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardTitle}>Resolución</div>
-
+    <Card variant="panel" title="Resolución" headingLevel="h2">
       {requirement.estimatedFinishDate && (
         <dl className={styles.row}>
           <dt>Cierre estimado</dt>
@@ -132,51 +131,31 @@ export function RequirementResolutionCard({
 
       {showResolutionFields && (
         <div className={styles.resolutionFields}>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="resolution-type">
-              Tipo de resolución
-            </label>
-            <select
-              id="resolution-type"
-              className={styles.inlineFormInput}
-              value={drafts.resolutionType}
-              onChange={(e) => handleDraftChange('resolutionType', e.target.value)}
-              disabled={isPending || isClosed}
-            >
-              <option value="">Seleccioná una opción</option>
-              {RESOLUTION_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="resolution-conclusion">
-              Conclusión interna
-            </label>
-            <textarea
-              id="resolution-conclusion"
-              className={styles.inlineFormTextarea}
-              placeholder="Describí la conclusión interna de esta incidencia..."
-              value={drafts.resolutionConclusion}
-              onChange={(e) => handleDraftChange('resolutionConclusion', e.target.value)}
-              disabled={isPending || isClosed}
-            />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="resolution-comment">
-              Nota para cliente
-            </label>
-            <textarea
-              id="resolution-comment"
-              className={styles.inlineFormTextarea}
-              placeholder="Describí la resolución de esta incidencia..."
-              value={drafts.resolutionComment}
-              onChange={(e) => handleDraftChange('resolutionComment', e.target.value)}
-              disabled={isPending || isClosed}
-            />
-          </div>
+          <Select
+            variant="single"
+            label="Tipo de resolución"
+            placeholder="Seleccioná una opción"
+            options={RESOLUTION_TYPE_OPTIONS}
+            value={drafts.resolutionType}
+            onChange={(value) => handleDraftChange('resolutionType', value)}
+            disabled={isPending || isClosed}
+          />
+          <Input
+            variant="textarea"
+            label="Conclusión interna"
+            placeholder="Describí la conclusión interna de esta incidencia..."
+            value={drafts.resolutionConclusion}
+            onChange={(value) => handleDraftChange('resolutionConclusion', value)}
+            disabled={isPending || isClosed}
+          />
+          <Input
+            variant="textarea"
+            label="Nota para cliente"
+            placeholder="Describí la resolución de esta incidencia..."
+            value={drafts.resolutionComment}
+            onChange={(value) => handleDraftChange('resolutionComment', value)}
+            disabled={isPending || isClosed}
+          />
         </div>
       )}
 
@@ -186,49 +165,37 @@ export function RequirementResolutionCard({
             <dt>Fecha de finalización</dt>
             <dd>{formatDate(getResolutionDate(requirement))}</dd>
           </dl>
-          <button
-            type="button"
-            className={styles.reopenButton}
+          <Button
+            variant="secondary-dismiss"
             onClick={handleReopen}
             disabled={isPending}
           >
             Reabrir
-          </button>
+          </Button>
         </>
       ) : isClosed ? (
         <>
           <div className={`${styles.resultBadge} ${styles.resultBadgeCancelled}`}>
             {RESULT_LABELS[state as 'resuelto' | 'cancelado']}
           </div>
-          <button
-            type="button"
-            className={styles.reopenButton}
+          <Button
+            variant="secondary-dismiss"
             onClick={handleReopen}
             disabled={isPending}
           >
             Reabrir
-          </button>
+          </Button>
         </>
       ) : (
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.cancelButton}
-            onClick={handleCancel}
-            disabled={isPending}
-          >
+          <Button variant="secondary-dismiss" onClick={handleCancel} disabled={isPending}>
             Cancelar
-          </button>
-          <button
-            type="button"
-            className={styles.resolveButton}
-            onClick={handleResolve}
-            disabled={isPending}
-          >
+          </Button>
+          <Button variant="primary" onClick={handleResolve} disabled={isPending}>
             Resolver
-          </button>
+          </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

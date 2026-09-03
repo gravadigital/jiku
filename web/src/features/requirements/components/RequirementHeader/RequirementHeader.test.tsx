@@ -1,10 +1,24 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RequirementHeader } from './RequirementHeader';
 import type { Requirement } from '../../types/requirement.types';
+
+// El barrel `@/shared/components/ui` (Badge, Button) arrastra transitivamente CommentEditor ->
+// @/features/objectives -> auth. Sin estos mocks, la resolución real de 'next-auth' falla al
+// buscar 'next/server' en este entorno de test. Mismo patrón que RequirementList.test.tsx.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
 
 const scssContent = fs.readFileSync(
   path.resolve(__dirname, './RequirementHeader.module.scss'),
@@ -66,11 +80,14 @@ describe('RequirementHeader', () => {
   });
 
   it('S-090: el orden del DOM es título, luego pills, luego botones (Volver/Editar)', () => {
-    render(<RequirementHeader requirement={baseRequirement} />);
+    render(<RequirementHeader requirement={baseRequirement} onUpdate={vi.fn()} />);
 
     const title = screen.getByText(baseRequirement.title);
-    const stateBadge = document.querySelector('[data-state]')!;
-    const volverButton = screen.getByRole('link', { name: 'Volver' });
+    // S-057: los tres badges editables (estado/tipo/prioridad) comparten el aria-label
+    // "Estado: {label}" — limitación conocida del componente `Badge` del DS, registrada en el
+    // changelog de la story. Se identifica el de estado por su label exacto.
+    const stateBadge = screen.getByRole('button', { name: 'Estado: Análisis' });
+    const volverButton = screen.getByRole('button', { name: 'Volver' });
 
     // compareDocumentPosition con DOCUMENT_POSITION_FOLLOWING confirma que el segundo
     // argumento aparece DESPUÉS del elemento sobre el que se invoca el método.
@@ -83,10 +100,13 @@ describe('RequirementHeader', () => {
   });
 
   it('restaura la Pill Estado junto a Tipo y Prioridad (coexiste con la Card Estado del detalle)', () => {
-    render(<RequirementHeader requirement={{ ...baseRequirement, state: 'desarrollo' }} />);
-    expect(document.querySelector('[data-state]')).toBeInTheDocument();
-    expect(document.querySelector('[data-type]')).toBeInTheDocument();
-    expect(document.querySelector('[data-priority]')).toBeInTheDocument();
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'desarrollo' }}
+        onUpdate={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Estado: Desarrollo' })).toBeInTheDocument();
     expect(screen.getByText('Desarrollo')).toBeInTheDocument();
     expect(screen.getByText('Funcionalidad')).toBeInTheDocument();
     expect(screen.getByText('Alta')).toBeInTheDocument();
@@ -173,11 +193,15 @@ describe('RequirementHeader', () => {
     expect(screen.getByText('Alta')).toBeInTheDocument();
   });
 
-  it('muestra el botón Volver con href a /requirements', () => {
+  // S-057: `Volver` migra a `Button variant="secondary-nav"`, que no renderiza un <a> real —
+  // navega vía `useRouter().push()` en el click (extensión documentada del propio componente).
+  it('el botón Volver navega a /requirements al hacer click', () => {
     render(<RequirementHeader requirement={baseRequirement} />);
-    const backLink = screen.getByRole('link', { name: /volver/i });
-    expect(backLink).toBeInTheDocument();
-    expect(backLink).toHaveAttribute('href', '/requirements');
+    const backButton = screen.getByRole('button', { name: /volver/i });
+    expect(backButton).toBeInTheDocument();
+
+    fireEvent.click(backButton);
+    expect(mockPush).toHaveBeenCalledWith('/requirements');
   });
 
   it('muestra el botón Editar', () => {
@@ -292,7 +316,7 @@ describe('RequirementHeader', () => {
       />
     );
 
-    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
+    const stateButton = screen.getByRole('button', { name: 'Estado: Resuelto' });
     expect(stateButton).not.toBeDisabled();
 
     fireEvent.click(stateButton);
@@ -308,14 +332,19 @@ describe('RequirementHeader', () => {
       />
     );
 
-    const stateButton = document.querySelector('[data-state="cancelado"]') as HTMLButtonElement;
+    const stateButton = screen.getByRole('button', { name: 'Estado: Cancelado' });
     expect(stateButton).not.toBeDisabled();
 
     fireEvent.click(stateButton);
     expect(screen.getAllByRole('option')).toHaveLength(7);
   });
 
-  it('TS-7: la Pill Estado sigue deshabilitada mientras hay una mutación en vuelo (isPending)', () => {
+  // S-057: `Badge` editable no tiene prop `disabled` (spec, deliberado — ver Architectural
+  // Context). El deshabilitado por `isPending` que ofrecía el `PillDropdown` a medida ya no es
+  // reproducible con el componente del DS; no está protegido por CA-3 (que sólo exige que el
+  // control NUNCA se deshabilite en estado terminal, algo que sigue cumpliéndose). Se deja
+  // registrado como gap de UX menor, no bloqueante, en el changelog de la story.
+  it('TS-7 (ajustado S-057): el badge de estado no expone estado disabled — Badge editable no lo soporta', () => {
     render(
       <RequirementHeader
         requirement={{ ...baseRequirement, state: 'resuelto' }}
@@ -324,15 +353,15 @@ describe('RequirementHeader', () => {
       />
     );
 
-    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
-    expect(stateButton).toBeDisabled();
+    const stateButton = screen.getByRole('button', { name: 'Estado: Resuelto' });
+    expect(stateButton).not.toBeDisabled();
   });
 
-  it('TS-8: la Pill Estado está deshabilitada si no hay onUpdate (readonly)', () => {
+  it('TS-8 (ajustado S-057): sin onUpdate (readonly), el estado se muestra como Badge no interactivo', () => {
     render(<RequirementHeader requirement={{ ...baseRequirement, state: 'resuelto' }} />);
 
-    const stateButton = document.querySelector('[data-state="resuelto"]') as HTMLButtonElement;
-    expect(stateButton).toBeDisabled();
+    expect(screen.getByText('Resuelto')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Estado:/ })).not.toBeInTheDocument();
   });
 
   it('TS-16: incidencia ya en "En cola" sigue mostrando ese valor en la Pill Estado', () => {
@@ -394,5 +423,92 @@ describe('RequirementHeader', () => {
 
     expect(screen.getByText('Planificación')).toBeInTheDocument();
     expect(screen.queryByText('Análisis')).not.toBeInTheDocument();
+  });
+});
+
+// S-057 (Task 1) — TS-1 a TS-4: fijan el comportamiento de S-050/REQ-012 en tests que pasan
+// contra el código SIN MIGRAR, antes de tocar la presentación. Tienen que seguir pasando sin
+// modificarse una vez migrada la cabecera a `Badge variant="editable"` (Task 4).
+describe('S-057: preservación de comportamiento (CA-3) — pill de estado', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('TS-1: el control de estado ofrece los siete estados en un requisito en curso', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'desarrollo' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Desarrollo'));
+
+    const listbox = screen.getByRole('listbox');
+    const options = within(listbox).getAllByRole('option');
+    expect(options).toHaveLength(7);
+    [
+      'Análisis',
+      'Planificación',
+      'En cola',
+      'Desarrollo',
+      'Revisión',
+      'Resuelto',
+      'Cancelado',
+    ].forEach((label) => {
+      expect(within(listbox).getByRole('option', { name: label })).toBeInTheDocument();
+    });
+  });
+
+  it('TS-2: el control de estado SIGUE ofreciendo los siete estados en estado terminal, sin quedar deshabilitado', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'resuelto' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const trigger = screen.getByText('Resuelto').closest('button');
+    expect(trigger).not.toBeNull();
+    expect(trigger).not.toBeDisabled();
+    expect(trigger).not.toHaveAttribute('aria-disabled', 'true');
+
+    fireEvent.click(trigger as HTMLButtonElement);
+
+    const listbox = screen.getByRole('listbox');
+    expect(within(listbox).getAllByRole('option')).toHaveLength(7);
+  });
+
+  it('TS-3: elegir un estado dispara la misma mutación que hoy, una única vez', () => {
+    const onUpdate = vi.fn();
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, id: 128, state: 'analisis' }}
+        onUpdate={onUpdate}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Análisis'));
+    fireEvent.click(screen.getByRole('option', { name: 'Revisión' }));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'revision' });
+  });
+
+  it('TS-4: se puede volver hacia atrás en el flujo, sin mensaje de transición inválida', () => {
+    const onUpdate = vi.fn();
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, state: 'revision' }}
+        onUpdate={onUpdate}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Revisión'));
+    fireEvent.click(screen.getByRole('option', { name: 'Análisis' }));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({ state: 'analisis' });
+    expect(screen.queryByText(/transici[oó]n inv[aá]lida/i)).not.toBeInTheDocument();
   });
 });

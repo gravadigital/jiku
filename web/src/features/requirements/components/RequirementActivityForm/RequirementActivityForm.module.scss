@@ -1,17 +1,17 @@
 @use '@/styles' as *;
 
 .activityForm {
-  border-top: 1px solid #e6e8ed;
-  padding-top: 1rem;
-  margin-top: 0.25rem;
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-stack-md);
+  margin-top: var(--space-1);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-inline-sm);
 }
 
 .activityFormRow {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-inline-sm);
   align-items: flex-start;
   width: 100%;
 }
@@ -31,125 +31,45 @@
 }
 
 .uploadError {
-  color: var(--color-general-primary);
-  font-size: 0.8125rem;
+  color: var(--state-urgent-text);
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-13);
 }
 
 .activityFormFooter {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.attachIconBtn {
-  background: none;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #626a81;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  height: 34px;
-  padding: 0 0.75rem;
-  font-size: 0.875rem;
-  font-family: inherit;
-  transition: color 150ms ease, border-color 150ms ease;
-
-  &:hover:not(:disabled) {
-    color: var(--color-button);
-    border-color: var(--color-button);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.visToggle {
-  display: inline-flex;
-  border: 1px solid #e6e8ed;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.visToggleBtn {
-  height: 34px;
-  padding: 0 0.875rem;
-  font-size: 0.875rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #626a81;
-  font-family: inherit;
-  display: inline-flex;
-  align-items: center;
-  transition: background 150ms ease, color 150ms ease;
-
-  &[data-active='true'] {
-    background: var(--color-button);
-    color: #fff;
-  }
-
-  &:hover:not([data-active='true']) {
-    background: var(--color-general-background);
-  }
-}
-
-.sendBtn {
-  height: 34px;
-  padding: 0 1rem;
-  border-radius: 8px;
-  background: var(--color-button);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  font-family: inherit;
-  transition: opacity 150ms ease;
-
-  &:hover:not(:disabled) {
-    opacity: 0.88;
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
+  gap: var(--space-inline-sm);
 }
 
 .uploadProgress {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  margin-top: var(--spacing-sm);
+  gap: var(--space-1);
+  margin-top: var(--space-inline-sm);
 }
 
 .uploadProgressText {
   margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-13);
+  color: var(--text-secondary);
 }
 
 .uploadProgressBar {
   width: 100%;
   height: 6px;
-  background-color: var(--color-general-border);
-  border-radius: 3px;
+  background-color: var(--border-default);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .uploadProgressFill {
   height: 100%;
-  background-color: var(--color-button);
-  border-radius: 3px;
-  transition: width var(--transition-base);
+  background-color: var(--bg-action-primary);
+  border-radius: var(--radius-pill);
+  transition: width 200ms ease;
 }
 
 .srOnly {

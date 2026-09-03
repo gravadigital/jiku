@@ -1,8 +1,22 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RequirementsReportTable } from './RequirementsReportTable';
 import type { RequirementReportItem } from '../../types/requirement.types';
+
+// El barrel `@/shared/components/ui` (EmptyState, Table, que este componente consume desde
+// S-057) arrastra transitivamente CommentEditor -> @/features/objectives -> auth. Sin estos
+// mocks, la resolución real de 'next-auth' falla al buscar 'next/server' en este entorno de
+// test.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 const baseItem: RequirementReportItem = {
   id: 12,

@@ -4,6 +4,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RequirementStatusCard } from './RequirementStatusCard';
 import type { Requirement } from '../../types/requirement.types';
 
+// El barrel `@/shared/components/ui` (Accordion, Button, Card, Stepper, que este componente
+// consume desde S-057) arrastra transitivamente CommentEditor -> @/features/objectives -> auth.
+// Sin estos mocks, la resolución real de 'next-auth' falla al buscar 'next/server' en este
+// entorno de test. Mismo patrón que RequirementList.test.tsx / RequirementHeader.test.tsx.
+vi.mock('@/lib/auth', () => ({
+  auth: vi.fn(() => Promise.resolve(null)),
+}));
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null })),
+}));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock('@/features/attachments/components/MarkdownViewer', () => ({
   MarkdownViewer: ({ content }: { content: string }) => (
     <div
@@ -18,11 +32,38 @@ vi.mock('@/features/attachments/components/MarkdownViewer', () => ({
 // sirve tanto para campos que ya vienen abiertos como para los que hay que expandir.
 // El nombre accesible del botón incluye el ícono (✓/!) además del label, por eso se ubica
 // el botón a partir del texto exacto del label en vez de matchear el name completo.
+// S-057: el stepper migró al componente `Stepper` del DS. Cada paso es un <li> con el glifo
+// (✓ / × / número) en un <span aria-hidden="true"> seguido del label visible; el texto
+// accesible real vive en un <span> aparte con "{label}, {estado}" (no matchea `getByText(label)`
+// a secas, que es exact-match). Este helper localiza el glifo visual de un paso por su label.
+function getStepGlyph(label: string): string | null {
+  const item = screen.getByText(label).closest('li');
+  // El <li> tiene DOS elementos aria-hidden cuando no es el primer paso: el conector
+  // (siempre vacío) y el nodo con el glifo — el nodo es siempre el último de los dos.
+  const nodes = item?.querySelectorAll('[aria-hidden="true"]');
+  const node = nodes && nodes.length > 0 ? nodes[nodes.length - 1] : undefined;
+  return node?.textContent ?? null;
+}
+
 function openField(label: string) {
   const button = screen.getByText(label).closest('button')!;
   if (button.getAttribute('aria-expanded') !== 'true') {
     fireEvent.click(button);
   }
+}
+
+// S-057: `Accordion` renderiza el panel de los 4 campos siempre en el DOM (oculto vía el
+// atributo `hidden`, nunca desmontado) — a diferencia del `{open && <div>}` de antes, que
+// quitaba el contenido del DOM al colapsar. Como consecuencia, el toggle "Editar"/"Vista
+// previa" de `MarkdownEditorWithPreview` existe simultáneamente para los 4 campos (abiertos o
+// no), y `getByText('Vista previa')` a secas ya no identifica un único botón. Este helper
+// escopa la búsqueda al `role="region"` del campo, ubicado a partir del título del acordeón
+// (siempre visible, a diferencia del `<textarea>` con `aria-label`, que se desmonta en modo
+// Vista previa).
+function getFieldRegion(label: string): HTMLElement {
+  const headerButton = screen.getByText(label).closest('button') as HTMLElement;
+  const panelId = headerButton.getAttribute('aria-controls');
+  return document.getElementById(panelId as string) as HTMLElement;
 }
 
 const baseRequirement: Requirement = {
@@ -89,7 +130,7 @@ describe('RequirementStatusCard', () => {
     expect(screen.queryByText('Cancelado')).not.toBeInTheDocument();
   });
 
-  it('el stepper muestra círculos numerados con conector, no pills', () => {
+  it('el stepper muestra glifos por estado (✓ recorrido, número pendiente)', () => {
     render(
       <RequirementStatusCard
         requirement={{ ...baseRequirement, state: 'desarrollo' }}
@@ -97,20 +138,11 @@ describe('RequirementStatusCard', () => {
       />
     );
 
-    const analisisDot = screen
-      .getByText('Análisis')
-      .closest('[data-step]')
-      ?.querySelector('[data-testid="step-dot"]');
-    expect(analisisDot).toHaveTextContent('✓');
-
-    const revisionDot = screen
-      .getByText('Revisión')
-      .closest('[data-step]')
-      ?.querySelector('[data-testid="step-dot"]');
-    expect(revisionDot).toHaveTextContent('5');
+    expect(getStepGlyph('Análisis')).toBe('✓');
+    expect(getStepGlyph('Revisión')).toBe('5');
   });
 
-  it('los círculos del stepper ya no son interactivos (no se puede navegar entre estados)', () => {
+  it('los nodos del stepper ya no son interactivos (no se puede navegar entre estados)', () => {
     render(
       <RequirementStatusCard
         requirement={{ ...baseRequirement, state: 'analisis' }}
@@ -118,11 +150,8 @@ describe('RequirementStatusCard', () => {
       />
     );
 
-    const dot = screen
-      .getByText('Planificación')
-      .closest('[data-step]')
-      ?.querySelector('[data-testid="step-dot"]');
-    expect(dot?.tagName).toBe('DIV');
+    const item = screen.getByText('Planificación').closest('li');
+    expect(item?.querySelector('button')).toBeNull();
   });
 
   it('cuando el estado actual es Resuelto, los 5 pasos de trabajo se muestran completados', () => {
@@ -134,11 +163,7 @@ describe('RequirementStatusCard', () => {
     );
 
     ['Análisis', 'Planificación', 'En cola', 'Desarrollo', 'Revisión'].forEach((label) => {
-      const dot = screen
-        .getByText(label)
-        .closest('[data-step]')
-        ?.querySelector('[data-testid="step-dot"]');
-      expect(dot).toHaveTextContent('✓');
+      expect(getStepGlyph(label)).toBe('✓');
     });
   });
 
@@ -180,14 +205,11 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      const getDot = (label: string) =>
-        screen.getByText(label).closest('[data-step]')?.querySelector('[data-testid="step-dot"]');
-
-      expect(getDot('Análisis')).toHaveTextContent('✓');
-      expect(getDot('Planificación')).toHaveTextContent('✓');
-      expect(getDot('En cola')).toHaveTextContent('×');
-      expect(getDot('Desarrollo')).toHaveTextContent('×');
-      expect(getDot('Revisión')).toHaveTextContent('×');
+      expect(getStepGlyph('Análisis')).toBe('✓');
+      expect(getStepGlyph('Planificación')).toBe('✓');
+      expect(getStepGlyph('En cola')).toBe('×');
+      expect(getStepGlyph('Desarrollo')).toBe('×');
+      expect(getStepGlyph('Revisión')).toBe('×');
     });
 
     it('sin ningún historial de actividad, solo Análisis (estado inicial) se muestra completado', () => {
@@ -198,14 +220,11 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      const getDot = (label: string) =>
-        screen.getByText(label).closest('[data-step]')?.querySelector('[data-testid="step-dot"]');
-
-      expect(getDot('Análisis')).toHaveTextContent('✓');
-      expect(getDot('Planificación')).toHaveTextContent('×');
-      expect(getDot('En cola')).toHaveTextContent('×');
-      expect(getDot('Desarrollo')).toHaveTextContent('×');
-      expect(getDot('Revisión')).toHaveTextContent('×');
+      expect(getStepGlyph('Análisis')).toBe('✓');
+      expect(getStepGlyph('Planificación')).toBe('×');
+      expect(getStepGlyph('En cola')).toBe('×');
+      expect(getStepGlyph('Desarrollo')).toBe('×');
+      expect(getStepGlyph('Revisión')).toBe('×');
     });
   });
 
@@ -288,7 +307,7 @@ describe('RequirementStatusCard', () => {
       ).toBeInTheDocument();
     });
 
-    it('click en un círculo del stepper no cambia la descripción mostrada', () => {
+    it('click en un nodo del stepper no cambia la descripción mostrada', () => {
       render(
         <RequirementStatusCard
           requirement={{ ...baseRequirement, state: 'analisis' }}
@@ -296,11 +315,11 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      const dot = screen
-        .getByText('Revisión')
-        .closest('[data-step]')
-        ?.querySelector('[data-testid="step-dot"]');
-      if (dot) fireEvent.click(dot);
+      // El stepper es informativo (`interactive` en su default `false`): no hay ningún
+      // <button> que clickear dentro del <li>, así que se dispara el click sobre el propio
+      // <li> — verifica que no exista ningún manejador que reaccione a eso.
+      const item = screen.getByText('Revisión').closest('li');
+      if (item) fireEvent.click(item);
 
       expect(
         screen.getByText(/se entiende el requerimiento y se define el alcance/i)
@@ -396,9 +415,9 @@ describe('RequirementStatusCard', () => {
       });
       // Análisis (CA-2): "Alcance" arranca desplegado; el resto permanece cerrado.
       expect(screen.getByLabelText('Alcance')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Cierre estimado')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
+      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeVisible();
+      expect(screen.queryByLabelText('Cierre estimado')).not.toBeVisible();
     });
 
     it('en Planificación se siguen viendo los 4 campos', () => {
@@ -435,7 +454,7 @@ describe('RequirementStatusCard', () => {
       );
 
       openField('Criterios de aceptación');
-      fireEvent.click(screen.getByText('Editar'));
+      fireEvent.click(within(getFieldRegion('Criterios de aceptación')).getByText('Editar'));
 
       expect(screen.getByLabelText('Criterios de aceptación')).toHaveValue('Crit Z');
     });
@@ -464,14 +483,14 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
 
       openField('Alcance');
       expect(screen.getByLabelText('Alcance')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
 
       fireEvent.click(screen.getByText('Alcance').closest('button')!);
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
     });
   });
 
@@ -485,9 +504,9 @@ describe('RequirementStatusCard', () => {
       );
 
       expect(screen.getByLabelText('Alcance')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Cierre estimado')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
+      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeVisible();
+      expect(screen.queryByLabelText('Cierre estimado')).not.toBeVisible();
     });
 
     it('CA-3: en Planificación, "Propuesta" y "Criterios de aceptación" arrancan desplegados', () => {
@@ -500,8 +519,8 @@ describe('RequirementStatusCard', () => {
 
       expect(screen.getByLabelText('Propuesta')).toBeInTheDocument();
       expect(screen.getByLabelText('Criterios de aceptación')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Cierre estimado')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
+      expect(screen.queryByLabelText('Cierre estimado')).not.toBeVisible();
     });
 
     it('CA-4: en En cola, "Cierre estimado" arranca desplegado y el resto colapsado', () => {
@@ -513,9 +532,9 @@ describe('RequirementStatusCard', () => {
       );
 
       expect(screen.getByLabelText('Cierre estimado')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
+      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeVisible();
     });
 
     it('CA-5: en Desarrollo, ningún campo arranca desplegado', () => {
@@ -526,10 +545,10 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Cierre estimado')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
+      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeVisible();
+      expect(screen.queryByLabelText('Cierre estimado')).not.toBeVisible();
     });
 
     it('CA-5: en Revisión, ningún campo arranca desplegado', () => {
@@ -540,9 +559,9 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Propuesta')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
+      expect(screen.queryByLabelText('Propuesta')).not.toBeVisible();
+      expect(screen.queryByLabelText('Criterios de aceptación')).not.toBeVisible();
     });
 
     it('al transicionar exitosamente (nuevo prop requirement con state actualizado), el despliegue se resincroniza al nuevo paso', () => {
@@ -562,7 +581,7 @@ describe('RequirementStatusCard', () => {
         />
       );
 
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
       expect(screen.getByLabelText('Propuesta')).toBeInTheDocument();
       expect(screen.getByLabelText('Criterios de aceptación')).toBeInTheDocument();
     });
@@ -579,7 +598,7 @@ describe('RequirementStatusCard', () => {
 
       fireEvent.click(screen.getByText('Alcance').closest('button')!);
 
-      expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Alcance')).not.toBeVisible();
     });
   });
 
@@ -740,7 +759,7 @@ describe('RequirementStatusCard', () => {
       );
 
       openField('Alcance');
-      fireEvent.click(screen.getByText('Editar'));
+      fireEvent.click(within(getFieldRegion('Alcance')).getByText('Editar'));
       fireEvent.change(screen.getByLabelText('Alcance'), { target: { value: '' } });
       fireEvent.click(screen.getByRole('button', { name: /pasar a planificación/i }));
 
@@ -871,7 +890,7 @@ describe('RequirementStatusCard', () => {
     );
 
     openField('Cierre estimado');
-    fireEvent.change(screen.getByLabelText(/cierre estimado/i), {
+    fireEvent.change(screen.getByLabelText('Cierre estimado'), {
       target: { value: '2026-08-01' },
     });
 
@@ -896,9 +915,9 @@ describe('RequirementStatusCard', () => {
       />
     );
 
-    fireEvent.change(screen.getByLabelText(/alcance/i), { target: { value: 'Nuevo alcance' } });
+    fireEvent.change(screen.getByLabelText('Alcance'), { target: { value: 'Nuevo alcance' } });
     openField('Cierre estimado');
-    fireEvent.change(screen.getByLabelText(/cierre estimado/i), {
+    fireEvent.change(screen.getByLabelText('Cierre estimado'), {
       target: { value: '2026-08-01' },
     });
 
@@ -927,11 +946,15 @@ describe('RequirementStatusCard', () => {
       fireEvent.change(screen.getByLabelText('Alcance'), {
         target: { value: '## Objetivo\n\nMejorar el flujo' },
       });
-      fireEvent.click(screen.getByText('Vista previa'));
+      fireEvent.click(within(getFieldRegion('Alcance')).getByText('Vista previa'));
 
+      // En modo Vista previa, MarkdownEditorWithPreview desmonta el <textarea> por completo.
       expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Objetivo' })).toBeInTheDocument();
-      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-checked', 'true');
+      expect(within(getFieldRegion('Alcance')).getByText('Vista previa')).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
     });
 
     it('TS-2: vuelve a Editar sin perder el texto ingresado', () => {
@@ -946,8 +969,9 @@ describe('RequirementStatusCard', () => {
       fireEvent.change(screen.getByLabelText('Alcance'), {
         target: { value: 'Texto sin guardar' },
       });
-      fireEvent.click(screen.getByText('Vista previa'));
-      fireEvent.click(screen.getByText('Editar'));
+      const alcanceRegion = getFieldRegion('Alcance');
+      fireEvent.click(within(alcanceRegion).getByText('Vista previa'));
+      fireEvent.click(within(alcanceRegion).getByText('Editar'));
 
       expect(screen.getByLabelText('Alcance')).toHaveValue('Texto sin guardar');
     });
@@ -961,7 +985,7 @@ describe('RequirementStatusCard', () => {
       );
 
       openField('Alcance');
-      fireEvent.click(screen.getByText('Vista previa'));
+      fireEvent.click(within(getFieldRegion('Alcance')).getByText('Vista previa'));
 
       expect(
         screen.getByText('Qué se acordó con el cliente / qué entendió el equipo, y cómo impacta...')
@@ -981,7 +1005,7 @@ describe('RequirementStatusCard', () => {
       openField('Propuesta');
       const propuestaContainer = screen
         .getByLabelText('Propuesta')
-        .closest('[class*="accItem"]') as HTMLElement;
+        .closest('[role="region"]') as HTMLElement;
       fireEvent.click(within(propuestaContainer).getByText('Vista previa'));
 
       expect(screen.getByText('Describí el enfoque técnico...')).toBeInTheDocument();
@@ -1000,7 +1024,7 @@ describe('RequirementStatusCard', () => {
       openField('Criterios de aceptación');
       const criteriosContainer = screen
         .getByLabelText('Criterios de aceptación')
-        .closest('[class*="accItem"]') as HTMLElement;
+        .closest('[role="region"]') as HTMLElement;
       fireEvent.click(within(criteriosContainer).getByText('Vista previa'));
 
       expect(
@@ -1017,9 +1041,15 @@ describe('RequirementStatusCard', () => {
       );
 
       openField('Alcance');
+      const alcanceRegion = getFieldRegion('Alcance');
 
+      // En modo Vista previa, MarkdownEditorWithPreview desmonta el <textarea> por completo
+      // (no lo oculta): no hay ningún control con label "Alcance" en el DOM.
       expect(screen.queryByLabelText('Alcance')).not.toBeInTheDocument();
-      expect(screen.getByText('Vista previa')).toHaveAttribute('aria-checked', 'true');
+      expect(within(alcanceRegion).getByText('Vista previa')).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
       expect(screen.getByTestId('markdown-viewer')).toHaveTextContent('texto ya guardado');
     });
 
@@ -1034,7 +1064,10 @@ describe('RequirementStatusCard', () => {
       openField('Alcance');
 
       expect(screen.getByLabelText('Alcance')).toHaveValue('');
-      expect(screen.getByText('Editar')).toHaveAttribute('aria-checked', 'true');
+      expect(within(getFieldRegion('Alcance')).getByText('Editar')).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
     });
 
     it('TS-7: Guardar funciona igual estando el campo en modo Vista previa', () => {
@@ -1048,7 +1081,7 @@ describe('RequirementStatusCard', () => {
 
       openField('Alcance');
       fireEvent.change(screen.getByLabelText('Alcance'), { target: { value: 'nuevo texto' } });
-      fireEvent.click(screen.getByText('Vista previa'));
+      fireEvent.click(within(getFieldRegion('Alcance')).getByText('Vista previa'));
       fireEvent.click(screen.getByRole('button', { name: /^guardar$/i }));
 
       expect(onUpdate).toHaveBeenCalledWith({ scope: 'nuevo texto' });
@@ -1072,7 +1105,7 @@ describe('RequirementStatusCard', () => {
       });
       const propuestaContainer = screen
         .getByLabelText('Propuesta')
-        .closest('[class*="accItem"]') as HTMLElement;
+        .closest('[role="region"]') as HTMLElement;
       fireEvent.click(within(propuestaContainer).getByText('Vista previa'));
 
       fireEvent.click(screen.getByRole('button', { name: /^guardar$/i }));
@@ -1094,8 +1127,9 @@ describe('RequirementStatusCard', () => {
       );
 
       openField('Alcance');
-      fireEvent.click(screen.getByText('Vista previa'));
-      fireEvent.click(screen.getByText('Editar'));
+      const alcanceRegion = getFieldRegion('Alcance');
+      fireEvent.click(within(alcanceRegion).getByText('Vista previa'));
+      fireEvent.click(within(alcanceRegion).getByText('Editar'));
 
       expect(onUpdate).not.toHaveBeenCalled();
     });
@@ -1127,7 +1161,9 @@ describe('RequirementStatusCard', () => {
 
       openField('Cierre estimado');
 
-      expect(screen.queryByText('Vista previa')).not.toBeInTheDocument();
+      expect(
+        within(getFieldRegion('Cierre estimado')).queryByText('Vista previa')
+      ).not.toBeInTheDocument();
       expect(screen.getByLabelText('Cierre estimado')).toHaveAttribute('type', 'date');
     });
   });
@@ -1142,7 +1178,7 @@ describe('RequirementStatusCard', () => {
       );
 
       expect(screen.getByText('En cola')).toBeInTheDocument();
-      expect(screen.getAllByTestId('step-dot')).toHaveLength(5);
+      expect(document.querySelectorAll('ol[aria-label="Progreso del requisito"] li')).toHaveLength(5);
       ['Análisis', 'Planificación', 'En cola', 'Desarrollo', 'Revisión'].forEach((label) => {
         expect(screen.getByText(label)).toBeInTheDocument();
       });
@@ -1172,7 +1208,7 @@ describe('RequirementStatusCard', () => {
       );
 
       expect(screen.getByText('En cola')).toBeInTheDocument();
-      expect(screen.getAllByTestId('step-dot')).toHaveLength(5);
+      expect(document.querySelectorAll('ol[aria-label="Progreso del requisito"] li')).toHaveLength(5);
     });
 
     it('TS-15: incidencia ya en "En cola" (dato heredado) sigue mostrando el stepper completo con ese paso como actual', () => {
@@ -1184,7 +1220,7 @@ describe('RequirementStatusCard', () => {
       );
 
       expect(screen.getByText('En cola')).toBeInTheDocument();
-      expect(screen.getAllByTestId('step-dot')).toHaveLength(5);
+      expect(document.querySelectorAll('ol[aria-label="Progreso del requisito"] li')).toHaveLength(5);
       const activeStep = screen.getByText('En cola').closest('[aria-current="step"]');
       expect(activeStep).not.toBeNull();
     });
@@ -1294,5 +1330,120 @@ describe('RequirementStatusCard', () => {
       // persistido, nunca el texto que el usuario todavía no confirmó con "Guardar".
       expect(screen.getByLabelText('Alcance')).toHaveValue('texto sin guardar');
     });
+  });
+});
+
+// S-057 (Task 1) — TS-5 a TS-8: fijan el comportamiento del stepper contra el código SIN
+// MIGRAR. Tienen que seguir pasando sin modificarse una vez migrado a componente `Stepper`
+// (Task 5).
+describe('S-057: preservación de comportamiento (CA-3) — stepper de 5 pasos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('TS-5: el stepper muestra cinco pasos, nunca siete', () => {
+    render(
+      <RequirementStatusCard
+        requirement={{ ...baseRequirement, state: 'desarrollo' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const steps = screen.getAllByText(
+      /^(Análisis|Planificación|En cola|Desarrollo|Revisión)$/
+    );
+    expect(steps).toHaveLength(5);
+    expect(screen.queryByText('Resuelto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cancelado')).not.toBeInTheDocument();
+  });
+
+  it('TS-6: en estado terminal resuelto el stepper marca los cinco pasos como recorridos', () => {
+    render(
+      <RequirementStatusCard
+        requirement={{ ...baseRequirement, state: 'resuelto' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    ['Análisis', 'Planificación', 'En cola', 'Desarrollo', 'Revisión'].forEach((label) => {
+      expect(getStepGlyph(label)).toBe('✓');
+    });
+    expect(document.querySelector('[aria-current="step"]')).toBeNull();
+  });
+
+  it('TS-7: en cancelado los pasos no trabajados se dibujan con × y los recorridos con ✓', () => {
+    render(
+      <RequirementStatusCard
+        requirement={{
+          ...baseRequirement,
+          state: 'cancelado',
+          activity: [
+            {
+              id: 1,
+              typeOfActivity: 'state',
+              previousValue: 'analisis',
+              newValue: 'planificacion',
+              visibilityLevel: 'internal',
+              changedBy: 'u1',
+              changedByUser: { id: 'u1', name: 'x', email: 'x' },
+              createdAt: '2026-06-02T00:00:00Z',
+              editedAt: null,
+              editedBy: null,
+            },
+          ],
+        }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(getStepGlyph('Análisis')).toBe('✓');
+    expect(getStepGlyph('Planificación')).toBe('✓');
+    expect(getStepGlyph('En cola')).toBe('×');
+    expect(getStepGlyph('Desarrollo')).toBe('×');
+    expect(getStepGlyph('Revisión')).toBe('×');
+  });
+
+  it('TS-8: el stepper es informativo — ningún nodo es un button ni es focusable', () => {
+    render(
+      <RequirementStatusCard
+        requirement={{ ...baseRequirement, state: 'desarrollo' }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    ['Análisis', 'Planificación', 'En cola', 'Desarrollo', 'Revisión'].forEach((label) => {
+      const item = screen.getByText(label).closest('li');
+      expect(item?.querySelector('button')).toBeNull();
+    });
+  });
+
+  it('TS-16: las cabeceras de acordeón distinguen campo completo de pendiente por glifo', () => {
+    // 2 completos (Alcance, Propuesta) y 2 vacíos (Criterios, Cierre estimado): el glifo
+    // ✓ / ! distingue el estado sin depender del color, que es lo que exige el DS.
+    render(
+      <RequirementStatusCard
+        requirement={{
+          ...baseRequirement,
+          state: 'desarrollo',
+          scope: 'Alcance acordado con el cliente',
+          technicalSolution: 'Enfoque técnico definido',
+          acceptanceCriteria: '',
+          estimatedFinishDate: null,
+        }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    const glyphOf = (label: string): string | undefined =>
+      screen
+        .getByText(label)
+        .closest('button')
+        ?.querySelector('[aria-hidden="true"]')
+        ?.textContent?.trim();
+
+    expect(glyphOf('Alcance')).toBe('✓');
+    expect(glyphOf('Propuesta')).toBe('✓');
+    expect(glyphOf('Criterios de aceptación')).toBe('!');
+    expect(glyphOf('Cierre estimado')).toBe('!');
   });
 });

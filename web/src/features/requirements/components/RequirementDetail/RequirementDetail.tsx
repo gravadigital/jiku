@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useCallback, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
+import { Badge, Button, Card, EmptyState, Pagination, Table, Tabs } from '@/shared/components/ui';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
-import { Pagination } from '@/shared/components/ui/Pagination';
 import { useUpdateRequirement } from '../../hooks/useUpdateRequirement';
 import { RequirementActivityFeed } from '../RequirementActivityFeed';
 import { RequirementActivityForm } from '../RequirementActivityForm';
@@ -21,6 +22,7 @@ import type {
   UpdateRequirementPayload,
 } from '../../types/requirement.types';
 import type { Objective, ObjectiveState } from '@/features/objectives/types/objective.types';
+import type { TableColumn, TableRow } from '@/shared/components/ui/Table';
 
 const OBJ_TABS: { key: ObjectiveState; label: string }[] = [
   { key: 'backlog', label: 'Backlog' },
@@ -31,6 +33,14 @@ const OBJ_TABS: { key: ObjectiveState; label: string }[] = [
 ];
 
 const OBJ_PAGE_SIZE_OPTIONS = [5, 10];
+
+const OBJ_COLUMNS: readonly TableColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'title', label: 'Título' },
+  { key: 'responsible', label: 'Responsable' },
+  { key: 'createdAt', label: 'Creación' },
+  { key: 'estimatedFinishDate', label: 'Cierre estimado' },
+];
 
 interface RequirementDetailProps {
   readonly requirement: Requirement & Partial<Pick<RequirementDetailData, 'linkedObjectives'>>;
@@ -125,6 +135,36 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
     [localTags, handleUpdate]
   );
 
+  const objTabs = OBJ_TABS.map((tab) => ({
+    ...tab,
+    count: objectives.filter((o) => o.state === tab.key).length,
+  }));
+
+  const filteredObjectives = objectives.filter((o) => o.state === activeObjTab);
+  const objTotalPages = Math.max(1, Math.ceil(filteredObjectives.length / objPageSize));
+  const objCurrentPage = Math.min(objPage, objTotalPages);
+  const objPageItems = filteredObjectives.slice(
+    (objCurrentPage - 1) * objPageSize,
+    objCurrentPage * objPageSize
+  );
+
+  const objRows: TableRow[] = objPageItems.map((obj) => ({
+    id: obj.id,
+    title: (
+      <Link href={`/objectives/${obj.id}`} target="_blank" className={styles.objTitleCell}>
+        {obj.title}
+      </Link>
+    ),
+    responsible:
+      obj.persons && obj.persons.length > 1 ? (
+        <span title={formatPersonsFullList(obj.persons)}>{formatPersons(obj.persons)}</span>
+      ) : (
+        formatPersons(obj.persons)
+      ),
+    createdAt: formatDate(obj.createdAt),
+    estimatedFinishDate: formatDate(obj.estimatedFinishDate),
+  }));
+
   return (
     <>
       <RequirementHeader requirement={requirement} onUpdate={handleUpdate} isPending={isPending} />
@@ -132,12 +172,11 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
         {/* Left column */}
         <div className={styles.leftColumn}>
           {/* Card: Contexto */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Contexto</div>
+          <Card variant="panel" title="Contexto" headingLevel="h2">
             <div className={styles.contextBody}>
               <MarkdownViewer content={requirement.description} />
             </div>
-          </div>
+          </Card>
 
           {/* Card: Estado */}
           <RequirementStatusCard
@@ -147,128 +186,67 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
           />
 
           {/* Card: Objetivos */}
-          <div className={styles.card}>
-            <div className={styles.objSectionHeader}>
-              <span className={styles.cardTitle}>Tareas</span>
-              <button
-                type="button"
-                className={styles.addBtn}
-                aria-label="Nueva tarea"
-                onClick={handleCreateObjective}
-              >
-                +
-              </button>
-            </div>
-            <div className={styles.tabs}>
-              {OBJ_TABS.map((tab) => {
-                const count = objectives.filter((o) => o.state === tab.key).length;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    className={`${styles.tab}${activeObjTab === tab.key ? ` ${styles.tabActive}` : ''}`}
-                    onClick={() => {
-                      setActiveObjTab(tab.key);
+          <Card
+            variant="panel"
+            headingLevel="h2"
+            header={
+              <>
+                <h2 className={styles.cardTitle}>Tareas</h2>
+                <Button variant="secondary-dismiss" onClick={handleCreateObjective}>
+                  <span aria-hidden="true">+</span>
+                  <span className={styles.srOnly}>Nueva tarea</span>
+                </Button>
+              </>
+            }
+          >
+            <Tabs
+              tabs={objTabs}
+              activeKey={activeObjTab}
+              onChange={(key) => {
+                setActiveObjTab(key as ObjectiveState);
+                setObjPage(1);
+              }}
+            >
+              <div className={styles.tableWrap}>
+                <Table
+                  variant="light"
+                  columns={OBJ_COLUMNS}
+                  rows={objRows}
+                  ariaLabel="Tabla de tareas"
+                  emptyState={
+                    <EmptyState variant="filtered" message="Sin tareas en esta etapa" />
+                  }
+                />
+                <div className={styles.paginationRow}>
+                  <Pagination
+                    totalItems={filteredObjectives.length}
+                    limit={objPageSize}
+                    currentPage={objCurrentPage}
+                    onPageChange={setObjPage}
+                    pageSizeOptions={OBJ_PAGE_SIZE_OPTIONS}
+                    onPageSizeChange={(size) => {
+                      setObjPageSize(size);
                       setObjPage(1);
                     }}
-                  >
-                    {tab.label}
-                    <span className={styles.tabCount}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {(() => {
-              const filtered = objectives.filter((o) => o.state === activeObjTab);
-              const totalPages = Math.max(1, Math.ceil(filtered.length / objPageSize));
-              const page = Math.min(objPage, totalPages);
-              const pageItems = filtered.slice((page - 1) * objPageSize, page * objPageSize);
-              return (
-                <div className={styles.tableWrap}>
-                  <table className={styles.objTable}>
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>Título</th>
-                        <th>Responsable</th>
-                        <th>Creación</th>
-                        <th>Cierre estimado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageItems.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className={styles.objEmpty}>
-                            Sin tareas en esta etapa
-                          </td>
-                        </tr>
-                      ) : (
-                        pageItems.map((obj) => (
-                          <tr
-                            key={obj.id}
-                            className={styles.objRow}
-                            onClick={() => window.open(`/objectives/${obj.id}`, '_blank')}
-                          >
-                            <td>{obj.id}</td>
-                            <td className={styles.objTitleCell}>{obj.title}</td>
-                            <td>
-                              {obj.persons && obj.persons.length > 1 ? (
-                                <span title={formatPersonsFullList(obj.persons)}>
-                                  {formatPersons(obj.persons)}
-                                </span>
-                              ) : (
-                                formatPersons(obj.persons)
-                              )}
-                            </td>
-                            <td>{formatDate(obj.createdAt)}</td>
-                            <td>{formatDate(obj.estimatedFinishDate)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                  <div className={styles.paginationRow}>
-                    <Pagination
-                      totalItems={filtered.length}
-                      limit={objPageSize}
-                      currentPage={page}
-                      onPageChange={setObjPage}
-                    />
-                    <select
-                      className={styles.perPageSelect}
-                      value={objPageSize}
-                      onChange={(event) => {
-                        setObjPageSize(Number(event.target.value));
-                        setObjPage(1);
-                      }}
-                    >
-                      {OBJ_PAGE_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {size} por página
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  />
                 </div>
-              );
-            })()}
-          </div>
+              </div>
+            </Tabs>
+          </Card>
 
           {/* Card: Actividad */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Actividad</div>
+          <Card variant="panel" title="Actividad" headingLevel="h2">
             <div className={styles.activityScroll}>
               <RequirementActivityFeed activity={requirement.activity ?? []} reqid={requirement.id} />
             </div>
             <RequirementActivityForm reqid={requirement.id} />
-          </div>
+          </Card>
         </div>
 
         {/* Right column */}
         <div className={styles.rightColumn}>
           {/* Card: Información General */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Información General</div>
+          <Card variant="panel" title="Información General" headingLevel="h2">
             <dl className={styles.grid}>
               {requirement.project && (
                 <div className={styles.row}>
@@ -336,39 +314,38 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
                 <dd>{formatRelative(requirement.updatedAt)}</dd>
               </div>
             </dl>
-          </div>
+          </Card>
 
           {/* Card: Horas Trabajadas — se carga sola, con su propia query; no cuelga del
               payload del requisito (S-045). Va justo debajo de "Información General": es el
               dato de consulta que se lee junto a los datos de identificación del requisito. */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Horas Trabajadas</div>
+          <Card variant="panel" title="Horas Trabajadas" headingLevel="h2">
             <RequirementWorkedHoursCard reqid={requirement.id} />
-          </div>
+          </Card>
 
           {/* Card: Etiquetas */}
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>Etiquetas</div>
+          <Card variant="panel" title="Etiquetas" headingLevel="h2">
             <div className={styles.tagList}>
               {localTags.length === 0 && (
                 <span className={styles.emptyText}>Sin etiquetas registradas</span>
               )}
               {localTags.map((tag, i) => (
                 <span key={i} className={styles.tagPill}>
-                  {tag.key}:{tag.value}
-                  <button
-                    type="button"
-                    className={styles.tagPillRemove}
+                  <Badge variant="card-tag" label={`${tag.key}: ${tag.value}`} />
+                  <Button
+                    variant="secondary-dismiss"
                     onClick={() => handleRemoveTag(i)}
-                    aria-label={`Eliminar etiqueta ${tag.key}:${tag.value}`}
                     disabled={isPending}
                   >
-                    ×
-                  </button>
+                    <span aria-hidden="true">×</span>
+                    <span className={styles.srOnly}>
+                      Eliminar etiqueta {tag.key}:{tag.value}
+                    </span>
+                  </Button>
                 </span>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Card: Resolución */}
           <RequirementResolutionCard

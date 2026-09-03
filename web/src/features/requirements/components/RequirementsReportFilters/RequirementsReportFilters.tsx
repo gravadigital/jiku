@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import ReactSelect from 'react-select';
 import { useProjects } from '@/features/projects/hooks/useProjects';
+import { Button, Input, Select } from '@/shared/components/ui';
 import styles from './RequirementsReportFilters.module.scss';
 
 const useDebouncedValue = (value: string, delay: number) => {
@@ -14,23 +14,6 @@ const useDebouncedValue = (value: string, delay: number) => {
   }, [value, delay]);
 
   return debouncedValue;
-};
-
-const selectStyles = {
-  control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
-    ...base,
-    height: '40px',
-    minHeight: '40px',
-    border: '1px solid #e6e8ed',
-    borderRadius: '8px',
-    boxShadow: 'none',
-    outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
-    fontSize: '0.875rem',
-    fontWeight: 400,
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-  }),
-  indicatorSeparator: () => ({ display: 'none' }),
 };
 
 interface RequirementsReportFiltersProps {
@@ -70,8 +53,8 @@ export function RequirementsReportFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
-  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInput(e.target.value);
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSearchInput(value);
   }, []);
 
   const projectOptions = [
@@ -81,20 +64,18 @@ export function RequirementsReportFilters({
 
   return (
     <div className={styles.filterSection}>
-      <div className={styles.filterField} style={{ flex: 2 }}>
-        <label className={styles.fLabel} htmlFor="report-search">
-          Búsqueda
-        </label>
-        <input
-          id="report-search"
-          type="text"
-          className={styles.fInput}
+      <div className={styles.filterField}>
+        <Input
+          variant="search"
+          label="Búsqueda"
           placeholder="Buscar por título"
           value={searchInput}
           onChange={handleSearchInputChange}
         />
       </div>
 
+      {/* Decisión 2 del Story Plan: los campos de fecha NO migran a Input variant="date"
+          (no es un date picker real) — conservan <input type="date">, solo migran estilos. */}
       <div className={styles.filterField}>
         <label className={styles.fLabel} htmlFor="report-created-from">
           Desde
@@ -121,24 +102,20 @@ export function RequirementsReportFilters({
         />
       </div>
 
-      <div className={styles.filterField} style={{ flex: 1.4 }}>
-        <label className={styles.fLabel} htmlFor="report-project">
-          Proyecto
-        </label>
-        <ReactSelect
-          inputId="report-project"
-          aria-label="Proyecto"
-          styles={selectStyles}
+      <div className={styles.filterField}>
+        <Select
+          variant="single"
+          label="Proyecto"
+          placeholder="Todos los proyectos"
           options={projectOptions}
-          value={projectOptions.find((o) => o.value === projectId) ?? projectOptions[0]}
-          onChange={(opt) => onProjectIdChange(opt?.value ?? '')}
-          isSearchable={false}
+          value={projectId}
+          onChange={onProjectIdChange}
         />
       </div>
 
-      <button type="button" className={styles.exportButton} onClick={onExportCsv}>
+      <Button variant="secondary-dismiss" onClick={onExportCsv}>
         Exportar CSV
-      </button>
+      </Button>
     </div>
   );
 }
