@@ -1,0 +1,125 @@
+@use '@/styles' as *;
+
+.sidebar {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-right: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+}
+
+.brand {
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+}
+
+.item {
+  position: relative;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--nav-item-height);
+  padding: 0 var(--space-4);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-family: var(--nav-item-font);
+
+  &:hover {
+    background-color: var(--bg-surface-sunken);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.iconWrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--nav-icon-size);
+  height: var(--nav-icon-size);
+  flex-shrink: 0;
+}
+
+// Activo: las tres señales a la vez — tarjeta blanca + barra verde agua de 3px +
+// elevation.raised + icono en #12897A (NUNCA el verde agua de marca sobre fondo claro).
+// El color del icono en sí se decide en el .tsx (prop `color` de TintedIcon), no acá:
+// TintedIcon lo aplica vía máscara CSS, así que no hay nada que sobreescribir en cascada.
+.linkActive {
+  background-color: var(--nav-item-active-bg);
+  box-shadow: var(--nav-item-active-shadow);
+  border-left: 3px solid var(--nav-item-active-bar);
+  color: var(--nav-item-active-icon);
+}
+
+.subList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  padding-left: var(--nav-subitem-indent);
+}
+
+.subItem {
+  display: block;
+}
+
+.subLink {
+  display: block;
+  padding: var(--space-2) var(--space-2);
+  color: var(--text-secondary);
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.subLinkActive {
+  background-color: var(--nav-subitem-active-bg);
+  color: var(--text-primary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-default);
+}
+
+.userName {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutButton {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}

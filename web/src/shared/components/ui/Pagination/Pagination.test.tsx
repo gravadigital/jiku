@@ -126,12 +126,16 @@ describe('Pagination — modo URL: navegación (regresión de CA-5)', () => {
     expect(params.get('page')).toBe('14');
   });
 
-  it('TS-19: con 0 ítems el componente no renderiza nada', () => {
+  // Cambia de conducta por mandato del spec Pagination v1.0.0 ("NO SE DEBE ocultar la
+  // paginación cuando hay una sola página: se muestra deshabilitada") — anteriormente
+  // (S-037) con 0 ítems el componente no renderizaba nada. Ver TS-59 de S-054.
+  it('TS-59 (antes TS-19): con 0 ítems el nav se sigue renderizando, deshabilitado', () => {
     currentSearchParams = new URLSearchParams();
-    const { container } = render(<Pagination totalItems={0} limit={20} basePath="/objectives" />);
+    render(<Pagination totalItems={0} limit={20} basePath="/objectives" />);
 
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.getByRole('navigation', { name: 'Paginación' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
   });
 });
 
@@ -223,5 +227,119 @@ describe('Pagination — grep de control (sin regresiones arquitectónicas)', ()
     expect(source).not.toContain('useState');
     expect(source).not.toContain('…');
     expect(source).not.toContain('ellipsis');
+  });
+
+  it('TS-55: sigue sin hardcodear ninguna ruta (regresión de CA-1)', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const source = await fs.readFile(path.resolve(__dirname, './Pagination.tsx'), 'utf-8');
+
+    expect(source).not.toContain('/objectives');
+  });
+});
+
+describe('Pagination — spec v1.0.0 (S-054): selector de cantidad, región viva, capa DS', () => {
+  it('TS-56: modo controlado avisa la página nueva y no navega', async () => {
+    const onPageChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Pagination totalItems={40} limit={10} currentPage={1} onPageChange={onPageChange} />);
+
+    await user.click(screen.getByRole('button', { name: 'Página 2' }));
+
+    expect(onPageChange).toHaveBeenCalledWith(2);
+    expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  it('TS-57: modo URL navega preservando los demás searchParams', async () => {
+    currentSearchParams = new URLSearchParams('status=activo&page=1');
+    const user = userEvent.setup();
+    render(<Pagination totalItems={40} limit={10} basePath="/requirements" />);
+
+    await user.click(screen.getByRole('button', { name: 'Página 3' }));
+
+    const calledWith = pushSpy.mock.calls[0][0] as string;
+    const params = new URLSearchParams(calledWith.split('?')[1]);
+    expect(params.get('page')).toBe('3');
+    expect(params.get('status')).toBe('activo');
+  });
+
+  it('TS-58: con una sola página se muestra deshabilitada, no se oculta', () => {
+    render(<Pagination totalItems={3} limit={10} currentPage={1} onPageChange={vi.fn()} />);
+
+    expect(screen.getByRole('navigation', { name: 'Paginación' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+  });
+
+  it('TS-60: los extremos están disabled de verdad y no disparan el callback', async () => {
+    const onPageChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Pagination totalItems={40} limit={10} currentPage={1} onPageChange={onPageChange} />);
+
+    const prevButton = screen.getByRole('button', { name: 'Página anterior' });
+    expect(prevButton).toHaveAttribute('disabled');
+    await user.click(prevButton);
+
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('TS-61: ofrece el selector de cantidad con unidad explícita', () => {
+    render(
+      <Pagination
+        totalItems={40}
+        limit={5}
+        currentPage={1}
+        onPageChange={vi.fn()}
+        pageSizeOptions={[5, 10, 25]}
+        onPageSizeChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('5 por página')).toBeInTheDocument();
+  });
+
+  it('TS-62: el selector de cantidad avisa el tamaño elegido como número', async () => {
+    const onPageSizeChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Pagination
+        totalItems={40}
+        limit={5}
+        currentPage={1}
+        onPageChange={vi.fn()}
+        pageSizeOptions={[5, 10, 25]}
+        onPageSizeChange={onPageSizeChange}
+      />
+    );
+
+    await user.click(screen.getByRole('combobox', { name: /por página/i }));
+    await user.click(screen.getByRole('option', { name: '25 por página' }));
+
+    expect(onPageSizeChange).toHaveBeenCalledWith(25);
+  });
+
+  it('TS-63: anuncia el cambio de página en una región viva', () => {
+    render(<Pagination totalItems={40} limit={10} currentPage={2} onPageChange={vi.fn()} />);
+
+    const liveRegion = document.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeTruthy();
+    expect(liveRegion?.textContent).toMatch(/Página 2 de 4/);
+  });
+
+  it('TS-64: conserva la ventana deslizante de 10 números', () => {
+    render(<Pagination totalItems={300} limit={10} currentPage={15} onPageChange={vi.fn()} />);
+
+    for (let n = 10; n <= 19; n += 1) {
+      expect(screen.getByRole('button', { name: `Página ${n}` })).toBeInTheDocument();
+    }
+  });
+
+  it('TS-65: conserva aria-current="page" en la página actual', () => {
+    render(<Pagination totalItems={300} limit={10} currentPage={15} onPageChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Página 15' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
   });
 });

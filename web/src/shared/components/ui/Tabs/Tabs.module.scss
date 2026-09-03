@@ -1,0 +1,52 @@
+@use '@/styles' as *;
+
+.tablist {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tab-inactive-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+// El activo se distingue por el indicador Y por el peso del texto — no sólo la barra.
+.tabActive {
+  border-bottom-color: var(--tab-active-border);
+  color: var(--tab-active-text);
+  font-weight: 600;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-tint-neutral);
+  font-size: 12px;
+}
+
+.srOnly {
+  @include sr-only;
+}

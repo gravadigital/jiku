@@ -1,0 +1,65 @@
+@use '@/styles' as *;
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.breadcrumbNav {
+  margin-bottom: var(--space-1);
+}
+
+.breadcrumbList {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+}
+
+.breadcrumbParent {
+  color: var(--text-secondary);
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+// El nivel actual va en caja baja, deliberadamente — no es un error de contenido.
+.breadcrumbCurrent {
+  color: var(--text-primary);
+  text-transform: lowercase;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.title {
+  font-family: var(--text-view-title-family);
+  font-size: var(--text-view-title-size);
+  font-weight: var(--text-view-title-weight);
+  letter-spacing: var(--text-view-title-tracking);
+  line-height: var(--text-view-title-leading);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.action {
+  margin-left: auto;
+}
