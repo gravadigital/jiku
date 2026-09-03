@@ -1,0 +1,183 @@
+// Tier 1 — Reference tokens
+//
+// Inventario crudo de valores del Manual de marca Jiku v1.0, copiado verbatim de
+// docs/design-system/web/tokens/reference.md (DS web v2.4.0).
+//
+// Reglas del tier (ver reference.md):
+// - No se consumen desde componentes directamente (siempre vía semánticos).
+// - No se agregan valores arbitrarios.
+// - Los primitivos se nombran por lo que SON (--color-aqua), no por lo que hacen.
+//
+// Este archivo no contiene ninguna referencia var(--...): es el tier base, todo son literales.
+
+:root {
+  // ============================================
+  // Colores de marca
+  // ============================================
+  --color-deep-blue: #0B1934;
+  --color-graphite: #626C78;
+  --color-mist: #F6F6F9;
+  --color-aqua: #61CCB9;
+  --color-aqua-deep: #12897A;
+
+  // ============================================
+  // Neutros
+  // ============================================
+  --color-white: #FFFFFF;
+  --color-ink: #34383F;
+  --color-gray-600: #6D727B;
+  --color-gray-400: #9AA1AC;
+  --color-gray-200: #DFE1E7;
+  --color-gray-100: #EDEEF1;
+
+  // ============================================
+  // Modo oscuro
+  // ============================================
+  --color-dark-canvas: #0E121A;
+  --color-dark-surface: #1B202C;
+  --color-dark-primary: #7D8699;
+  --color-dark-text: #F6F6F9;
+
+  // ============================================
+  // Colores de sistema
+  // ============================================
+  --color-system-resolved: #1B998B;
+  --color-system-medium: #FEA82F;
+  --color-system-urgent: #F72C25;
+  --color-system-analysis: #1F01B9;
+
+  // ============================================
+  // Tintes y bordes de tinte
+  // ============================================
+  --color-tint-green: #E7F6F3;
+  --color-tint-border-green: #CDEBE5;
+  --color-tint-aqua: #E1F4F0;
+  --color-tint-border-aqua: #BFE7DF;
+  --color-tint-amber: #FFF2DE;
+  --color-tint-border-amber: #FBE0B6;
+  --color-tint-red: #FDECEB;
+  --color-tint-border-red: #FBC9C7;
+  --color-tint-violet: #E9E7FA;
+  --color-tint-border-violet: #D5D1F5;
+  --color-tint-graphite: #EDEEF1;
+  --color-tint-border-graphite: #DFE1E7;
+
+  // ============================================
+  // Textos profundos (color de texto sobre tinte)
+  // ============================================
+  --color-deep-green: #12897A;
+  --color-deep-amber: #8A5405;
+  --color-deep-red: #C41F19;
+  --color-deep-violet: #1F01B9;
+
+  // ============================================
+  // Tipografía — familias (con stack de sustitutas)
+  // ============================================
+  --font-family-display: Sora, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family-ui: Gabarito, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  // ============================================
+  // Tipografía — tamaños
+  // ============================================
+  --font-size-11: 11px;
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-15: 15px;
+  --font-size-16: 16px;
+  --font-size-19: 19px;
+  --font-size-30: 30px;
+  --font-size-34: 34px;
+
+  // ============================================
+  // Tipografía — pesos
+  // ============================================
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  // ============================================
+  // Tipografía — tracking
+  // ============================================
+  --font-tracking-tight: -0.035em;
+  --font-tracking-snug: -0.02em;
+  --font-tracking-normal: 0;
+  --font-tracking-caps: 0.12em;
+
+  // ============================================
+  // Tipografía — interlínea
+  // ============================================
+  --font-leading-title: 1.1;
+  --font-leading-body: 1.6;
+  --font-leading-table: 1.5;
+
+  // ============================================
+  // Espaciado
+  // ============================================
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-4: 16px;
+  --space-18: 18px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  // ============================================
+  // Layout
+  // ============================================
+  // NOT DOCUMENTED - needs verification: layout.sidebar.width no está en reference.md, pero
+  // component.md lo referencia como nav.width y sidebar-nav.md lo fija en 300px fijo. Se declara
+  // acá para que el encadenamiento cierre. No se aplica al shell en esta story (S-058 migra el
+  // shell de 290px a 300px).
+  --layout-sidebar-width: 300px;
+
+  // ============================================
+  // Alturas
+  // ============================================
+  --size-40: 40px;
+  --size-44: 44px;
+  --size-46: 46px;
+  --size-48: 48px;
+
+  // ============================================
+  // Radios — exactamente cuatro valores, sin intermedios
+  // ============================================
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-14: 14px;
+  --radius-999: 999px;
+
+  // ============================================
+  // Sombras
+  // ============================================
+  --shadow-card: 0 1px 3px rgba(11, 25, 52, .04);
+  --shadow-active: 0 2px 8px rgba(11, 25, 52, .06);
+  --shadow-focus: 0 0 0 3px rgba(97, 204, 185, .22);
+
+  // ============================================
+  // Duraciones y easing
+  // ============================================
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --easing-default: ease;
+
+  // ============================================
+  // Iconografía
+  // ============================================
+  --icon-14: 14px;
+  --icon-16: 16px;
+  --icon-19: 19px;
+  --icon-22: 22px;
+  --icon-24: 24px;
+  --icon-stroke: 1.6px;
+  --icon-grid: 24px;
+
+  // ============================================
+  // Z-index — orden corregido: dropdown < navbar < modal < tooltip
+  // ============================================
+  --z-dropdown: 100;
+  --z-navbar: 200;
+  --z-modal: 300;
+  --z-tooltip: 400;
+}

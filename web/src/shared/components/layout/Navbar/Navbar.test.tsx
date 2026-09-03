@@ -13,7 +13,15 @@ vi.mock('next-auth/react', () => ({
 }));
 
 vi.mock('next/image', () => ({
-  default: ({ alt }: { alt: string }) => <img alt={alt} />,
+  default: ({
+    alt,
+    src,
+    height,
+  }: {
+    alt: string;
+    src: string | { src: string };
+    height?: number;
+  }) => <img alt={alt} src={typeof src === 'string' ? src : src.src} height={height} />,
 }));
 
 describe('Navbar', () => {
@@ -40,5 +48,20 @@ describe('Navbar', () => {
 
     const taskLinks = screen.getAllByRole('link', { name: /tareas/i });
     expect(taskLinks.some((link) => link.getAttribute('href') === '/objectives')).toBe(true);
+  });
+
+  it('TS-24 (S-052): renderiza la firma Jiku con alt accesible y src que no es .png', () => {
+    render(<Navbar />);
+
+    const logo = screen.getByAltText('Jiku');
+    expect(logo).toBeInTheDocument();
+    expect(logo.getAttribute('src')).not.toMatch(/\.png/);
+  });
+
+  it('TS-25 (S-052): la firma del sidebar se sirve a 26px de alto (antes 55)', () => {
+    render(<Navbar />);
+
+    const logo = screen.getByAltText('Jiku');
+    expect(logo.getAttribute('height')).toBe('26');
   });
 });

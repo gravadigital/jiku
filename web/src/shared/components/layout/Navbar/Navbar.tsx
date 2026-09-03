@@ -13,7 +13,7 @@ import externalLogoHedgedoc from '@root/assets/ExternalLogos/hedgedoc.svg';
 import externalLogoHoras from '@root/assets/ExternalLogos/horas.svg';
 import externalLogoMail from '@root/assets/ExternalLogos/mailu.png';
 import externalLogoMattermost from '@root/assets/ExternalLogos/mattermost.svg';
-import appLogo from '@root/assets/logoLayout.png';
+import jikuLogo from '@root/assets/jikuLogo.svg';
 import logoutLogo from '@root/assets/logoutLogo.svg';
 import objectivesLogo from '@root/assets/objetivosLogo.svg';
 import projectsLogo from '@root/assets/proyectosLogo.svg';
@@ -188,7 +188,7 @@ export function Navbar({ appName, externalLinks }: NavbarProps) {
     <nav className={styles.navBarContainer}>
       <div className={styles.navBarLogo}>
         <Link href="/">
-          <Image src={appLogo} alt={appName ?? 'Jiku'} height={55} />
+          <Image src={jikuLogo} alt={appName ?? 'Jiku'} height={26} />
         </Link>
       </div>
 

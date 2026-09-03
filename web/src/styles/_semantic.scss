@@ -1,0 +1,179 @@
+// Tier 2 — Semantic tokens
+//
+// Traduce primitivo -> intención. Copiado verbatim de
+// docs/design-system/web/tokens/semantic.md (DS web v2.4.0).
+//
+// Regla del tier: los componentes consumen semánticos, NUNCA primitivos. NO SE DEBE crear un
+// semántico que nombre apariencia (--bg-green): nombra rol (--bg-action-primary).
+//
+// Todo valor es var(--<primitivo>), con la sola excepción de los literales que el DS declara
+// así: transparent, none y rgba(97,204,185,.08).
+
+:root {
+  // ============================================
+  // Background
+  // ============================================
+  --bg-canvas: var(--color-mist);
+  --bg-surface: var(--color-white);
+  --bg-surface-sunken: var(--color-mist);
+  --bg-inverse: var(--color-deep-blue);
+  --bg-action-primary: var(--color-aqua);
+  --bg-action-secondary: transparent;
+  --bg-action-disabled: var(--color-mist);
+  --bg-tint-neutral: var(--color-gray-100);
+  --bg-active: var(--color-aqua);
+  --bg-active-subtle: rgba(97, 204, 185, .08);
+
+  // ============================================
+  // Text
+  // ============================================
+  --text-primary: var(--color-deep-blue);
+  --text-body: var(--color-ink);
+  --text-secondary: var(--color-gray-600);
+  --text-disabled: var(--color-gray-400);
+  --text-inverse: var(--color-mist);
+  --text-on-action: var(--color-deep-blue);
+  --text-link: var(--color-aqua-deep);
+  --text-dark: var(--color-dark-text);
+
+  // ============================================
+  // Border
+  // ============================================
+  --border-default: var(--color-gray-200);
+  --border-strong: var(--color-graphite);
+  --border-action: var(--color-aqua);
+  --border-focus: var(--color-aqua);
+  --border-required: var(--color-aqua);
+
+  // ============================================
+  // Feedback de estado — 6 familias × pleno/tinte/borde/texto
+  // ============================================
+  --state-resolved-full: var(--color-system-resolved);
+  --state-resolved-tint: var(--color-tint-green);
+  --state-resolved-border: var(--color-tint-border-green);
+  --state-resolved-text: var(--color-deep-green);
+
+  --state-in-progress-full: var(--color-system-resolved);
+  --state-in-progress-tint: var(--color-tint-aqua);
+  --state-in-progress-border: var(--color-tint-border-aqua);
+  --state-in-progress-text: var(--color-deep-green);
+
+  --state-review-full: var(--color-system-medium);
+  --state-review-tint: var(--color-tint-amber);
+  --state-review-border: var(--color-tint-border-amber);
+  --state-review-text: var(--color-deep-amber);
+
+  --state-urgent-full: var(--color-system-urgent);
+  --state-urgent-tint: var(--color-tint-red);
+  --state-urgent-border: var(--color-tint-border-red);
+  --state-urgent-text: var(--color-deep-red);
+
+  --state-analysis-full: var(--color-system-analysis);
+  --state-analysis-tint: var(--color-tint-violet);
+  --state-analysis-border: var(--color-tint-border-violet);
+  --state-analysis-text: var(--color-deep-violet);
+
+  --state-neutral-full: var(--color-graphite);
+  --state-neutral-tint: var(--color-tint-graphite);
+  --state-neutral-border: var(--color-tint-border-graphite);
+  --state-neutral-text: var(--text-secondary);
+
+  // ============================================
+  // Tipografía semántica
+  // ============================================
+  --text-view-title-family: var(--font-family-display);
+  --text-view-title-size: var(--font-size-30);
+  --text-view-title-weight: var(--font-weight-bold);
+  --text-view-title-tracking: var(--font-tracking-tight);
+  --text-view-title-leading: var(--font-leading-title);
+
+  --text-metric-family: var(--font-family-display);
+  --text-metric-size: var(--font-size-34);
+  --text-metric-weight: var(--font-weight-bold);
+
+  --text-metric-unit-family: var(--font-family-ui);
+  --text-metric-unit-size: var(--font-size-13);
+  --text-metric-unit-weight: var(--font-weight-semibold);
+  --text-metric-unit-tracking: var(--font-tracking-caps);
+
+  --text-card-title-family: var(--font-family-ui);
+  --text-card-title-size: var(--font-size-16);
+  --text-card-title-weight: var(--font-weight-bold);
+
+  --text-nav-item-family: var(--font-family-ui);
+  --text-nav-item-size: var(--font-size-15);
+  --text-nav-item-weight: var(--font-weight-medium);
+
+  --text-body-default-family: var(--font-family-ui);
+  --text-body-default-size: var(--font-size-14);
+  --text-body-default-weight: var(--font-weight-regular);
+  --text-body-default-leading: var(--font-leading-body);
+
+  --text-field-label-family: var(--font-family-ui);
+  --text-field-label-size: var(--font-size-13);
+  --text-field-label-weight: var(--font-weight-regular);
+
+  --text-table-data-family: var(--font-family-ui);
+  --text-table-data-size: var(--font-size-13);
+  --text-table-data-weight: var(--font-weight-regular);
+  --text-table-data-leading: var(--font-leading-table);
+
+  --text-filter-label-family: var(--font-family-ui);
+  --text-filter-label-size: var(--font-size-11);
+  --text-filter-label-weight: var(--font-weight-semibold);
+  --text-filter-label-tracking: var(--font-tracking-caps);
+
+  --text-wordmark-family: var(--font-family-display);
+  --text-wordmark-size: var(--font-size-19);
+  --text-wordmark-weight: var(--font-weight-bold);
+
+  // ============================================
+  // Espaciado semántico
+  // ============================================
+  --space-inline-sm: var(--space-1);
+  --space-inline-md: var(--space-2);
+  --space-padding-card: var(--space-4);
+  --space-stack-md: var(--space-4);
+  --space-grid-gap: var(--space-18);
+  --space-padding-content: var(--space-8);
+  --space-stack-section: var(--space-8);
+
+  // ============================================
+  // Forma y elevación
+  // ============================================
+  --radius-action: var(--radius-8);
+  --radius-field: var(--radius-10);
+  --radius-surface: var(--radius-14);
+  --radius-pill: var(--radius-999);
+  --elevation-surface: var(--shadow-card);
+  --elevation-raised: var(--shadow-active);
+  --focus-ring: var(--shadow-focus);
+
+  // ============================================
+  // Layout
+  // ============================================
+  --nav-width: var(--layout-sidebar-width);
+
+  // ============================================
+  // Alias de compatibilidad — baja definitiva en S-060
+  // ============================================
+  // --font-primary se mantiene como alias de --font-ui durante la migración de los 117 módulos
+  // existentes. No declarar en el tier reference: es tier semántico porque referencia un
+  // primitivo vía var().
+  --font-primary: var(--font-family-ui);
+}
+
+// ============================================
+// Modo oscuro — preparado, no activado en esta story (S-059 lo dispara)
+// ============================================
+// El acento (--bg-action-primary) NO se redeclara: no cambia entre modos.
+// :root[data-theme='dark'] (en vez de [data-theme='dark'] a secas) porque este parcial también
+// se reenvía dentro de *.module.scss vía `@use '@/styles' as *`, y el checker de "selectores
+// puros" de CSS Modules exige que un selector global venga anclado a :root (igual que el :root
+// base de arriba), no como atributo suelto.
+:root[data-theme='dark'] {
+  --bg-canvas: var(--color-dark-canvas);
+  --bg-surface: var(--color-dark-surface);
+  --text-primary: var(--color-dark-text);
+  --text-body: var(--color-dark-text);
+}

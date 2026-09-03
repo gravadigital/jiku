@@ -1,6 +1,6 @@
 ---
 foundation: logo
-version: 1.0.0
+version: 1.0.1
 last_updated: 2026-09-02
 status: normativo
 origin: Manual de marca Jiku v1.0 (septiembre 2026)
@@ -39,10 +39,10 @@ Tres variantes cubren todos los usos.
 **Formatos:** SVG para pantalla y web; PNG con transparencia para documentos; PDF vectorial para
 imprenta.
 
-**Cada variante existe en versión clara y oscura**, más el isotipo suelto. Los archivos los
-provee diseño (`diseño@grava.io`); **no viven en este repositorio**. Al implementar, los SVG de
-interfaz van a `web/src/assets/` —donde ya viven los iconos y `gravaLogo.svg`— y el favicon a
-`web/public/`.
+**Cada variante existe en versión clara y oscura**, más el isotipo suelto. Los SVG de interfaz
+viven en `web/src/assets/` (`jikuLogo.svg`, `jikuLogoDark.svg`, `jikuLogoFull.svg`,
+`jikuLogoFullDark.svg`, `jikuSymbol.svg`) —donde ya viven los iconos y `gravaLogo.svg`—; el
+favicon va a `web/public/` cuando se implemente.
 
 ### Jerarquía de uso
 
@@ -121,6 +121,9 @@ Cualquier alteración de color, proporción o composición **invalida la firma**
 
 ## Historial
 
+- 2026-09-02 v1.0.1 — Corrección (story S-052): los SVG de interfaz ya viven en este repositorio
+  (`web/src/assets/`), migrados desde `_new-design/`. Se corrige la afirmación de que los provee
+  diseño y que no viven en el repo. No cambia ninguna regla normativa (PATCH sobre el DS).
 - 2026-09-02 v1.0.0 — Foundation nueva, creada desde el Manual de marca Jiku v1.0: tres variantes
   de firma con sus mínimos, área de resguardo de `1x`, reglas del símbolo, fondos permitidos, seis
   usos incorrectos y coexistencia con Grava y terceros (MINOR sobre el DS).
