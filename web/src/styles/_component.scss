@@ -144,8 +144,12 @@
   // Avatar
   // ============================================
   --avatar-radius: var(--radius-pill);
-  --avatar-bg: var(--bg-tint-neutral);
-  --avatar-text: var(--text-primary);
+  // Corrección S-054: el spec avatar.md declara iniciales en niebla sobre azul
+  // oscuro (contraste 14.6:1) y el fondo no varía por persona (neutro de marca).
+  // S-052 había implementado --bg-tint-neutral/--text-primary por error; esto
+  // corrige la capa de tokens del servicio para que siga al DS normativo.
+  --avatar-bg: var(--bg-inverse);
+  --avatar-text: var(--text-inverse);
 
   // ============================================
   // Loader

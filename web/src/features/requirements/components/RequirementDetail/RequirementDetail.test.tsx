@@ -366,10 +366,11 @@ describe('RequirementDetail', () => {
         );
 
         expect(screen.getByRole('navigation', { name: 'Paginación' })).toBeInTheDocument();
-        const prevBtn = screen.getByRole('button', { name: 'Página anterior' });
-        const nextBtn = screen.getByRole('button', { name: 'Página siguiente' });
-        expect(prevBtn).toHaveTextContent('<');
-        expect(nextBtn).toHaveTextContent('>');
+        // El glifo de las flechas cambió de '<'/'>' a '‹'/'›' con la capa visual del DS
+        // (S-054, componente Pagination compartido) — el contrato accesible que este
+        // test verifica es el nombre accesible del control, no el glifo visual exacto.
+        expect(screen.getByRole('button', { name: 'Página anterior' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Página siguiente' })).toBeInTheDocument();
       });
 
       it('TS-2: con ≤ 10 páginas se muestran todos los números, sin elipsis', () => {
@@ -467,15 +468,18 @@ describe('RequirementDetail', () => {
         );
       });
 
-      it('TS-7: con 0 tareas en la tab activa, el paginador no se renderiza', () => {
+      // S-054: ya no se oculta con 0 ítems — se renderiza deshabilitada, sin páginas navegables.
+      it('TS-7: con 0 tareas en la tab activa, el paginador se muestra deshabilitado, sin páginas navegables', () => {
         render(<RequirementDetail requirement={{ ...baseRequirement, linkedObjectives: [] }} />, {
           wrapper: createWrapper(),
         });
 
         expect(screen.getByText('Sin tareas en esta etapa')).toBeInTheDocument();
-        expect(
-          screen.queryByRole('navigation', { name: 'Paginación' })
-        ).not.toBeInTheDocument();
+        const nav = screen.getByRole('navigation', { name: 'Paginación' });
+        expect(nav).toBeInTheDocument();
+        expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+        expect(within(nav).getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+        expect(within(nav).queryByRole('button', { name: 'Página 2' })).not.toBeInTheDocument();
       });
 
       it('TS-8: bajar el total de páginas por debajo de la página actual reajusta la vista', () => {
@@ -564,8 +568,9 @@ describe('RequirementDetail', () => {
 
         fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
 
-        expect(screen.queryByText('‹')).not.toBeInTheDocument();
-        expect(screen.queryByText('›')).not.toBeInTheDocument();
+        // El paginador compartido (S-054) reutiliza '‹'/'›' en sus propias flechas, así
+        // que ya no sirven para detectar al paginador inline descartado — lo que importa
+        // acá es que la elipsis del paginador inline viejo no sobreviva.
         expect(screen.queryByText('…')).not.toBeInTheDocument();
 
         const scssPath = path.join(__dirname, 'RequirementDetail.module.scss');

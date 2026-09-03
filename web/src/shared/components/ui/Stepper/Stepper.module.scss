@@ -1,0 +1,105 @@
+@use '@/styles' as *;
+
+.stepper {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.connector {
+  position: absolute;
+  top: 14px;
+  right: 50%;
+  width: 100%;
+  height: 1px;
+  background-color: var(--border-default);
+  z-index: 0;
+}
+
+.connectorDone {
+  background-color: var(--stepper-active-bg);
+}
+
+.node {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  background-color: var(--stepper-inactive-bg);
+  color: var(--text-disabled);
+  border: 1px solid var(--border-default);
+}
+
+// Recorrido: verde agua pleno + ✓ en azul oscuro (9.8:1). Único lugar del sistema
+// donde el verde agua se usa pleno como fondo.
+.nodeDone {
+  background-color: var(--stepper-active-bg);
+  color: var(--text-on-action);
+  border-color: var(--stepper-active-bg);
+}
+
+// × de paso saltado al cancelar: mismo fondo que "done" pero no sugiere completado
+// por el glifo (× en vez de ✓); no se rellena de otro color, para no introducir un
+// cuarto estado visual fuera del spec.
+.nodeSkipped {
+  background-color: var(--stepper-active-bg);
+  color: var(--text-on-action);
+  border-color: var(--stepper-active-bg);
+}
+
+// Actual: anillo de 3px, NO relleno. El anillo es visual, no es foco — se declara
+// aparte de --focus-ring para que no se confunda con el foco de teclado.
+.nodeCurrent {
+  background-color: var(--bg-surface);
+  color: var(--stepper-text);
+  border: 3px solid var(--stepper-active-bg);
+}
+
+.nodePending {
+  background-color: var(--stepper-inactive-bg);
+  color: var(--text-disabled);
+  border-color: var(--border-default);
+}
+
+.label {
+  font-size: 13px;
+  color: var(--stepper-text);
+  text-align: center;
+}
+
+.stepButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.srOnly {
+  @include sr-only;
+}

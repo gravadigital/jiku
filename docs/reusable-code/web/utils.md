@@ -119,3 +119,44 @@ function getPageWindow(params: { currentPage: number; totalPages: number }): num
 const pageNumbers = getPageWindow({ currentPage, totalPages });
 // currentPage=15, totalPages=30 -> [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 ```
+
+---
+
+## weekFormat (addDays, getMonday, formatWeekRange, isSameWeek)
+
+**Location:** `web/src/shared/components/ui/WeekNav/weekFormat.ts`
+
+**Description:** Pure `Date`-based week arithmetic, ported (not rewritten) from the legacy
+`features/time-allocation/components/WeekNavigator/WeekNavigator.tsx`, which already resolved
+month- and year-crossover cases in production. Adapted from `YYYY-MM-DD` strings to `Date`, using
+UTC accessors throughout (`getUTCDate`, `setUTCDate`, etc.) so results are stable under the
+project's fixed `TZ=UTC` test environment regardless of the host machine's local timezone.
+
+- `addDays(date, days)` — returns a new `Date` shifted by `days` (negative to go back).
+- `getMonday(date)` — returns the Monday (00:00 UTC) of the week containing `date`.
+- `formatWeekRange(weekStart)` — formats "Semana del D al D de mes[ AL D de mes] AAAA[ al AAAA]",
+  spelling out both months when the week crosses a month boundary and both years when it crosses
+  a year boundary. The week is Monday-to-Friday (adds 4 days to the Monday).
+- `isSameWeek(a, b)` — compares the Monday of each date's week.
+
+No React dependency; used by `WeekNav` (`web/src/shared/components/ui/WeekNav/WeekNav.tsx`).
+
+**Signature:**
+
+```ts
+function addDays(date: Date, days: number): Date;
+function getMonday(date: Date): Date;
+function formatWeekRange(weekStart: Date): string;
+function isSameWeek(a: Date, b: Date): boolean;
+```
+
+**Usage:**
+
+```ts
+import { formatWeekRange, getMonday, isSameWeek, addDays } from './weekFormat';
+
+const monday = getMonday(new Date());
+formatWeekRange(monday); // "Semana del 1 al 5 de septiembre 2026"
+isSameWeek(monday, weekStart); // → drives WeekNav's `isCurrentWeek`
+addDays(weekStart, 7); // next week's Monday
+```

@@ -27,6 +27,7 @@ const MUERTOS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect'] as const;
 const VIVOS_UI = [
   'AddButton',
   'AutomatedIdentityBadge',
+  'Avatar',
   'Badge',
   'Button',
   'Card',
@@ -46,9 +47,15 @@ const VIVOS_UI = [
   'Pagination',
   'SectionCard',
   'Select',
+  'SidebarNav',
   'Spinner',
+  'Stepper',
+  'Table',
+  'Tabs',
   'ToggleGroup',
   'Tooltip',
+  'ViewHeader',
+  'WeekNav',
 ] as const;
 
 const CARPETAS_MUERTAS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect', 'AttachmentDownload'];
@@ -66,6 +73,13 @@ const CARPETAS_VIVAS_UI = [
   'AttachmentSkeleton',
   'Select',
   'InputSelect',
+  'Avatar',
+  'SidebarNav',
+  'Stepper',
+  'Table',
+  'Tabs',
+  'ViewHeader',
+  'WeekNav',
 ];
 
 describe('barrel de shared/components/ui', () => {
@@ -79,8 +93,8 @@ describe('barrel de shared/components/ui', () => {
     expect(barrel).toContain(`export { ${nombre} } from './${nombre}';`);
   });
 
-  it('tiene exactamente 24 exports', () => {
-    expect(barrel.match(/^export \{/gm)).toHaveLength(24);
+  it('tiene exactamente 31 exports', () => {
+    expect(barrel.match(/^export \{/gm)).toHaveLength(31);
   });
 
   it.each(CARPETAS_MUERTAS_UI)('la carpeta de %s ya no existe en ui/', (nombre) => {

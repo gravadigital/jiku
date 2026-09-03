@@ -417,10 +417,12 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       { wrapper: createWrapper() }
     );
 
-    await waitFor(() => {
-      expect(getPaginationNav()).toBeTruthy();
-    });
+    // S-054: el nav siempre está presente (incluso antes de que resuelva el conteo real),
+    // así que se espera por un botón que sólo existe una vez cargado el total real (32/15 = 3).
     const nav = getPaginationNav() as HTMLElement;
+    await waitFor(() => {
+      expect(within(nav).getByRole('button', { name: 'Página 3' })).toBeInTheDocument();
+    });
     const pageButtons = getPageNumberButtons(nav);
     const labels = pageButtons.map((b) => b.getAttribute('aria-label'));
     expect(labels).toContain('Página 1');
@@ -453,7 +455,8 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
   });
 
   // TS-3: con conteo 0 el paginador no ofrece páginas navegables (CA-2)
-  it('TS-3: con conteo 0 no se renderiza el paginador', async () => {
+  // S-054: ya no se oculta con 0 ítems — se renderiza deshabilitada, sin páginas navegables.
+  it('TS-3: con conteo 0 el paginador se muestra deshabilitado, sin páginas navegables', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([]);
     vi.mocked(requirementsApi.getRequirementsCount).mockResolvedValue(0);
     render(
@@ -464,7 +467,10 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     await waitFor(() => {
       expect(screen.getByText('No se encontraron requisitos')).toBeInTheDocument();
     });
-    expect(getPaginationNav()).toBeNull();
+    const nav = getPaginationNav() as HTMLElement;
+    expect(nav).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    expect(within(nav).getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
   });
 
   // TS-4: el empty state convive con el selector de tamaño de página (CA-2)
@@ -524,9 +530,10 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(getPaginationNav()).toBeTruthy();
-    });
+    // S-054: el nav siempre está presente, incluso antes de cargar el total real — y con
+    // count=0 por defecto y page=2 en la URL, "siguiente" arranca deshabilitado igual (1 sola
+    // página). Se espera por "Página 2" en sí, que sólo existe una vez cargado el total (30/15).
+    await screen.findByLabelText('Página 2');
     const nav = getPaginationNav() as HTMLElement;
     const labels = getPageNumberButtons(nav).map((b) => b.getAttribute('aria-label'));
     expect(labels).toContain('Página 1');
@@ -546,10 +553,10 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       { wrapper: createWrapper() }
     );
 
-    await waitFor(() => {
-      expect(getPaginationNav()).toBeTruthy();
-    });
-    fireEvent.click(screen.getByLabelText('Página 2'));
+    // S-054: el nav siempre está presente; se espera por "Página 2" en sí (sólo existe
+    // una vez cargado el total real) en vez del nav a secas.
+    const page2Button = await screen.findByLabelText('Página 2');
+    fireEvent.click(page2Button);
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalled();
@@ -570,10 +577,9 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(getPaginationNav()).toBeTruthy();
-    });
-    const activeBtn = screen.getByLabelText('Página 2');
+    // S-054: se espera por el propio botón "Página 2" (sólo existe una vez cargado
+    // el total real), no por la mera presencia del nav.
+    const activeBtn = await screen.findByLabelText('Página 2');
     expect(activeBtn).toHaveAttribute('data-active');
     expect(activeBtn).toHaveAttribute('aria-current', 'page');
     expect(activeBtn).toBeDisabled();
@@ -622,9 +628,8 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(getPaginationNav()).toBeTruthy();
-    });
+    // S-054: se espera por "Página 2" (sólo existe una vez cargado el total real: 32/25 = 2).
+    await screen.findByLabelText('Página 2');
     const nav = getPaginationNav() as HTMLElement;
     const labels = getPageNumberButtons(nav).map((b) => b.getAttribute('aria-label'));
     expect(labels).toContain('Página 1');
@@ -648,7 +653,9 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
   });
 
   // TS-14: el conteo pendiente no rompe el render de la tabla (CA-1, CA-2)
-  it('TS-14: el conteo pendiente no rompe el render de la tabla', async () => {
+  // S-054: mientras el conteo está pendiente, `count` por defecto es 0 y el paginador ya no se
+  // oculta — se renderiza igual, deshabilitado (una sola página).
+  it('TS-14: el conteo pendiente no rompe el render de la tabla y el paginador queda deshabilitado', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([mockRequirement]);
     vi.mocked(requirementsApi.getRequirementsCount).mockReturnValue(new Promise(() => {}));
     render(<RequirementList filters={{ ...filters, page: 1, limit: 15 }} />, {
@@ -658,11 +665,17 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     await waitFor(() => {
       expect(screen.getByText('Req test')).toBeInTheDocument();
     });
-    expect(getPaginationNav()).toBeNull();
+    const nav = getPaginationNav() as HTMLElement;
+    expect(nav).toBeTruthy();
+    expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    expect(within(nav).getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+    expect(within(nav).queryByRole('button', { name: 'Página 2' })).not.toBeInTheDocument();
   });
 
   // TS-15: un conteo fallido no rompe la pantalla (CA-2)
-  it('TS-15: un conteo fallido no rompe la pantalla', async () => {
+  // S-054: un conteo fallido deja `count` en 0 (valor por defecto) — el paginador se muestra
+  // igual, deshabilitado, en vez de ocultarse.
+  it('TS-15: un conteo fallido no rompe la pantalla y el paginador queda deshabilitado', async () => {
     vi.mocked(requirementsApi.getRequirements).mockResolvedValue([mockRequirement]);
     vi.mocked(requirementsApi.getRequirementsCount).mockRejectedValue(new Error('boom'));
     render(<RequirementList filters={{ ...filters, page: 1, limit: 15 }} />, {
@@ -672,7 +685,17 @@ describe('RequirementList — S-042 (paginador unificado con total real)', () =>
     await waitFor(() => {
       expect(screen.getByText('Req test')).toBeInTheDocument();
     });
-    expect(getPaginationNav()).toBeNull();
+    // El rechazo del conteo resuelve en un microtask aparte del de "Req test": se espera
+    // explícitamente a que las flechas del paginador queden deshabilitadas (estado final tras
+    // el fallo) en vez de leer el nav apenas aparece el primer dato.
+    await waitFor(() => {
+      const nav = getPaginationNav();
+      expect(nav).toBeTruthy();
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Página anterior' })).toBeDisabled();
+    });
+    const nav = getPaginationNav() as HTMLElement;
+    expect(within(nav).getByRole('button', { name: 'Página siguiente' })).toBeDisabled();
+    expect(within(nav).queryByRole('button', { name: 'Página 2' })).not.toBeInTheDocument();
   });
 });
 

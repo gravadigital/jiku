@@ -1,0 +1,47 @@
+@use '@/styles' as *;
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--avatar-radius);
+  background-color: var(--avatar-bg);
+  color: var(--avatar-text);
+  font-weight: 600;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sm {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.md {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+
+// El símbolo de la app se dibuja al 62% del diámetro del avatar — regla de marca.
+.symbol {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+}
+
+.withExtra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.extraCount {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.srOnly {
+  @include sr-only;
+}

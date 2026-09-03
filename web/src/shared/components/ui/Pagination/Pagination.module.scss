@@ -1,54 +1,55 @@
-@use '@/styles/mixins' as *;
+@use '@/styles' as *;
 
 .pagination {
   display: flex;
-  justify-content: center;
-  margin-top: 20px;
-  gap: 8px;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
 
-  button {
-    background-color: var(--color-general-background);
-    color: var(--color-general-text);
-    border: none;
-    padding: 8px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-family: var(--font-primary);
-    font-size: 14px;
-    line-height: 1.2;
-    transition: background-color 0.3s ease;
-    @include focus-ring;
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
 
-    &:hover:not(:disabled) {
-      background-color: var(--color-general-disabled);
-    }
+.arrowButton,
+.pageButton {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--radius-action);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  color: var(--pagination-text);
+  cursor: pointer;
+  font-size: 14px;
 
-    &:disabled {
-      background-color: var(--color-button);
-      color: var(--color-background);
-      cursor: not-allowed;
-    }
-
-    &:not(:disabled)[data-active] {
-      background-color: var(--color-button);
-      color: var(--color-background);
-      font-weight: bold;
-    }
+  &:hover:not(:disabled) {
+    background-color: var(--bg-surface-sunken);
   }
 
-  button:first-of-type, button:last-of-type {
-    background-color: transparent;
-    border: none;
-
-    &:disabled {
-      color: var(--color-text-light);
-      background-color: var(--color-general-disabled);
-    }
-
-    &:not(:disabled) {
-      background-color: var(--color-button);
-      color: var(--color-background);
-    }
-
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
   }
+
+  &:disabled {
+    color: var(--text-disabled);
+    cursor: not-allowed;
+  }
+}
+
+.pageButton[data-active] {
+  background-color: var(--pagination-active-bg);
+  color: var(--pagination-active-text);
+  font-weight: 600;
+  border-color: var(--pagination-active-bg);
+}
+
+.pageSize {
+  min-width: 160px;
+}
+
+.liveRegion {
+  @include sr-only;
 }
