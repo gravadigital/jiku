@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { MarkdownEditorWithPreview } from './MarkdownEditorWithPreview';
 
@@ -20,8 +21,14 @@ describe('MarkdownEditorWithPreview', () => {
     );
 
     expect(screen.getByRole('textbox')).toHaveValue('texto ya guardado');
-    expect(screen.getByText('Editar')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Vista previa')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('radio', { name: 'Editar' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: 'Vista previa' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
   });
 
   it('inicia en modo Vista previa cuando initialMode="preview" (S-086, CA-4 ajustado)', () => {
@@ -35,8 +42,14 @@ describe('MarkdownEditorWithPreview', () => {
     );
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByText('Vista previa')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Editar')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('radio', { name: 'Vista previa' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: 'Editar' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
   });
 
   it('inicia en modo Editar cuando initialMode="edit" explícito (S-086, CA-4 ajustado)', () => {
@@ -52,7 +65,8 @@ describe('MarkdownEditorWithPreview', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument();
   });
 
-  it('alterna a Vista previa y renderiza el markdown (S-086, TS-1)', () => {
+  it('alterna a Vista previa y renderiza el markdown (S-086, TS-1)', async () => {
+    const user = userEvent.setup();
     render(
       <MarkdownEditorWithPreview
         value={'## Objetivo\n\nMejorar el flujo'}
@@ -61,15 +75,22 @@ describe('MarkdownEditorWithPreview', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Vista previa'));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.getByTestId('markdown-viewer')).toHaveTextContent('## Objetivo Mejorar el flujo');
-    expect(screen.getByText('Vista previa')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Editar')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('radio', { name: 'Vista previa' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: 'Editar' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
   });
 
-  it('vuelve a Editar sin perder el texto (S-086, TS-2, CA-2)', () => {
+  it('vuelve a Editar sin perder el texto (S-086, TS-2, CA-2)', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <MarkdownEditorWithPreview
@@ -79,14 +100,15 @@ describe('MarkdownEditorWithPreview', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Vista previa'));
-    fireEvent.click(screen.getByText('Editar'));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
+    await user.click(screen.getByRole('radio', { name: 'Editar' }));
 
     expect(screen.getByRole('textbox')).toHaveValue('## Objetivo\n\nMejorar el flujo');
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('muestra el placeholder en Vista previa cuando el valor está vacío (S-086, TS-3/4/5, CA-3)', () => {
+  it('muestra el placeholder en Vista previa cuando el valor está vacío (S-086, TS-3/4/5, CA-3)', async () => {
+    const user = userEvent.setup();
     render(
       <MarkdownEditorWithPreview
         value=""
@@ -95,22 +117,23 @@ describe('MarkdownEditorWithPreview', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Vista previa'));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
 
     expect(
       screen.getByText('Qué se acordó con el cliente / qué entendió el equipo, y cómo impacta...')
     ).toBeInTheDocument();
   });
 
-  it('alternar el modo nunca invoca onChange (S-086, TS-9)', () => {
+  it('alternar el modo nunca invoca onChange (S-086, TS-9)', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <MarkdownEditorWithPreview value="algo" onChange={onChange} placeholder="Placeholder..." />
     );
 
-    fireEvent.click(screen.getByText('Vista previa'));
-    fireEvent.click(screen.getByText('Editar'));
-    fireEvent.click(screen.getByText('Vista previa'));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
+    await user.click(screen.getByRole('radio', { name: 'Editar' }));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
 
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -150,7 +173,8 @@ describe('MarkdownEditorWithPreview', () => {
     expect(screen.getByLabelText('Alcance')).toBeInTheDocument();
   });
 
-  it('el contenedor de Vista previa tiene scroll horizontal propio para contenido ancho (S-086, TS-12)', () => {
+  it('el contenedor de Vista previa tiene scroll horizontal propio para contenido ancho (S-086, TS-12)', async () => {
+    const user = userEvent.setup();
     render(
       <MarkdownEditorWithPreview
         value="| Col largo 1 | Col largo 2 | Col largo 3 |"
@@ -159,7 +183,7 @@ describe('MarkdownEditorWithPreview', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Vista previa'));
+    await user.click(screen.getByRole('radio', { name: 'Vista previa' }));
 
     expect(screen.getByTestId('markdown-viewer').parentElement?.className).toMatch(/preview/);
   });

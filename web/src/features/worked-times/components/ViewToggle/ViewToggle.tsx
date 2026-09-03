@@ -10,11 +10,18 @@ interface ViewToggleProps {
   readonly onViewChange: (view: ReportView) => void;
 }
 
-const VIEW_OPTIONS: readonly { key: ReportView; label: string }[] = [
-  { key: 'by-person', label: 'Por persona' },
-  { key: 'by-project', label: 'Por proyecto' },
+const VIEW_OPTIONS: readonly { value: ReportView; label: string }[] = [
+  { value: 'by-person', label: 'Por persona' },
+  { value: 'by-project', label: 'Por proyecto' },
 ];
 
 export function ViewToggle({ activeView, onViewChange }: ViewToggleProps) {
-  return <ToggleGroup options={VIEW_OPTIONS} value={activeView} onChange={onViewChange} />;
+  return (
+    <ToggleGroup
+      label="Vista del reporte"
+      options={VIEW_OPTIONS}
+      value={activeView}
+      onChange={(value) => onViewChange(value as ReportView)}
+    />
+  );
 }

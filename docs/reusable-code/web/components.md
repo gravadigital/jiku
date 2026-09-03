@@ -783,3 +783,128 @@ import { WeekNav } from '@/shared/components/ui';
 
 <WeekNav weekStart={weekStart} onChange={setWeekStart} isCurrentWeek={isSameWeek(weekStart, new Date())} />
 ```
+
+## EmptyState
+
+**Location:** `web/src/shared/components/ui/EmptyState/EmptyState.tsx`
+
+**Description:** The Design System's single empty-state message (spec `EmptyState` v1.0.0),
+created by S-055. Communicates that a query finished and there is **no data**, without implying
+an error or a query still in progress (`Loader` and error messages own those two cases). Three
+variants: `list` (a listing/grid with nothing in it — invites creation), `filtered` (a filter with
+no results — invites changing the filter, **never** creation), `scoped` (no data for a time
+window). `action` (a `Button`) renders **only** in `list`, silently ignored otherwise — offering
+"create" to someone who just filtered answers a question they didn't ask. `filtered` renders with
+`aria-live="polite"` so the empty result is announced; the component never uses `role="alert"`,
+since absence of data is not an error. No illustration, no emoji — the message is real text,
+centered.
+
+**Not wired into any screen in S-055.** CA-2 explicitly excludes cabling it into existing screens
+without an empty state today — that is scope for a future request.
+
+**Interface:**
+
+```tsx
+type EmptyStateVariant = 'list' | 'filtered' | 'scoped';
+
+interface EmptyStateProps {
+  readonly variant?: EmptyStateVariant; // default 'list'
+  readonly message: string; // required
+  readonly action?: ButtonProps; // rendered only when variant === 'list'
+}
+```
+
+**Usage:**
+
+```tsx
+import { EmptyState } from '@/shared/components/ui';
+
+<EmptyState variant="list" message="No hay etapas activas" action={{ children: 'Nueva etapa', onClick: handleCreate }} />
+<EmptyState variant="filtered" message="No se encontraron requisitos" />
+<EmptyState variant="scoped" message="No hay cargas para este día" />
+```
+
+## Dropzone
+
+**Location:** `web/src/shared/components/ui/Dropzone/Dropzone.tsx`
+
+**Description:** The Design System's single file-attach control (spec `Dropzone` v1.0.0), created
+by S-055. Central rule of the spec: **drag-and-drop is never the only mechanism** — a real
+`<input type="file">` sits behind the visible zone with a `<label>` whose accessible name is the
+instruction text, so the whole zone is reachable by click and by keyboard (`Enter`/`Space` open
+the native file picker). The size restriction ("Máximo 10 MB por archivo…") is always visible
+inside the control and linked to the input via `aria-describedby` — never hidden in a tooltip or
+surfaced only after a failed upload. Client-side `maxSize` validation (default 10 MB) runs before
+`onFiles` fires; a rejection is announced in an `aria-live` region **stating why** ("El archivo
+supera 10 MB"), not a generic failure message. `dragover` changes the border from dashed to solid
+(never color alone) plus an 8%-tint background. `uploading` shows an inline `Loader` alongside the
+literal text "Subiendo archivo…".
+
+**Interface:**
+
+```tsx
+interface DropzoneProps {
+  readonly accept?: string;
+  readonly maxSize?: number; // default 10485760 (10 MB)
+  readonly multiple?: boolean; // default true
+  readonly onFiles: (files: FileList) => void;
+  readonly error?: string;
+  readonly uploading?: boolean;
+}
+```
+
+**Usage:**
+
+```tsx
+import { Dropzone } from '@/shared/components/ui';
+
+<Dropzone
+  accept="image/png,application/pdf"
+  onFiles={(files) => uploadFile(files[0])}
+  uploading={isUploading}
+  error={uploadError}
+/>
+```
+
+## Accordion
+
+**Location:** `web/src/shared/components/ui/Accordion/Accordion.tsx`
+
+**Description:** The Design System's single collapsible section (spec `Accordion` v1.0.0), created
+by S-055, for grouping the content of a requirement stage while showing at a glance whether it is
+complete. The header is a real `<button>` inside a configurable heading level (`headingLevel`
+prop, default `h3` — kept configurable so screens that consume it later can fit their own heading
+hierarchy instead of being forced into one), carrying `aria-expanded`/`aria-controls`; the panel
+is `role="region"` with `aria-labelledby` back to the header. Collapsed content is removed with the
+`hidden` attribute — out of the tab order, not just collapsed to zero height. The completion mark
+(`status`, default `"pending"`) renders a glyph (`!` amber / `✓` green) that is `aria-hidden`, with
+the real accessible announcement carried by hidden text ("{title}, pendiente" / "{title},
+completo") — the distinction is never color-only. `Enter`/`Space` toggle the header; the open/close
+transition uses `motion.slow` (300ms), instantaneous under `prefers-reduced-motion`. Accordions are
+not meant to nest.
+
+**Interface:**
+
+```tsx
+type AccordionStatus = 'pending' | 'done';
+type HeadingLevel = 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+
+interface AccordionProps {
+  readonly title: string;
+  readonly status?: AccordionStatus; // default 'pending'
+  readonly defaultExpanded?: boolean; // default false
+  readonly onToggle?: (expanded: boolean) => void;
+  readonly headingLevel?: HeadingLevel; // default 'h3'
+  readonly children: React.ReactNode;
+}
+```
+
+**Usage:**
+
+```tsx
+import { Accordion } from '@/shared/components/ui';
+
+<Accordion title="Alcance" status="pending" onToggle={handleToggle}>
+  <ScopeForm />
+</Accordion>
+```

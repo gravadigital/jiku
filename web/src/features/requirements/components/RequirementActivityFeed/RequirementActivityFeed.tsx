@@ -410,7 +410,7 @@ export function RequirementActivityFeed({ activity, reqid }: RequirementActivity
                 )
               )}
               <div className={styles.footerRow}>
-                <Tooltip message={dateTooltipMessage(entry.createdAt, entry.editedAt)}>
+                <Tooltip content={dateTooltipMessage(entry.createdAt, entry.editedAt)}>
                   <div className={`${styles.time}${showText ? ` ${styles.timeAfterComment}` : ''}`}>
                     {timeAgo}
                     {editedLabel && <span className={styles.editedLabel}> {editedLabel}</span>}

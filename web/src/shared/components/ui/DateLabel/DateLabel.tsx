@@ -43,7 +43,7 @@ export function DateLabel(props: DateLabelProps) {
   };
 
   return (
-    <Tooltip message={formatDate(date)}>
+    <Tooltip content={formatDate(date)}>
       <div className={styles.dateLabel}>
         <p>{label}</p>
         <span>

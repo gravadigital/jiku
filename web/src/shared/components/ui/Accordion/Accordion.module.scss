@@ -1,0 +1,78 @@
+@use '@/styles' as *;
+
+.container {
+  border-radius: var(--accordion-radius);
+  border: 1px solid var(--accordion-border);
+  overflow: hidden;
+}
+
+.headingWrapper {
+  margin: 0;
+}
+
+.header {
+  @include button-reset;
+  @include flex-between;
+  width: 100%;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  cursor: pointer;
+  color: var(--accordion-header-text);
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:hover {
+    background: var(--bg-surface-sunken);
+  }
+}
+
+.mark {
+  flex-shrink: 0;
+  font-weight: var(--text-card-title-weight);
+
+  &.pending {
+    color: var(--accordion-pending-mark);
+  }
+
+  &.done {
+    color: var(--accordion-done-mark);
+  }
+}
+
+.title {
+  flex: 1;
+  text-align: left;
+  font-family: var(--accordion-title);
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
+  color: var(--accordion-header-text);
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--accordion-chevron);
+  transition: transform var(--duration-slow) ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.expanded .chevron {
+  transform: rotate(90deg);
+}
+
+.panel {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.srOnly {
+  @include visually-hidden;
+}

@@ -154,43 +154,46 @@ export function FinishDateLabel(props: FinishDateLabelProps) {
     }
   };
 
-  return (
-    <Tooltip
-      message={`Fecha de cierre: ${formatDate(selectedDate)}`}
-      disableTooltip={isDatePickerOpen}
+  const dateLabel = (
+    <div
+      ref={dateLabelRef}
+      className={styles.dateLabel}
+      data-state={cardClass}
+      onClick={handleDivClick}
     >
-      <div
-        ref={dateLabelRef}
-        className={styles.dateLabel}
-        data-state={cardClass}
-        onClick={handleDivClick}
-      >
-        <p>{getStatusMessage()}</p>
-        <span>
-          <Image src={getCalendarIcon()} alt="calendar icon" width={20} height={30} />
-          {getDaysLeft()}
-        </span>
-        {isDatePickerOpen && portalContainer !== null
-          ? (ReactDOM.createPortal(
-              <div
-                className={styles.datePicker}
-                style={{
-                  left: datePickerPosition.left,
-                  position: 'absolute',
-                  top: datePickerPosition.top,
-                }}
-              >
-                <DatePicker
-                  selected={selectedDate}
-                  onChange={handleDateChange}
-                  onClickOutside={() => setIsDatePickerOpen(false)}
-                  inline
-                />
-              </div>,
-              portalContainer
-            ) as React.ReactNode)
-          : null}
-      </div>
-    </Tooltip>
+      <p>{getStatusMessage()}</p>
+      <span>
+        <Image src={getCalendarIcon()} alt="calendar icon" width={20} height={30} />
+        {getDaysLeft()}
+      </span>
+      {isDatePickerOpen && portalContainer !== null
+        ? (ReactDOM.createPortal(
+            <div
+              className={styles.datePicker}
+              style={{
+                left: datePickerPosition.left,
+                position: 'absolute',
+                top: datePickerPosition.top,
+              }}
+            >
+              <DatePicker
+                selected={selectedDate}
+                onChange={handleDateChange}
+                onClickOutside={() => setIsDatePickerOpen(false)}
+                inline
+              />
+            </div>,
+            portalContainer
+          ) as React.ReactNode)
+        : null}
+    </div>
+  );
+
+  if (isDatePickerOpen) {
+    return dateLabel;
+  }
+
+  return (
+    <Tooltip content={`Fecha de cierre: ${formatDate(selectedDate)}`}>{dateLabel}</Tooltip>
   );
 }

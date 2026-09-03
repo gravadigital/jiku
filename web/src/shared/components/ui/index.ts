@@ -1,3 +1,4 @@
+export { Accordion } from './Accordion';
 export { AddButton } from './AddButton';
 export { AutomatedIdentityBadge } from './AutomatedIdentityBadge';
 export { Avatar } from './Avatar';
@@ -8,6 +9,8 @@ export { CommentEditor } from './CommentEditor';
 export { ConfirmDialog } from './ConfirmDialog';
 export { DateLabel } from './DateLabel';
 export { DatePicker } from './DatePicker';
+export { Dropzone } from './Dropzone';
+export { EmptyState } from './EmptyState';
 export { FinishDateLabel } from './FinishDateLabel';
 export { Input } from './Input';
 export { InputDate } from './InputDate';
