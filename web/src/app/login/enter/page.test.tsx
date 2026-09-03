@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { redirect } from 'next/navigation';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { apiClient } from '@/lib/axios';
@@ -21,5 +23,15 @@ describe('login-entrada (/login/enter)', () => {
 
     expect(apiClient.post).toHaveBeenCalledWith('/auth/present', {});
     expect(redirect).toHaveBeenCalledWith('/');
+  });
+
+  // TS-33 (S-059): esta ruta pública siempre redirige y nunca renderiza markup propio (no hay
+  // <html>/sidebar que montar acá — el estampado de data-theme lo cubre el layout raíz, ver
+  // src/app/layout.test.tsx TS-22/TS-23/TS-24), así que no puede montar el selector de tema. Se
+  // confirma leyendo el código fuente en vez de renderizar: el componente no devuelve JSX.
+  it('S-059 TS-33: no renderiza ningún markup propio (siempre redirige) — no puede montar el selector de tema', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, './page.tsx'), 'utf8');
+    expect(source).not.toMatch(/return\s*\(?\s*</);
+    expect(source).not.toMatch(/SidebarNav|ThemeToggle/);
   });
 });

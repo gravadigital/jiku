@@ -160,3 +160,47 @@ formatWeekRange(monday); // "Semana del 1 al 5 de septiembre 2026"
 isSameWeek(monday, weekStart); // → drives WeekNav's `isCurrentWeek`
 addDays(weekStart, 7); // next week's Monday
 ```
+
+## resolveTheme / readStoredTheme / persistTheme
+
+**Location:** `web/src/features/theme/utils/themeStorage.ts`
+
+**Description:** The three pure functions behind theme persistence (S-059), split out of
+`ThemeProvider` so they're testable without a render and so the degradation path (no
+`localStorage`, corrupted value) is independently verifiable.
+
+- `resolveTheme(value)` — normalizes any value to `'light' | 'dark'`; anything that isn't exactly
+  `'dark'` or `'light'` (including `null`/`undefined`/garbage) falls back to `'light'`. Used on
+  both the server (reading the cookie in the root layout) and the client (reading
+  `localStorage`), so the two never disagree on what counts as a valid theme.
+- `readStoredTheme()` — reads `localStorage[THEME_STORAGE_KEY]` (`'jiku.theme'`) through
+  `resolveTheme`. Returns `'light'` if the key is absent, the value is invalid, or the
+  `localStorage` access itself throws (private browsing, quota exceeded). Never throws.
+- `persistTheme(theme)` — writes the theme to `localStorage` **and** to a reflected cookie
+  (`jiku.theme; Path=/; Max-Age=31536000; SameSite=Lax`, deliberately **not** `HttpOnly` since the
+  client has to write it) so the root layout can read it on the next server render. The two
+  writes are in independent `try/catch` blocks: a `localStorage` failure must not skip the cookie
+  write, or the no-FOUC guarantee (stamping `data-theme` before paint) breaks on the next visit.
+
+No React dependency; consumed by `ThemeProvider` (client) and `app/layout.tsx` (server, only
+`resolveTheme`).
+
+**Signature:**
+
+```ts
+type Theme = 'light' | 'dark';
+
+function resolveTheme(value: unknown): Theme;
+function readStoredTheme(): Theme;
+function persistTheme(theme: Theme): void;
+```
+
+**Usage:**
+
+```ts
+import { resolveTheme, readStoredTheme, persistTheme } from '@/features/theme/utils/themeStorage';
+
+const theme = resolveTheme(cookieStore.get('jiku.theme')?.value); // server
+readStoredTheme(); // client, on mount reconciliation
+persistTheme('dark'); // client, on setTheme
+```

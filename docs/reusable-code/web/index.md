@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-09-03 (S-055)
+**Last updated:** 2026-09-03 (S-059)
 
 ## Components
 
-Total: 21
+Total: 22
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -30,6 +30,7 @@ Total: 21
 - **Tooltip** (`web/src/shared/components/ui/Tooltip/Tooltip.tsx`) - Migrated by S-055 to the Design System spec: `content`/`placement`/`delay` props, `role="tooltip"` linked via `aria-describedby`, appears on **hover and keyboard focus** (not hover-only), closes on `Esc` without moving focus, dark-blue background (`--tooltip-bg`, no longer the off-palette gray). All 8 existing consumers migrated to `content`.
 - **ConfirmDialog** (`web/src/shared/components/ui/ConfirmDialog/ConfirmDialog.tsx`) - Migrated by S-055 to the Design System spec: both actions render as `secondary-dismiss` (no primary, no red) — the warning lives entirely in the `title`/`body` text, never in color. Native `<dialog>` retained for free focus-trap/`Esc`; initial focus goes to Cancel, focus returns to the opener on close. `pending` disables both actions and marks confirm as busy.
 - **ToggleGroup** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - Migrated by S-055 to the Design System spec: real `role="radiogroup"`/`role="radio"` (not `aria-pressed` buttons), arrow-key roving selection with wraparound, four variants (`segmented`/`range-pill`/`stepper-value`/`day-chip`), `options` as `{ value, label }[]` (renamed from `{ key, label }`). `stepper-value` supports `allowOther` to escape to a free-text `Input`.
+- **ThemeToggle** (`web/src/features/theme/components/ThemeToggle/ThemeToggle.tsx`) - The theme selector in the sidebar footer (S-059): a `ToggleGroup variant="segmented"` with `label="Tema"` and options `Claro`/`Oscuro`. No component-level DS spec of its own — reuses `ToggleGroup`'s (DS Gaps resolution: same role, no new component). Reads/writes the theme via `useTheme()`.
 
 ## Services
 
@@ -45,17 +46,18 @@ Total: 7
 
 ## Hooks
 
-Total: 5
+Total: 6
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
 - **useRequirementsCount** (`web/src/features/requirements/hooks/useRequirementsCount.ts`) - Wraps `getRequirementsCount` in `useQuery` with key `['requirements-count', filters]`; inherits the global 30s `staleTime`, no per-hook override.
 - **useRequirementWorkedHours** (`web/src/features/requirements/hooks/useRequirementWorkedHours.ts`) - Wraps `getRequirementWorkedHours` in `useQuery` with key `['requirement-worked-hours', reqid]`; a query of its own, independent of the requirement's detail query, so it degrades on its own without blocking the rest of the screen.
 - **useUpdateRequirementComment** (`web/src/features/requirements/hooks/useUpdateRequirementComment.ts`) - Wraps `updateRequirementComment` in `useMutation`; invalidates both `['requirement', reqid]` and `['attachments', 'requirement_comment', cid]` on success.
+- **useTheme** / **useThemeOptional** (`web/src/features/theme/context/ThemeProvider.tsx`) - Reads/writes the current theme (`useTheme` throws outside the provider; `useThemeOptional` returns `null`). `setTheme` stamps `document.documentElement.dataset.theme`, persists to `localStorage` + a reflected cookie, and never touches TanStack Query or `fetch` (S-059).
 
 ## Utils
 
-Total: 6
+Total: 9
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
@@ -63,10 +65,13 @@ Total: 6
 - **commentErrorMessage** (`web/src/features/attachments/utils/fileErrorMessages.ts`) - Maps the comment-edit domain error codes (`comment_not_owned`, `activity_not_editable`, `comment_not_found`, `file_not_owned`, `service_unavailable`, `gateway_timeout`) to the user-facing Spanish message; unknown codes always fall back to the caller-supplied text.
 - **getPageWindow** (`web/src/shared/components/ui/Pagination/getPageWindow.ts`) - Pure function that computes a sliding window of at most 10 page numbers, centered on the current page and clamped to `[1, totalPages]`. No React dependency; used by `Pagination`.
 - **weekFormat** (`web/src/shared/components/ui/WeekNav/weekFormat.ts`) - `addDays`, `getMonday`, `formatWeekRange`, `isSameWeek`: pure `Date`-based week math ported from the legacy `WeekNavigator`, resolving month/year crossovers in the range label. No React dependency; used by `WeekNav`.
+- **resolveTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Normalizes any value to `'light' | 'dark'`, defaulting to `'light'` for anything else (including `null`/`undefined`). Used on both the server (cookie) and the client (localStorage) so the two never disagree on what counts as valid.
+- **readStoredTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Reads `localStorage['jiku.theme']`, falling back to `'light'` if absent, invalid, or if `localStorage` throws (private mode, quota). Never throws.
+- **persistTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Writes the theme to `localStorage` and to a one-year, `Path=/`, `SameSite=Lax`, non-`HttpOnly` reflected cookie (`jiku.theme`) so the server can read it on the next render. Each write is independently guarded: a `localStorage` failure never blocks the cookie write.
 
 ## Types
 
-Total: 6
+Total: 8
 
 - **UploadTicket** (`web/src/features/attachments/types/attachment.types.ts`) - Upload permission for a single object: `fileId`, `uploadUrl`, `expiresIn`.
 - **UploadTicketRequest** (`web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
@@ -74,3 +79,5 @@ Total: 6
 - **UploadQueueError** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - One failed file in the queue: `fileName`, `message`, `retryable`.
 - **IdentityType** (`web/src/features/auth/types/auth.types.ts`) - The two kinds of identity a user row can have: `'person' | 'service'`.
 - **AuthorUser** (`web/src/features/auth/types/auth.types.ts`) - A user as an **author**: mirrors the api's `AuthorUser` schema (`id`, `name`, `email`, optional `identityType`), with no `username` and no `roles`.
+- **Theme** (`web/src/features/theme/types/theme.types.ts`) - `'light' | 'dark'`. The only two valid values anywhere in the theme module.
+- **THEME_STORAGE_KEY** (`web/src/features/theme/types/theme.types.ts`) - The single constant (`'jiku.theme'`) for both the `localStorage` key and the cookie name — declared once so client and server never desync on a duplicated literal.

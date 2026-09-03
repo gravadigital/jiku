@@ -38,6 +38,33 @@
   --color-dark-primary: #7D8699;
   --color-dark-text: #F6F6F9;
 
+  // Tintes y bordes de estado en modo oscuro (S-059) — misma fórmula del DS (tinte 12% / borde
+  // 26% del color pleno), compuesta sobre --color-dark-surface (#1B202C) en vez de blanco. El
+  // pleno y el texto profundo de cada familia NO cambian entre modos. "resolved" y "in-progress"
+  // comparten --color-system-resolved como pleno (igual que en claro), así que su blend en
+  // oscuro resuelve al mismo valor; en claro el DS declaró dos swatches ligeramente distintos sin
+  // fórmula documentada — no reproducible acá, anotado como hallazgo menor para el DS.
+  --color-dark-tint-green: #1B2F37;
+  --color-dark-tint-border-green: #1B3F45;
+  --color-dark-tint-aqua: #1B2F37;
+  --color-dark-tint-border-aqua: #1B3F45;
+  --color-dark-tint-amber: #36302C;
+  --color-dark-tint-border-amber: #56432D;
+  --color-dark-tint-red: #35212B;
+  --color-dark-tint-border-red: #54232A;
+  --color-dark-tint-violet: #1B1C3D;
+  --color-dark-tint-border-violet: #1C1851;
+  --color-dark-tint-graphite: #242935;
+  --color-dark-tint-border-graphite: #2D3440;
+
+  // Sombras de modo oscuro (S-059) — las claras usan rgba(11,25,52,…) (azul oscuro), invisibles
+  // sobre un canvas oscuro. Estas se componen sobre negro con la misma intención (elevación /
+  // foco), y el anillo de foco conserva el mismo verde agua al 22% que en modo claro (el acento
+  // no cambia entre modos).
+  --shadow-dark-card: 0 1px 3px rgba(0, 0, 0, .32);
+  --shadow-dark-active: 0 2px 8px rgba(0, 0, 0, .48);
+  --shadow-dark-focus: 0 0 0 3px rgba(97, 204, 185, .22);
+
   // ============================================
   // Colores de sistema
   // ============================================

@@ -65,4 +65,25 @@ describe('UnauthorizedPage (sin-permisos)', () => {
     const content = fs.readFileSync(path.resolve(__dirname, './page.tsx'), 'utf8');
     expect(content).toMatch(/signOut\(\{\s*redirectTo:\s*['"]\/login['"]\s*\}\)/);
   });
+
+  // TS-33 (S-059): las rutas públicas no montan el selector de tema (vive en el shell de (loggedin)).
+  it('S-059 TS-33: no monta el selector de tema (no hay sidebar en esta ruta)', () => {
+    render(<UnauthorizedPage />);
+    expect(screen.queryByRole('radiogroup', { name: 'Tema' })).not.toBeInTheDocument();
+  });
+
+  // TS-8c (S-059): sin fondo propio, .container hereda --bg-canvas; título y mensaje resuelven a
+  // los tokens de texto del bloque oscuro (verificado por su clase de módulo, no por CSSOM: jsdom
+  // no resuelve custom properties).
+  it('S-059 TS-8c: .container no fija un fondo claro propio (hereda de --bg-canvas)', () => {
+    const styleContent = fs.readFileSync(path.resolve(__dirname, './styles.module.scss'), 'utf8');
+    const containerRule = styleContent.match(/\.container\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(containerRule).not.toMatch(/background/);
+
+    render(<UnauthorizedPage />);
+    expect(screen.getByRole('heading', { name: /Acceso no autorizado/i }).className).toMatch(
+      /title/
+    );
+    expect(screen.getByText(/no tiene permisos para acceder/i).className).toMatch(/message/);
+  });
 });
