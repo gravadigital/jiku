@@ -22,7 +22,7 @@
   background-color: var(--bg-surface);
   color: var(--pagination-text);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-14);
 
   &:hover:not(:disabled) {
     background-color: var(--bg-surface-sunken);
@@ -42,7 +42,7 @@
 .pageButton[data-active] {
   background-color: var(--pagination-active-bg);
   color: var(--pagination-active-text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   border-color: var(--pagination-active-bg);
 }
 

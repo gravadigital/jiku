@@ -3,13 +3,13 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  background-color: var(--color-surface-alt);
-  transition: background-color var(--transition-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
+  background-color: var(--bg-tint-neutral);
+  transition: background-color var(--duration-base);
 
   &:hover {
-    background-color: var(--color-surface-hover);
+    background-color: var(--bg-active-subtle);
   }
 }
 
@@ -24,7 +24,7 @@
   flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
-  color: var(--color-text-muted);
+  color: var(--text-secondary);
 
   svg {
     width: 100%;
@@ -43,8 +43,8 @@
 
 .fileName {
   font-size: 0.875rem !important;
-  font-weight: 500;
-  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,7 +52,7 @@
 
 .meta {
   font-size: 0.75rem !important;
-  color: var(--color-text-light);
+  color: var(--text-disabled);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -66,12 +66,12 @@
 }
 
 .itemUnavailable {
-  border-color: var(--color-button-delete);
+  border-color: var(--state-urgent-border);
 }
 
 /* El estado se comunica con TEXTO, no solo con color (WCAG 2.2 AA). */
 .unavailable {
-  margin-top: var(--spacing-xs);
-  color: var(--color-button-delete);
+  margin-top: var(--space-1);
+  color: var(--state-urgent-text);
   font-size: 0.75rem;
 }

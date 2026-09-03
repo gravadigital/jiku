@@ -4,22 +4,22 @@
   align-items: center;
 
   span {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     display: flex;
     align-items: center;
     gap: 0.3rem;
     font-size: 1rem;
     line-height: 1.2;
-    font-weight: 500;
-    color: var(--color-general-text);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-body);
   }
 
   p {
-    font-family: var(--font-primary);
+    font-family: var(--font-family-ui);
     margin: 0;
     font-size: 0.65rem;
     line-height: 1.2;
-    font-weight: 400;
-    color: var(--color-general-text);
+    font-weight: var(--font-weight-regular);
+    color: var(--text-body);
   }
 }

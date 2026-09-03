@@ -1,13 +1,16 @@
+// El overlay es un <div>, no el ::backdrop nativo de <dialog> que usa ConfirmDialog — su
+// opacidad no puede ir en una propiedad `opacity` propia (atenuaría también al modal hijo).
+// Mismo tratamiento visual (bg-inverse al 40%) resuelto con color-mix, sin hex de respaldo.
 .overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: color-mix(in srgb, var(--bg-inverse) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-index-modal);
-  padding: var(--spacing-md);
-  animation: fadeIn var(--transition-slow);
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+  animation: fadeIn var(--duration-slow);
 }
 
 @keyframes fadeIn {
@@ -20,15 +23,15 @@
 }
 
 .modal {
-  background-color: white;
-  border-radius: var(--radius-cards);
-  box-shadow: var(--box-shadow-hover, 0 8px 32px rgba(0, 0, 0, 0.2));
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-raised);
   display: flex;
   flex-direction: column;
   max-width: min(700px, 90vw);
   max-height: 90vh;
   width: fit-content;
-  animation: slideIn var(--transition-slow);
+  animation: slideIn var(--duration-slow);
 }
 
 @keyframes slideIn {
@@ -46,15 +49,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-bottom: 1px solid var(--color-general-border);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
 .fileName {
   font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -71,14 +74,14 @@
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--color-text-muted);
-  border-radius: var(--radius-items);
-  transition: background-color var(--transition-base), color var(--transition-base);
+  color: var(--text-secondary);
+  border-radius: var(--radius-field);
+  transition: background-color var(--duration-base), color var(--duration-base);
   flex-shrink: 0;
 
   &:hover {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text);
+    background-color: var(--bg-tint-neutral);
+    color: var(--text-primary);
   }
 
   svg {
@@ -94,7 +97,7 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  padding: var(--spacing-md);
+  padding: var(--space-4);
 }
 
 .image {
@@ -114,8 +117,8 @@
 }
 
 .unsupportedMessage {
-  padding: var(--spacing-lg);
-  color: var(--color-text-muted);
+  padding: var(--space-6);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -123,22 +126,22 @@
 .footer {
   display: flex;
   justify-content: flex-end;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-top: 1px solid var(--color-general-border);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-default);
   flex-shrink: 0;
 }
 
 .closeBtn {
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
   background: none;
   cursor: pointer;
   font-size: 0.875rem;
-  color: var(--color-text-muted);
-  transition: background-color var(--transition-base);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-base);
 
   &:hover {
-    background-color: var(--color-surface-hover);
+    background-color: var(--bg-tint-neutral);
   }
 }

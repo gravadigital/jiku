@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import { RequirementList } from '@/features/requirements';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 import type { RequirementFilters } from '@/features/requirements/types/requirement.types';
 
 export const dynamic = 'force-dynamic';
@@ -34,17 +33,16 @@ export default async function Requirements({
     include: 'totalMinutes',
   };
 
-  const buttons = [
-    <Button key="new-req" href="/requirements/new">
-      Nuevo requisito
-    </Button>,
-  ];
-
   return (
-    <PageLayout title="Requisitos" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Requisitos"
+        action={{ children: 'Nuevo requisito', href: '/requirements/new' }}
+      />
       <Suspense key={JSON.stringify(filters)} fallback={<Loader label="Cargando..." />}>
         <RequirementList filters={filters} />
       </Suspense>
-    </PageLayout>
+    </>
   );
 }

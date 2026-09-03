@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import { ClientListFilters, ClientsBoard } from '@/features/clients';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 import type { ClientFilters } from '@/features/clients/types/client.types';
 
@@ -19,10 +18,13 @@ export default async function Clients({
     status: (resolvedSearchParams.status as ClientFilters['status']) || undefined,
   };
 
-  const buttons = [<Button key="action-1" href="/clients/new">Nuevo actor</Button>];
-
   return (
-    <PageLayout title="Actores" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Actores"
+        action={{ children: 'Nuevo actor', href: '/clients/new' }}
+      />
       <main>
         <ClientListFilters />
         <div className={styles.containerClients}>
@@ -31,6 +33,6 @@ export default async function Clients({
           </Suspense>
         </div>
       </main>
-    </PageLayout>
+    </>
   );
 }

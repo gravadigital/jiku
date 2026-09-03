@@ -28,7 +28,7 @@
 .tabActive {
   border-bottom-color: var(--tab-active-border);
   color: var(--tab-active-text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .label {

@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { parseExternalLinks } from '@/shared/components/layout/Navbar';
+import { parseExternalLinks } from '@/shared/utils/parse-external-links';
 import styles from './styles.module.scss';
 
 interface ExternalLinksBlockProps {

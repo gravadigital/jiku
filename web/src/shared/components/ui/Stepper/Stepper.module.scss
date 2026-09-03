@@ -40,8 +40,8 @@
   width: 28px;
   height: 28px;
   border-radius: var(--radius-pill);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
   background-color: var(--stepper-inactive-bg);
   color: var(--text-disabled);
   border: 1px solid var(--border-default);
@@ -79,7 +79,7 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: var(--font-size-13);
   color: var(--stepper-text);
   text-align: center;
 }

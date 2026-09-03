@@ -18,15 +18,37 @@ package: sass
 
 ```
 src/
-├── app/globals.scss        reset + tokens en :root + estilos de librerías de terceros
+├── app/globals.scss        reset + estilos de elemento residuales + estilos de librerías de terceros
 ├── styles/
-│   ├── index.scss          @forward de variables y mixins
-│   ├── _variables.scss     ~70 custom properties en :root
+│   ├── index.scss          @forward del resto del directorio
+│   ├── _reference.scss     tier 1 — primitivos: color.aqua, radius.8, space.4 (hex legítimos acá)
+│   ├── _semantic.scss      tier 2 — alias: bg.action.primary, text.body, radius.field
+│   ├── _component.scss     tier 3 — por componente: button.primary.bg, dropzone.radius
+│   ├── _variables.scss     sistema VIEJO (pre-identidad Jiku): 13 tokens legacy, ~52 hex, paleta
+│   │                       de dominio (estado/área/prioridad) sin tier nuevo todavía
 │   └── _mixins.scss        tipografía, layout, componentes, breakpoints, accesibilidad
 └── **/Componente.module.scss   un módulo por componente, junto al .tsx
 ```
 
-117 módulos `.scss`. `next.config.js:17-24` agrega `styles/` a los `includePaths` de Sass.
+`next.config.js` agrega `styles/` a los `includePaths` de Sass.
+
+### Los tres tiers de tokens (identidad Jiku, REQ-013)
+
+Los componentes consumen **semánticos o de componente, nunca primitivos ni hex**. La regla es
+absoluta: `--color-aqua` no se usa directo en un módulo, se usa `--bg-action-primary` (que
+resuelve a `--color-aqua`) o `--button-primary-bg` (que resuelve a `--bg-action-primary`).
+
+| Tier | Archivo | Ejemplo | Consume |
+|---|---|---|---|
+| 1 — Referencia | `_reference.scss` | `--color-aqua: #61CCB9` | Hex literal — **el único lugar donde es legítimo** |
+| 2 — Semántico | `_semantic.scss` | `--bg-action-primary: var(--color-aqua)` | Sólo tier 1 |
+| 3 — Componente | `_component.scss` | `--button-primary-bg: var(--bg-action-primary)` | Sólo tier 2 |
+
+`_variables.scss` es el **sistema anterior**, previo a la identidad Jiku: 13 tokens
+(`--font-primary`, `--color-button`, etc.) que un guardia de regresión
+(`features/design-system-migration.guard.test.ts`) impide reintroducir en el resto de la
+superficie. Sobrevive porque la paleta de dominio (estado de proyecto, área, prioridad) todavía no
+tiene equivalente en el tier nuevo — ver `docs/ux/gaps-as-is.md`.
 
 ## Un módulo por componente
 
@@ -77,41 +99,60 @@ className={cn(styles.dot, styles[status])}
 
 ## Tokens
 
-Todos son custom properties en `:root`, declaradas en `_variables.scss`.
+Todos son custom properties en `:root`, en el tier que corresponda (ver arriba). Categorías del
+sistema vigente (identidad Jiku):
 
-### Categorías
+| Grupo | Ejemplos | Tier |
+|---|---|---|
+| Color de marca | `--color-aqua`, `--color-deep-blue`, `--color-mist`, `--color-graphite` | 1 |
+| Fondo | `--bg-canvas`, `--bg-surface`, `--bg-action-primary`, `--bg-tint-neutral`, `--bg-active` | 2 |
+| Texto | `--text-primary`, `--text-body`, `--text-secondary`, `--text-disabled`, `--text-link`, `--text-on-action` | 2 |
+| Borde | `--border-default`, `--border-focus`, `--border-action` | 2 |
+| Feedback de estado (6 familias) | `--state-{resolved,in-progress,review,urgent,analysis,neutral}-{full,tint,border,text}` | 2 |
+| Tipografía semántica (7 estilos) | `--text-view-title-*`, `--text-body-default-*`, `--text-field-label-*`, `--text-table-data-*`, `--text-filter-label-*` | 2 |
+| Espaciado | `--space-{1,2,4,6,8,18}` = 4 / 8 / 16 / 24 / 32 / 72 px | 1 |
+| Tipografía primitiva | `--font-size-{11,13,14,15,16,19,30,34}` (px), `--font-family-ui` (Gabarito), `--font-family-display` (Sora) | 1 |
+| Pesos | `--font-weight-{regular,medium,semibold,bold}` = 400/500/600/700 | 1 |
+| Radios | `--radius-{8,10,14,999}` (primitivo) → `--radius-{action,field,surface,pill}` (semántico) | 1/2 |
+| Sombras | `--shadow-card`, `--shadow-active`, `--shadow-focus` → `--elevation-{surface,raised}`, `--focus-ring` | 1/2 |
+| Duración | `--duration-{fast,base,slow}` = 150 / 200 / 300 ms | 1 |
+| Z-index | `--z-{dropdown,modal,tooltip}` = 100 / 300 / 400 | 1 |
+| Por componente | `--button-primary-bg`, `--dropzone-radius`, `--select-radius`, `--avatar-radius`, … | 3 |
 
-| Grupo | Ejemplos |
-|---|---|
-| Base | `--color-general-title`, `--color-general-text`, `--color-general-background`, `--color-general-border`, `--color-general-primary`, `--color-general-disabled` |
-| Botones | `--color-button` (#DA2C6A), `--color-button-delete`, `--color-highlighted` |
-| Estado de proyecto | `--color-status-{analisis,activo,cancelado,inactivo,finalizado,backlog,en-revision}` |
-| Área de tarea | `--color-area-{diseño,gestion,desarrollo,investigacion}` |
-| Prioridad | `--color-priority-0` … `--color-priority-5` |
-| Semánticos | `--color-success`, `--color-danger` y su `-bg` |
-| Superficie | `--color-background`, `--color-surface-{light,hover,alt}`, `--color-tooltip-bg` |
-| Espaciado | `--spacing-{xs,sm,md,lg,xl,2xl}` = 0.25 / 0.5 / 1 / 1.5 / 2 / 3 rem |
-| Tipografía | `--font-size-{xs,sm,base,md,lg,xl,2xl}` = 10 / 12 / 14 / 16 / 20 / 24 / 32 px |
-| Pesos | `--font-weight-{normal,medium,semibold,bold,extrabold}` |
-| Radios | `--radius-items` (0.5rem), `--radius-cards` (1rem), `--radius-buttons` |
-| Sombras | `--box-shadow`, `--box-shadow-hover` |
-| Transiciones | `--transition-{fast,base,slow}` = 150 / 200 / 300 ms |
-| Z-index | `--z-index-{dropdown,modal,tooltip,navbar}` = 100 / 200 / 300 / 400 |
-
-La tipografía es **Archivo** de Google Fonts, cargada con `next/font/google` y expuesta como
-`--font-primary` (`app/layout.tsx:6-10`).
+La tipografía es **Sora** (títulos de vista y cifras destacadas) + **Gabarito** (interfaz, datos,
+microcopy), ambas de `next/font/google`, expuestas como `--font-family-display` y
+`--font-family-ui`.
 
 **Reglas:**
 
-- Usar el token, nunca el hex literal. Los hex que quedan hardcodeados están en los objetos
-  `selectStyles` de `react-select` y en `unauthorized/page.tsx` (estilos inline) — no son el
-  patrón.
-- Color nuevo: agregarlo a `_variables.scss` en el grupo que corresponda.
+- Usar el token semántico o de componente, nunca el primitivo directo ni el hex literal. Los hex
+  legítimos viven **sólo** en `_reference.scss` — el guardia de regresión
+  (`features/design-system-migration.guard.test.ts`) falla si aparecen en cualquier otro
+  `.module.scss`/`.tsx` de la superficie.
+- Color nuevo: agregarlo a `_reference.scss` (primitivo) y derivarlo en `_semantic.scss` o
+  `_component.scss` según su rol — nunca consumirlo directo desde un componente.
+- La paleta de dominio (estado de proyecto, área, prioridad) todavía referencia `_variables.scss`
+  (el sistema anterior): no tiene tier nuevo. Ver `docs/ux/gaps-as-is.md`.
 
-> **Los tokens están duplicados.** `globals.scss:4-77` declara un `:root` con los mismos valores
-> que `_variables.scss:6-160`. Los dos se cargan (`globals.scss` hace `@use '@/styles/variables'`
-> en su primera línea *y además* redeclara). Al agregar o cambiar un token hay que revisar los dos
-> archivos, o el valor viejo puede ganar según el orden de carga.
+Los tokens se declaran **una sola vez**: `globals.scss` no redeclara ningún custom property — sólo
+consume los que `_reference.scss`/`_semantic.scss`/`_component.scss` ya definen.
+
+## Modo oscuro (S-059)
+
+Selector `:root[data-theme='dark']` en `_semantic.scss`, activado por `ThemeToggle`
+(`features/theme/`) y persistido en `localStorage`. **Es una paleta propia, no una inversión
+matemática de la clara**: cada token semántico que cambia entre modos tiene su propio valor
+declarado explícitamente (`--bg-canvas`, `--text-primary`, los `-tint`/`-border` de las 6 familias
+de estado, las sombras), nunca un `filter: invert()` ni una fórmula.
+
+**El acento no se redeclara.** `--bg-action-primary`, `--bg-active`, `--border-action`,
+`--border-focus`, `--border-required`, `--text-link` y `--text-on-action` quedan **iguales en los
+dos modos** — el verde agua no cambia entre claro y oscuro.
+
+Un componente nuevo no necesita saber en qué modo está: consume el token semántico y el modo
+resuelve el valor correcto por sí solo. No escribir `[data-theme='dark'] &` en un módulo de
+componente salvo que el componente declare su propio token de tier 3 con variante oscura — el
+patrón vive en `_semantic.scss`, no repartido por los módulos.
 
 ## Mixins
 
@@ -189,20 +230,29 @@ poco ancho. El detalle por pantalla está en el relevamiento UX.
 
 ## Estilos globales y de terceros
 
-`globals.scss` tiene, además de los tokens:
+`globals.scss` **no declara ningún custom property** — sólo consume los que los tres tiers ya
+definen. Tiene:
 
 - Un reset (`* { box-sizing; padding: 0; margin: 0 }` + reset tipo Meyer).
-- **Estilos de elemento**: `table`, `th`, `td`, `tr:hover`, `h1`, `h2`, `p`, `span`, `input`. Las
-  tablas y los inputs base salen de acá, no de un componente.
+- **Estilos de elemento residuales**: `table`, `th`, `td`, `tr:hover`, `span`, `input`. Las tablas
+  y los inputs base ad-hoc salen de acá, no de un componente — para casos nuevos, usar
+  [`Table`](../../../design-system/web/components/table.md) o
+  [`Input`](../../../design-system/web/components/input.md) del DS.
 - Overrides de librerías: `.react-datepicker__*` y `.CodeMirror` / `.editor-toolbar` (EasyMDE).
 - La clase `.sr-only`.
+
+**Ya no declara `h1`, `h2` ni `p` desnudos** (S-060): esas reglas usaban `--font-primary` y
+literales fuera de la escala tipográfica. Cada vista resuelve su propio `<h1>` con clase propia
+sobre `--text-view-title-*` — ver [`ViewHeader`](../../../design-system/web/components/view-header.md)
+para el patrón normativo, y `ErrorPageContent` (`app/(loggedin)/`) como ejemplo de una vista sin
+componente de cabecera dedicado.
 
 **Reglas:**
 
 - Los overrides de terceros van en `globals.scss`, no en un módulo. Un módulo hashea la clase y
   no matchea con lo que renderiza la librería.
-- **No agregar más estilos de elemento.** `span { font-size: 1.25rem }` y
-  `td { max-width: 9.4rem }` ya obligan a pelearlos desde los módulos.
+- **No agregar estilos de elemento nuevos.** El `span`/`td` que quedan son deuda heredada, no el
+  patrón — un componente nuevo styling con clase propia, nunca con un selector de elemento global.
 
 ## Qué NO hacer
 

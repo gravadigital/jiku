@@ -73,4 +73,13 @@ describe('ViewHeader', () => {
 
     expect(screen.queryByRole('navigation', { name: 'Ruta' })).not.toBeInTheDocument();
   });
+
+  // S-060: las 12 páginas migradas de PageLayout usan "Nuevo X" como acción principal con
+  // navegación directa por href (no onClick) — el mismo patrón que ya soportaba Button.
+  it('S-060: la acción principal admite href, sin necesidad de onClick', () => {
+    render(<ViewHeader title="Proyectos" action={{ children: 'Nuevo proyecto', href: '/projects/new' }} />);
+
+    const action = screen.getByRole('button', { name: 'Nuevo proyecto' });
+    expect(action).toBeInTheDocument();
+  });
 });

@@ -27,7 +27,7 @@ interface InputProps {
   /**
    * Alto y label de fila de filtros (40px, label de 0.875rem sin sangría), para alinear con los
    * inputs vecinos de `RequirementFilters`. Sin esto queda el alto de formulario (54px, label de
-   * 12px sangrado), que es el que usan `InputText` e `InputSelect` en `ObjectiveSearchFilters`.
+   * 12px sangrado), que es el que usan `Input` y `Select` en `ObjectiveSearchFilters`.
    */
   readonly compact?: boolean;
 }
@@ -96,15 +96,15 @@ export function InputMultipleSelect(props: InputProps) {
     control: (provided: Record<string, unknown>, state: { isFocused: boolean }) => ({
       ...provided,
       '&:hover': {
-        border: error ? '1px solid red' : '1px solid var(--color-general-border)',
+        border: error ? '1px solid red' : '1px solid var(--border-default)',
         cursor: 'pointer',
       },
-      backgroundColor: '#fff',
-      border: error ? '1px solid red' : '1px solid var(--color-general-border)',
-      borderRadius: 'var(--radius-items)',
-      boxShadow: 'none',
+      backgroundColor: 'var(--bg-surface)',
+      border: error ? '1px solid red' : '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-field)',
+      boxShadow: state.isFocused ? 'var(--focus-ring)' : 'none',
       boxSizing: 'border-box' as const,
-      color: 'var(--color-general-title)',
+      color: 'var(--text-primary)',
       fontSize: compact ? '0.875rem' : '1rem',
       fontWeight: 400,
       // Alto fijo: es lo que impide que el control crezca al sumar estados.
@@ -112,7 +112,7 @@ export function InputMultipleSelect(props: InputProps) {
       // El modo formulario deja el mismo aire entre label y control que `InputText`.
       marginTop: compact ? 0 : '7px',
       minHeight: controlHeight,
-      outline: state.isFocused ? '2px solid var(--color-highlighted)' : 'none',
+      outline: 'none',
       width: '100%',
     }),
     valueContainer: (provided: Record<string, unknown>) => ({
@@ -129,12 +129,12 @@ export function InputMultipleSelect(props: InputProps) {
     multiValue: (provided: Record<string, unknown>) => ({
       ...provided,
       alignItems: 'center',
-      backgroundColor: '#f5f2f0',
-      borderRadius: 'var(--radius-items)',
-      color: 'var(--color-general-title)',
+      backgroundColor: 'var(--bg-tint-neutral)',
+      borderRadius: 'var(--radius-field)',
+      color: 'var(--text-primary)',
       display: 'flex',
       flexShrink: 0,
-      fontFamily: 'var(--font-primary)',
+      fontFamily: 'var(--font-family-ui)',
       fontSize: compact ? '0.75rem' : '0.875rem',
       margin: 0,
       maxWidth: '9rem',
@@ -142,7 +142,7 @@ export function InputMultipleSelect(props: InputProps) {
     }),
     multiValueLabel: (provided: Record<string, unknown>) => ({
       ...provided,
-      color: 'var(--color-general-title)',
+      color: 'var(--text-primary)',
       fontSize: compact ? '0.75rem' : '0.875rem',
       overflow: 'hidden',
       padding: '2px 0',
@@ -182,7 +182,7 @@ export function InputMultipleSelect(props: InputProps) {
     menu: (provided: Record<string, unknown>) => ({
       ...provided,
       fontSize: '0.875rem',
-      zIndex: 'var(--z-index-dropdown)',
+      zIndex: 'var(--z-dropdown)',
     }),
     // El default pinta la opción seleccionada con fondo sólido. Con la lista completa a la vista
     // eso deja el menú entero coloreado: acá lo que marca la selección es el check, y el fondo
@@ -192,9 +192,9 @@ export function InputMultipleSelect(props: InputProps) {
       state: { isFocused: boolean; isSelected: boolean }
     ) => ({
       ...provided,
-      ':active': { backgroundColor: 'var(--color-surface-hover)' },
-      backgroundColor: state.isFocused ? 'var(--color-surface-hover)' : 'transparent',
-      color: 'var(--color-general-title)',
+      ':active': { backgroundColor: 'var(--bg-active-subtle)' },
+      backgroundColor: state.isFocused ? 'var(--bg-active-subtle)' : 'transparent',
+      color: 'var(--text-primary)',
       cursor: 'pointer',
       fontWeight: state.isSelected ? 'var(--font-weight-medium)' : 400,
     }),

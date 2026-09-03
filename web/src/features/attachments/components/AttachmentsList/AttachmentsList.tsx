@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useCanEditObjective } from '@/features/objectives/hooks/useCanEditObjective';
 import { useCanUploadToProject } from '@/features/projects/hooks/useCanUploadToProject';
-import { Spinner } from '@/shared/components/ui';
+import { Loader } from '@/shared/components/ui';
 import { useAttachments } from '../../hooks/useAttachments';
 import { AttachmentItem } from '../AttachmentItem';
 import { PreviewModal } from '../PreviewModal';
@@ -31,8 +31,7 @@ export function AttachmentsList({ entityType, entityId }: AttachmentsListProps) 
   if (isLoading) {
     return (
       <div className={styles.loading}>
-        <Spinner />
-        <span>Cargando archivos...</span>
+        <Loader label="Cargando archivos..." />
       </div>
     );
   }

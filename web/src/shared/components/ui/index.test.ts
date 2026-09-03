@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// El barrel completo incluye componentes (Pagination, Button, AddButton, CommentEditor)
-// que llaman a next/navigation en su nivel superior, y CommentEditor arrastra (via el
-// barrel de @/features/objectives → ObjectiveComment) un uso de next-auth/react. Sin
-// estos mocks, la importación dinámica del barrel completo resuelve los módulos reales,
-// que en este entorno de test fallan al resolver 'next/server' desde next-auth/lib/env.js.
+// El barrel completo incluye componentes (Pagination, Button, CommentEditor) que llaman
+// a next/navigation en su nivel superior, y CommentEditor arrastra (via el barrel de
+// @/features/objectives → ObjectiveComment) un uso de next-auth/react. Sin estos mocks,
+// la importación dinámica del barrel completo resuelve los módulos reales, que en este
+// entorno de test fallan al resolver 'next/server' desde next-auth/lib/env.js.
 // Mismo patrón que WorkedTimesPage.test.tsx y Pagination.test.tsx.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -23,9 +23,26 @@ const LAYOUT_DIR = path.resolve(__dirname, '../layout');
 
 // Card e Input eran nombres muertos hasta S-053: la story los reescribió como los
 // componentes fundacionales nuevos del Design System, así que dejaron de estar libres.
-const MUERTOS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect'] as const;
-const VIVOS_UI = [
+// S-060: InputSelect, AddButton, InputDate, InputTextarea, InputMultiplePersons, DatePicker,
+// SectionCard y Spinner se suman a los nombres muertos — quedaron sin ningún uso tras
+// cerrarse la migración completa de la superficie (última story del split de REQ-013).
+// Spinner lo reemplazó Loader (T5): mismo rol, con accesibilidad (role="status") que
+// Spinner nunca tuvo. Dropzone NO se da de baja: es spec vigente del DS (S-055) sin
+// consumidor todavía, catálogo por delante del uso, no código muerto.
+const MUERTOS_UI = [
+  'Textarea',
+  'MarkdownEditor',
+  'MultiSelect',
+  'InputSelect',
   'AddButton',
+  'InputDate',
+  'InputTextarea',
+  'InputMultiplePersons',
+  'DatePicker',
+  'SectionCard',
+  'Spinner',
+] as const;
+const VIVOS_UI = [
   'Accordion',
   'AutomatedIdentityBadge',
   'Avatar',
@@ -35,23 +52,16 @@ const VIVOS_UI = [
   'CommentEditor',
   'ConfirmDialog',
   'DateLabel',
-  'DatePicker',
   'Dropzone',
   'EmptyState',
   'FinishDateLabel',
   'Input',
-  'InputDate',
-  'InputMultiplePersons',
   'InputMultipleSelect',
-  'InputSelect',
   'InputText',
-  'InputTextarea',
   'Loader',
   'Pagination',
-  'SectionCard',
   'Select',
   'SidebarNav',
-  'Spinner',
   'Stepper',
   'Table',
   'Tabs',
@@ -61,21 +71,31 @@ const VIVOS_UI = [
   'WeekNav',
 ] as const;
 
-const CARPETAS_MUERTAS_UI = ['Textarea', 'MarkdownEditor', 'MultiSelect', 'AttachmentDownload'];
+const CARPETAS_MUERTAS_UI = [
+  'Textarea',
+  'MarkdownEditor',
+  'MultiSelect',
+  'AttachmentDownload',
+  'InputSelect',
+  'AddButton',
+  'InputDate',
+  'InputTextarea',
+  'InputMultiplePersons',
+  'DatePicker',
+  'SectionCard',
+  'Spinner',
+];
 
 const CARPETAS_VIVAS_UI = [
   'Badge',
   'Card',
   'Input',
   'InputText',
-  'InputTextarea',
-  'SectionCard',
   'MarkdownEditorWithPreview',
   'AttachmentPreview',
   'AttachFileButton',
   'AttachmentSkeleton',
   'Select',
-  'InputSelect',
   'Avatar',
   'SidebarNav',
   'Stepper',
@@ -103,8 +123,8 @@ describe('barrel de shared/components/ui', () => {
   // las pantallas de dominio (RequirementList, S-057) consumen sin reimplementarlo. El export de
   // sólo-tipos (`export type { BadgeVariant, BadgeFamily, BadgeOption }`) no matchea este regex,
   // que busca únicamente `export {` (exports de valor).
-  it('tiene exactamente 35 exports', () => {
-    expect(barrel.match(/^export \{/gm)).toHaveLength(35);
+  it('tiene exactamente 27 exports', () => {
+    expect(barrel.match(/^export \{/gm)).toHaveLength(27);
   });
 
   it.each(CARPETAS_MUERTAS_UI)('la carpeta de %s ya no existe en ui/', (nombre) => {
@@ -165,8 +185,12 @@ describe('barrel de shared/components/layout', () => {
     expect(barrel).not.toContain("export { Header } from './Header';");
   });
 
-  it.each(['Navbar', 'NavItem', 'NavSubItem', 'PageLayout'])('sigue exportando %s', (nombre) => {
-    expect(barrel).toContain(`export { ${nombre} } from './${nombre}';`);
+  // S-060: Navbar/NavItem/NavSubItem quedaron sin ningún uso tras S-058 (reemplazados por
+  // ShellSidebar + SidebarNav) — el único consumo real era `parseExternalLinks`, extraído a
+  // `shared/utils/parse-external-links`. PageLayout se dio de baja en T4: las 12 páginas que
+  // lo consumían migraron a ViewHeader, el reemplazo del DS.
+  it.each(['Navbar', 'NavItem', 'NavSubItem', 'PageLayout'])('ya no exporta %s', (nombre) => {
+    expect(barrel).not.toContain(`export { ${nombre} } from './${nombre}';`);
   });
 
   it('la carpeta de Header ya no existe en layout/', () => {
@@ -175,5 +199,9 @@ describe('barrel de shared/components/layout', () => {
 
   it('no queda ningún módulo SCSS huérfano de Header', () => {
     expect(fs.existsSync(path.join(LAYOUT_DIR, 'Header', 'Header.module.scss'))).toBe(false);
+  });
+
+  it.each(['Navbar', 'NavItem', 'NavSubItem', 'PageLayout'])('la carpeta de %s ya no existe en layout/', (nombre) => {
+    expect(fs.existsSync(path.join(LAYOUT_DIR, nombre))).toBe(false);
   });
 });

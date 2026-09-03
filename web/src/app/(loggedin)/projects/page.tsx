@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import { ProjectListFilters, ProjectsBoard } from '@/features/projects';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 import type { ProjectFilters } from '@/shared/types';
 
@@ -20,10 +19,13 @@ export default async function Projects({
     type: resolvedSearchParams.type || undefined,
   };
 
-  const buttons = [<Button key="action-1" href="/projects/new">Nuevo proyecto</Button>];
-
   return (
-    <PageLayout title="Proyectos" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Proyectos"
+        action={{ children: 'Nuevo proyecto', href: '/projects/new' }}
+      />
       <main>
         <ProjectListFilters />
         <div className={styles.containerProjects}>
@@ -32,6 +34,6 @@ export default async function Projects({
           </Suspense>
         </div>
       </main>
-    </PageLayout>
+    </>
   );
 }

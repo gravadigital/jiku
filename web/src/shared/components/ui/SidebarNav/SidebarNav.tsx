@@ -9,8 +9,8 @@ import { TintedIcon } from '../TintedIcon';
 import styles from './SidebarNav.module.scss';
 
 // El icono del ítem se recolorea vía TintedIcon (máscara CSS) en vez de un <img> plano:
-// es lo que permite que el activo pase a --nav-item-active-icon (#12897A) sin depender
-// de que el SVG interno use currentColor. --nav-item-icon es el grafito por defecto.
+// es lo que permite que el activo pase a --nav-item-active-icon sin depender de que el
+// SVG interno use currentColor. --nav-item-icon es el grafito por defecto.
 const NAV_ICON_COLOR_DEFAULT = 'var(--nav-item-icon)';
 const NAV_ICON_COLOR_ACTIVE = 'var(--nav-item-active-icon)';
 

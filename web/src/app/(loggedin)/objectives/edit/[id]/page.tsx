@@ -6,8 +6,7 @@ import * as yup from 'yup';
 import { usePersons } from '@/features/auth';
 import { useObjective, useUpdateObjective } from '@/features/objectives';
 import { useRequirements } from '@/features/requirements';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Card, Input, Loader, Select } from '@/shared/components/ui';
+import { Card, Input, Loader, Select, ViewHeader } from '@/shared/components/ui';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
 import styles from './styles.module.scss';
 
@@ -218,19 +217,6 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
     processEdition();
   };
 
-  const buttons = [
-    <Button
-      key="action-1"
-      onClick={() => {
-        processEdition();
-      }}
-      loading={updateObjectiveMutation.isPending}
-      disabled={false}
-    >
-      Guardar
-    </Button>,
-  ];
-
   const isLoading = isLoadingObjective || isLoadingPersons || !formInitialized;
 
   if (isLoading) {
@@ -238,7 +224,19 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
   }
 
   return (
-    <PageLayout title="Tareas / editar" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Tareas / editar"
+        action={{
+          children: 'Guardar',
+          onClick: () => {
+            processEdition();
+          },
+          loading: updateObjectiveMutation.isPending,
+          disabled: false,
+        }}
+      />
       <Card variant="panel">
         <form onSubmit={handleSubmit}>
           <div className={styles.formContainer}>
@@ -377,6 +375,6 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
           </div>
         </form>
       </Card>
-    </PageLayout>
+    </>
   );
 }

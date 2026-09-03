@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import { ObjectiveSearchFilters, ObjectivesTable } from '@/features/objectives';
-import { PageLayout } from '@/shared/components/layout';
-import { Button, Loader } from '@/shared/components/ui';
+import { Loader, ViewHeader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 import type { ObjectiveFilters } from '@/features/objectives';
 
@@ -25,9 +24,13 @@ export default async function Objectives({
     state: resolvedSearchParams.state || 'activo',
   };
 
-  const buttons = [<Button key="action-1" href="/objectives/new">Nueva tarea</Button>];
   return (
-    <PageLayout title="Tareas" actions={buttons}>
+    <>
+      <ViewHeader
+        variant="list"
+        title="Tareas"
+        action={{ children: 'Nueva tarea', href: '/objectives/new' }}
+      />
       <main>
         <ObjectiveSearchFilters />
         <div className={styles.containerObjectives}>
@@ -38,6 +41,6 @@ export default async function Objectives({
           </Suspense>
         </div>
       </main>
-    </PageLayout>
+    </>
   );
 }

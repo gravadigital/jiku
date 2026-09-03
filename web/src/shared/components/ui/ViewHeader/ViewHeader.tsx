@@ -23,7 +23,10 @@ export interface ViewHeaderProps {
   readonly parent?: ViewHeaderParent;
   /** Sólo tiene efecto visual en variant `detail`. */
   readonly badges?: readonly ViewHeaderBadge[];
-  readonly action?: Pick<ButtonProps, 'children' | 'onClick' | 'variant' | 'disabled' | 'loading'>;
+  readonly action?: Pick<
+    ButtonProps,
+    'children' | 'onClick' | 'variant' | 'disabled' | 'loading' | 'href'
+  >;
 }
 
 export function ViewHeader({ variant = 'list', title, parent, badges, action }: ViewHeaderProps) {

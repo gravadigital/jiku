@@ -1,18 +1,20 @@
 # Design System — `web`
 
-> **Normativo desde v2.0.0.** Este Design System describe lo que la superficie `web` **debe** ser,
-> según el **Manual de marca Jiku v1.0** (septiembre 2026). **No describe el código actual:** la
-> web todavía sirve la paleta rosa y la tipografía Archivo.
+> **Normativo e implementado desde v3.0.0.** Este Design System describe la identidad y los
+> componentes reutilizables de la superficie `web`, según el **Manual de marca Jiku v1.0**
+> (septiembre 2026). **El código de `web` implementa lo que este documento describe:** la
+> migración completa de REQ-013 (S-052 a S-060) cerró la paleta rosa, la tipografía Archivo y los
+> tres selectores duplicados que este DS vino a reemplazar.
 >
-> Cada documento lleva una sección **Migración** con la conversión desde el estado actual, y
+> Cada documento conserva su sección **Migración** como referencia histórica de la conversión, y
 > [`foundations/color.md`](foundations/color.md#mapeo-del-sistema-anterior) tiene la tabla de mapeo
 > viejo → nuevo.
 
 ## Estado actual
 
 - **Surface:** `web`
-- **Versión:** `2.5.0`
-- **Estado:** normativo — en implementación (S-058 en curso)
+- **Versión:** `3.0.0`
+- **Estado:** normativo — implementado
 - **Origen:** **Manual de marca Jiku v1.0** (septiembre 2026) — documento de diseño, fuera del
   repositorio
 
@@ -57,7 +59,7 @@ docs/design-system/web/
 │   ├── reference.md       ← primitivos: color.aqua, radius.8
 │   ├── semantic.md        ← alias: bg.action.primary, text.on-action
 │   └── component.md       ← por componente: button.primary.bg
-├── components/            ← 20 specs + 1 deprecado
+├── components/            ← 20 specs
 ├── patterns/              ← login
 └── guidelines/            ← accessibility, i18n, content
 ```
@@ -77,13 +79,15 @@ una está registrada en su spec y en el [CHANGELOG](CHANGELOG.md).
 
 ### Lo que queda: trabajo, no preguntas
 
+La migración completa de REQ-013 (S-052 a S-060) cerró la paleta y tipografía nuevas y el código
+muerto del barrel. Lo que sigue abierto es explícitamente **fuera de su alcance**:
+
 | Pendiente | Volumen | Nota |
 |---|---|---|
 | **Migrar el microcopy** | **52 toasts** | 13 son *borrar el sufijo* (mecánico); 10 requieren decidir el «qué hacer» de cada error. 3 ya cumplen |
-| **Migrar a la paleta y tipografía nuevas** | todo `web` | Cada spec tiene su sección **Migración**; la tabla de conversión está en [color.md](foundations/color.md#mapeo-del-sistema-anterior) |
 | **Clasificar los `secondary` de Button** | **29 usos** | No es automático: un `#D9D9D9` puede ser «Volver» o «Cancelar», y el sistema nuevo los distingue |
-| **Sacar el código muerto del barrel** | 7 componentes | `Card`, `Input` y `Textarea` **colisionan** con specs nuevos: hay que sacarlos antes de crear los componentes, o el import resuelve al muerto |
 | **Shell responsive** | FG-5 | Cuando se encare, **hay que decidir cómo se ve Jiku en un teléfono**: el manual no lo dice |
+| **Primitivo tipográfico** (`Heading`/`Text`) | — | No existe en el DS; S-060 lo resolvió inline con clase propia sobre tokens semánticos en los `<h1>` sueltos que quedaban. Candidato para `/product-design-system-update` |
 | `guidelines/accessibility.md` y `i18n.md` | 2 archivos | Siguen en placeholder. Las reglas de accesibilidad **por componente** ya están en cada spec |
 
 ## Flujo de trabajo
@@ -101,7 +105,9 @@ una está registrada en su spec y en el [CHANGELOG](CHANGELOG.md).
 - **PATCH** (0.0.X): corrección, ajuste de spec, microcopy en guidelines.
 
 Los cambios deprecados se marcan `deprecated: true` con migration path antes de removerse en el
-siguiente MAJOR — ver [input-select.md](components/input-select.md) como ejemplo vigente.
+siguiente MAJOR. `InputSelect` fue el ejemplo de este ciclo: deprecado en `2.5.0`, sin usos desde
+S-058, y removido en `3.0.0` una vez confirmados los cero usos (ver la entrada `[3.0.0]` del
+[CHANGELOG](CHANGELOG.md)).
 
 Otros surfaces pueden tener versiones distintas: **cada surface es soberano de su propio DS.**
 `opus-web` sigue en `0.1.0` y no se vio afectado por esta versión.

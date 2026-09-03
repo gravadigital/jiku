@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { NewClientForm, useCreateClient } from '@/features/clients';
-import { PageLayout } from '@/shared/components/layout';
+import { ViewHeader } from '@/shared/components/ui';
 import styles from './styles.module.scss';
 
 export default function NewClient() {
@@ -28,10 +28,11 @@ export default function NewClient() {
   };
 
   return (
-    <PageLayout title="Crear actor">
+    <>
+      <ViewHeader variant="list" title="Crear actor" />
       <div className={styles.wrapper}>
         <NewClientForm onSubmit={handleSubmit} loading={createClientMutation.isPending} />
       </div>
-    </PageLayout>
+    </>
   );
 }

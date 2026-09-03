@@ -4,32 +4,32 @@
 
 .editor {
   min-height: 6rem;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid var(--color-general-border);
-  border-radius: var(--radius-items);
-  background-color: var(--color-surface);
-  color: var(--color-text);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-field);
+  background-color: var(--bg-surface);
+  color: var(--text-body);
   font-size: 0.9375rem;
   line-height: 1.5;
   outline: none;
-  transition: border-color var(--transition-base);
+  transition: border-color var(--duration-base);
   white-space: pre-wrap;
   word-wrap: break-word;
   word-break: break-word;
 
   &:focus {
-    border-color: var(--color-highlighted);
+    border-color: var(--border-focus);
   }
 
   &[aria-disabled='true'] {
-    background-color: var(--color-surface-alt);
-    color: var(--color-text-muted);
+    background-color: var(--bg-tint-neutral);
+    color: var(--text-secondary);
     cursor: not-allowed;
   }
 
   &[data-empty='true']::before {
     content: attr(data-placeholder);
-    color: var(--color-text-light);
+    color: var(--text-disabled);
     pointer-events: none;
     display: block;
   }

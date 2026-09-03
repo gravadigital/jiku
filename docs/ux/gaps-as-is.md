@@ -160,14 +160,10 @@ Estos pesan más que los de pantalla: **cerrarlos arregla muchas pantallas a la 
 | **Ningún modal atrapa el foco** (salvo `ConfirmDialog` de `web`) | todos los overlays de las dos superficies | Media | componente DS | 6 archivos |
 | **Los dropdowns no tienen navegación por flechas** y tienen 4 niveles distintos de ARIA | 4 en `web`, 2 implementaciones en `opus-web` | Media | componente DS | 6 archivos |
 | **Información comunicada solo por color** (área, semáforo de horas, sobreasignación, período activo) | 4 casos en `web` | Media | story | 4 archivos |
-| **Tres formas de hacer un select** (`InputSelect`, `Select`, `react-select` con `selectStyles` duplicado en 5 archivos) | `web` | Baja | **en curso — REQ-013** | 5 archivos |
 | **Tres enfoques de formulario** conviviendo (`react-hook-form`, `yup` manual, `useState` crudo) | `web` | Baja | decisión UX | 3 archivos |
-| **Tokens declarados dos veces** con los mismos valores | `web` | Baja | **en curso — REQ-013** | `globals.scss:4-77` vs `_variables.scss:6-160` |
 | **`--z-index-navbar` (400) > `-modal` (200) y `-tooltip` (300)** — orden invertido, latente | `web` | Baja | story | `_variables.scss:196-199` |
 | **Dos pares de colores de estado idénticos**: `inactivo`=`backlog`, `analisis`=`en_revision` | `web` | Baja | decisión UX | `_variables.scss:44-50` |
-| **`line-height` igual al `font-size`** en `h1`, `h2`, `p` globales: el texto multilínea se toca | `web` | Baja | story | `globals.scss:189-207` |
-| **20 componentes muertos** exportados desde barrels, así que aparecen como disponibles | 11 en `web`, 9 en `opus-web` | Baja | **parcial — REQ-013** cubre los 7 de `web` que colisionan o sobran; los de `opus-web` siguen abiertos | 2 barrels |
-| **`Pagination` no es reutilizable** (hardcodea `/objectives`): causa 4 paginaciones reimplementadas | `web` | Baja | **en curso — REQ-013** | `Pagination.tsx:35` |
+| **9 componentes muertos de `opus-web`** exportados desde barrels, así que aparecen como disponibles | `opus-web` | Baja | fuera de REQ-013 (otra marca, otro DS) | 1 barrel |
 
 ## Siguiente paso sugerido
 
@@ -199,21 +195,40 @@ por causa, no por pantalla**, porque la causa es lo que se arregla una vez:
    antes que story. No es trabajo de implementación hasta que alguien responda si `web` debe ser
    usable en mobile. Si la respuesta es sí, el shell es lo primero.
 
-7. **Consolidar los tokens de color** — 5 gaps, severidad Baja. La paleta de dominio de `opus-web`
-   en 6 lugares con valores divergentes, los tokens duplicados de `web`, el z-index invertido y los
-   pares de colores idénticos.
+7. **Consolidar los tokens de color** — 3 gaps, severidad Baja. **Parcialmente resuelto para
+   `web`** por S-060: los tokens ya no están duplicados (un solo `:root` por tier). Queda la
+   paleta de dominio de `opus-web` en 6 lugares con valores divergentes, el z-index invertido y
+   los pares de colores idénticos — ninguno de los tres es de `web`/REQ-013.
 
 ## Historial
 
-*(Ningún gap cerrado todavía. Cuando se cierre uno, se borra su fila y se anota acá el REQ/story
-que lo cerró.)*
+**2026-09-03 — S-060 (REQ-013, última story del split) cierra los cuatro gaps transversales que
+quedaban `en curso` desde el 2026-09-02.** Verificado contra el código, no contra el compromiso:
 
-**2026-09-02 — REQ-013 toma cuatro gaps transversales de `web`, y todavía no los cierra.** El
-requerimiento aplica el Design System `web` v2.4.0 sobre toda la superficie, y su alcance incluye
-las tres duplicaciones que este documento registró —las tres formas de hacer un select, los dos
-loaders sin regla, la `Pagination` atada a `/objectives`— más los tokens declarados dos veces y los
-7 componentes muertos del barrel de `web`. Quedan marcados **en curso** y no borrados: un gap se
-cierra cuando el código cambia, no cuando un requerimiento se compromete a cambiarlo. La baja de
-las filas corresponde a la última story del split, que es la que verifica que no quede ningún uso.
-**Los 9 componentes muertos de `opus-web` no entran**: es otra marca, con su propio DS, y REQ-013
-no la toca.
+- **Tres formas de hacer un select** → cerrado. `InputSelect` se dio de baja (cero usos
+  confirmados); `InputMultipleSelect` migró a tokens semánticos, incluido el magenta
+  descontinuado que sobrevivía en `RequirementFilters`. Un solo selector normativo (`Select`).
+- **Tokens declarados dos veces** → cerrado. `globals.scss` ya no declara ningún custom property;
+  los tres tiers (`_reference`/`_semantic`/`_component.scss`) son la única fuente.
+- **`line-height` igual al `font-size` en `h1`/`h2`/`p` globales** → cerrado. Las tres reglas se
+  dieron de baja: cada vista resuelve su tipografía con clase propia sobre tokens semánticos
+  (`ViewHeader`, `ErrorPageContent`).
+- **20 componentes muertos exportados desde barrels** → cerrado **para `web`** (los 7 que
+  colisionaban o sobraban, más `Spinner`, `Navbar`, `NavItem`, `NavSubItem`, `PageLayout` y
+  `Header`, dados de baja entre S-051 y S-060). **Los 9 de `opus-web` siguen abiertos** — otra
+  marca, otro DS, fuera de REQ-013. La fila se reescribe para reflejar sólo ese resto.
+
+**`Pagination` no reutilizable** no estaba realmente en el alcance de ninguna story de REQ-013
+—la story que lo mencionaba nunca se llegó a planificar así—, y al verificar contra el código
+(S-060) ya soporta `basePath`/modo controlado y lo consumen 5 pantallas distintas: se borra la
+fila por estar cerrada de hecho, sin story que se le atribuya.
+
+*(Ningún otro gap cerrado. Cuando se cierre uno, se borra su fila y se anota acá el REQ/story que
+lo cerró.)*
+
+**2026-09-02 — REQ-013 toma cuatro gaps transversales de `web`.** El requerimiento aplica el
+Design System `web` v2.4.0 sobre toda la superficie, y su alcance incluye las tres duplicaciones
+que este documento registró —las tres formas de hacer un select, los dos loaders sin regla— más
+los tokens declarados dos veces y los 7 componentes muertos del barrel de `web`. **Los 9
+componentes muertos de `opus-web` no entran**: es otra marca, con su propio DS, y REQ-013 no la
+toca.

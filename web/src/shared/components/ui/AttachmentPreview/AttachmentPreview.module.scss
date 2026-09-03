@@ -19,10 +19,13 @@
   max-width: 300px;
   width: 100%;
   height: auto;
-  border-radius: 8px;
-  border: 1px solid #e6e8ed;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--border-default);
 }
 
+// Scrim semitransparente sobre la imagen — no representa un rol semántico del DS (no es
+// superficie ni texto de marca), así que se resuelve con `color-mix` sobre el negro puro
+// en vez de un hex de respaldo.
 .actionBtn {
   position: absolute;
   top: 4px;
@@ -32,55 +35,55 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  background: rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, black 50%, transparent);
   border: none;
-  border-radius: 4px;
-  color: #fff;
+  border-radius: var(--radius-action);
+  color: var(--text-inverse);
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s;
+  transition: background var(--duration-fast);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.75);
+    background: color-mix(in srgb, black 75%, transparent);
   }
 
   &[aria-label='Descargar adjunto'] {
     opacity: 0;
-    background: #fff;
-    color: var(--color-text-muted);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    transition: opacity 0.15s, background 0.15s;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    box-shadow: var(--elevation-surface);
+    transition: opacity var(--duration-fast), background var(--duration-fast);
 
     &:hover {
-      background: #fff;
-      color: var(--color-button);
+      background: var(--bg-surface);
+      color: var(--text-link);
     }
   }
 }
 
 .fileName {
   font-size: 0.75rem;
-  font-family: var(--font-primary);
-  color: var(--color-text-muted);
+  font-family: var(--font-family-ui);
+  color: var(--text-secondary);
   word-break: break-all;
 }
 
 .fileSize {
   font-size: inherit;
-  color: var(--color-text-light);
+  color: var(--text-disabled);
   white-space: nowrap;
 }
 
 .fallback {
   font-size: 0.75rem;
-  font-family: var(--font-primary);
+  font-family: var(--font-family-ui);
   font-style: italic;
-  color: var(--color-text-muted);
+  color: var(--text-secondary);
 }
 
 .pdfLink {
   font-size: 0.875rem;
-  font-family: var(--font-primary);
-  color: var(--color-button);
+  font-family: var(--font-family-ui);
+  color: var(--text-link);
   text-decoration: underline;
 }

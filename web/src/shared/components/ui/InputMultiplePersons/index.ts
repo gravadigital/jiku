@@ -1,1 +1,0 @@
-export { InputMultiplePersons } from './InputMultiplePersons';
