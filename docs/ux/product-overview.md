@@ -47,10 +47,21 @@ sino de **dos aplicaciones distintas** sobre la misma API.
   - Accent: `#2563eb` — azul, tomado del código (`--color-primary`).
   - 5 pantallas · 7 overlays
 
-> **Las dos superficies tienen color de marca distinto** —magenta y azul— y tipografía distinta
-> —Archivo cargada de Google Fonts contra un stack de fuentes de sistema. No hay evidencia en el
-> código de si es deliberado (dos productos con identidad propia, uno interno y uno de cara al
-> cliente) o divergencia acumulada. Registrado como pregunta abierta.
+> **Las dos superficies son dos marcas distintas, y es deliberado.** Decidido el **2026-09-02**:
+> **Jiku** firma el gestor interno y **Opus** el portal de clientes. No comparten identidad visual
+> ni la comparten a futuro.
+>
+> - **`web` → Jiku.** Tiene manual de marca propio (**Manual de marca Jiku v1.0**, septiembre
+>   2026): verde agua `#61CCB9` sobre azul oscuro `#0B1934`, Sora + Gabarito. El accent
+>   `#DA2C6A` que este inventario registra **queda descontinuado** — ver
+>   [mapeo del sistema anterior](../design-system/web/foundations/color.md#mapeo-del-sistema-anterior).
+> - **`opus-web` → Opus.** Conserva su azul `#2563eb`, su stack de fuentes de sistema y su logo. Se
+>   presenta al cliente como «¡Bienvenido a OPUS!» con su propio `logo.png` y `title: 'Opus'`.
+>   **No tiene manual de marca todavía**; su Design System sigue relevado desde el código.
+>
+> El criterio: Opus es de **cara al cliente**, Jiku es **interno**. Unificarlas haría que el
+> cliente vea la identidad interna de Grava. El propio manual de Jiku ya razona así —«Jiku firma el
+> producto; Grava firma la organización. Nunca se combinan en un mismo bloque».
 
 ## Inventario de Audiencias
 

@@ -1,74 +1,126 @@
 ---
 foundation: typography
-version: 1.0.0
-last_updated: 2026-08-18
-status: relevado-desde-código
-origin: relevamiento de código — web/src/styles/_variables.scss
+version: 2.0.0
+last_updated: 2026-09-02
+status: normativo
+origin: Manual de marca Jiku v1.0 (septiembre 2026)
 ---
 
 # Tipografía (web)
 
-> **Sembrado desde el código existente.**
+> **Normativo.** Define la tipografía que el producto **debe** usar. El código actual sirve
+> **Archivo** vía `next/font/google`; la migración la reemplaza por el par Sora + Gabarito.
 
-## Familia
+## Propósito
 
-| Token | Valor | Origen |
-|---|---|---|
-| `font.family.primary` | **Archivo** (Google Fonts), expuesta como `--font-primary` | `web/src/app/layout.tsx:6-10` |
+Dos familias con un reparto claro: **Sora** para el logotipo y los títulos de vista;
+**Gabarito** para toda la interfaz, los datos y el microcopy.
 
-Pesos cargados: 100 / 400 / 500 / 600 / 700. Se sirve vía `next/font/google`.
+## Familias
 
-## Escala
-
-| Token DS | Variable | Tamaño | Uso observado |
+| Token DS | Familia | Origen | Pesos en uso |
 |---|---|---|---|
-| `font.size.xs` | `--font-size-xs` | 0.625rem (10px) | Tags y badges (`tag-base`) |
-| `font.size.sm` | `--font-size-sm` | 0.75rem (12px) | Labels (`label-text`), `p` global |
-| `font.size.base` | `--font-size-base` | 0.875rem (14px) | Texto de inputs y botones |
-| `font.size.md` | `--font-size-md` | 1rem (16px) | `h2`, label de `PageLayout` |
-| `font.size.lg` | `--font-size-lg` | 1.25rem (20px) | `span` global |
-| `font.size.xl` | `--font-size-xl` | 1.5rem (24px) | (sin uso observado) |
-| `font.size.2xl` | `--font-size-2xl` | 2rem (32px) | `h1` |
+| `font.family.display` | **Sora** | Google Fonts | 600 SemiBold · 700 Bold |
+| `font.family.ui` | **Gabarito** | Google Fonts | 400 Regular · 500 Medium · 600 SemiBold · 700 Bold |
 
-**Pesos:** `--font-weight-normal` 400 · `-medium` 500 · `-semibold` 600 · `-bold` 700 ·
-`-extrabold` 800
+**Tracking:** Sora lleva tracking negativo (**−0,02 a −0,035 em**) en tamaños grandes. Gabarito va
+con tracking normal; **+0,12 em sólo en labels en versalitas**.
 
-**Line heights:** `--line-height-tight` 1.25 · `-normal` 1.5 · `-relaxed` 1.75
+**Sustitutas:** sin las webfonts, `Helvetica Neue, Helvetica, Arial, sans-serif`.
+**Nunca Times ni ninguna serif.**
 
-## Conflicto: los estilos de elemento compiten con la escala
+## Escala tipográfica
 
-**Es el problema tipográfico principal de esta superficie.**
+Siete estilos cubren toda la aplicación. **Cada uno tiene tamaño, peso y color fijos: no se
+improvisan intermedios.**
 
-`globals.scss:189-207` define estilos de elemento que no usan los tokens:
+| Token DS | Estilo | Familia | Tamaño / Peso | Ejemplo |
+|---|---|---|---|---|
+| `text.view-title` | Título de vista | Sora | **30 / 700** | «Vaitty · Validación Fiscal» |
+| `text.card-title` | Título de card | Gabarito | **16 / 700** | «Información general» |
+| `text.nav-item` | Ítem de sidebar | Gabarito | **15 / 500** | «Asignación de tiempo» |
+| `text.body` | Cuerpo | Gabarito | **14 / 400** | «Servicio de validación fiscal de facturas» |
+| `text.field-label` | Label de campo | Gabarito | **13 / 400** | «Fecha de cierre estimada» |
+| `text.table-data` | Dato en tabla | Gabarito | **13 / 400** | «Grava · sys-admin — Actualización de servidores» |
+| `text.filter-label` | Label de filtro | Gabarito | **11 / 600 caps** | «Ordenar por» |
 
-```scss
-h1   { font-size: 2rem;    line-height: 2rem;    }
-h2   { font-size: 1rem;    line-height: 1rem;    }
-p    { font-size: 0.75rem; line-height: 0.75rem; }
-span { font-size: 1.25rem; }
-```
+### Números y métricas
 
-Dos consecuencias observables:
+| Token DS | Uso | Especificación |
+|---|---|---|
+| `text.metric` | Cifras destacadas | **Sora 34 / 700** — «2h» |
+| `text.metric-unit` | Unidad de la métrica | **Gabarito 12 / 600 versalitas** — «total horas» |
 
-1. **Los `line-height` iguales al `font-size` hacen que el texto de más de una línea se toque.**
-   Un párrafo de dos renglones queda sin interlineado.
-2. **`span` a 20px es más grande que el `p` que lo contiene** (12px). Esto explica por qué muchos
-   módulos redefinen el tamaño de sus `span`: están corrigiendo un default que actúa al revés de
-   lo esperado.
+### Breadcrumb en título
 
-## Reglas de implementación
+El nivel padre va en **texto secundario** (`#6D727B`); el nivel actual, en **caja baja y color
+principal** (`#0B1934`). Ejemplo: «Tareas / crear».
 
-- Todo tamaño de texto **DEBE** usar un token `--font-size-*`. **NO SE DEBEN** hardcodear valores.
-- **NO SE DEBE** confiar en los estilos de elemento de `globals.scss`: un componente nuevo declara
-  su tamaño y su `line-height` explícitamente.
-- Un `line-height` **NO DEBE** ser igual al `font-size`. Usar `--line-height-tight` (1.25) como
-  mínimo.
-- **NO SE DEBE** estilar `span` globalmente. Si un componente necesita un tamaño, lo declara en su
-  módulo.
+## Interlínea
 
-## Gaps registrados
+| Contexto | Valor |
+|---|---|
+| Títulos | **1,05 – 1,15** |
+| Cuerpo | **1,55 – 1,7** |
+| Datos en tabla | **1,5** |
 
-- Estilos de elemento en `globals.scss` compitiendo con la escala de tokens
-- `line-height` igual al `font-size` en `h1`, `h2` y `p`
-- `span` global a 20px, mayor que el `p` que lo contiene
-- `--font-size-xl` declarado sin uso
+## Tokens
+
+### Semánticos
+
+| Token | Valor | Uso |
+|---|---|---|
+| `text.view-title` | `font.family.display` 30/700, `text.primary` | Título de vista |
+| `text.card-title` | `font.family.ui` 16/700, `text.primary` | Cabecera de tarjeta y panel |
+| `text.body` | `font.family.ui` 14/400, `text.ink` | Cuerpo de texto |
+| `text.field-label` | `font.family.ui` 13/400, `text.secondary` | Label de formulario |
+| `text.filter-label` | `font.family.ui` 11/600 + `+0.12em` caps | Label de filtro y estado |
+
+## Guidelines
+
+**Do:**
+
+- Usar Sora **sólo** en el logotipo, los títulos de vista y las cifras destacadas.
+- Usar Gabarito para todo lo demás: interfaz, datos y microcopy.
+- Declarar tamaño **y** `line-height` explícitamente en cada componente.
+- Reservar las versalitas a labels y estados.
+
+**Don't:**
+
+- **Nunca cursiva en interfaz.**
+- **NO SE DEBEN** improvisar tamaños intermedios: los siete estilos cubren la aplicación.
+- **NO SE DEBE** usar una serif en ningún contexto.
+- **NO SE DEBE** dejar un `line-height` igual al `font-size`.
+
+## Deuda heredada a resolver en la migración
+
+El relevamiento del código registró tres problemas que **esta especificación deja sin lugar**, y
+que la migración debe corregir en vez de arrastrar:
+
+1. `globals.scss` define estilos de elemento (`h1`, `h2`, `p`, `span`) que compiten con la escala
+   de tokens. La escala normativa de arriba es la única fuente.
+2. `line-height` igual al `font-size` en `h1`, `h2` y `p` — el texto de más de una línea se toca.
+   Los valores de [Interlínea](#interlínea) los reemplazan.
+3. `span` estilado globalmente a 20 px, más grande que el `p` que lo contiene. **No se estila `span`
+   globalmente.**
+
+## Accesibilidad
+
+- Cuerpo de texto ≥ 14 px con interlínea ≥ 1,55.
+- Contraste de texto según [color](./color.md#accesibilidad): ≥ 4.5:1 en cuerpo.
+- Las versalitas con `+0,12 em` mejoran la legibilidad en tamaños chicos; no se usan en párrafos.
+- El tamaño de texto **DEBE** poder escalar con el zoom del navegador: unidades relativas.
+
+## Ejemplos
+
+- [View header](../components/view-header.md) — título de vista en Sora 30/700 con breadcrumb.
+- [Card](../components/card.md) — título 16/700, cuerpo 14/400, metadatos en versalitas.
+- [Table](../components/table.md) — dato en tabla 13/400, interlínea 1,5.
+
+## Historial
+
+- 2026-09-02 v2.0.0 — Reemplazo completo por el Manual de marca Jiku v1.0. La familia pasa de
+  **Archivo** al par **Sora** (display) + **Gabarito** (interfaz). Se define la escala de siete
+  estilos con tamaño, peso y color fijos, la interlínea por contexto y el estilo de métricas.
+  Pasa de `relevado-desde-código` a `normativo` (MAJOR).
+- 2026-08-18 v1.0.0 — Sembrado desde el código existente durante la importación del producto.

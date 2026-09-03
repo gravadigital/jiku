@@ -1,83 +1,136 @@
 ---
 foundation: spacing
-version: 1.0.0
-last_updated: 2026-08-18
-status: relevado-desde-código
-origin: relevamiento de código — web/src/styles/_variables.scss
+version: 2.0.0
+last_updated: 2026-09-02
+status: normativo
+origin: Manual de marca Jiku v1.0 (septiembre 2026), «Geometría del sistema»
 ---
 
-# Espaciado (web)
+# Espaciado y geometría (web)
 
-> **Sembrado desde el código existente.**
+> **Normativo.** La geometría de abajo es la que el producto **debe** cumplir. El código actual
+> declara una escala propia que sus módulos esquivan con literales; esta especificación fija los
+> valores y la migración los aplica.
 
-## Escala
+## Propósito
 
-Escala propia en `rem`, base 4px.
-
-| Token DS | Variable | Valor |
-|---|---|---|
-| `space.xs` | `--spacing-xs` | 0.25rem (4px) |
-| `space.sm` | `--spacing-sm` | 0.5rem (8px) |
-| `space.md` | `--spacing-md` | 1rem (16px) |
-| `space.lg` | `--spacing-lg` | 1.5rem (24px) |
-| `space.xl` | `--spacing-xl` | 2rem (32px) |
-| `space.2xl` | `--spacing-2xl` | 3rem (48px) |
-
-## La escala existe y no se usa
-
-**Los módulos usan mayoritariamente valores literales en `rem`** (`1.25rem`, `0.75rem`, `1.375rem`)
-en vez de los tokens.
-
-> **`1.25rem` (20px) es el gap más frecuente en los layouts de dos columnas, y NO está en la
-> escala.** Es el valor que más se repite en el producto y el único que no tiene token.
-
-Es la deuda de espaciado principal: la escala está declarada, es razonable, y el código la esquiva.
+Define el ritmo espacial, los radios, las alturas y el layout del producto. **Una sola familia de
+radios y una sola sombra por nivel** — es uno de los cuatro principios de aplicación de la marca.
 
 ## Radios
 
-| Token DS | Variable | Valor | Uso |
-|---|---|---|---|
-| `radius.items` | `--radius-items` | 0.5rem | Inputs, tags, botones |
-| `radius.cards` | `--radius-cards` | 1rem | Cards |
-| `radius.buttons` | `--radius-buttons` | 0.5rem | Botones |
+Cuatro valores. **Sin valores intermedios.**
 
-Varios módulos usan **`10px` literal** (`RequirementDetail.module.scss:29`), fuera de la escala.
+| Token DS | Valor | Aplica a |
+|---|---|---|
+| `radius.button` | **8 px** | Botones (primario, secundario, acción de flujo) |
+| `radius.input` | **10 px** | Campos de formulario, selects, botones de sesión |
+| `radius.card` | **14 px** | Tarjetas, paneles, dropzone |
+| `radius.pill` | **999 px** | Pills, badges, chips, toggles |
+
+> **Excepción documentada:** el icono de app usa radio del **22 % del lienzo** (ver
+> [iconography](./iconography.md)). No es parte de la escala de interfaz.
+
+## Alturas
+
+| Token DS | Valor | Aplica a |
+|---|---|---|
+| `size.input.height` | **44 px** | Campos de formulario |
+| `size.button.height` | **40 px** | Botón primario y secundario |
+| `size.button.session.height` | **46 px** | Botones de sesión (login / logout) |
+| `size.table-row.height` | **48 px** | Fila de tabla |
+| `size.nav-item.height` | **48 px** | Ítem de sidebar |
+| `size.nav-subitem.indent` | **44 px** | Sangrado de subítem de sidebar |
+
+## Layout
+
+| Token DS | Valor | Nota |
+|---|---|---|
+| `layout.sidebar.width` | **300 px fijo** | Sin estado colapsado en esta versión |
+| `layout.divider` | **1 px** `#DFE1E7` | Divisor de estructura |
+| `layout.content.padding` | **32 px** | Padding del área de contenido |
+| `layout.cards.grid` | **4 columnas · gap 18 px** | Grilla de tarjetas |
+
+> El sidebar pasa de **290 px** (código actual) a **300 px**. Ver
+> [grid](./grid.md) para el viewport único de esta superficie.
+
+## Escala de espaciado
+
+La escala base es de **4 px**. Los valores que la geometría del manual usa explícitamente
+—18, 32, 44, 46, 48— están todos en múltiplos de 2 y son parte del sistema.
+
+| Token DS | Valor | Uso |
+|---|---|---|
+| `space.xs` | 4 px | Gap mínimo entre glifo y texto |
+| `space.sm` | 8 px | Gap inline en pills y badges |
+| `space.md` | 16 px | Gap interno de tarjeta |
+| `space.grid-gap` | **18 px** | Gap de la grilla de tarjetas |
+| `space.lg` | 24 px | Separación entre bloques |
+| `space.xl` | **32 px** | Padding de contenido, separación de secciones |
+| `space.2xl` | 48 px | Separación entre grandes bloques de vista |
+
+> **Deuda heredada:** el relevamiento registró que `1.25rem` (20 px) era el gap más frecuente del
+> producto y no tenía token. **No se incorpora**: la grilla del manual usa 18 px y la separación de
+> secciones, 32 px. Los 20 px literales se migran al valor de la escala que corresponda.
+
+## Sombras y foco
+
+**Una sola sombra por nivel.**
+
+| Token DS | Valor | Uso |
+|---|---|---|
+| `elevation.card` | `0 1px 3px rgba(11,25,52,.04)` | Tarjetas y paneles en reposo |
+| `elevation.active` | `0 2px 8px rgba(11,25,52,.06)` | Elemento activo o elevado |
+| `focus.ring` | `0 0 0 3px rgba(97,204,185,.22)` | Anillo de foco — verde agua al 22 % |
+
+Ver [elevation](./elevation.md) para el detalle y las reglas de uso.
 
 ## Z-index
 
-| Token DS | Variable | Valor |
-|---|---|---|
-| `z.dropdown` | `--z-index-dropdown` | 100 |
-| `z.modal` | `--z-index-modal` | 200 |
-| `z.tooltip` | `--z-index-tooltip` | 300 |
-| `z.navbar` | `--z-index-navbar` | 400 |
+| Token DS | Valor |
+|---|---|
+| `z.dropdown` | 100 |
+| `z.modal` | 200 |
+| `z.tooltip` | 300 |
+| `z.navbar` | 400 |
 
-> ⚠️ **`--z-index-navbar` (400) es MAYOR que `-modal` (200) y `-tooltip` (300).** Un modal abierto
-> quedaría por debajo de la barra de navegación si ambos usaran sus tokens.
->
-> **En la práctica no ocurre**, porque la sidebar usa `z-index: 10` literal
-> (`(loggedin)/styles.module.scss:15`) en vez de su token. El bug está latente en los tokens y
-> neutralizado por no usarlos.
+> ⚠️ **El orden heredado está invertido y hay que corregirlo en la migración.** `z.navbar` (400) es
+> mayor que `z.modal` (200) y `z.tooltip` (300): un modal abierto quedaría por debajo del sidebar.
+> En el código actual el bug está neutralizado porque el sidebar usa `z-index: 10` literal. **El
+> orden correcto es** `dropdown < navbar < modal < tooltip`; fijarlo es parte del trabajo de
+> migración y **cambia el contrato**, así que se versiona como breaking cuando se aplique.
 
-## Otros
+## Transiciones
 
-**Sombras:** `--box-shadow` y `--box-shadow-hover`, ambas de dos capas.
+| Token DS | Valor |
+|---|---|
+| `motion.fast` | 150 ms `ease` |
+| `motion.base` | 200 ms `ease` |
+| `motion.slow` | 300 ms `ease` |
 
-**Transiciones:** `--transition-fast` 150ms · `-base` 200ms · `-slow` 300ms, todas `ease`.
+Ver [motion](./motion.md).
 
 ## Reglas de implementación
 
-- Todo espaciado **DEBE** usar un token `--spacing-*`. **NO SE DEBEN** usar valores literales.
-- Si un layout necesita `1.25rem`, la respuesta correcta es **agregar el token a la escala**, no
-  hardcodearlo por vigésima vez.
-- Todo `z-index` **DEBE** usar un token. **Antes de usarlos hay que corregir el orden**: `navbar`
-  no puede ser mayor que `modal`.
-- Los radios **DEBEN** usar `--radius-*`. **NO SE DEBE** usar `10px` literal.
+- Todo espaciado **DEBE** usar un token. **NO SE DEBEN** usar valores literales en los módulos.
+- Los radios **DEBEN** ser 8 / 10 / 14 / 999 px. **NO SE DEBE** introducir un radio intermedio
+  —el `10px` literal que el relevamiento encontró ahora **es** el token de input, pero se consume
+  vía token, no literal.
+- Las alturas de control **DEBEN** respetar la tabla: un input mide 44 px y un botón primario,
+  40 px.
+- **NO SE DEBE** agregar una tercera sombra ni un segundo anillo de foco.
+- Todo `z-index` **DEBE** usar un token, y **antes** hay que corregir el orden.
 
-## Gaps registrados
+## Ejemplos
 
-- La escala de espaciado existe y el código la esquiva con literales
-- `1.25rem`, el gap más frecuente del producto, no está en la escala
-- **`--z-index-navbar` (400) > `--z-index-modal` (200)**: orden invertido, latente
-- La sidebar usa `z-index: 10` literal en vez de su token
-- Radios `10px` literales fuera de la escala
+- [Button](../components/button.md) — radio 8 px, alto 40 px.
+- [Input](../components/input.md) — radio 10 px, alto 44 px, anillo de foco al 22 %.
+- [Card](../components/card.md) — radio 14 px, sombra `elevation.card`.
+
+## Historial
+
+- 2026-09-02 v2.0.0 — Reemplazo por la «Geometría del sistema» del Manual de marca Jiku v1.0.
+  Radios fijados en 8/10/14/999 px, alturas de control, layout con sidebar de 300 px y gap de
+  grilla de 18 px, dos sombras y un anillo de foco. Se descarta la incorporación de `1.25rem`.
+  Pasa de `relevado-desde-código` a `normativo` (MAJOR).
+- 2026-08-18 v1.0.0 — Sembrado desde el código existente durante la importación del producto.

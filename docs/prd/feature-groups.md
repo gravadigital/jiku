@@ -292,19 +292,28 @@ de lo que hay a ser la fuente contra la que se implementa.
 **Capabilities que implementa:**
 - Transversal a F-01 a F-08 en su capa de presentación
 - NFR-U03, NFR-U04, NFR-U05, NFR-U06, NFR-U07
-- Resuelve la pregunta abierta **6**
+- ~~Resuelve la pregunta abierta **6**~~ — cerrada el 2026-09-02 sin necesidad de este grupo: el
+  gestor interno **debe** llegar a mobile (objetivo sin fecha) y el portal es bloqueante. Este
+  grupo **ejecuta** esa decisión, no la toma
 
 **Precondiciones:**
 - Documentación UX generada desde el relevamiento — **cumplido** (`docs/ux/`)
 - Design System sembrado con los tokens reales — **cumplido** (`docs/design-system/`)
-- **Decidir si el gestor interno debe ser usable en mobile.** El código no permite inferirlo: hay
-  tratamiento responsive incoherente, que es distinto de una decisión deliberada de no tenerlo
+- ~~Decidir si el gestor interno debe ser usable en mobile~~ — **decidido el 2026-09-02:** sí, es
+  un **objetivo declarado sin fecha**. Ya no bloquea a FG-5; lo que sí hace falta antes de encarar
+  el responsive de `web` es **decidir cómo se ve Jiku en un teléfono**, porque el manual de marca no
+  lo dice: especifica sidebar de 300 px fijos y grilla de 4 columnas, o sea un sistema de escritorio
 
 **Postcondiciones:**
-- El portal es navegable en un teléfono
-- Los breakpoints del código y los del Design System coinciden
+- El portal es navegable en un teléfono — **es el bloqueante del grupo**
+- Los breakpoints del código y los del Design System coinciden. Para `web` eso implica **el shell
+  primero** (navegación colapsable): un media query en una pantalla interior no la vuelve
+  alcanzable desde un teléfono. Hasta que el shell lo cumpla, el DS **no declara** el viewport
+  `mobile` para `web`
 - Toda pantalla tiene estado de carga, error y vacío
-- El microcopy usa una sola forma de tratamiento y un solo idioma
+- El microcopy usa una sola forma de tratamiento y un solo idioma, según la norma de
+  [`guidelines/content.md`](../design-system/web/guidelines/content.md) — **52 toasts a migrar** en
+  `web`: 13 son borrar el sufijo, 10 requieren decidir el «qué hacer»
 - El código muerto está eliminado
 
 **Valor entregado:**

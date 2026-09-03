@@ -28,9 +28,16 @@ Define la paleta del portal de clientes y su rol semántico.
 > **`color.brand.primary` es `#2563eb`** — azul. Es lo que lee el generador de wireframes y lo que
 > el implementador consume vía `bg.action.primary`.
 >
-> **Las dos superficies del producto NO comparten color de marca**: el gestor interno usa magenta
-> (`#DA2C6A`) y el portal usa azul (`#2563eb`). No hay evidencia en el código de si es deliberado
-> —dos productos con identidad propia— o divergencia. Está registrado como pregunta abierta.
+> **Las dos superficies NO comparten color de marca, y es deliberado.** Decidido el
+> **2026-09-02**: son dos marcas distintas — **Jiku** el gestor interno, **Opus** este portal.
+> `#2563eb` es el azul de Opus y **se mantiene**.
+>
+> El gestor interno adoptó el [Manual de marca Jiku v1.0](../../web/foundations/color.md) (verde
+> agua `#61CCB9`) y **ese manual no aplica acá**: habla del «gestor de proyectos de Grava» y
+> especifica pantallas que son de `web`. Opus es de cara al cliente y conserva su identidad.
+>
+> **Opus no tiene manual de marca propio todavía.** Cuando lo tenga, este archivo pasa de
+> `relevado-desde-código` a `normativo`, como hizo `web` en su v2.0.0.
 
 ## Neutrales
 

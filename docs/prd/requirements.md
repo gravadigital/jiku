@@ -783,7 +783,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 |---|---|---|---|---|
 | NFR-U01 | Idioma de la interfaz | Enteramente español | Revisión de UI | **[implementado con excepciones]** |
 | NFR-U02 | Idioma de los mensajes de error | Los errores de api y core llegan al usuario tal cual y están **mezclados entre inglés y español**, a veces en el mismo archivo | Revisión de código | **[roto]** |
-| NFR-U03 | Responsive del gestor interno (`web`) | **Sin tratamiento coherente.** De 4 breakpoints declarados solo `mobile` se usa (6 veces en 5 archivos, uno de ellos código muerto); en paralelo hay 14 `@media` crudas con 8 valores distintos. La sidebar es de 290 px fija | Relevamiento UX | **[hueco conocido]** |
+| NFR-U03 | Responsive del gestor interno (`web`) | **Sin tratamiento coherente.** De 4 breakpoints declarados solo `mobile` se usa (6 veces en 5 archivos, uno de ellos código muerto); en paralelo hay 10 `@media` crudas con 6 valores distintos, incluidos 1023 y 1024 px (verificado 2026-09-02; las otras 4 del conteo anterior son las definiciones de los propios mixins). La sidebar es de 290 px fija (300 px en el DS normativo) | Relevamiento UX | **[objetivo declarado sin fecha]** — decidido 2026-09-02, pregunta abierta 6 |
 | NFR-U04 | Responsive del portal (`opus-web`) | Corte real en 768 px. **Bajo ese ancho no hay navegación**: el `Sidebar` desaparece y no se monta reemplazo — no se puede cambiar de proyecto ni cerrar sesión | Relevamiento UX | **[roto]** |
 | NFR-U05 | Accesibilidad | Elementos clickeables que no son botones (sin `role`/`tabIndex`/teclado), ningún modal atrapa el foco, tabla hecha con `div` + grid sin roles ARIA | Relevamiento UX | **[hueco conocido]** |
 | NFR-U06 | Estados de UI | El portal carece de estados de error y vacío en pantallas clave, y no tiene `error.tsx` ni `not-found.tsx` en ninguna ruta | `docs/ux/gaps-as-is.md` | **[hueco conocido]** |
@@ -842,8 +842,11 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
   histórico: no había documento de producto previo del cual extraerlos.
 - **La caracterización de las audiencias es inferida** de los permisos y del flujo. El código
   distingue tres roles con precisión pero no dice quién es cada uno.
-- **El desktop-only del gestor interno se asume deuda, no decisión.** El código no permite
-  distinguirlo: hay tratamiento responsive incoherente, no ausencia deliberada de tratamiento.
+- ~~**El desktop-only del gestor interno se asume deuda, no decisión.**~~ **Ya no es un supuesto:**
+  el 2026-09-02 se decidió que mobile es un **objetivo declarado sin fecha** (pregunta abierta 6).
+  El tratamiento responsive incoherente que el relevamiento encontró queda como **avance parcial de
+  trabajo futuro**, y por eso **no se limpia** — ver
+  [`docs/design-system/web/foundations/grid.md`](../design-system/web/foundations/grid.md#gaps-registrados).
 - **Se asume que el equipo interno entrando al portal de clientes es un efecto colateral**, no
   una capacidad buscada (C-66).
 - **Las tres tablas de mail (`objective_mail_threads`, `requirement_mail_threads`,
@@ -872,8 +875,12 @@ Ordenadas por impacto en el producto:
    estado y prioridad inline desde `opus-web` (C-66).
 5. **¿El proxy catch-all de `opus-web` debería tener allowlist?** Su seguridad depende
    enteramente de que la api autorice por rol en cada endpoint de `/api/opus/*` (NFR-S08).
-6. **¿El gestor interno debe ser usable en mobile?** Y en el portal, ¿se acepta que hoy sea
-   inutilizable bajo 768 px (sin navegación ni logout)?
+6. ~~**¿El gestor interno debe ser usable en mobile?**~~ **Cerrada el 2026-09-02:** sí, es un
+   **objetivo declarado sin fecha** — no prioritario, y queda en FG-5. El desktop-only de hoy pasa
+   a ser *estado transitorio reconocido*, no decisión deliberada: el primer trabajo es el **shell**
+   (navegación colapsable), no las pantallas interiores. **El portal sigue siendo bloqueante** e
+   inutilizable bajo 768 px (sin navegación ni logout), y eso ya es postcondición de FG-5, no una
+   pregunta.
 7. **¿La asimetría en el reemplazo de responsables es intencional?** `tasks` preserva el
    `createdAt` de las asignaciones que se mantienen; `requirements` borra todas y recrea.
 8. **¿El tope de 1440 min/día es requisito de producto o guardarraíl técnico?** Está duplicado en

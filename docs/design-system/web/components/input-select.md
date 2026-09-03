@@ -1,74 +1,61 @@
 ---
 component: InputSelect
-version: 1.0.0
-last_updated: 2026-08-18
-status: relevado-desde-código
+version: 2.0.0
+last_updated: 2026-09-02
+status: deprecated
+deprecated: true
+superseded_by: select
 surface: web
 origin: web/src/shared/components/ui/InputSelect/InputSelect.tsx
+related:
+  - select
 ---
 
-# InputSelect (web)
+# InputSelect (web) — **deprecado**
 
-> **Relevado desde el código existente.**
+> ⚠️ **Deprecado el 2026-09-02.** Reemplazado por [Select](./select.md), que unifica los tres
+> selectores que convivían en esta superficie. Este archivo se conserva **al menos un release**
+> para que los 18 usos existentes tengan una referencia mientras se migran.
+>
+> **No usar en pantallas nuevas.** Un formulario nuevo usa [Select](./select.md).
 
-## Propósito
+## Por qué se deprecó
 
-Selector de una opción dentro de un formulario. **18 usos** [fuente: código-existente].
+El relevamiento registró **tres formas de hacer un select** en `web`: `InputSelect` (18 usos),
+`Select` (15) y `react-select` usado directamente en 5 pantallas con su `selectStyles` duplicado
+literalmente en cada archivo. Con la migración de marca eso deja de ser sólo deuda: **cualquier
+cambio de paleta habría que aplicarlo tres veces.**
 
-## Anatomía
+## Migration path
 
-Label + control de selección + mensaje de error opcional.
+Reemplazar por [Select](./select.md) con `variant="single"`:
 
-## Variants
-
-Sin variants de presentación. La única prop de variación es `error` (booleana).
-
-## Sizes
-
-Sin sizes declarados.
-
-## States
-
-| Estado | Implementado |
-|---|---|
-| default | ✅ |
-| focus | ✅ — outline con `--color-highlighted` |
-| `error` | ✅ — borde con `--color-button-delete` |
-| disabled | ⚠️ No relevado |
-
-## Spacing & sizing rules
-
-Encapsulado en el mixin de inputs de `_mixins.scss`. Radio: `--radius-items` (0.5rem).
-
-## Accesibilidad
-
-**Sin verificar:** el relevamiento no registra la asociación label↔control ni el anuncio del
-mensaje de error.
-
-## Guidelines de contenido
-
-*(No relevable desde el código.)*
-
-## Do's & don'ts
-
-*(Vacío a propósito.)*
-
-## API
-
-```tsx
-<InputSelect error={boolean} ... />
+```diff
+- <InputSelect error={hasError} ... />
++ <Select variant="single" label="Tipo" options={options}
++         value={value} onChange={setValue}
++         error={errorMessage} />
 ```
 
-## Componentes y patterns relacionados
+Tres diferencias de contrato a atender en cada uso:
 
-- `Select` (15 usos) — **otro selector conviviendo**
-- `InputMultipleSelect` (1 uso)
-- `react-select` — usado **directamente** en 5 pantallas, con su objeto `selectStyles`
-  **duplicado literalmente en los 5 archivos** [fuente: código-existente]
+| `InputSelect` | `Select` |
+|---|---|
+| `error: boolean` — sólo pinta el borde | `error: string` — lleva el mensaje, que `aria-describedby` necesita |
+| Label no garantizado por el componente | `label` requerido y asociado con `<label for>` |
+| Radio `--radius-items` (8 px), foco violeta | Radio **10 px**, foco **anillo verde agua al 22 %** |
 
-> ⚠️ **Hay tres formas de hacer un select en esta superficie**: `InputSelect`, `Select` y
-> `react-select` directo. Es la duplicación de componentes más significativa del producto.
+## Estado del componente al momento de deprecarse
+
+Selector de una opción dentro de un formulario. **18 usos.** Sin variants de presentación; la única
+prop de variación era `error` (booleana). States: `default`, `focus` (outline
+`--color-highlighted`), `error` (borde `--color-button-delete`); `disabled` no relevado.
+
+**Sin verificar:** el relevamiento no registró la asociación label↔control ni el anuncio del
+mensaje de error. [Select](./select.md) especifica ambos.
 
 ## Historial
 
+- **2.0.0** (2026-09-02) — **Deprecado** en favor de [Select](./select.md), que unifica los tres
+  selectores de la superficie. Se conserva con migration path (MAJOR).
 - **1.0.0** (2026-08-18) — Relevado desde el código existente.

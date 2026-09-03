@@ -55,8 +55,35 @@ elegir).
 **Los dos frontends comparten la app OIDC de Zitadel** (mismo `ZITADEL_CLIENT_ID`) con secretos de
 sesión distintos.
 
+### Identidad visual: dos marcas separadas
+
+**Decidido el 2026-09-02.** La separación no es sólo técnica: **`web` es Jiku y `opus-web` es
+Opus**, y son dos marcas distintas con Design Systems independientes.
+
+| | `web` → **Jiku** | `opus-web` → **Opus** |
+|---|---|---|
+| Fuente de identidad | **Manual de marca Jiku v1.0** (sept. 2026) | Ninguna todavía — DS relevado del código |
+| Accent | `#61CCB9` verde agua | `#2563eb` azul |
+| Tipografía | Sora + Gabarito | Stack de fuentes de sistema |
+| Cómo se presenta | Firma Jiku en sidebar y login | «¡Bienvenido a OPUS!», `logo.png` propio, `title: 'Opus'` |
+
+**El Manual de marca Jiku NO aplica a `opus-web`.** Habla del «gestor de proyectos de Grava» y
+especifica pantallas que son de `web` (sidebar, stepper de requisito, matriz de asignación); de
+Opus no dice nada.
+
+El criterio es el mismo que sostiene esta ADR: **Opus es de cara al cliente y Jiku es interno.**
+Unificar la identidad haría que el cliente vea la marca interna de Grava — lo contrario de lo que
+el aislamiento busca. El propio manual de Jiku ya razona así: «Jiku firma el producto; Grava firma
+la organización. Nunca se combinan en un mismo bloque.»
+
+**Consecuencia operativa:** un cambio de Design System se aplica **a una superficie, nunca a las
+dos**. `/product-design-system-update` pregunta sobre cuál se itera, y los versionados son
+independientes (`web` v2.1.0, `opus-web` v0.1.0).
+
 ## Implementation Rules
 
+- Un cambio de identidad visual **DEBE** aplicarse a una sola superficie. **NO SE DEBE** portar la
+  paleta, la tipografía ni la firma de Jiku a `opus-web`, ni al revés.
 - Todo endpoint de cara al cliente **DEBE** vivir bajo `/api/opus/*`. **NO SE DEBE** exponer un
   endpoint interno al portal agregándole un filtro por rol.
 - Todo endpoint bajo `/api/opus/*` **DEBE** verificar el permiso de proyecto con
