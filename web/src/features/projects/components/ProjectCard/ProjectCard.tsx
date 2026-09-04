@@ -37,8 +37,14 @@ export function ProjectCard({
       status={{ family: PROJECT_STATUS_TO_FAMILY[status], label: getProjectStatus(status) }}
       header={<span className={styles.dateLabel}>{formatDateRange(initDate, endDate)}</span>}
       tags={[
-        { label: type, family: 'neutral' },
-        { label: `Prioridad ${priority}`, family: PRIORITY_FAMILY[priority] ?? 'neutral' },
+        // El glifo es una forma, no un color: cuadrado para la clasificación (tipo de
+        // proyecto) y círculo para la prioridad — handoff § Badges y pills.
+        { label: type, family: 'neutral', glyph: 'square' as const },
+        {
+          label: `Prioridad ${priority}`,
+          family: PRIORITY_FAMILY[priority] ?? 'neutral',
+          glyph: 'round' as const,
+        },
       ]}
     >
       <p className={styles.description}>{description}</p>

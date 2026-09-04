@@ -1,17 +1,43 @@
+// El bloque se encoge (min-width: 0) y lo que cede es el NOMBRE, con ellipsis: la etiqueta de
+// area lleva `flex: none` desde el Badge y no se comprime.
+//
+// `min-width: 0` es lo que habilita el ellipsis del nombre. Sin el, el bloque se negaba a
+// bajar del ancho de su contenido y desbordaba la card; con `overflow: hidden` en cambio el
+// nombre desaparecia del todo en vez de recortarse. El que recorta es el nombre, no la caja.
 .labelContainer {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  padding: 0.5rem 0.5rem;
-  max-width: 13rem;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+// Los hijos directos de .labelContainer son los envoltorios de Tooltip (`position: relative`
+// con `min-width: auto`), no la etiqueta ni el nombre: por eso las reglas puestas sobre
+// `.responsibleLabel` no alcanzaban a habilitar el ellipsis. Se apunta al envoltorio.
+//
+// El PRIMERO es la etiqueta de area y no cede; el SEGUNDO es el nombre y es el que se recorta.
+.labelContainer > :first-child {
+  flex: none;
+  min-width: 0;
+}
+
+.labelContainer > :last-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .responsibleLabel {
-  display: flex;
-  align-items: center;
+  display: block;
+  min-width: 0;
   font-family: var(--font-family-ui);
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-12);
   line-height: 1.2;
   font-weight: var(--font-weight-medium);
   overflow: hidden;

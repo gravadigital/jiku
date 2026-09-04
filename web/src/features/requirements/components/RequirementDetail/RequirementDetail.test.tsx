@@ -131,8 +131,10 @@ describe('RequirementDetail', () => {
     } as any);
   });
 
-  it('TS-5: SCSS usa grid-template-columns: 1fr 420px', () => {
-    expect(scssContent).toMatch(/grid-template-columns:\s*1fr\s*420px/);
+  // El handoff de identidad fija el layout de detalle en minmax(560px, 1fr) + aside de 380px
+  // (antes 1fr + 420px). Cambia la MEDIDA del aside, no la estructura de dos columnas.
+  it('TS-5: SCSS usa grid-template-columns: minmax(560px, 1fr) 380px', () => {
+    expect(scssContent).toMatch(/grid-template-columns:\s*minmax\(560px,\s*1fr\)\s*380px/);
   });
 
   // S-090 (CA-1, TS-1, ajustado): mobile Y tablet apilan — pedido explícito del usuario de que
@@ -150,8 +152,10 @@ describe('RequirementDetail', () => {
   });
 
   // S-090 (CA-3, TS-2): desktop (≥1024px) mantiene el grid de 2 columnas sin cambios
-  it('S-090 TS-2: .container fuera del breakpoint apilado mantiene grid-template-columns: 1fr 420px (desktop)', () => {
-    expect(scssContent).toMatch(/grid-template-columns:\s*1fr\s*420px/);
+  // Lo que S-090 CA-3 pide es que desktop MANTENGA las dos columnas, y eso sigue valiendo: lo
+  // que cambió con el handoff es el ancho del aside (380px), no que haya dos columnas.
+  it('S-090 TS-2: .container fuera del breakpoint apilado mantiene las dos columnas (desktop)', () => {
+    expect(scssContent).toMatch(/grid-template-columns:\s*minmax\(560px,\s*1fr\)\s*380px/);
   });
 
   // S-090 (CA-1, TS-3, ajustado): tablet (768-1023px) apila igual que mobile — verificado vía

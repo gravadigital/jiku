@@ -30,6 +30,14 @@ type SelectProps = (SelectSingleProps | SelectMultipleProps) & {
   readonly required?: boolean;
   readonly error?: string;
   readonly disabled?: boolean;
+  /**
+   * Agrega un buscador dentro del menú, que filtra las opciones por texto.
+   *
+   * Es opt-in y no el default: con pocas opciones un buscador estorba más de lo que ayuda.
+   * Se activa cuando la lista es larga y no memorizable — el filtro por proyecto del listado
+   * de requisitos tiene ~100 opciones, y sin buscador encontrar una es impracticable.
+   */
+  readonly searchable?: boolean;
 };
 
 function ChevronIcon({ open }: { readonly open: boolean }) {
@@ -58,9 +66,12 @@ export function Select(props: SelectProps) {
     required = false,
     error,
     disabled = false,
+    searchable = false,
   } = props;
 
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const controlRef = useRef<HTMLDivElement | HTMLButtonElement>(null);
 
@@ -82,15 +93,35 @@ export function Select(props: SelectProps) {
 
   const selectedOptions = options.filter((option) => selectedValues.includes(option.value));
 
+  // La navegación por teclado y el commit operan sobre las opciones VISIBLES: si el índice
+  // activo apuntara a `options` mientras el menú muestra una lista filtrada, Enter elegiría
+  // una opción distinta de la resaltada.
+  const normalize = (text: string) =>
+    text
+      .toLocaleLowerCase('es')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const visibleOptions =
+    searchable && query.trim()
+      ? options.filter((option) => normalize(option.label).includes(normalize(query)))
+      : options;
+
   const closeMenu = () => {
     setOpen(false);
     setActiveIndex(-1);
+    setQuery('');
   };
 
   const openMenu = () => {
     if (disabled || isLocked) return;
     setOpen(true);
     setActiveIndex(0);
+    // El foco pasa al buscador para poder tipear sin un salto de teclado extra. El control
+    // sigue siendo el combobox: `aria-activedescendant` no cambia de dueño.
+    if (searchable) {
+      requestAnimationFrame(() => searchRef.current?.focus());
+    }
   };
 
   const toggleMenu = () => {
@@ -148,7 +179,7 @@ export function Select(props: SelectProps) {
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveIndex((prev) => Math.min(prev + 1, options.length - 1));
+      setActiveIndex((prev) => Math.min(prev + 1, visibleOptions.length - 1));
       return;
     }
 
@@ -160,8 +191,8 @@ export function Select(props: SelectProps) {
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      if (activeIndex >= 0 && options[activeIndex]) {
-        selectOption(options[activeIndex].value);
+      if (activeIndex >= 0 && visibleOptions[activeIndex]) {
+        selectOption(visibleOptions[activeIndex].value);
       }
       return;
     }
@@ -274,8 +305,32 @@ export function Select(props: SelectProps) {
           </button>
         )}
         {open && (
-          <ul id={listboxId} role="listbox" className={styles.menu}>
-            {options.map((option, index) => {
+          <div className={styles.menu}>
+            {searchable && (
+              <div className={styles.search}>
+                <input
+                  ref={searchRef}
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="Buscar..."
+                  value={query}
+                  aria-label={`Buscar en ${accessibleName}`}
+                  aria-controls={listboxId}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setActiveIndex(0);
+                  }}
+                  onKeyDown={handleControlKeyDown}
+                />
+              </div>
+            )}
+            <ul id={listboxId} role="listbox" className={styles.list}>
+              {visibleOptions.length === 0 && (
+                <li className={styles.noResults} role="presentation">
+                  Sin resultados
+                </li>
+              )}
+              {visibleOptions.map((option, index) => {
               const isSelected = selectedValues.includes(option.value);
               return (
                 <li
@@ -292,8 +347,9 @@ export function Select(props: SelectProps) {
                   {option.label}
                 </li>
               );
-            })}
-          </ul>
+              })}
+            </ul>
+          </div>
         )}
       </div>
       {hasError && (

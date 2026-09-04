@@ -1,9 +1,20 @@
 @use '@/styles' as *;
 
+// Acordeon de etapa: radio 10, borde de 1px y borde IZQUIERDO de 3px del color del estado
+// (ambar pendiente / verde agua completo) — handoff § Cards.
 .container {
-  border-radius: var(--accordion-radius);
+  border-radius: var(--accordion-stage-radius);
   border: 1px solid var(--accordion-border);
+  border-left: var(--accordion-bar-width) solid var(--accordion-border);
   overflow: hidden;
+}
+
+.status-pending {
+  border-left-color: var(--accordion-pending-mark);
+}
+
+.status-done {
+  border-left-color: var(--accordion-done-mark);
 }
 
 .headingWrapper {
@@ -33,16 +44,28 @@
   }
 }
 
+// La marca es un badge CIRCULAR de 16px con el glifo dentro, no texto de color pelado: el
+// color solo no comunica el estado (y el texto accesible ya lo dice aparte).
 .mark {
   flex-shrink: 0;
-  font-weight: var(--text-card-title-weight);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--accordion-mark-size);
+  height: var(--accordion-mark-size);
+  border-radius: 50%;
+  font-size: var(--text-card-metric-label-size);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
 
   &.pending {
-    color: var(--accordion-pending-mark);
+    background-color: var(--accordion-pending-mark);
+    color: var(--text-inverse);
   }
 
   &.done {
-    color: var(--accordion-done-mark);
+    background-color: var(--accordion-done-mark);
+    color: var(--text-on-action);
   }
 }
 

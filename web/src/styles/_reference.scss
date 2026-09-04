@@ -18,6 +18,8 @@
   --color-graphite: #626C78;
   --color-mist: #F6F6F9;
   --color-aqua: #61CCB9;
+  // Hover del acento. Es MAS CLARO que el acento, no mas oscuro: el manual lo fija asi.
+  --color-aqua-hover: #7BD8C7;
   --color-aqua-deep: #12897A;
 
   // ============================================
@@ -27,6 +29,7 @@
   --color-ink: #34383F;
   --color-gray-600: #6D727B;
   --color-gray-400: #9AA1AC;
+  --color-gray-300: #C9D0DA; // borde punteado del dropzone en modo claro
   --color-gray-200: #DFE1E7;
   --color-gray-100: #EDEEF1;
 
@@ -38,24 +41,49 @@
   --color-dark-primary: #7D8699;
   --color-dark-text: #F6F6F9;
 
-  // Tintes y bordes de estado en modo oscuro (S-059) — misma fórmula del DS (tinte 12% / borde
-  // 26% del color pleno), compuesta sobre --color-dark-surface (#1B202C) en vez de blanco. El
-  // pleno y el texto profundo de cada familia NO cambian entre modos. "resolved" y "in-progress"
-  // comparten --color-system-resolved como pleno (igual que en claro), así que su blend en
-  // oscuro resuelve al mismo valor; en claro el DS declaró dos swatches ligeramente distintos sin
-  // fórmula documentada — no reproducible acá, anotado como hallazgo menor para el DS.
-  --color-dark-tint-green: #1B2F37;
-  --color-dark-tint-border-green: #1B3F45;
-  --color-dark-tint-aqua: #1B2F37;
-  --color-dark-tint-border-aqua: #1B3F45;
-  --color-dark-tint-amber: #36302C;
-  --color-dark-tint-border-amber: #56432D;
-  --color-dark-tint-red: #35212B;
-  --color-dark-tint-border-red: #54232A;
-  --color-dark-tint-violet: #1B1C3D;
-  --color-dark-tint-border-violet: #1C1851;
-  --color-dark-tint-graphite: #242935;
-  --color-dark-tint-border-graphite: #2D3440;
+  // Superficies, bordes y textos propios del modo oscuro.
+  //
+  // El manual declara para oscuro un trío propio —fondo #0E121A / superficie #1B202C /
+  // primario #7D8699— y NO una inversión de la paleta clara. Estos valores son los del handoff
+  // de identidad (design_handoff_jiku_identity/tokens/jiku-tokens.css), copiados literalmente:
+  // no se derivan de los claros por fórmula.
+  --color-dark-sidebar: #0B1319;
+  --color-dark-border: #2A3141;
+  --color-dark-dash: #3A4356;
+  --color-dark-body: #C6CCD8;
+  --color-dark-placeholder: #6D727B;
+  --color-dark-row-alt: #161C27;
+  --color-dark-input-bg: #141A24;
+
+  // Tintes, bordes y TEXTOS de estado en modo oscuro.
+  //
+  // Corrige lo que S-059 había derivado por fórmula (tinte 12% / borde 26% del pleno compuesto
+  // sobre --color-dark-surface). Esa derivación tenía dos problemas:
+  //
+  //   1. No reproducía los valores del manual, que declara un trío explícito por familia y por
+  //      modo — la fórmula era una reconstrucción, no la fuente.
+  //   2. Dejaba fuera el TEXTO. Al no redeclararse, cada familia conservaba su profundo del modo
+  //      claro sobre un tinte oscuro: el violeta daba 1.38:1 de contraste y el ámbar 2.07:1.
+  //      Las seis familias fallaban AA. Con estos valores dan entre 7.2:1 y 9.9:1, y el test
+  //      styles/dark-mode-tints.test.ts calcula el ratio en vez de asumirlo.
+  --color-dark-tint-green: #12312D;
+  --color-dark-tint-border-green: #1D4A43;
+  --color-dark-deep-green: #61CCB9;
+  --color-dark-tint-aqua: #14322F;
+  --color-dark-tint-border-aqua: #205049;
+  --color-dark-deep-aqua: #A9E4DA;
+  --color-dark-tint-amber: #33240E;
+  --color-dark-tint-border-amber: #5A3F16;
+  --color-dark-deep-amber: #FEC97A;
+  --color-dark-tint-red: #351514;
+  --color-dark-tint-border-red: #5C2320;
+  --color-dark-deep-red: #FF8A84;
+  --color-dark-tint-violet: #1B1740;
+  --color-dark-tint-border-violet: #2E2769;
+  --color-dark-deep-violet: #A9A0FF;
+  --color-dark-tint-graphite: #232A38;
+  --color-dark-tint-border-graphite: #313A4B;
+  --color-dark-deep-graphite: #B9C0CC;
 
   // Sombras de modo oscuro (S-059) — las claras usan rgba(11,25,52,…) (azul oscuro), invisibles
   // sobre un canvas oscuro. Estas se componen sobre negro con la misma intención (elevación /
@@ -106,14 +134,24 @@
   // ============================================
   // Tipografía — tamaños
   // ============================================
+  // 10px es el label de la card de metrica y el pie del login: el tamaño mas chico del
+  // sistema, siempre en versalitas con tracking abierto.
+  // 9px: unico uso, el label del pie de metricas de la card de tarea.
+  --font-size-9: 9px;
+  --font-size-10: 10px;
   --font-size-11: 11px;
+  // 12px: dato del pie de metricas, responsable de la card, codigo de proyecto.
+  --font-size-12: 12px;
   --font-size-13: 13px;
   --font-size-14: 14px;
   --font-size-15: 15px;
   --font-size-16: 16px;
+  --font-size-17: 17px;
   --font-size-19: 19px;
   --font-size-30: 30px;
   --font-size-34: 34px;
+  // 44px: unico uso, el "Bienvenido" del login. El titulo de vista del resto es 30px.
+  --font-size-44: 44px;
 
   // ============================================
   // Tipografía — pesos
@@ -129,12 +167,20 @@
   --font-tracking-tight: -0.035em;
   --font-tracking-snug: -0.02em;
   --font-tracking-normal: 0;
+  // .08em: cabecera de tabla. Es mas cerrado que el de los labels de filtro (.12em) porque
+  // la cabecera tiene mas columnas en menos ancho.
+  --font-tracking-caps-table: 0.08em;
   --font-tracking-caps: 0.12em;
+  // Tracking mas abierto, para el label de metrica y el pie del login.
+  --font-tracking-caps-wide: 0.14em;
 
   // ============================================
   // Tipografía — interlínea
   // ============================================
   --font-leading-title: 1.1;
+  // Interlinea del titulo del login (44px): mas cerrada que la de titulo de vista, porque
+  // el tamano es mayor.
+  --font-leading-display: 1.05;
   --font-leading-body: 1.6;
   --font-leading-table: 1.5;
 
@@ -146,6 +192,8 @@
   --space-4: 16px;
   --space-18: 18px;
   --space-6: 24px;
+  // 26px: separacion entre tabs, que el manual fija aparte de la escala.
+  --space-26: 26px;
   --space-8: 32px;
   --space-12: 48px;
 
@@ -158,9 +206,20 @@
   // shell de 290px a 300px).
   --layout-sidebar-width: 300px;
 
+  // Ancho mínimo del producto. El handoff acota el alcance a desktop: por debajo de este ancho
+  // la app scrollea en horizontal, no se reacomoda — no hay diseño responsive móvil.
+  --layout-app-min-width: 1400px;
+
   // ============================================
   // Alturas
   // ============================================
+  // 34px: diametro del nodo del stepper, que el manual fija aparte de las alturas de control.
+  // 19px: alto y ancho minimo del contador de la tab.
+  --size-19: 19px;
+  // 28px: diametro del FAB de seccion (el "+" de una card), que el manual fija aparte de
+  // la altura de boton.
+  --size-28: 28px;
+  --size-34: 34px;
   --size-40: 40px;
   --size-44: 44px;
   --size-46: 46px;
@@ -173,6 +232,24 @@
   --radius-10: 10px;
   --radius-14: 14px;
   --radius-999: 999px;
+  // Esquina del glifo cuadrado de la etiqueta de card (10x10). Deliberadamente fuera de la
+  // escala de radios de superficie, que es cerrada en cuatro valores: esto no es una
+  // superficie, es el redondeo de un glifo.
+  --radius-glyph: 3px;
+
+  // ============================================
+  // Panel decorativo del login
+  // ============================================
+  // El único fondo con textura del sistema, y la única superficie con geometría propia: el
+  // handoff le fija 22px de radio y 22px de separación respecto del borde de la ventana.
+  // Deliberadamente FUERA del namespace --radius-*, que es una escala cerrada de cuatro
+  // valores (TS-2): esto no es un radio del sistema, es la medida de una pieza única.
+  --login-panel-corner: 22px;
+  // Espaciados propios de la columna del login: 40px entre bloques y 14px entre el titulo y
+  // su bajada. No estan en la escala (16/18/24/32) y el manual los fija para esta pantalla.
+  --login-stack-gap: 40px;
+  --login-title-gap: 14px;
+  --login-panel-gap: 22px;
 
   // ============================================
   // Sombras
@@ -180,6 +257,9 @@
   --shadow-card: 0 1px 3px rgba(11, 25, 52, .04);
   --shadow-active: 0 2px 8px rgba(11, 25, 52, .06);
   --shadow-focus: 0 0 0 3px rgba(97, 204, 185, .22);
+  // Anillo del nodo actual del stepper: 4px al 20%. Es decoracion, no foco de teclado —
+  // por eso es un valor propio y no --shadow-focus.
+  --shadow-step-ring: 0 0 0 4px rgba(97, 204, 185, .2);
 
   // ============================================
   // Duraciones y easing
@@ -198,6 +278,9 @@
   --icon-22: 22px;
   --icon-24: 24px;
   --icon-stroke: 1.6px;
+  // Grosor del borde de los botones secundarios y del stepper actual, que el manual fija en
+  // 1,5px — mas marcado que el borde de 1px de las superficies.
+  --border-width-emphasis: 1.5px;
   --icon-grid: 24px;
 
   // ============================================

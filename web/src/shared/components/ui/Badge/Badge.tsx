@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { cn } from '@/shared/utils/cn';
 import styles from './Badge.module.scss';
 
+export type BadgeGlyph = 'square' | 'round';
+
 export type BadgeVariant = 'state' | 'outline' | 'area' | 'editable' | 'card-tag';
 
 /**
@@ -28,6 +30,8 @@ interface BadgePresentationalProps {
   readonly variant?: BadgePresentationalVariant;
   readonly family?: BadgeFamily;
   readonly label: string;
+  /** Forma del glifo. Sólo aplica a `card-tag`: cuadrado el tipo, círculo la prioridad. */
+  readonly glyph?: BadgeGlyph;
 }
 
 interface BadgeEditableProps {
@@ -53,6 +57,21 @@ export const STATE_TO_FAMILY: Record<string, BadgeFamily> = {
   resuelto: 'resolved',
   cancelado: 'neutral',
 };
+
+// Glifo de la etiqueta de card (handoff § Badges y pills): es una FORMA, no un color de
+// estado. El tipo de proyecto va en cuadrado con borde y la prioridad en circulo lleno.
+//
+// La forma la declara quien construye la etiqueta y NO se deduce de la familia: "Prioridad 0"
+// es family `neutral`, igual que "Interno", y sin embargo lleva circulo. Decorativo: la
+// etiqueta ya lleva su texto al lado.
+function CardTagGlyph({ shape }: { readonly shape: BadgeGlyph }) {
+  return (
+    <span
+      className={cn(styles.tagGlyph, { [styles.tagGlyphRound]: shape === 'round' })}
+      aria-hidden="true"
+    />
+  );
+}
 
 const FAMILY_CLASS: Record<BadgeFamily, string> = {
   resolved: styles.familyResolved,
@@ -99,6 +118,7 @@ function ChevronDown() {
 
 export function Badge(props: BadgeProps) {
   const { variant = 'state', family = 'neutral', label } = props;
+  const glyph = 'glyph' in props ? props.glyph : undefined;
   const [open, setOpen] = useState(false);
 
   const familyClass = FAMILY_CLASS[family];
@@ -153,6 +173,7 @@ export function Badge(props: BadgeProps) {
       })}
     >
       {variant === 'area' && <AreaGlyph />}
+      {variant === 'card-tag' && glyph && <CardTagGlyph shape={glyph} />}
       {variant !== 'outline' && variant !== 'area' && variant !== 'card-tag' && (
         <span className={styles.dot} aria-hidden="true" />
       )}

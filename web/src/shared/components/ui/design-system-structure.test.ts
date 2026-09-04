@@ -94,12 +94,16 @@ describe('S-055 TS-78/TS-79: los componentes consumen tokens, no hex literales',
 });
 
 describe('S-054 TS-79: los tokens de avatar resuelven a los semánticos del spec', () => {
-  it('--avatar-bg resuelve a var(--bg-inverse) y --avatar-text a var(--text-inverse)', () => {
+  it('--avatar-bg resuelve a var(--bg-brand-deep) y --avatar-text a var(--text-inverse)', () => {
     const source = fs.readFileSync(
       path.resolve(UI_DIR, '../../../styles/_component.scss'),
       'utf-8'
     );
-    expect(source).toMatch(/--avatar-bg:\s*var\(--bg-inverse\)/);
+    // --bg-brand-deep, no --bg-inverse: el spec del DS dice "fondo azul oscuro" y ese azul
+    // NO cambia entre modos. --bg-inverse en oscuro se remapea a la superficie del tema (lo
+    // correcto para el overlay del modal y el fondo del tooltip), asi que el avatar perdia
+    // su azul. --bg-brand-deep es la superficie de marca, fija en ambos modos.
+    expect(source).toMatch(/--avatar-bg:\s*var\(--bg-brand-deep\)/);
     expect(source).toMatch(/--avatar-text:\s*var\(--text-inverse\)/);
   });
 });

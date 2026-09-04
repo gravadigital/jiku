@@ -1,11 +1,13 @@
 @use '@/styles' as *;
 
+// Sin linea divisoria: el prototipo del handoff arma la cabecera de vista como una fila
+// simple (titulo + accion, gap 24px) y NO le pone borde inferior. El spec del DS tampoco lo
+// pide — el borde se agrego en la implementacion. La separacion del contenido la da el gap
+// del contenedor de la pagina, no una linea.
 .header {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-default);
 }
 
 .breadcrumbNav {

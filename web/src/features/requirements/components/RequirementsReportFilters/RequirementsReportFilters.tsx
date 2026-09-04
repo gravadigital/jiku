@@ -103,6 +103,8 @@ export function RequirementsReportFilters({
       </div>
 
       <div className={styles.filterField}>
+        {/* Mismo caso que el filtro del listado: la lista de proyectos es larga y no
+            memorizable, así que el selector necesita buscador. */}
         <Select
           variant="single"
           label="Proyecto"
@@ -110,6 +112,7 @@ export function RequirementsReportFilters({
           options={projectOptions}
           value={projectId}
           onChange={onProjectIdChange}
+          searchable
         />
       </div>
 

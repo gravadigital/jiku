@@ -40,23 +40,29 @@
   display: inline-flex;
 }
 
+// El hover del acento es un color DECLARADO por el manual, y es mas claro que el acento
+// (verde agua -> verde agua claro). `filter: brightness(0.94)` hacia lo contrario: lo
+// oscurecia, con lo cual el boton primario se apagaba al pasar el mouse en vez de encenderse.
+// El `:active` si se resuelve con filtro: el manual no declara un tercer valor.
 .primary {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
   border-color: var(--button-primary-border);
+  transition: background-color var(--duration-fast) ease-out;
 
   &:hover:not(:disabled) {
-    filter: brightness(0.94);
+    background-color: var(--button-primary-bg-hover);
   }
 
   &:active:not(:disabled) {
-    filter: brightness(0.88);
+    filter: brightness(0.94);
   }
 }
 
 .secondaryNav {
   background-color: var(--button-secondary-bg);
   color: var(--button-secondary-text);
+  border-width: var(--button-secondary-border-width);
   border-color: var(--button-secondary-border-nav);
 
   &:hover:not(:disabled) {
@@ -67,6 +73,7 @@
 .secondaryDismiss {
   background-color: var(--button-secondary-bg);
   color: var(--button-secondary-text);
+  border-width: var(--button-secondary-border-width);
   border-color: var(--button-secondary-border-dismiss);
 
   &:hover:not(:disabled) {
@@ -79,9 +86,10 @@
   border-radius: var(--button-session-radius);
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
+  transition: background-color var(--duration-fast) ease-out;
 
   &:hover:not(:disabled) {
-    filter: brightness(0.94);
+    background-color: var(--button-primary-bg-hover);
   }
 }
 
@@ -90,20 +98,42 @@
   color: var(--button-flow-text);
   flex-direction: row;
 
+  // La flecha va en verde agua sobre el azul oscuro: es lo unico del boton que lleva acento.
+  .icon {
+    color: var(--button-flow-icon);
+  }
+
   &:hover:not(:disabled) {
     filter: brightness(0.94);
   }
 }
 
+// FAB de seccion: circulo de 28px con el "+" en 17px (handoff § Botones). Antes heredaba la
+// altura de boton (40px) y el glifo quedaba en 14px, muy chico para el circulo.
 .fab {
-  width: var(--button-height);
-  height: var(--button-height);
+  width: var(--button-fab-size);
+  height: var(--button-fab-size);
+  min-width: var(--button-fab-size);
   padding: 0;
   border-radius: var(--radius-pill);
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
+  font-size: var(--button-fab-glyph);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  transition: background-color var(--duration-fast) ease-out;
 
+  &:hover:not(:disabled) {
+    background-color: var(--button-primary-bg-hover);
+  }
+
+  // El `.label { display: none }` que habia aca ocultaba el propio glifo: los cuatro FAB del
+  // producto pasan el "+" como children, asi que el label ES el contenido visible del boton.
+  // El nombre accesible lo da `aria-label`, que el tipo exige en esta variante — el "+" queda
+  // como glifo y no compite con el.
   .label {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }

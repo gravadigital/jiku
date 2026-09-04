@@ -61,7 +61,11 @@ export function Accordion({
   };
 
   return (
-    <div className={cn(styles.container, { [styles.expanded]: expanded })}>
+    <div
+      className={cn(styles.container, styles[`status-${status}`], {
+        [styles.expanded]: expanded,
+      })}
+    >
       <Heading className={styles.headingWrapper}>
         <button
           id={headerId}

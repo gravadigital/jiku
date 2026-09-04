@@ -44,11 +44,28 @@
 }
 
 // segmented: segmentos unidos en un contenedor de tinte grafito, sin gap entre ítems.
+//
+// El control se ajusta a su contenido en LOS DOS EJES, sin `align-self`:
+//
+//   - `height: fit-content` + `width: fit-content` evitan que se estire cuando el padre es un
+//     flex con `align-items: stretch`. En la vista de horas quedaba en 61px de alto con
+//     opciones de 32px, y esos 29px sobrantes se veian como un bloque gris alrededor.
+//   - `align-self: center` resolvia eso pero introducia otro problema: en un contenedor
+//     flex-column centra el control HORIZONTALMENTE, y el toggle Presente/Ausente de la carga
+//     de horas quedaba en el medio de la pantalla en vez de alineado a la izquierda.
+//
+// `fit-content` acota el tamano sin tocar la alineacion, que la decide el contenedor.
 .segmented {
   background: var(--toggle-bg);
   border-radius: var(--toggle-radius);
   padding: 3px;
   gap: 0;
+  width: fit-content;
+  height: fit-content;
+
+  .option {
+    border-radius: var(--toggle-option-radius);
+  }
 }
 
 // range-pill: pills independientes con borde claro, gap entre ellas.
@@ -74,6 +91,37 @@
   gap: var(--space-1);
 
   .option {
+    position: relative;
     border: 1px solid var(--border-default);
+    // Espacio abajo para el punto de estado, que se posiciona absoluto y no ocupa flujo.
+    padding-bottom: calc(var(--space-2) + var(--toggle-status-dot-size));
   }
+}
+
+// Punto de estado del chip de dia: 6px centrado abajo, como en el diseno anterior. El estado
+// se comunica por color Y por el texto sr-only que lo acompana, nunca sólo por color.
+.statusDot {
+  position: absolute;
+  bottom: var(--space-1);
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--toggle-status-dot-size);
+  height: var(--toggle-status-dot-size);
+  border-radius: 50%;
+}
+
+.status-completed {
+  background-color: var(--toggle-status-completed);
+}
+
+.status-partial {
+  background-color: var(--toggle-status-partial);
+}
+
+.status-empty {
+  background-color: var(--toggle-status-empty);
+}
+
+.srOnly {
+  @include sr-only;
 }

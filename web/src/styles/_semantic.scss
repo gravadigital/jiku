@@ -17,12 +17,40 @@
   --bg-surface: var(--color-white);
   --bg-surface-sunken: var(--color-mist);
   --bg-inverse: var(--color-deep-blue);
+  // Superficie de marca: el azul oscuro que NO cambia entre modos. El manual lo fija para el
+  // panel del login, la cabecera de la tabla densa, los avatares y la cifra destacada — son
+  // piezas de identidad, no superficies de la interfaz.
+  //
+  // Es distinto de --bg-inverse, que en oscuro se remapea a la superficie del tema (lo que
+  // corresponde para el overlay del modal y el fondo del tooltip, que deben seguir al modo).
+  // Sin esta separación, la card de métrica destacada quedaba igual que las otras tres en
+  // oscuro, y la cabecera de la tabla densa perdía su contraste con el cuerpo.
+  --bg-brand-deep: var(--color-deep-blue);
   --bg-action-primary: var(--color-aqua);
+  --bg-action-primary-hover: var(--color-aqua-hover);
   --bg-action-secondary: transparent;
   --bg-action-disabled: var(--color-mist);
   --bg-tint-neutral: var(--color-gray-100);
   --bg-active: var(--color-aqua);
   --bg-active-subtle: rgba(97, 204, 185, .08);
+  // El "accent-soft" del handoff: relleno de acento con presencia propia (subítem activo del
+  // sidebar, barra de proporción). Distinto de --bg-active-subtle, que al 8% es el hover
+  // apenas perceptible de una docena de controles y skeletons — no es el mismo rol.
+  --bg-accent-soft: rgba(97, 204, 185, .14);
+  // Semaforo de carga: los tres estados de un chip de dia. El peso visual es deliberado —
+  // "completo" es el estado que se busca de un vistazo, "sin carga" el que no debe llamar
+  // la atencion. No son las familias de estado: esas pesan al reves.
+  --status-load-complete: var(--color-aqua-deep);
+  --status-load-partial: var(--color-system-medium);
+  --status-load-empty: var(--color-gray-300);
+
+  // Superficies y bordes que el handoff nombra aparte del canvas/surface genéricos.
+  // Se declaran en los DOS modos: un token cuyo único valor viviera en el bloque oscuro
+  // quedaría sin definir en claro (regla del tier — ver styling.md).
+  --surface-sidebar: var(--color-mist);
+  --bg-field: var(--color-white);
+  --bg-row-alt: var(--color-mist);
+  --border-dashed: var(--color-gray-300);
 
   // ============================================
   // Text
@@ -33,6 +61,14 @@
   --text-disabled: var(--color-gray-400);
   --text-inverse: var(--color-mist);
   --text-on-action: var(--color-deep-blue);
+  // Texto sobre un relleno de estado pleno (hoy sólo el pie de la card vencida, sobre rojo).
+  // Distinto de --text-inverse, que es la niebla sobre azul oscuro — acá el fondo es rojo
+  // saturado y el texto va en blanco.
+  --text-on-urgent: var(--color-white);
+  // Texto atenuado sobre el fondo inverso (azul oscuro). El secundario claro no contrasta ahí,
+  // y el gris de la paleta oscura es justo el rol que corresponde: es el mismo valor en los dos
+  // modos porque el fondo inverso tampoco cambia.
+  --text-on-inverse-muted: var(--color-dark-primary);
   --text-link: var(--color-aqua-deep);
   --text-dark: var(--color-dark-text);
 
@@ -40,6 +76,7 @@
   // Border
   // ============================================
   --border-default: var(--color-gray-200);
+  --border-emphasis-width: var(--border-width-emphasis);
   --border-strong: var(--color-graphite);
   --border-action: var(--color-aqua);
   --border-focus: var(--color-aqua);
@@ -87,18 +124,34 @@
   --text-view-title-tracking: var(--font-tracking-tight);
   --text-view-title-leading: var(--font-leading-title);
 
+  // Titulo del login: el mismo display del titulo de vista pero en 44px y con el tracking
+  // mas cerrado que el manual fija para los tamanos grandes.
+  --text-login-title-family: var(--font-family-display);
+  --text-login-title-size: var(--font-size-44);
+  --text-login-title-weight: var(--font-weight-bold);
+  --text-login-title-tracking: var(--font-tracking-tight);
+  --text-login-title-leading: var(--font-leading-display);
+
   --text-metric-family: var(--font-family-display);
   --text-metric-size: var(--font-size-34);
   --text-metric-weight: var(--font-weight-bold);
 
   --text-metric-unit-family: var(--font-family-ui);
-  --text-metric-unit-size: var(--font-size-13);
+  --text-metric-unit-size: var(--font-size-10);
   --text-metric-unit-weight: var(--font-weight-semibold);
-  --text-metric-unit-tracking: var(--font-tracking-caps);
+  --text-metric-unit-tracking: var(--font-tracking-caps-wide);
 
   --text-card-title-family: var(--font-family-ui);
   --text-card-title-size: var(--font-size-16);
   --text-card-title-weight: var(--font-weight-bold);
+
+  // Titulo de fila/card de entidad (actor, proyecto, tarea): va en Sora, no en la UI. El
+  // manual lo distingue del titulo de card generico —que si es Gabarito 16— porque nombra
+  // una entidad del dominio y no una seccion.
+  --text-entity-title-family: var(--font-family-display);
+  --text-entity-title-size: var(--font-size-19);
+  --text-entity-title-weight: var(--font-weight-bold);
+  --text-entity-title-tracking: var(--font-tracking-snug);
 
   --text-nav-item-family: var(--font-family-ui);
   --text-nav-item-size: var(--font-size-15);
@@ -123,6 +176,21 @@
   --text-filter-label-weight: var(--font-weight-semibold);
   --text-filter-label-tracking: var(--font-tracking-caps);
 
+  // Label de cabecera de tabla: 11px/600 en versalitas con tracking .08em (handoff § Tablas).
+  --text-table-header-family: var(--font-family-ui);
+  --text-table-header-size: var(--font-size-11);
+  --text-table-header-weight: var(--font-weight-semibold);
+  --text-table-header-tracking: var(--font-tracking-caps-table);
+
+  // Label del pie de metricas de la card de tarea: 9px en versalitas, el texto mas chico del
+  // sistema. Su dato va en 12px/600 (o 700 cuando la tarea esta vencida).
+  --text-card-metric-label-size: var(--font-size-9);
+  --text-card-metric-value-size: var(--font-size-13);
+
+  // Tamano del glifo del FAB de seccion (el "+"): 17px, que el manual fija aparte de la
+  // escala de texto de interfaz.
+  --text-fab-glyph-size: var(--font-size-17);
+
   --text-wordmark-family: var(--font-family-display);
   --text-wordmark-size: var(--font-size-19);
   --text-wordmark-weight: var(--font-weight-bold);
@@ -135,6 +203,9 @@
   --space-padding-card: var(--space-4);
   --space-stack-md: var(--space-4);
   --space-grid-gap: var(--space-18);
+  // Separacion entre tabs de una fila: mas abierta que el gap de grilla porque cada tab
+  // lleva subrayado propio y necesita despegarse de sus vecinas.
+  --space-tabs-gap: var(--space-26);
   --space-padding-content: var(--space-8);
   --space-stack-section: var(--space-8);
 
@@ -145,9 +216,13 @@
   --radius-field: var(--radius-10);
   --radius-surface: var(--radius-14);
   --radius-pill: var(--radius-999);
+  // Redondeo de un glifo (el cuadrado de 10px de la etiqueta de card). No es un radio de
+  // superficie: la escala de superficies queda cerrada en action/field/surface/pill.
+  --radius-glyph-corner: var(--radius-glyph);
   --elevation-surface: var(--shadow-card);
   --elevation-raised: var(--shadow-active);
   --focus-ring: var(--shadow-focus);
+  --step-ring: var(--shadow-step-ring);
 
   // ============================================
   // Layout
@@ -167,34 +242,55 @@
 :root[data-theme='dark'] {
   --bg-canvas: var(--color-dark-canvas);
   --bg-surface: var(--color-dark-surface);
-  --bg-surface-sunken: var(--color-dark-canvas);
+  --bg-surface-sunken: var(--color-dark-row-alt);
   --bg-inverse: var(--color-dark-surface);
-  --bg-action-disabled: var(--color-dark-surface);
-  --bg-tint-neutral: var(--color-dark-surface);
+  --bg-action-disabled: var(--color-dark-row-alt);
+  --bg-tint-neutral: var(--color-dark-tint-graphite);
 
   --text-primary: var(--color-dark-text);
-  --text-body: var(--color-dark-text);
+  --text-body: var(--color-dark-body);
   --text-secondary: var(--color-dark-primary);
-  --text-disabled: var(--color-dark-primary);
+  --text-disabled: var(--color-dark-placeholder);
   --text-inverse: var(--color-dark-text);
+  // La única excepción a "el acento no cambia": el manual dice que en oscuro el TEXTO verde
+  // pasa al verde agua. El verde profundo no alcanza AA sobre las superficies oscuras (3.79:1
+  // sobre la superficie de card), así que el enlace se aclara aunque el acento de fondo siga
+  // siendo el mismo. Medido en styles/dark-mode-tints.test.ts.
+  --text-link: var(--color-aqua);
 
-  --border-default: var(--color-dark-surface);
+  --border-default: var(--color-dark-border);
   --border-strong: var(--color-dark-primary);
 
+  // Las seis familias completas: tinte, borde Y TEXTO. El texto es lo que S-059 no redeclaraba.
   --state-resolved-tint: var(--color-dark-tint-green);
   --state-resolved-border: var(--color-dark-tint-border-green);
+  --state-resolved-text: var(--color-dark-deep-green);
   --state-in-progress-tint: var(--color-dark-tint-aqua);
   --state-in-progress-border: var(--color-dark-tint-border-aqua);
+  --state-in-progress-text: var(--color-dark-deep-aqua);
   --state-review-tint: var(--color-dark-tint-amber);
   --state-review-border: var(--color-dark-tint-border-amber);
+  --state-review-text: var(--color-dark-deep-amber);
   --state-urgent-tint: var(--color-dark-tint-red);
   --state-urgent-border: var(--color-dark-tint-border-red);
+  --state-urgent-text: var(--color-dark-deep-red);
   --state-analysis-tint: var(--color-dark-tint-violet);
   --state-analysis-border: var(--color-dark-tint-border-violet);
+  --state-analysis-text: var(--color-dark-deep-violet);
   --state-neutral-tint: var(--color-dark-tint-graphite);
   --state-neutral-border: var(--color-dark-tint-border-graphite);
+  --state-neutral-text: var(--color-dark-deep-graphite);
+
+  // El sidebar es más oscuro que el canvas; la card, más clara. Es la relación del manual.
+  --bg-accent-soft: rgba(97, 204, 185, .16);
+
+  --surface-sidebar: var(--color-dark-sidebar);
+  --border-dashed: var(--color-dark-dash);
+  --bg-field: var(--color-dark-input-bg);
+  --bg-row-alt: var(--color-dark-row-alt);
 
   --elevation-surface: var(--shadow-dark-card);
   --elevation-raised: var(--shadow-dark-active);
   --focus-ring: var(--shadow-dark-focus);
 }
+

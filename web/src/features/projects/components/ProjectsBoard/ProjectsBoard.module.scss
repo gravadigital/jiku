@@ -1,6 +1,8 @@
+// Grilla de cards de proyecto: el prototipo usa minmax(250px, 1fr) con gap de 18px, que al
+// ancho de diseño (1400px) da cuatro columnas. Con el minmax de 300px daban tres.
 .gridContainer {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   width: 100%;
-  gap: var(--space-4);
+  gap: var(--space-grid-gap);
 }

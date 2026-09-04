@@ -38,10 +38,8 @@ export type {
 
 /* Utils */
 export {
-  getStatusColor,
   getStatusLabel,
   getTypeLabel,
-  PROJECT_STATUS_COLORS,
   PROJECT_STATUS_LABELS,
   PROJECT_TYPE_LABELS,
 } from './utils/projectHelpers';

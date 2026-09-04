@@ -191,7 +191,7 @@ Tres lugares capturan y siguen. Los tres están documentados en el código:
 | Dónde | Qué hace | Comentario en el código |
 |---|---|---|
 | `authApi.ts:19-21` | `POST /auth/present` falla → `console.warn` y continúa | `'Failed to present in API, but continuing'` |
-| `Navbar.tsx:132-136` | `EXTERNAL_LINKS` mal formado → `console.error` y devuelve `[]` | *"Una variable mal formada no debería tumbar la navegación entera."* |
+| `shared/utils/parse-external-links.ts` | `EXTERNAL_LINKS` mal formado → `console.error` y devuelve `[]` | *"Una variable mal formada no debería tumbar la navegación entera."* |
 | `objectives/by-project/page.tsx:11-13`, `by-responsible/page.tsx:23-25` | fallo de la api → `console.error`, `projectsList` queda `[]` | sin comentario |
 
 **Regla:** tragar un error requiere comentario que diga por qué. Los dos primeros lo tienen. Los

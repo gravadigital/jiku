@@ -1,8 +1,12 @@
 @use '@/styles' as *;
 
+// `width: 100%` para que los cinco pasos se reparta el ancho disponible: sin esto la lista
+// encogia al contenido (259px en el detalle de requisito) y las etiquetas quedaban pegadas
+// entre si, sin espacio para el conector ni para leerse por separado.
 .stepper {
   display: flex;
   align-items: flex-start;
+  width: 100%;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -13,16 +17,21 @@
   align-items: center;
   position: relative;
   flex: 1;
+  min-width: 0;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  text-align: center;
 }
 
+// El conector se centra en el nodo: la mitad de su diametro (34/2 = 17px). Antes estaba en
+// 14px, calculado para el nodo de 28px, y quedaba por encima del centro. 2px de grosor es lo
+// que fija el handoff (antes 1px).
 .connector {
   position: absolute;
-  top: 14px;
+  top: calc(var(--stepper-node-size) / 2 - 1px);
   right: 50%;
   width: 100%;
-  height: 1px;
+  height: 2px;
   background-color: var(--border-default);
   z-index: 0;
 }
@@ -37,8 +46,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  // 34px es el diametro que fija el manual para el nodo (antes 28px).
+  width: var(--stepper-node-size);
+  height: var(--stepper-node-size);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-14);
   font-weight: var(--font-weight-semibold);
@@ -64,18 +74,24 @@
   border-color: var(--stepper-active-bg);
 }
 
-// Actual: anillo de 3px, NO relleno. El anillo es visual, no es foco — se declara
-// aparte de --focus-ring para que no se confunda con el foco de teclado.
+// Actual: borde de 2px MAS anillo exterior de 4px, sin relleno (handoff § Stepper). El anillo
+// es decoracion, no foco de teclado — de ahi que sea --stepper-current-ring y no --focus-ring.
+// Antes era un borde de 3px sin anillo, que no marcaba el paso actual con la misma fuerza.
 .nodeCurrent {
   background-color: var(--bg-surface);
   color: var(--stepper-text);
-  border: 3px solid var(--stepper-active-bg);
+  border: 2px solid var(--stepper-active-bg);
+  box-shadow: var(--stepper-current-ring);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-bold);
 }
 
+// Pendiente: superficie limpia con borde de 1,5px, no un relleno de tinte (handoff § Stepper).
+// Con relleno, los pasos pendientes competian visualmente con el recorrido.
 .nodePending {
-  background-color: var(--stepper-inactive-bg);
+  background-color: var(--stepper-pending-bg);
   color: var(--text-disabled);
-  border-color: var(--border-default);
+  border: 1.5px solid var(--border-default);
 }
 
 .label {

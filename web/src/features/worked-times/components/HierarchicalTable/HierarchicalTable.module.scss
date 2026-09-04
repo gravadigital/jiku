@@ -25,14 +25,15 @@
   }
 }
 
-// Proportion bar background — tinte agua del DS, no el magenta descontinuado.
+// Barra de proporción: acento suave del handoff. No un tinte de ESTADO — la barra informa una
+// proporción, no un estado, y el handoff dice que el verde agua no se usa como color de estado.
 .barBg {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   border-radius: var(--radius-action);
-  background: var(--state-in-progress-tint);
+  background: var(--bg-accent-soft);
   pointer-events: none;
   z-index: 0;
 }

@@ -125,26 +125,44 @@ Dos patrones conviven:
 Los propios, de `@/shared/components/ui`, con la misma firma:
 
 ```tsx
-<InputText     label code value onChange placeholder error />
-<InputTextarea label code value onChange placeholder error />
-<InputSelect   label code value options onChange placeholder error />
-<InputDate     label code value onChange error />
-<InputMultiplePersons label code ... />
+<Input  variant="text"     label value onChange placeholder error />
+<Input  variant="textarea" label value onChange placeholder error />
+<Input  variant="date"     label value onChange error />
+<Input  variant="search"   label value onChange placeholder />
+<Select variant="single"   label value options onChange placeholder error searchable />
+<Select variant="multiple" label value options onChange placeholder error />
 ```
 
-`code` es el `name`/`id` del campo. `onChange` recibe **el valor**, no el evento.
+`onChange` recibe **el valor**, no el evento.
+
+> **Los cinco componentes anteriores se dieron de baja.** `InputText`, `InputTextarea`,
+> `InputSelect`, `InputDate` e `InputMultiplePersons` fueron reemplazados por dos componentes
+> del Design System —`Input` y `Select`— que resuelven las mismas cinco formas con una prop
+> `variant`. La baja la cerró S-060 con cero usos verificados. La prop `code` no existe en los
+> nuevos: el `id` lo genera el componente con `useId()`.
+>
+> **`searchable` en `Select`** agrega un buscador dentro del menú, con filtrado insensible a
+> acentos. Es opt-in: con pocas opciones estorba. Se usa donde la lista es larga y no
+> memorizable — el filtro por proyecto (~100 opciones) y el selector de persona de la carga de
+> horas.
 
 ### Cuándo `react-select`
 
-`react-select` se usa cuando hace falta búsqueda dentro del select, agrupamiento de opciones o
-multi-select con chips: `TargetSelector` (opciones agrupadas por proyecto/requisito/tarea),
-`RequirementFilters`, `CreateRequirementForm`, `WorkedTimesPage`, `projects/new`.
+Quedan **dos** usos, y cada uno por una capacidad concreta que el `Select` del DS no tiene:
 
-> **El objeto `selectStyles` está duplicado en cinco archivos** con variaciones menores:
-> `projects/new/page.tsx:87-138`, `projects/edit/[id]/page.tsx`, `RequirementFilters.tsx:40-95`,
-> `CreateRequirementForm.tsx:60-190`, `WorkedTimesPage.tsx:33-45`, `TargetSelector.tsx:30-50`.
-> No hay un módulo compartido. Para código nuevo: reusar uno de los existentes moviéndolo a un
-> archivo común antes que copiarlo por sexta vez.
+| Dónde | Por qué |
+|---|---|
+| `TargetSelector` | Opciones **agrupadas** (por proyecto / requisito / tarea). El `Select` del DS no soporta grupos |
+| `InputMultipleSelect` | Multi-select con chips y colapso a `+N` |
+
+**La búsqueda dentro del select ya no es motivo.** El `Select` del DS tiene una prop
+`searchable` que agrega un buscador en el menú, con filtrado insensible a acentos. Es la
+capacidad que se había perdido al migrar de `react-select` en S-057 y que dejaba el filtro por
+proyecto (~100 opciones) sin forma práctica de encontrar nada.
+
+> **El objeto `selectStyles` ya no existe** — tenía cero ocurrencias al cerrar la migración. La
+> advertencia anterior («duplicado en cinco archivos, no lo copies por sexta vez») queda sin
+> objeto: los dos usos que sobreviven estilan desde su propio módulo.
 
 ## Formularios multi-instancia
 
@@ -171,4 +189,4 @@ con id local, no N componentes con estado propio.
   patrón en vez de reducir.
 - No validar solo en el frontend y asumir que alcanza. Estas validaciones son de UI; la autoridad
   está en `api`/`core`. Ver la tabla de reglas replicadas en [`../overview.md`](../overview.md).
-- No copiar el objeto `selectStyles` a un archivo nuevo.
+- No volver a `react-select` por búsqueda: usar `searchable` del `Select` del DS.

@@ -127,20 +127,66 @@
   }
 }
 
+// El menu pasó de ser el <ul> a envolverlo, para poder alojar el buscador arriba de la lista.
+// El scroll se mueve al <ul>: asi el buscador queda fijo mientras la lista scrollea, en vez
+// de irse hacia arriba al filtrar.
 .menu {
   position: absolute;
   z-index: 10;
   top: calc(100% + var(--space-1));
   left: 0;
   right: 0;
-  margin: 0;
-  padding: var(--space-1) 0;
-  list-style: none;
+  display: flex;
+  flex-direction: column;
   background-color: var(--bg-surface);
   border-radius: var(--radius-surface);
   box-shadow: var(--elevation-raised);
+  overflow: hidden;
+}
+
+.list {
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
   max-height: 240px;
   overflow-y: auto;
+}
+
+// Buscador del menu: se separa de la lista con un borde, y usa la misma caja que un Input
+// pero sin su alto de 44px — acá es un campo auxiliar dentro de un desplegable, no un control
+// de formulario.
+.search {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--select-border);
+}
+
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--select-border);
+  border-radius: var(--radius-action);
+  background-color: var(--bg-field);
+  color: var(--select-text);
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-13);
+
+  &::placeholder {
+    color: var(--text-disabled);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--select-border-focus);
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.noResults {
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-secondary);
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-13);
 }
 
 .option {

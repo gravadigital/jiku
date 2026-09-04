@@ -2,24 +2,28 @@
   display: flex;
   width: 100vw;
   height: 100vh;
+  background-color: var(--bg-surface);
 }
 
 .left {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  flex: 0 0 50%;
-  background-color: var(--bg-surface);
-  padding: 0;
+  flex: 1 1 50%;
+  // El handoff fija el padding lateral con clamp: la columna respira en pantallas anchas sin
+  // despegarse del centro óptico en las angostas.
+  padding: 0 clamp(48px, 9vw, 140px);
   height: 100%;
 }
 
 .formContainer {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-8);
+  align-items: flex-start;
+  // 40px entre bloques de la columna (marca / titulo+bajada / acciones / pie), como fija el
+  // handoff. Los grupos internos van mas juntos: ver .header y .actions.
+  gap: var(--login-stack);
 }
 
 // Firma horizontal (mínimo 120px de ancho — foundations/logo.md § Firma horizontal).
@@ -32,37 +36,108 @@
 .header {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  gap: var(--login-header-stack);
 }
 
+// "Bienvenido" va en 44px: es el unico titulo del sistema mas grande que el titulo de vista
+// (30px), y el manual lo fija solo para esta pantalla.
 .loginTitle {
-  font-family: var(--text-view-title-family);
-  font-size: var(--text-view-title-size);
-  font-weight: var(--text-view-title-weight);
-  letter-spacing: var(--text-view-title-tracking);
-  line-height: var(--text-view-title-leading);
+  font-family: var(--text-login-title-family);
+  font-size: var(--text-login-title-size);
+  font-weight: var(--text-login-title-weight);
+  letter-spacing: var(--text-login-title-tracking);
+  line-height: var(--text-login-title-leading);
   color: var(--text-primary);
 }
 
+.subtitle {
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-15);
+  font-weight: var(--text-body-default-weight);
+  line-height: var(--font-leading-body);
+  color: var(--text-secondary);
+  // 380px es el límite de medida que fija el handoff para la bajada: por encima, la línea se
+  // vuelve demasiado larga para leerse de un tirón.
+  max-width: 380px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-18);
+}
+
+.helpLink {
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-13);
+  color: var(--text-link);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+// El pie lleva separacion extra respecto del bloque de acciones: el handoff le da 20px
+// adicionales sobre el gap de la columna, para despegarlo del enlace de ayuda.
+.footnote {
+  margin-top: var(--space-2);
+  font-family: var(--text-body-default-family);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-disabled);
+}
+
 // Panel decorativo: azul oscuro + trama de puntos al 10% + dos halos (verde agua arriba
-// izquierda, grafito abajo derecha) — foundations/logo.md § Panel decorativo de login.
-// Único fondo con textura del sistema; reemplaza el fondo con imagen y gradiente anteriores.
+// izquierda, grafito abajo derecha) — foundations/logo.md § Panel decorativo de login, con los
+// valores del handoff de identidad. Único fondo con textura del sistema.
+//
+// El handoff lo describe como una tarjeta separada de la ventana ("radio 22, margen 22px
+// respecto del borde"), no como la mitad derecha pegada al borde: de ahí el margin y el radio
+// en las cuatro esquinas, en lugar del radio sólo izquierdo que tenía S-058.
 .right {
-  flex: 0 0 50%;
-  height: 100%;
-  background-color: var(--bg-inverse);
+  position: relative;
+  flex: 1 1 50%;
+  margin: var(--login-panel-inset) var(--login-panel-inset) var(--login-panel-inset) 0;
+  border-radius: var(--login-panel-radius);
+  overflow: hidden;
+  background-color: var(--bg-brand-deep);
   background-image:
-    radial-gradient(circle at 15% 15%, rgba(97, 204, 185, 0.35) 0%, transparent 35%),
-    radial-gradient(circle at 85% 85%, rgba(98, 108, 120, 0.35) 0%, transparent 35%),
-    radial-gradient(circle, rgba(246, 246, 249, 0.1) 1px, transparent 1px);
+    radial-gradient(circle at 20% 16%, rgba(97, 204, 185, 0.5) 0, transparent 46%),
+    radial-gradient(circle at 82% 88%, rgba(98, 108, 120, 0.55) 0, transparent 52%),
+    radial-gradient(rgba(246, 246, 249, 0.1) 1px, transparent 1px);
   background-size:
     100% 100%,
     100% 100%,
-    16px 16px;
-  // 20px se conserva literal a propósito: la UI Preview del Story Plan de S-058 lo anota
-  // explícitamente como "radio 20px izq. (se conserva)", y no hay token de radio en 20px
-  // (8/10/14/999px son los cuatro valores de la escala) — no hay un token al que resolver
-  // sin cambiar el valor visual, que el REQ no pide tocar acá.
-  border-top-left-radius: 20px;
-  border-bottom-left-radius: 20px;
+    18px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  // Los textos del panel van anclados abajo, con el mismo padding de contenido del sistema.
+  padding: var(--space-8);
+  gap: var(--space-4);
+}
+
+// El panel es decorativo y sus textos son de marca, no de interfaz: por eso van en claro fijo
+// sobre el azul oscuro, que no cambia entre modos.
+.panelTitle {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-30);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--font-leading-title);
+  letter-spacing: var(--font-tracking-snug);
+  color: var(--color-mist);
+}
+
+.panelLead {
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-14);
+  line-height: var(--font-leading-body);
+  color: var(--color-dark-body);
+  max-width: 420px;
 }

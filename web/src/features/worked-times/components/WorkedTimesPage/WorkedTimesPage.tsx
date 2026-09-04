@@ -223,12 +223,16 @@ export function WorkedTimesPage() {
         <div className={styles.formCard}>
           {isAdmin && (
             <>
+              {/* Buscador: el admin carga horas en nombre de cualquiera del equipo, y la
+                  lista de personas es larga. El de "Motivo de ausencia" NO lo lleva — es un
+                  conjunto corto y cerrado, donde un buscador estorba. */}
               <Select
                 label="Persona"
                 value={displayPersonId}
                 options={personOptions}
                 onChange={(value) => setSelectedPersonId(value)}
                 placeholder="Seleccionar persona..."
+                searchable
               />
               <hr className={styles.divider} />
             </>

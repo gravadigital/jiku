@@ -1,7 +1,7 @@
 ---
 component: ViewHeader
-version: 1.1.0
-last_updated: 2026-09-02
+version: 1.2.0
+last_updated: 2026-09-04
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «Escala tipográfica» y «Navegación»
@@ -60,7 +60,20 @@ Estado único. Los badges de `detail` tienen sus propios estados
 - **Gap breadcrumb–título:** `space.1` (4 px).
 - **Gap título–badges:** `space.2` (8 px).
 - **Acción principal:** alineada a la derecha, al centro vertical del título.
-- **Divisor inferior:** 1 px `#DFE1E7` cuando la vista lo necesita.
+- **Sin divisor inferior.** La cabecera **NO lleva `border-bottom`**.
+
+### Por qué no hay línea divisoria
+
+El prototipo del handoff arma la cabecera de vista como una **fila simple** —título + acción— y
+**no le pone borde inferior**. El spec tampoco lo pedía: el borde se había agregado en la
+implementación, y la v1.0.0 lo admitía de forma vaga («1 px cuando la vista lo necesita»), que en la
+práctica quería decir siempre.
+
+**La separación del contenido la da el gap de la columna de contenido del shell**, no una línea.
+Es coherente con el resto del producto: las superficies se separan por espacio y por contraste de
+fondo, y la línea horizontal queda reservada a donde divide **dentro** de una superficie —la
+cabecera de marca del [sidebar](./sidebar-nav.md), el borde inferior del tablist de
+[Tabs](./tabs.md), el pie de una [Card](./card.md).
 
 ## Accesibilidad
 
@@ -85,12 +98,14 @@ Estado único. Los badges de `detail` tienen sus propios estados
 - Usar Sora 30/700 sólo acá y en las cifras destacadas.
 - Poner el nivel actual del breadcrumb en caja baja.
 - Dejar una sola acción primaria por vista.
+- Dejar que el espacio separe la cabecera del contenido.
 
 **Don't:**
 
 - **NO SE DEBE** usar Sora en otros títulos: los de card van en Gabarito 16/700.
 - **NO SE DEBEN** poner dos botones primarios en la cabecera.
 - **NO SE DEBE** repetir el nombre de la sección en el título si ya está en el breadcrumb.
+- **NO SE DEBE** ponerle `border-bottom`: la separación la da el gap del contenido, no una línea.
 
 ## API
 
@@ -110,6 +125,13 @@ Estado único. Los badges de `detail` tienen sus propios estados
 
 ## Historial
 
+- **1.2.0** (2026-09-04) — **Se quita el `border-bottom`.** El prototipo del handoff no lleva línea
+  divisoria bajo el título y el spec tampoco la pedía: el borde se había agregado en la
+  implementación, y la v1.0.0 lo admitía de forma vaga («1 px cuando la vista lo necesita»), que en
+  la práctica era siempre. La separación del contenido la da ahora el **gap de la columna de
+  contenido del shell**. La API no cambia y no hay contrato roto —lo que se retira es una regla que
+  sobraba—, pero es un cambio normativo visible en todas las vistas, así que se corta como MINOR y
+  no como PATCH.
 - **1.1.0** (2026-09-02) — Se explicita que el badge de estado de la variant `detail` es el control
   de cambio de estado del requisito, en reparto con el stepper (MINOR).
 - **1.0.0** (2026-09-02) — Spec nuevo, desde el Manual de marca Jiku v1.0: título en Sora 30/700,

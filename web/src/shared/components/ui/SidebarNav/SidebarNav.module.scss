@@ -10,13 +10,17 @@
   flex: 1 1 auto;
   min-height: 0;
   border-right: 1px solid var(--border-default);
-  background-color: var(--bg-surface);
+  background-color: var(--nav-bg);
 }
 
+// Cabecera de marca con separador debajo, como en el prototipo del handoff: el isotipo y el
+// wordmark quedan divididos de la navegacion por una linea de 1px.
 .brand {
   padding: var(--space-4);
   display: flex;
   align-items: center;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-2);
 }
 
 .list {
@@ -126,15 +130,38 @@
   white-space: nowrap;
 }
 
+// "Cerrar sesion" es el boton de SESION del manual: verde agua a todo el ancho del sidebar,
+// alto 46, radio 10, con el icono de logout a la izquierda del texto (handoff § Sidebar).
+// Antes era texto pelado de 16px sin fondo ni icono.
 .logoutButton {
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--nav-logout-height);
   border: none;
-  color: var(--text-secondary);
+  border-radius: var(--nav-logout-radius);
+  background-color: var(--nav-logout-bg);
+  color: var(--nav-logout-text);
   cursor: pointer;
-  font: inherit;
+  font-family: var(--text-nav-item-family);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  transition: background-color var(--duration-fast) ease-out;
+
+  &:hover {
+    background-color: var(--nav-logout-bg-hover);
+  }
 
   &:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
   }
+}
+
+.logoutIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
 }

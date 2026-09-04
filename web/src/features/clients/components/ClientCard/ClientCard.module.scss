@@ -51,7 +51,40 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--text-card-title-family);
-  font-weight: var(--text-card-title-weight);
+  // Sora 19/700: es el nombre de una entidad, no un titulo de seccion (handoff § 8).
+  font-family: var(--text-entity-title-family);
+  font-size: var(--text-entity-title-size);
+  font-weight: var(--text-entity-title-weight);
+  letter-spacing: var(--text-entity-title-tracking);
   color: var(--text-primary);
+}
+
+// Boton de icono del handoff: 30x30, borde de 1,5px verde agua, lapiz de 15px en verde
+// profundo. Reemplaza el boton de texto rosa/rojo del sistema anterior.
+.editButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--border-action);
+  border-radius: var(--radius-action);
+  color: var(--text-link);
+  background: none;
+  transition: background-color var(--duration-fast) ease-out;
+
+  &:hover {
+    background-color: var(--bg-accent-soft);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.editIcon {
+  width: 15px;
+  height: 15px;
 }

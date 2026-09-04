@@ -2,7 +2,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import React from 'react';
 import Link from 'next/link';
 import { getObjectives, getObjectivesCount } from '@/features/objectives';
-import { EmptyState, Pagination, Table } from '@/shared/components/ui';
+import { Card, EmptyState, Pagination, Table } from '@/shared/components/ui';
 import { calculateDaysLeft, calculateTimeSince } from '@/shared/utils';
 import { isOverdue } from '../../utils/objectiveHelpers';
 import { AreaTag } from '../AreaTag';
@@ -117,9 +117,19 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
   }));
 
   return (
-    <div>
+    // Igual que el listado de requisitos: la tabla vive dentro de una card. Sin ella la tabla
+    // quedaba directamente sobre el canvas, sin el borde ni el radio que enmarcan al resto de
+    // los listados.
+    <Card variant="panel">
       <Table
-        variant="dense"
+        // `light`, no `dense`: el criterio del DS para la cabecera oscura es "tabla para mirar
+        // de un vistazo, NO para navegar", y las filas de este listado sí navegan — el título
+        // de cada tarea linkea a su detalle. Es el mismo tipo de pantalla que el listado de
+        // requisitos, así que comparte su densidad.
+        //
+        // `dense` quedó SIN consumidores: el reporte de requisitos, que era el último, también
+        // pasó a `light`. Se conserva declarado un release por la política del DS.
+        variant="light"
         columns={COLUMNS}
         rows={rows}
         ariaLabel="Tabla de tareas"
@@ -130,6 +140,6 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
       {objectives.length > 0 && (
         <Pagination totalItems={objectivesCount} limit={Number(filters.limit) || 20} basePath="/objectives" />
       )}
-    </div>
+    </Card>
   );
 }

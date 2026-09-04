@@ -1,6 +1,12 @@
+// `flex: none` para que el envoltorio no se comprima cuando es hijo de un flex container.
+// Sin esto, el contenedor lo encogia por debajo del ancho de su contenido —la pill lleva
+// `white-space: nowrap`, asi que no cede— y el badge se desbordaba por la derecha, montandose
+// sobre su vecino (visible en la card de tarea: la pill de estado se metia debajo de la
+// etiqueta de area).
 .wrapper {
   position: relative;
   display: inline-flex;
+  flex: none;
 }
 
 .badge {
@@ -63,9 +69,31 @@
   background: transparent;
 }
 
+// Etiqueta de card: radio 8 (no pill) con borde, segun el handoff — es la unica pill del
+// sistema que NO es redonda, porque no informa estado sino clasificacion.
 .cardTag {
   background-color: var(--bg-tint-neutral);
-  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-action);
+  color: var(--text-body);
+}
+
+// Glifo del tipo: cuadrado de 10px con borde de 1,6px, en el color pleno de la familia.
+.tagGlyph {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border: 1.6px solid currentColor;
+  border-radius: var(--badge-glyph-radius);
+}
+
+// Glifo de la prioridad: circulo de 8px lleno.
+.tagGlyphRound {
+  width: 8px;
+  height: 8px;
+  border: none;
+  border-radius: 50%;
+  background-color: currentColor;
 }
 
 .menu {

@@ -192,7 +192,7 @@ detectar que la sesión murió; ver [`auth.md`](./auth.md).
 | `SidebarContext` | `isOpen`, `isCollapsed`, `open`, `close`, `toggle`, `collapse`, `expand`, `toggleCollapse` | ninguno |
 
 `SidebarContext` describe un sidebar colapsable que no existe: el shell tiene la sidebar fija en
-290 px (`(loggedin)/styles.module.scss:7-16`).
+300 px (la declara `SidebarNav.module.scss`).
 
 **Regla:** es código muerto, no la extensión natural para estado global. Si aparece la necesidad
 de estado global compartido, decidir explícitamente si se revive uno de estos o se introduce otra

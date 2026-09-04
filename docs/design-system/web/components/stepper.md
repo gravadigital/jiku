@@ -1,7 +1,7 @@
 ---
 component: Stepper
-version: 1.1.0
-last_updated: 2026-09-02
+version: 1.2.0
+last_updated: 2026-09-04
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «Stepper de estado del requisito»
@@ -57,9 +57,10 @@ Tres controles distintos, y la separación es deliberada:
 
 ## Anatomía
 
-1. **Nodos** — uno por etapa, con `✓` (recorrida) o su número (pendiente).
+1. **Nodos** — circulares de **34 px**, uno por etapa, con `✓` (recorrida), `×` (omitida) o **su
+   número** (actual y pendiente).
 2. **Labels** — nombre de la etapa, con el término de dominio exacto.
-3. **Conectores** — línea entre nodos, en borde claro.
+3. **Conectores** — línea de **2 px** entre nodos, centrada en el nodo, en borde claro.
 
 ## Etapas
 
@@ -100,20 +101,47 @@ Tres estados de nodo, y son la especificación central:
 
 | State | Descripción | Tokens |
 |---|---|---|
-| **Recorrido** | Etapa completada | **Verde agua pleno** + `✓` en azul oscuro — `stepper.done.*` |
-| **Actual** | Etapa en curso | **Anillo** — `stepper.current.ring`, texto `text.primary` |
-| **Pendiente** | Etapa por delante | **Borde claro** + número, texto `text.disabled` — `stepper.pending.*` |
+| **Recorrido** | Etapa completada | **Verde agua pleno** + `✓` en azul oscuro — `stepper.active.bg` |
+| **Omitida** | Recorrida sin actividad real (caso «cancelado») | Mismo fondo que recorrido, glifo `×` en vez de `✓` |
+| **Actual** | Etapa en curso | **Superficie limpia + borde de 2 px verde agua + anillo exterior de 4 px**, con **su número** en 13/700 — `stepper.current.ring` |
+| **Pendiente** | Etapa por delante | **Superficie limpia + borde de 1,5 px claro** + número, texto `text.disabled` — `stepper.pending.bg` |
 
 > «Lo recorrido va en verde agua pleno; la etapa actual, en anillo; lo pendiente, en borde claro.»
 > Es el único lugar del sistema donde el verde agua se usa **pleno como fondo**, y funciona porque
 > el `✓` va en azul oscuro (9.8:1).
 
+### El paso actual muestra su número
+
+El nodo actual **lleva su número**, igual que los pendientes, en **13 px / peso 700**. Antes
+quedaba vacío y el círculo del actual se leía como un hueco en la secuencia, no como el paso donde
+está el requisito.
+
+Lo que lo distingue no es la ausencia de contenido sino **el anillo**: borde de 2 px en verde agua
+**más** un anillo exterior de 4 px (`stepper.current.ring`). La v1.1.0 lo especificaba como un
+borde de 3 px sin anillo, y a ese grosor el paso actual no se separaba de los pendientes.
+
+> **El anillo no es foco de teclado.** Usa `stepper.current.ring`, no `focus.ring`: es **estado**,
+> y el stepper informativo ni siquiera es focusable.
+
+### El pendiente es superficie limpia, no tinte
+
+El nodo pendiente pasó de **relleno de tinte** a **superficie limpia (`bg.surface`) con borde de
+1,5 px**. Con relleno, los pasos pendientes competían visualmente con el recorrido: cinco nodos
+todos con fondo, y el verde agua pleno perdía su condición de único destacado.
+
 ## Spacing & sizing rules
 
-- **Nodo:** circular, radio pill.
-- **Conector:** 1 px `#DFE1E7`, alineado al centro vertical de los nodos.
-- **Gap nodo–label:** `space.1` (4 px).
-- **Anillo del actual:** 3 px, mismo grosor que `focus.ring` pero **no es foco** — es estado.
+- **Nodo:** circular de **34 px** de diámetro (antes 28), radio pill.
+- **Conector:** **2 px** `#DFE1E7`, alineado al **centro del nodo** — a media altura de su diámetro
+  (34/2 = 17 px). Con el nodo de 28 px el conector quedaba calculado en 14 px y, al crecer el nodo,
+  por encima de su centro.
+- **Gap nodo–label:** `space.2` (8 px).
+- **Borde del actual:** 2 px verde agua, **más anillo exterior de 4 px** al 20 % de opacidad.
+- **Borde del pendiente:** 1,5 px `border.default`.
+- **Número del actual:** 13 px / peso 700. **Número del pendiente:** 14 px / peso 600.
+- **La lista ocupa el ancho completo** (`width: 100%`) y los cinco pasos se reparten el espacio en
+  partes iguales. Antes encogía al contenido —259 px en el detalle de requisito— y las etiquetas
+  quedaban pegadas entre sí, sin espacio para el conector ni para leerse por separado.
 
 ## Accesibilidad
 
@@ -123,7 +151,11 @@ Tres estados de nodo, y son la especificación central:
 - La etapa actual **DEBE** llevar `aria-current="step"`.
 - Si el stepper permite avanzar, cada nodo accionable es un `<button>` con `focus.ring`; si es sólo
   informativo, **NO DEBE** ser focusable.
-- El estado **NO SE COMUNICA sólo con color:** `✓` / número / anillo distinguen por forma.
+- El estado **NO SE COMUNICA sólo con color:** `✓` / `×` / número / anillo distinguen por forma. El
+  nodo actual y el pendiente comparten glifo (su número) y se separan por el anillo y el grosor de
+  borde, además del texto accesible.
+- La **etapa omitida** lleva `×` y se anuncia «omitida», no «completada»: mismo fondo verde agua,
+  pero el glifo no sugiere que se completó.
 - **El stepper informativo NO DEBE ser focusable.** Si en una vista no cambia el estado —el caso
   por defecto, porque eso lo hace el badge— no entra en el orden de foco y se expone como lista,
   no como grupo de controles.
@@ -141,13 +173,19 @@ Tres estados de nodo, y son la especificación central:
 **Do:**
 
 - Usar verde agua pleno **sólo** para lo recorrido.
-- Distinguir el actual con anillo, no con otro color.
+- Distinguir el actual con anillo, no con otro color, y mostrarle su número.
+- Dejar el pendiente en superficie limpia con borde.
 - Anunciar el estado de cada etapa en texto.
+- Dar a la lista el ancho completo para que los labels no se peguen.
 
 **Don't:**
 
 - **NO SE DEBE** usar un color de sistema en los nodos: el recorrido no es un estado de sistema.
-- **NO SE DEBE** rellenar el nodo actual: el anillo es lo que lo distingue.
+- **NO SE DEBE** rellenar el nodo actual: la superficie limpia con anillo es lo que lo distingue.
+- **NO SE DEBE** dejar el nodo actual sin su número: vacío se lee como un hueco.
+- **NO SE DEBE** rellenar de tinte el nodo pendiente: compite con el verde agua pleno del
+  recorrido.
+- **NO SE DEBE** usar `focus.ring` para el anillo del actual: es estado, no foco.
 - **NO SE DEBE** convertir el stepper en el selector de estado: para eso está el badge editable.
 - **NO SE DEBEN** agregar Resuelto y Cancelado como nodos: son cierre, no pasos de trabajo.
 - **NO SE DEBE** recortar los cinco pasos por tipo de requisito.
@@ -158,7 +196,9 @@ Tres estados de nodo, y son la especificación central:
 |---|---|---|---|
 | `steps` | `{ key, label }[]` | — | Etapas, en orden |
 | `currentKey` | `string` | — | Etapa actual |
-| `interactive` | `boolean` | `false` | Si los nodos avanzan el estado |
+| `doneKeys` | `string[]` | — | Marca pasos como recorridos aun cuando `currentKey` no es uno de los `steps` (un estado terminal como `resuelto`/`cancelado`, que no es nodo pero implica el recorrido completo) |
+| `skippedKeys` | `string[]` | — | De los recorridos, cuáles no tuvieron actividad real: se dibujan con `×` en vez de `✓` (caso «cancelado», S-050) |
+| `interactive` | `boolean` | `false` | Si los nodos avanzan el estado. En `false` no son focusables |
 | `onStepChange` | `(key) => void` | — | Callback de avance |
 
 ## Componentes y patterns relacionados
@@ -169,6 +209,18 @@ Tres estados de nodo, y son la especificación central:
 
 ## Historial
 
+- **1.2.0** (2026-09-04) — Se corrige la especificación visual del nodo contra el código, sin
+  cambiar la API. El **nodo pasa de 28 px a 34 px**. El **paso actual muestra su número** (antes
+  quedaba vacío y el círculo se leía como un hueco) en 13 px / peso 700, y se distingue con **borde
+  de 2 px más anillo exterior de 4 px** en lugar del borde de 3 px sin anillo, que a ese grosor no
+  lo separaba de los pendientes. El **pendiente pasa de relleno de tinte a superficie limpia con
+  borde de 1,5 px**, porque con relleno competía visualmente con el verde agua pleno del recorrido.
+  El **conector pasa a 2 px y se centra en el nodo** (a media altura de sus 34 px; antes estaba
+  calculado para el nodo de 28 y quedaba por encima del centro). La **lista ocupa el ancho
+  completo**: antes encogía al contenido —259 px en el detalle de requisito— y las etiquetas
+  quedaban pegadas entre sí. Se documentan `doneKeys`, `skippedKeys` y el estado de nodo
+  **omitida** (`×`), ya presentes en el componente desde S-050 (MINOR: aditivo en API, sin ruptura
+  de contrato).
 - **1.1.0** (2026-09-02) — Confirmado el reparto de responsabilidades: el stepper muestra los
   **cinco** pasos de trabajo y **no** es el control de cambio de estado; los siete estados los
   ofrece el badge editable de la cabecera, y el cierre vive en la card de resolución. Se agrega el

@@ -13,7 +13,7 @@
 ## Estado actual
 
 - **Surface:** `web`
-- **Versión:** `3.0.0`
+- **Versión:** `4.0.0`
 - **Estado:** normativo — implementado
 - **Origen:** **Manual de marca Jiku v1.0** (septiembre 2026) — documento de diseño, fuera del
   repositorio
@@ -75,7 +75,7 @@ una está registrada en su spec y en el [CHANGELOG](CHANGELOG.md).
 | **Acción destructiva** | `2.1.0` | **Secundario de borde claro** en ambas acciones, sin rojo y sin primario. La advertencia la carga el **texto**, que pasa a ser parte del mecanismo de seguridad |
 | **Alcance del manual** | `2.2.0` | **No aplica a `opus-web`.** Dos marcas: Jiku interno, **Opus** de cara al cliente, con DS independientes. Ver [ADR-006](../../adrs/ADR-006-dos-frontends-una-api.md#identidad-visual-dos-marcas-separadas) |
 | **Tono por contexto** | `2.3.0` | El tono es **uno solo** (sereno, sin adorno); lo que varía es la información de cada mensaje. Forma fija por contexto en [guidelines/content.md](guidelines/content.md) |
-| **Responsive** | `2.4.0` | Mobile es **objetivo declarado sin fecha**. `mobile` no se declara como viewport hasta que el shell lo cumpla; el primer trabajo es el **shell** |
+| **Responsive** | `2.4.0`, ampliado en `4.0.0` | Mobile es **objetivo declarado sin fecha**. `mobile` no se declara como viewport hasta que el shell lo cumpla. En `4.0.0` el alcance desktop pasó a ser **explícito**: el shell declara `min-width: 1400px` con scroll horizontal por debajo, en vez del `overflow-x: hidden` que recortaba el contenido — es lo que fija el handoff, y cierra el síntoma sin cerrar la pregunta de fondo |
 
 ### Lo que queda: trabajo, no preguntas
 
@@ -86,8 +86,9 @@ muerto del barrel. Lo que sigue abierto es explícitamente **fuera de su alcance
 |---|---|---|
 | **Migrar el microcopy** | **52 toasts** | 13 son *borrar el sufijo* (mecánico); 10 requieren decidir el «qué hacer» de cada error. 3 ya cumplen |
 | **Clasificar los `secondary` de Button** | **29 usos** | No es automático: un `#D9D9D9` puede ser «Volver» o «Cancelar», y el sistema nuevo los distingue |
-| **Shell responsive** | FG-5 | Cuando se encare, **hay que decidir cómo se ve Jiku en un teléfono**: el manual no lo dice |
+| **Shell responsive** | FG-5 | Cuando se encare, **hay que decidir cómo se ve Jiku en un teléfono**: el manual no lo dice. Desde `4.0.0` el shell al menos no recorta — scrollea |
 | **Primitivo tipográfico** (`Heading`/`Text`) | — | No existe en el DS; S-060 lo resolvió inline con clase propia sobre tokens semánticos en los `<h1>` sueltos que quedaban. Candidato para `/product-design-system-update` |
+| **Dar de baja `dense` de `Table`** | 1 variant | Quedó **sin consumidores** en `4.0.0`, cuando el reporte de requisitos pasó a `light`. La política pide un release de gracia: si en el próximo nadie lo usa, corresponde removerlo (MAJOR) |
 | `guidelines/accessibility.md` y `i18n.md` | 2 archivos | Siguen en placeholder. Las reglas de accesibilidad **por componente** ya están en cada spec |
 
 ## Flujo de trabajo

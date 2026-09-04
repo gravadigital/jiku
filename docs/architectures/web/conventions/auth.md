@@ -164,7 +164,8 @@ export default async function Layout({ children }) {
   const isAdmin = session?.user?.roles?.includes('admin') ?? false;
   ```
 
-- La navegación filtra por rol en `Navbar.tsx:158-165`. **Ocultar un ítem no es autorización:**
+- La navegación filtra por rol en `ShellSidebar.tsx` (`getVisibleNavItems`). **Ocultar un ítem
+  no es autorización:**
   el corte real está en la página.
 
 ## Login y logout
@@ -186,7 +187,7 @@ darle a la api la oportunidad de registrar al usuario antes de la primera pantal
 
 ```ts
 // cliente
-signOut({ callbackUrl: '/login' });          // hooks/use-logout.ts, Navbar.tsx:184
+signOut({ callbackUrl: '/login' });          // hooks/use-logout.ts, ShellSidebar.tsx
 
 // server action
 await signOut({ redirectTo: '/login' });     // unauthorized/page.tsx:21

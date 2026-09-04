@@ -287,7 +287,9 @@ export function RequirementStatusCard({
         </div>
 
         <div className={styles.panelActions}>
-          <Button variant="primary" onClick={handleSaveFields} disabled={isPending}>
+          {/* Secundario, no primario: el handoff admite UN solo boton primario por vista, y
+              en esta pantalla ese lugar lo ocupa "Resolver" de la card de resolucion. */}
+          <Button variant="secondary-nav" onClick={handleSaveFields} disabled={isPending}>
             Guardar
           </Button>
           {transitionTarget && (

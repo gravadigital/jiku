@@ -1,7 +1,7 @@
 ---
 component: Avatar
-version: 1.0.0
-last_updated: 2026-09-02
+version: 1.0.1
+last_updated: 2026-09-04
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «El símbolo» y «Tablas y datos»
@@ -52,10 +52,25 @@ contiene, no el avatar.
 ## Spacing & sizing rules
 
 - **Radio:** 999 px (`radius.pill`).
-- **Fondo:** `avatar.bg` → azul oscuro `#0B1934`.
+- **Fondo:** `avatar.bg` → **`bg.brand-deep`**, el azul oscuro de marca `#0B1934`.
 - **Texto:** `avatar.text` → niebla `#F6F6F9`, dos iniciales en mayúscula.
 - **Gap avatar–nombre:** `space.2` (8 px).
 - **Sufijo «+N»** para responsables extra, en `text.secondary`, **fuera** del avatar.
+
+### El fondo es `bg.brand-deep`, no `bg.inverse`
+
+`--avatar-bg` resuelve a **`bg.brand-deep`** y no a `bg.inverse`, y la diferencia sólo se ve en
+modo oscuro:
+
+- **`bg.brand-deep`** es el azul oscuro **de marca**: no cambia entre modos. El manual lo fija para
+  el panel del login, los avatares y la cifra destacada — son piezas de **identidad**, no
+  superficies de la interfaz.
+- **`bg.inverse`** en oscuro **se remapea a la superficie del tema**, que es lo que corresponde para
+  el overlay del modal y el fondo del tooltip, porque deben seguir al modo.
+
+Con `bg.inverse`, **el avatar perdía su azul en modo oscuro**: el círculo tomaba la superficie del
+tema y quedaba indistinguible del fondo sobre el que se apoya. El spec dice «fondo azul oscuro», y
+ese azul es el de marca.
 
 ## Accesibilidad
 
@@ -64,7 +79,8 @@ contiene, no el avatar.
 - Cuando el avatar aparece **sin** el nombre, **DEBE** llevar el nombre completo como
   `aria-label` — las iniciales solas no identifican a nadie.
 - El sufijo «+N» **DEBE** ser accesible: «y 1 responsable más», no «+1».
-- **Contraste:** niebla sobre azul oscuro **14.6:1**.
+- **Contraste:** niebla sobre azul oscuro **14.6:1**, **en los dos modos** — que es precisamente lo
+  que garantiza usar `bg.brand-deep` y no un token que sigue al tema.
 - **NO SE DEBE** depender del color para distinguir personas: las iniciales son el dato, y el fondo
   es siempre el mismo azul oscuro.
 
@@ -91,7 +107,10 @@ contiene, no el avatar.
 - **NO SE DEBE** asignar un color por persona.
 - **NO SE DEBE** usar el símbolo de Jiku como avatar de una persona.
 - **NO SE DEBE** recolorear ni rotar el símbolo en la variant `app`.
-- **NO SE DEBE** mostrar una sola inicial.
+- **NO SE DEBE** mostrar una sola inicial. Con un nombre de una sola palabra se toman sus dos
+  primeras letras.
+- **NO SE DEBE** apoyar el fondo del avatar en un token que se remapea por modo: el azul del avatar
+  es de marca y no sigue al tema.
 
 ## API
 
@@ -101,6 +120,7 @@ contiene, no el avatar.
 | `name` | `string` | — | Nombre completo; de acá salen las iniciales |
 | `size` | `"sm" \| "md"` | `"sm"` | Diámetro |
 | `nameVisible` | `boolean` | `false` | Si el nombre se muestra al lado (define si es decorativo) |
+| `extraCount` | `number` | — | Responsables adicionales no representados. Se muestra como «+N» **fuera** del avatar, con su texto accesible en palabras («y 1 responsable más») |
 
 ## Componentes y patterns relacionados
 
@@ -110,6 +130,13 @@ contiene, no el avatar.
 
 ## Historial
 
+- **1.0.1** (2026-09-04) — Corrección de token: **`--avatar-bg` pasa de `bg.inverse` a
+  `bg.brand-deep`**. El spec pide «fondo azul oscuro» y ese azul **no cambia entre modos**, pero
+  `bg.inverse` en oscuro se remapea a la superficie del tema —lo que corresponde para el overlay
+  del modal y el fondo del tooltip, que deben seguir al modo— y el avatar perdía su azul,
+  quedando indistinguible del fondo. Se documenta además `extraCount`, ya presente en el
+  componente (PATCH: no cambia la API ni la regla, corrige la referencia de token que la
+  incumplía).
 - **1.0.0** (2026-09-02) — Spec nuevo, desde el Manual de marca Jiku v1.0: iniciales en niebla
   sobre azul oscuro con fondo único (sin color por persona), variant `app` con el símbolo al 62 %
   del diámetro, y regla de cuándo el avatar es decorativo (MINOR sobre el DS).

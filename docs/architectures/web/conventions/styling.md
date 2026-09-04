@@ -18,7 +18,7 @@ package: sass
 
 ```
 src/
-├── app/globals.scss        reset + estilos de elemento residuales + estilos de librerías de terceros
+├── app/globals.scss        reset + override de `input` (deuda) + estilos de librerías de terceros
 ├── styles/
 │   ├── index.scss          @forward del resto del directorio
 │   ├── _reference.scss     tier 1 — primitivos: color.aqua, radius.8, space.4 (hex legítimos acá)
@@ -142,12 +142,35 @@ consume los que `_reference.scss`/`_semantic.scss`/`_component.scss` ya definen.
 Selector `:root[data-theme='dark']` en `_semantic.scss`, activado por `ThemeToggle`
 (`features/theme/`) y persistido en `localStorage`. **Es una paleta propia, no una inversión
 matemática de la clara**: cada token semántico que cambia entre modos tiene su propio valor
-declarado explícitamente (`--bg-canvas`, `--text-primary`, los `-tint`/`-border` de las 6 familias
-de estado, las sombras), nunca un `filter: invert()` ni una fórmula.
+declarado explícitamente (`--bg-canvas`, `--text-primary`, los tríos tinte/borde/**texto** de las
+6 familias de estado, las superficies propias, las sombras), nunca un `filter: invert()` ni una
+fórmula.
 
-**El acento no se redeclara.** `--bg-action-primary`, `--bg-active`, `--border-action`,
-`--border-focus`, `--border-required`, `--text-link` y `--text-on-action` quedan **iguales en los
-dos modos** — el verde agua no cambia entre claro y oscuro.
+> **Los valores oscuros son los del manual, no derivados.** S-059 los había calculado con la
+> fórmula del DS (tinte 12% / borde 26% del pleno sobre la superficie oscura), y esa derivación
+> dejaba fuera el **texto**: cada familia conservaba su profundo del modo claro sobre un tinte
+> oscuro, y **las seis fallaban contraste AA** (el violeta daba 1.38:1, el ámbar 2.07:1). Los
+> tríos explícitos del manual dan entre 7.2:1 y 9.9:1.
+>
+> Junto con eso se agregaron las superficies que el manual distingue y la fórmula no cubría:
+> `--surface-sidebar` (el sidebar es **más oscuro** que el canvas, al revés de la card, que es
+> más clara), `--bg-field`, `--bg-row-alt` y `--border-dashed`.
+
+**El acento de fondo no se redeclara.** `--bg-action-primary`, `--bg-active`, `--border-action`,
+`--border-focus`, `--border-required` y `--text-on-action` quedan **iguales en los dos modos** —
+el verde agua no cambia entre claro y oscuro.
+
+**La excepción es `--text-link`**, que en oscuro pasa al verde agua. El manual lo dice explícito
+(«en oscuro el *texto* verde pasa a verde agua») y la medición lo confirma: el verde profundo da
+3.79:1 sobre la superficie de card oscura, por debajo de AA. Es el TEXTO verde el que se aclara,
+no el acento de relleno.
+
+**Y hay una superficie de marca que NO sigue al tema:** `--bg-brand-deep`. El azul oscuro del
+panel del login, los avatares, la cabecera de tabla densa y la cifra destacada es identidad, no
+superficie de interfaz, así que es fijo en ambos modos. Es distinto de `--bg-inverse`, que en
+oscuro sí se remapea a la superficie del tema — lo correcto para el overlay del modal y el fondo
+del tooltip. Confundirlos dejaba la card de métrica destacada idéntica a las otras tres en modo
+oscuro.
 
 Un componente nuevo no necesita saber en qué modo está: consume el token semántico y el modo
 resuelve el valor correcto por sí solo. No escribir `[data-theme='dark'] &` en un módulo de
@@ -223,10 +246,13 @@ En paralelo hay **14 `@media` crudas** que no pasan por los mixins, con ocho val
 **Regla para código nuevo:** usar los mixins, no `@media` cruda. Y si un valor nuevo hace falta,
 agregarlo como mixin en `_mixins.scss` en vez de escribirlo inline.
 
-**Contexto honesto:** el shell de la aplicación no tiene tratamiento responsive —
-`(loggedin)/styles.module.scss` define `display: flex; height: 100vh; overflow: hidden` con la
-sidebar en `width: 290px` y ningún media query. Por debajo de ~900 px el contenido queda con muy
-poco ancho. El detalle por pantalla está en el relevamiento UX.
+**Contexto honesto:** el shell no se reacomoda, y ahora eso es una decisión declarada en vez de
+un efecto colateral. `(loggedin)/styles.module.scss` define el contenedor como una fila flex con
+`min-width: var(--layout-app-min-width)` (1400 px) y la sidebar fija en 300 px: por debajo de ese
+ancho la aplicación **scrollea en horizontal**, que es lo que fija el handoff para el alcance
+desktop. Antes el área de contenido tenía `overflow-x: hidden`, que por debajo de ~900 px
+recortaba el contenido sin dejar forma de alcanzarlo. El detalle por pantalla está en el
+relevamiento UX.
 
 ## Estilos globales y de terceros
 
@@ -234,10 +260,8 @@ poco ancho. El detalle por pantalla está en el relevamiento UX.
 definen. Tiene:
 
 - Un reset (`* { box-sizing; padding: 0; margin: 0 }` + reset tipo Meyer).
-- **Estilos de elemento residuales**: `table`, `th`, `td`, `tr:hover`, `span`, `input`. Las tablas
-  y los inputs base ad-hoc salen de acá, no de un componente — para casos nuevos, usar
-  [`Table`](../../../design-system/web/components/table.md) o
-  [`Input`](../../../design-system/web/components/input.md) del DS.
+- **Un solo estilo de elemento residual**: `input`. Es deuda heredada, no el patrón — un campo
+  nuevo usa [`Input`](../../../design-system/web/components/input.md) del DS.
 - Overrides de librerías: `.react-datepicker__*` y `.CodeMirror` / `.editor-toolbar` (EasyMDE).
 - La clase `.sr-only`.
 
@@ -246,6 +270,21 @@ literales fuera de la escala tipográfica. Cada vista resuelve su propio `<h1>` 
 sobre `--text-view-title-*` — ver [`ViewHeader`](../../../design-system/web/components/view-header.md)
 para el patrón normativo, y `ErrorPageContent` (`app/(loggedin)/`) como ejemplo de una vista sin
 componente de cabecera dedicado.
+
+**Y ya no declara `span`, `table`, `th`, `td` ni `tr:hover`.** Eran la misma clase de deuda que
+`h1`/`h2`/`p` —selector de elemento desnudo pisando lo que el componente declara por clase— y
+tenían impacto visible en todo el producto:
+
+| Regla | Qué rompía |
+|---|---|
+| `span { font-size: 1.25rem }` | Ponía **20px en todo `<span>`**. Los componentes del DS declaran su tipografía en el contenedor, así que el span interno se la comía: el texto de un `Badge` de estado renderizaba a 20px en vez de los 11px de su propia clase |
+| `td { max-width: 9.4rem }` + `overflow: hidden` | Recortaba toda celda a 150px, y la pill «Planificación» mide 151px: **todas las pills de estado salían cortadas** en el listado de requisitos |
+| `th, td { border: 3px }` | Contradecía el borde de 1px del manual |
+| `th, td { text-align: center }` | Peleaba con la alineación a la izquierda del DS |
+
+`Table` del DS es la **única** tabla del producto y estila sus propias celdas (padding, borde
+inferior de 1px, alineación, alto de fila de 48px, cabecera por variante), así que esas reglas no
+sostenían nada. Una tabla nueva usa el componente, nunca el selector de elemento.
 
 **Reglas:**
 

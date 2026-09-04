@@ -105,6 +105,9 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
         />
       </div>
       <div className={styles.filterField}>
+        {/* `searchable`: hay ~100 proyectos y encontrar uno scrolleando es impracticable.
+            El selector tenía buscador con `react-select` antes de S-057; la migración al
+            Select del DS lo perdió porque el componente no lo tenía. */}
         <Select
           variant="single"
           label="Proyecto"
@@ -112,6 +115,7 @@ export function RequirementFilters({ filters, onChange }: RequirementFiltersProp
           options={projectOptions}
           value={String(filters.projectId ?? '')}
           onChange={(value) => onChange('projectId', value)}
+          searchable
         />
       </div>
       <div className={styles.filterField}>

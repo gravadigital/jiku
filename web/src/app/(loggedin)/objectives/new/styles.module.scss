@@ -6,12 +6,21 @@
   align-items: stretch;
   column-gap: 2rem;
 
+  // Los campos de la columna se separan 8px, como en los formularios de proyecto y de
+  // requisito. Sin esto el espaciado quedaba a merced del margen propio de cada control:
+  // 18px entre algunos y CERO entre otros (la descripcion quedaba pegada al campo anterior).
   .column {
     width: 50%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .textareaCont {
     width: 50%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 }
 

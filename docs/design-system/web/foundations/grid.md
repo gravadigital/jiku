@@ -34,18 +34,43 @@ cambio breaking y versionalo como tal (ver `governance.md`).
 el shell impone.
 
 ```scss
-/* web/src/app/(loggedin)/styles.module.scss:1-26 */
-.layoutContainer { display: flex; height: 100vh; overflow: hidden; }
-.sidebarContainer { width: 290px; height: 100vh; overflow-y: auto; }
-.mainContainer { flex: 1; height: 100vh; overflow-y: auto; padding: 1rem 2rem; }
+/* web/src/app/(loggedin)/styles.module.scss */
+.layoutContainer {
+  display: flex;
+  height: 100vh;
+  min-width: var(--layout-app-min-width); /* 1400px */
+  overflow-y: hidden;
+}
+.sidebarContainer { flex: none; height: 100vh; overflow-y: auto; } /* el ancho lo declara SidebarNav */
+.mainContainer {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--space-padding-content); /* 32px */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid-gap); /* separación entre cabecera, filtros y contenido */
+}
 ```
 
-La sidebar ocupa **290 px fijos a cualquier ancho**. No hay drawer, no hay botón de hamburguesa,
-no hay estado colapsado, y el layout **no tiene ningún media query**. A 400 px de ancho el
-contenido queda con ~46 px útiles.
+La sidebar ocupa **300 px fijos a cualquier ancho**. No hay drawer, no hay botón de hamburguesa,
+no hay estado colapsado, y el layout **no tiene ningún media query**.
+
+**El alcance desktop es explícito.** El contenedor declara `min-width: 1400px`: por debajo de ese
+ancho la aplicación **scrollea en horizontal** en vez de reacomodarse, que es lo que fija el
+handoff de identidad («no hay diseño responsive móvil en este alcance»). Reemplaza el
+`overflow-x: hidden` que tenía el área de contenido y que, por debajo de ~900 px, **recortaba** el
+contenido dejándolo inalcanzable.
+
+> **El `min-width` va en el contenedor, no en el área de contenido.** Puesto en el hijo flex, el
+> contenido reclamaba 1400 px de los 1440 del viewport y dejaba 40 px para la sidebar, que
+> entonces recortaba a su propio hijo de 300 px: la barra aparecía como una tira de iconos.
 
 Las 21 pantallas autenticadas viven dentro de ese shell, así que **el tratamiento responsive que
-sí existe en 11 archivos aplica a un contenido al que no se puede llegar desde un teléfono.**
+sí existe en un puñado de archivos aplica a un contenido al que no se puede llegar desde un
+teléfono.** Eso sigue abierto (FG-5): el min-width cierra el síntoma del recorte, no la pregunta
+de cómo se ve Jiku en un teléfono.
 
 ## Viewports de UX ↔ breakpoints
 
@@ -118,16 +143,20 @@ de `web` cambia su árbol de componentes según el ancho.
 
 Las fija el Manual de marca Jiku v1.0. Ver [spacing](./spacing.md#layout).
 
-| Medida | Valor normativo | Valor en el código hoy |
+| Medida | Valor normativo | Estado en el código |
 |---|---|---|
-| Ancho de sidebar | **300 px fijo** | 290 px (`(loggedin)/styles.module.scss:8`) |
-| Padding del área de contenido | **32 px** | `1rem 2rem` (16/32 px) |
-| Divisor de estructura | **1 px `#DFE1E7`** | — |
-| Grilla de tarjetas | **4 columnas · gap 18 px** | — |
-| Alto del shell | `100vh` con `overflow: hidden` | igual |
+| Ancho de sidebar | **300 px fijo** | cumple (lo declara `SidebarNav.module.scss`) |
+| Padding del área de contenido | **32 px** | cumple (`--space-padding-content`) |
+| Separación entre bloques de contenido | **22 px** | 18 px (`--space-grid-gap`), el valor de la escala más cercano |
+| Ancho mínimo de la app | **1400 px con scroll horizontal** | cumple (`--layout-app-min-width`) |
+| Divisor de estructura | **1 px `#DFE1E7`** | cumple (`--border-default`) |
+| Grilla de tarjetas | **4 columnas · gap 18 px** | cumple (`minmax(250px, 1fr)` + `--space-grid-gap`) |
+| Alto del shell | `100vh` | cumple |
 
-> El sidebar pasa de **290 px a 300 px** y el padding vertical del contenido, de 16 px a **32 px**.
-> Son los dos cambios de layout que la migración tiene que aplicar en el shell.
+> **Los dos cambios de layout que esta tabla pedía están aplicados** (S-058 llevó la sidebar a
+> 300 px y el padding a 32 px). Lo único que no coincide al píxel es la separación entre bloques:
+> el manual dice 22 px y la escala de espaciado del sistema no lo tiene (4/8/16/18/24/32/48). Se
+> usa 18 px en vez de introducir un primitivo fuera de escala por 4 px de diferencia.
 
 ## Reglas de implementación
 

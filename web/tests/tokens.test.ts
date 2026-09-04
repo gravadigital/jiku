@@ -55,8 +55,11 @@ describe('Tier 1 — Reference (S-052)', () => {
     expect(ref['--color-aqua-deep']).toBe('#12897A');
   });
 
-  it('TS-2: declara exactamente cuatro radios, sin intermedios', () => {
-    const radii = Object.keys(ref).filter((k) => /^--radius-/.test(k));
+  it('TS-2: declara exactamente cuatro radios de superficie, sin intermedios', () => {
+    // --radius-glyph (3px) queda FUERA de la cuenta a proposito: no es un radio de
+    // superficie sino la esquina del glifo cuadrado de la etiqueta de card (10x10px). La
+    // garantia que importa es que la escala de superficies siga cerrada en cuatro valores.
+    const radii = Object.keys(ref).filter((k) => /^--radius-\d/.test(k));
     expect(radii.sort()).toEqual(['--radius-10', '--radius-14', '--radius-8', '--radius-999']);
     expect(ref['--radius-8']).toBe('8px');
     expect(ref['--radius-10']).toBe('10px');
@@ -101,7 +104,12 @@ describe('Tier 2 — Semantic (S-052)', () => {
         expect(isKnown, `${name}: ${varMatch[1]} no está en reference ni en semantic`).toBe(true);
         continue;
       }
-      const isAllowedLiteral = allowedLiterals.has(value) || /^rgba\(97,\s*204,\s*185,\s*\.08\)$/.test(value);
+      // Los rgba del acento son literales legitimos del tier: el DS los declara asi porque
+      // son transparencias del verde agua, no un primitivo de color. .08 es --bg-active-subtle
+      // (hover apenas perceptible) y .14/.16 son --bg-accent-soft (relleno con presencia
+      // propia: subitem activo del sidebar y barra de proporcion), que agrego el handoff.
+      const isAllowedLiteral =
+        allowedLiterals.has(value) || /^rgba\(97,\s*204,\s*185,\s*\.(08|14|16)\)$/.test(value);
       expect(isAllowedLiteral, `${name}: valor inesperado "${value}"`).toBe(true);
     }
   });
@@ -201,18 +209,26 @@ describe('Modo oscuro — capa semántica completa (S-059)', () => {
   });
 
   it('S-059 TS-2: el acento NO se redeclara en el bloque oscuro', () => {
+    // --text-link SALE de esta lista con el handoff de identidad. La regla del manual es que el
+    // acento de FONDO no cambia entre modos, pero que el TEXTO verde sí: pasa al verde agua.
+    // El verde profundo no alcanza AA sobre las superficies oscuras (3.79:1 sobre la superficie
+    // de card), así que mantenerlo fijo era un fallo de contraste, no una fidelidad. El caso
+    // tiene su propia cobertura en styles/dark-mode-tints.test.ts, que mide el ratio.
     const accentTokens = [
       '--bg-action-primary',
       '--bg-active',
       '--border-action',
       '--border-focus',
       '--border-required',
-      '--text-link',
       '--text-on-action',
     ];
     for (const token of accentTokens) {
       expect(dark[token], `${token} no debería redeclararse en oscuro`).toBeUndefined();
     }
+  });
+
+  it('el texto verde sí cambia en oscuro: --text-link pasa al verde agua', () => {
+    expect(dark['--text-link']).toBe('var(--color-aqua)');
   });
 
   it('S-059 TS-2b: el bloque oscuro queda plano, sin reglas anidadas (regex de TS-8 captura hasta focus-ring)', () => {
@@ -223,7 +239,9 @@ describe('Modo oscuro — capa semántica completa (S-059)', () => {
     expect(dark['--bg-canvas']).toBe('var(--color-dark-canvas)');
     expect(dark['--bg-surface']).toBe('var(--color-dark-surface)');
     expect(dark['--text-primary']).toBe('var(--color-dark-text)');
-    expect(dark['--text-body']).toBe('var(--color-dark-text)');
+    // --text-body deja de ser el mismo blanco del título: el handoff le da un valor propio
+    // (--color-dark-body), como en claro el cuerpo tampoco es el azul oscuro del título.
+    expect(dark['--text-body']).toBe('var(--color-dark-body)');
   });
 
   it('S-059 TS-6: ningún token de OLD_SYSTEM_TOKENS aparece en el bloque oscuro', () => {
@@ -253,7 +271,21 @@ describe('Tier 3 — Component (S-052)', () => {
   // la spec del DS (no hay `border.strong`-like semántico para "icono de estructura"), pero se
   // implementa verbatim porque no es criterio de esta story reabrir esa decisión (Task 7: "no
   // reabrir decisiones del DS").
-  const documentedPrimitiveExceptions = new Set(['--nav-item-icon']);
+  // --login-panel-* son la geometría del panel decorativo del login: la única superficie del
+  // sistema con radio propio (22px) fuera de la escala cerrada de cuatro radios. No hay un
+  // semántico intermedio al que apuntar —no existe una "intención" compartida para una pieza
+  // única— y crear uno sería un alias de un solo consumidor. Los primitivos viven en su propio
+  // bloque del tier 1, deliberadamente fuera del namespace --radius-* para no romper TS-2.
+  const documentedPrimitiveExceptions = new Set([
+    '--nav-item-icon',
+    // Los cuatro --login-* son la geometria y los espaciados de la pantalla de login: una
+    // pieza unica del sistema, sin un rol compartido al que apuntar. Crear un semantico para
+    // cada uno seria un alias de un solo consumidor. Ver el bloque del panel en el tier 1.
+    '--login-panel-radius',
+    '--login-panel-inset',
+    '--login-stack',
+    '--login-header-stack',
+  ]);
 
   it('TS-9: todo valor del tier component es var(--<semantico>) (o excepciones estructurales documentadas), cero hex', () => {
     expect(componentScss).not.toMatch(/#[0-9A-Fa-f]{3,6}/);
@@ -289,7 +321,10 @@ describe('Tier 3 — Component (S-052)', () => {
     expect(comp['--nav-item-height']).toBe('var(--size-48)');
     expect(comp['--nav-item-font']).toBe('var(--text-nav-item-family)');
     expect(comp['--nav-item-active-bar']).toBe('var(--bg-active)');
-    expect(comp['--nav-subitem-active-bg']).toBe('var(--bg-active-subtle)');
+    // --bg-accent-soft, no --bg-active-subtle: el handoff pide "fondo --accent-soft" para el
+    // subitem activo, y ese rol es un relleno con presencia propia (.14/.16), distinto del
+    // hover apenas perceptible de --bg-active-subtle (.08) que consumen doce controles.
+    expect(comp['--nav-subitem-active-bg']).toBe('var(--bg-accent-soft)');
     expect(comp['--nav-wordmark']).toBe('var(--text-wordmark-family)');
   });
 });
@@ -322,10 +357,16 @@ describe('Modo oscuro — fugas fuera de la capa semántica (S-059)', () => {
     expect(bodyRule).toMatch(/color:\s*var\(--text-body\);/);
   });
 
-  it('S-059 TS-8b: la regla de elemento span ya no fuerza --color-text-dark', () => {
-    expect(spanRule).not.toMatch(/--color-text-dark/);
-    // El font-size 1.25rem es deuda de modo claro fuera de alcance: sigue igual.
-    expect(spanRule).toMatch(/font-size:\s*1\.25rem;/);
+  it('S-059 TS-8b: la regla de elemento span ya no existe', () => {
+    // S-059 se limito a sacarle el --color-text-dark y dejo el `font-size: 1.25rem` anotado
+    // como "deuda de modo claro fuera de alcance". Esa deuda resulto ser un defecto con
+    // impacto en todo el producto: ponia 20px en TODO <span>, y como los componentes del DS
+    // declaran su tipografia en el contenedor, el span interno se la comia — el texto de un
+    // Badge de estado renderizaba a 20px en vez de los 11px de su propia clase.
+    //
+    // La regla se dio de baja completa. Un span que necesite tamano propio lo declara en el
+    // modulo de su componente.
+    expect(spanRule).toBe('');
   });
 
   it('S-059 TS-5: _component.scss redeclara --nav-item-icon en el bloque oscuro', () => {
@@ -334,11 +375,19 @@ describe('Modo oscuro — fugas fuera de la capa semántica (S-059)', () => {
     expect(componentBase['--nav-item-icon']).toBe('var(--color-graphite)');
   });
 
-  it('S-059 TS-4: Card conserva su patrón de referencia de override oscuro', () => {
+  it('S-059 TS-4: Card ya no necesita override oscuro', () => {
+    // El bloque `:root[data-theme='dark'] .card` se retiro, y con el los tokens
+    // --card-bg-dark / --card-border-dark.
+    //
+    // No aportaba nada al fondo: --card-bg-dark resolvia al mismo --bg-surface que --card-bg,
+    // y la superficie por modo ya la resuelven los tiers. Lo que si hacia era romper dos cosas
+    // por especificidad (0,2,1 contra la 0,1,0 de una clase suelta): con `border: none`
+    // borraba el borde de TODA card en oscuro —incluido el rojo de 1,5px de la card vencida—
+    // y pisaba el fondo azul de la card de metrica destacada.
     const comp = extractDeclarations(componentScss);
-    expect(comp['--card-border-dark']).toBe('none');
-    expect(cardModuleScss).toMatch(/:root\[data-theme=['"]dark['"]\]\s*\.card\s*\{/);
-    expect(cardModuleScss).toMatch(/border:\s*var\(--card-border-dark\);/);
+    expect(comp['--card-border-dark']).toBeUndefined();
+    expect(comp['--card-bg-dark']).toBeUndefined();
+    expect(cardModuleScss).not.toMatch(/:root\[data-theme=['"]dark['"]\]\s*\.card\s*\{/);
   });
 
   it('S-059 TS-8d: el guardia de :root de globals.scss (TS-13) sigue vigente', () => {

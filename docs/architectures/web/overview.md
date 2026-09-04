@@ -220,7 +220,7 @@ mostrarse en cada filtrado en vez de dejar la tabla vieja en pantalla.
 `providers.tsx` monta `ProjectProvider` y `SidebarProvider`. **Ningún componente llama a
 `useActiveProject` ni a `useSidebar`.** `ProjectContext` persiste `activeProjectId` en
 `localStorage` y `SidebarContext` expone `isOpen`/`isCollapsed` para un sidebar colapsable que no
-existe: el shell tiene la sidebar fija en 290 px.
+existe: el shell tiene la sidebar fija en 300 px.
 
 Es código muerto con un provider activo, no una decisión. Ver
 [`conventions/state-management.md`](./conventions/state-management.md).
@@ -334,10 +334,19 @@ Hallazgos del relevamiento del código, con evidencia. No son propuestas de solu
 ### Superficie sin tratamiento responsive
 
 `_mixins.scss` declara cuatro breakpoints (`mobile` ≤767, `tablet` 768-1023, `desktop` ≥1024,
-`large-desktop` ≥1440) y **solo `mobile` se usa**, 6 veces en 5 archivos — uno de ellos código
-muerto. En paralelo hay 14 `@media` crudas con 8 valores distintos (640, 767, 900, 1023, 1024,
-1200, 1440, 1680) que no pasan por los mixins. El shell de `(loggedin)` tiene la sidebar fija en
-290 px sin ningún media query. Detalle por pantalla en el relevamiento UX.
+`large-desktop` ≥1440) y **solo `mobile` se usa**, en un puñado de archivos. En paralelo quedan
+`@media` crudas con valores que no pasan por los mixins. Detalle por pantalla en el relevamiento
+UX.
+
+**El alcance es desktop, y ahora es explícito.** El shell declara `min-width: 1400px` en el
+contenedor del layout, con la sidebar fija en 300 px: por debajo de ese ancho la aplicación
+scrollea en horizontal en vez de reacomodarse. Es lo que fija el handoff de identidad («no hay
+diseño responsive móvil en este alcance»), y reemplaza el `overflow-x: hidden` que tenía el área
+de contenido, que por debajo de ~900 px **recortaba** el contenido y lo dejaba inalcanzable.
+
+> El `min-width` va en el **contenedor**, no en el área de contenido. Puesto en el hijo flex, el
+> contenido reclamaba 1400 px de los 1440 del viewport y dejaba 40 px para la sidebar, que
+> entonces recortaba a su propio hijo de 300 px: la barra aparecía como una tira de iconos.
 
 ### Código muerto
 

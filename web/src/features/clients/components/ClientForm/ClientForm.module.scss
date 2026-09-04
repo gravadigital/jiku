@@ -6,7 +6,9 @@
 
 .leftColumn {
   display: grid;
-  gap: var(--space-4);
+  // 8px entre campos, el mismo valor que los formularios de proyecto, requisito y tarea.
+  // Estaba en 16px: no colisionaba, pero era el unico formulario con otra medida.
+  gap: var(--space-2);
 }
 
 .descriptionField {

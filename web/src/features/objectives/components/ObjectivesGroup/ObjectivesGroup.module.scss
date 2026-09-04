@@ -80,17 +80,18 @@
   }
 }
 
+// Grilla de cards de tarea: minmax(250px, 1fr) con gap de 18px (handoff, pantalla 6), igual
+// que las demás grillas de cards del sistema.
+//
+// El `@media (min-width: 1680px)` que forzaba `repeat(4, 1fr)` se retira: existía porque con
+// minmax de 350px la grilla no llegaba a cuatro columnas por sí sola y había que forzarlas a un
+// ancho arbitrario. Con 250px las alcanza al ancho de diseño (1400px), así que el media query
+// —el único min-width del producto fuera de los breakpoints declarados— deja de tener función.
 .containerObjectives {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   width: 100%;
-  gap: 2rem;
-
-  // Único min-width del producto, fuera de los breakpoints declarados (767/768/1024/1440):
-  // no es un viewport de la superficie, se preserva tal cual (S-056, T-7).
-  @media (min-width: 1680px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  gap: var(--space-grid-gap);
 }
 
 .portalContainer {

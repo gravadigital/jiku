@@ -60,42 +60,20 @@ q:before, q:after {
 	content: '';
 	content: none;
 }
-table {
-	width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-th, td {
-  padding: 0.5rem 1rem;
-  text-align: left;
-  border: 3px solid var(--border-default);
-  border-top: none;
-  text-align: center;
-  vertical-align: middle;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-td {
-  max-width: 9.4rem;
-}
-
-td span {
-  font-size: 0.9rem;
-}
-
-th {
-  background-color: var(--border-default);
-  color: var(--text-primary);
-  padding: 1rem;
-  text-align: center;
-  vertical-align: middle;
-}
-tr:hover {
-  background-color: var(--bg-active-subtle);
-}
+// Las reglas globales de `table` / `th` / `td` / `tr:hover` se dan de baja.
+//
+// Eran la misma deuda que el `span` global: selectores de elemento desnudos pisando lo que el
+// componente ya declara por clase. `Table` del DS es la UNICA tabla del producto y estila sus
+// propias celdas (padding, borde inferior de 1px, alineacion, alto de fila, cabecera por
+// variante), asi que estas reglas no sostenian nada y si rompian tres cosas:
+//
+//   - `td { max-width: 9.4rem }` con `overflow: hidden` recortaba el contenido a 150px: la
+//     pill "Planificacion" mide 151px y quedaba cortada en el listado de requisitos.
+//   - `border: 3px` contradecia el borde de 1px del manual.
+//   - `text-align: center` y `font-size: 0.9rem` peleaban con la alineacion a la izquierda y
+//     la escala tipografica del DS.
+//
+// Una tabla nueva usa el componente `Table`, no el selector de elemento.
 
 // S-060 (T7): las reglas globales h1/h2/p (font-family legacy, tamaños y peso fuera de
 // escala) se dan de baja. Cada vista resuelve su propia tipografía con tokens semánticos
@@ -103,10 +81,15 @@ tr:hover {
 // selector de elemento desnudo. Precondición cumplida: PageLayout ya no las usa (T4) y los
 // 4 error.tsx que dependían del h1/p global migraron a ErrorPageContent con clase propia.
 
-span{
-  font-size: 1.25rem;
-  color: inherit;
-}
+// El `span { font-size: 1.25rem }` global se da de baja.
+//
+// Ponia 20px en TODO span de la aplicacion, y como los componentes del DS declaran su
+// tipografia en el contenedor (no en cada hijo), el span interno se comia el valor: el texto
+// de un Badge de estado renderizaba a 20px en vez de los 11px que declara su propia clase.
+// Es la misma clase de deuda que S-060 saco para h1/h2/p — el selector de elemento desnudo
+// pisando la tipografia por token — y el ultimo caso que quedaba con impacto visible.
+//
+// Un span que necesite tamano propio lo declara en el modulo de su componente.
 
 input {
   display: block;

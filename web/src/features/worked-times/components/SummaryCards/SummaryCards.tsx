@@ -60,7 +60,12 @@ export function SummaryCards({ dataByPerson, dataByProject, activeView }: Summar
 
   return (
     <div className={styles.cards}>
-      <Card variant="metric" metrics={[{ label: 'Total horas', value: formatHours(stats.totalMinutes) }]} />
+      {/* La primera va destacada: fondo azul oscuro y cifra en verde agua (handoff, pantalla 7). */}
+      <Card
+        variant="metric"
+        emphasis
+        metrics={[{ label: 'Total horas', value: formatHours(stats.totalMinutes) }]}
+      />
       <Card variant="metric" metrics={[{ label: 'Personas', value: String(stats.personCount) }]} />
       <Card variant="metric" metrics={[{ label: 'Proyectos', value: String(stats.projectCount) }]} />
       <Card

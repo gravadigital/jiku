@@ -1,9 +1,18 @@
 @use '@/styles' as *;
 
+// El handoff acota el alcance a desktop: ancho mínimo de 1400px y scroll horizontal por debajo,
+// sin reacomodo móvil.
+//
+// El min-width va en el CONTENEDOR, no en el área de contenido. Puesto en `.mainContainer`
+// —que es un hijo flex— hacía que el contenido reclamara 1400px de los 1440 del viewport y
+// dejara 40px para el sidebar, que entonces recortaba a su propio hijo de 300px: la barra
+// aparecía como una tira de iconos. Acá el mínimo lo sostiene la fila entera y el sidebar
+// conserva sus 300px.
 .layoutContainer {
   display: flex;
   height: 100vh;
-  overflow: hidden;
+  min-width: var(--layout-app-min-width);
+  overflow-y: hidden;
 }
 
 // D-4: se conserva el z-index: 10 literal. Corregir el orden de tokens (dropdown < navbar <
@@ -25,16 +34,33 @@
   z-index: 10;
   display: flex;
   flex-direction: column;
+  // `flex: none` para que el sidebar no ceda ancho cuando el contenido pide más: su medida la
+  // fija SidebarNav (300px) y no es negociable.
+  flex: none;
   border-right: 1px solid var(--border-default);
-  background-color: var(--bg-surface);
+  // Misma superficie que SidebarNav (--nav-bg) para que la costura siga siendo invisible:
+  // el sidebar tiene fondo propio, distinto del de una card, y en oscuro se nota.
+  background-color: var(--nav-bg);
 }
 
 .mainContainer {
   flex: 1;
+  min-width: 0;
   height: 100vh;
   overflow-y: auto;
-  overflow-x: hidden;
   box-sizing: border-box;
+  // El area de contenido es una columna con separacion propia entre bloques (cabecera de
+  // vista / filtros / contenido), como en el prototipo del handoff:
+  // `padding:32px; display:flex; flex-direction:column; gap:22px`.
+  //
+  // Antes era `display: block` sin gap, y lo que separaba la cabecera del contenido era el
+  // borde inferior del ViewHeader — un divisor que el prototipo no tiene. Al quitarlo, el
+  // titulo quedaba pegado a los filtros: la separacion tiene que venir del layout, no de una
+  // linea. Se usa --space-grid-gap (18px), el valor de la escala mas cercano a los 22px del
+  // prototipo, que ya separa las grillas de estas mismas pantallas.
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid-gap);
   // layout.content.padding del DS: 32px (antes 1rem 2rem = 16/32px).
   padding: var(--space-8);
   background-color: var(--bg-canvas);

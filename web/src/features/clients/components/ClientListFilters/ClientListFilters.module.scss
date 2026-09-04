@@ -1,15 +1,13 @@
+// Fila de filtros de Actores: grid de `2fr 1fr 1fr` con gap de 18px (handoff, pantalla 8).
+// Tres columnas, a diferencia de las cuatro de Proyectos y Requisitos.
 .filterSection {
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: var(--space-4);
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-grid-gap);
+  align-items: end;
+}
 
-  & > div {
-    flex: 1;
-  }
-
-  & > div.search {
-    flex: 2;
-  }
+// Sin min-width: 0 un select con texto largo desborda su fracción de columna.
+.filterSection > div {
+  min-width: 0;
 }

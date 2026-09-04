@@ -1,9 +1,16 @@
 @use '@/styles' as *;
 
+// Layout de detalle del handoff (pantalla 5): columna principal minmax(560px, 1fr) + aside de
+// 380px. El aside medía 420px.
+//
+// El prototipo pone el gap en 22px, que no está en la escala de espaciado del sistema
+// (4/8/16/18/24/32/48). Se usa --space-grid-gap (18px), el valor de la escala más cercano y el
+// que ya separa las grillas de esta misma pantalla, en vez de introducir un primitivo fuera de
+// escala por 4px.
 .container {
   display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: var(--space-stack-md);
+  grid-template-columns: minmax(560px, 1fr) 380px;
+  gap: var(--space-grid-gap);
   align-items: start;
 
   // Mobile + tablet unificados: en esta pantalla, tablet se comporta igual que mobile

@@ -51,8 +51,9 @@ Cuatro valores. **Sin valores intermedios.**
 | `layout.content.padding` | **32 px** | Padding del área de contenido |
 | `layout.cards.grid` | **4 columnas · gap 18 px** | Grilla de tarjetas |
 
-> El sidebar pasa de **290 px** (código actual) a **300 px**. Ver
-> [grid](./grid.md) para el viewport único de esta superficie.
+> El sidebar mide **300 px** en el código desde S-058, y el área de contenido lleva su padding de
+> 32 px. Ver [grid](./grid.md) para el viewport único de esta superficie y el ancho mínimo de
+> 1400 px que acota el alcance a desktop.
 
 ## Escala de espaciado
 

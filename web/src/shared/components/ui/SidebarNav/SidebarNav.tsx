@@ -58,6 +58,26 @@ function resolveIconSrc(icon: string): string {
   return icon;
 }
 
+// Icono de logout del handoff: puerta con flecha saliente, trazo 1,9px y terminaciones
+// redondeadas. Decorativo — el nombre accesible lo da el texto del boton.
+function LogoutIcon() {
+  return (
+    <svg
+      className={styles.logoutIcon}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14.5 4.5H6.8A2.3 2.3 0 0 0 4.5 6.8v10.4a2.3 2.3 0 0 0 2.3 2.3h7.7" />
+      <path d="M15.6 8.4 19.5 12l-3.9 3.6M10.4 12h9" />
+    </svg>
+  );
+}
+
 export function SidebarNav({
   items,
   activeKey,
@@ -127,13 +147,22 @@ export function SidebarNav({
         })}
       </ul>
       <div className={styles.footer}>
-        <div className={styles.footerIdentity}>
-          <Avatar name={user.name} size="md" nameVisible />
-          <span className={styles.userName}>{user.name}</span>
-        </div>
+        {/* La identidad solo se muestra si HAY un nombre que mostrar.
+            La sesión de Zitadel no trae `name` (el callback `profile` de lib/auth.ts devuelve
+            sólo `id` y `roles`), así que este bloque renderizaba un avatar sin iniciales
+            —un círculo azul vacío— al lado de un nombre vacío. El prototipo del handoff, de
+            hecho, no lleva identidad en el pie del sidebar: sólo el botón de cerrar sesión.
+            Cuando la sesión traiga el nombre, el bloque aparece solo. */}
+        {user.name.trim() && (
+          <div className={styles.footerIdentity}>
+            <Avatar name={user.name} size="md" nameVisible />
+            <span className={styles.userName}>{user.name}</span>
+          </div>
+        )}
         {footerSlot}
-        <button type="button" className={styles.logoutButton} onClick={onLogout} aria-label="Cerrar sesión">
-          Salir
+        <button type="button" className={styles.logoutButton} onClick={onLogout}>
+          <LogoutIcon />
+          Cerrar sesión
         </button>
       </div>
     </nav>

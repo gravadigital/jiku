@@ -83,6 +83,20 @@
   gap: var(--space-inline-sm);
 }
 
+// Separacion entre campos consecutivos.
+//
+// Los `.field` se apilan dentro del `.body` de una Card, que es `display: block` sin gap: el
+// `gap` de la Card separa sus propios hijos (titulo / body), no los campos de adentro. Sin
+// esto la distancia entre un input y el label del campo siguiente era CERO, y el label
+// quedaba pegado al borde del input anterior.
+//
+// 8px (--space-2) es lo que ya usa el formulario de proyecto, que es la referencia: ahi los
+// campos viven en una grilla con `gap: var(--space-2) var(--space-6)`. Se replica la medida en
+// vez de inventar otra, para que los formularios se espacien igual en todo el producto.
+.field + .field {
+  margin-top: var(--space-2);
+}
+
 // ── Labels ───────────────────────────────────────────────────────────
 .fieldLabel {
   font-family: var(--text-field-label-family);

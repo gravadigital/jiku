@@ -16,7 +16,7 @@ Todas las variables se leen **en el servidor y en runtime**. No hay ninguna con 
 | `ZITADEL_CLIENT_SECRET` | no | `src/lib/auth.ts:69` | Nada, con app de tipo *User Agent / PKCE*. Cae a `''` |
 | `APP_NAME` | no | `src/app/layout.tsx:14`, `(loggedin)/layout.tsx:26` | Default `'Jiku'` (título del documento y `alt` del logo) |
 | `APP_DESCRIPTION` | no | `src/app/layout.tsx:13` | Default `'Gestión de proyectos'` |
-| `EXTERNAL_LINKS` | no | `Navbar.tsx:175` | El bloque de accesos externos no se muestra. Un JSON mal formado se ignora con `console.error` |
+| `EXTERNAL_LINKS` | no | `shared/utils/parse-external-links.ts` | El bloque de accesos externos no se muestra. Un JSON mal formado se ignora con `console.error` |
 | `LOG_ACCESS_TOKEN` | no | `authApi.ts:8` | Nada. **Con `'true'` imprime el access token completo por consola** |
 
 `trustHost: true` está fijo en la config de Auth.js (`src/lib/auth.ts:18`), necesario para que

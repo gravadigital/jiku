@@ -8,26 +8,16 @@ export const OBJECTIVE_STATE_LABELS: Record<string, string> = {
   finalizado: 'Finalizado',
 };
 
+// Los mapas de color por hex (los dos `*_COLORS` que había acá) se dieron de baja con la
+// identidad Jiku: llevaban la paleta anterior —el verde, el rosa y el violeta que la tabla de
+// migración del handoff descontinúa— y no tenían consumidores, sólo se re-exportaban desde el
+// barrel. El color de estado hoy lo resuelve la familia del Badge del DS, que respeta los
+// tintes del manual. Las ETIQUETAS se conservan: cambió el color, no el contenido.
 export const OBJECTIVE_AREA_LABELS: Record<string, string> = {
   desarrollo: 'Desarrollo',
   diseño: 'Diseño',
   gestion: 'Gestión',
   investigacion: 'Investigación',
-};
-
-export const OBJECTIVE_STATE_COLORS: Record<string, string> = {
-  activo: '#22C55E',
-  backlog: '#6B7280',
-  cancelado: '#EF4444',
-  en_revision: '#8B5CF6',
-  finalizado: '#3B82F6',
-};
-
-export const OBJECTIVE_AREA_COLORS: Record<string, string> = {
-  desarrollo: '#3B82F6',
-  diseño: '#EC4899',
-  gestion: '#6B7280',
-  investigacion: '#F59E0B',
 };
 
 export const getStateLabel = (state: string): string => {
@@ -36,14 +26,6 @@ export const getStateLabel = (state: string): string => {
 
 export const getAreaLabel = (area: string): string => {
   return OBJECTIVE_AREA_LABELS[area] || area;
-};
-
-export const getStateColor = (state: string): string => {
-  return OBJECTIVE_STATE_COLORS[state] || '#6B7280';
-};
-
-export const getAreaColor = (area: string): string => {
-  return OBJECTIVE_AREA_COLORS[area] || '#6B7280';
 };
 
 const CLOSED_STATES = ['finalizado', 'cancelado'] as const;

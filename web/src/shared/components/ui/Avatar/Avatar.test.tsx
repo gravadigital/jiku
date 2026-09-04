@@ -68,7 +68,11 @@ describe('Avatar', () => {
       path.resolve(__dirname, '../../../../styles/_component.scss'),
       'utf-8'
     );
-    expect(source).toMatch(/--avatar-bg:\s*var\(--bg-inverse\)/);
+    // --bg-brand-deep, no --bg-inverse: el spec del DS dice "fondo azul oscuro" y ese azul
+    // NO cambia entre modos. --bg-inverse en oscuro se remapea a la superficie del tema (lo
+    // correcto para el overlay del modal y el fondo del tooltip), asi que el avatar perdia
+    // su azul. --bg-brand-deep es la superficie de marca, fija en ambos modos.
+    expect(source).toMatch(/--avatar-bg:\s*var\(--bg-brand-deep\)/);
     expect(source).toMatch(/--avatar-text:\s*var\(--text-inverse\)/);
   });
 });

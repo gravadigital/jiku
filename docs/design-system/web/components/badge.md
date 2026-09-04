@@ -1,7 +1,7 @@
 ---
 component: Badge
-version: 1.1.0
-last_updated: 2026-09-02
+version: 1.2.0
+last_updated: 2026-09-04
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «Badges, etiquetas y estados»
@@ -35,10 +35,12 @@ Comunica el estado, el tipo o la prioridad de una entidad en un espacio mínimo.
 
 ## Anatomía
 
-1. **Container** — pill de radio 999 px.
+1. **Container** — pill de radio 999 px. **Excepción: `card-tag` va en radio 8.**
 2. **Punto de color** — 8 px, a la izquierda. **El color vive en el punto y en el borde.**
-3. **Label** — `text.filter-label` (11/600 versalitas), en el texto profundo de su familia.
-4. **Chevron `▾`** (sólo `editable`) — a la derecha.
+3. **Glifo de forma** (sólo `card-tag`) — cuadrado con borde o círculo lleno, ver
+   [`glyph`](#glyph-la-forma-de-la-etiqueta).
+4. **Label** — `text.filter-label` (11/600 versalitas), en el texto profundo de su familia.
+5. **Chevron `▾`** (sólo `editable`) — a la derecha.
 
 > **El color vive en el punto y en el borde; el texto se mantiene legible.** Es la regla del
 > manual, y es la que hace que el badge cumpla contraste sin renunciar al color de estado.
@@ -51,7 +53,7 @@ Comunica el estado, el tipo o la prioridad de una entidad en un espacio mínimo.
 | `outline` | Tipo y prioridad | Pill outline, sin punto |
 | `area` | Área de la tarea | Glifo de área **por forma** + neutro de marca |
 | `editable` | **Control de cambio de estado** en cabecera de detalle | Pill con chevron `▾` |
-| `card-tag` | Etiqueta de tarjeta | Pill compacto — «Interno», «Comercial», «Prioridad 0» |
+| `card-tag` | Etiqueta de tarjeta | Caja de **radio 8 con borde** + glifo de forma — «Interno», «Comercial», «Prioridad 0» |
 
 ### Mapeo de estado a familia de color
 
@@ -77,6 +79,29 @@ Comunica el estado, el tipo o la prioridad de una entidad en un espacio mínimo.
 
 **Campos sin valor** («Sin tipo», «Sin prioridad») usan **tinte grafito**.
 
+### `glyph`: la forma de la etiqueta
+
+La variant `card-tag` lleva un glifo que distingue **por forma**, y la prop `glyph` la elige:
+
+| `glyph` | Forma | Para qué |
+|---|---|---|
+| `"square"` | **Cuadrado de 10 px con borde de 1,6 px**, radio 3 px, en el color pleno de la familia | **Clasificación** — «Interno», «Comercial» |
+| `"round"` | **Círculo de 8 px lleno** | **Prioridad** — «Prioridad 0» |
+
+> **La forma la declara el consumidor y NO se deduce de la familia.** Es la regla que importa:
+> «Prioridad 0» es family `neutral`, **igual que** «Interno», y sin embargo lleva círculo. La
+> familia dice el color; la forma dice de qué tipo de dato se trata. Deducir una de la otra
+> rompería el caso más frecuente.
+
+El glifo es **decorativo** (`aria-hidden="true"`): la etiqueta ya lleva su texto al lado. Sin
+`glyph`, la etiqueta se renderiza sin glifo — la prop es opcional y aditiva.
+
+### La etiqueta de card es la única pill no redonda
+
+`card-tag` pasó a **radio 8** (`radius.action`) **con borde** de 1 px, sobre `bg.tint.neutral`. Es
+la única pill del sistema que no es redonda, y la razón es semántica: **no informa estado, informa
+clasificación**. La forma distinta la separa de un badge de estado a primera vista.
+
 ### El badge editable es el control de estado
 
 La variant `editable` de la cabecera de detalle **ofrece los siete estados, sin recorte de
@@ -95,8 +120,8 @@ ofreciendo los siete estados como cualquier otro (S-050, CA-2).
 
 ## Sizes
 
-Un solo tamaño. Alto determinado por el `text.filter-label` (11/600) más el padding: **~22 px**.
-El `card-tag` comparte tamaño.
+Un solo tamaño: **alto 22 px**, dado por el `text.filter-label` (11/600) más el padding. El
+`card-tag` comparte alto y sólo cambia el radio.
 
 ## States
 
@@ -111,11 +136,18 @@ El `card-tag` comparte tamaño.
 
 ## Spacing & sizing rules
 
-- **Radio:** 999 px (`radius.pill`).
+- **Radio:** 999 px (`radius.pill`). **`card-tag`: 8 px** (`radius.action`).
+- **Alto:** 22 px en las cinco variants.
 - **Punto:** 8 px de diámetro, gap `space.1` (4 px) al label.
+- **Glifo de `card-tag`:** cuadrado de 10 px con borde de 1,6 px y radio 3 px, o círculo lleno de
+  8 px.
 - **Padding horizontal:** `space.2` (8 px).
-- **Borde:** 1 px, del color de borde de su familia.
+- **Borde:** 1 px, del color de borde de su familia. En `card-tag`, `border.default`.
 - **Gap entre badges adyacentes:** `space.1` (4 px).
+- **El envoltorio lleva `flex: none`.** Sin eso, un contenedor flex padre lo encogía por debajo del
+  ancho de su contenido —la pill lleva `nowrap`, así que no cede— y el badge se desbordaba por la
+  derecha montándose sobre su vecino. Se veía en la tarjeta de tarea: la pill de estado se metía
+  debajo de la etiqueta de área.
 
 ## Accesibilidad
 
@@ -128,6 +160,9 @@ El `card-tag` comparte tamaño.
   chevron `▾` es su affordance visible y **no basta por sí solo**, el rol lo declara. Su nombre
   accesible **DEBE** incluir qué cambia: «Estado: Desarrollo», no sólo «Desarrollo».
 - El glifo de `area` distingue **por forma además de por color**, para no depender del matiz.
+- El **glifo de `card-tag` es decorativo** (`aria-hidden="true"`): la clasificación y la prioridad
+  están escritas en el label («Interno», «Prioridad 0»). La forma es un refuerzo visual, no el
+  dato.
 
 ## Guidelines de contenido
 
@@ -143,6 +178,8 @@ El `card-tag` comparte tamaño.
 - Poner el color en el punto y el borde, y dejar el texto legible.
 - Usar tinte grafito para lo que no tiene valor.
 - Distinguir el badge editable con el chevron `▾`.
+- Declarar `glyph` explícitamente en cada `card-tag`: cuadrado para clasificación, círculo para
+  prioridad.
 
 **Don't:**
 
@@ -153,6 +190,10 @@ El `card-tag` comparte tamaño.
 - **NO SE DEBE** usar un badge como botón: si dispara una acción, es un [Button](./button.md).
 - **NO SE DEBE** deshabilitar el badge editable en `resuelto` ni `cancelado`.
 - **NO SE DEBE** recortar los estados ofrecidos según el estado actual: son los siete, siempre.
+- **NO SE DEBE** deducir la forma del glifo de `card-tag` a partir de la familia de color: son dos
+  dimensiones distintas, y «Prioridad 0» es la prueba.
+- **NO SE DEBE** poner radio pill al `card-tag`: su radio 8 es lo que lo distingue de un badge de
+  estado.
 
 ## API
 
@@ -161,8 +202,12 @@ El `card-tag` comparte tamaño.
 | `variant` | `"state" \| "outline" \| "area" \| "editable" \| "card-tag"` | `"state"` | Presentación |
 | `family` | `"resolved" \| "in-progress" \| "review" \| "urgent" \| "analysis" \| "neutral"` | `"neutral"` | Familia de color de sistema |
 | `label` | `string` | — | Texto visible, requerido |
+| `glyph` | `"square" \| "round"` | — | **Sólo `card-tag`:** forma del glifo. `square` = clasificación, `round` = prioridad. **No se deduce de `family`** |
 | `options` | `{ value, label }[]` | — | Sólo `editable`: estados disponibles |
 | `onChange` | `(value) => void` | — | Sólo `editable` |
+
+El módulo exporta además **`STATE_TO_FAMILY`**, el mapeo de estado de dominio a familia de color de
+la tabla de arriba, para que las pantallas lo consuman sin reimplementarlo.
 
 ## Componentes y patterns relacionados
 
@@ -174,6 +219,14 @@ El `card-tag` comparte tamaño.
 
 ## Historial
 
+- **1.2.0** (2026-09-04) — Se agrega la prop **`glyph`** (`"square" | "round"`) para la variant
+  `card-tag`: cuadrado con borde para la clasificación, círculo lleno para la prioridad. **La forma
+  la declara el consumidor y no se deduce de la familia de color**, porque «Prioridad 0» es family
+  `neutral` igual que «Interno» y sin embargo lleva círculo — son dos dimensiones distintas.
+  Aditiva y opcional: sin `glyph`, la etiqueta se renderiza sin glifo. En el mismo corte se
+  especifica que la **etiqueta de card pasó a radio 8 con borde** —la única pill del sistema que no
+  es redonda, porque informa clasificación y no estado— y que el envoltorio lleva `flex: none`
+  para no comprimirse dentro de un contenedor flex (MINOR).
 - **1.1.0** (2026-09-02) — Se explicita que la variant `editable` **es** el control de cambio de
   estado y ofrece los siete sin recorte, incluso en estado terminal (REQ-012 / S-049 / S-050), en
   reparto deliberado con el stepper (MINOR).

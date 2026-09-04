@@ -29,25 +29,42 @@
     color: var(--text-body);
   }
 
+  gap: 2px;
+
+  // Tipografia del pie de metricas del handoff: label de 9px en versalitas sobre dato de
+  // 12px/600. Igual que DateLabel — las tres columnas del pie tienen que coincidir.
   span {
     font-family: var(--font-family-ui);
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    font-size: 1rem;
-    line-height: 1.2;
-    font-weight: var(--font-weight-medium);
+    gap: var(--space-1);
+    font-size: var(--font-size-12);
+    line-height: 1.5;
+    font-weight: var(--font-weight-semibold);
     color: inherit;
   }
 
   p {
     font-family: var(--font-family-ui);
     margin: 0;
-    font-size: 0.65rem;
-    line-height: 1.2;
-    font-weight: var(--font-weight-regular);
+    font-size: var(--text-card-metric-label-size);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    font-weight: var(--font-weight-semibold);
     color: inherit;
   }
+}
+
+// Sobre el pie rojo de la card vencida, los colores de estado por `data-state` no contrastan
+// (el ambar de "por vencer" sobre rojo pleno es ilegible): el rojo ya comunica el vencimiento
+// y el texto va en blanco.
+//
+// El selector va por PREFIJO de atributo y no como `:global(.taskOverdue)`: esa clase la
+// declara el modulo de Card, asi que en el DOM aparece hasheada
+// (`Card-module-...__taskOverdue`) y un `:global` con el nombre pelado no matchea nada.
+:global([class*='taskOverdue']) .dateLabel[data-state] {
+  color: var(--card-footer-overdue-text);
 }
 
 @keyframes fadeIn {

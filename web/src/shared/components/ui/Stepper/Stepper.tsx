@@ -70,7 +70,9 @@ export function Stepper({
                 ? 'completada'
                 : 'pendiente';
 
-        const nodeContent = isSkipped ? '×' : state === 'done' ? '✓' : state === 'pending' ? String(index + 1) : null;
+        // El paso ACTUAL muestra su numero (handoff § Stepper: "numero --text 13/700"), igual
+        // que los pendientes. Antes quedaba vacio y el circulo actual se leia como un hueco.
+        const nodeContent = isSkipped ? '×' : state === 'done' ? '✓' : String(index + 1);
 
         const node = (
           <span

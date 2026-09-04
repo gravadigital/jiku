@@ -1,16 +1,29 @@
 @use '@/styles' as *;
 
+// 26px entre tabs (handoff § Tabs): con el gap de 4px que habia, las tabs se leian como un
+// grupo compacto y el subrayado del activo no alcanzaba a separarse de sus vecinas.
+//
+// El scroll horizontal es necesario, no decorativo: el detalle de proyecto monta SIETE tabs
+// (los siete estados de requisito) en una card de ~645px, y con 26px de separacion la fila
+// mide 743px. Sin esto, la ultima tab quedaba cortada por el borde de la card y era
+// inalcanzable. `flex: none` en cada tab evita que se compriman en vez de scrollear.
 .tablist {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--tab-gap);
   border-bottom: 1px solid var(--border-default);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .tab {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
+  gap: var(--space-2);
+  // Sin padding lateral: el gap del tablist ya separa, y el subrayado del activo tiene que
+  // quedar del ancho del texto, no del ancho del texto mas su padding.
+  padding: var(--space-2) 0;
+  flex: none;
+  white-space: nowrap;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -35,16 +48,26 @@
   white-space: nowrap;
 }
 
+// Contador: 19px, 11px/700. En la tab activa pasa a pill de acento (handoff § Tabs), que es
+// lo que la distingue de un contador cualquiera; en las inactivas queda en tinte neutro.
+// Una tab con contador 0 nunca se oculta ni se deshabilita.
 .count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
+  min-width: var(--tab-count-size);
+  height: var(--tab-count-size);
   padding: 0 var(--space-1);
   border-radius: var(--radius-pill);
-  background-color: var(--bg-tint-neutral);
-  font-size: 12px;
+  background-color: var(--tab-count-bg);
+  color: var(--tab-count-text);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-bold);
+}
+
+.tabActive .count {
+  background-color: var(--tab-count-active-bg);
+  color: var(--tab-count-active-text);
 }
 
 .srOnly {

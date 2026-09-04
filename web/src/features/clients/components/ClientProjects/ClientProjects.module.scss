@@ -1,8 +1,10 @@
+// Grilla de cards de proyecto dentro de un actor expandido: misma geometría que la del
+// listado de proyectos — minmax(250px, 1fr) y gap de 18px (handoff, pantalla 8).
 .projectsGrid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  margin-top: 1rem;
+  gap: var(--space-grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  margin-top: var(--space-4);
 }
 
 .projectItem {
@@ -10,6 +12,6 @@
 }
 
 .empty {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
   color: var(--text-secondary);
 }

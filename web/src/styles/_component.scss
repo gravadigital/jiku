@@ -16,8 +16,15 @@
   // ============================================
   --button-radius: var(--radius-action);
   --button-height: var(--size-40);
+  // El FAB de seccion es de 28px con el "+" en 17px (handoff § Botones), no la altura de
+  // boton: es un control chico que vive en la cabecera de una card.
+  --button-fab-size: var(--size-28);
+  --button-fab-glyph: var(--text-fab-glyph-size);
+  // El manual fija 1,5px para el borde de los secundarios (nav y descartar), no 1px.
+  --button-secondary-border-width: var(--border-emphasis-width);
   --button-font: var(--text-body-default-family);
   --button-primary-bg: var(--bg-action-primary);
+  --button-primary-bg-hover: var(--bg-action-primary-hover);
   --button-primary-text: var(--text-on-action);
   --button-primary-border: transparent;
   --button-disabled-bg: var(--bg-action-disabled);
@@ -29,8 +36,12 @@
   --button-secondary-border-dismiss: var(--border-default);
   --button-session-radius: var(--radius-field);
   --button-session-height: var(--size-46);
-  --button-flow-bg: var(--bg-action-primary);
-  --button-flow-text: var(--text-on-action);
+  // Accion de flujo ("Pasar a Planificacion ->"): fondo AZUL OSCURO con texto claro y la
+  // flecha en verde agua (handoff § Botones). Estaba en verde agua con texto azul, o sea
+  // igual que el primario: dos primarios compitiendo en la misma vista.
+  --button-flow-bg: var(--bg-brand-deep);
+  --button-flow-text: var(--text-inverse);
+  --button-flow-icon: var(--bg-action-primary);
   --button-focus: var(--focus-ring);
   // fab hereda radio, alto y colores de la variante primary; no declara tokens propios.
 
@@ -39,7 +50,9 @@
   // ============================================
   --input-radius: var(--radius-field);
   --input-height: var(--size-44);
-  --input-bg: var(--bg-surface);
+  // Resuelve por --bg-field y no por la superficie de card, porque en oscuro el campo es más
+  // hundido que la card que lo contiene. En claro los dos resuelven a blanco.
+  --input-bg: var(--bg-field);
   --input-text: var(--text-primary);
   --input-border: var(--border-default);
   --input-border-focus: var(--border-focus);
@@ -59,6 +72,7 @@
   // Badge
   // ============================================
   --badge-radius: var(--radius-pill);
+  --badge-glyph-radius: var(--radius-glyph-corner);
   --badge-dot-size: 8px;
 
   // ============================================
@@ -69,13 +83,26 @@
   --card-border: var(--border-default);
   --card-shadow: var(--elevation-surface);
   --card-padding: var(--space-padding-card);
-  --card-bg-dark: var(--bg-surface);
-  --card-border-dark: none;
+  // Pie de métricas de la card de tarea: se apoya en el fondo hundido, y cuando la tarea está
+  // vencida se rellena de rojo PLENO — el único uso de rojo pleno del sistema (handoff § Cards).
+  // Card de métrica destacada: la primera de la fila va sobre el fondo inverso con la cifra en
+  // verde agua (handoff, pantalla 7). El label usa el gris de la paleta oscura, porque sobre
+  // azul oscuro el secundario claro no contrasta.
+  --card-metric-emphasis-bg: var(--bg-brand-deep);
+  --card-metric-emphasis-value: var(--bg-action-primary);
+  --card-metric-emphasis-label: var(--text-on-inverse-muted);
+  --card-footer-bg: var(--bg-row-alt);
+  --card-footer-overdue-bg: var(--state-urgent-full);
+  --card-footer-overdue-text: var(--text-on-urgent);
 
   // ============================================
   // Table
   // ============================================
-  --table-header-bg: var(--bg-inverse);
+  --table-header-font: var(--text-table-header-family);
+  --table-header-size: var(--text-table-header-size);
+  --table-header-weight: var(--text-table-header-weight);
+  --table-header-tracking: var(--text-table-header-tracking);
+  --table-header-bg: var(--bg-brand-deep);
   --table-header-text: var(--text-inverse);
   --table-row-height: var(--size-48);
   --table-data-font: var(--text-table-data-family);
@@ -84,6 +111,9 @@
   // ============================================
   // Nav (sidebar)
   // ============================================
+  // El sidebar tiene superficie propia: en oscuro es MÁS oscuro que el canvas, al revés de la
+  // card, que es más clara. En claro ambos son la niebla.
+  --nav-bg: var(--surface-sidebar);
   --nav-item-height: var(--size-48);
   --nav-subitem-indent: var(--size-44);
   --nav-item-font: var(--text-nav-item-family);
@@ -93,7 +123,14 @@
   --nav-item-active-bar: var(--bg-active);
   --nav-item-active-shadow: var(--elevation-raised);
   --nav-item-active-icon: var(--text-link);
-  --nav-subitem-active-bg: var(--bg-active-subtle);
+  --nav-subitem-active-bg: var(--bg-accent-soft);
+  // Boton "Cerrar sesion" del pie: es el boton de SESION del manual (verde agua, alto 46,
+  // radio 10), el mismo que el "Iniciar sesion" del login. Antes era texto pelado.
+  --nav-logout-bg: var(--bg-action-primary);
+  --nav-logout-bg-hover: var(--bg-action-primary-hover);
+  --nav-logout-text: var(--text-on-action);
+  --nav-logout-height: var(--size-46);
+  --nav-logout-radius: var(--radius-field);
   --nav-item-icon: var(--color-graphite);
   --nav-wordmark: var(--text-wordmark-family);
 
@@ -103,6 +140,13 @@
   --tab-active-border: var(--border-action);
   --tab-active-text: var(--text-primary);
   --tab-inactive-text: var(--text-secondary);
+  --tab-gap: var(--space-tabs-gap);
+  --tab-count-size: var(--size-19);
+  // El contador de la tab ACTIVA va en pill de acento; el de las inactivas, en tinte neutro.
+  --tab-count-active-bg: var(--bg-active);
+  --tab-count-active-text: var(--text-on-action);
+  --tab-count-bg: var(--bg-tint-neutral);
+  --tab-count-text: var(--text-disabled);
 
   // ============================================
   // Stepper
@@ -110,11 +154,17 @@
   --stepper-active-bg: var(--bg-active);
   --stepper-inactive-bg: var(--bg-tint-neutral);
   --stepper-text: var(--text-primary);
+  --stepper-node-size: var(--size-34);
+  --stepper-current-ring: var(--step-ring);
+  --stepper-pending-bg: var(--bg-surface);
 
   // ============================================
   // Toggle + range-pill
   // ============================================
-  --toggle-radius: var(--radius-pill);
+  // El contenedor segmentado va en radio 10 (handoff § Botones, toggle segmentado): es una
+  // caja con opciones adentro, no una pill. Las opciones SI son pill.
+  --toggle-radius: var(--radius-field);
+  --toggle-option-radius: var(--radius-action);
   --toggle-active-bg: var(--bg-active);
   --toggle-inactive-bg: var(--bg-tint-neutral);
   --range-pill-radius: var(--radius-pill);
@@ -123,6 +173,24 @@
   // Completado por S-055 (spec toggle-group.md): fondo del contenedor `segmented` y
   // los dos tokens de texto del ítem (secundario en reposo, sobre-acción al elegir).
   --toggle-bg: var(--bg-tint-neutral);
+  // Semaforo del chip de dia (carga de horas): punto de 6px debajo del label.
+  //
+  // El peso visual de los tres estados NO es el mismo, y esa es la idea: "carga completa" es
+  // el estado que se busca de un vistazo y "sin carga" el que no tiene que llamar la atencion.
+  //
+  // La primera version usaba los plenos de las familias de estado y quedaba al reves: el
+  // grafito de neutral pesaba MAS que el verde de resolved (5.34 contra 3.51 de contraste
+  // sobre el chip blanco), asi que "sin carga" gritaba y "completa" apenas se veia — y entre
+  // ellos habia 1.52 de diferencia, practicamente indistinguibles.
+  //
+  //   completa  -> verde profundo: 4.30 sobre el chip (era 3.51)
+  //   sin carga -> gris claro:     1.55 sobre el chip (era 5.34)
+  //
+  // El ambar no cambia: ya estaba en el medio, que es donde corresponde.
+  --toggle-status-dot-size: 6px;
+  --toggle-status-completed: var(--status-load-complete);
+  --toggle-status-partial: var(--status-load-partial);
+  --toggle-status-empty: var(--status-load-empty);
   --toggle-item-text: var(--text-secondary);
   --toggle-item-active-text: var(--text-on-action);
 
@@ -139,7 +207,8 @@
   // Dropzone
   // ============================================
   --dropzone-radius: var(--radius-surface);
-  --dropzone-border: var(--border-default);
+  // El punteado es más marcado que un borde sólido para leerse como zona de arrastre.
+  --dropzone-border: var(--border-dashed);
   --dropzone-bg: var(--bg-surface-sunken);
   // Completado por S-055 (spec dropzone.md): texto secundario, icono 24px y borde de
   // hover/dragover en verde agua (border.focus).
@@ -161,7 +230,13 @@
   --accordion-title: var(--text-card-title-family);
   --accordion-chevron: var(--text-secondary);
   --accordion-pending-mark: var(--state-review-full);
-  --accordion-done-mark: var(--state-resolved-full);
+  --accordion-done-mark: var(--bg-action-primary);
+  // El acordeon de etapa lleva borde izquierdo de 3px del color de su estado y la marca en
+  // un badge circular de 16px (handoff § Cards, acordeon de etapa). El radio del acordeon de
+  // etapa es 10px, no el de superficie.
+  --accordion-bar-width: 3px;
+  --accordion-mark-size: 16px;
+  --accordion-stage-radius: var(--radius-field);
 
   // ============================================
   // Avatar
@@ -171,7 +246,7 @@
   // oscuro (contraste 14.6:1) y el fondo no varía por persona (neutro de marca).
   // S-052 había implementado --bg-tint-neutral/--text-primary por error; esto
   // corrige la capa de tokens del servicio para que siga al DS normativo.
-  --avatar-bg: var(--bg-inverse);
+  --avatar-bg: var(--bg-brand-deep);
   --avatar-text: var(--text-inverse);
 
   // ============================================
@@ -196,6 +271,20 @@
   --pagination-active-bg: var(--bg-active);
   --pagination-active-text: var(--text-on-action);
   --pagination-text: var(--text-secondary);
+
+  // ============================================
+  // Panel decorativo del login
+  // ============================================
+  // Geometría y espaciados propios de la pantalla de login. Van en el :root base (no en el
+  // bloque oscuro): el panel tiene el mismo radio y la misma separación en los dos modos, y
+  // declararlos sólo en oscuro dejaba la pantalla sin radio ni márgenes en claro.
+  //
+  // La geometría vive fuera de la escala de radios: ver el bloque del panel en el tier 1 y la
+  // nota de TS-2.
+  --login-panel-radius: var(--login-panel-corner);
+  --login-panel-inset: var(--login-panel-gap);
+  --login-stack: var(--login-stack-gap);
+  --login-header-stack: var(--login-title-gap);
 }
 
 // ============================================
@@ -204,7 +293,10 @@
 // de _semantic.scss y necesita su propia redeclaración acá.
 // :root[data-theme='dark'] (no [data-theme='dark'] suelto) por el mismo checker de selectores
 // puros de CSS Modules que exige el bloque de _semantic.scss.
-// --nav-item-active-icon (var(--text-link)) NO se toca: es acento, fijo en los dos modos.
+// --nav-item-active-icon (var(--text-link)) no se redeclara acá, pero SÍ cambia de valor entre
+// modos: con el handoff, --text-link pasa al verde agua en oscuro (el verde profundo no alcanza
+// AA sobre las superficies oscuras). Es justo lo que el manual pide para el ítem activo, así
+// que hereda el cambio sin necesidad de redeclararse.
 // ============================================
 :root[data-theme='dark'] {
   --nav-item-icon: var(--color-dark-primary);

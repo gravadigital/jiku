@@ -27,17 +27,15 @@ const getDayStatus = (minutes: number | undefined, threshold: number): DayStatus
   return 'partial';
 };
 
-// El semáforo de cada día no se comunica sólo con color: cada estado suma un símbolo
-// y una palabra al label del chip, visible en el texto además del tinte del token.
-const STATUS_MARK: Record<DayStatus, string> = {
-  completed: '●',
-  partial: '◐',
-  empty: '○',
-};
-
+// El semáforo de cada día es un PUNTO DE COLOR debajo del label, como en el diseño anterior:
+// verde carga completa, ámbar carga parcial, grafito sin carga.
+//
+// Antes de esto el estado viajaba dentro del texto del label («Vie 4 ○ sin carga»), que era la
+// forma de no comunicarlo sólo por color pero convertía cada chip en una frase. El punto vuelve
+// a ser gráfico y la accesibilidad la cubre `statusLabel`, que va en un texto sr-only.
 const STATUS_LABEL: Record<DayStatus, string> = {
-  completed: 'completo',
-  partial: 'parcial',
+  completed: 'carga completa',
+  partial: 'carga parcial',
   empty: 'sin carga',
 };
 
@@ -72,7 +70,9 @@ export function DaySelector({
     const status = getDayStatus(dailyMinutes[day.date], completedThreshold);
     return {
       value: day.date,
-      label: `${day.label} ${STATUS_MARK[status]} ${STATUS_LABEL[status]}`,
+      label: day.label,
+      status,
+      statusLabel: STATUS_LABEL[status],
     };
   });
 

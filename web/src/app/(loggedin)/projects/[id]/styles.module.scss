@@ -27,7 +27,8 @@
 
 .twoColumnLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
+  // Layout de detalle del handoff (pantalla 3): principal minmax(560px, 1fr) + aside de 380px.
+  grid-template-columns: minmax(560px, 1fr) 380px;
   gap: var(--space-4);
   align-items: start;
 

@@ -1,6 +1,11 @@
 .card {
   display: flex;
   flex-direction: column;
+  // `height: 100%` para que todas las cards de una fila de grilla midan igual: sin esto cada
+  // una mide lo que su contenido, y los pies de metricas quedan a distinta altura entre
+  // vecinas (visible en cuanto dos titulos ocupan distinto numero de lineas).
+  height: 100%;
+  box-sizing: border-box;
   gap: var(--space-2);
   border-radius: var(--card-radius);
   background-color: var(--card-bg);
@@ -47,9 +52,15 @@
 .card:has(.titleLink) {
   position: relative;
   cursor: pointer;
+  transition:
+    box-shadow var(--duration-fast) ease-out,
+    border-color var(--duration-fast) ease-out;
 
+  // Regla de Interactions del handoff: la card clicable marca el BORDE en verde agua. La
+  // elevación se mantiene porque no la contradice.
   &:hover {
     box-shadow: var(--elevation-raised);
+    border-color: var(--border-action);
   }
 }
 
@@ -65,16 +76,30 @@
   gap: var(--space-1);
 }
 
+// Pie de métricas: grilla de tres columnas centradas, apoyada en el fondo hundido y separada
+// del cuerpo por un borde superior (handoff § Cards, card-tarea). Antes era una fila flex.
+//
+// Va a sangre: los márgenes negativos compensan el padding de la card para que el pie llegue a
+// los bordes, que es como lo muestra el prototipo. En las variantes de tarea el padding se
+// mueve al contenido (ver .task/.taskOverdue más abajo) y estos márgenes quedan en 0.
 .footer {
-  display: flex;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+  text-align: center;
+  margin-top: auto;
+  padding: 11px var(--space-2);
+  background-color: var(--card-footer-bg);
+  border-top: 1px solid var(--card-border);
   font-family: var(--text-filter-label-family);
-  font-size: var(--text-filter-label-size);
-  font-weight: var(--text-filter-label-weight);
-  text-transform: uppercase;
   color: var(--text-secondary);
 }
 
+// La tipografia de cada columna la declara su propio componente (DateLabel /
+// FinishDateLabel): son ellos los que renderizan el par label+dato, y ponerla acá con
+// selectores posicionales la ataba al orden de su markup.
+//
+// Lo que si es del pie: en la card vencida el dato sube a peso 700.
 .footer.overdue {
   color: var(--state-urgent-text);
 }
@@ -101,6 +126,22 @@
   color: var(--text-primary);
 }
 
+// Card de métrica destacada (handoff, pantalla 7): fondo inverso, sin borde ni sombra, y la
+// cifra en verde agua. El destaque es del consumidor, no una variant: ver la prop `emphasis`.
+.metricEmphasis {
+  background-color: var(--card-metric-emphasis-bg);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.metricEmphasis .metricValue {
+  color: var(--card-metric-emphasis-value);
+}
+
+.metricEmphasis .metricLabel {
+  color: var(--card-metric-emphasis-label);
+}
+
 .metricLabel {
   font-family: var(--text-metric-unit-family);
   font-size: var(--text-metric-unit-size);
@@ -110,11 +151,52 @@
   color: var(--text-secondary);
 }
 
-.taskOverdue .footer {
-  color: var(--state-urgent-text);
+// Las dos variantes de tarea llevan el pie a sangre: el padding pasa del contenedor al
+// contenido, así el pie ocupa todo el ancho y se pega al borde inferior.
+.task {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
 }
 
-:root[data-theme='dark'] .card {
-  background-color: var(--card-bg-dark);
-  border: var(--card-border-dark);
+// El padding lateral se aplica a todo hijo MENOS al pie. El pie puede llegar por la prop
+// `metrics` (clase .footer de este modulo) o por el slot `footer`, que trae la clase del
+// consumidor —ObjectiveCard usa .bottomContent— y entonces no matchea .footer. Por eso se
+// excluye tambien al ultimo hijo, que es donde Card renderiza el slot.
+.task > *:not(.footer):not(:last-child),
+.taskOverdue > *:not(.footer):not(:last-child) {
+  margin-left: var(--card-padding);
+  margin-right: var(--card-padding);
 }
+
+.task > *:first-child,
+.taskOverdue > *:first-child {
+  margin-top: var(--card-padding);
+}
+
+// La card vencida es el único lugar del sistema con rojo pleno: borde de 1,5px y sin sombra
+// (handoff § Cards, card-tarea vencida). Comparte con .task el pie a sangre.
+.taskOverdue {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+  border: 1.5px solid var(--state-urgent-full);
+  box-shadow: none;
+}
+
+// Pie de la card vencida: relleno rojo pleno con texto blanco y el dato en peso 700 (handoff
+// § Cards). Un solo bloque, para que la regla del pie vencido se lea completa en un lugar.
+.taskOverdue .footer {
+  background-color: var(--card-footer-overdue-bg);
+  border-top-color: var(--card-footer-overdue-bg);
+  color: var(--card-footer-overdue-text);
+  font-weight: var(--font-weight-bold);
+}
+
+// El bloque `:root[data-theme='dark'] .card` que estaba aca se retiro.
+//
+// No aportaba nada al fondo: --card-bg-dark resolvia al mismo --bg-surface que --card-bg, y la
+// superficie por modo ya la resuelven los tiers. Lo que si hacia era romper dos cosas por
+// especificidad (0,2,1 contra la 0,1,0 de una clase suelta): borraba el borde de TODA card en
+// oscuro (incluido el rojo de 1,5px de la card vencida) y pisaba el fondo azul de la card de
+// metrica destacada, que quedaba igual que las otras tres.

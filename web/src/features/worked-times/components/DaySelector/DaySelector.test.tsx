@@ -61,10 +61,13 @@ describe('DaySelector', () => {
       />
     );
 
-    // El label del día con carga completa lleva una señal textual (no sólo color).
+    // El estado sigue estando en el TEXTO del chip, no sólo en el color — pero ahora vive en
+    // un `sr-only` en vez de dentro del label visible, y el punto de color volvió a ser
+    // gráfico. Antes el label decía literalmente «Vie 4 ○ sin carga»: el estado ocupaba el
+    // label y cada chip se leía como una frase.
     const radios = screen.getAllByRole('radio');
     const selected = radios.find((r) => r.getAttribute('aria-checked') === 'true');
-    expect(selected?.textContent).toMatch(/completo/i);
+    expect(selected?.textContent).toMatch(/carga completa/i);
   });
 
   it('un día sin carga muestra la señal "sin carga" en el texto del chip', () => {

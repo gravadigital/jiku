@@ -3,6 +3,142 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [4.0.0] - 2026-09-04
+
+Ajustes visuales contra `design_handoff_jiku_identity`, verificados **renderizando la aplicación
+real** (Chromium sobre el dev server, con sesión) en vez de leyendo CSS. Ese método es lo que
+encontró la mayoría de estos defectos: varios eran invisibles en el código y sólo aparecían en
+pantalla.
+
+**MAJOR** por cuatro cambios que rompen contrato: el criterio de variant de `Table`, la baja del
+divisor de `ViewHeader`, el remapeo de `--avatar-bg` y la remoción de dos tokens.
+
+### Corregido
+
+- **Modo oscuro: las 6 familias de estado fallaban contraste AA.** S-059 derivó los tintes con la
+  fórmula del DS pero **nunca redeclaró el TEXTO**, así que cada familia conservaba su profundo
+  del modo claro sobre un tinte oscuro. Medido: violeta 1.38:1, ámbar 2.07:1, rojo 2.53:1, verde
+  3.24:1, neutro 3.98:1 — las seis por debajo del mínimo de 4.5:1. Los tríos explícitos del
+  manual dan entre 7.2:1 y 9.9:1. Es el defecto de mayor impacto de esta entrada.
+- **`--text-link` no alcanzaba AA en oscuro** (3.79:1 sobre la superficie de card). Pasa al verde
+  agua, que es lo que el manual pide: «en oscuro el *texto* verde pasa a verde agua». El acento
+  de **relleno** sigue sin cambiar entre modos.
+- **`globals.scss`: `span { font-size: 1.25rem }`** ponía **20px en todo `<span>`** de la
+  aplicación. Como los componentes declaran su tipografía en el contenedor, el span interno se la
+  comía: el texto de un `Badge` de estado renderizaba a 20px en vez de los 11px de su clase. Es
+  la misma deuda que S-060 cerró para `h1`/`h2`/`p`; S-059 la había anotado como «fuera de
+  alcance». Dada de baja.
+- **`globals.scss`: `td { max-width: 9.4rem }` con `overflow: hidden`** recortaba toda celda a
+  150px, y la pill «Planificación» mide 151px: **todas las pills de estado salían cortadas** en
+  el listado de requisitos. Junto con `border: 3px` y `text-align: center`, que contradecían el
+  manual. Dadas de baja las cinco reglas (`table`, `th`, `td`, `tr:hover`, `span`); `Table` del
+  DS es la única tabla del producto y estila sus propias celdas.
+- **La cabecera de `Table` heredaba su tipografía del contexto:** 16px en el listado de tareas y
+  14px en el de requisitos, para la misma cabecera. Ahora la declara (11px/600 versalitas,
+  tracking .08em).
+- **El pie de la card de tarea desbordaba la card** (`scrollWidth` 331 sobre `clientWidth` 253) y
+  en la card vencida el texto quedaba en gris sobre rojo, ilegible.
+- **El FAB no mostraba su glifo:** `.fab .label { display: none }` ocultaba el propio «+», que es
+  el contenido visible de los cuatro FAB del producto.
+- **El nodo actual del `Stepper` quedaba vacío** (sin número) y la lista encogía al contenido, con
+  las etiquetas pegadas entre sí.
+- **El `Select` había perdido la búsqueda** al migrar de `react-select` en S-057. Con ~100
+  proyectos, el filtro era impracticable.
+- **El semáforo del chip de día era texto, no color:** el estado viajaba dentro del label («Vie 4
+  ○ sin carga») y cada chip se leía como una frase. Vuelve a ser un punto de color con el estado
+  en `sr-only`. Y el peso visual estaba invertido —el gris de «sin carga» pesaba más que el verde
+  de «completa», con 1.52:1 entre ellos— así que se reasignaron los colores.
+
+### Cambiado
+
+- **`components/table.md` — BREAKING: el criterio de variant.** El spec asignaba `dense`
+  (cabecera azul) a «tablas densas de seguimiento — tareas» y `light` a «listados navegables —
+  requisitos». El listado de tareas y el reporte de requisitos pasan a `light`, y **`dense` queda
+  sin consumidores**. Motivo: el propio criterio del spec fallaba —las filas de tareas SÍ navegan,
+  el título linkea al detalle— y en pantalla la cabecera azul era lo único oscuro del producto:
+  se leía como error, no como señal de densidad.
+- **`components/view-header.md` — BREAKING: sin divisor.** Se le quita el `border-bottom`. El
+  prototipo no lo lleva y el spec tampoco lo pedía: se había agregado en la implementación. La
+  separación del contenido la da el gap de la columna de contenido del shell.
+- **`tokens/component.md` — BREAKING: `--avatar-bg` pasa de `--bg-inverse` a `--bg-brand-deep`.**
+  El spec dice «fondo azul oscuro» y ese azul no cambia entre modos, pero `--bg-inverse` en oscuro
+  se remapea a la superficie del tema: el avatar perdía su azul.
+- **`components/card.md`**: el pie de métricas pasa a grilla de 3 columnas a sangre; la card
+  vencida rellena el pie de rojo pleno con texto blanco. Las cards de una fila igualan alto.
+- **`components/badge.md`**: la etiqueta de card pasa a radio 8 con borde — la única pill del
+  sistema que no es redonda.
+- **`components/toggle-group.md`**: el contenedor `segmented` pasa a radio 10 (era pill).
+- **`components/select.md`**, **`components/tabs.md`**, **`components/stepper.md`**,
+  **`components/accordion.md`**, **`components/sidebar-nav.md`**: ver «Agregado» y «Corregido».
+- **`tokens/semantic.md`**: se separa **`--bg-brand-deep`** de `--bg-inverse`. Tenían dos trabajos
+  incompatibles: overlays y tooltips que deben seguir al tema, y superficies de marca (panel del
+  login, avatares, cabecera densa, cifra destacada) que el manual fija en azul oscuro **fijo**.
+  Confundirlos dejaba la card de métrica destacada idéntica a las otras tres en oscuro.
+- **`tokens/semantic.md`**: se separa **`--bg-accent-soft`** (.14 claro / .16 oscuro) de
+  `--bg-active-subtle` (.08). Son dos roles: relleno con presencia propia contra hover apenas
+  perceptible. Subir el existente habría oscurecido doce hovers y skeletons.
+
+### Agregado
+
+- **`Select`: prop `searchable`** — buscador en el menú con filtrado insensible a acentos. Opt-in.
+  La navegación por teclado opera sobre las opciones **visibles**, no sobre la lista completa.
+- **`Badge`: prop `glyph`** (`'square' | 'round'`) para el glifo de `card-tag`. La forma la
+  declara el consumidor: no es derivable de `family` («Prioridad 0» es `neutral` igual que
+  «Interno» y sin embargo lleva círculo).
+- **`Card`: prop `emphasis`** para destacar una card de métrica. Es prop y no una sexta variant,
+  para no abrir el set cerrado de cinco.
+- **`ToggleGroup`: props `status` y `statusLabel`** para el semáforo del `day-chip`.
+- **Tier 1**: la paleta completa de modo oscuro del manual (superficies propias más los tríos
+  tinte/borde/texto de las 6 familias), tamaños 9/10/12/17/44, trackings de .08em y .14em,
+  `--font-leading-display`, `--space-26`, `--size-19/28/34`, `--radius-glyph`,
+  `--border-width-emphasis`, `--shadow-step-ring`, `--layout-app-min-width`, `--color-aqua-hover`
+  y la geometría del panel de login.
+- **Tier 2**: `--bg-brand-deep`, `--bg-accent-soft`, `--status-load-*`, `--surface-sidebar`,
+  `--bg-field`, `--bg-row-alt`, `--border-dashed`, `--text-on-urgent`, `--text-on-inverse-muted`,
+  y las familias tipográficas `--text-login-title-*`, `--text-entity-title-*`,
+  `--text-table-header-*`.
+- **Tier 3**: familias de `button` (fab, flow, hover), `card` (footer, metric emphasis), `table`
+  (tipografía de cabecera), `nav` (bg, logout), `tab` (gap, count), `stepper` (node, ring),
+  `toggle` (status), `accordion` (bar, mark), `login-panel` y `avatar`.
+
+### Removido
+
+- **`--card-bg-dark` y `--card-border-dark`**, con el bloque `:root[data-theme='dark'] .card` que
+  los consumía. No aportaban nada al fondo (`--card-bg-dark` resolvía al mismo `--bg-surface` que
+  `--card-bg`), pero por especificidad (0,2,1 contra 0,1,0) **borraban el borde de toda card en
+  oscuro** —incluido el rojo de 1,5px de la card vencida— y pisaban el fondo azul de la card de
+  métrica destacada.
+
+### Corregido (documentación)
+
+- **`components/accordion.md` y `components/sidebar-nav.md` tenían el `version:` del frontmatter
+  desalineado con su propio Historial:** decía `1.0.0` mientras el Historial ya registraba el
+  `1.1.0` de S-058, que esta CHANGELOG también había registrado. Los dos quedan en `1.2.0`, que
+  reconcilia el frontmatter, el Historial y esta entrada.
+- **`tokens/component.md` documentaba `table.header.light.bg` como `bg.canvas`**, y el código usa
+  `bg.row-alt` — el mismo token que la fila alterna, que es la misma superficie. Corregido.
+- **`tokens/semantic.md` documentaba `text.metric-unit` en 12px con `tracking.caps`**, y el código
+  lo tiene en 10px con `caps-wide`. Corregido.
+- **`components/sidebar-nav.md` tenía una «Nota pendiente (S-059)»** que pedía normalizar el slot
+  del pie en la próxima actualización del DS. Resuelta: el slot pasa a sección normativa con su
+  fila en la API.
+
+### Notas para quien mantenga el DS
+
+- **`ToggleGroup` acopla `status` y `statusLabel` en el tipo.** Eran dos props opcionales
+  independientes, así que un `status` sin label pintaba el punto de color y no emitía el texto
+  `sr-only`: el estado quedaba comunicado **sólo por color**, justo lo que la regla de
+  accesibilidad del propio spec prohíbe, y sin error de compilación ni aviso en runtime. Ahora es
+  una unión discriminada: o van los dos, o no va ninguno.
+- **`dense` de `Table` queda declarado pero sin consumidores.** No se remueve todavía: la política
+  pide un release de gracia. Si en el próximo nadie lo usa, corresponde darlo de baja.
+- **Los tests son la garantía, no la documentación.** `tests/tokens.test.ts` verifica el
+  encadenamiento de los tres tiers y `design-system-migration.guard.test.ts` que no reentre la
+  paleta anterior. Los cuatro guardias que contradecían estos cambios se actualizaron **con el
+  motivo escrito en el propio test**, no relajados.
+- **Contraste medido, no estimado.** `styles/dark-mode-tints.test.ts` calcula el ratio WCAG de las
+  6 familias en vez de asumir los valores del manual.
+
 ## [3.0.0] - 2026-09-03
 
 Cierre de REQ-013: última story del split (S-060). El DS pasa de «normativo — en implementación»

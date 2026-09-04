@@ -1,7 +1,7 @@
 ---
 component: SidebarNav
-version: 1.0.0
-last_updated: 2026-09-02
+version: 1.2.0
+last_updated: 2026-09-04
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «Navegación»
@@ -22,12 +22,14 @@ Navegación principal persistente entre las secciones del producto.
 
 ## Anatomía
 
-1. **Firma** — [logo horizontal](../foundations/logo.md) a **26 px de alto**, con el wordmark en
-   **Sora 19/700** cuando el ancho lo permite.
+1. **Cabecera de marca** — [logo horizontal](../foundations/logo.md) a **26 px de alto**, con el
+   wordmark en **Sora 19/700** cuando el ancho lo permite, **con separador de 1 px debajo** que la
+   divide de la navegación.
 2. **Ítems** — icono 22 px + label `text.nav-item` (Gabarito 15/500), alto 48 px.
 3. **Subítems** — icono 19 px, sangrado 44 px.
 4. **Barra de activo** — 3 px verde agua, al borde del ítem activo.
-5. **Pie** — identidad de la persona y salida de sesión.
+5. **Pie** — identidad de la persona (**si hay nombre**), slot opcional —el selector de tema— y
+   **botón de sesión** «Cerrar sesión».
 
 ## Variants
 
@@ -44,6 +46,49 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 | Icono de ítem | **22 px** |
 | Icono de subítem | **19 px** |
 | Firma | **26 px** de alto |
+| Botón «Cerrar sesión» | **alto 46 px**, ancho completo, radio 10 px |
+| Icono del botón de sesión | **18 px** |
+
+### La cabecera de marca lleva separador
+
+La firma va en un bloque propio con **borde inferior de 1 px** (`border.default`) y margen inferior
+de `space.2`. Es lo que el prototipo del handoff muestra: el isotipo y el wordmark quedan
+**divididos de la navegación por una línea**, no flotando sobre la primera sección.
+
+### «Cerrar sesión» es el botón de sesión
+
+| | |
+|---|---|
+| **Fondo** | **Verde agua** `nav.logout.bg` → `bg.action-primary`, con hover a `bg.action-primary-hover` |
+| **Texto** | `nav.logout.text` → azul oscuro, 14 px / peso 600 |
+| **Ancho** | Completo, al ancho del pie |
+| **Alto** | **46 px** (`nav.logout.height`) |
+| **Radio** | **10 px** (`nav.logout.radius` → `radius.field`) |
+| **Icono** | Puerta con flecha saliente, **18 px**, trazo 1,9 px, a la izquierda del texto |
+
+**Antes era texto pelado de 16 px, sin fondo ni icono.** Salir de sesión es una acción, no un
+enlace, y el manual la trata como el botón de sesión: es la única acción del sidebar y el verde agua
+la señala como tal. El icono es **decorativo** — el nombre accesible lo da el texto del botón.
+
+### La identidad sólo se renderiza si hay nombre
+
+El bloque de identidad —avatar + nombre— **se omite cuando no hay nombre que mostrar**.
+
+La razón es concreta: la sesión de Zitadel no trae `name` (el callback `profile` devuelve sólo `id`
+y `roles`), así que el bloque renderizaba **un avatar sin iniciales —un círculo azul vacío— al lado
+de un nombre vacío**. El prototipo del handoff, de hecho, no lleva identidad en el pie del sidebar:
+sólo el botón de cerrar sesión. Cuando la sesión traiga el nombre, el bloque aparece solo, sin
+cambio de código.
+
+### El slot del pie
+
+El pie suma desde **REQ-013** el `selector-tema`, junto a Cerrar sesión — declarado de forma
+normativa en `product-map.md`. **S-059** lo implementó reutilizando
+[`ToggleGroup`](./toggle-group.md) variant `segmented`, pasado por la prop **`footerSlot`**, que se
+renderiza **entre la identidad y el botón de sesión**.
+
+Es aditivo: sin `footerSlot`, el pie se ve exactamente igual que antes de S-059. El componente **no
+decide qué va ahí** — igual que no consulta la ruta para `activeKey` ni el tema para `mode`.
 
 ## States
 
@@ -67,6 +112,10 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - **Padding horizontal del ítem:** `space.4` (16 px).
 - **Área de resguardo de la firma:** `1x` en los cuatro lados
   (ver [logo](../foundations/logo.md#área-de-resguardo-y-medidas)).
+- **Cabecera de marca:** padding `space.4` (16 px), borde inferior de 1 px, margen inferior
+  `space.2` (8 px).
+- **Pie:** columna con gap `space.2` (8 px), padding `space.4` (16 px), borde superior de 1 px.
+- **Botón de sesión:** alto 46 px, radio 10 px, gap icono–texto `space.2` (8 px).
 
 ## Accesibilidad
 
@@ -81,6 +130,11 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - **Contraste:** icono activo `#12897A` sobre tarjeta blanca cumple AA; **el verde agua de la barra
   no porta información por sí solo**.
 - La firma lleva texto alternativo «Jiku».
+- **El botón «Cerrar sesión» es un `<button>`** con su texto visible como nombre accesible; su
+  icono es decorativo (`aria-hidden="true"`).
+- **Contraste del botón de sesión:** azul oscuro sobre verde agua **9.8:1**.
+- El separador de la cabecera de marca es decorativo: la relación entre firma y navegación la da la
+  estructura (`<nav>` + lista), no la línea.
 
 ## Guidelines de contenido
 
@@ -96,6 +150,9 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - Marcar el activo con superficie blanca **y** barra verde agua **y** `aria-current`.
 - Usar `#12897A` para el icono activo, no `#61CCB9`.
 - Mantener el orden de las secciones estable entre sesiones.
+- Dividir la cabecera de marca de la navegación con el separador de 1 px.
+- Tratar «Cerrar sesión» como el botón de sesión: verde agua, ancho completo, con su icono.
+- Omitir el bloque de identidad cuando la sesión no trae nombre.
 
 **Don't:**
 
@@ -104,6 +161,9 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - **NO SE DEBE** repetir la firma en el pie si ya está en la cabecera
   ([una sola firma por pieza](../foundations/logo.md#jerarquía-de-uso)).
 - **NO SE DEBE** colapsar el sidebar sin resolver antes la navegación en anchos chicos.
+- **NO SE DEBE** dejar «Cerrar sesión» como texto pelado: es una acción y va como botón.
+- **NO SE DEBE** renderizar el avatar del pie sin nombre: queda un círculo vacío que no identifica
+  a nadie.
 
 ## API
 
@@ -114,6 +174,10 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 | `user` | `{ name, initials }` | — | Identidad del pie |
 | `onLogout` | `() => void` | — | Salida de sesión |
 | `mode` | `"light" \| "dark"` | `"light"` | Modo de la firma: `light` resuelve a `jikuLogo.svg`, `dark` a `jikuLogoDark.svg`. El componente no detecta el tema — lo decide el consumidor (S-058) |
+| `footerSlot` | `ReactNode` | — | Contenido adicional del pie, renderizado **entre la identidad y «Cerrar sesión»**. Es donde vive el selector de tema (S-059) |
+
+`user.name` vacío **omite el bloque de identidad completo**: sin nombre no se renderiza ni el
+avatar.
 
 ## Migración
 
@@ -124,6 +188,8 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 | Fondo `--color-surface-light` `#f5f5f5` | Superficie del sistema |
 | `z-index: 10` literal | Token `z.navbar` (**después** de corregir el orden, ver [spacing](../foundations/spacing.md#z-index)) |
 | Activo con la paleta anterior | Tarjeta blanca + barra verde agua 3 px |
+| «Cerrar sesión» como texto pelado de 16 px | **Botón de sesión** verde agua, ancho completo, alto 46, radio 10, icono 18 px |
+| Cabecera de marca sin separación | Separador de 1 px debajo de la firma |
 
 ## Componentes y patterns relacionados
 
@@ -131,19 +197,20 @@ Una sola: sidebar de **300 px fijo**. **No hay estado colapsado ni drawer en est
 - [Tabs](./tabs.md) — navegación secundaria dentro de una vista.
 - [Avatar](./avatar.md) — identidad en el pie.
 
-## Nota pendiente (story S-059, sin bump de versión)
-
-El pie (anatomía, punto 5) suma desde REQ-013 un `selector-tema`, junto a Cerrar sesión —
-declarado de forma normativa en `product-map.md` («el pie de la sidebar suma el `selector-tema`,
-junto a Cerrar sesión»), pero esta ficha todavía no lo documenta en su anatomía ni en su API.
-S-059 lo implementó reutilizando `ToggleGroup` variant `segmented` (ver `toggle-group.md`) y
-agregando `footerSlot?: React.ReactNode` a la API de `SidebarNav` — aditivo, sin la prop el pie
-se ve igual que antes. Queda para el próximo `/product-design-system-update` (MINOR, aditivo):
-sumar el punto 5 de Anatomía ("Pie — identidad de la persona, selector de tema y salida de
-sesión") y la fila `footerSlot` a la tabla de API.
-
 ## Historial
 
+- **1.2.0** (2026-09-04) — Se corrige la especificación del pie y de la cabecera contra el código.
+  La **cabecera de marca lleva separador de 1 px debajo**, como en el prototipo: la firma queda
+  dividida de la navegación en vez de flotar sobre la primera sección. **«Cerrar sesión» pasa de
+  texto pelado a botón de sesión** —verde agua, ancho completo, alto 46 px, radio 10 px, con el
+  icono de logout de 18 px a la izquierda del texto—, porque salir es una acción y no un enlace, y
+  es la única acción del sidebar. El **bloque de identidad sólo se renderiza si hay nombre**: la
+  sesión de Zitadel no trae `name` y el bloque dibujaba un avatar sin iniciales —un círculo azul
+  vacío— al lado de un nombre vacío; el prototipo, de hecho, no lleva identidad en el pie.
+  Se salda además la **nota pendiente de S-059**, que pasa a ser sección normativa: `footerSlot`
+  entra a la tabla de API y el punto 5 de Anatomía nombra el slot. Y se corrige el `version:` del
+  frontmatter, que había quedado en `1.0.0` cuando el Historial ya registraba la 1.1.0 de S-058
+  (MINOR).
 - **1.1.0** (2026-09-03, story S-058) — Se agrega `mode` (`"light" | "dark"`, default `"light"`)
   para resolver la firma correcta según el modo (CA-3: `jikuLogo.svg` / `jikuLogoDark.svg`).
   Backward compatible: sin la prop, el comportamiento es el mismo de antes (MINOR).

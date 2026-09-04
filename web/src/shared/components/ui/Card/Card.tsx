@@ -1,7 +1,7 @@
 import React, { ElementType } from 'react';
 import Link from 'next/link';
 import { cn } from '@/shared/utils/cn';
-import { Badge, type BadgeFamily } from '../Badge';
+import { Badge, type BadgeFamily, type BadgeGlyph } from '../Badge';
 import styles from './Card.module.scss';
 
 type CardVariant = 'project' | 'task' | 'task-overdue' | 'panel' | 'metric';
@@ -20,6 +20,8 @@ interface CardMetric {
 interface CardTag {
   readonly label: string;
   readonly family?: BadgeFamily;
+  /** Forma del glifo de la etiqueta: cuadrado (clasificación) o círculo (prioridad). */
+  readonly glyph?: BadgeGlyph;
 }
 
 interface CardProps {
@@ -30,6 +32,12 @@ interface CardProps {
   readonly status?: CardStatus;
   readonly tags?: CardTag[];
   readonly metrics?: CardMetric[];
+  /**
+   * Destaca una tarjeta `metric`: fondo azul oscuro y cifra en verde agua. El handoff pide UNA
+   * sola destacada por fila (la primera), así que es una prop del consumidor y no una variant
+   * nueva — el set de variants del DS sigue cerrado en cinco.
+   */
+  readonly emphasis?: boolean;
   /** Nivel del heading del título. El consumidor lo elige según la vista. */
   readonly headingLevel?: 'h2' | 'h3' | 'h4';
   readonly children?: React.ReactNode;
@@ -45,6 +53,7 @@ export function Card(props: CardProps) {
     status,
     tags,
     metrics,
+    emphasis = false,
     headingLevel = 'h3',
     children,
     header,
@@ -55,7 +64,11 @@ export function Card(props: CardProps) {
   const isOverdue = variant === 'task-overdue' || Boolean(metrics?.some((metric) => metric.overdue));
 
   return (
-    <div className={cn(styles.card, styles[toCamel(variant)])}>
+    <div
+      className={cn(styles.card, styles[toCamel(variant)], {
+        [styles.metricEmphasis]: emphasis && variant === 'metric',
+      })}
+    >
       {(header || status) && (
         <div className={styles.header}>
           {header}
@@ -77,7 +90,13 @@ export function Card(props: CardProps) {
       {tags && tags.length > 0 && (
         <div className={styles.tags}>
           {tags.map((tag) => (
-            <Badge key={tag.label} variant="card-tag" family={tag.family} label={tag.label} />
+            <Badge
+              key={tag.label}
+              variant="card-tag"
+              family={tag.family}
+              label={tag.label}
+              glyph={tag.glyph}
+            />
           ))}
         </div>
       )}

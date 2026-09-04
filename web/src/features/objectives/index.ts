@@ -54,12 +54,8 @@ export type {
 
 /* Utils */
 export {
-  getAreaColor,
   getAreaLabel,
-  getStateColor,
   getStateLabel,
-  OBJECTIVE_AREA_COLORS,
   OBJECTIVE_AREA_LABELS,
-  OBJECTIVE_STATE_COLORS,
   OBJECTIVE_STATE_LABELS,
 } from './utils/objectiveHelpers';

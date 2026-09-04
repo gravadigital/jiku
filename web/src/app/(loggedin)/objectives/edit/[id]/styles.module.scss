@@ -6,12 +6,20 @@
   align-items: stretch;
   column-gap: 2rem;
 
+  // Mismos 8px entre campos que el alta de tarea y que los formularios de proyecto y de
+  // requisito: acá el espaciado iba de 7px a 14px segun el campo, y tres quedaban en CERO.
   .column {
     width: 50%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .textareaCont {
     width: 50%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
 }
 

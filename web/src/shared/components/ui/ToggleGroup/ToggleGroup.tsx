@@ -7,11 +7,27 @@ import styles from './ToggleGroup.module.scss';
 
 type ToggleGroupVariant = 'segmented' | 'range-pill' | 'stepper-value' | 'day-chip';
 
-interface ToggleGroupOption {
+/** Estado del semáforo de un chip de día: sin carga, carga parcial, carga completa. */
+export type ToggleGroupStatus = 'empty' | 'partial' | 'completed';
+
+/**
+ * Indicador de estado del chip, que la variant `day-chip` pinta como un punto de color debajo
+ * del label.
+ *
+ * `status` y `statusLabel` van SIEMPRE juntos, y el tipo lo exige: un punto de color sin texto
+ * comunicaría el estado **sólo por color**, que es justo lo que la regla de accesibilidad del
+ * spec prohíbe. Con los dos opcionales por separado, olvidarse del label no daba ni error de
+ * compilación ni aviso en runtime — el chip simplemente quedaba inaccesible.
+ */
+type ToggleGroupOptionStatus =
+  | { readonly status: ToggleGroupStatus; readonly statusLabel: string }
+  | { readonly status?: undefined; readonly statusLabel?: undefined };
+
+type ToggleGroupOption = {
   readonly value: string;
   readonly label: string;
   readonly disabled?: boolean;
-}
+} & ToggleGroupOptionStatus;
 
 interface ToggleGroupProps {
   readonly variant?: ToggleGroupVariant;
@@ -108,6 +124,15 @@ export function ToggleGroup({
             onKeyDown={(event) => handleKeyDown(event, index)}
           >
             {option.label}
+            {option.status && (
+              <>
+                <span
+                  className={cn(styles.statusDot, styles[`status-${option.status}`])}
+                  aria-hidden="true"
+                />
+                {option.statusLabel && <span className={styles.srOnly}>{option.statusLabel}</span>}
+              </>
+            )}
           </button>
         );
       })}

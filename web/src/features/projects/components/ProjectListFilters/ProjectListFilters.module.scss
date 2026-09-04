@@ -1,24 +1,23 @@
-// El reparto original (buscador 50% + 3 filtros al 50%/3 c/u) sumaba 100% del ancho del
-// contenedor y encima el `gap: 1rem` se agregaba por fuera de esa cuenta con
-// `flex-wrap: nowrap`, así que la fila desbordaba y `overflow-x: hidden` del body recortaba
-// los últimos filtros sin dejar forma de alcanzarlos. `flex-basis` + `flex-grow` reparte el
-// espacio proporcionalmente (6/12 buscador + 2/12 por filtro) contemplando el gap adentro del
-// 100%, en vez de sumar porcentajes fijos por fuera de él.
+// El prototipo del handoff arma la fila de filtros como GRID de `2fr 1fr 1fr 1fr` con gap de
+// 18px, no como flex con ratios.
+//
+// Resuelve de raíz el problema que el comentario anterior describía: con flex el gap se sumaba
+// por fuera del reparto, la fila desbordaba y los últimos filtros quedaban recortados sin forma
+// de alcanzarlos — de ahí los factores de crecimiento que había que compensar a mano. En grid el
+// gap entra en el cálculo de las columnas, así que no hay nada que compensar. Y como las tres
+// pantallas de listado usan la misma técnica, sus columnas quedan alineadas entre ellas.
 .filterSection {
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: var(--space-4);
-  flex-direction: row;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: var(--space-grid-gap);
+  // Los campos tienen alturas distintas (un select con label sobre un input sin label): abajo
+  // es donde el prototipo los alinea.
+  align-items: end;
 }
 
-.search {
-  flex: 6 6 0;
-  min-width: 0;
-}
-
+// `min-width: 0` en los hijos del grid: sin eso, un select con texto largo fuerza el ancho de
+// su columna por encima de la fracción que le toca.
+.search,
 .filter {
-  flex: 2 2 0;
   min-width: 0;
 }

@@ -153,7 +153,8 @@ describe('RequirementHeader', () => {
 ## Cobertura faltante
 
 Sin ningún test: **`features/clients`**, **`features/time-allocation`**, **`src/contexts/`**,
-**`src/lib/`** (auth, axios, queryClient) y **`shared/components/layout/`** salvo `Navbar`.
+**`src/lib/`** (auth, axios, queryClient). `shared/components/layout/` quedó sin componentes
+vivos en S-060, así que ya no aplica.
 
 `src/lib/` es el más significativo: el interceptor que inyecta el token y el que normaliza el
 `ApiError` no tienen test.

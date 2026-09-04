@@ -11,22 +11,69 @@
   }
 }
 
+// La fila de estado + responsable tiene que poder encogerse: el nombre largo desbordaba la
+// card (scrollWidth 331 sobre clientWidth 253) y quedaba cortado por el borde, sin ellipsis.
+// La fila de estado + area/responsable ENVUELVE en vez de competir por un renglon: en una
+// card de 255px, la pill de estado (95px) y la etiqueta de area con el nombre (225px de
+// contenido) no caben juntas. Forzarlas en una linea terminaba o desbordando la card, o
+// aplastando el nombre a cero.
+//
+// El handoff muestra los dos elementos en una fila porque su card de ejemplo tiene un nombre
+// corto; con `wrap` la fila se mantiene cuando cabe y baja el nombre a un segundo renglon
+// cuando no, sin recortar ni desbordar.
 .middleContent {
-  @include flex-between;
-  align-items: flex-end;
-  column-gap: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
+  min-width: 0;
 }
 
+// Pie de metricas de la card de tarea (handoff § Cards, card-tarea): grilla de tres columnas
+// centradas sobre el fondo hundido, con borde superior y a sangre.
+//
+// La card pasa esto por el SLOT `footer`, no por la prop `metrics`, asi que no hereda el
+// `.footer` de Card y tiene que declarar la misma geometria aca. Era `flex-between` con gap
+// de 1rem, que con tres columnas de ancho desigual desbordaba la card.
 .bottomContent {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
   width: 100%;
-  @include flex-between;
-  gap: 1rem;
+  min-width: 0;
+  padding: 11px var(--space-2);
+  margin-top: auto;
+  text-align: center;
+  background-color: var(--card-footer-bg);
+  border-top: 1px solid var(--card-border);
+}
+
+// Las tres columnas no pueden empujar el ancho de la card: el texto se corta con ellipsis en
+// vez de desbordar (era el origen del scrollWidth 331 sobre un clientWidth de 253).
+.bottomContent > * {
+  min-width: 0;
+}
+
+// Pie de la card VENCIDA: relleno rojo pleno con texto blanco y datos en peso 700. Es el
+// unico uso de rojo pleno del sistema (handoff § Cards, card-tarea vencida).
+//
+// `:global` porque `taskOverdue` es una clase del modulo de Card, no de este: sin eso CSS
+// Modules la hashea con el hash de ESTE archivo y nunca matchea la que Card puso en el DOM.
+:global([class*='taskOverdue']) .bottomContent {
+  background-color: var(--card-footer-overdue-bg);
+  border-top-color: var(--card-footer-overdue-bg);
+  color: var(--card-footer-overdue-text);
+  font-weight: var(--font-weight-bold);
 }
 
 .workedTimeContainer {
   @include flex-start;
-  gap: 0.25rem;
+  gap: var(--space-1);
+  min-width: 0;
 }
+
 
 .workedText {
   font-family: var(--font-family-ui);

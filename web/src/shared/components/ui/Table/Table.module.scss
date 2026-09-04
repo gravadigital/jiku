@@ -23,10 +23,15 @@
   }
 }
 
-// variant: light — cabecera niebla, listados navegables
+// variant: light — cabecera niebla, listados navegables.
+//
+// `--bg-row-alt` y no `--bg-surface-sunken`: los dos resuelven al mismo valor en ambos modos,
+// pero el handoff nombra --row-alt para la cabecera de la tabla clara y para la fila alterna,
+// que es la misma superficie. Usar el token del rol correcto evita que un cambio futuro en uno
+// de los dos desalinee cabecera y filas.
 .light {
   thead {
-    background-color: var(--bg-surface-sunken);
+    background-color: var(--bg-row-alt);
     color: var(--text-secondary);
   }
 }
@@ -42,13 +47,21 @@
 // variant: matrix — niebla, agrupadores en versalitas
 .matrix {
   thead {
-    background-color: var(--bg-surface-sunken);
+    background-color: var(--bg-row-alt);
     color: var(--text-secondary);
   }
 }
 
+// La cabecera declara su propia tipografia (11px/600 en versalitas, tracking .08em — handoff
+// § Tablas). Antes solo fijaba el alto y HEREDABA el tamano del contexto de cada pantalla:
+// 16px en el listado de tareas y 14px en el de requisitos, para la misma cabecera.
 .headerCell {
   height: var(--table-row-height);
+  font-family: var(--table-header-font);
+  font-size: var(--table-header-size);
+  font-weight: var(--table-header-weight);
+  letter-spacing: var(--table-header-tracking);
+  text-transform: uppercase;
 }
 
 .sortable {
@@ -78,10 +91,55 @@
 .dataCell {
   height: var(--table-row-height);
   color: var(--text-primary);
+  // Una celda de TEXTO recorta con ellipsis; una celda con PILL se muestra entera.
+  //
+  // El `td { max-width: 9.4rem }` global que hacia esto se dio de baja porque recortaba las
+  // pills a 150px ("Planificacion" mide 151). El reemplazo distingue los dos casos en vez de
+  // aplicar el mismo tope a todo:
+  //
+  //   - celda de pill: sin tope, `nowrap` — la pill es contenido atomico.
+  //   - celda de texto: recorta, y el ancho lo reparte la tabla (`table-layout: auto`) segun
+  //     el peso de cada columna, no un maximo fijo por celda.
+  //
+  // `nowrap` es lo que sostiene el alto de fila de 48px: sin el, un titulo largo envuelve a
+  // dos lineas y la fila crece, que es lo que pasaba en el reporte de requisitos. El handoff
+  // lo dice explicito: "celda de titulo: 1 linea con text-overflow: ellipsis".
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  // Y un tope de ancho, porque `nowrap` sin tope hace lo contrario de lo que se busca: la
+  // columna se estira hasta el texto mas largo. En el reporte, "Conclusion" y "Comentario"
+  // —dos campos de texto libre— llevaban la tabla a 4031px. Con el tope, el texto se recorta
+  // con ellipsis y la columna respeta el reparto de la tabla.
+  //
+  // 420px es el ancho de la columna mas ancha que el handoff dibuja (el titulo del listado de
+  // requisitos, 2.4fr sobre ~1100px). No es un valor arbitrario: es el techo de "columna de
+  // texto larga" del diseno.
+  max-width: 420px;
 }
 
+// La celda que contiene una pill no recorta ni cede ancho.
+.dataCell:has([class*='Badge-module']) {
+  overflow: visible;
+  white-space: nowrap;
+  width: 1%;
+}
+
+// Las columnas de dato corto (id, horas, fecha) se ajustan a su contenido y no compiten con
+// las de texto largo por el ancho sobrante.
+.dataCell:has([class*='Badge-module']),
+.compactCell {
+  white-space: nowrap;
+}
+
+// Fila alterna sobre --row-alt (handoff § Tablas, densidad clara). El `tr:hover` global que
+// hacia este trabajo a medias se dio de baja junto al resto de los estilos de elemento.
 .row {
   background-color: var(--bg-surface);
+
+  &:nth-child(even) {
+    background-color: var(--bg-row-alt);
+  }
 
   &:hover {
     background-color: var(--bg-surface-sunken);
