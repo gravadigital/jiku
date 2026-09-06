@@ -18,9 +18,11 @@ priority. They move along:
 analisis → planificacion → en_cola → desarrollo → revision → resuelto
 ```
 
-Nothing enforces that order: the state reflects what the team says it is. Requirements carry
-responsible people, an activity feed, comments, subscribers and attachments. Resolving one is a
-separate operation that records a resolution type and a conclusion.
+Nothing enforces that order: the state reflects what the team says it is, and any state is
+reachable from any other — including back out of `resuelto` or `cancelado`, which clears the
+stored resolution. Requirements carry responsible people, an activity feed, comments,
+subscribers and attachments. Resolving one records a resolution type and a conclusion; both are
+**required only for an `incidencia`**, and optional for every other type.
 
 **Tasks** are the concrete work, optionally linked to a requirement. Same shape: responsible
 people, priority, estimated finish date, comments, activity history.
@@ -34,6 +36,10 @@ is what the reports compare against.
 
 Reports aggregate hours by person, by project and by requirement; the requirements report
 exports to CSV.
+
+**Comments** on a task or a requirement can be edited afterwards by their author, or by an
+`admin` — text and attachments alike. Editing never notifies, and the "edited" marker is shown
+only on the internal frontend, never on the portal.
 
 **Attachments** go on tasks, requirements and comments, and can be referenced inline in text so
 they render in place. Storage is any S3-compatible service. Each attachment has a visibility
@@ -49,6 +55,9 @@ level — that is what lets an internal comment carry a file the portal will not
 - You log **your own** hours, nobody else's.
 - Only for **today and the ten days before it**.
 - Worked and unworked time share a **daily limit**; absences count toward it.
+
+The internal frontend ships a **light and a dark theme**, with a selector in the sidebar; the
+choice is remembered per browser. The portal does not have one.
 
 ## Who sees what
 

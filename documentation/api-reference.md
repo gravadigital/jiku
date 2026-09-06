@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The 61 endpoints the API serves, generated from the route definitions. For the bus contract
+The 62 endpoints the API serves, generated from the route definitions. For the bus contract
 behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
@@ -86,6 +86,7 @@ it in the `catch`, when there is no reply at all to translate.
 | GET    | `/api/requirements/:reqid`              | user, admin |     |
 | PATCH  | `/api/requirements/:reqid`              | user, admin | ●   |
 | POST   | `/api/requirements/:reqid/comments`     | user, admin | ●   |
+| PATCH  | `/api/requirements/:reqid/comments/:cid` | user, admin | ●   |
 | GET    | `/api/requirements/:reqid/worked-hours` | user, admin |     |
 | GET    | `/api/requirements/report`              | user, admin |     |
 | GET    | `/api/requirements/tags/suggestions`    | user, admin |     |
@@ -102,7 +103,7 @@ Called `objectives` here; the bus protocol calls them `task`. Same entity — se
 | GET    | `/api/objectives/:id`              | —     |     |
 | PATCH  | `/api/objectives/:id`              | —     | ●   |
 | POST   | `/api/objectives/:id/comments`     | —     | ●   |
-| PATCH  | `/api/objectives/:id/comment/:cid` | —     |     |
+| PATCH  | `/api/objectives/:id/comment/:cid` | user, admin | ●   |
 
 ### Worked and unworked time
 

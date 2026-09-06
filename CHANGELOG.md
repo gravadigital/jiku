@@ -69,6 +69,132 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-06
+
+Five requests. Comment editing moves onto the bus and reaches requirements for the first time,
+the requirement state machine is deliberately taken back out of `core`, listings gain real
+totals and multi-state filtering, and `web` is rebuilt on a tokenised Design System with a dark
+theme.
+
+**Backwards compatible, with two behavioural notes worth reading.** No endpoint changes its HTTP
+status, and the one error-code string that changed had no consumers. But a rule that `1.2.0`
+started enforcing server-side is now deliberately gone, and another was narrowed back — both are
+in **Changed**, and neither is a bug.
+
+### Added
+
+- **Editing a requirement's comment.** `PATCH /api/requirements/{reqid}/comments/{cid}`, the
+  endpoint that closes the long-standing asymmetry where only a task's comment could be edited.
+  Author or `admin`, text and attachments together, and `fileIds` is the complete set that must
+  end up linked — the same `syncFileLinks` semantics as `requirements.{id}.edit`.
+- **Two new bus commands**, 21 → 23: `requirements.{id}.comment.{cid}.edit` and
+  `tasks.{id}.comment.{cid}.edit`. Both join the shared role → method constant, which grows from
+  18 to 20 enumerated commands for `admin` and `user`.
+- **Two new error codes** in `@jiku/nats-protocol`: `comment_not_owned` (403 — not the author and
+  not an `admin`) and `activity_not_editable` (400 — the activity exists but is not a `comment`).
+- **`edited_at` / `edited_by` on both activity tables**, and an "edited" marker in the feed. The
+  marker is shown on the internal frontend only, never on the portal, whatever the comment's
+  visibility. Editing does not notify — there is no notification channel in the product.
+- **Multi-state filtering on `GET /requirements`.** `state` now accepts a comma-separated list
+  and returns requirements in **any** of them. The listing defaults to `planificacion`, `en_cola`,
+  `desarrollo`, `revision`; clearing every state shows all of them rather than none.
+- **Real totals on listings.** `count=true` on `GET /requirements` returns the number of matches
+  instead of the page, so each tab's total is fetched rather than inferred from an incomplete
+  page. `count` on `GET /objectives` existed in the code already and is now documented.
+- **Hours per requirement, broken down by person.** `GET /requirements/{reqid}/worked-hours`
+  gains `byPerson` — `[{ personId, firstName, lastName, minutes }]`, ordered by minutes
+  descending — whose sum is exactly `totalMinutes`. Always present, `[]` when there are none.
+  The breakdown is by `Person`, so it includes people who are disabled, discharged, or have no
+  linked `User`. The response schema is now specified in the contract instead of `type: object`.
+- **`include=totalMinutes` on `GET /requirements`**, opt-in, so the listing can render an hours
+  column without one call per row. It costs two correlated subqueries per row and is not paid for
+  unless asked; `count=true` ignores it. Same gradation as the includable field of the same name
+  in the bus query contract.
+- **A dark theme for the internal frontend**, with a selector in the sidebar and the choice
+  remembered per browser. Contrast is now measured rather than assumed: the six state families
+  are checked against WCAG AA on every test run.
+- **A pagination window.** Long listings render at most 10 page numbers, centred on the current
+  page, instead of one button per page.
+
+### Changed
+
+- **The requirement state sequence is no longer enforced (REQ-012).** `1.2.0` moved the
+  `analisis → planificacion → en_cola → desarrollo → revision` table into `core` and enforced it
+  for the first time; that is **deliberately derogated**. Any state is now reachable from any
+  other, forward or backward, and `resuelto` / `cancelado` stop being terminal.
+  `invalid_state_transition` **is no longer emitted** — it stays in the catalog without an
+  emitter. This is a loosening: calls that used to fail with 400 now succeed. Anything that
+  relied on the server to reject a backwards transition no longer has that guard.
+- **Leaving `resuelto` clears the resolution.** Moving a requirement out of `resuelto` into a
+  non-terminal state sets `resolutionType`, `resolutionConclusion` and `resolutionComment` to
+  `null` in the same update — atomic by construction, not two writes.
+- **Mandatory resolution type + conclusion is narrowed back to `incidencia` (REQ-012).** `1.2.0`
+  had widened C-17 to every requirement type; for `funcionalidad`, `mejora` and `otro` both
+  fields are optional again. `resolution_required` still answers 400, and `type` is still read
+  from the stored row rather than the payload. Both `requirements.{id}.edit` and
+  `requirements.{id}.resolve` share the one validator.
+- **`finishedAt` is rewritten on every entry into `resuelto`**, so it reflects the last
+  resolution. `scheduledAt`, `inProgressAt` and `inReviewAt` stay write-once — the asymmetry is
+  intentional, now that a requirement can be resolved more than once.
+- **`PATCH /api/objectives/{id}/comment/{cid}` publishes to the bus** instead of writing through
+  the ORM, which was an undeclared fourth exception to ADR-001. Its `403` body code changes from
+  `forbidden` to `comment_not_owned`; the HTTP status is unchanged, and neither frontend consumed
+  the old string. It also accepts `fileIds` now, and `admin` may edit another author's comment.
+- **`visibilityLevel` is immutable once a comment exists**, on both edit commands, and is
+  rejected with `invalid_fields` if sent.
+- **`web` runs on a three-tier token layer.** Colour, typography and spacing come from reference,
+  semantic and component tokens instead of hardcoded values, and every screen was migrated onto a
+  shared component set. The Design System is versioned separately and reached **4.0.0** — see
+  [docs/design-system/web/CHANGELOG.md](docs/design-system/web/CHANGELOG.md).
+- **The internal frontend is explicitly desktop-only**: the shell declares `min-width: 1400px`
+  and scrolls horizontally below it. This replaces an `overflow-x: hidden` that silently clipped
+  content and made it unreachable below roughly 900px. See
+  [known-limitations.md](documentation/known-limitations.md).
+
+### Fixed
+
+- **Six state families failed WCAG AA contrast in dark mode**, between 1.38:1 and 3.98:1 against
+  a 4.5:1 minimum. Dark tints had been derived without redeclaring each family's text colour, so
+  every one kept its light-mode ink on a dark tint. Now 7.2:1 to 9.9:1, and asserted by a test.
+  `--text-link` had the same problem (3.79:1) and moves to aqua green.
+- **A global `span { font-size: 1.25rem }`** forced 20px on every `<span>` in the application,
+  overriding what components declared by class — a state `Badge` rendered at 20px instead of 11px.
+- **A global `td { max-width: 9.4rem }`** clipped every state pill in a table.
+- **The project filter lost its search box** when it moved off `react-select`. `Select` gains an
+  opt-in `searchable` with accent-insensitive matching, so `validacion` finds `Validación
+  Fiscal`. Keyboard navigation operates on the visible options, not the unfiltered list.
+- **The requirement stepper offers all seven states** and suggests the previous one on
+  resolution, instead of only the next in a sequence that no longer exists.
+- A button's loading spinner was invisible; `(editado)` did not match the size of the edit
+  controls beside it; the rich-text editor did not focus when clicked anywhere but its text; the
+  state filter overflowed its line and could not be ticked from the menu; the project detail
+  rendered an empty stages section.
+
+### Removed
+
+- **`InputSelect`**, `core/src/commands/requirements/state-transitions.ts`, and two dead colour
+  maps (`OBJECTIVE_STATE_COLORS`, `OBJECTIVE_AREA_COLORS`, `PROJECT_STATUS_COLORS`) that still
+  declared the discontinued palette. A guard test keeps the old palette from re-entering.
+
+### Notes for existing installations
+
+- **One migration, `20260901_01_activity_edited_at_edited_by`.** Adds `edited_at` and `edited_by`
+  to `requirement_activity` and `objective_activity`. Both columns are nullable with no default,
+  so PostgreSQL only touches the catalog — no table rewrite, no long lock, no downtime. `NULL`
+  means "never edited", which is correct for every pre-existing row; there is no backfill. The
+  `down` drops all four columns in a transaction.
+- **No environment variables were added, renamed or removed.** `deploy/.env.dist` is unchanged
+  apart from the version defaults.
+- **No changes to NATS roles or permissions.** The two new commands are covered by the existing
+  `{instance}.{user_id}.jiku-commands.v1.>` publish permission, so no auth-callout template
+  changes and no re-issued credentials.
+- **Bus consumers:** the two new commands and two new error codes are additive. If you match on
+  `invalid_state_transition` for requirements, note that it is no longer emitted — the code
+  remains in the catalog, but nothing raises it.
+- **HTTP consumers:** `state` on `GET /requirements` is a superset of what it accepted before, so
+  `state=desarrollo` behaves exactly as it did. If you handled the `403` body code `forbidden`
+  from `PATCH /api/objectives/{id}/comment/{cid}`, it is now `comment_not_owned`.
+
 ## [1.2.0] - 2026-08-27
 
 One request, seven stories. `admin` and `user` gain write access to the bus, and every

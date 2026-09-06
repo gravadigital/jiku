@@ -143,6 +143,19 @@ connect to the bus.
 The fix belongs in the auth-callout, which is a separate component. If it happens, restart
 the callout.
 
+## The internal frontend is desktop-only
+
+The shell declares `min-width: 1400px` with a fixed 300px sidebar: below that width the internal
+frontend **scrolls horizontally** instead of reflowing. There is no mobile or tablet layout, by
+design — the identity handoff this interface was built against states there is no responsive
+mobile design in scope.
+
+This replaced an earlier `overflow-x: hidden` that, below roughly 900px, silently **clipped**
+content and left it unreachable. Scrolling is the lesser problem of the two, not a solution: how
+Jiku should look on a phone is still an open question.
+
+The client portal is unaffected and has its own layout.
+
 ## Two lint rules are warnings, not errors
 
 `react-hooks/set-state-in-effect` fires on two components in `opus-web`
