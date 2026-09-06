@@ -3,6 +3,7 @@ import joi from 'joi';
 import { RequirementActivity, VisibilityLevel } from '@jiku/models';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
+import validateRequirementIsPublic from '../utils/middlewares/validate-requirement-is-public';
 import { sendCommand } from '../utils/bus/send-command';
 
 const router: Router = Router();
@@ -49,6 +50,8 @@ async function addComment(req: Request, res: Response) {
 
 router.post('/opus/requirements/:reqid/comments',
   validateRequirement,
+  // No se comenta desde el portal un requisito que el portal no muestra.
+  validateRequirementIsPublic,
   validateBodyFields(joi.object({
     comment: joi.string().required(),
     // Ids de `files` ya subidos, NO de `attachments` (REQ-001, S-003): el vínculo lo crea core al

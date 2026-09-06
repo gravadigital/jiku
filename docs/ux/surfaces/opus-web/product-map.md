@@ -167,6 +167,12 @@ Pantallas: login (#1), login-entrada (#2)
   a abrir un archivo (ver [`screens/login.md`](screens/login.md)).
 - **Rol interno vs `external-user`** — **No cambia la navegación.** Cambia qué controles se
   renderizan: un rol interno ve dropdowns de estado y prioridad donde el cliente ve pills fijos.
+  **Lo que NO cambia es el contenido:** desde 2026-09-06 la api recorta la superficie a los
+  requisitos con `visibilityLevel: 'public'` **para todo rol**, así que un usuario interno ve en
+  el portal exactamente los mismos requisitos que el cliente. Antes no era así —los `internal` se
+  listaban y se abrían— y era un error, no una decisión. El recorte es de la superficie, no del
+  caller: el portal es la pantalla que se comparte con el cliente. Un requisito interno abierto
+  por URL directa responde 404.
 - **Sin proyectos asignados** — Si el cliente no tiene ninguna fila en `user_project_permissions`,
   el sidebar queda vacío y `/projects` no tiene a dónde redirigir. **Desde REQ-007 este es el estado
   de entrada de todo cliente nuevo**, no un borde: al desaparecer el 401 `user_not_found`, una
@@ -239,6 +245,11 @@ flowchart TD
 2. **¿Un usuario interno debería poder operar desde el portal?** Hoy puede cambiar estado y
    prioridad inline. Si la respuesta es no, O-03 y O-04 desaparecen y la superficie queda
    enteramente de lectura salvo el alta y los comentarios.
+
+   > **Sigue abierta, pero se achicó.** El recorte por visibilidad de 2026-09-06 respondió la
+   > mitad *de contenido* de esta pregunta —un rol interno ya no ve **más requisitos** que el
+   > cliente— y dejó intacta la mitad *de control*, que es la que la pregunta plantea: sigue
+   > pudiendo operar estado y prioridad sobre los requisitos públicos que sí ve.
 
 3. **¿El detalle de requisito debe existir como pantalla y como modal?** Hoy están los dos, con la
    misma composición y 1 px de diferencia. Unificar reduce el mapa y elimina una fuente de

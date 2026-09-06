@@ -2095,6 +2095,10 @@ paths:
       tags: [opus]
       summary: Requisitos de un proyecto en el portal
       description: |
+        **Devuelve solo requisitos con `visibilityLevel: 'public'`**, para todo rol —
+        `user` y `admin` incluidos. El recorte es de la superficie, no del caller: el portal es
+        la pantalla que se comparte con el cliente. No se puede desactivar por query.
+
         **Nota sobre el código:** los filtros se validan con `validateBodyFields`, no con
         `validateQueryParams` (`opus-projects-projid-requirements-get.ts:63`), así que el esquema
         se aplica al cuerpo de una request GET. Los parámetros que el handler realmente lee son
@@ -2219,6 +2223,10 @@ paths:
       tags: [opus]
       summary: Detalle de un requisito en el portal
       description: |
+        **Responde 404 `requirement_not_found` si el requisito es `internal`**, para todo rol.
+        El 404 es idéntico al de un id inexistente, a propósito: distinguirlos confirmaría que
+        el requisito existe (mismo criterio que el recorte externo de `core`).
+
         Filtra las actividades por visibilidad: un `external-user` no ve las `internal`.
 
         **La respuesta real NO es `RequirementWithRelations`.** Este handler es el único de la
@@ -2250,6 +2258,9 @@ paths:
       summary: Cambia estado o prioridad de un requisito
       description: |
         Publica `requirements.{id}.edit` con solo esos dos campos.
+
+        **Responde 404 `requirement_not_found` si el requisito es `internal`**, y corta antes de
+        publicar el comando: lo que el portal no muestra, tampoco lo edita.
 
         **Declara `hasAnyRole(['user', 'admin'])` — sin `external-user`**, a diferencia del resto
         de la superficie opus (`opus-requirements-id-patch.ts:30`). Si es intencional o un
@@ -2286,6 +2297,9 @@ paths:
       description: |
         Publica `requirements.{id}.comment`. **Sin `visibilityLevel`**: un comentario del portal
         no puede ser interno.
+
+        **Responde 404 `requirement_not_found` si el requisito es `internal`**, y corta antes de
+        publicar el comando.
       x-roles: [user, external-user]
       x-bus-command: requirements.{id}.comment
       parameters:
@@ -2322,6 +2336,8 @@ paths:
       description: |
         Publica `requirements.{id}.subscriptors.new`. Valida que el usuario a suscribir exista y
         tenga permiso sobre el proyecto.
+
+        **Responde 404 `requirement_not_found` si el requisito es `internal`.**
       x-roles: [external-user]
       x-bus-command: requirements.{id}.subscriptors.new
       parameters:
@@ -2364,6 +2380,11 @@ paths:
       description: |
         Publica `requirements.{id}.subscriptors.{userId}.delete`. **Un `external-user` solo puede
         desuscribirse a sí mismo.**
+
+        **Es el único endpoint de `/opus/requirements/{reqid}` que NO recorta por visibilidad**,
+        y es deliberado: solo borra la suscripción del propio caller, así que no revela nada del
+        requisito, y bloquearlo dejaría atrapado a quien se suscribió cuando el requisito era
+        público y después pasó a interno.
       x-roles: [external-user]
       x-bus-command: requirements.{id}.subscriptors.{userId}.delete
       parameters:

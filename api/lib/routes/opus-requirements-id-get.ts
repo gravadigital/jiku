@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateRequirement from '../utils/middlewares/validate-requirement';
 import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
+import validateRequirementIsPublic from '../utils/middlewares/validate-requirement-is-public';
 import { RequirementActivity, RequirementSubscriptor, User, VisibilityLevel } from '@jiku/models';
 import logger from '../logger';
 
@@ -112,6 +113,7 @@ router.get('/opus/requirements/:reqid',
   hasAnyRole(['user', 'external-user']),
   validateRequirement,
   validateProjectPermissions,
+  validateRequirementIsPublic,
   loadPublicActivity,
   loadSubscriptors,
   sendResponse

@@ -133,7 +133,7 @@ archivo. Los casos vivos:
 | Regla | Dónde |
 |---|---|
 | Un `external-user` solo se suscribe a sí mismo | `opus-requirements-id-subscriptors-userid-delete.ts:11-16` |
-| El usuario a suscribir tiene permiso en el proyecto | `opus-requirements-id-subscriptors-post.ts:27` |
+| El usuario a suscribir tiene permiso en el proyecto | `opus-requirements-id-subscriptors-post.ts:26` |
 
 > **REQ-007 (S-031) — dos filas se fueron de esta tabla.** Eran *"Solo `admin` imputa horas a otra
 > persona (`worked-times-post.ts:57-83`)"* y *"Solo el dueño borra su registro de horas
@@ -174,7 +174,34 @@ Es la frontera del portal de clientes. Todo endpoint ahí:
 1. declara `hasAnyRole(['user', 'external-user'])` (o `['external-user']` para suscripciones),
 2. carga la entidad del path,
 3. aplica `validateProjectPermissions`,
-4. y si es un listado, acota la query por permisos.
+4. **recorta por visibilidad** (ver abajo),
+5. y si es un listado, acota la query por permisos.
+
+### El recorte por visibilidad es de la superficie, no del rol
+
+Las tres capas de arriba responden *"¿quién sos?"*. Esta responde **"¿este recurso se muestra en
+el portal?"**, y por eso **no mira el rol**: se aplica igual a `admin`, `user` y `external-user`.
+
+| Qué | Cómo |
+|---|---|
+| Requisitos | `visibilityLevel: 'public'` — `validateRequirementIsPublic` en las rutas de `:reqid`, y en el `where` del listado |
+| Actividad y comentarios | `visibilityLevel: VisibilityLevel.Public` en `loadPublicActivity` |
+
+> **Por qué no distingue rol**, aunque `validateProjectPermissions` sí lo haga: la visibilidad es
+> una propiedad **del recurso**, no del caller. El portal es la pantalla que se comparte con el
+> cliente, y un requisito interno no debería aparecer ahí ni siquiera cuando quien mira es del
+> equipo. Es el mismo criterio que ya aplicaba el filtro de actividad, que nunca miró el rol.
+>
+> No contradice a S-023 CA-15 (*"el modo interno no recorta filas"*): eso es sobre el **bus**,
+> donde un `user` sí ve todo. Acá el eje es la superficie HTTP.
+
+**El código es 404 `requirement_not_found`, idéntico al de un id inexistente.** Distinguir "no
+existe" de "no lo podés ver" le confirma al usuario externo que el recurso existe — el mismo
+criterio que S-023 CA-14 fijó para el recorte externo de `core`.
+
+**La única excepción declarada** es `DELETE /opus/requirements/:reqid/subscriptors/:userId`: solo
+borra la suscripción del propio caller, así que no revela nada, y bloquearla dejaría atrapado a
+quien se suscribió antes de que el requisito pasara a interno. Está comentada en el archivo.
 
 > `PATCH /api/opus/requirements/:reqid` declara `hasAnyRole(['user', 'admin'])` — **sin**
 > `external-user`, a diferencia del resto de la superficie. Si es intencional o un descuido está
@@ -186,6 +213,13 @@ Es la frontera del portal de clientes. Todo endpoint ahí:
   una convención.
 - `validateProjectPermissions` va **después** del middleware que carga `req.project`.
 - Todo endpoint de `/api/opus/*` lleva las tres capas. Sin excepción.
+- Todo endpoint de `/api/opus/*` que lea o escriba sobre un requisito lleva
+  `validateRequirementIsPublic` después de `validateRequirement`; un listado lo pone en el
+  `where`. La excepción del `DELETE` de suscripciones es la única, y está comentada.
+- El recorte por visibilidad **no se condiciona al rol**: es de la superficie. Si escribís
+  `if (!roles.includes('external-user'))` alrededor de un filtro de visibilidad, está mal.
+- Un endpoint del portal que corta por visibilidad responde **404**, no 403: el 403 confirmaría
+  que el recurso existe.
 - Un listado en la superficie opus **acota la query**, no responde 403.
 - Los roles se leen de `req.decodedTokenRoles`; el usuario, de `req.user`. Nunca del cuerpo.
 - Un `entityType` nuevo de adjuntos se agrega a **las dos** funciones de `attachments-access.ts`,

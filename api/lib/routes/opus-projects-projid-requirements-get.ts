@@ -5,7 +5,7 @@ import joi from 'joi';
 import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateProject from '../utils/middlewares/validate-project';
-import { Requirement, RequirementState, User } from '@jiku/models';
+import { Requirement, RequirementState, RequirementVisibilityLevel, User } from '@jiku/models';
 import { literal, OrderItem } from 'sequelize';
 
 const router: Router = Router();
@@ -26,7 +26,13 @@ function getProjectRequirements(req: Request, res: Response) {
   const { state, sort = 'createdAt', limit = 20, skip = 0 } = req.query;
   const sortField = String(sort);
 
-  const filters: any = { projectId: project.id };
+  // El recorte de la superficie: el portal lista SOLO requisitos publicos, para todo rol.
+  // No es un filtro que el caller pueda desactivar --no sale del query--, por la misma razon
+  // que el recorte externo de core no se desactiva por payload (S-023 CA-12).
+  const filters: any = {
+    projectId: project.id,
+    visibilityLevel: RequirementVisibilityLevel.Public,
+  };
 
   let order: OrderItem[];
 

@@ -167,8 +167,19 @@ entity is saved.
 
 ## Client portal endpoints
 
-Served under `/api/opus/*` and consumed by `opus-web`. Access is restricted by project
-permission: an `external-user` only sees the projects they were granted.
+Served under `/api/opus/*` and consumed by `opus-web`. Two restrictions apply, and they are
+independent:
+
+- **By project permission** — an `external-user` only sees the projects they were granted.
+- **By requirement visibility** — the portal serves only requirements with
+  `visibilityLevel: 'public'`, **for every role**, `user` and `admin` included. The trim belongs
+  to the surface, not the caller: the portal is the screen shared with the client. A requirement
+  marked `internal` is absent from the listing and answers `404 requirement_not_found` on every
+  other path — the same response as a non-existent id, so the 404 does not confirm it exists.
+
+The one exception is `DELETE .../subscriptors/:userId`, which only ever removes the caller's own
+subscription: it stays reachable so nobody is left subscribed to a requirement that turned
+internal with no way to unsubscribe.
 
 | Method  | Path                                                 | Roles                      | Bus |
 | ------- | ---------------------------------------------------- | -------------------------- | --- |

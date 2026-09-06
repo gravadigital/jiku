@@ -73,6 +73,11 @@ A client user reaches only the projects granted to them, can create requirements
 point of the portal — comment, subscribe, and download attachments whose visibility allows it.
 They never see hours, internal comments or other clients' projects.
 
+**Requirements also carry a visibility level, and the portal serves only the public ones.**
+That trim does not depend on the role: a `user` or an `admin` browsing the portal sees exactly
+the same requirements a client does. Marking a requirement `internal` is what keeps it off the
+screen the team shares with the client — it stays fully visible on the internal frontend.
+
 ## What Jiku does not do
 
 Stated plainly, because some of it used to exist and was removed before publishing:

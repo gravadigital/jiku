@@ -77,7 +77,7 @@ particularidad de este servicio respecto de la estructura `domain/{module}/` del
 | `unworked-times` | `unworked-times-*` | 5 | Ausencias y motivos |
 | `week-assigned-times` | `week-assigned-times-*` | 2 | El único `PUT`; solo `admin` |
 | `attachments` | `attachments-*` | 6 | S3, rollback, checksum |
-| `opus` | `opus-*` | 12 | Portal de clientes, acotado por permiso de proyecto |
+| `opus` | `opus-*` | 12 | Portal de clientes, acotado por permiso de proyecto **y por visibilidad del requisito** |
 | `auth` | `auth-present-post`, `settings-get`, `persons-get` | 3 | `present` es hoy un no-op |
 
 ## Autenticación y autorización
@@ -103,6 +103,10 @@ Tres capas, detalladas en [`conventions/auth-jwt.md`](./conventions/auth-jwt.md)
 3. **Por entidad:** `validateProjectPermissions` y `canUserAccessEntity` / `canUserViewEntity`
    restringen a `external-user` por `user_project_permissions`, resolviendo el proyecto desde
    9 tipos de entidad distintos.
+
+Y, solo en `/api/opus/*`, un cuarto recorte que **no es por caller sino por superficie**:
+`validateRequirementIsPublic` deja fuera del portal todo requisito `internal`, para todo rol.
+Ver [`authorization`](./conventions/authorization.md).
 
 ## Traducciones de contrato api ↔ bus
 
@@ -132,6 +136,7 @@ sentidos para no tocar el contrato HTTP.
 | No se modifican semanas pasadas | `middlewares/validate-week-not-past.ts` | Depende del calendario |
 | Deadline para borrar una ausencia: 10 días desde `created_at` | `unworked-times-id-delete.ts` | **`deadline_exceeded` no está en el protocolo del bus**, y compara `created_at`, no `date`: es otra regla que la ventana de carga. `core` decidió explícitamente no tomarla (S-031) |
 | Visibilidad automática de actividades | `utils/visibility-helper.ts` | Estado, título y descripción son `public`; el resto `internal`. Solo los comentarios permiten elegir |
+| El portal solo muestra lo público | `middlewares/validate-requirement-is-public.ts` y el `where` del listado opus | Es del transporte: qué se expone en **esta superficie**. No depende del rol — ver [`authorization`](./conventions/authorization.md) |
 | Límites de adjuntos: 10 archivos, 10 MB, 13 extensiones | `attachments-post.ts:15-31` | La api es la que recibe el multipart |
 
 ### Lo que se fue con REQ-007 (S-031)

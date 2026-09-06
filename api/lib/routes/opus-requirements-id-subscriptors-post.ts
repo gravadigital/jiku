@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { runCommand } from '../utils/bus/send-command';
 import validateRequirement from '../utils/middlewares/validate-requirement';
+import validateRequirementIsPublic from '../utils/middlewares/validate-requirement-is-public';
 import { RequirementSubscriptor, User, UserProjectPermission } from '@jiku/models';
 import joi from 'joi';
 import validateBodyFields from '../utils/validate-body-fields';
@@ -69,6 +70,7 @@ async function createSubscription(req: Request, res: Response) {
 router.post('/opus/requirements/:reqid/subscriptors',
   validateBodyFields(joi.object({ userId: joi.string().required() })),
   validateRequirement,
+  validateRequirementIsPublic,
   validateUserToSubscribe,
   validatePermissionFromUserBody,
   checkNotAlreadySubscribed,

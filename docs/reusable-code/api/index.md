@@ -3,7 +3,13 @@
 > Partial catalog. It was seeded by story S-005 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code api` to complete it.
 
-**Last updated:** 2026-08-25 (S-031)
+**Last updated:** 2026-09-06
+
+## Middlewares
+
+Total: 1
+
+- **validateRequirementIsPublic** (`api/lib/utils/middlewares/validate-requirement-is-public.ts`) - Cuts off access to an `internal` requirement across the `/api/opus/*` surface, answering **404 `requirement_not_found`** — identical to a missing id, so the 404 does not confirm the resource exists. Goes after `validateRequirement`. **Does not look at the role**: the trim belongs to the surface, not the caller.
 
 ## Utils
 

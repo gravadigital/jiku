@@ -69,6 +69,35 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+### Fixed
+
+- **The client portal no longer serves internal requirements.** Requirements carry a
+  `visibilityLevel` (`public` / `internal`), and `/api/opus/*` ignored it: an `internal`
+  requirement was listed, opened, edited, commented and subscribed to from the portal. Only the
+  *activity* of a requirement was being filtered. The trim now applies to the requirement itself
+  across the surface, and **for every role** — `user` and `admin` included — because visibility
+  is a property of the resource, not of the caller: the portal is the screen shared with the
+  client. Blocked paths answer `404 requirement_not_found`, identical to a non-existent id, so
+  the response does not confirm the requirement exists.
+
+  `DELETE /api/opus/requirements/:reqid/subscriptors/:userId` is deliberately exempt: it only
+  removes the caller's own subscription, and blocking it would strand whoever subscribed while
+  the requirement was public.
+
+### Notes for existing installations
+
+- **Requirements marked `internal` disappear from the client portal.** The column defaults to
+  `public`, so only requirements explicitly set to `internal` are affected. Measure before
+  deploying:
+
+  ```sql
+  SELECT count(*) FROM requirements WHERE visibility_level = 'internal';
+  ```
+
+  If those requirements were visible to clients until now, they vanish from the listing without
+  explanation, and a client holding a direct URL to one gets a `404`. No migration, no
+  configuration change, and no effect on the internal frontend.
+
 ## [1.3.0] - 2026-09-06
 
 Five requests. Comment editing moves onto the bus and reaches requirements for the first time,

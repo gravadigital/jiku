@@ -3,6 +3,7 @@ import joi from 'joi';
 import { Requirement, RequirementPriority, RequirementState } from '@jiku/models';
 import validateBodyFields from '../utils/validate-body-fields';
 import validateRequirement from '../utils/middlewares/validate-requirement';
+import validateRequirementIsPublic from '../utils/middlewares/validate-requirement-is-public';
 import { runCommand } from '../utils/bus/send-command';
 
 const router: Router = Router();
@@ -26,6 +27,9 @@ async function updateRequirement(req: Request, res: Response) {
 
 router.patch('/opus/requirements/:reqid',
   validateRequirement,
+  // Antes del cuerpo Y antes del bus: un requisito interno no se edita desde el portal, y el
+  // comando no se publica siquiera para rechazarse del otro lado.
+  validateRequirementIsPublic,
   validateBodyFields(joi.object({
     state: joi.string().valid(...Object.values(RequirementState)).optional(),
     priority: joi.string().valid(...Object.values(RequirementPriority)).optional(),

@@ -112,10 +112,11 @@ El orden importa y es siempre el mismo:
 2. **Forma del input** — `validateBodyFields(schema)` o `validateQueryParams(schema)`
 3. **Existencia de la entidad del path** — `validateProject`, `validateRequirement`, `validateObjective`
 4. **Permiso sobre esa entidad** — `validateProjectPermissions`
-5. **Reglas de negocio** — validadores locales del endpoint
-6. **Handler**
+5. **Visibilidad en la superficie** — `validateRequirementIsPublic`, solo en `/api/opus/*`
+6. **Reglas de negocio** — validadores locales del endpoint
+7. **Handler**
 
-> `opus-requirements-id-patch.ts:29-33` invierte 2 y 3 respecto de este orden. No lo tomes como
+> `opus-requirements-id-patch.ts:29-36` invierte 2 y 3 respecto de este orden. No lo tomes como
 > modelo: validar el cuerpo antes de buscar la entidad evita una query para una request que ya
 > era inválida.
 
@@ -165,6 +166,7 @@ Los que están en `lib/utils/middlewares/` y `lib/utils/`:
 | `validate-requirement` | carga `req.requirement` y `req.project` desde `:reqid`, o 404 |
 | `validate-objective` | carga `req.objective` y `req.project` desde `:objid`, o 404 |
 | `validate-project-permission` | 403 si el `external-user` no tiene permiso sobre `req.project` |
+| `validate-requirement-is-public` | 404 si `req.requirement` es `internal`. Solo en `/api/opus/*`, y **para todo rol** |
 | `validate-week-not-past` | 400 si `body.weekStart` es de una semana anterior a la actual |
 | `validate-body-fields(schema)` | valida `req.body` con Joi |
 | `validate-query-params(schema)` | valida `req.query` con Joi |
@@ -196,7 +198,8 @@ Dos mecanismos conviven:
   para agregar rutas.
 - El path en el archivo va sin el prefijo `/api`.
 - Método y path en la misma línea del `router.{verb}(`.
-- Respetá el orden de la cadena: rol → forma del input → entidad → permiso → negocio → handler.
+- Respetá el orden de la cadena: rol → forma del input → entidad → permiso → visibilidad →
+  negocio → handler.
 - Reusá los middlewares de `lib/utils/middlewares/`. Duplicá solo con una razón, y comentala.
 - Un middleware que corta la request **responde y no llama a `next()`**. Uno que sigue, llama a
   `next()` y no responde.

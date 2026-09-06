@@ -44,6 +44,13 @@ async function deleteSubscription(req: Request, res: Response) {
   return res.status(200).json({});
 }
 
+/**
+ * Esta ruta NO lleva `validateRequirementIsPublic`, a diferencia del resto de la superficie, y
+ * es deliberado: solo borra la suscripcion DEL PROPIO caller (`validateSelfUnsubscribe`), asi
+ * que no revela nada del requisito. Bloquearla dejaria atrapado a quien se suscribio cuando el
+ * requisito era publico y despues paso a interno: seguiria recibiendo la suscripcion sin poder
+ * darla de baja.
+ */
 router.delete('/opus/requirements/:reqid/subscriptors/:userId',
   validateSelfUnsubscribe,
   validateRequirement,
