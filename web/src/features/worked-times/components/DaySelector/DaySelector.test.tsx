@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { DaySelector } from './DaySelector';
 
 const formatDate = (date: Date): string => {
@@ -10,6 +10,23 @@ const formatDate = (date: Date): string => {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
+
+// El reloj se fija en un MIÉRCOLES, y no es cosmético: `DaySelector` sólo arma días hábiles
+// (salta sábado y domingo), así que con el reloj real estos tests fallaban todos los fines de
+// semana — "hoy" no estaba entre los chips renderizados y `aria-checked="true"` no matcheaba
+// nada. Es la misma clase de dependencia del entorno que `TZ: 'UTC'` resuelve en el config de
+// Vitest: un test que pasa de lunes a viernes y falla sábado y domingo no está midiendo el
+// componente, está midiendo el calendario.
+const MIERCOLES = new Date('2026-09-02T12:00:00Z');
+
+beforeAll(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(MIERCOLES);
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 const today = () => {
   const d = new Date();

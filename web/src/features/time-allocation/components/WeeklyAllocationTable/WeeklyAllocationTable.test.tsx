@@ -4,7 +4,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useHoursPerDay } from '../../hooks/useHoursPerDay';
 import { useSaveAllocations } from '../../hooks/useSaveAllocations';
 import { useWeekAllocations } from '../../hooks/useWeekAllocations';
@@ -52,11 +52,32 @@ const ALLOCATIONS = [
   { id: 1, personId: 1, projectId: 10, minutes: 600, internal: false, dateFrom: '', dateTo: '' },
 ];
 
+// El reloj se fija en un MIÉRCOLES, y es necesario para que la edición sea posible.
+//
+// `isWeekEditable` distingue el domingo del resto: en domingo exige `week > currentMonday`
+// (estrictamente mayor, porque el domingo ya cierra la semana que arranca al día siguiente) y
+// el resto de los días `week >= currentMonday`. Los tests fijan `weekStart: '2026-09-07'`, que
+// es un lunes: con el reloj real, cada domingo `currentMonday` valía exactamente '2026-09-07',
+// la comparación estricta fallaba y la tabla renderizaba en modo lectura — sin celdas
+// editables ni botón de guardar.
+//
+// O sea: pasaban de lunes a sábado y fallaban los domingos. El reloj fijo saca el calendario de
+// la ecuación, igual que `TZ: 'UTC'` saca la zona horaria en el config de Vitest.
+//
+// `shouldAdvanceTime` mantiene vivos los timers que `userEvent` necesita para sus esperas.
+const MIERCOLES = new Date('2026-09-02T12:00:00Z');
+
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(MIERCOLES);
   vi.clearAllMocks();
   mockedUseSession.mockReturnValue({ data: { user: { roles: [] } } } as any);
   mockedUseHoursPerDay.mockReturnValue(asQuery({ hoursPerDay: 6 }));
   mockedUseSaveAllocations.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('WeeklyAllocationTable — migración a Table variant matrix (S-058)', () => {
@@ -139,8 +160,8 @@ describe('WeeklyAllocationTable — migración a Table variant matrix (S-058)', 
   // TS-94 (escenario exacto del Story Plan): 2026-09-28 (lunes) resuelve el cruce a octubre
   // al avanzar una semana, y "Esta semana" queda visible y marcada cuando corresponde.
   it('TS-94: WeekNav resuelve el cruce de mes (28 sep – 4 oct) y "Esta semana" nunca se oculta', () => {
-    vi.useFakeTimers();
-    // La semana actual (lunes 2026-09-28 a viernes 2026-10-02) cruza septiembre → octubre.
+    // Este test necesita OTRA fecha que la del beforeEach: el cruce de mes. Los timers ya
+    // están falsos, así que basta con mover el reloj.
     vi.setSystemTime(new Date('2026-09-28T00:00:00Z'));
 
     mockedUseWeekAllocations.mockReturnValue(
