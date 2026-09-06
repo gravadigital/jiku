@@ -2,6 +2,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  // El Loader suelto —sobre una superficie— va en el acento, que es lo que declara el spec.
+  // Dentro de un botón relleno, el botón pisa este color con el suyo (ver `.button .loader`
+  // en Button.module.scss) y el spinner lo hereda vía `currentColor`.
+  color: var(--loader-color);
 }
 
 .block {
@@ -15,12 +19,22 @@
   flex-direction: row;
 }
 
+// El spinner toma el color del CONTEXTO (`currentColor`), no un token fijo.
+//
+// Con `--loader-color` fijo en el verde agua del acento, un Loader dentro de un botón relleno
+// quedaba del mismo color que su fondo: en el botón de sesión del login el contraste era de
+// 1.00:1 — literalmente invisible. Al enviar, el texto desaparecía y no lo reemplazaba nada.
+//
+// `currentColor` resuelve los dos casos con una sola regla: sobre una superficie hereda el
+// color de texto del contenedor, que el `.block` de abajo fija en el acento; dentro de un
+// botón hereda el color del botón (azul oscuro sobre el aqua, 9.02:1).
 .spinner {
   display: inline-block;
   border-radius: 50%;
-  border: 2px solid var(--loader-color);
+  border: 2px solid currentColor;
   border-top-color: transparent;
   animation: spin var(--loader-duration) linear infinite;
+  color: inherit;
 }
 
 .md {
@@ -48,6 +62,6 @@
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
-    border-top-color: var(--loader-color);
+    border-top-color: currentColor;
   }
 }

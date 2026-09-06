@@ -40,6 +40,23 @@
   display: inline-flex;
 }
 
+// El Loader del estado `loading` toma el color de TEXTO del botón, no el del acento.
+//
+// El Loader suelto va en verde agua, que es correcto sobre una superficie. Dentro de un botón
+// relleno de ese mismo verde agua el contraste era de 1.00:1: al enviar el formulario, el
+// texto desaparecía y no se veía nada en su lugar. Reportado en el botón de sesión del login.
+//
+// `color: inherit` alcanza porque el spinner usa `currentColor`: cada variante de botón ya
+// declara su color de texto (azul oscuro en primary/session/fab, niebla en flow), así que el
+// spinner queda legible en todas sin una regla por variante.
+//
+// El selector va por PREFIJO de atributo y no como `.loader`: esa clase la declara el módulo
+// de Loader, así que en el DOM aparece hasheada con SU hash (`Loader-module-...__loader`) y un
+// `.loader` escrito acá se hashearía con el de Button — nunca matchearía.
+.button :global([class*='Loader-module']) {
+  color: inherit;
+}
+
 // El hover del acento es un color DECLARADO por el manual, y es mas claro que el acento
 // (verde agua -> verde agua claro). `filter: brightness(0.94)` hacia lo contrario: lo
 // oscurecia, con lo cual el boton primario se apagaba al pasar el mouse en vez de encenderse.
