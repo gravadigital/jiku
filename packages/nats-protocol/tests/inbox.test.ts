@@ -97,8 +97,9 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     PUBLIC_SURFACE.length.should.equal(18);
   });
 
-  it('TS-49: ErrorCode tiene 33 miembros', () => {
-    Object.keys(reload({}).ErrorCode).length.should.equal(33);
+  it('TS-49: ErrorCode tiene 35 miembros', () => {
+    // 33 hasta REQ-011, que suma `comment_not_owned` y `activity_not_editable` (S-046).
+    Object.keys(reload({}).ErrorCode).length.should.equal(35);
   });
 
   it('TS-50: el envelope intacto', () => {
@@ -228,12 +229,12 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     ((E.USER_NOT_FOUND as string) === (E.CALLER_NOT_AUTHORIZED as string)).should.be.false();
   });
 
-  it('TS-72: los 33 valores del catálogo son únicos entre sí', () => {
+  it('TS-72: los 35 valores del catálogo son únicos entre sí', () => {
     // Atrapa el copy-paste que deja dos claves con el mismo valor: un fallo que ninguna otra
     // aserción ve, porque el catálogo se lee siempre por clave.
     const values = Object.values(reload({}).ErrorCode);
-    values.length.should.equal(33);
-    new Set(values).size.should.equal(33);
+    values.length.should.equal(35);
+    new Set(values).size.should.equal(35);
   });
 
   it('TS-73: el envelope de falla con el código nuevo', () => {
@@ -385,14 +386,18 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       // Los comentarios `#` intercalados se saltean; la primera línea que no es ni item ni
       // comentario cierra el bloque.
       if (/^\s*#/.test(line)) continue;
-      const item = /^        - (\S+)$/.exec(line);
+      // EL COMENTARIO AL FINAL DEL ITEM ES PARTE DEL FORMATO, no una excepción: `resolution_required`,
+      // `comment_not_owned` y `activity_not_editable` lo llevan. Un `$` pegado al valor cortaba el
+      // bloque en el primero de ellos y dejaba la lista en 29 — un falso rojo que NO era una
+      // divergencia real entre el paquete y el contrato.
+      const item = /^        - (\S+)[^\S\n]*(?:#.*)?$/.exec(line);
       if (!item) break;
       values.push(item[1]);
     }
 
     const delPaquete = Object.values(reload({}).ErrorCode) as string[];
-    values.length.should.equal(33);
-    delPaquete.length.should.equal(33);
+    values.length.should.equal(35);
+    delPaquete.length.should.equal(35);
     Array.from(new Set(values)).sort().should.eql(Array.from(new Set(delPaquete)).sort());
   });
 
@@ -448,7 +453,7 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
 
   it('TS-103: los 32 códigos anteriores siguen exactamente iguales', () => {
     // Un `access_denied` agregado en el mismo diff que renombra otro código pasaría TS-89 —que
-    // compara conjuntos de 33 contra 33— y rompería a los dos consumidores. Esta es la red.
+    // compara conjuntos de 35 contra 35— y rompería a los dos consumidores. Esta es la red.
     const PREVIOS: Record<string, string> = {
       INVALID_FIELDS: 'invalid_fields',
       INTERNAL_ERROR: 'internal_error',
