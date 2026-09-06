@@ -24,16 +24,26 @@ describe('login — contenido del handoff de identidad', () => {
     ).toBeInTheDocument();
   });
 
-  it('ofrece el enlace de ayuda para entrar', () => {
+  // El handoff dibuja un enlace de soporte y un pie «USO INTERNO · GRAVA» en la columna
+  // izquierda. Los dos se dieron de baja por decisión del producto:
+  //
+  //   - el enlace apuntaba a un mailto inventado (el handoff pide el enlace pero no fija el
+  //     destino, y no hay un canal de soporte del producto al que mandar a alguien que no
+  //     puede entrar);
+  //   - el pie nombra a Grava, que es la marca anterior.
+  //
+  // Se asertan ausentes, y no simplemente se borran los tests, para que volver a agregarlos
+  // sea una decisión y no un descuido.
+  it('no ofrece enlace de soporte', () => {
     render(<Login />);
-    const help = screen.getByRole('link', { name: /Problemas para entrar/i });
-    expect(help).toBeInTheDocument();
-    expect(help).toHaveAttribute('href', expect.stringContaining('mailto:'));
+    expect(screen.queryByRole('link', { name: /Problemas para entrar/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/soporte@/i)).not.toBeInTheDocument();
   });
 
-  it('cierra con el pie de uso interno', () => {
+  it('no lleva el pie de uso interno', () => {
     render(<Login />);
-    expect(screen.getByText(/USO INTERNO · GRAVA/i)).toBeInTheDocument();
+    expect(screen.queryByText(/USO INTERNO/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/GRAVA/i)).not.toBeInTheDocument();
   });
 
   it('el título sigue siendo el único h1 de la pantalla', () => {
