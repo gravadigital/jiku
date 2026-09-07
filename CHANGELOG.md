@@ -69,6 +69,59 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-07
+
+Frontend-only release. No change to the HTTP contract, the NATS protocol, the database schema
+or the deployment configuration: only the `web` image needs to move.
+
+### Fixed
+
+- **Opening a task with comments broke the screen.** Any requirement carrying at least one
+  comment threw `TypeError: e.getTime is not a function` and the whole detail view fell back to
+  the route's "unexpected error" page. The api serializes dates as ISO strings
+  (`createdAt: {type: string, format: date-time}`) while `web`'s hand-written domain types
+  declared them as `Date`, so nothing caught it at compile time. The normalization now sits in
+  the shared date utilities rather than on the one line that failed — the same latent pattern
+  was present in five other places, and any caller forgetting a `new Date()` brought the view
+  down again.
+
+- **The date fields were not date fields.** `Input variant="date"` rendered `type="text"`: the
+  calendar icon was decorative and opened nothing, not even the native picker, and the field
+  accepted arbitrary text. Fixing the variant removed the reason for the exception that had kept
+  six fields on a raw `<input type="date">`, so the product goes from three parallel mechanisms
+  for entering a date down to one component covering all twelve form fields. Inline editing on a
+  card (`FinishDateLabel`) deliberately stays on `react-datepicker`.
+
+- **The date field drew two calendar icons.** Once the field became `type="date"` the browser
+  added its own indicator next to the design system's, leaving two calendars in the same input —
+  a grey one on the left that did nothing and a dark one on the right that worked — because ours
+  is `pointer-events: none`. Ours was removed and the browser's kept, since that is the control
+  that opens the picker. The magnifier on `search` is unaffected: no native control duplicates it.
+
+- **Twelve selectors had no search box.** Of the 48 selectors in the service only 3 were
+  `searchable`, and the ones missing it were precisely those whose options come from the api —
+  projects, people, actors, requirements — the lists that grow as the product gets used. The
+  worst was the hour-logging target selector: it merges projects, requirements and tasks into the
+  longest list in the product, on the most frequently used screen, and its placeholder already
+  read "Buscar proyecto, requisito o tarea…" over a menu that filtered nothing. The ~35 selectors
+  backed by a fixed constant correctly remain without one.
+
+### Changed
+
+- **Domain date types now say what the api actually sends.** `Person`, `Client`, `Project`,
+  `Objective`, `WorkedTime` and `ObjectiveActivity` declare their date fields as `string`, which
+  made the compiler flag the 22 places where the value crossed from read to use without
+  conversion. Presentation components that receive and format a date accept `Date | string`,
+  because both kinds of caller are legitimate. Create/edit form state keeps `Date`, where the
+  value is a real object from the date picker validated with `yup.date()`, and the conversion at
+  that boundary is now explicit.
+
+- **`searchable` is decided by where the options come from, not by how many there are.**
+  Dynamic (mapped from the api) always carries it; fixed (a module constant) does not. Counting
+  options describes whichever installation happens to be in front of you — a dynamic list with 8
+  options today has 80 once the product is in use, and nobody revisits the selector. Web design
+  system `4.0.0` → `4.2.0`.
+
 ## [1.3.1] - 2026-09-06
 
 ### Fixed
