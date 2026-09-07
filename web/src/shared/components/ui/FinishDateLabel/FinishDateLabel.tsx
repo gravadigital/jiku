@@ -47,8 +47,11 @@ export function FinishDateLabel(props: FinishDateLabelProps) {
     portalContainer,
     description,
   } = props;
+  // Las dos fechas se normalizan a `Date`: la api las serializa como string ISO y los tipos de
+  // dominio de `web`, escritos a mano, las declaran `Date`. `react-datepicker` necesita un
+  // `Date` real en `selected`, así que la conversión no puede quedar sólo en los consumidores.
   const [selectedDate, setSelectedDate] = useState<Date | null>(
-    finishedAt ? new Date(finishedAt) : (estimatedFinishDate ?? null)
+    finishedAt ? new Date(finishedAt) : estimatedFinishDate ? new Date(estimatedFinishDate) : null
   );
   const personIds = persons.map((person) => person.id);
   const { mutate: updateObjective } = useUpdateObjective();

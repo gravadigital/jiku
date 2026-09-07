@@ -395,4 +395,37 @@ describe('ObjectiveComment', () => {
       expect(updateComment).not.toHaveBeenCalled();
     });
   });
+
+  describe('Fechas serializadas por la api', () => {
+    // `ObjectiveActivity.createdAt` esta tipado `Date` pero la api lo manda como string ISO
+    // (`createdAt: {type: string, format: date-time}` en docs/apis/api.yaml), y los tipos de
+    // `web` estan escritos a mano: nada lo detecta en compilacion. El tooltip de la fecha lo
+    // consumia sin envolver y rompia la pantalla entera con "getTime is not a function".
+    it('renderiza el comentario cuando `date` llega como string ISO', () => {
+      render(
+        <ObjectiveComment
+          {...baseProps}
+          date={'2026-04-24T10:00:00Z' as unknown as Date}
+          content="comentario con adjunto"
+        />
+      );
+
+      expect(screen.getByTestId('markdown-viewer')).toHaveTextContent('comentario con adjunto');
+      expect(screen.getByText('Agustin Nava')).toBeInTheDocument();
+    });
+
+    it('arma el tooltip de fecha con un `date` string y un `editedAt` presente', () => {
+      render(
+        <ObjectiveComment
+          {...baseProps}
+          date={'2026-04-24T10:00:00Z' as unknown as Date}
+          editedAt="2026-04-25T12:00:00Z"
+          editedBy="u-1"
+          content="editado"
+        />
+      );
+
+      expect(screen.getByText('(editado)')).toBeInTheDocument();
+    });
+  });
 });

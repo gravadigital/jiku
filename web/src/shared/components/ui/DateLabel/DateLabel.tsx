@@ -7,7 +7,11 @@ import calendar from '@root/assets/calendar.svg';
 import styles from './DateLabel.module.scss';
 
 interface DateLabelProps {
-  readonly date?: Date;
+  /**
+   * Acepta `string` además de `Date`: la api serializa las fechas y los tipos de dominio de
+   * `web`, escritos a mano, las declaran `Date`. Ver `formatDate`.
+   */
+  readonly date?: Date | string;
   readonly label: string;
   readonly cardClass: 'closeToDeadline' | 'expired' | 'finished' | 'default' | 'expiresToday';
 }
@@ -15,17 +19,20 @@ interface DateLabelProps {
 export function DateLabel(props: DateLabelProps) {
   const { date, label, cardClass } = props;
 
+  const parsedDate = date === undefined ? undefined : date instanceof Date ? date : new Date(date);
+  const isValidDate = parsedDate !== undefined && !isNaN(parsedDate.getTime());
+
   const calculateDaysPassed = (): number => {
-    if (!date) {
+    if (!isValidDate) {
       return 0;
     }
     const currentDate = new Date();
-    const timeDifference = currentDate.getTime() - date.getTime();
+    const timeDifference = currentDate.getTime() - parsedDate.getTime();
     return Math.floor(timeDifference / (1000 * 3600 * 24));
   };
 
   const getDaysMessage = (): string => {
-    if (!date) {
+    if (!isValidDate) {
       return 'N/D';
     }
     const daysLeft = calculateDaysPassed();
@@ -43,7 +50,7 @@ export function DateLabel(props: DateLabelProps) {
   };
 
   return (
-    <Tooltip content={formatDate(date)}>
+    <Tooltip content={formatDate(parsedDate)}>
       <div className={styles.dateLabel}>
         <p>{label}</p>
         <span>
