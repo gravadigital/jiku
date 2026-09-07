@@ -248,6 +248,7 @@ export default function Form() {
                 value={formData.clientId ? String(formData.clientId) : ''}
                 onChange={(value) => setField('clientId', value ? Number(value) : null)}
                 options={clientOptions}
+                searchable
               />
             </div>
 

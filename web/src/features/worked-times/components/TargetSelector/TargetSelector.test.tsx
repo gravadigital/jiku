@@ -171,4 +171,49 @@ describe('TargetSelector', () => {
     expect(content).not.toMatch(/selectStyles/);
     expect(content).not.toMatch(/from 'react-select'/);
   });
+
+  describe('Buscador', () => {
+    // Es la lista mas larga del producto —proyectos + requisitos + tareas juntos— y esta en
+    // la operacion mas frecuente. El placeholder ya prometia "Buscar proyecto, requisito o
+    // tarea..." pero el Select no era `searchable`: tipear no filtraba nada.
+    it('ofrece un buscador dentro del menu', async () => {
+      const user = userEvent.setup();
+      render(<TargetSelector personId={1} value={null} onSelect={vi.fn()} />);
+
+      await openSelect(user);
+
+      expect(
+        screen.getByRole('textbox', { name: 'Buscar en Proyecto / Requisito / Tarea' })
+      ).toBeInTheDocument();
+    });
+
+    it('filtra las opciones por lo que se tipea', async () => {
+      const user = userEvent.setup();
+      mockedUseProjects.mockReturnValue(asQuery([...PROJECTS, { id: 2, name: 'Beta', code: 'B' }]));
+      render(<TargetSelector personId={1} value={null} onSelect={vi.fn()} />);
+
+      await openSelect(user);
+      await user.type(
+        screen.getByRole('textbox', { name: 'Buscar en Proyecto / Requisito / Tarea' }),
+        'Beta'
+      );
+
+      expect(screen.getByRole('option', { name: /Beta/ })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Alpha \(A\)/ })).not.toBeInTheDocument();
+    });
+
+    it('permite buscar por el prefijo de grupo, que es como se conserva la agrupacion', async () => {
+      const user = userEvent.setup();
+      render(<TargetSelector personId={1} value={null} onSelect={vi.fn()} />);
+
+      await openSelect(user);
+      await user.type(
+        screen.getByRole('textbox', { name: 'Buscar en Proyecto / Requisito / Tarea' }),
+        'Tareas'
+      );
+
+      expect(screen.getByRole('option', { name: /Tareas — O1/ })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Proyectos —/ })).not.toBeInTheDocument();
+    });
+  });
 });

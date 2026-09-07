@@ -107,6 +107,10 @@ export function TargetSelector({ personId, value, onSelect }: TargetSelectorProp
       value={selectedValue}
       onChange={handleChange}
       placeholder="Buscar proyecto, requisito o tarea..."
+      // La lista junta proyectos, requisitos y tareas: es la mas larga del producto, en la
+      // pantalla de uso mas frecuente. El prefijo de grupo del label ademas es buscable
+      // ("Tareas" filtra las tareas), que es lo mas cerca de los grupos perdidos en S-057.
+      searchable
     />
   );
 }

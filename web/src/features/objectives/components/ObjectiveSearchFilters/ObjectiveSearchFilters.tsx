@@ -124,6 +124,7 @@ export function ObjectiveSearchFilters() {
           onChange={(value) => {
             changeFilter('projectId', value);
           }}
+          searchable
         />
       </div>
       <div>
@@ -137,6 +138,7 @@ export function ObjectiveSearchFilters() {
           onChange={(value) => {
             changeFilter('personId', value);
           }}
+          searchable
         />
       </div>
       <div>

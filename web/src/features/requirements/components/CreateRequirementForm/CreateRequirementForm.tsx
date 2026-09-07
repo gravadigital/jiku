@@ -346,6 +346,7 @@ export function CreateRequirementForm() {
                 options={projectOptions}
                 value={form.projectId}
                 onChange={handleProjectChange}
+                searchable
               />
             </div>
 
@@ -403,6 +404,7 @@ export function CreateRequirementForm() {
                     responsiblePersonIds: values,
                   }))
                 }
+                searchable
               />
             </div>
 

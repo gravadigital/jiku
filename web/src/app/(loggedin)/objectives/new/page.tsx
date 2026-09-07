@@ -294,6 +294,7 @@ export default function Form() {
                     error={fieldHasError('projectId', form.projectId) ? 'Elegí un proyecto' : undefined}
                     placeholder="Nombre del proyecto"
                     required
+                    searchable
                   />
                   {Boolean(form.projectId) && (
                     <Select
@@ -304,6 +305,7 @@ export default function Form() {
                         handleInputChange('requirementId', value, form.id!);
                       }}
                       placeholder="Seleccionar requisito (opcional)"
+                      searchable
                     />
                   )}
                   <Select
@@ -321,6 +323,7 @@ export default function Form() {
                     }
                     placeholder="Nombre(s)"
                     required
+                    searchable
                   />
                   <Select
                     label="Área"

@@ -264,6 +264,7 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
                   handleInputChange('requirementId', value);
                 }}
                 placeholder="Seleccionar requisito (opcional)"
+                searchable
               />
               <Select
                 variant="multiple"
@@ -280,6 +281,7 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
                 }
                 placeholder="Nombre(s)"
                 required
+                searchable
               />
               <Select
                 label="Área"

@@ -61,6 +61,16 @@ Elección entre opciones conocidas, de una o de varias.
 | `locked` | Valor fijo, no editable | «Estado (bloqueado) → Análisis» |
 | `inline` | Selector compacto sin label, en toolbars | «5 por página ⌄» |
 
+### Cuándo activarlo: el origen de las opciones, no su cantidad
+
+| Origen de `options` | `searchable` |
+|---|---|
+| **Dinámico** — mapeado de datos de la api (proyectos, personas, actores, requisitos) | **Sí, siempre** |
+| **Fijo** — una constante del módulo (estado, tipo, prioridad, visibilidad, orden) | **No** |
+
+Contar opciones no sirve: es una foto de la instalación que uno tenga delante. El origen se lee
+del código y no cambia con los datos.
+
 ### `searchable`: buscador dentro del menú
 
 Con `searchable`, el menú abre con un **campo de búsqueda arriba de la lista** que **filtra las
@@ -157,7 +167,8 @@ horizontal, **nunca el alto de la zona clickeable**.
 - Usar la misma caja que Input: el formulario se lee como un sistema.
 - Mostrar la selección múltiple como chips removibles, no como texto concatenado.
 - Marcar la opción elegida en el menú con verde agua al 8 %.
-- Activar `searchable` cuando la lista es larga y no memorizable, y dejarlo apagado cuando no.
+- Activar `searchable` **cuando las opciones vienen de la api** (proyectos, personas, actores,
+  requisitos) y dejarlo apagado cuando son una constante del módulo. Ver «Cuándo activarlo».
 
 **Don't:**
 
@@ -166,8 +177,10 @@ horizontal, **nunca el alto de la zona clickeable**.
 - **NO SE DEBE** crear un cuarto selector.
 - **NO SE DEBE** usar verde agua pleno como fondo de una opción del menú: el 8 % es el tinte.
 - **NO SE DEBE** abrir el menú al recibir foco por teclado sin acción explícita.
-- **NO SE DEBE** poner `searchable` por defecto en listas cortas: el buscador estorba más de lo que
-  ayuda.
+- **NO SE DEBE** poner `searchable` en una lista fija y corta (estado, tipo, prioridad): el
+  buscador estorba más de lo que ayuda.
+- **NO SE DEBE** decidir por la cantidad de opciones que se ve en una instalación: una lista
+  dinámica con 8 opciones hoy tiene 80 cuando el producto se usa, y nadie vuelve a revisarla.
 - **NO SE DEBE** hacer que el teclado recorra la lista completa mientras el menú muestra una lista
   filtrada: `Enter` elegiría algo distinto de lo resaltado.
 - **NO SE DEBE** dejar el menú en blanco cuando la búsqueda no encuentra nada.
@@ -185,7 +198,7 @@ horizontal, **nunca el alto de la zona clickeable**.
 | `required` | `boolean` | `false` | Marca de obligatoriedad |
 | `error` | `string` | — | Mensaje de error |
 | `disabled` | `boolean` | `false` | Inactiva el control |
-| `searchable` | `boolean` | `false` | Agrega un buscador dentro del menú que filtra las opciones, con búsqueda insensible a acentos. **Opt-in:** para listas largas y no memorizables |
+| `searchable` | `boolean` | `false` | Agrega un buscador dentro del menú que filtra las opciones, con búsqueda insensible a acentos. **Opt-in:** obligatorio cuando las opciones vienen de la api, apagado cuando son una constante |
 
 ## Migración
 

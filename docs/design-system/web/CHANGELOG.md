@@ -3,6 +3,24 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [4.2.0] - 2026-09-07
+
+**MINOR**: `select.md` gana un criterio accionable para `searchable`. Sin cambios de código en el
+componente.
+
+### Cambiado
+
+- **`searchable` deja de decidirse «cuando la lista es larga y no memorizable».** Ese criterio
+  era subjetivo y se aplicó una sola vez: de los 48 selectores de `web`, sólo 3 lo tenían, y los
+  12 que faltaban incluían el de la carga de horas —la operación más frecuente del producto—
+  cuyo placeholder ya prometía «Buscar proyecto, requisito o tarea…» sobre un menú que no
+  filtraba nada.
+
+  El criterio pasa a ser **el origen de las opciones**: dinámico (mapeado de la api) lo lleva
+  siempre, fijo (una constante del módulo) no. Es una propiedad del código, no de los datos —
+  contar opciones es una foto de la instalación que uno tenga delante, y una lista dinámica con
+  8 opciones hoy tiene 80 cuando el producto se usa.
+
 ## [4.1.0] - 2026-09-07
 
 **MINOR**: la variant `date` de `Input` pasa a ser un campo de fecha real (corrección de

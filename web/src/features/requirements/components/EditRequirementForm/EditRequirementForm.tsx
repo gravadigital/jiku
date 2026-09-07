@@ -395,6 +395,7 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
                     responsiblePersonIds: values,
                   }))
                 }
+                searchable
               />
             </div>
 

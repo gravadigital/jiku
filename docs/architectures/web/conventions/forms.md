@@ -142,27 +142,45 @@ Los propios, de `@/shared/components/ui`, con la misma firma:
 > nuevos: el `id` lo genera el componente con `useId()`.
 >
 > **`searchable` en `Select`** agrega un buscador dentro del menú, con filtrado insensible a
-> acentos. Es opt-in: con pocas opciones estorba. Se usa donde la lista es larga y no
-> memorizable — el filtro por proyecto (~100 opciones) y el selector de persona de la carga de
-> horas.
+> acentos.
+
+### Cuándo `searchable`: la lista dinámica lo lleva, la fija no
+
+**La regla es el origen de las opciones, no su cantidad del momento:**
+
+| Origen de `options` | `searchable` | Por qué |
+|---|---|---|
+| **Dinámico** — se arma mapeando datos de la api (proyectos, personas, actores, requisitos) | **Sí, siempre** | Crece con el uso del producto. Una lista que hoy tiene 8 opciones mañana tiene 80, y nadie vuelve a revisar el selector |
+| **Fijo** — una constante del módulo (`STATE_OPTIONS`, `TYPE_OPTIONS`, `PRIORITY_OPTIONS`, `VISIBILITY_OPTIONS`, `SORT_OPTIONS`) | **No** | Son ≤10 opciones que no cambian sin un cambio de código. El buscador agrega un paso de teclado para algo que se resuelve mirando |
+
+Contar opciones no sirve como criterio: es una foto de la instalación que uno tenga delante.
+El origen sí, y se lee del código.
+
+> **Es la clase de regresión que ya ocurrió.** La migración a `Select` del DS (S-057) perdió el
+> buscador que `react-select` daba de fábrica, y `searchable` se agregó después reparando sólo
+> los tres selectores que alguien notó. Los otros doce —incluido `TargetSelector`, en la
+> pantalla de uso más frecuente— quedaron sin buscador hasta que se revisó el conjunto entero.
 
 ### Cuándo `react-select`
 
-Quedan **dos** usos, y cada uno por una capacidad concreta que el `Select` del DS no tiene:
+Queda **un** uso, por una capacidad concreta que el `Select` del DS no tiene:
 
 | Dónde | Por qué |
 |---|---|
-| `TargetSelector` | Opciones **agrupadas** (por proyecto / requisito / tarea). El `Select` del DS no soporta grupos |
 | `InputMultipleSelect` | Multi-select con chips y colapso a `+N` |
 
-**La búsqueda dentro del select ya no es motivo.** El `Select` del DS tiene una prop
-`searchable` que agrega un buscador en el menú, con filtrado insensible a acentos. Es la
-capacidad que se había perdido al migrar de `react-select` en S-057 y que dejaba el filtro por
-proyecto (~100 opciones) sin forma práctica de encontrar nada.
+> **`TargetSelector` ya no usa `react-select`:** migró al `Select` del DS. La agrupación
+> (Proyectos / Requisitos / Tareas) **no se perdió del todo** — se conserva como prefijo en el
+> label de cada opción (`"Tareas — {título} → {proyecto}"`), y con `searchable` ese prefijo es
+> buscable: tipear «Tareas» filtra las tareas. No es un `<optgroup>`, pero mantiene la señal de
+> a qué tipo de destino pertenece cada opción.
+
+**La búsqueda dentro del select no es motivo para `react-select`.** El `Select` del DS tiene
+`searchable`, con filtrado insensible a acentos. Ver el criterio de arriba.
 
 > **El objeto `selectStyles` ya no existe** — tenía cero ocurrencias al cerrar la migración. La
 > advertencia anterior («duplicado en cinco archivos, no lo copies por sexta vez») queda sin
-> objeto: los dos usos que sobreviven estilan desde su propio módulo.
+> objeto: el uso que sobrevive estila desde su propio módulo.
 
 ## Formularios multi-instancia
 

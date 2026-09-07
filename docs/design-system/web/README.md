@@ -13,7 +13,7 @@
 ## Estado actual
 
 - **Surface:** `web`
-- **Versión:** `4.1.0`
+- **Versión:** `4.2.0`
 - **Estado:** normativo — implementado
 - **Origen:** **Manual de marca Jiku v1.0** (septiembre 2026) — documento de diseño, fuera del
   repositorio
