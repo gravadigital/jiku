@@ -34,7 +34,11 @@ describe('PeriodFilter', () => {
     expect(screen.getByLabelText('Hasta')).toBeInTheDocument();
   });
 
-  it('TS-87: no hay <input type="date"> crudo', async () => {
+  // TS-87 comprobaba que no hubiera `<input>` CRUDO (sin pasar por el DS), pero lo asertaba
+  // por `type="date"` — que era correcto sólo mientras `Input variant="date"` renderizaba
+  // `type="text"`. Arreglada esa variante, el campo del DS es un `type="date"` legítimo: lo
+  // que hay que verificar es que venga del componente, no que el tipo no exista.
+  it('TS-87: los campos de rango vienen del Input del DS, no de un <input> crudo', async () => {
     const user = userEvent.setup();
     const { container } = render(
       <PeriodFilter dateFrom="2026-09-01" dateTo="2026-09-07" onPeriodChange={vi.fn()} />
@@ -42,7 +46,11 @@ describe('PeriodFilter', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Rango personalizado' }));
 
-    expect(container.querySelector('input[type="date"]')).not.toBeInTheDocument();
+    const desde = screen.getByLabelText('Desde');
+    expect(desde).toHaveAttribute('type', 'date');
+    // La clase hasheada del módulo del DS es la marca de que salió del componente.
+    expect(desde.className).toMatch(/_field_/);
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
   });
 
   it('elegir "Semana pasada" dispara onPeriodChange con el rango correspondiente', async () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { Input } from './Input';
@@ -42,26 +42,40 @@ describe('Input', () => {
     expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('variant date muestra placeholder de formato e icono de calendario (TS-16)', () => {
+  it('variant date muestra el icono de calendario (TS-16)', () => {
     const { container } = render(
       <Input variant="date" label="Fecha de cierre estimada" value="" onChange={vi.fn()} />,
     );
 
-    const input = screen.getByLabelText('Fecha de cierre estimada');
-    expect(input).toHaveAttribute('placeholder', 'mm/dd/aaaa');
+    expect(screen.getByLabelText('Fecha de cierre estimada')).toBeInTheDocument();
     expect(container.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
   });
 
-  it('variant date acepta escritura además del selector (TS-17)', async () => {
+  // El DS especifica que `date` ofrece un selector ademas de la escritura
+  // (components/input.md, "Teclado"). Renderizaba `type="text"`: el icono de calendario
+  // era decorativo, no abria nada, y el campo aceptaba cualquier texto.
+  it('variant date renderiza un campo de fecha real, no texto (TS-17)', () => {
+    render(<Input variant="date" label="Fecha" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('type', 'date');
+  });
+
+  it('variant date emite el valor en formato ISO al cambiar (TS-17b)', () => {
     const onChange = vi.fn();
     render(<Input variant="date" label="Fecha" value="" onChange={onChange} />);
 
     const input = screen.getByLabelText('Fecha');
     expect(input).not.toHaveAttribute('readonly');
 
-    await userEvent.type(input, '9');
+    fireEvent.change(input, { target: { value: '2026-09-07' } });
 
-    expect(onChange).toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith('2026-09-07');
+  });
+
+  it('las demas variantes siguen siendo campos de texto', () => {
+    render(<Input label="Nombre" value="" onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText('Nombre')).toHaveAttribute('type', 'text');
   });
 
   it('variant search renderiza lupa y placeholder configurable (TS-18)', () => {
@@ -107,5 +121,17 @@ describe('Input', () => {
     expect(screen.getByLabelText('Porcentaje')).toBeInTheDocument();
     const label = screen.getByText('Porcentaje');
     expect(label.className).toMatch(/labelHidden/);
+  });
+
+  it('ariaLabel nombra el campo sin renderizar un <label> visible', () => {
+    const { container } = render(
+      <Input variant="date" label="Cierre estimado" ariaLabel="Cierre estimado" value="" onChange={vi.fn()} />
+    );
+
+    // El campo se sigue encontrando por su nombre accesible...
+    expect(screen.getByLabelText('Cierre estimado')).toHaveAttribute('type', 'date');
+    // ...pero el texto no queda duplicado en el DOM, que es el punto de la prop.
+    expect(container.querySelector('label')).toBeNull();
+    expect(screen.queryByText('Cierre estimado')).not.toBeInTheDocument();
   });
 });

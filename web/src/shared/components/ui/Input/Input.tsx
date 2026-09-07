@@ -16,6 +16,14 @@ interface InputProps {
    * — el label sigue siendo obligatorio, sólo cambia si se pinta en pantalla.
    */
   readonly hideLabel?: boolean;
+  /**
+   * Reemplaza el `<label>` visible por un nombre accesible en el propio campo. Para cuando el
+   * contexto ya nombra al campo en pantalla (la cabecera de un acordeón, por ejemplo) y un
+   * label —aunque esté oculto— duplicaría ese texto en el DOM. Es el mismo recurso que usa
+   * `MarkdownEditorWithPreview`. Excluyente con el label visible: si se pasa, no se renderiza
+   * el `<label>`.
+   */
+  readonly ariaLabel?: string;
   readonly required?: boolean;
   readonly placeholder?: string;
   /** Mensaje de error; su sola presencia activa el state `error`. */
@@ -70,6 +78,7 @@ export function Input(props: InputProps) {
     variant = 'text',
     label,
     hideLabel = false,
+    ariaLabel,
     required = false,
     placeholder,
     error,
@@ -84,8 +93,10 @@ export function Input(props: InputProps) {
   const isLocked = variant === 'locked';
   const isTextarea = variant === 'textarea';
   const hasError = Boolean(error);
-  const resolvedPlaceholder =
-    variant === 'date' ? 'mm/dd/aaaa' : (placeholder ?? undefined);
+  // `date` no lleva placeholder: con `type="date"` el navegador dibuja su propia máscara de
+  // formato y un placeholder propio quedaría encima, además de mentir sobre el orden de los
+  // campos (que lo decide el locale del sistema, no el DS).
+  const resolvedPlaceholder = variant === 'date' ? undefined : (placeholder ?? undefined);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     onChange(event.target.value);
@@ -102,15 +113,17 @@ export function Input(props: InputProps) {
 
   return (
     <div className={styles.container}>
-      <label htmlFor={inputId} className={cn(styles.label, { [styles.labelHidden]: hideLabel })}>
-        {label}
-        {required && (
-          <span className={styles.required} aria-hidden="true">
-            {' '}
-            *
-          </span>
-        )}
-      </label>
+      {!ariaLabel && (
+        <label htmlFor={inputId} className={cn(styles.label, { [styles.labelHidden]: hideLabel })}>
+          {label}
+          {required && (
+            <span className={styles.required} aria-hidden="true">
+              {' '}
+              *
+            </span>
+          )}
+        </label>
+      )}
       <div className={styles.fieldWrapper}>
         {leadingIcon && <span className={styles.iconLeading}>{leadingIcon}</span>}
         {isTextarea ? (
@@ -122,6 +135,7 @@ export function Input(props: InputProps) {
             disabled={disabled}
             readOnly={isLocked}
             required={required}
+            aria-label={ariaLabel}
             aria-required={required || undefined}
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? errorId : undefined}
@@ -130,13 +144,14 @@ export function Input(props: InputProps) {
         ) : (
           <input
             id={inputId}
-            type="text"
+            type={variant === 'date' ? 'date' : 'text'}
             className={fieldClassName}
             value={value}
             placeholder={resolvedPlaceholder}
             disabled={disabled}
             readOnly={isLocked}
             required={required}
+            aria-label={ariaLabel}
             aria-required={required || undefined}
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? errorId : undefined}

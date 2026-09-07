@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Accordion, Button, Card, Stepper } from '@/shared/components/ui';
+import { Accordion, Button, Card, Input, Stepper } from '@/shared/components/ui';
 import { MarkdownEditorWithPreview } from '@/shared/components/ui/MarkdownEditorWithPreview';
 import styles from './RequirementStatusCard.module.scss';
 import type {
@@ -263,12 +263,15 @@ export function RequirementStatusCard({
                 headingLevel="h4"
               >
                 {field.inputType === 'date' ? (
-                  <input
-                    aria-label={field.label}
-                    type="date"
-                    className={styles.inlineFormInput}
+                  // `ariaLabel` en vez de label visible: la cabecera del acordeón ya muestra
+                  // el nombre del campo, y un `<label>` —aunque oculto— dejaría ese texto dos
+                  // veces en el DOM. Es el mismo recurso que usa el editor markdown vecino.
+                  <Input
+                    variant="date"
+                    label={field.label}
+                    ariaLabel={field.label}
                     value={drafts[field.key].slice(0, 10)}
-                    onChange={(e) => handleDraftChange(field.key, e.target.value)}
+                    onChange={(value) => handleDraftChange(field.key, value)}
                     disabled={isPending}
                   />
                 ) : (

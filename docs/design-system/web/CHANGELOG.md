@@ -3,6 +3,34 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [4.1.0] - 2026-09-07
+
+**MINOR**: la variant `date` de `Input` pasa a ser un campo de fecha real (corrección de
+comportamiento, sin cambio de API) y se agrega la prop aditiva `ariaLabel`.
+
+### Corregido
+
+- **`Input variant="date"` no era un campo de fecha.** Renderizaba `type="text"`: el icono de
+  calendario era decorativo —no abría nada, ni siquiera el selector nativo— y el campo aceptaba
+  cualquier texto. Contradecía esta misma spec, que declara que el `date` «acepta escritura
+  **además del selector**». Pasa a `type="date"`.
+
+  El síntoma se había detectado antes sin llegar a la causa: la Decisión 2 del Story Plan de
+  `RequirementsReportFilters` mantuvo esos campos fuera del componente anotando que «no es un
+  date picker real», y el resto del producto quedó repartido entre tres mecanismos distintos
+  (`Input variant="date"`, `<input type="date">` crudo y `react-datepicker`).
+
+- **La variant `date` deja de declarar placeholder.** Con `type="date"` el navegador dibuja su
+  propia máscara de formato; un `mm/dd/aaaa` propio quedaba encima y además mentía sobre el orden
+  de los campos, que lo fija el locale del sistema.
+
+### Agregado
+
+- **`ariaLabel` en `Input`**: nombre accesible en el campo sin renderizar `<label>`. Para cuando
+  el contexto ya nombra al campo en pantalla —la cabecera de un acordeón— y un label, aunque
+  oculto con `hideLabel`, dejaría el mismo texto dos veces en el DOM. Es el recurso que ya usaba
+  `MarkdownEditorWithPreview` y que `Input` no tenía.
+
 ## [4.0.0] - 2026-09-04
 
 Ajustes visuales contra `design_handoff_jiku_identity`, verificados **renderizando la aplicación

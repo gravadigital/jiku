@@ -408,16 +408,11 @@ export function EditRequirementForm({ requirement }: EditRequirementFormProps) {
             </div>
 
             <div className={styles.field}>
-              <label htmlFor="edit-estimatedFinishDate" className={styles.fieldLabel}>
-                Fecha de finalización estimada
-              </label>
-              <input
-                id="edit-estimatedFinishDate"
-                type="date"
-                className={styles.fieldInput}
-                aria-label="Fecha estimada"
+              <Input
+                variant="date"
+                label="Fecha de finalización estimada"
                 value={form.estimatedFinishDate}
-                onChange={(e) => setForm((f) => ({ ...f, estimatedFinishDate: e.target.value }))}
+                onChange={(value) => setForm((f) => ({ ...f, estimatedFinishDate: value }))}
               />
             </div>
           </Card>

@@ -74,32 +74,15 @@ export function RequirementsReportFilters({
         />
       </div>
 
-      {/* Decisión 2 del Story Plan: los campos de fecha NO migran a Input variant="date"
-          (no es un date picker real) — conservan <input type="date">, solo migran estilos. */}
+      {/* La Decisión 2 del Story Plan mantenía estos campos fuera de `Input variant="date"`
+          porque la variante "no es un date picker real": renderizaba `type="text"`. Arreglada
+          la variante, el motivo desapareció y los campos migran. */}
       <div className={styles.filterField}>
-        <label className={styles.fLabel} htmlFor="report-created-from">
-          Desde
-        </label>
-        <input
-          id="report-created-from"
-          type="date"
-          className={styles.fInput}
-          value={createdFrom}
-          onChange={(e) => onCreatedFromChange(e.target.value)}
-        />
+        <Input variant="date" label="Desde" value={createdFrom} onChange={onCreatedFromChange} />
       </div>
 
       <div className={styles.filterField}>
-        <label className={styles.fLabel} htmlFor="report-created-to">
-          Hasta
-        </label>
-        <input
-          id="report-created-to"
-          type="date"
-          className={styles.fInput}
-          value={createdTo}
-          onChange={(e) => onCreatedToChange(e.target.value)}
-        />
+        <Input variant="date" label="Hasta" value={createdTo} onChange={onCreatedToChange} />
       </div>
 
       <div className={styles.filterField}>

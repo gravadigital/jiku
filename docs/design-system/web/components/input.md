@@ -47,7 +47,7 @@ Captura de un valor de texto, número o fecha dentro de un formulario.
 |---|---|---|
 | `text` | Valor de una línea | Default |
 | `textarea` | Texto largo | Alto mayor a 44 px; el resto igual |
-| `date` | Fecha | Placeholder `mm/dd/aaaa`, icono de calendario 16 px |
+| `date` | Fecha | `<input type="date">` real: abre el selector del navegador y acepta escritura. Icono de calendario 16 px. **Sin placeholder** — el navegador dibuja su propia máscara según el locale |
 | `search` | Búsqueda | Con lupa: «Buscar proyecto» |
 | `locked` | Valor no editable | Fondo niebla, texto secundario, sin borde de foco |
 
@@ -85,7 +85,8 @@ Un solo tamaño: **alto 44 px, radio 10 px**. El `textarea` crece en alto y cons
   - `aria-required="true"` cuando es obligatorio.
   - `aria-invalid="true"` + `aria-describedby` apuntando al mensaje cuando hay error.
   - `readonly` o `disabled` según corresponda en `locked`.
-- **Teclado:** `Tab` navega; el `date` acepta escritura además del selector.
+- **Teclado:** `Tab` navega; el `date` acepta escritura además del selector, que se abre con
+  `Espacio`/`Enter` sobre el indicador del navegador.
 - **Foco:** anillo `focus.ring` visible; **NO SE DEBE** eliminar.
 - **Contraste:** el placeholder `#9AA1AC` sobre blanco da ~2.5:1 y **no cumple AA**, por eso
   **el placeholder nunca porta información necesaria** — el label sí, y va siempre.
@@ -94,7 +95,9 @@ Un solo tamaño: **alto 44 px, radio 10 px**. El `textarea` crece en alto y cons
 ## Guidelines de contenido
 
 - **Label:** sustantivo, sentence case: «Nombre del proyecto», «Fecha de cierre estimada».
-- **Placeholder:** ejemplo o formato, nunca repetición del label: «mm/dd/aaaa».
+- **Placeholder:** ejemplo o formato, nunca repetición del label. **La variant `date` no lleva:**
+  el navegador dibuja su propia máscara, y el orden de los campos lo fija el locale del sistema,
+  no el DS.
 - **Obligatoriedad:** «(obligatorio)» explícito junto al label, además del asterisco.
 - **Restricciones:** al lado del control — «Máximo 10 MB por archivo.»
 
@@ -120,6 +123,7 @@ Un solo tamaño: **alto 44 px, radio 10 px**. El `textarea` crece en alto y cons
 | `variant` | `"text" \| "textarea" \| "date" \| "search" \| "locked"` | `"text"` | Tipo de campo |
 | `label` | `string` | — | Label visible, **requerido** |
 | `hideLabel` | `boolean` | `false` | Oculta el label visualmente sin sacarlo del nombre accesible — para grillas densas de campos repetidos (una celda editable por fila × columna) donde el label visible repetiría el contexto que la tabla ya da. El label sigue siendo obligatorio, sólo cambia si se pinta |
+| `ariaLabel` | `string` | — | Nombre accesible en el campo, **sin renderizar `<label>`**. Para cuando el contexto ya nombra al campo en pantalla (la cabecera de un acordeón) y un label —aunque oculto— duplicaría ese texto en el DOM. Excluyente con el label visible |
 | `required` | `boolean` | `false` | Marca de obligatoriedad |
 | `placeholder` | `string` | — | Ejemplo o formato |
 | `error` | `string` | — | Mensaje de error; activa el state `error` |
