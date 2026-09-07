@@ -42,12 +42,23 @@ describe('Input', () => {
     expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('variant date muestra el icono de calendario (TS-16)', () => {
+  // El calendario de la variant `date` lo dibuja el navegador dentro del propio
+  // `type="date"`, y ES el control que abre el selector. Un icono decorativo nuestro se
+  // sumaba al nativo: dos calendarios en el mismo campo, y el clickeable era sólo uno.
+  it('variant date no dibuja icono propio: el del navegador es el control real (TS-16)', () => {
     const { container } = render(
       <Input variant="date" label="Fecha de cierre estimada" value="" onChange={vi.fn()} />,
     );
 
-    expect(screen.getByLabelText('Fecha de cierre estimada')).toBeInTheDocument();
+    expect(screen.getByLabelText('Fecha de cierre estimada')).toHaveAttribute('type', 'date');
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  it('variant search sí conserva su lupa decorativa', () => {
+    const { container } = render(
+      <Input variant="search" label="Búsqueda" value="" onChange={vi.fn()} />,
+    );
+
     expect(container.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
   });
 

@@ -47,7 +47,7 @@ Captura de un valor de texto, número o fecha dentro de un formulario.
 |---|---|---|
 | `text` | Valor de una línea | Default |
 | `textarea` | Texto largo | Alto mayor a 44 px; el resto igual |
-| `date` | Fecha | `<input type="date">` real: abre el selector del navegador y acepta escritura. Icono de calendario 16 px. **Sin placeholder** — el navegador dibuja su propia máscara según el locale |
+| `date` | Fecha | `<input type="date">` real: abre el selector del navegador y acepta escritura. **Sin icono propio ni placeholder** — el indicador de calendario y la máscara de formato los dibuja el navegador, y ese indicador ES el control que abre el selector |
 | `search` | Búsqueda | Con lupa: «Buscar proyecto» |
 | `locked` | Valor no editable | Fondo niebla, texto secundario, sin borde de foco |
 

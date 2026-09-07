@@ -24,6 +24,13 @@ comportamiento, sin cambio de API) y se agrega la prop aditiva `ariaLabel`.
   propia máscara de formato; un `mm/dd/aaaa` propio quedaba encima y además mentía sobre el orden
   de los campos, que lo fija el locale del sistema.
 
+- **La variant `date` deja de dibujar su icono de calendario.** `type="date"` ya trae el
+  indicador del navegador, y **ése es el control que abre el selector**; el nuestro era
+  decorativo (`pointer-events: none`). Convivían dos calendarios en el mismo campo —uno gris a
+  la izquierda que no hacía nada y uno oscuro a la derecha que sí— y sólo el segundo respondía
+  al click. `CalendarIcon` se elimina por quedar sin uso. La lupa de `search` no cambia: ahí no
+  hay control nativo que la duplique.
+
 ### Agregado
 
 - **`ariaLabel` en `Input`**: nombre accesible en el campo sin renderizar `<label>`. Para cuando

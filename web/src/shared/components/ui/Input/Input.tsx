@@ -35,26 +35,6 @@ interface InputProps {
   readonly onChange: (value: string) => void;
 }
 
-function CalendarIcon() {
-  return (
-    <svg
-      className={styles.iconSvg}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18" />
-      <path d="M8 3v4" />
-      <path d="M16 3v4" />
-    </svg>
-  );
-}
-
 function SearchIcon() {
   return (
     <svg
@@ -102,8 +82,10 @@ export function Input(props: InputProps) {
     onChange(event.target.value);
   };
 
-  const leadingIcon =
-    variant === 'date' ? <CalendarIcon /> : variant === 'search' ? <SearchIcon /> : null;
+  // `date` NO lleva icono propio: `type="date"` ya dibuja el indicador de calendario del
+  // navegador, y ése es el control que abre el selector. Sumarle el nuestro dejaba dos
+  // calendarios en el mismo campo, y el clickeable era sólo uno de los dos.
+  const leadingIcon = variant === 'search' ? <SearchIcon /> : null;
 
   const fieldClassName = cn(styles.field, {
     [styles.error]: hasError,
