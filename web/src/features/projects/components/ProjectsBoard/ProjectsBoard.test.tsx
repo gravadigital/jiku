@@ -25,8 +25,8 @@ const baseProject: Project = {
   status: 'activo',
   type: 'comercial',
   priority: 2,
-  initDate: new Date('2026-01-01'),
-  endDate: new Date('2026-06-01'),
+  initDate: '2026-01-01T00:00:00.000Z',
+  endDate: '2026-06-01T00:00:00.000Z',
   creator: { id: 1, name: 'Someone' } as unknown as Project['creator'],
 };
 

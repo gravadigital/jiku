@@ -25,7 +25,7 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
   const objectivesCount = await getObjectivesCount(filters);
   const objectives = await getObjectives(filters);
 
-  const getFinishDateText = (estimatedFinishDate: Date | null) => {
+  const getFinishDateText = (estimatedFinishDate: Date | string | null) => {
     if (!estimatedFinishDate) {
       return 'No definida';
     }
@@ -36,7 +36,7 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
     return `Hasta: ${day} ${formattedDate} | `;
   };
 
-  const getDaysLeftText = (estimatedFinishDate: Date | null, state: string) => {
+  const getDaysLeftText = (estimatedFinishDate: Date | string | null, state: string) => {
     if (!estimatedFinishDate) {
       return '';
     }
@@ -54,7 +54,7 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
     return `Falta: ${daysLeft} día(s)`;
   };
 
-  const isCloseToDeadline = (estimatedFinishDate: Date | null, state: string) => {
+  const isCloseToDeadline = (estimatedFinishDate: Date | string | null, state: string) => {
     if (!estimatedFinishDate) {
       return false;
     }

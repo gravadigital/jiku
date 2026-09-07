@@ -29,7 +29,7 @@ interface CommentProps {
    * comentario sin marca, que es el comportamiento previo a S-019.
    */
   readonly authorIdentityType?: IdentityType;
-  readonly date: Date;
+  readonly date: Date | string;
   readonly content: string;
   readonly objectiveId: number;
   readonly commentId: number;
@@ -74,7 +74,7 @@ function editedMarkLabel(
  * ultima edicion cuando el comentario tiene `editedAt` (AC-9: "el tooltip de la fecha puede
  * mostrar la fecha de última edición junto a la de creación").
  */
-function dateTooltipMessage(date: Date, editedAt: string | null): string {
+function dateTooltipMessage(date: Date | string, editedAt: string | null): string {
   const base = `Creación: ${formatDate(date)}`;
   if (!editedAt) return base;
   return `${base} · Editado: ${formatDate(new Date(editedAt))}`;

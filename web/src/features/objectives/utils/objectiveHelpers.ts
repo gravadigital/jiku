@@ -31,7 +31,10 @@ export const getAreaLabel = (area: string): string => {
 const CLOSED_STATES = ['finalizado', 'cancelado'] as const;
 type ClosedState = (typeof CLOSED_STATES)[number];
 
-export const isOverdue = (state: string, estimatedFinishDate: Date | null | undefined): boolean => {
+export const isOverdue = (
+  state: string,
+  estimatedFinishDate: Date | string | null | undefined
+): boolean => {
   if (CLOSED_STATES.includes(state as ClosedState)) return false;
   if (!estimatedFinishDate) return false;
   return calculateDaysLeft(new Date(estimatedFinishDate)) < 0;

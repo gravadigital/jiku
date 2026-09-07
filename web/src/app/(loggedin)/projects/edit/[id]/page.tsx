@@ -132,8 +132,10 @@ export default function Form({ params }: { readonly params: Promise<{ id: number
         clientId: projectData.client?.id ?? null,
         code: projectData.code,
         description: projectData.description,
-        endDate: projectData.endDate,
-        initDate: projectData.initDate,
+        // La api las manda como string ISO; el formulario trabaja con `Date` real
+        // (date picker + `yup.date()`), así que acá la conversión es explícita.
+        endDate: projectData.endDate ? new Date(projectData.endDate) : null,
+        initDate: new Date(projectData.initDate),
         keyValuePairs: { ...defaultValues.keyValuePairs, ...projectData.keyValuePairs },
         name: projectData.name,
         status: projectData.status,

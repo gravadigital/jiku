@@ -21,8 +21,8 @@ export function ClientProjects({ projects }: ClientProjectsProps) {
             status={project.status}
             description={project.description}
             type={project.type}
-            initDate={new Date(project.initDate)}
-            endDate={project.endDate ? new Date(project.endDate) : new Date(project.initDate)}
+            initDate={project.initDate}
+            endDate={project.endDate ?? project.initDate}
             id={project.id}
             priority={project.priority}
             creator={project.creator}

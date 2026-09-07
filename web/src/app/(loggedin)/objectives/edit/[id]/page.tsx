@@ -99,7 +99,11 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
       setFormData({
         area: objective.area,
         description: objective.description || '',
-        estimatedFinishDate: objective.estimatedFinishDate,
+        // La api la manda como string ISO; el formulario trabaja con `Date` real
+        // (date picker + `yup.date()`), así que acá la conversión es explícita.
+        estimatedFinishDate: objective.estimatedFinishDate
+          ? new Date(objective.estimatedFinishDate)
+          : null,
         personIds: sortedObjectivePersons.map((person) => (person.id ? person.id.toString() : '')),
         priority: objective.priority.toString(),
         projectName: objective.project.name,

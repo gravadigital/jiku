@@ -31,8 +31,8 @@ export async function ProjectsBoard({ filters }: { readonly filters: ProjectFilt
                 status={project.status}
                 description={project.description}
                 type={project.type}
-                initDate={new Date(project.initDate)}
-                endDate={new Date(project.endDate)}
+                initDate={project.initDate}
+                endDate={project.endDate}
                 id={project.id}
                 priority={project.priority}
                 creator={project.creator}

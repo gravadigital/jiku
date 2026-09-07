@@ -8,13 +8,21 @@ export type ObjectiveArea = 'desarrollo' | 'diseño' | 'gestion' | 'investigacio
 
 export type VisibilityLevel = 'public' | 'internal' | 'private';
 
+/**
+ * Las fechas que vienen de la api son `string` ISO, no `Date`: el contrato las declara
+ * `{type: string, format: date-time}` y viajan serializadas en JSON. Tiparlas `Date` era una
+ * mentira que el compilador no podía detectar —los tipos de este servicio no derivan de
+ * `@jiku/models`— y que se manifestaba en runtime como "getTime is not a function".
+ * Los helpers de `@/shared/utils` aceptan las dos formas; para operar con la fecha, envolver
+ * en `new Date()` explícitamente.
+ */
 export interface WorkedTime {
   id: number;
   minutes: number;
   personId: number;
   person?: Person;
-  createdAt: Date;
-  date: Date;
+  createdAt: string;
+  date: string;
 }
 
 export interface Objective {
@@ -22,13 +30,13 @@ export interface Objective {
   area: string;
   title: string;
   description?: string | null;
-  estimatedFinishDate: Date | null;
+  estimatedFinishDate: string | null;
   estimatedHours?: number | null;
-  finishedAt: Date | null;
+  finishedAt: string | null;
   state: string;
   priority: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   projectId: number;
   project: Project;
   ObjectiveActivity?: ObjectiveActivity[];

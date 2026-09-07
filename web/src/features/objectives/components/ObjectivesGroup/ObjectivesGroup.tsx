@@ -86,11 +86,9 @@ export function ObjectivesGroup({
                 title={objective.title}
                 description={objective.description}
                 priority={objective.priority}
-                createdAt={new Date(objective.createdAt)}
-                updatedAt={new Date(objective.updatedAt)}
-                estimatedFinishDate={
-                  objective.estimatedFinishDate ? new Date(objective.estimatedFinishDate) : null
-                }
+                createdAt={objective.createdAt}
+                updatedAt={objective.updatedAt}
+                estimatedFinishDate={objective.estimatedFinishDate}
                 state={objective.state}
                 id={objective.id}
                 projectId={objective.projectId}

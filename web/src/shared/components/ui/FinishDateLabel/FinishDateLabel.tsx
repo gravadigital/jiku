@@ -21,8 +21,8 @@ interface FinishDateLabelProps {
   readonly state: string;
   readonly objectiveId: number;
   readonly priority: number;
-  readonly estimatedFinishDate?: Date | null;
-  readonly finishedAt?: Date | null;
+  readonly estimatedFinishDate?: Date | string | null;
+  readonly finishedAt?: Date | string | null;
   readonly area: string;
   readonly persons: Person[];
   readonly description?: string | null;

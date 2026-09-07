@@ -63,8 +63,8 @@ const groupWorkedTimeByPerson = (workedTimeArray: WorkedTime[], allPersons?: Per
  * (Card variant task-overdue, AC-5 de T-7: "el pie se tiñe SÓLO cuando está vencida").
  */
 function getCardClass(
-  finishedAt: Date | null | undefined,
-  estimatedFinishDate: Date | null | undefined,
+  finishedAt: Date | string | null | undefined,
+  estimatedFinishDate: Date | string | null | undefined,
   state: string
 ): 'closeToDeadline' | 'expired' | 'finished' | 'default' | 'expiresToday' {
   if (finishedAt) {

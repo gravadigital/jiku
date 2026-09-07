@@ -11,7 +11,7 @@ interface StateTagProps {
   readonly state: string;
   readonly objectiveId: number;
   readonly priority: number;
-  readonly estimatedFinishDate?: Date | null;
+  readonly estimatedFinishDate?: Date | string | null;
   readonly area: string;
   readonly persons: Person[];
   readonly title: string;

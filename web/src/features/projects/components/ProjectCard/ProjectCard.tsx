@@ -10,12 +10,13 @@ const PRIORITY_FAMILY: Record<number, 'urgent' | 'review' | 'neutral'> = {
   2: 'review',
 };
 
-function formatDateRange(initDate: Date, endDate?: Date): string {
-  const start = initDate.toUTCString().slice(4, 16);
-  if (endDate && endDate.getTime() && !isNaN(endDate.getTime())) {
-    return `${start} - ${endDate.toUTCString().slice(4, 16)}`;
-  }
-  return start;
+function formatDateRange(initDate: Date | string, endDate?: Date | string | null): string {
+  const start = new Date(initDate).toUTCString().slice(4, 16);
+  if (!endDate) return start;
+
+  const end = new Date(endDate);
+  if (isNaN(end.getTime())) return start;
+  return `${start} - ${end.toUTCString().slice(4, 16)}`;
 }
 
 export function ProjectCard({
