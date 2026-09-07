@@ -69,6 +69,8 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-06
+
 ### Fixed
 
 - **The client portal no longer serves internal requirements.** Requirements carry a
