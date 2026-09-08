@@ -14,6 +14,10 @@ deploy/
 ├── docker-compose.dev.yml    no external dependencies (mock IdP)
 └── nats/
     ├── nats-server.conf
+    ├── bootstrap.sh          generates the NATS identity (JetStream limits included)
+    ├── add-events-user.sh    adds the auth-callout's events publisher to an older install
+    ├── enable-jetstream.sh   grants JetStream limits to an install that predates them
+    ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
     ├── auth-callout/         rules.yaml + templates/ (access policy)
     └── creds/                NATS identity — NOT versioned
 ```
@@ -90,14 +94,20 @@ The server runs in operator mode and needs an identity, generated once:
 
 ```sh
 cd nats
-./bootstrap.sh            # requires nsc
-./add-events-user.sh      # only if bootstrap.sh predates the events credential
+./bootstrap.sh                  # requires nsc — also grants JetStream limits to the APP account
+./add-events-user.sh            # only if bootstrap.sh predates the events credential
+./enable-jetstream.sh           # only if bootstrap.sh predates the JetStream limits (see below)
+./create-events-stream.sh       # creates JIKU_EVENTS, the domain events stream
 ```
 
 Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
 copy**: regenerating it forces reissuing the credentials of every service.
 
 Without `nats/creds/nats-resolver.conf` the server does not start.
+
+`JetStream` itself is enabled in `nats-server.conf` and needs a **persistent volume** at its
+`store_dir` — the three compose files already declare it. Without one, the `JIKU_EVENTS` stream
+is lost on the next container recreate, silently.
 
 #### The events credential is a deployment precondition, not an optional step
 
@@ -454,6 +464,8 @@ cp .env.dist .env      # fill in, including each service's version
 ./service-user-key.sh core <key.json>
 cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
 cd nats && ./add-events-user.sh && cd ..   # only if that creds/ predates the events credential
+cd nats && ./enable-jetstream.sh && cd ..  # only if that creds/ predates the JetStream limits
+cd nats && ./create-events-stream.sh && cd ..
 docker compose pull
 docker compose up -d
 ```
@@ -746,4 +758,7 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   Hub (`gravadigital/nats-zitadel-auth-callout`), and it ships **only the callout** — the NATS
   server is a compose service of its own. What is here is its configuration
   (`nats/auth-callout/`), mounted by path and read at startup.
-- **JetStream is off**: the protocol is direct request/reply.
+- **JetStream is enabled, but scoped to domain events only.** Commands and queries are still
+  direct request/reply with no JetStream (ADR-002 is unchanged). JetStream backs only the
+  `JIKU_EVENTS` stream, on `<instance>.events.v1.>` — see `nats/creds/README.md` for how it is
+  enabled and `nats/create-events-stream.sh` for the stream itself.
