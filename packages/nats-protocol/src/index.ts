@@ -34,32 +34,57 @@ import { createHash } from 'node:crypto';
  * leyendo el subject —avalado por el callout— en vez del cuerpo del mensaje. El inbox,
  * en cambio, usa un hash del user id (ver `inboxPrefix`).
  *
- * EL SUBJECT DE EVENTOS NO SIGUE ESTA GRAMÁTICA, Y ESTÁ BIEN ASÍ (REQ-005).
+ * EL SUBJECT DE EVENTOS NO SIGUE ESTA GRAMÁTICA, Y ESTÁ BIEN ASÍ (REQ-005 y REQ-014).
  *
- *   {instance}.events.auth                          3 segmentos, fire-and-forget, sin reply
- *   {instance}.{user-id}.{svc}.{version}.{método}    5+ segmentos, request/reply
+ * Hay DOS formas de evento, no una — REQ-014 agregó la segunda:
  *
- * NO LO "ARREGLES" metiéndolo en la gramática de arriba. Es otra forma porque es otro patrón:
- *   - No hay reply. El emisor (el auth-callout, con la credencial `callout-events`) no espera
- *     nada, y no hay nada que ackear: CALLOUT_EVENTS_STREAM está deliberadamente sin definir,
- *     así que el mensaje es core NATS puro, no JetStream.
- *   - No hay caller en el subject. La identidad viaja en el payload (`id` = el `sub` de
- *     Zitadel), porque el evento es SOBRE una identidad y no lo publica ella en su nombre.
+ *   {instance}.events.auth                            3 segmentos, core NATS, fire-and-forget, sin ack
+ *   {instance}.events.{version}.{entidad}.{acción}    5 segmentos, JetStream, fire-and-forget, sin ack
+ *   {instance}.{user-id}.{svc}.{version}.{método}     5+ segmentos, request/reply, micro
+ *
+ * NO LAS "ARREGLES" metiéndolas en la gramática de arriba. Son otra forma porque son otro
+ * patrón, y las tres razones valen para las DOS formas de evento:
+ *   - No hay reply. Ningún emisor de evento espera nada, y no hay nada que ackear del lado del
+ *     publicador.
+ *   - No hay caller en el subject. La identidad viaja en el payload, no en el subject.
  *   - No es un endpoint micro. Micro es request/reply y todo endpoint tiene que responder;
  *     `respond()` sobre un mensaje sin `reply` subject es un no-op silencioso que además
- *     ensucia los contadores de $SRV. Core lo consume con una suscripción PLANA más queue
- *     group, y `registerService()` queda sin tocar.
+ *     ensucia los contadores de $SRV. Core consume con una suscripción PLANA, sin
+ *     `registerService()`.
  *
- * EL PERMISO DE SUSCRIPCIÓN ES EL SUBJECT LITERAL en `templates/core.yaml` `sub.allow`, nunca
- * `{{instance}}.events.>`. El deny-by-default también vale en el bus (ADR-008): un evento
- * futuro TIENE que costar una línea nueva ahí. Sin esa línea core arranca, atiende los 20
- * comandos, loguea que se suscribió, y no recibe nada — la violación de permisos es asíncrona
- * y aparece en el log del SERVIDOR NATS, nunca como un fallo de `subscribe()`.
+ * LO QUE CAMBIA ENTRE LAS DOS FORMAS DE EVENTO:
+ *   - `events.auth` es core NATS PURO: `CALLOUT_EVENTS_STREAM` está deliberadamente sin definir,
+ *     así que el mensaje no pasa por JetStream. Lo emite el auth-callout, con la credencial
+ *     `callout-events`, y su permiso de suscripción es el SUBJECT LITERAL en `sub.allow` — nunca
+ *     `{{instance}}.events.>`, porque ese wildcard se comería también el plano de eventos de
+ *     dominio.
+ *   - Los eventos de dominio (`{instance}.events.{version}.{entidad}.{acción}`) SÍ son
+ *     JetStream (stream `JIKU_EVENTS`, S-061), y su permiso de PUBLICACIÓN se autoriza por
+ *     VERSIÓN ENTERA con `eventsStreamSubject()` — no por subject literal: enumerar 16 eventos
+ *     en un `pub.allow` sería la peor de las dos opciones, y REQ-014 lo decidió así.
+ *
+ * El deny-by-default vale en el bus para las dos formas (ADR-008): un evento nuevo TIENE que
+ * costar una línea de permiso nueva. Sin esa línea core arranca, atiende los comandos, loguea
+ * que se suscribió/publicó, y no pasa nada — la violación de permisos es asíncrona y aparece en
+ * el log del SERVIDOR NATS, nunca como un fallo de `subscribe()`/`publish()`.
  */
 export const COMMAND_SERVICE = process.env.NATS_COMMAND_SERVICE || 'jiku-commands';
 export const QUERY_SERVICE = process.env.NATS_QUERY_SERVICE || 'jiku-queries';
 export const PROTOCOL_VERSION = process.env.NATS_PROTOCOL_VERSION || 'v1';
 export const INSTANCE = process.env.NATS_INSTANCE || 'dev';
+/**
+ * Versión del plano de EVENTOS DE DOMINIO (REQ-014), tercer segmento de su subject.
+ *
+ * INDEPENDIENTE DE `PROTOCOL_VERSION` A PROPÓSITO: compartir la variable haría que un `v2` de
+ * eventos arrastre a los 23 comandos, que no tienen nada que ver con el cambio. Van en
+ * variables de entorno distintas y pueden convivir en valores distintos sin que ninguno de los
+ * dos planos se entere del otro.
+ *
+ * Con `||` y NO `??`: un `NATS_EVENTS_VERSION=''` con `??` daría un token vacío en el subject
+ * (`dev.events..requirement.created`), que NATS rechaza. Mismo patrón que las cuatro constantes
+ * de arriba.
+ */
+export const EVENTS_VERSION = process.env.NATS_EVENTS_VERSION || 'v1';
 
 /** Arma el subject de un comando saliente. `userId` es el `sub` de quien publica. */
 export function commandSubject(command: string, userId: string): string {
@@ -102,14 +127,59 @@ export function groupSubject(service: string): string {
  * explica por qué. Fire-and-forget, sin reply y sin ack.
  *
  * No toma parámetros porque no hay nada que parametrizar: hay UN evento. Y no existe un
- * `eventsGroupSubject()` a propósito — el permiso de `templates/core.yaml` es el subject LITERAL,
- * así que un evento futuro tiene que costar un helper nuevo acá y una línea nueva allá (ADR-008).
+ * `eventsGroupSubject()` PARA ESTE subject a propósito — el permiso de `templates/core.yaml` es
+ * el subject LITERAL, así que un evento de auth nuevo tiene que costar un helper nuevo acá y una
+ * línea nueva allá (ADR-008). El caso de los eventos de DOMINIO es distinto y está resuelto por
+ * `eventsStreamSubject()` más abajo: ahí el permiso es de una versión entera, no de un evento.
  *
  * El emisor es el auth-callout, con su credencial `callout-events`, que solo puede publicar este
  * subject y no puede suscribirse a nada. El consumidor es core, con una suscripción plana.
  */
 export function authEventSubject(): string {
   return `${INSTANCE}.events.auth`;
+}
+
+/**
+ * Subject de un evento de dominio: `{instance}.events.{version}.{entidad}.{acción}` (REQ-014).
+ *
+ * CINCO SEGMENTOS, Y NO SIGUE LA GRAMÁTICA DE COMANDOS/CONSULTAS por las mismas tres razones de
+ * `authEventSubject()`: no hay reply, no hay caller en el subject (la identidad viaja en
+ * `actor` del payload), y no es un endpoint micro.
+ *
+ * EL `type` ES LOS SEGMENTOS FINALES, y por eso el helper toma el `type` completo
+ * (`'requirement.state.changed'`) y no una entidad y una acción por separado: subject y `type`
+ * del payload NO PUEDEN DIVERGIR, porque son la misma cadena concatenada una sola vez, acá.
+ *
+ * `{version}` VA ANTES DE LA ENTIDAD, a propósito: así un `pub.allow` o un `filter_subject`
+ * puede cubrir `dev.events.v1.requirement.>` — una versión ENTERA — sin enumerar eventos uno
+ * por uno.
+ *
+ * A diferencia de `events.auth`, este plano SÍ es JetStream (stream `JIKU_EVENTS`, S-061).
+ */
+export function eventSubject(type: string): string {
+  return `${INSTANCE}.events.${EVENTS_VERSION}.${type}`;
+}
+
+/**
+ * Wildcard del stream y del permiso de publicación de eventos de dominio:
+ * `{instance}.events.{version}.>`.
+ *
+ * EL WILDCARD LLEVA LA VERSIÓN, Y NO ES COSMÉTICO:
+ *
+ *   dev.events.v1.>   CORRECTO  — solo eventos de dominio v1
+ *   dev.events.>      MAL       — SE COME dev.events.auth
+ *
+ * `events.auth` es core NATS puro, sin ack y con su permiso por subject LITERAL. Un stream cuyo
+ * subject sea `{instance}.events.>` empieza a persistirlo, y NINGÚN test se pone rojo por eso:
+ * ni la suite de este paquete, ni la de core, ni la de api — el evento de auth sigue
+ * funcionando igual, solo que además queda archivado en JetStream sin que nadie lo haya pedido.
+ *
+ * Existe como UN SOLO LUGAR desde el que se escribe el subject del stream y el `pub.allow`
+ * (ADR-008), en vez de repetir el patrón a mano en `deploy/nats/auth-callout/templates/core.yaml`
+ * y en la configuración del stream (las dos cosas son S-061, no este paquete).
+ */
+export function eventsStreamSubject(): string {
+  return `${INSTANCE}.events.${EVENTS_VERSION}.>`;
 }
 
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
@@ -255,6 +325,18 @@ export interface Reply<T = unknown> {
    * envelope y descarta las claves que no declara), así que es compatible en las dos direcciones.
    */
   errorDetails?: Record<string, unknown>;
+  /**
+   * Eventos de dominio emitidos por el comando (REQ-014).
+   *
+   * OPCIONAL Y AUSENTE POR DEFAULT, mismo patrón que `errorDetails`: `success()` y `failure()`
+   * NO CAMBIAN DE FIRMA en este plan y siguen produciendo un envelope SIN LA CLAVE, así que un
+   * `Reply` sin eventos viaja BYTE A BYTE igual que hoy y los 23 comandos no cambian.
+   *
+   * HOY NADIE LO LLENA. El emisor post-commit es S-063: recién ahí el despachador construye los
+   * `DomainEvent[]` y los adjunta al `Reply` ya armado, después del `COMMIT` y antes de
+   * responder. Acá solo se declara el campo para que S-063 a S-066 puedan compilar contra él.
+   */
+  events?: DomainEvent[];
   data?: T;
 }
 
@@ -437,6 +519,48 @@ export const ErrorCode = {
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**
+ * El catálogo de los 16 eventos de dominio que `core` publica (REQ-014).
+ *
+ * FUENTE DE VERDAD: `docs/apis/core-events.yaml`. Los 16 valores de acá, los 16 nombres de canal
+ * de ese contrato y los 16 sufijos de subject son LA MISMA LISTA — TS-155 en el contrato lo
+ * verifica canal por canal, en el mismo orden.
+ *
+ * SOLO LOS 16 DE LA TANDA 1 Y 2. Los 6 eventos de tanda 3 (`project.created`, `project.updated`,
+ * `client.created`, `client.updated`, `attachment.linked`, `attachment.unlinked`) NO están: REQ-
+ * 014 los declara "cuando exista un conector que los pida", y agregarlos haría que este catálogo
+ * mienta sobre lo que el producto emite hoy.
+ *
+ * ORDENADOS POR ENTIDAD (los 10 de `requirement`, después los 6 de `task`), no por tanda: es
+ * como se lee un catálogo, y es el mismo criterio de `ErrorCode` (por familia, no por REQ que lo
+ * agregó).
+ *
+ * Un `EVENT_TYPES.REQUIREMENT_CREATED` sin este catálogo declarado no sería un `undefined` en
+ * runtime: sería un TS2339 que no compila, porque el paquete se consume COMPILADO (ADR-012) y
+ * S-064/S-065/S-066 dependen de que exista para escribir sus constructores de evento.
+ */
+export const EVENT_TYPES = {
+  REQUIREMENT_CREATED: 'requirement.created',
+  REQUIREMENT_STATE_CHANGED: 'requirement.state.changed',
+  REQUIREMENT_UPDATED: 'requirement.updated',
+  REQUIREMENT_COMMENT_CREATED: 'requirement.comment.created',
+  REQUIREMENT_COMMENT_EDITED: 'requirement.comment.edited',
+  REQUIREMENT_SUBSCRIPTOR_ADDED: 'requirement.subscriptor.added',
+  REQUIREMENT_SUBSCRIPTOR_REMOVED: 'requirement.subscriptor.removed',
+  REQUIREMENT_ASSIGNED: 'requirement.assigned',
+  REQUIREMENT_RESOLVED: 'requirement.resolved',
+  REQUIREMENT_REOPENED: 'requirement.reopened',
+  TASK_CREATED: 'task.created',
+  TASK_STATE_CHANGED: 'task.state.changed',
+  TASK_UPDATED: 'task.updated',
+  TASK_COMMENT_CREATED: 'task.comment.created',
+  TASK_COMMENT_EDITED: 'task.comment.edited',
+  TASK_ASSIGNED: 'task.assigned',
+} as const;
+
+/** El `as const` de arriba es lo que hace que este tipo sea la unión de los 16 literales y no `string`. */
+export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
+
+/**
  * El sobre de identidad: QUIÉN ACTÚA detrás del comando.
  *
  * ES UNA CLAVE RESERVADA DE NIVEL SUPERIOR del mensaje de todo comando, y es opcional. El mensaje
@@ -571,4 +695,216 @@ export interface AuthEvent {
   roles: string[];
   /** Sale del `type` de la regla de `rules.yaml` que matcheó, no de una heurística. */
   identity_type: string;
+}
+
+/**
+ * El requisito completo, tal como viaja en `DomainEvent.snapshot` de un evento de requisito
+ * (REQ-014). Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/RequirementSnapshot`.
+ *
+ * La lista es FIJA y se declara en el contrato de eventos, no se deriva de la ficha de
+ * `jiku-queries`: agregar o quitar un campo de acá es un cambio del contrato de eventos y, si es
+ * una baja, exige `v2`. Que la cuenta cierre contra `requirements.base` de `core-queries.yaml`
+ * (12 campos) + `description` + `finishedAt` + `responsiblePersonIds` es una buena señal, no una
+ * derivación: R-7 y CA-8 declaran las dos formas independientes a propósito.
+ */
+export interface RequirementSnapshot {
+  id: number;
+  title: string;
+  /** COMPLETA, NUNCA TRUNCADA. En `jiku-queries` es `truncatable`; acá no. */
+  description: string;
+  type: string | null;
+  priority: string;
+  state: string;
+  estimatedFinishDate: string | null;
+  tags: string[];
+  /**
+   * La lista de ids de `people` CON SU ORDEN: el PRIMERO es el líder. No es el objeto de cada
+   * persona — van ids, no `responsiblePersons`.
+   */
+  responsiblePersonIds: number[];
+  projectId: number;
+  createdBy: string;
+  visibilityLevel: string;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+}
+
+/**
+ * La tarea completa, tal como viaja en `DomainEvent.snapshot` de un evento de tarea (REQ-014).
+ * Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/TaskSnapshot`.
+ *
+ * Usa `task`, NUNCA `objective` (ADR-004): la entidad se llama `task` en el bus y `objectives`
+ * en la base, y la traducción vive dentro del comando, no acá.
+ */
+export interface TaskSnapshot {
+  id: number;
+  title: string;
+  /** OPCIONAL, a diferencia del requisito (`tasks.new` no la exige). Completa, nunca truncada. */
+  description: string | null;
+  state: string;
+  area: string;
+  /** El nombre de la prioridad. Ver `priorityValue` para la otra forma. */
+  priority: string;
+  /**
+   * El entero crudo 0-5. VAN LAS DOS FORMAS a propósito: la traducción ida y vuelta entre
+   * `priority` (5 valores) y la columna `objectives.priority` (0-5) colapsaría el 5 en 4.
+   *
+   * ESTO CONTRADICE A ADR-004 A PROPÓSITO (contradicción declarada, R-D de REQ-014): ADR-004
+   * dice que un campo paralelo para esquivar una traducción con pérdida es un escape que "NO SE
+   * DEBE" replicar. Acá se replica porque `RequirementSnapshot` YA NO LO NECESITA —esa tabla
+   * migró a un enum en la base— y `objectives.priority` todavía no. El escape desaparece cuando
+   * la web hable en nombres de prioridad (misma condición que REQ-006 ya fijó para el contrato
+   * de lectura). Su baja es responsabilidad de `/product-change-technical-definition`, no de
+   * este paquete.
+   */
+  priorityValue: number;
+  estimatedFinishDate: string | null;
+  /** Seteado al entrar a `finalizado`, `null` al salir. Lo resuelve el hook, no el comando. */
+  finishedAt: string | null;
+  responsiblePersonIds: number[];
+  visibilityLevel: string;
+  projectId: number;
+  /** Trazabilidad de G-01. Opcional y SIN constraint en la base: puede apuntar a un requisito borrado. */
+  requirementId: number | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Quién actuó detrás de un evento de dominio (REQ-014). NO es `Actor`: ese es el sobre de
+ * identidad de los COMANDOS: este es el actor de un EVENTO ya publicado, con una superficie
+ * más chica y una regla de seguridad propia.
+ *
+ * `email` NO SE DECLARA, Y NO ES UN OLVIDO: es la minimización de datos personales fijada desde
+ * el TIPO, no solo desde la convención. El email de quien hizo la acción no tiene uso para un
+ * conector —alcanza `name`—, y el único lugar donde el email tiene sentido es como dirección de
+ * notificación de un DESTINATARIO, en `EventRecipients`. Agregarlo acá filtraría dato personal
+ * al plano de eventos.
+ */
+export interface EventActor {
+  /** El `sub` de Zitadel. SIEMPRE presente. */
+  id: string;
+  /**
+   * Opcional: solo en los eventos que el catálogo marca "sí". Fallback `name` -> `email` ->
+   * `id` del lado de quien arma el evento, así que ESTE VALOR PUEDE SER UN ID — el conector no
+   * debe asumir que es un nombre humano.
+   */
+  name?: string;
+}
+
+/**
+ * A qué entidad se refiere el evento (REQ-014). `type` usa el VOCABULARIO DEL PRODUCTO
+ * (ADR-004): `task`, nunca `objective`.
+ */
+export interface EventEntityRef {
+  type: 'requirement' | 'task';
+  id: number;
+  /** SIEMPRE presente, sea cual sea la entidad — regla explícita del sobre. */
+  projectId: number;
+}
+
+/**
+ * A quién avisarle de un evento de requisito (REQ-014). Va en TODOS los eventos de requisito,
+ * incluidos `subscriptor.added`/`.removed` (un `added` ya trae la lista CON el nuevo; un
+ * `removed`, SIN el que salió). Los eventos de TAREA no lo llevan: ninguna interfaz del
+ * producto crea suscripciones a tareas hoy.
+ */
+export interface EventRecipients {
+  /**
+   * Puede ser `[]` — es el caso más frecuente, porque la suscripción es opcional y hoy nadie la
+   * usa. No hay unique compuesto en la base (`already_subscribed` lo valida `core`, la tabla
+   * no): el conector DEBE deduplicar por `userId`.
+   */
+  subscriptors: EventSubscriptor[];
+  /**
+   * Ids de `people`, redundante con el `snapshot` A PROPÓSITO: son destinatarios además de dato
+   * de la entidad, así que el conector arma la lista de a quién avisar leyendo un solo bloque.
+   * `personId` != `userId`: una Persona puede no tener Usuario, y para notificar a un
+   * responsable hay que resolver Persona -> Usuario, que puede no existir.
+   */
+  responsiblePersonIds: number[];
+}
+
+/** Un destinatario resuelto dentro de `EventRecipients.subscriptors`. */
+export interface EventSubscriptor {
+  /** El `sub` de Zitadel: directamente notificable. */
+  userId: string;
+  name: string;
+  /**
+   * `string | null`, COMO `AuthEvent.email` Y NO COMO `Actor.email` (que es opcional): la
+   * asimetría es deliberada. `null` PUEDE aparecer solo para una identidad de servicio (un
+   * machine user de Zitadel no tiene correo) y NUNCA para una persona; el conector DEBE
+   * tolerarlo y saltear ese destinatario. Un `email?: string` sería un bug de contrato: un
+   * conector no podría distinguir "no lo sé" de "es un service user y no tiene".
+   */
+  email: string | null;
+}
+
+/**
+ * La entidad de un evento de comentario (REQ-014), fuera de `changes` — igual que `snapshot` lo
+ * es para el requisito/tarea.
+ */
+export interface EventComment {
+  id: number;
+  /**
+   * El texto ACTUAL, completo. NO hay `from` del texto: el comando de edición no conserva el
+   * valor anterior, así que un conector que espeja el comentario lo REEMPLAZA completo en vez
+   * de aplicar un diff.
+   */
+  body: string;
+  /** El CONJUNTO COMPLETO vinculado, no un delta. */
+  fileIds: number[];
+}
+
+/**
+ * El sobre de todo evento de dominio que `core` publica (REQ-014).
+ *
+ * MOLDE DECLARADO: `AuthEvent`, con TRES decisiones tomadas al revés y a propósito:
+ *
+ * 1. `type` va tipado `EventType` (unión cerrada de 16 literales), NO `string`. `AuthEvent.type`
+ *    es `string` porque lo escribe OTRO repositorio y este paquete es su LECTOR: un valor
+ *    desconocido ahí es legítimo. Acá lo escribe `core` y este paquete es la fuente de verdad
+ *    de su EMISOR: un `type` fuera del catálogo es un bug del emisor que tiene que fallar en
+ *    COMPILACIÓN, no un valor legítimo del cable.
+ * 2. Los nombres van en `camelCase`, verbatim del contrato que este producto AUTORIZA (no
+ *    `snake_case` como `AuthEvent`, que lee un contrato ajeno). Misma regla que `Actor`.
+ * 3. Ninguna de las cinco interfaces del sobre es un símbolo de runtime — se borran al
+ *    compilar, igual que `AuthEvent` (TS-68 / TS-137).
+ *
+ * `version` viaja REDUNDANTE con el subject a propósito: un mensaje archivado o reenviado sigue
+ * diciendo qué contrato cumple sin depender del subject con el que llegó.
+ */
+export interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
+  /** ULID, obligatorio para la deduplicación del conector. Lo genera `core` en el emisor (S-063) — este paquete no genera ULIDs. */
+  eventId: string;
+  /** = los segmentos finales del subject (`eventSubject(type)` los concatena, no pueden divergir). */
+  type: EventType;
+  /** = el segmento `{version}` del subject. `'v1'` hoy; convive con futuros `'v2'`. */
+  version: string;
+  occurredAt: string;
+  /** Compartido por todos los eventos emitidos por el MISMO comando. */
+  correlationId: string;
+  actor: EventActor;
+  entity: EventEntityRef;
+  /**
+   * Todo campo de la entidad va ADENTRO de `snapshot`; afuera queda únicamente lo que NO es la
+   * entidad (`actor`, `entity`, `changes`, `comment`). Estado DESPUÉS del commit, con los hooks
+   * ya corridos. El tipo es genérico con default abierto: un emisor puede escribir
+   * `DomainEvent<RequirementSnapshot>` para tener el snapshot estrechado, y un consumidor
+   * genérico recibe la unión sin parámetro.
+   */
+  snapshot: S;
+  /**
+   * Solo en eventos de cambio. Forma `{ campo: { from, to } }`, SALVO donde el producto no
+   * guarda el valor anterior — el caso es `editedAt`/`editedBy` del comentario editado, que van
+   * sueltos sin `from`/`to`. Se tipa ancho a propósito: forzar `{from, to}` en todos los campos
+   * volvería intipeable ese caso real del contrato.
+   */
+  changes?: Record<string, unknown>;
+  /** En TODOS los eventos de requisito. Los eventos de tarea no lo llevan. */
+  recipients?: EventRecipients;
+  /** Solo en los eventos de comentario. */
+  comment?: EventComment;
 }

@@ -3,17 +3,18 @@ import 'should';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { ErrorCodeValue, Reply } from '../src/index';
+import { DomainEvent, ErrorCodeValue, Reply } from '../src/index';
 import { reload } from './helpers/reload';
 
 /**
- * Los 18 símbolos de runtime de la superficie pública, enumerados uno por uno.
+ * Los 22 símbolos de runtime de la superficie pública, enumerados uno por uno.
  *
- * La lista es literal y no un conteo: `Object.keys(module).length === 18` pasaría igual si
+ * La lista es literal y no un conteo: `Object.keys(module).length === 22` pasaría igual si
  * alguien agregara un símbolo y borrara otro.
  *
  * `AuthEvent` NO está acá: es un tipo, se borra al compilar y `module.AuthEvent` es `undefined`.
- * Lo mismo que pasa con `Reply` y `ErrorCodeValue`, que tampoco están.
+ * Lo mismo que pasa con `Reply`, `ErrorCodeValue` y, desde REQ-014, `DomainEvent`, `EventActor`,
+ * `EventEntityRef`, `EventRecipients`, `EventComment` y `EventType` — tampoco están.
  */
 const PUBLIC_SURFACE = [
   'INSTANCE',
@@ -34,6 +35,10 @@ const PUBLIC_SURFACE = [
   'success',
   'failure',
   'ErrorCode',
+  'EVENTS_VERSION',
+  'eventSubject',
+  'eventsStreamSubject',
+  'EVENT_TYPES',
 ];
 
 describe('nats-protocol · el inbox hasheado y el caller', () => {
@@ -86,7 +91,7 @@ describe('nats-protocol · el inbox hasheado y el caller', () => {
 });
 
 describe('nats-protocol · la superficie pública y el envelope', () => {
-  it('TS-48: los 18 símbolos de runtime están exportados', () => {
+  it('TS-48: los 22 símbolos de runtime están exportados', () => {
     const p = reload({});
     const exported = Object.keys(p);
     PUBLIC_SURFACE.forEach((name) => {
@@ -94,7 +99,10 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       // Incluido el @deprecated que queda: commandFromSubject.
       ((p as unknown as Record<string, unknown>)[name] === undefined).should.be.false();
     });
-    PUBLIC_SURFACE.length.should.equal(18);
+    // 18 previos + EVENTS_VERSION, eventSubject, eventsStreamSubject, EVENT_TYPES (REQ-014).
+    // Los tipos (DomainEvent y las otras 4 interfaces + EventType) NO se cuentan: se borran al
+    // compilar. Ver TS-137.
+    PUBLIC_SURFACE.length.should.equal(22);
   });
 
   it('TS-49: ErrorCode tiene 35 miembros', () => {
@@ -111,6 +119,87 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
       errorCode: 'client_not_found',
       errorMessage: 'Client not found',
     });
+  });
+
+  // ---------------------------------------------------------------------------------------
+  // REQ-014 / S-062 · el envelope gana `events?`, y como con `errorDetails` (TS-75 a TS-79) lo
+  // que importa es que un `Reply` sin eventos siga viajando BYTE A BYTE igual: TS-50 de arriba
+  // NO se toca, y eso es la prueba de que el envelope no cambió.
+  // ---------------------------------------------------------------------------------------
+
+  it('TS-146: Reply sin eventos viaja byte a byte igual que hoy', () => {
+    const p = reload({});
+    p.success().should.eql({ status: 'success' });
+    p.success({ id: 7 }).should.eql({ status: 'success', data: { id: 7 } });
+    p.failure('client_not_found', 'Client not found').should.eql({
+      status: 'failure',
+      errorCode: 'client_not_found',
+      errorMessage: 'Client not found',
+    });
+    ('events' in p.success()).should.be.false();
+  });
+
+  it('TS-147: Reply.events acepta un array de DomainEvent', () => {
+    const minimalEvent: DomainEvent = {
+      eventId: '01JBQ8XZ1Y2Z3A4B5C6D7E8F9G',
+      type: 'requirement.created' as DomainEvent['type'],
+      version: 'v1',
+      occurredAt: '2026-09-08T14:22:31.004Z',
+      correlationId: '01JBQ8XZ1Y2Z3A4B5C6D7E8F9G',
+      actor: { id: '3233332022539911171' },
+      entity: { type: 'requirement', id: 42, projectId: 7 },
+      snapshot: {
+        id: 42,
+        title: 'x',
+        description: 'y',
+        type: null,
+        priority: 'baja',
+        state: 'analisis',
+        estimatedFinishDate: null,
+        tags: [],
+        responsiblePersonIds: [7],
+        projectId: 7,
+        createdBy: '3233332022539911171',
+        visibilityLevel: 'internal',
+        createdAt: '2026-09-08T14:22:31.004Z',
+        updatedAt: '2026-09-08T14:22:31.004Z',
+        finishedAt: null,
+      },
+    };
+
+    const r: Reply<{ id: number }> = {
+      status: 'success',
+      data: { id: 7 },
+      events: [minimalEvent],
+    };
+    r.events!.length.should.equal(1);
+
+    const empty: Reply = { status: 'success', events: [] };
+    empty.events!.length.should.equal(0);
+  });
+
+  it('TS-148: las firmas de success() y failure() no cambiaron', () => {
+    // Nadie adjunta eventos todavía: eso es S-063. `events` es un campo del TIPO `Reply`, no un
+    // parámetro de estas funciones — ninguna de las dos gana un argumento nuevo.
+    // `success.length` es 1 (su único parámetro, `data`, es opcional). `failure.length` es 3:
+    // los tres parámetros de la función están DECLARADOS (el tercero, `details`, es opcional
+    // pero `Function.length` en JS cuenta los parámetros declarados hasta el primero con
+    // default, y acá ninguno lo tiene) — mismo valor que antes de este plan.
+    const p = reload({});
+    p.success.length.should.equal(1);
+    p.failure.length.should.equal(3);
+  });
+
+  it('TS-149: la superficie pública pasa de 18 a 22 símbolos', () => {
+    // Los tipos NO se cuentan (se borran al compilar): pasa de 18 a 22 y no de 18 a 27.
+    PUBLIC_SURFACE.length.should.equal(22);
+  });
+
+  it('TS-150: reload() resetea la quinta variable, NATS_EVENTS_VERSION', () => {
+    // Sin la quinta clave, el `reload({})` de abajo daría 'v2' y contaminaría todos los tests
+    // siguientes que asumen el default.
+    reload({ NATS_EVENTS_VERSION: 'v2' });
+    reload({}).EVENTS_VERSION.should.equal('v1');
   });
 
   // ---------------------------------------------------------------------------------------
