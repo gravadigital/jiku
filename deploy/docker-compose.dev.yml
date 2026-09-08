@@ -56,6 +56,9 @@ services:
     volumes:
       - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - ./nats/creds:/etc/nats/creds:ro
+      # El store de JetStream. Sin este volumen el stream JIKU_EVENTS vive en el
+      # filesystem efímero del contenedor y desaparece en cada recreate.
+      - jiku-dev-nats-jetstream:/data
     networks:
       - jiku
 
@@ -92,7 +95,9 @@ services:
       #
       # NO HAY CALLOUT_EVENTS_STREAM, Y ES DELIBERADO acá igual que en los otros dos: elige el
       # MODO DE ENTREGA, no nombra un stream, y agregarla sola es un arranque fallido del
-      # callout. El detalle completo está en docker-compose.yml, donde vive el bloque canónico.
+      # callout. Desde S-061 JetStream y JIKU_EVENTS ya existen; el motivo pasó a ser el
+      # permiso de callout-events.creds, no la ausencia del stream. El detalle completo está
+      # en docker-compose.yml, donde vive el bloque canónico.
       - CALLOUT_LOG_LEVEL=debug
     volumes:
       - ./nats/auth-callout:/etc/auth-callout:ro
@@ -226,6 +231,7 @@ services:
 
 volumes:
   jiku-dev-database-data:
+  jiku-dev-nats-jetstream:
 
 networks:
   jiku:

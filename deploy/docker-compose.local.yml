@@ -28,6 +28,9 @@ services:
     volumes:
       - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - ./nats/creds:/etc/nats/creds:ro
+      # El store de JetStream. Sin este volumen el stream JIKU_EVENTS vive en el
+      # filesystem efímero del contenedor y desaparece en cada recreate.
+      - jiku-local-nats-jetstream:/data
     networks:
       - jiku
 
@@ -59,9 +62,11 @@ services:
       - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
       - CALLOUT_LOG_LEVEL=debug
       # Eventos de autenticación. El detalle de por qué NO hay CALLOUT_EVENTS_STREAM está en
-      # docker-compose.yml. Las creds las emite ./nats/add-events-user.sh, y local.sh chequea
-      # que existan antes de levantar: sin el archivo el callout no arranca, y el error es más
-      # barato de leer ahí que en un contenedor que reinicia.
+      # docker-compose.yml. Desde S-061 JetStream y JIKU_EVENTS ya existen; el motivo pasó a
+      # ser el permiso de callout-events.creds, no la ausencia del stream. Las creds las emite
+      # ./nats/add-events-user.sh, y local.sh chequea que existan antes de levantar: sin el
+      # archivo el callout no arranca, y el error es más barato de leer ahí que en un
+      # contenedor que reinicia.
       - CALLOUT_EVENTS_SUBJECT=${NATS_INSTANCE}.events.auth
       - CALLOUT_EVENTS_CREDS=/etc/nats-creds/callout-events.creds
       - CALLOUT_IDP_ENRICH=profile
@@ -277,6 +282,7 @@ services:
 volumes:
   jiku-local-db:
   jiku-local-storage:
+  jiku-local-nats-jetstream:
 
 networks:
   jiku:

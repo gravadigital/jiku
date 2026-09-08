@@ -53,6 +53,11 @@ services:
     volumes:
       - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - ./nats/creds:/etc/nats/creds:ro
+      # El store de JetStream. SIN ESTE VOLUMEN el stream JIKU_EVENTS vive en el
+      # filesystem efímero del contenedor y desaparece en el próximo recreate — y con
+      # restart: always, un redeploy es un recreate. La pérdida es SILENCIOSA: nada
+      # loguea un error, solo hay un conector que deja de recibir eventos.
+      - jiku-nats-jetstream:/data
     networks:
       - jiku-bus
 
@@ -98,10 +103,15 @@ services:
       # NO HAY CALLOUT_EVENTS_STREAM, Y ES DELIBERADO. Esa variable no nombra un stream: elige
       # el MODO DE ENTREGA. Sin ella el evento es un mensaje core NATS —lo recibe quien esté
       # suscripto en ese instante, y no queda nada para leer después—. Con ella el publish va a
-      # JetStream y ESPERA EL ACK, lo que exige tres cosas que hoy no están: JetStream
-      # habilitado en el server y en la cuenta, el stream creado a mano (el callout a propósito
-      # no puede crearlo) y dos permisos que callout-events no tiene. Agregarla sola es un
-      # arranque fallido, no un evento sin confirmar.
+      # JetStream y ESPERA EL ACK, lo que exige dos permisos que callout-events NO TIENE: pub
+      # en $JS.API.STREAM.INFO.<stream> (el chequeo de arranque) y sub en _INBOX.> (el ack
+      # vuelve ahí). Agregarla sola es un arranque fallido ("JetStream did not answer about
+      # the stream" — un pedido denegado no tiene responder, así que el mensaje nombra al
+      # stream en vez del permiso), no un evento sin confirmar.
+      #
+      # DESDE S-061, JetStream YA ESTÁ HABILITADO en el server y JIKU_EVENTS YA EXISTE — el
+      # motivo de no setear esta variable dejó de ser "no hay stream" y pasó a ser el permiso
+      # de esta credencial. Ver nats/add-events-user.sh para el detalle completo.
     volumes:
       - ./nats/auth-callout:/etc/auth-callout:ro
       - ./nats/creds:/etc/nats-creds:ro
@@ -243,6 +253,9 @@ services:
 volumes:
   jiku-database-data:
     name: "jiku-${STAGE}-database-data"
+
+  jiku-nats-jetstream:
+    name: "jiku-${STAGE}-nats-jetstream"
 
 networks:
   jiku-bus:
