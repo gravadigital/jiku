@@ -2,10 +2,11 @@ import 'mocha';
 import 'should';
 import { Transaction } from 'sequelize';
 import {
+  Attachment, AttachmentEntityType, ByteStatus, File, Person, PersonRequirement,
   Project, Requirement, RequirementPriority, RequirementState, RequirementSubscriptor,
-  RequirementVisibilityLevel, User,
+  RequirementVisibilityLevel, RetentionStatus, User,
 } from '@jiku/models';
-import { requirementToSnapshot, resolveRecipients } from '../../src/events/domain/requirement-snapshot';
+import { readCommentFileIds, readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../src/events/domain/requirement-snapshot';
 import { sequelize } from '../../src/models';
 
 const CREATOR = 'zitadel-sub-snapshot';
@@ -25,6 +26,10 @@ describe('events/domain/requirement-snapshot — Task 3 de S-063', () => {
   });
 
   after(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
+    await Person.destroy({ where: {} });
     await RequirementSubscriptor.destroy({ where: {} });
     await Requirement.destroy({ where: {} });
     await Project.destroy({ where: {} });
@@ -32,6 +37,9 @@ describe('events/domain/requirement-snapshot — Task 3 de S-063', () => {
   });
 
   afterEach(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
     await RequirementSubscriptor.destroy({ where: {} });
     await Requirement.destroy({ where: {} });
   });
@@ -207,6 +215,170 @@ describe('events/domain/requirement-snapshot — Task 3 de S-063', () => {
         transaction = undefined;
 
         recipients.should.deepEqual({ subscriptors: [], responsiblePersonIds: [7, 3, 9] });
+      } finally {
+        if (transaction) {
+          await transaction.rollback();
+        }
+      }
+    });
+  });
+
+  /** S-064, Task 2: el orden de `responsiblePersonIds` fuera del alta (D-4). */
+  describe('readResponsiblePersonIds', () => {
+    it('TS-82 · el líder queda primero, el resto por personId ascendente', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', priority: RequirementPriority.Media,
+        state: RequirementState.Analisis, visibilityLevel: RequirementVisibilityLevel.Public,
+        projectId, createdBy: CREATOR,
+      });
+      const p9 = await Person.create({
+        firstName: 'P9', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      const p3 = await Person.create({
+        firstName: 'P3', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      const p7 = await Person.create({
+        firstName: 'P7', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      await PersonRequirement.create({ personId: p9.id, requirementId: requirement.id, isLeader: null });
+      await PersonRequirement.create({ personId: p3.id, requirementId: requirement.id, isLeader: true });
+      await PersonRequirement.create({ personId: p7.id, requirementId: requirement.id, isLeader: null });
+
+      let transaction: Transaction | undefined;
+      try {
+        transaction = await sequelize.transaction();
+        const ids = await readResponsiblePersonIds(requirement.id, transaction);
+        await transaction.commit();
+        transaction = undefined;
+
+        // p3 es el líder: va primero. El resto (p7, p9) queda ordenado ascendente por personId.
+        const expectedRest = [p7.id, p9.id].sort((a, b) => a - b);
+        ids.should.deepEqual([p3.id, ...expectedRest]);
+      } finally {
+        if (transaction) {
+          await transaction.rollback();
+        }
+      }
+    });
+
+    it('TS-83 · sin responsables devuelve [], nunca null', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', priority: RequirementPriority.Media,
+        state: RequirementState.Analisis, visibilityLevel: RequirementVisibilityLevel.Public,
+        projectId, createdBy: CREATOR,
+      });
+
+      let transaction: Transaction | undefined;
+      try {
+        transaction = await sequelize.transaction();
+        const ids = await readResponsiblePersonIds(requirement.id, transaction);
+        await transaction.commit();
+        transaction = undefined;
+
+        ids.should.deepEqual([]);
+      } finally {
+        if (transaction) {
+          await transaction.rollback();
+        }
+      }
+    });
+
+    it('dos filas con isLeader: true no rompen — las dos quedan al frente, el resto sigue ordenado', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', priority: RequirementPriority.Media,
+        state: RequirementState.Analisis, visibilityLevel: RequirementVisibilityLevel.Public,
+        projectId, createdBy: CREATOR,
+      });
+      const p1 = await Person.create({
+        firstName: 'P1', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      const p2 = await Person.create({
+        firstName: 'P2', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      const p5 = await Person.create({
+        firstName: 'P5', lastName: 'X', enabled: true, initDate: new Date('2026-01-01'),
+      });
+      await PersonRequirement.create({ personId: p5.id, requirementId: requirement.id, isLeader: null });
+      await PersonRequirement.create({ personId: p1.id, requirementId: requirement.id, isLeader: true });
+      await PersonRequirement.create({ personId: p2.id, requirementId: requirement.id, isLeader: true });
+
+      let transaction: Transaction | undefined;
+      try {
+        transaction = await sequelize.transaction();
+        const ids = await readResponsiblePersonIds(requirement.id, transaction);
+        await transaction.commit();
+        transaction = undefined;
+
+        // Los dos líderes van al frente (en el orden que devuelva la base), y el resto sigue
+        // ordenado ascendente detrás.
+        ids.length.should.equal(3);
+        ids.slice(0, 2).sort((a, b) => a - b).should.deepEqual([p1.id, p2.id].sort((a, b) => a - b));
+        ids[2].should.equal(p5.id);
+      } finally {
+        if (transaction) {
+          await transaction.rollback();
+        }
+      }
+    });
+  });
+
+  /** S-064, Task 2: el conjunto vivo de `fileId` de un comentario (D-5). */
+  describe('readCommentFileIds', () => {
+    /** Un `File` válido y vivo, mínimo para satisfacer el FK de `attachments.file_id`. */
+    async function makeFile(): Promise<File> {
+      return File.create({
+        fileName: 'informe.pdf',
+        fileSize: 4194304,
+        mimeType: 'application/pdf',
+        storageKey: `grava-gestion/snap/${Math.random().toString(36).slice(2)}.pdf`,
+        storageBucket: 'test-bucket',
+        storageRegion: 'us-east-1',
+        uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded,
+        retentionStatus: RetentionStatus.Active,
+      });
+    }
+
+    it('TS-84 · ignora los vínculos borrados y ordena ascendente', async () => {
+      const f32 = await makeFile();
+      const f31 = await makeFile();
+      const f40 = await makeFile();
+      const commentId = 909090;
+      await Attachment.create({
+        entityType: AttachmentEntityType.RequirementComment, entityId: commentId, fileId: f32.id,
+      });
+      await Attachment.create({
+        entityType: AttachmentEntityType.RequirementComment, entityId: commentId, fileId: f31.id,
+      });
+      await Attachment.create({
+        entityType: AttachmentEntityType.RequirementComment, entityId: commentId, fileId: f40.id,
+        deletedAt: new Date(),
+      });
+
+      let transaction: Transaction | undefined;
+      try {
+        transaction = await sequelize.transaction();
+        const ids = await readCommentFileIds(commentId, transaction);
+        await transaction.commit();
+        transaction = undefined;
+
+        ids.should.deepEqual([f31.id, f32.id].sort((a, b) => a - b));
+      } finally {
+        if (transaction) {
+          await transaction.rollback();
+        }
+      }
+    });
+
+    it('sin vínculos devuelve []', async () => {
+      let transaction: Transaction | undefined;
+      try {
+        transaction = await sequelize.transaction();
+        const ids = await readCommentFileIds(777777, transaction);
+        await transaction.commit();
+        transaction = undefined;
+
+        ids.should.deepEqual([]);
       } finally {
         if (transaction) {
           await transaction.rollback();

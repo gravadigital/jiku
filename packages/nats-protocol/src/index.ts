@@ -907,4 +907,14 @@ export interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
   recipients?: EventRecipients;
   /** Solo en los eventos de comentario. */
   comment?: EventComment;
+  /**
+   * Solo en los eventos de comentario (S-064, D-1). Es el `visibilityLevel` DEL COMENTARIO, no
+   * el del requisito — ese vive en `snapshot.visibilityLevel`. Un comentario `internal` sobre un
+   * requisito `public` es válido, y esta clave es lo que distingue una cosa de la otra.
+   *
+   * Campo AGREGADO EN S-064, no en el catálogo original de S-062: opcional y aditivo, así que
+   * sigue siendo `v1` según la tabla de versionado del contrato — ningún consumidor existente se
+   * rompe por no conocerlo.
+   */
+  visibilityLevel?: string;
 }

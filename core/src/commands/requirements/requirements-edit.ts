@@ -1,10 +1,12 @@
 import joi from 'joi';
 import { AttachmentEntityType, FieldActivityChange, Person, PersonRequirement, Requirement, RequirementActivity, RequirementActivityType, RequirementPriority, RequirementResolution, RequirementState, RequirementType, RequirementVisibilityLevel, VisibilityLevel } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { DomainEvent, ErrorCode, Reply, RequirementSnapshot, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { requirementReopened, requirementResolved, requirementStateChanged, requirementUpdated } from '../../events/domain/requirement';
+import { readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'requirements.edit';
 
@@ -144,12 +146,17 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       changes.resolutionComment = payload.resolutionComment ?? null;
     }
 
+    // Declarada ACÁ, antes del `if`, y no adentro: el bloque de eventos de más abajo (Task 4 de
+    // S-064) la necesita SIEMPRE, incluso cuando `changes` está vacío y el `if` de abajo no
+    // corre — en ese caso queda `[]`, que es exactamente "no hubo diff que traducir".
+    let logged: FieldActivityChange[] = [];
+
     if (Object.keys(changes).length > 0) {
       // El hook @BeforeUpdate del modelo calcula `activityLog` y, cuando cambia el
       // estado, completa las marcas de tiempo (scheduledAt, inProgressAt, ...).
       await requirement.update(changes, { transaction: ctx.transaction });
 
-      const logged: FieldActivityChange[] = requirement.activityLog || [];
+      logged = requirement.activityLog || [];
       await Promise.all(
         logged.map((change) =>
           RequirementActivity.create(
@@ -207,7 +214,103 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       );
     }
 
-    return success();
+    // LOS EVENTOS SE ARMAN ACÁ, AL FINAL — después del reemplazo de responsables y después de
+    // todo `return linkError` de arriba (S-064, Task 4): el `snapshot` tiene que reflejar el
+    // estado COMPLETO del requisito, y un `edit` que falla no llega a este punto (CA-1, gratis
+    // por el orden, igual que en `requirements-new.ts`).
+    //
+    // La traducción del diff se hace con un `find` por tipo, sobre `logged` (la MISMA variable
+    // que ya se usó para escribir `RequirementActivity`, no una relectura).
+    const stateChange = logged.find((change) => change.type === 'state');
+    const titleChange = logged.find((change) => change.type === 'title');
+    const descriptionChange = logged.find((change) => change.type === 'description');
+
+    const events: DomainEvent<RequirementSnapshot>[] = [];
+
+    // Sin ninguna entrada de state/title/description, NO HAY NADA QUE DECLARAR: un `edit` de
+    // `priority` (o cualquier otro campo sin evento, CA-2) sigue devolviendo un `Reply` idéntico
+    // al de antes de esta story — `reply.events` ni se asigna (criterio 10).
+    if (stateChange || titleChange || descriptionChange) {
+      // `responsiblePersonIds` sale del PAYLOAD cuando está presente (D-4, regla 1: es la única
+      // fuente fiel al orden), y de la lectura ordenada cuando no. `recipients` se resuelve UNA
+      // SOLA VEZ (R-8) y el `snapshot`, UNA SOLA VEZ: los dos se comparten entre los hasta tres
+      // eventos de este bloque (CA-9).
+      const responsiblePersonIds = payload.responsiblePersonIds
+        ?? await readResponsiblePersonIds(requirement.id, ctx.transaction);
+      const snapshot = requirementToSnapshot(requirement, responsiblePersonIds);
+      const recipients = await resolveRecipients(
+        requirement.id,
+        responsiblePersonIds,
+        ctx.transaction
+      );
+      const entity = { id: requirement.id, projectId: requirement.projectId };
+
+      if (stateChange) {
+        events.push(requirementStateChanged({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange.previous,
+          to: stateChange.next,
+        }));
+      }
+
+      if (titleChange || descriptionChange) {
+        events.push(requirementUpdated({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          title: titleChange ? { from: titleChange.previous, to: titleChange.next } : undefined,
+          description: descriptionChange
+            ? { from: descriptionChange.previous, to: descriptionChange.next }
+            : undefined,
+        }));
+      }
+
+      // `resolved` y `reopened` van ADEMÁS de `state.changed`, nunca en su lugar (D-6): un
+      // requisito que entra o sale de `resuelto` sigue siendo, antes que nada, un cambio de
+      // estado (REQ-014 criterio 15). Mutuamente excluyentes por construcción: uno entra a
+      // `resuelto`, el otro sale — el `stateChange` de arriba es el mismo para los dos casos.
+      if (stateChange?.next === RequirementState.Resuelto) {
+        events.push(requirementResolved({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange.previous,
+          // LEÍDOS DE LA FILA YA ACTUALIZADA, no del payload (D-7): el hook acaba de escribir
+          // `finishedAt`, y los tres campos de resolución reflejan el valor EFECTIVO, que puede
+          // venir del payload o haber quedado como estaba.
+          resolutionType: requirement.resolutionType,
+          resolutionConclusion: requirement.resolutionConclusion,
+          resolutionComment: requirement.resolutionComment,
+          finishedAt: requirement.finishedAt!.toISOString(),
+        }));
+      } else if (leavesResolved) {
+        // `leavesResolved` YA ESTÁ CALCULADA arriba (no se recalcula): es la misma condición que
+        // decidió limpiar los datos de resolución.
+        events.push(requirementReopened({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange!.previous,
+          to: stateChange!.next,
+        }));
+      }
+    }
+
+    const reply = success<void>();
+    if (events.length > 0) {
+      reply.events = events;
+    }
+    return reply;
   },
 };
 

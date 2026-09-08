@@ -458,6 +458,18 @@ components:
         comment:
           $ref: '#/components/schemas/EventComment'
           description: 'Only on comment events. The entity of the event, OUTSIDE of `changes`.'
+        visibilityLevel:
+          type: string
+          description: |
+            Only on comment events (added in S-064). The visibility of the COMMENT itself, not of
+            the requirement — that one lives in `snapshot.visibilityLevel`. A comment marked
+            `internal` on a `public` requirement is valid, and this is what tells the two apart.
+            It NEVER appears inside `changes`, even for `requirement.comment.edited` — visibility
+            is immutable once the comment is created.
+
+            Added after the initial S-062 catalogue as an optional, additive field: per the
+            versioning table above, this stays `v1` — an existing connector that does not know
+            this field simply ignores it.
 
     EventType:
       type: string

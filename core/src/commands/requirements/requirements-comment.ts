@@ -5,6 +5,8 @@ import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { requirementCommentCreated } from '../../events/domain/requirement';
+import { readCommentFileIds, readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'requirements.comment';
 
@@ -79,7 +81,32 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
       }
     }
 
-    return success({ id: activity.id });
+    // EL EVENTO SE ARMA ACÁ, AL FINAL — después de `linkFiles` y de todo `return linkError` de
+    // arriba (S-064, Task 6): un comentario cuyo vínculo de archivo falla no llega a este punto
+    // y no declara nada (CA-5).
+    const responsiblePersonIds = await readResponsiblePersonIds(requirement.id, ctx.transaction);
+    const reply = success({ id: activity.id });
+    reply.events = [
+      requirementCommentCreated({
+        requirement: { id: requirement.id, projectId: requirement.projectId },
+        actorId: actor,
+        actorEnvelope: ctx.actor,
+        snapshot: requirementToSnapshot(requirement, responsiblePersonIds),
+        recipients: await resolveRecipients(requirement.id, responsiblePersonIds, ctx.transaction),
+        comment: {
+          id: activity.id,
+          body: activity.newValue,
+          // LEÍDO DESPUÉS de `linkFiles` (D-5): antes devolvería `[]` siempre. Una sola fuente
+          // para el mismo campo del contrato, aunque `payload.fileIds` diría lo mismo acá.
+          fileIds: await readCommentFileIds(activity.id, ctx.transaction),
+        },
+        // El de la RAÍZ es el del COMENTARIO (`activity.visibilityLevel`), no
+        // `snapshot.visibilityLevel` (el del requisito, tres líneas más arriba): un comentario
+        // `internal` sobre un requisito `public` es válido (CA-5, D-1).
+        visibilityLevel: activity.visibilityLevel,
+      }),
+    ];
+    return reply;
   },
 };
 

@@ -839,3 +839,221 @@ reply.events = [
 ];
 return reply;
 ```
+
+## readResponsiblePersonIds / readCommentFileIds
+
+**Location:** `core/src/events/domain/requirement-snapshot.ts`
+
+**Description:** The two readers S-064 (REQ-014, Task 2) adds to close the two pending items
+`requirementToSnapshot`'s docblock left open for the edit-side events.
+
+`readResponsiblePersonIds(requirementId, transaction)` reconstructs the order of
+`responsiblePersonIds` for the six commands that do not carry it in their payload (D-4): the
+**lead first** (`isLeader === true`, compared by identity — the rest of the rows hold `NULL`,
+never `false`), the rest by `personId` **ascending**. Sorted in **JavaScript**, never with a SQL
+`ORDER BY is_leader`: PostgreSQL's `DESC` implies `NULLS FIRST`, which would put the lead
+**last**. Documents its own limit in the docblock: for a requirement whose responsibles did not
+come from the current command, the order of the non-leads is `personId` ascending, not
+assignment order — the table has no PK and no order column.
+
+`readCommentFileIds(commentId, transaction)` is the **live** set of `fileId`s linked to a
+comment (D-5): `linkFiles`/`syncFileLinks` do not return the resulting set, and an absent
+`payload.fileIds` means "touch nothing" in `comment.{cid}.edit`, so the payload never says what
+stayed linked. Reads `attachments` with `entityType: AttachmentEntityType.RequirementComment`
+(never the string literal) and `deletedAt: null` — a soft-deleted link (see
+`attachments-delete.ts`) does not count — sorted by `fileId` ascending so a test's `deepEqual`
+never depends on Postgres's physical row order. Used by **both** comment events, `.created`
+included: one source for the same contract field is what keeps the two paths from diverging when
+someone touches one of them.
+
+Neither reader opens its own transaction, logs, or catches (ADR-003): both receive
+`{ transaction }` and a database failure is unexpected — the dispatcher handles it.
+
+**Signatures:**
+```ts
+function readResponsiblePersonIds(
+  requirementId: number,
+  transaction: Transaction
+): Promise<number[]>;
+
+function readCommentFileIds(
+  commentId: number,
+  transaction: Transaction
+): Promise<number[]>;
+```
+
+**Usage:**
+```ts
+const responsiblePersonIds = payload.responsiblePersonIds
+  ?? await readResponsiblePersonIds(requirement.id, ctx.transaction);
+
+const fileIds = await readCommentFileIds(activity.id, ctx.transaction); // AFTER linkFiles/syncFileLinks
+```
+
+## requirementStateChanged / requirementUpdated / requirementResolved / requirementReopened
+
+**Location:** `core/src/events/domain/requirement.ts`
+
+**Description:** Four of the 8 pure constructors S-064 (REQ-014, Task 3) adds, same shape as
+`requirementCreated`: no database, no bus, no `eventId`/`occurredAt`/`version`/`correlationId`
+(the emitter fills those at publish time).
+
+`requirementStateChanged` builds `changes: { state: { from, to } }` and never validates
+progression — **any** transition is legal (CA-15, REQ-012); the constructor only translates
+`from`/`to`.
+
+`requirementUpdated` builds `changes` **conditionally** — only the `title` and/or `description`
+keys that actually changed, **never** a key set to `undefined` (a command can change one, the
+other, or both in the same `edit`, and `should.deepEqual` compares own keys).
+
+`requirementResolved` puts the three resolution fields **and** `finishedAt` **inside** `changes`
+(D-7 — `DomainEvent` declares neither in its root, and `changes` is `additionalProperties:
+true`), reading them off the row **already updated**, never the payload — the payload may not
+carry them and the row has the effective value. The three resolution fields accept `null` and
+travel anyway (CA-14): they are never omitted.
+
+`requirementReopened` builds `changes: { state: { from, to }, resolutionCleared: true }`.
+
+`requirementResolved` and `requirementReopened` are emitted **in addition to**
+`requirementStateChanged`, never instead of it (D-6, REQ-014 criterion 15) — mutually exclusive
+by construction: one enters `resuelto`, the other leaves it. Deciding which of the four (if any)
+applies is the CALLER's job, not these constructors'.
+
+**Signatures:**
+```ts
+function requirementStateChanged(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  from: string;
+  to: string;
+}): DomainEvent<RequirementSnapshot>;
+
+function requirementUpdated(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  title?: { from: string; to: string };
+  description?: { from: string; to: string };
+}): DomainEvent<RequirementSnapshot>;
+
+function requirementResolved(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  from: string;
+  resolutionType: string | null;
+  resolutionConclusion: string | null;
+  resolutionComment: string | null;
+  finishedAt: string;
+}): DomainEvent<RequirementSnapshot>;
+
+function requirementReopened(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  from: string;
+  to: string;
+}): DomainEvent<RequirementSnapshot>;
+```
+
+**Usage:** see `core/src/commands/requirements/requirements-edit.ts`, the events block at the
+end of `execute()` — the one command that can declare up to three of these in the same
+`reply.events`, sharing one `snapshot` and one `recipients`.
+
+## requirementCommentCreated / requirementCommentEdited
+
+**Location:** `core/src/events/domain/requirement.ts`
+
+**Description:** The two comment-event constructors of S-064 (REQ-014, Task 3).
+
+`requirementCommentCreated` carries `comment: { id, body, fileIds }` **outside** `changes`, and
+has **no** `changes` key at all — same pattern as `requirementCreated`: an alta has nothing to
+diff.
+
+`requirementCommentEdited` carries the **current** `comment.body` (no `from` — the product does
+not keep the previous text) and `changes` with **exactly** `editedAt`/`editedBy`, never
+`visibilityLevel` (CA-7: visibility is immutable and never travels as a change; the raw
+`Object.keys(changes)` are asserted against `['editedAt', 'editedBy']` in the test suite).
+
+Both carry `visibilityLevel` in `DomainEvent`'s **root** (S-064, D-1 — a field the S-062 catalog
+missed and this story adds to the contract): it is the **comment's** visibility, distinct from
+`snapshot.visibilityLevel` (the requirement's). A comment marked `internal` on a `public`
+requirement is a valid, common case.
+
+**Signatures:**
+```ts
+function requirementCommentCreated(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  comment: { id: number; body: string; fileIds: number[] };
+  visibilityLevel: string;
+}): DomainEvent<RequirementSnapshot>;
+
+function requirementCommentEdited(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+  comment: { id: number; body: string; fileIds: number[] };
+  visibilityLevel: string;
+  editedAt: string;
+  editedBy: string;
+}): DomainEvent<RequirementSnapshot>;
+```
+
+**Usage:** see `core/src/commands/requirements/requirements-comment.ts` (`.created`, `fileIds`
+read via `readCommentFileIds` **after** `linkFiles`) and
+`core/src/commands/requirements/requirements-comment-edit.ts` (`.edited`, `editedAt`/`editedBy`
+read off the row the `update()` just wrote, not recalculated).
+
+## requirementSubscriptorAdded / requirementSubscriptorRemoved
+
+**Location:** `core/src/events/domain/requirement.ts`
+
+**Description:** The two subscriptor-event constructors of S-064 (REQ-014, Task 3). Unlike the
+other six, they do **not** call `resolveEventActor`: they build `actor: { id }` **inline**, with
+no `name` key at all (D-2 — the catalog declares "no" for these two events, and
+`resolveEventActor` always fills `name`). The `actorId` they receive is already resolved by the
+caller with `resolveActor(ctx, undefined, COMPONENT) ?? ctx.caller` (D-3): a subscription cannot
+fail to work because there is no person to blame an event on.
+
+`recipients` is expected **already** reflecting the write: an `added` event's list includes the
+new subscriptor, a `removed` event's list excludes the one who left. That is the CALLER's job —
+resolving `resolveRecipients` **after** the `create`/`destroy`, inside the same transaction — not
+these constructors', which only forward what they are given.
+
+**Signatures:**
+```ts
+function requirementSubscriptorAdded(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  userId: string;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+}): DomainEvent<RequirementSnapshot>;
+
+function requirementSubscriptorRemoved(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  userId: string;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+}): DomainEvent<RequirementSnapshot>;
+```
+
+**Usage:** see `core/src/commands/requirements/requirements-subscriptors.ts` — `recipients` is
+resolved **after** the `create`/`destroy`, inside `ctx.transaction`, so the list already reflects
+the write (CA-9, TS-55/TS-56).
