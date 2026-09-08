@@ -168,16 +168,24 @@ export async function readResponsiblePersonIds(
  * lo mismo): una sola fuente para el mismo campo del contrato evita que las dos ramas diverjan
  * cuando alguien toque una.
  *
+ * `entityType` ES PARÁMETRO, SIN VALOR POR DEFECTO (S-065, D-3): el cuerpo de esta función difiere
+ * de su análoga de tarea en UNA CONSTANTE (`AttachmentEntityType.RequirementComment` vs
+ * `.ObjectiveComment`), así que se parametriza en vez de duplicarse — las reglas que encapsula
+ * (`deletedAt: null` del borrado lógico, el orden ascendente) son DEL CONTRATO, no de la
+ * entidad, y una copia es la que se olvida de crecer. Sin default: un llamador nuevo que se
+ * olvide del argumento leería los adjuntos de la entidad EQUIVOCADA sin fallar.
+ *
  * LEE DENTRO DE LA TRANSACCIÓN QUE RECIBE, sin abrir ninguna propia (ADR-003): no loguea y no
  * captura errores — un fallo de base es inesperado y lo maneja el despachador.
  */
 export async function readCommentFileIds(
   commentId: number,
+  entityType: AttachmentEntityType,
   transaction: Transaction
 ): Promise<number[]> {
   const attachments = await Attachment.findAll({
     where: {
-      entityType: AttachmentEntityType.RequirementComment,
+      entityType,
       entityId: commentId,
       deletedAt: null,
     },

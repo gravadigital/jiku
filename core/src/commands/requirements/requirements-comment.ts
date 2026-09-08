@@ -98,7 +98,11 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
           body: activity.newValue,
           // LEÍDO DESPUÉS de `linkFiles` (D-5): antes devolvería `[]` siempre. Una sola fuente
           // para el mismo campo del contrato, aunque `payload.fileIds` diría lo mismo acá.
-          fileIds: await readCommentFileIds(activity.id, ctx.transaction),
+          fileIds: await readCommentFileIds(
+            activity.id,
+            AttachmentEntityType.RequirementComment,
+            ctx.transaction
+          ),
         },
         // El de la RAÍZ es el del COMENTARIO (`activity.visibilityLevel`), no
         // `snapshot.visibilityLevel` (el del requisito, tres líneas más arriba): un comentario

@@ -5,6 +5,9 @@ import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { taskCommentCreated } from '../../events/domain/task';
+import { readTaskResponsiblePersonIds, taskToSnapshot } from '../../events/domain/task-snapshot';
+import { readCommentFileIds } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'tasks.comment';
 
@@ -77,7 +80,35 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
       }
     }
 
-    return success({ id: comment.id });
+    // EL EVENTO SE ARMA ACÁ, AL FINAL — después de `linkFiles` y de todo `return linkError` de
+    // arriba (REQ-014 / S-065, Task 5): un comentario cuyo vínculo de archivo falla no llega a
+    // este punto y no declara nada (CA-5).
+    const responsiblePersonIds = await readTaskResponsiblePersonIds(task.id, ctx.transaction);
+    const reply = success({ id: comment.id });
+    reply.events = [
+      taskCommentCreated({
+        task: { id: task.id, projectId: task.projectId },
+        actorId: actor,
+        actorEnvelope: ctx.actor,
+        snapshot: taskToSnapshot(task, responsiblePersonIds),
+        comment: {
+          id: comment.id,
+          body: comment.newValue,
+          // LEÍDO DESPUÉS de `linkFiles` (D-3): antes devolvería `[]` siempre. El `entityType`
+          // es EXPLÍCITO (`ObjectiveComment`, no `Objective` — ese es el vínculo a la TAREA).
+          fileIds: await readCommentFileIds(
+            comment.id,
+            AttachmentEntityType.ObjectiveComment,
+            ctx.transaction
+          ),
+        },
+        // El de la RAÍZ es el del COMENTARIO (`comment.visibilityLevel`), no
+        // `snapshot.visibilityLevel` (el de la tarea): un comentario `internal` sobre una tarea
+        // `public` es válido.
+        visibilityLevel: comment.visibilityLevel,
+      }),
+    ];
+    return reply;
   },
 };
 

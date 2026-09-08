@@ -126,7 +126,11 @@ export const requirementsCommentEdit: Command<CommentEditPayload, never> = {
             body: activity.newValue,
             // CONJUNTO VIVO, leído DESPUÉS de `syncFileLinks` (D-5): el conjunto completo que
             // queda vinculado, no un delta y no lo que traiga (o no traiga) el payload.
-            fileIds: await readCommentFileIds(activity.id, ctx.transaction),
+            fileIds: await readCommentFileIds(
+              activity.id,
+              AttachmentEntityType.RequirementComment,
+              ctx.transaction
+            ),
           },
           // El de la RAÍZ es el del COMENTARIO, inmutable — nunca aparece en `changes` (CA-7).
           visibilityLevel: activity.visibilityLevel,
