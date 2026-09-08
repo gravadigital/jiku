@@ -4,6 +4,8 @@ import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { resolveActor } from '../resolve-actor';
+import { requirementResolved, requirementStateChanged } from '../../events/domain/requirement';
+import { readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'requirements.resolve';
 
@@ -77,6 +79,10 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
 
     // El hook del modelo registra el cambio de estado en `activityLog`; se persiste
     // igual que en el edit.
+    //
+    // UN SOLO `if`, no dos (S-064, D-8): el bloque de eventos de abajo entra en la MISMA
+    // condición que decide si hubo transición real — duplicar el predicado es cómo los dos
+    // caminos (la fila de actividad y el evento) se desincronizarían.
     if (previousState !== RequirementState.Resuelto) {
       await RequirementActivity.create(
         {
@@ -89,6 +95,50 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
         },
         { transaction: ctx.transaction }
       );
+
+      // `responsiblePersonIds` sale SIEMPRE de la lectura: este comando nunca los trae en el
+      // payload (a diferencia de `edit`, D-4). `recipients` se resuelve una sola vez y se
+      // comparte entre los dos eventos (R-8, CA-9).
+      const responsiblePersonIds = await readResponsiblePersonIds(
+        requirement.id,
+        ctx.transaction
+      );
+      const snapshot = requirementToSnapshot(requirement, responsiblePersonIds);
+      const recipients = await resolveRecipients(
+        requirement.id,
+        responsiblePersonIds,
+        ctx.transaction
+      );
+      const entity = { id: requirement.id, projectId: requirement.projectId };
+
+      const reply = success<void>();
+      reply.events = [
+        requirementStateChanged({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: previousState,
+          to: RequirementState.Resuelto,
+        }),
+        requirementResolved({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: previousState,
+          // LEÍDOS DE LA FILA YA ACTUALIZADA (no del payload de este comando, que no siempre
+          // los trae): el hook acaba de escribir `finishedAt`, y el `update` de arriba ya dejó
+          // los tres campos de resolución en su valor efectivo.
+          resolutionType: requirement.resolutionType,
+          resolutionConclusion: requirement.resolutionConclusion,
+          resolutionComment: requirement.resolutionComment,
+          finishedAt: requirement.finishedAt!.toISOString(),
+        }),
+      ];
+      return reply;
     }
 
     return success();

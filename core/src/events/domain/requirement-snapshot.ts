@@ -1,5 +1,5 @@
 import { Transaction } from 'sequelize';
-import { Requirement, RequirementSubscriptor, User } from '@jiku/models';
+import { Attachment, AttachmentEntityType, PersonRequirement, Requirement, RequirementSubscriptor, User } from '@jiku/models';
 import { EventRecipients, RequirementSnapshot } from '@jiku/nats-protocol';
 
 /**
@@ -38,7 +38,9 @@ import { EventRecipients, RequirementSnapshot } from '@jiku/nats-protocol';
  * requisito, no un `SELECT` sobre `person_requirements` (que no garantiza orden sin un `ORDER BY`
  * explícito, y cuyo `is_leader` marca al líder pero no ordena al resto). Para el alta, quien llama
  * a esta función pasa `payload.responsiblePersonIds` tal cual. Para los eventos de EDICIÓN
- * (S-064) esto va a necesitar la lectura ordenada de la tabla — no se resuelve acá.
+ * (S-064), la lectura ordenada de la tabla la resuelve `readResponsiblePersonIds`, más abajo en
+ * este mismo archivo — el comando que no trae la lista en el payload llama a ese helper primero
+ * y pasa el resultado acá.
  */
 export function requirementToSnapshot(
   requirement: Requirement,
@@ -110,4 +112,80 @@ export async function resolveRecipients(
     }),
     responsiblePersonIds,
   };
+}
+
+/**
+ * El orden de `responsiblePersonIds` para los comandos que NO traen la lista en el payload
+ * (S-064, D-4): el alta la recibe tal cual del `payload.responsiblePersonIds` porque es la única
+ * fuente fiel al orden semántico, pero `edit`, `resolve`, `comment`, `comment.edit` y los dos de
+ * suscriptor no la tienen y necesitan reconstruirla desde `people_requirements`.
+ *
+ * EL LÍDER PRIMERO, EL RESTO POR `personId` ASCENDENTE, ORDENADO EN JAVASCRIPT Y NO CON UN
+ * `ORDER BY` SQL: `is_leader` es `boolean | null` —el resto de las filas guarda `NULL`, nunca
+ * `false`— y en PostgreSQL un `ORDER BY is_leader DESC` implica `NULLS FIRST`, así que el líder
+ * saldría ÚLTIMO. Un `'DESC NULLS LAST'` lo arreglaría, pero dejaría el comportamiento correcto
+ * dependiendo de un detalle del dialecto escrito en un string; un `sort()` sobre un puñado de
+ * filas no tiene esa arista.
+ *
+ * LIMITACIÓN DOCUMENTADA: para un requisito cuyos responsables no vinieron en ESTE comando, el
+ * orden de los NO LÍDERES es `personId` ascendente y no el orden con el que fueron asignados —
+ * la tabla no tiene PK ni columna de orden, y `created_at` es el mismo instante para todas las
+ * filas de un mismo comando (se crean en un `Promise.all`). El líder, que es la única parte del
+ * orden que el contrato declara semántica ("the FIRST is the lead"), sale correcto siempre.
+ *
+ * LEE DENTRO DE LA TRANSACCIÓN QUE RECIBE, sin abrir ninguna propia (ADR-003): no loguea y no
+ * captura errores — un fallo de base es inesperado y lo maneja el despachador.
+ */
+export async function readResponsiblePersonIds(
+  requirementId: number,
+  transaction: Transaction
+): Promise<number[]> {
+  const rows = await PersonRequirement.findAll({ where: { requirementId }, transaction });
+
+  // `isLeader === true` por IDENTIDAD, no por truthy: `null` es falsy igual que `false`, pero
+  // comparar así deja explícito que el tercer estado (`NULL`) existe y no es un error de datos.
+  const leaders = rows.filter((row) => row.isLeader === true).map((row) => row.personId);
+  const rest = rows
+    .filter((row) => row.isLeader !== true)
+    .map((row) => row.personId)
+    .sort((a, b) => a - b);
+
+  return [...leaders, ...rest];
+}
+
+/**
+ * El conjunto VIVO de `fileId` vinculados a un comentario (S-064, D-5): `linkFiles`/
+ * `syncFileLinks` no devuelven el conjunto resultante, y `payload.fileIds` no sirve como fuente
+ * — en `comment.{cid}.edit` el campo AUSENTE significa "no toques nada", así que el payload no
+ * dice cuáles quedaron vinculados.
+ *
+ * `deletedAt: null` EN EL WHERE (`IS NULL`): el vínculo es de borrado lógico (ver
+ * `attachments-delete.ts`) y una fila con fecha NO CUENTA. Ordenado por `fileId` ASCENDENTE para
+ * que el payload sea determinista y un `deepEqual` de test no dependa del orden que devuelva
+ * Postgres.
+ *
+ * Se usa en LOS DOS eventos de comentario, también en `.created` (donde `payload.fileIds` daría
+ * lo mismo): una sola fuente para el mismo campo del contrato evita que las dos ramas diverjan
+ * cuando alguien toque una.
+ *
+ * LEE DENTRO DE LA TRANSACCIÓN QUE RECIBE, sin abrir ninguna propia (ADR-003): no loguea y no
+ * captura errores — un fallo de base es inesperado y lo maneja el despachador.
+ */
+export async function readCommentFileIds(
+  commentId: number,
+  transaction: Transaction
+): Promise<number[]> {
+  const attachments = await Attachment.findAll({
+    where: {
+      entityType: AttachmentEntityType.RequirementComment,
+      entityId: commentId,
+      deletedAt: null,
+    },
+    transaction,
+  });
+
+  return attachments
+    .map((attachment) => attachment.fileId)
+    .filter((fileId): fileId is number => fileId !== null)
+    .sort((a, b) => a - b);
 }
