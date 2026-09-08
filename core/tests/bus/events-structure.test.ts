@@ -2,6 +2,8 @@ import 'mocha';
 import 'should';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { eventsStreamSubject, INSTANCE } from '@jiku/nats-protocol';
 
 /** Todos los archivos `.ts` bajo un directorio, recursivamente. */
 function listTsFiles(dir: string): string[] {
@@ -17,14 +19,23 @@ function listTsFiles(dir: string): string[] {
 
 const COMMANDS_DIR = path.join(__dirname, '../../src/commands');
 const SRC_DIR = path.join(__dirname, '../../src');
+const TEMPLATES_DIR = path.join(__dirname, '../../../deploy/nats/auth-callout/templates');
 
 /**
- * Gates estructurales de S-063 (Task 7), con el mismo criterio que los que ya existen en el
- * codebase (*"ninguna línea de `src/queries/engine/` puede nombrar un recurso"*, *"`user-sync.ts`
- * no tiene ningún `User.create`/`User.findByPk`/`.update(` propio"*): un `grep` con nombre
- * explícito, para que quien lo rompa lea acá por qué existe.
+ * El patrón prohibido de ADR-008: el wildcard de eventos SIN la versión. Se arma reemplazando
+ * `INSTANCE` por el placeholder de plantilla en `eventsStreamSubject()` (D-4) — nunca un literal
+ * `'dev.events.v1.>'` a mano, porque `eventsStreamSubject()` es la única fuente de ese patrón.
  */
-describe('bus/events-structure — gates estructurales de S-063', () => {
+const VERSIONED_WILDCARD = eventsStreamSubject().replace(INSTANCE, '{{instance}}');
+const UNVERSIONED_WILDCARD = '{{instance}}.events.>';
+
+/**
+ * Gates estructurales de S-063 y S-067 (Task 7 de S-063, Task 1 de S-067), con el mismo criterio
+ * que los que ya existen en el codebase (*"ninguna línea de `src/queries/engine/` puede nombrar
+ * un recurso"*, *"`user-sync.ts` no tiene ningún `User.create`/`User.findByPk`/`.update(`
+ * propio"*): un `grep` con nombre explícito, para que quien lo rompa lea acá por qué existe.
+ */
+describe('bus/events-structure — gates estructurales de S-063 y S-067', () => {
   it('CA-4 / ADR-003 · NINGÚN archivo de src/commands/ publica ni importa el publicador', () => {
     const offenders: string[] = [];
 
@@ -76,6 +87,51 @@ describe('bus/events-structure — gates estructurales de S-063', () => {
       [],
       `El subject de un evento se arma SOLO con eventSubject() (@jiku/nats-protocol). ` +
         `Archivos con una posible concatenación manual: ${offenders.join(', ')}`
+    );
+  });
+
+  it('CA-1, CA-2 (S-067) · connector.yaml declara el wildcard CON versión, y solo observer.yaml lo declara sin ella', () => {
+    // Parsear, no `grep` de texto crudo: el propio encabezado de `connector.yaml` MENCIONA el
+    // patrón prohibido para explicar por qué está prohibido, y un `grep` de texto lo tomaría como
+    // ofensor. Es la trampa concreta de esta task (Implementation Notes, Task 1 de S-067).
+    const connectorPath = path.join(TEMPLATES_DIR, 'connector.yaml');
+    fs.existsSync(connectorPath).should.be.true(
+      `Falta la plantilla de conector: ${connectorPath}`
+    );
+    const connector = yaml.load(fs.readFileSync(connectorPath, 'utf-8')) as {
+      pub?: { allow?: string[] };
+      sub?: { allow?: string[] };
+    };
+
+    (connector.sub?.allow || []).should.containEql(VERSIONED_WILDCARD);
+    (connector.sub?.allow || []).should.not.containEql(UNVERSIONED_WILDCARD);
+    (connector.pub?.allow || []).should.containEql('$JS.API.>');
+    (connector.sub?.allow || []).should.containEql('_INBOX.{{user_id_hash}}.>');
+    (connector.pub?.allow || []).should.not.containEql('_INBOX.{{user_id_hash}}.>');
+
+    // La segunda mitad, la que hace de CA-2 una regla y no un párrafo: NINGÚN otro template
+    // —salvo `observer.yaml`, el rol de diagnóstico local cuyo propósito ES ver todo— puede
+    // declarar el wildcard sin versión. Es lo que impide que la política se afloje copiando y
+    // pegando un template dentro de seis meses.
+    const offenders: string[] = [];
+    for (const file of fs.readdirSync(TEMPLATES_DIR)) {
+      if (!file.endsWith('.yaml') || file === 'observer.yaml') {
+        continue;
+      }
+      const doc = yaml.load(fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8')) as {
+        pub?: { allow?: string[] };
+        sub?: { allow?: string[] };
+      };
+      const allAllows = [...(doc.pub?.allow || []), ...(doc.sub?.allow || [])];
+      if (allAllows.includes(UNVERSIONED_WILDCARD)) {
+        offenders.push(file);
+      }
+    }
+
+    offenders.should.deepEqual(
+      [],
+      `Ningún template salvo observer.yaml puede declarar "${UNVERSIONED_WILDCARD}" ` +
+        `(ADR-008): se comería {{instance}}.events.auth. Ofensores: ${offenders.join(', ')}`
     );
   });
 });

@@ -18,6 +18,7 @@ deploy/
     ├── add-events-user.sh    adds the auth-callout's events publisher to an older install
     ├── enable-jetstream.sh   grants JetStream limits to an install that predates them
     ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
+    ├── events-test-consumer.sh   verification tool: consumes JIKU_EVENTS and validates it (S-067)
     ├── auth-callout/         rules.yaml + templates/ (access policy)
     └── creds/                NATS identity — NOT versioned
 ```
