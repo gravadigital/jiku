@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-08-25
 last_updated: 2026-09-08
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063]
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067]
 ---
 
 # Escritura por el Bus
@@ -13,8 +13,8 @@ stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-25
-**Última actualización:** 2026-08-25
-**Stories:** S-029, S-030, S-031, S-032, S-033, S-035
+**Última actualización:** 2026-09-08
+**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067
 
 ## Descripción
 
@@ -60,12 +60,15 @@ autoriza al caller directo **está escrita por el mismo claim** que autoriza al 
 | Persona (cliente NATS) | Publica el comando con su token de Zitadel y espera la respuesta en su inbox | Iniciador |
 | `auth-callout` | Mintea el User JWT desde `templates/person-internal.yaml`: **autoriza el subject de comandos** | Autorizador de transporte |
 | NATS | Transporta la request. Servicio micro `jiku-commands`, **queue group propio** | Transporte |
-| `core` · `bus/dispatcher.ts` | Extrae el sobre, espeja la identidad, autoriza el método y resuelve la clase del caller | Autorizador |
-| `core` · el comando (`registry.resolve()`) | Valida el payload con Joi y ejecuta las reglas de dominio | Procesador |
+| `core` · `bus/dispatcher.ts` | Extrae el sobre, espeja la identidad, autoriza el método, resuelve la clase del caller y, desde S-063, **publica los eventos de dominio del paso 5** | Autorizador / Emisor |
+| `core` · el comando (`registry.resolve()`) | Valida el payload con Joi, ejecuta las reglas de dominio y **declara** los eventos en `Reply.events` (S-063) | Procesador |
 | PostgreSQL | Ejecuta la escritura con el **usuario dueño**, dentro de la transacción del despachador | Almacenamiento |
+| NATS / JetStream (stream `JIKU_EVENTS`) | **Desde S-063, destino de la publicación del paso 5**: persiste los eventos de dominio que el despachador publica tras el `COMMIT`, con retención de 7 días (S-061) | Transporte y almacenamiento (eventos) |
 
 **Quién NO participa:** **la `api`.** Es el punto del flujo. Tampoco `web` ni `opus-web`: los
-frontends no hablan con el bus (ADR-006).
+frontends no hablan con el bus (ADR-006). Tampoco un conector de eventos: **recibe** lo que este
+flujo publica, pero el mecanismo de eventos en sí —el sobre, el catálogo, la garantía de entrega—
+es del flujo `eventos-de-dominio` (S-067), no de este.
 
 ## Pasos del Flujo
 
@@ -77,6 +80,7 @@ sequenceDiagram
     participant D as core · bus/dispatcher.ts
     participant C as core · el comando
     participant DB as PostgreSQL
+    participant JS as NATS/JetStream (JIKU_EVENTS)
 
     P->>A: CONNECT con token de Zitadel
     A->>A: rules.yaml -> rol -> templates/person-internal.yaml
@@ -109,7 +113,16 @@ sequenceDiagram
                         C-->>P: failure (código de la regla) + ROLLBACK
                     else
                         C->>DB: INSERT / UPDATE / DELETE
-                        C-->>P: success + COMMIT
+                        D->>DB: COMMIT
+                        alt reply success Y el comando declaró eventos (Reply.events, S-063)
+                            D->>JS: publish eventSubject(type) — un publish por evento
+                            alt publish falla
+                                D->>D: logger [events] publish failed (stdout) · evento perdido, no se reintenta
+                            else publish OK
+                                JS-->>D: PubAck
+                            end
+                        end
+                        D-->>P: success
                     end
                 end
             end
@@ -346,6 +359,13 @@ visibilidad automática que decide el sistema (C-21).
 se mudaron a `core` **antes** de abrir la puerta, así que un comando publicado por una persona y el
 mismo comando publicado por la api aplican exactamente las mismas validaciones y devuelven el mismo
 reply.
+
+**Desde S-063, el estado final incluye un tercer efecto además de la fila y el reply:** si el
+comando declaró eventos y la transacción cerró en `success`, el paso 5 los publicó en
+`JIKU_EVENTS` — un comando publicado por una persona directa y el mismo comando publicado por la
+api emiten el mismo evento. El detalle del sobre, el catálogo de los 16 tipos y las tres garantías
+de entrega es del flujo `eventos-de-dominio` (`docs/flows/eventos-de-dominio.md`, S-067); acá solo
+se documenta que el resultado de un comando ya no es solo la fila y el reply.
 
 ## Notas
 
