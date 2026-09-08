@@ -2,7 +2,7 @@ import { Actor, DomainEvent, EVENT_TYPES, EventComment, TaskSnapshot } from '@ji
 import { resolveEventActor } from './actor';
 
 /**
- * `src/events/domain/task.ts` — los 5 constructores de evento de tarea (REQ-014 / S-065).
+ * `src/events/domain/task.ts` — los 6 constructores de evento de tarea (REQ-014 / S-065/S-066).
  *
  * El molde es `requirement.ts`: funciones puras, que NO completan `eventId`/`occurredAt`/
  * `version`/`correlationId` (esas cuatro claves las completa el EMISOR al publicar,
@@ -14,9 +14,11 @@ import { resolveEventActor } from './actor';
  *  1. NINGÚN TIPO DE INPUT DECLARA `recipients` (D-4, CA-3): ningún evento de tarea lo lleva —
  *     `objectives_subscriptors` existe pero ninguna interfaz del producto crea suscripciones a
  *     tareas hoy. Un campo que no existe en el tipo no se puede pasar por accidente el día que
- *     alguien copie un constructor de requisito para S-066.
- *  2. LOS CINCO LLEVAN `actor.name` SIN EXCEPCIONES (a diferencia de los dos eventos de
- *     suscriptor de requisito, que lo prohíben): los cinco resuelven su `actor` con
+ *     alguien copie un constructor de requisito — ESE DÍA LLEGÓ CON `taskAssigned` (S-066) Y EL
+ *     MECANISMO FUNCIONÓ: `TaskAssignedInput` no declara `recipients`, así que el compilador
+ *     rechaza cualquier intento de colarlo copiando `requirementAssigned`.
+ *  2. LOS SEIS LLEVAN `actor.name` SIN EXCEPCIONES (a diferencia de los dos eventos de
+ *     suscriptor de requisito, que lo prohíben): los seis resuelven su `actor` con
  *     `resolveEventActor(actorId, actorEnvelope)`, sin la rama `{ id }` inline que S-064
  *     necesitó para su D-2.
  */
@@ -191,6 +193,47 @@ export function taskCommentEdited(
     snapshot: input.snapshot,
     comment: input.comment,
     visibilityLevel: input.visibilityLevel,
+    changes,
+  } as DomainEvent<TaskSnapshot>;
+}
+
+export interface TaskAssignedInput extends BaseEventInput {
+  /** La lista ANTERIOR (líder primero, resto por id asc — la devuelve
+   * `readTaskResponsiblePersonIds`). */
+  from: number[];
+  /** La lista NUEVA, en el orden del payload. */
+  to: number[];
+  added: number[];
+  removed: number[];
+  /** `null` si la lista nueva quedó vacía. */
+  leaderId: number | null;
+}
+
+/**
+ * Construye `task.assigned` (REQ-014 §5 / S-066). FUNCIÓN PURA.
+ *
+ * MISMA FORMA que `requirementAssigned` (el REQ define este evento por referencia: "misma forma
+ * que sus equivalentes de requisito"), con dos diferencias: `entity.type: 'task'` y la AUSENCIA
+ * de `recipients` — `TaskAssignedInput` extiende el `BaseEventInput` de este archivo, que no
+ * declara esa clave (D-4), así que no hay forma de pasarla por accidente.
+ */
+export function taskAssigned(input: TaskAssignedInput): DomainEvent<TaskSnapshot> {
+  const changes: Record<string, unknown> = {
+    responsiblePersonIds: { from: input.from, to: input.to },
+    added: input.added,
+    removed: input.removed,
+    leaderId: input.leaderId,
+  };
+
+  return {
+    type: EVENT_TYPES.TASK_ASSIGNED,
+    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    entity: {
+      type: 'task',
+      id: input.task.id,
+      projectId: input.task.projectId,
+    },
+    snapshot: input.snapshot,
     changes,
   } as DomainEvent<TaskSnapshot>;
 }

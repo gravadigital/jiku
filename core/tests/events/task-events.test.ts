@@ -2,7 +2,7 @@ import 'mocha';
 import 'should';
 import { TaskSnapshot } from '@jiku/nats-protocol';
 import {
-  taskCommentCreated, taskCommentEdited, taskCreated, taskStateChanged, taskUpdated,
+  taskAssigned, taskCommentCreated, taskCommentEdited, taskCreated, taskStateChanged, taskUpdated,
 } from '../../src/events/domain/task';
 
 function snapshot(): TaskSnapshot {
@@ -19,12 +19,12 @@ const ACTOR_ID = '3233';
 const ACTOR_ENVELOPE = { id: '3233', roles: ['admin'], name: 'Lautaro Alvarez' };
 
 /**
- * Los 5 constructores de S-065 (Task 2). El molde es `requirement-events.test.ts`: cada uno
- * tiene su interfaz de input propia, así que cada test le pasa exactamente los campos que su
- * evento declara.
+ * Los 6 constructores de S-065/S-066 (Task 2 de S-065, Task 3 de S-066). El molde es
+ * `requirement-events.test.ts`: cada uno tiene su interfaz de input propia, así que cada test le
+ * pasa exactamente los campos que su evento declara.
  */
-describe('events/domain/task — los 5 constructores de S-065', () => {
-  describe('TS-80, TS-81 · los 5 son puros y usan su EVENT_TYPES', () => {
+describe('events/domain/task — los 6 constructores de S-065/S-066', () => {
+  describe('TS-80, TS-81 · los 6 son puros y usan su EVENT_TYPES', () => {
     it('taskCreated', () => {
       const event = taskCreated({
         task: ENTITY, actorId: ACTOR_ID, actorEnvelope: ACTOR_ENVELOPE, snapshot: snapshot(),
@@ -84,9 +84,21 @@ describe('events/domain/task — los 5 constructores de S-065', () => {
       ('correlationId' in event).should.be.false();
       event.type.should.equal('task.comment.edited');
     });
+
+    it('taskAssigned', () => {
+      const event = taskAssigned({
+        task: ENTITY, actorId: ACTOR_ID, actorEnvelope: ACTOR_ENVELOPE, snapshot: snapshot(),
+        from: [9], to: [9, 4], added: [4], removed: [], leaderId: 9,
+      });
+      ('eventId' in event).should.be.false();
+      ('occurredAt' in event).should.be.false();
+      ('version' in event).should.be.false();
+      ('correlationId' in event).should.be.false();
+      event.type.should.equal('task.assigned');
+    });
   });
 
-  it('TS-82 · los 5 llevan entity.type: task', () => {
+  it('TS-82 · los 6 llevan entity.type: task', () => {
     const events = [
       taskCreated({ task: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined, snapshot: snapshot() }),
       taskStateChanged({
@@ -105,6 +117,10 @@ describe('events/domain/task — los 5 constructores de S-065', () => {
         task: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined, snapshot: snapshot(),
         comment: { id: 1, body: 'x', fileIds: [] }, visibilityLevel: 'internal',
         editedAt: '2026-09-08T00:00:00.000Z', editedBy: ACTOR_ID,
+      }),
+      taskAssigned({
+        task: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined, snapshot: snapshot(),
+        from: [9], to: [9, 4], added: [4], removed: [], leaderId: 9,
       }),
     ];
     events.forEach((event) => event.entity.should.deepEqual({ type: 'task', id: 311, projectId: 7 }));
@@ -129,6 +145,10 @@ describe('events/domain/task — los 5 constructores de S-065', () => {
         task: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined, snapshot: snapshot(),
         comment: { id: 1, body: 'x', fileIds: [] }, visibilityLevel: 'internal',
         editedAt: '2026-09-08T00:00:00.000Z', editedBy: ACTOR_ID,
+      }),
+      taskAssigned({
+        task: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined, snapshot: snapshot(),
+        from: [9], to: [9, 4], added: [4], removed: [], leaderId: 9,
       }),
     ];
     events.forEach((event) => ('recipients' in event).should.be.false());
@@ -196,7 +216,31 @@ describe('events/domain/task — los 5 constructores de S-065', () => {
     event.visibilityLevel!.should.equal('internal');
   });
 
-  it('los 5 resuelven actor.name con el fallback name -> email -> id', () => {
+  it('TS-12 · taskAssigned sin recipients', () => {
+    const event = taskAssigned({
+      task: ENTITY, actorId: ACTOR_ID, actorEnvelope: ACTOR_ENVELOPE, snapshot: snapshot(),
+      from: [9], to: [9, 4], added: [4], removed: [], leaderId: 9,
+    });
+    event.type.should.equal('task.assigned');
+    event.entity.type.should.equal('task');
+    ('recipients' in event).should.be.false();
+    event.changes!.should.deepEqual({
+      responsiblePersonIds: { from: [9], to: [9, 4] },
+      added: [4],
+      removed: [],
+      leaderId: 9,
+    });
+  });
+
+  it('TS-13 · taskAssigned con actor.name por fallback a id', () => {
+    const event = taskAssigned({
+      task: ENTITY, actorId: '3233', actorEnvelope: undefined, snapshot: snapshot(),
+      from: [9], to: [9, 4], added: [4], removed: [], leaderId: 9,
+    });
+    event.actor.should.deepEqual({ id: '3233', name: '3233' });
+  });
+
+  it('los 6 resuelven actor.name con el fallback name -> email -> id', () => {
     const withName = taskCreated({
       task: ENTITY, actorId: '3233',
       actorEnvelope: { id: '3233', roles: ['admin'], name: 'Lautaro Alvarez' },

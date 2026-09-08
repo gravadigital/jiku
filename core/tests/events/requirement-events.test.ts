@@ -2,7 +2,7 @@ import 'mocha';
 import 'should';
 import { RequirementSnapshot } from '@jiku/nats-protocol';
 import {
-  requirementCommentCreated, requirementCommentEdited, requirementReopened,
+  requirementAssigned, requirementCommentCreated, requirementCommentEdited, requirementReopened,
   requirementResolved, requirementStateChanged, requirementSubscriptorAdded,
   requirementSubscriptorRemoved, requirementUpdated,
 } from '../../src/events/domain/requirement';
@@ -22,12 +22,12 @@ const ACTOR_ID = '3233';
 const ACTOR_ENVELOPE = { id: '3233', roles: ['admin'], name: 'Lautaro Alvarez' };
 
 /**
- * Los 8 constructores de S-064 (Task 3). Cada uno tiene su interfaz de input propia (una por
- * evento, no una base con opcionales — decisión deliberada de la Task 3), así que cada test le
- * pasa exactamente los campos que su evento declara.
+ * Los 9 constructores de S-064/S-066 (Task 3 de S-064, Task 2 de S-066). Cada uno tiene su
+ * interfaz de input propia (una por evento, no una base con opcionales — decisión deliberada de
+ * la Task 3), así que cada test le pasa exactamente los campos que su evento declara.
  */
-describe('events/domain/requirement — los 8 constructores de S-064', () => {
-  describe('TS-77, TS-78 · los 8 son puros y usan su EVENT_TYPES', () => {
+describe('events/domain/requirement — los 9 constructores de S-064/S-066', () => {
+  describe('TS-77, TS-78 · los 9 son puros y usan su EVENT_TYPES', () => {
     it('requirementStateChanged', () => {
       const event = requirementStateChanged({
         requirement: ENTITY, actorId: ACTOR_ID, actorEnvelope: ACTOR_ENVELOPE,
@@ -76,6 +76,19 @@ describe('events/domain/requirement — los 8 constructores de S-064', () => {
       ('version' in event).should.be.false();
       ('correlationId' in event).should.be.false();
       event.type.should.equal('requirement.reopened');
+    });
+
+    it('requirementAssigned', () => {
+      const event = requirementAssigned({
+        requirement: ENTITY, actorId: ACTOR_ID, actorEnvelope: ACTOR_ENVELOPE,
+        snapshot: snapshot(), recipients: RECIPIENTS, from: [7, 3], to: [7, 3, 9],
+        added: [9], removed: [], leaderId: 7,
+      });
+      ('eventId' in event).should.be.false();
+      ('occurredAt' in event).should.be.false();
+      ('version' in event).should.be.false();
+      ('correlationId' in event).should.be.false();
+      event.type.should.equal('requirement.assigned');
     });
 
     it('requirementCommentCreated', () => {
@@ -214,6 +227,23 @@ describe('events/domain/requirement — los 8 constructores de S-064', () => {
     });
   });
 
+  it('TS-10 · requirementAssigned arma el sobre completo', () => {
+    const event = requirementAssigned({
+      requirement: ENTITY, actorId: '3233', actorEnvelope: ACTOR_ENVELOPE,
+      snapshot: snapshot(), recipients: RECIPIENTS, from: [7, 3], to: [7, 3, 9],
+      added: [9], removed: [], leaderId: 7,
+    });
+    event.type.should.equal('requirement.assigned');
+    event.entity.should.deepEqual({ type: 'requirement', id: 42, projectId: 7 });
+    event.actor.should.deepEqual({ id: '3233', name: 'Lautaro Alvarez' });
+    event.changes!.should.deepEqual({
+      responsiblePersonIds: { from: [7, 3], to: [7, 3, 9] },
+      added: [9],
+      removed: [],
+      leaderId: 7,
+    });
+  });
+
   it('requirementCommentEdited: Object.keys(changes) deep-equals [editedAt, editedBy]', () => {
     const event = requirementCommentEdited({
       requirement: ENTITY, actorId: ACTOR_ID, actorEnvelope: undefined,
@@ -243,7 +273,7 @@ describe('events/domain/requirement — los 8 constructores de S-064', () => {
     removed.changes!.should.deepEqual({ userId: '9988' });
   });
 
-  it('entity deep-equals {type, id, projectId} en los 8', () => {
+  it('entity deep-equals {type, id, projectId} en los 9', () => {
     const event = requirementStateChanged({
       requirement: { id: 99, projectId: 12 }, actorId: ACTOR_ID, actorEnvelope: undefined,
       snapshot: snapshot(), recipients: RECIPIENTS, from: 'a', to: 'b',

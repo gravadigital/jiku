@@ -5,8 +5,9 @@ import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
-import { requirementReopened, requirementResolved, requirementStateChanged, requirementUpdated } from '../../events/domain/requirement';
+import { requirementAssigned, requirementReopened, requirementResolved, requirementStateChanged, requirementUpdated } from '../../events/domain/requirement';
 import { readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
+import { diffResponsibles } from '../../events/domain/responsibles-diff';
 
 const COMPONENT = 'requirements.edit';
 
@@ -194,6 +195,16 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       }
     }
 
+    // LECTURA PREVIA (D-2, S-066): el ÚNICO momento en que la tabla todavía tiene el conjunto
+    // VIEJO de responsables — el `destroy` de abajo lo borra, y `people_requirements` no tiene
+    // historial. Va DENTRO de `ctx.transaction` (ADR-003) y SOLO cuando el payload trae la lista:
+    // si no la trae, no hay reemplazo, no hay diff y no hay evento, así que la consulta sería
+    // trabajo puro. Es una lectura DISTINTA de la del bloque de eventos de más abajo (esa lee el
+    // estado POSTERIOR): una es el "antes", la otra el "después", a propósito.
+    const previousResponsibleIds = payload.responsiblePersonIds
+      ? await readResponsiblePersonIds(requirement.id, ctx.transaction)
+      : null;
+
     // Reemplazo total de responsables.
     if (payload.responsiblePersonIds) {
       await PersonRequirement.destroy({
@@ -214,6 +225,12 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       );
     }
 
+    // El diff (D-1, D-5): `added`/`removed`/`leaderId` los calcula EL EMISOR, no el conector.
+    // `changed` distingue un reemplazo real de un payload que reenvía la misma lista.
+    const assignment = payload.responsiblePersonIds
+      ? diffResponsibles(previousResponsibleIds!, payload.responsiblePersonIds)
+      : null;
+
     // LOS EVENTOS SE ARMAN ACÁ, AL FINAL — después del reemplazo de responsables y después de
     // todo `return linkError` de arriba (S-064, Task 4): el `snapshot` tiene que reflejar el
     // estado COMPLETO del requisito, y un `edit` que falla no llega a este punto (CA-1, gratis
@@ -227,10 +244,13 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
 
     const events: DomainEvent<RequirementSnapshot>[] = [];
 
-    // Sin ninguna entrada de state/title/description, NO HAY NADA QUE DECLARAR: un `edit` de
-    // `priority` (o cualquier otro campo sin evento, CA-2) sigue devolviendo un `Reply` idéntico
-    // al de antes de esta story — `reply.events` ni se asigna (criterio 10).
-    if (stateChange || titleChange || descriptionChange) {
+    // Sin ninguna entrada de state/title/description NI cambio real de responsables, NO HAY NADA
+    // QUE DECLARAR: un `edit` de `priority` (o cualquier otro campo sin evento, CA-2) sigue
+    // devolviendo un `Reply` idéntico al de antes de esta story — `reply.events` ni se asigna
+    // (criterio 10). La condición se ENSANCHA (D-7) y no se duplica: `assigned` reusa el mismo
+    // `responsiblePersonIds`/`snapshot`/`recipients` que los demás eventos de este bloque, sin
+    // una segunda consulta a `resolveRecipients` (R-8).
+    if (stateChange || titleChange || descriptionChange || assignment?.changed) {
       // `responsiblePersonIds` sale del PAYLOAD cuando está presente (D-4, regla 1: es la única
       // fuente fiel al orden), y de la lectura ordenada cuando no. `recipients` se resuelve UNA
       // SOLA VEZ (R-8) y el `snapshot`, UNA SOLA VEZ: los dos se comparten entre los hasta tres
@@ -302,6 +322,25 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
           recipients,
           from: stateChange!.previous,
           to: stateChange!.next,
+        }));
+      }
+
+      // `assigned` VA ÚLTIMO (D-6): los tests de S-064 asertan por índice sobre el orden que ya
+      // existe (`events[0]`, `events[1]`), y appendear acá los deja byte a byte iguales. No hay
+      // razón semántica para otro orden — `emitEvents` publica en paralelo (`Promise.allSettled`)
+      // y todos comparten `correlationId`.
+      if (assignment?.changed) {
+        events.push(requirementAssigned({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: assignment.from,
+          to: assignment.to,
+          added: assignment.added,
+          removed: assignment.removed,
+          leaderId: assignment.leaderId,
         }));
       }
     }

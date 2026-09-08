@@ -546,11 +546,12 @@ describe('tasks', () => {
     });
 
     /**
-     * `task.state.changed` / `task.updated` de punta a punta (REQ-014 / S-065, CA-1, CA-2, CA-4).
-     * El fixture de este `describe` (`beforeEach` de arriba) crea la tarea con
-     * `title: 'Original'`, `description: 'Descripción original'`, `state: 'backlog'`.
+     * `task.state.changed` / `task.updated` / `task.assigned` de punta a punta (REQ-014 /
+     * S-065/S-066, CA-1, CA-2, CA-4, CA-2 de S-066). El fixture de este `describe` (`beforeEach`
+     * de arriba) crea la tarea con `title: 'Original'`, `description: 'Descripción original'`,
+     * `state: 'backlog'` y `responsiblePersonIds: [personA]` (líder).
      */
-    describe('task.state.changed / task.updated — eventos de dominio (S-065)', () => {
+    describe('task.state.changed / task.updated / task.assigned — eventos de dominio (S-065/S-066)', () => {
       it('TS-22, TS-23, TS-24 · un cambio de estado emite el evento con changes.state y el snapshot nuevo', async () => {
         const reply = await dispatch(`tasks.${taskId}.edit`, { editor: CREATOR, state: 'activo' });
 
@@ -677,15 +678,106 @@ describe('tasks', () => {
         Object.keys(ev('task.updated').changes!).sort().should.deepEqual(['description', 'title']);
       });
 
-      it('TS-36 · cambiar solo responsables NO emite nada (task.assigned es S-066)', async () => {
+      it('TS-25 · cambiar solo responsables emite task.assigned (S-066)', async () => {
         const reply = await dispatch(`tasks.${taskId}.edit`, {
           editor: CREATOR, responsiblePersonIds: [personB],
         });
 
         reply.status.should.equal('success');
-        fakePublisher.published.length.should.equal(0);
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        subject.should.equal('dev.events.v1.task.assigned');
+        (payload as DomainEvent<TaskSnapshot>).changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA], to: [personB] },
+          added: [personB],
+          removed: [personA],
+          leaderId: personB,
+        });
+
+        // El fixture arranca con `[personA]` (D-3 de la escritura): el nuevo líder queda en
+        // `is_leader = true`, cubriendo el mismo caso que el test original de S-065 cubría.
         const link = await PersonObjective.findOne({ where: { objectiveId: taskId, personId: personB } });
         link!.isLeader.should.be.true();
+      });
+
+      it('TS-28 · cambio de líder en tarea sin agregar/quitar (CA-5)', async () => {
+        // El fixture arranca con `[personA]` (líder). Se agrega `personB` como NO líder
+        // (`isLeader: false`, D-3: en `people_objectives` el no-líder es `false`, no `NULL`
+        // como en `people_requirements`) para tener el mismo conjunto en los dos lados del edit.
+        await PersonObjective.create({ personId: personB, objectiveId: taskId, isLeader: false });
+
+        const reply = await dispatch(`tasks.${taskId}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personB, personA],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('task.assigned');
+        (event.changes as { added: number[] }).added.should.deepEqual([]);
+        (event.changes as { removed: number[] }).removed.should.deepEqual([]);
+        (event.changes as { leaderId: number }).leaderId.should.equal(personB);
+
+        const links = await PersonObjective.findAll({ where: { objectiveId: taskId } });
+        links.find((l) => l.personId === personB)!.isLeader.should.be.true();
+        links.find((l) => l.personId === personA)!.isLeader.should.be.false();
+      });
+
+      it('TS-29 · misma lista, mismo orden: NO emite (D-5)', async () => {
+        const reply = await dispatch(`tasks.${taskId}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+        ('events' in reply).should.be.false();
+      });
+
+      it('TS-31 · el upsert preserva created_at y el diff igual sale bien', async () => {
+        // El fixture arranca con `[personA]` (líder, D-3). Se agrega `personB` como NO líder,
+        // y se guarda el `created_at` de la fila de `personA` — la que se va a MANTENER en el
+        // `edit` de abajo (`destroy(notIn)` + `upsert`, a diferencia de `requirements-edit.ts`,
+        // que borra y recrea todo).
+        await PersonObjective.create({ personId: personB, objectiveId: taskId, isLeader: false });
+        const before = (await PersonObjective.findOne({
+          where: { objectiveId: taskId, personId: personA },
+        }))!.createdAt;
+
+        const third = await Person.create({
+          firstName: 'Cami', lastName: 'T', enabled: true, initDate: new Date('2026-01-01'),
+        });
+
+        // `personA` se MANTIENE (queda líder), `personB` sale, `third` entra.
+        const reply = await dispatch(`tasks.${taskId}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, third.id],
+        });
+
+        reply.status.should.equal('success');
+        const event = ev('task.assigned');
+        (event.changes as { added: number[] }).added.should.deepEqual([third.id]);
+        (event.changes as { removed: number[] }).removed.should.deepEqual([personB]);
+        (event.changes as { leaderId: number }).leaderId.should.equal(personA);
+
+        const after = (await PersonObjective.findOne({
+          where: { objectiveId: taskId, personId: personA },
+        }))!.createdAt;
+        after.getTime().should.equal(before.getTime());
+      });
+
+      it('TS-27 · estado y responsables en el mismo edit: dos eventos, un correlationId', async () => {
+        await Objective.update({ state: 'activo' }, { where: { id: taskId } });
+        fakePublisher.reset();
+
+        await dispatch(`tasks.${taskId}.edit`, {
+          editor: CREATOR, state: 'finalizado', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['task.state.changed', 'task.assigned']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent<TaskSnapshot>);
+        first.correlationId.should.equal(second.correlationId);
+        first.snapshot.finishedAt!.should.match(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+        (ev('task.assigned').changes as { removed: number[] }).removed.should.deepEqual([personA]);
       });
 
       it('TS-37 · limpiar la descripción emite updated con to: null (el historial no lo registra)', async () => {
@@ -797,6 +889,18 @@ describe('tasks', () => {
         });
 
         ev('task.updated').snapshot.responsiblePersonIds.should.deepEqual([personB, personA]);
+
+        // S-066: el fixture arranca con `[personA]` (líder), así que este mismo edit TAMBIÉN
+        // emite task.assigned — `added: [personB]`, `removed: []`, `leaderId: personB`.
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['task.updated', 'task.assigned']);
+        ev('task.assigned').changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA], to: [personB, personA] },
+          added: [personB],
+          removed: [],
+          leaderId: personB,
+        });
       });
 
       it('TS-94b · el lector devuelve los ids que quedaron después de un upsert de responsables', async () => {
@@ -806,6 +910,12 @@ describe('tasks', () => {
 
         ev('task.state.changed').snapshot.responsiblePersonIds.should.deepEqual([personB, personA]);
         (await PersonObjective.count({ where: { objectiveId: taskId } })).should.equal(2);
+
+        // S-066: el fixture arranca con `[personA]`, así que este edit TAMBIÉN emite
+        // task.assigned junto con task.state.changed.
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['task.state.changed', 'task.assigned']);
       });
     });
   });
@@ -1291,8 +1401,8 @@ describe('tasks', () => {
     });
   });
 
-  /** `recipients` y `actor` transversales a los 5 eventos (REQ-014 / S-065, CA-3, CA-7). */
-  describe('recipients y actor transversales (S-065)', () => {
+  /** `recipients` y `actor` transversales a los 6 eventos (REQ-014 / S-065/S-066, CA-3, CA-7). */
+  describe('recipients y actor transversales (S-065/S-066)', () => {
     let taskId: number;
 
     beforeEach(async () => {
@@ -1303,14 +1413,18 @@ describe('tasks', () => {
       taskId = task.id;
     });
 
-    /** Produce los 5 tipos de evento en una sola corrida: alta, edit de estado+título, comentario,
-     * edición de comentario. `tasks.new` es la única fuente de `task.created`. */
-    async function runAllFive(): Promise<void> {
+    /** Produce los 6 tipos de evento en una sola corrida: alta, edit de estado+título+
+     * responsables (S-066), comentario, edición de comentario. `tasks.new` es la única fuente
+     * de `task.created`. El alta arranca SIN responsables (`[]`) para que el `edit` de abajo,
+     * que asigna `[personA]`, sea un cambio real y dispare `task.assigned`. */
+    async function runAllSix(): Promise<void> {
       const created = await dispatch<{ id: number }>('tasks.new', {
         creator: CREATOR, title: 'T', projectId, responsiblePersonIds: [],
       });
       const id = created.data!.id;
-      await dispatch(`tasks.${id}.edit`, { editor: CREATOR, title: 'T2', state: 'activo' });
+      await dispatch(`tasks.${id}.edit`, {
+        editor: CREATOR, title: 'T2', state: 'activo', responsiblePersonIds: [personA],
+      });
       const commented = await dispatch<{ id: number }>(`tasks.${id}.comment`, {
         author: CREATOR, comment: 'x',
       });
@@ -1319,10 +1433,10 @@ describe('tasks', () => {
       });
     }
 
-    it('TS-73 · ninguno de los 5 eventos lleva recipients', async () => {
-      await runAllFive();
+    it('TS-73 · ninguno de los 6 eventos lleva recipients', async () => {
+      await runAllSix();
 
-      fakePublisher.published.length.should.equal(5);
+      fakePublisher.published.length.should.equal(6);
       fakePublisher.published.forEach(({ payload }) => {
         ('recipients' in (payload as object)).should.be.false();
       });
@@ -1363,10 +1477,10 @@ describe('tasks', () => {
       ev('task.updated').actor.should.deepEqual({ id: CREATOR, name: CREATOR });
     });
 
-    it('TS-79 · los 5 eventos llevan actor.name', async () => {
-      await runAllFive();
+    it('TS-79 · los 6 eventos llevan actor.name', async () => {
+      await runAllSix();
 
-      fakePublisher.published.length.should.equal(5);
+      fakePublisher.published.length.should.equal(6);
       fakePublisher.published.forEach(({ payload }) => {
         ('name' in (payload as DomainEvent<TaskSnapshot>).actor).should.be.true();
       });

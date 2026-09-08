@@ -101,6 +101,15 @@ describe('requirements', () => {
     await Requirement.destroy({ where: {} });
   });
 
+  // S-066: a partir de esta story, un `edit` que SOLO reemplaza responsables también publica
+  // (`requirement.assigned`). `fakePublisher` es un SINGLETON DE MÓDULO compartido por todo
+  // `dispatch()` (ADR-013) — sin este reset en el `describe` de más afuera, una publicación de
+  // un test se filtra al siguiente y el fallo depende del orden de ejecución de la suite
+  // (mismo patrón que `tasks.test.ts` puso en S-065).
+  beforeEach(() => {
+    fakePublisher.reset();
+  });
+
   describe('requirements.new', () => {
     it('crea un requisito con los defaults', async () => {
       const reply = await dispatch<{ id: number }>('requirements.new', {
@@ -783,6 +792,51 @@ describe('requirements', () => {
         ('resolutionConclusion' in snapshot).should.be.false();
         ('resolutionComment' in snapshot).should.be.false();
       });
+
+      it('TS-33 · incidencia a resuelto por edit sin campos de resolución: falla y NO emite', async () => {
+        // El equivalente por `.resolve` ya está probado (línea 1148 del Story Plan); ESTE es el
+        // canal por el que la resolución REALMENTE llega (comentario de requirements-edit.ts:46-47)
+        // y no tenía cobertura propia.
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'incidencia', state: 'revision',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('resolution_required');
+        fakePublisher.published.length.should.equal(0);
+        (await Requirement.findByPk(requirement.id))!.state.should.equal('revision');
+      });
+
+      it('TS-37 · resolución y reemplazo de responsables en el mismo edit', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'funcionalidad', state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto', responsiblePersonIds: [personA, personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const payloads = fakePublisher.published.map((p) => p.payload as DomainEvent<RequirementSnapshot>);
+        payloads.map((p) => p.type).should.deepEqual([
+          'requirement.state.changed', 'requirement.resolved', 'requirement.assigned',
+        ]);
+        // Los tres eventos comparten el mismo correlationId, el mismo snapshot y el mismo
+        // recipients (R-8, D-7): es lo que se rompería si `assigned` resolviera su propio
+        // snapshot/recipients en un bloque `if` aparte.
+        new Set(payloads.map((p) => p.correlationId)).size.should.equal(1);
+        payloads.forEach((p) => {
+          (p.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+            .should.deepEqual([personA, personB]);
+          (p.snapshot as { state: string }).state.should.equal('resuelto');
+        });
+      });
     });
 
     describe('requirement.reopened (CA-4)', () => {
@@ -857,6 +911,29 @@ describe('requirements', () => {
         row!.resolutionComment!.should.equal('se reabre por pedido del cliente');
         (row!.resolutionType === null).should.be.true();
       });
+
+      it('TS-38 · reapertura y reemplazo de responsables en el mismo edit', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const payloads = fakePublisher.published.map((p) => p.payload as DomainEvent<RequirementSnapshot>);
+        payloads.map((p) => p.type).should.deepEqual([
+          'requirement.state.changed', 'requirement.reopened', 'requirement.assigned',
+        ]);
+        new Set(payloads.map((p) => p.correlationId)).size.should.equal(1);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number }).added
+          .should.deepEqual([personB]);
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([personA]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
+      });
     });
 
     describe('recipients y actor transversales sobre edit (CA-9, CA-13, CA-16)', () => {
@@ -918,6 +995,16 @@ describe('requirements', () => {
           [personB, personA]
         );
         event.recipients!.responsiblePersonIds.should.deepEqual([personB, personA]);
+
+        // S-066: el mismo edit ahora TAMBIÉN emite requirement.assigned — el requisito no tenía
+        // responsables previos, así que `added` lleva los dos (ordenados asc por el diff) y
+        // `removed` queda vacío. `leaderId` es `to[0]` = personB.
+        fakePublisher.published.length.should.equal(2);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number })
+          .added.should.deepEqual([personA, personB].sort((a, b) => a - b));
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
       });
 
       it('TS-70 · sin lista en el payload, el líder queda primero', async () => {
@@ -998,6 +1085,200 @@ describe('requirements', () => {
           title: 'T2', actor: { id: ADMIN_ID_REQS, roles: ['admin'], email: 'admin@x.com' },
         });
         ('email' in ev('requirement.updated').actor).should.be.false();
+      });
+    });
+
+    /**
+     * `requirement.assigned` (S-066, CA-1, CA-5, D-1 a D-7). Solo dos personas de fixture
+     * (`personA`, `personB`) alcanzan para cubrir los 10 escenarios: los TS del Story Plan que
+     * usan tres ids en el ejemplo (7, 3, 9) se adaptan a dos sin perder lo que cada uno prueba.
+     */
+    describe('requirement.assigned (CA-1, CA-5)', () => {
+      it('TS-15 · un edit que SOLO reemplaza responsables emite exactamente un evento', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        subject.should.equal('dev.events.v1.requirement.assigned');
+        (payload as DomainEvent).changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA], to: [personA, personB] },
+          added: [personB],
+          removed: [],
+          leaderId: personA,
+        });
+      });
+
+      it('TS-16 · el snapshot lleva la lista NUEVA, no la vieja', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        const event = ev('requirement.assigned');
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+          .should.deepEqual([personA, personB]);
+        event.recipients!.responsiblePersonIds.should.deepEqual([personA, personB]);
+      });
+
+      it('TS-17 · estado y responsables en el mismo edit: dos eventos, un correlationId', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', responsiblePersonIds: [personA, personB],
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.state.changed', 'requirement.assigned']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.correlationId.should.equal(second.correlationId);
+        first.snapshot.should.deepEqual(second.snapshot);
+        first.recipients!.should.deepEqual(second.recipients!);
+      });
+
+      it('TS-18 · título y responsables: updated + assigned', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, title: 'Nuevo título', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.updated', 'requirement.assigned']);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number }).added
+          .should.deepEqual([personB]);
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([personA]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
+      });
+
+      it('TS-19 · cambio de líder por reordenamiento (CA-5)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personB, personA],
+        });
+
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.assigned');
+        (event.changes as { added: number[] }).added.should.deepEqual([]);
+        (event.changes as { removed: number[] }).removed.should.deepEqual([]);
+        (event.changes as { leaderId: number }).leaderId.should.equal(personB);
+
+        const links = await PersonRequirement.findAll({ where: { requirementId: requirement.id } });
+        links.find((l) => l.personId === personB)!.isLeader!.should.be.true();
+        (links.find((l) => l.personId === personA)!.isLeader === true).should.be.false();
+      });
+
+      it('TS-20 · misma lista, mismo orden: NO emite (D-5)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+        ('events' in reply).should.be.false();
+      });
+
+      it('TS-21 · un edit sin responsiblePersonIds no emite assigned', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, priority: 'alta',
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-22 · responsiblePersonIds: [] desasigna a todos', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [],
+        });
+
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.assigned');
+        event.changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA, personB], to: [] },
+          added: [],
+          removed: [personA, personB].sort((a, b) => a - b),
+          leaderId: null,
+        });
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+          .should.deepEqual([]);
+      });
+
+      it('TS-23 · persona inexistente: falla y NO emite', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, 999999],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_responsible_person');
+        fakePublisher.published.length.should.equal(0);
+        const links = await PersonRequirement.findAll({ where: { requirementId: requirement.id } });
+        links.length.should.equal(1);
+        links[0].personId.should.equal(personA);
+      });
+
+      it('TS-24 · assigned va ÚLTIMO del lote (D-6)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', title: 'T2', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual([
+          'requirement.state.changed', 'requirement.updated', 'requirement.assigned',
+        ]);
       });
     });
   });
@@ -2497,6 +2778,10 @@ describe('requirements — vinculación de archivos (S-003)', () => {
       title: 'Para comentar', description: 'x', projectId, createdBy: UPLOADER_A,
     });
     requirementId = requirement.id;
+    // SEGUNDO describe de nivel superior (fuera del `describe('requirements', ...)` de arriba):
+    // necesita su PROPIO reset del singleton `fakePublisher` para la misma garantía de
+    // ADR-013 ("no depender del orden de ejecución entre archivos/bloques de test").
+    fakePublisher.reset();
   });
 
   afterEach(async () => {
