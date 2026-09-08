@@ -147,6 +147,12 @@ export class FakeBus implements Bus {
       const { Dispatcher } = require('../../../core/src/bus/dispatcher');
       const { registry } = require('../../../core/src/commands');
       const { loadConfig } = require('../../../core/src/config');
+      // EL MISMO DOBLE QUE `core/tests/helpers/dispatch.ts`, no una copia (AC-6 de la Task 1 de
+      // S-063): `Dispatcher` ahora exige un `EventPublisher` por constructor, y este `FakeBus`
+      // ejecuta core de verdad (ADR-013) — sin este doble, la suite de la api publicaría a un
+      // NATS que no existe, o peor, un `TypeError` de firma caería en el `catch` de abajo y se
+      // vería como "core no disponible" en vez de como el error de firma que en realidad es.
+      const { FakeEventPublisher } = require('../../../core/tests/helpers/event-publisher');
       /* eslint-enable @typescript-eslint/no-var-requires */
 
       // MISMO ASSERT DE ARRANQUE QUE `core/src/index.ts`, y no es opcional: `resolveActor`
@@ -162,7 +168,7 @@ export class FakeBus implements Bus {
       process.env.CORE_TRUSTED_PUBLISHER_ID = TEST_USER_ID;
       loadConfig();
 
-      const instance = new Dispatcher(registry);
+      const instance = new Dispatcher(registry, new FakeEventPublisher());
       this.dispatcher = (subject: string, payload: unknown) =>
         instance.dispatch(subject, payload);
     } catch {

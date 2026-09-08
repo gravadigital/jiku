@@ -3,11 +3,11 @@ import 'should';
 import sinon from 'sinon';
 import { Op } from 'sequelize';
 import { Attachment, ByteStatus, File, Objective, ObjectiveActivity, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, RequirementState, RequirementSubscriptor, RetentionStatus, User } from '@jiku/models';
-import { ErrorCode } from '@jiku/nats-protocol';
+import { DomainEvent, ErrorCode, RequirementSnapshot } from '@jiku/nats-protocol';
 import * as fs from 'fs';
 import * as path from 'path';
 import logger from '../../src/logger';
-import { dispatch } from '../helpers/dispatch';
+import { dispatch, fakePublisher } from '../helpers/dispatch';
 import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
 
 const CREATOR = 'zitadel-sub-reqs';
@@ -168,6 +168,250 @@ describe('requirements', () => {
       const requirement = await Requirement.findByPk(reply.data!.id);
       // El `createdBy` sale de `actor.id`, no de un `creator` que nunca se mandó.
       requirement!.createdBy.should.equal(CREATOR);
+    });
+
+    /**
+     * `requirement.created` de punta a punta (CA-1, CA-8, CA-9 de S-063). Entra por
+     * `dispatch()` real, así que ejercita el mecanismo COMPLETO: comando -> despachador ->
+     * commit -> emisor -> `fakePublisher`. `fakePublisher` es el MISMO doble que usa TODO
+     * `dispatch()` de este archivo (CA-10): se resetea en cada test para no arrastrar
+     * publicaciones de un test al siguiente.
+     */
+    describe('requirement.created — de punta a punta (S-063)', () => {
+      // `fakePublisher` es GLOBAL a todo `tests/helpers/dispatch.ts` (CA-10: el mismo doble para
+      // TODO `dispatch()` del archivo). Se resetea ANTES de cada test y no solo después: otros
+      // `it()` de este mismo archivo —fuera de este describe— también pasan por `dispatch()` y
+      // dejan publicaciones acumuladas si algún `requirements.new` anterior declaró el evento.
+      beforeEach(() => {
+        fakePublisher.reset();
+      });
+
+      it('TS-1, TS-2, TS-3, TS-4 · publica DESPUÉS del commit, con el subject y los 8 campos', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        (await Requirement.findByPk(reply.data!.id))!.should.be.ok();
+
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        const event = payload as DomainEvent<RequirementSnapshot>;
+
+        subject.should.equal(`dev.events.v1.requirement.created`);
+        event.eventId.should.be.a.String().and.not.empty();
+        event.type.should.equal('requirement.created');
+        event.version.should.equal('v1');
+        Date.parse(event.occurredAt).should.not.be.NaN();
+        event.correlationId.should.be.a.String().and.not.empty();
+        event.actor.id.should.equal(CREATOR);
+        event.entity.should.deepEqual({
+          type: 'requirement', id: reply.data!.id, projectId,
+        });
+      });
+
+      it('TS-5 (variante con el comando real) · fileIds inválidos -> failure y CERO publicaciones', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'x', description: 'y', projectId,
+          fileIds: [999999],
+        });
+
+        reply.status.should.equal('failure');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-24, TS-25 · el snapshot trae los 15 campos, con los defaults aplicados', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          type: 'funcionalidad', priority: 'media', responsiblePersonIds: [personA, personB],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot;
+
+        Object.keys(snapshot).sort().should.deepEqual(
+          ['createdAt', 'createdBy', 'description', 'estimatedFinishDate', 'finishedAt', 'id',
+            'priority', 'projectId', 'responsiblePersonIds', 'state', 'tags', 'title', 'type',
+            'updatedAt', 'visibilityLevel'].sort()
+        );
+        snapshot.state.should.equal('analisis');
+        snapshot.visibilityLevel.should.equal('public');
+        snapshot.priority.should.equal('media');
+        snapshot.type!.should.equal('funcionalidad');
+        snapshot.createdBy.should.equal(CREATOR);
+        snapshot.projectId.should.equal(projectId);
+        (snapshot.finishedAt === null).should.be.true();
+        (reply.data!.id).should.be.a.Number();
+      });
+
+      it('TS-26 · description viaja completo (5000 caracteres), nunca truncado', async () => {
+        const description = 'A'.repeat(5000);
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description, projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { description: string };
+        snapshot.description.length.should.equal(5000);
+        snapshot.description.should.equal(description);
+      });
+
+      it('TS-27 · responsiblePersonIds conserva el ORDEN del payload, no ascendente', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          responsiblePersonIds: [personB, personA],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { responsiblePersonIds: number[] };
+        snapshot.responsiblePersonIds.should.deepEqual([personB, personA]);
+      });
+
+      it('TS-28 · sin responsables, la lista es [] y no null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds.should.deepEqual([]);
+      });
+
+      it('TS-29 · type ausente viaja como null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ((event.snapshot as { type: unknown }).type === null).should.be.true();
+      });
+
+      it('TS-30 · estimatedFinishDate viaja como YYYY-MM-DD, sin hora', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          estimatedFinishDate: '2026-12-31',
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { estimatedFinishDate: string };
+        snapshot.estimatedFinishDate.should.equal('2026-12-31');
+        snapshot.estimatedFinishDate.length.should.equal(10);
+      });
+
+      it('TS-31 · createdAt/updatedAt viajan como ISO 8601 string, no Date', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { createdAt: unknown; updatedAt: unknown };
+        (typeof snapshot.createdAt).should.equal('string');
+        (snapshot.createdAt as string).should.match(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+        (typeof snapshot.updatedAt).should.equal('string');
+      });
+
+      it('TS-32 · tags respeta la forma "key:value" acordada contra el contrato', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          tags: [{ key: 'area', value: 'backend' }],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { tags: string[] };
+        Array.isArray(snapshot.tags).should.be.true();
+        snapshot.tags.should.deepEqual(['area:backend']);
+      });
+
+      it('TS-33 · tags ausente viaja como [], no null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        (event.snapshot as { tags: unknown[] }).tags.should.deepEqual([]);
+      });
+
+      it('TS-34 · el evento NO trae la clave changes (ausente, no undefined)', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ('changes' in event).should.be.false();
+      });
+
+      it('TS-35 · recipients va SIEMPRE, con subscriptors: [] cuando no hay suscriptores', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.recipients!.should.deepEqual({
+          subscriptors: [], responsiblePersonIds: [personA, personB],
+        });
+      });
+
+      it('TS-37 · requirements.new no crea suscriptores hoy: recipients.subscriptors es [] en el alta', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.recipients!.subscriptors.should.deepEqual([]);
+      });
+
+      it('TS-39 · actor.name sale del sobre de identidad cuando el comando llega por la api', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: { id: CREATOR, roles: ['admin'], name: 'Lautaro Alvarez' },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.actor.should.deepEqual({ id: CREATOR, name: 'Lautaro Alvarez' });
+      });
+
+      it('TS-40 · actor.name cae a email cuando el sobre no trae name', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: { id: CREATOR, roles: ['admin'], email: 'lautaro@grava.digital' },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.actor.name!.should.equal('lautaro@grava.digital');
+      });
+
+      it('TS-42 · actor.email NUNCA viaja, ni serializado', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: {
+            id: CREATOR, roles: ['admin'], name: 'Lautaro Alvarez', email: 'lautaro@grava.digital',
+          },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ('email' in event.actor).should.be.false();
+        JSON.stringify(event.actor).should.not.containEql('lautaro@grava.digital');
+      });
+
+      it('TS-54 · LOG_COMMANDS=true no filtra el email de un suscriptor al log', async () => {
+        const infoSpy = sinon.spy(logger, 'info');
+        process.env.LOG_COMMANDS = 'true';
+
+        let messages: string[];
+        try {
+          await dispatch<{ id: number }>('requirements.new', {
+            title: 'T', description: 'D', projectId,
+            actor: { id: CREATOR, roles: ['admin'], email: 'lautaro@grava.digital' },
+          });
+          messages = infoSpy.getCalls().map((call) => String(call.args[0]));
+        } finally {
+          delete process.env.LOG_COMMANDS;
+          infoSpy.restore();
+        }
+
+        messages.some((m) => m.includes('lautaro@grava.digital')).should.be.false();
+      });
     });
   });
 

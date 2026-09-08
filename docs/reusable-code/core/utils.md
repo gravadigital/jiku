@@ -659,3 +659,183 @@ for (const spec of specs) {
 return Promise.resolve(success({ resources }));
 ```
 
+
+## generateUlid
+
+**Location:** `core/src/ulid.ts`
+
+**Description:** `core`'s own ULID generator (S-063 / REQ-014, decision D-2). Produces 26
+characters of Crockford base32 — 10 derived from the millisecond timestamp, 16 random via
+`crypto.randomBytes` — never the RFC 4648 alphabet `hashUserId()` uses elsewhere in the monorepo:
+copying that table would produce values that do not match `/^[0-9A-HJKMNP-TV-Z]{26}$/`, because
+Crockford excludes `I`, `L`, `O` and `U`.
+
+Chosen over the `ulid` npm package: `core` is the only service that writes, so a new runtime
+dependency there is surface that has to be justified, and 26 characters of base32 does not
+justify it. Only the bit-shifting *shape* of `hashUserId()`'s encoder is reused, not its alphabet
+or its output.
+
+Feeds **two** things with the same function: `DomainEvent.eventId` (one per event, filled by
+`emitEvents`) and `dispatch()`'s `correlationId` (one per invocation, shared by every event a
+single command declares — CA-9). A ULID carries no semantics beyond "unique and sortable", so
+there is no "event" variant and a "correlation" variant.
+
+**Signature:**
+```ts
+function generateUlid(now?: number): string; // now defaults to Date.now()
+```
+
+**Usage:**
+```ts
+const eventId = generateUlid();
+const correlationId = generateUlid(); // once per dispatch(), not once per event
+```
+
+## emitEvents
+
+**Location:** `core/src/bus/emit-events.ts`
+
+**Description:** Completes and publishes a batch of events a command already declared (S-063 /
+REQ-014, Task 2). For each event: fills `eventId` (`generateUlid()`), `occurredAt`
+(`new Date().toISOString()`) and `version` (`EVENTS_VERSION`, never a `'v1'` literal), builds the
+subject with `eventSubject(event.type)` — the **only** place in `core` allowed to build an event
+subject — and publishes through the `EventPublisher` it receives.
+
+**Never rejects and never throws** (the guarantee CA-3/CA-4/CA-5 need). Uses `Promise.allSettled`,
+never `Promise.all`: with several events, one failure must not swallow the outcome of the others.
+Each `publish()` call is wrapped in `Promise.resolve().then(() => publish(...))` so a
+**synchronous** throw from the publisher — not just a rejected promise — is caught the same way.
+
+A failed publish logs **once**, at `error`, with exactly the five identifiers of the agreed
+literal format:
+```
+[events] publish failed eventId=<id> type=<type> entity=<type>:<id> project=<projectId> reason=<causa>
+```
+Never the payload: the event carries titles, full descriptions and people's data
+(`recipients`, `snapshot`). A lost event is **not retried** (R-6, accepted scope).
+
+Testable without a database and without NATS — it is pure with respect to persistence, given a
+publisher (real or fake).
+
+**Signature:**
+```ts
+function emitEvents(
+  events: DomainEvent[],
+  correlationId: string,
+  publisher: EventPublisher
+): Promise<void>;
+```
+
+**Usage:** see `core/src/bus/dispatcher.ts`, the block between `transaction.commit()` and
+`return reply`, itself wrapped in its own `try/catch` (belt-and-braces on top of `emitEvents`'s
+own guarantee — see the comment there for why).
+
+## resolveEventActor
+
+**Location:** `core/src/events/domain/actor.ts`
+
+**Description:** Resolves a `DomainEvent`'s `EventActor` (S-063 / REQ-014, decision D-5):
+fallback `name` → `email` → `id`, reading only from the identity envelope the dispatcher already
+resolved (`ctx.actor`, when present). On the direct channel (no envelope), falls straight to the
+`id` — **no extra `SELECT`** against `users`: the contract already documents that
+`EventActor.name` "CAN BE AN ID, a connector must not assume it is a human name", so paying a
+query for a best-effort, optional field is not worth it. `actor.email` is read only to build the
+fallback and never copied into the returned object — `EventActor` does not declare that key.
+
+Lives in its own file because every event of the 16-type catalog needs the same fallback (S-064
+onward reuse it), not only `requirement.created`.
+
+**Signature:**
+```ts
+function resolveEventActor(actorId: string, envelope: Actor | undefined): EventActor;
+```
+
+**Usage:**
+```ts
+const actor = resolveEventActor(actorId, ctx.actor); // ctx.actor is `Actor | undefined`
+```
+
+## requirementToSnapshot / resolveRecipients
+
+**Location:** `core/src/events/domain/requirement-snapshot.ts`
+
+**Description:** The two translation functions of S-063 / REQ-014 (Task 3) that turn a
+committed `Requirement` row into the events contract's shapes.
+
+`requirementToSnapshot(requirement, responsiblePersonIds)` projects to `RequirementSnapshot`:
+**exactly** the 15 fields the contract declares (`docs/apis/core-events.yaml`), never `scope`,
+`technicalSolution`, `acceptanceCriteria`, the three `resolution*` fields or the three transition
+marks. `estimatedFinishDate` is `DATEONLY` and **already a string** — never call `.toISOString()`
+on it. `createdAt`/`updatedAt` **are** `Date` and are serialised; `finishedAt` too, only when not
+`null`. `tags` resolves a documented discrepancy between the contract (`string[]`) and the model
+column (`Array<{key,value}>`) by projecting each pair to `"key:value"`.
+`responsiblePersonIds` is a **parameter**, not derived from a relation: for an alta, the caller
+passes the creation payload's own list, because it is the most faithful source of the semantic
+order (the first id is the lead) — `person_requirements` does not guarantee an order without an
+explicit `ORDER BY`, and its `is_leader` marks the lead but not the rest.
+
+`resolveRecipients(requirementId, responsiblePersonIds, transaction)` resolves `EventRecipients`:
+reads `requirement_subscriptors` for the requirement and resolves each `userId` against `users`
+with a second explicit query (no `include`), **inside the transaction it receives** — reading
+outside it would observe a different state than the one the event declares (R-8, accepted cost).
+`email: null` is **preserved**, never filtered out or replaced by `''`.
+
+**Signatures:**
+```ts
+function requirementToSnapshot(
+  requirement: Requirement,
+  responsiblePersonIds: number[]
+): RequirementSnapshot;
+
+function resolveRecipients(
+  requirementId: number,
+  responsiblePersonIds: number[],
+  transaction: Transaction
+): Promise<EventRecipients>;
+```
+
+**Usage:** see `core/src/commands/requirements/requirements-new.ts`, at the end of `execute()`,
+after `PersonRequirement` rows are created and before the `return`.
+
+## requirementCreated
+
+**Location:** `core/src/events/domain/requirement.ts`
+
+**Description:** The **pure** constructor of the `requirement.created` event (S-063 / REQ-014,
+Task 4). Touches neither the database nor the bus. Does **not** fill `eventId`, `occurredAt`,
+`version` or `correlationId` — those are the emitter's job (`emitEvents`), which is exactly what
+`tests/events/requirement-created.test.ts` (TS-43) asserts with `'eventId' in event === false`.
+
+Its return type is `DomainEvent<RequirementSnapshot>` so `reply.events = [requirementCreated(...)]`
+type-checks against the shape `Reply` already declares (S-062) — an intentional, commented `as`
+bridges the gap between that type and the narrower runtime object.
+
+`changes` is **absent**, never `undefined` — same pattern `failure()` uses for `errorDetails`,
+because `should.deepEqual` compares own keys. Lives under `src/events/domain/`, the new **outgoing**
+plane of `src/events/`, next to the pre-existing **incoming** one (`src/events/auth/`).
+
+**Signature:**
+```ts
+function requirementCreated(input: {
+  requirement: { id: number; projectId: number };
+  actorId: string;
+  actorEnvelope: Actor | undefined;
+  snapshot: RequirementSnapshot;
+  recipients: EventRecipients;
+}): DomainEvent<RequirementSnapshot>;
+```
+
+**Usage:**
+```ts
+const reply = success({ id: requirement.id });
+reply.events = [
+  requirementCreated({
+    requirement: { id: requirement.id, projectId: requirement.projectId },
+    actorId: actor,
+    actorEnvelope: ctx.actor,
+    snapshot: requirementToSnapshot(requirement, personIds),
+    recipients: await resolveRecipients(requirement.id, personIds, ctx.transaction),
+  }),
+];
+return reply;
+```

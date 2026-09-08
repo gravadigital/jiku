@@ -759,6 +759,10 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   server is a compose service of its own. What is here is its configuration
   (`nats/auth-callout/`), mounted by path and read at startup.
 - **JetStream is enabled, but scoped to domain events only.** Commands and queries are still
-  direct request/reply with no JetStream (ADR-002 is unchanged). JetStream backs only the
-  `JIKU_EVENTS` stream, on `<instance>.events.v1.>` — see `nats/creds/README.md` for how it is
-  enabled and `nats/create-events-stream.sh` for the stream itself.
+  direct request/reply with no JetStream. JetStream backs only the `JIKU_EVENTS` stream, on
+  `<instance>.events.v1.>` — see `nats/creds/README.md` for how it is enabled and
+  `nats/create-events-stream.sh` for the stream itself. **Since S-063, `core` actually publishes
+  into that stream** (post-commit domain events, starting with `requirement.created`): its
+  `pub.allow` (`nats/auth-callout/templates/core.yaml`) carries `<instance>.events.v1.>` and
+  `$JS.API.>` for that reason. The ADR-002 rule against `core` publishing is superseded by this,
+  though the ADR document itself is updated only at REQ-014's documentary close (S-068).

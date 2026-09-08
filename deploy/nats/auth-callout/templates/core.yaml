@@ -42,6 +42,29 @@ pub:
     # Requests salientes bajo su propia identidad. Hoy core no llama a nadie;
     # queda declarado porque es la forma del permiso en un despliegue real.
     - "{{instance}}.{{user_id}}.>"
+    # Los eventos de dominio que core publica al stream JIKU_EVENTS (REQ-014 / S-063). VA
+    # POR VERSIÓN ENTERA — no enumerando los 16 tipos del catálogo — porque
+    # `eventsStreamSubject()` (`packages/nats-protocol`) produce exactamente este patrón, y
+    # el comentario de esa función lo dice completo: "dev.events.v1.> CORRECTO — solo
+    # eventos de dominio v1 / dev.events.> MAL — SE COME dev.events.auth". Deny-by-default
+    # (ADR-008) sigue aplicando: un evento nuevo dentro de v1 no cuesta una línea nueva acá
+    # a propósito, porque el permiso es por VERSIÓN del contrato, no por tipo de evento —
+    # pero una v2 sí requeriría su propia línea.
+    # SIN ESTA LÍNEA, EL SÍNTOMA NO ES UN ERROR DE LA LLAMADA DE PUBLICACIÓN. `js.publish()`
+    # no falla localmente: la violación es ASÍNCRONA y sale en el log del SERVIDOR NATS
+    # ("Publish Violation ... Subject ..."). Con el cliente nats.js actual esa violación
+    # asíncrona llega como `uncaughtException` y TIRA EL PROCESO — o sea que el síntoma es
+    # CORE REINICIANDO EN LOOP, el mismo modo de fallo medido en S-016 para `sub.allow`. Si
+    # ves ese loop después de esta story, revisá esta línea antes que el código.
+    - "{{instance}}.events.v1.>"
+    # El protocolo de JetStream (el ack del publish, el `PubAck` que `js.publish()`
+    # espera). SIN ESTA LÍNEA el publish NO CONFIRMA: el mensaje puede ni llegar a
+    # persistir en el stream, y el modo de fallo es el mismo de arriba — asíncrono, en el
+    # log del servidor, no en la llamada.
+    # NO LLEVA `{{instance}}`, y es la MISMA razón por la que `$SRV.>` (en `sub.allow`, más
+    # abajo) tampoco la lleva: es un subject global a la cuenta, no del namespace del
+    # producto — prefijarlo rompe el protocolo de JetStream igual que omitirlo.
+    - "$JS.API.>"
 
 sub:
   allow:

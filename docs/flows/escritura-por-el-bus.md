@@ -4,8 +4,8 @@ title: Escritura por el bus — el recorrido completo de un comando de jiku-comm
 type: feature
 status: Draft
 created: 2026-08-25
-last_updated: 2026-09-01
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049]
+last_updated: 2026-09-08
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063]
 ---
 
 # Escritura por el Bus
@@ -289,7 +289,7 @@ cualquier otro, sin validación. `invalid_state_transition` queda en el catálog
 `@jiku/nats-protocol` **sin emisor** para requisitos — misma política que `invalid_attachment_id` —
 así que un lector no lo busque en vano en este flujo.
 
-### Paso 5: La transacción cierra
+### Paso 5: La transacción cierra, y desde S-063 se emite
 
 **Commit si el reply es `success`; rollback en cualquier otro caso** (ADR-003). Vale igual para los
 comandos de personas: si un comando inserta varias filas y falla en una validación posterior,
@@ -297,6 +297,16 @@ comandos de personas: si un comando inserta varias filas y falla en una validaci
 
 **La única escritura que sobrevive al rollback es el espejo de `users`** del paso 2c, y es
 deliberado: es un hecho sobre la identidad y no sobre la operación.
+
+**Desde S-063, entre el `commit()` y el `return reply`, el despachador publica los eventos que el
+comando declaró en `Reply.events`** — solo si el reply es `success` y la lista tiene elementos.
+Vale para los dos canales igual que el resto de este paso: un comando publicado por una persona
+directa y el mismo comando publicado por la api emiten el mismo evento. La emisión va en su
+**propio** `try/catch` que no deja escapar nada: un fallo de publicación **no** revierte la
+transacción ya commiteada ni cambia el `reply` a `failure` — el evento se pierde y se loguea a
+`stdout`, nunca se repone. El detalle completo (el sobre, el catálogo de tipos, el mecanismo
+R-A/R-B) es del contrato de eventos (`docs/apis/core-events.yaml`, S-062) y de la story S-063, no
+de este flujo: acá solo se documenta que el paso 5 ahora tiene dos efectos, no uno.
 
 ### Paso 6: La persona recibe el reply
 
@@ -318,6 +328,7 @@ plantilla de persona — una persona **nunca recibe requests**, así que no tien
 | Sobre y campo de dominio que difieren | `invalid_fields` + `errorDetails` | 400 | Paso 3 |
 | El cliente no fijó `inboxPrefix` | *(timeout)* | 504 | **Paso 1** — el error más caro de diagnosticar |
 | `core` caído | *(sin suscriptor / timeout)* | 503 / 504 | ADR-002 |
+| Commit OK, publicación del evento falla (S-063) | `success` — el error **no se propaga** | *(sin cambio, HTTP ya respondió)* | Paso 5, evento perdido y logueado a `stdout` |
 
 **Siempre hay respuesta.** Ningún caller queda esperando hasta el timeout, **incluido uno rechazado
 por autorización**.

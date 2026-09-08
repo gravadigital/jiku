@@ -181,10 +181,13 @@ already declare this volume; if you hand-roll a different compose setup, do not 
 
 ### What this does not break
 
-Enabling JetStream at the server level does **not** grant anyone permission to publish to or
-consume `JIKU_EVENTS` — that is separate, deliberately: infrastructure first, permission
-alongside the code that uses it (`core`'s `pub.allow` and a connector template, in later
-stories of REQ-014). It also does not, and must not, touch `CALLOUT_EVENTS_STREAM` for the
+Enabling JetStream at the server level does **not by itself** grant anyone permission to publish
+to or consume `JIKU_EVENTS` — that is separate, deliberately: infrastructure first, permission
+alongside the code that uses it. `core`'s `pub.allow` (`templates/core.yaml`) gained that
+permission in S-063, the same story as `core`'s first publish — `{{instance}}.events.v1.>` (by
+whole version, never enumerating individual event types) and `$JS.API.>` (the publish ack). A
+connector template for consuming the stream is still pending, and is out of scope for `core`
+itself: the consumer is developed outside Jiku. It also does not, and must not, touch `CALLOUT_EVENTS_STREAM` for the
 auth-callout: setting that variable now that a stream exists would make the callout try to
 publish with JetStream acks, using a credential (`callout-events.creds`) that was never
 granted the permissions that requires, and it would fail at startup naming the stream instead
