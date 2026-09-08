@@ -225,6 +225,51 @@ export function requirementReopened(
   } as DomainEvent<RequirementSnapshot>;
 }
 
+export interface RequirementAssignedInput extends BaseEventInput {
+  /** La lista ANTERIOR (líder primero, resto por id asc — la devuelve `readResponsiblePersonIds`). */
+  from: number[];
+  /** La lista NUEVA, en el orden del payload. */
+  to: number[];
+  added: number[];
+  removed: number[];
+  /** `null` si la lista nueva quedó vacía. */
+  leaderId: number | null;
+}
+
+/**
+ * Construye `requirement.assigned` (REQ-014 §5, CA-1, CA-5 / S-066). FUNCIÓN PURA.
+ *
+ * `added`/`removed`/`leaderId` los calcula EL EMISOR (`diffResponsibles`, en el comando) — este
+ * constructor solo traduce el resultado del diff a la forma del contrato. `responsiblePersonIds`
+ * es la ÚNICA clave de `changes` con forma `{from, to}`; `added`, `removed` y `leaderId` van
+ * SUELTOS al lado, tal como lo muestra el ejemplo del REQ — no se anidan dentro de
+ * `responsiblePersonIds`. `changes` es `additionalProperties: true` en el contrato, así que esta
+ * forma no requiere ningún cambio de esquema.
+ */
+export function requirementAssigned(
+  input: RequirementAssignedInput
+): DomainEvent<RequirementSnapshot> {
+  const changes: Record<string, unknown> = {
+    responsiblePersonIds: { from: input.from, to: input.to },
+    added: input.added,
+    removed: input.removed,
+    leaderId: input.leaderId,
+  };
+
+  return {
+    type: EVENT_TYPES.REQUIREMENT_ASSIGNED,
+    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    entity: {
+      type: 'requirement',
+      id: input.requirement.id,
+      projectId: input.requirement.projectId,
+    },
+    snapshot: input.snapshot,
+    recipients: input.recipients,
+    changes,
+  } as DomainEvent<RequirementSnapshot>;
+}
+
 export interface RequirementCommentCreatedInput extends BaseEventInput {
   comment: {
     id: number;

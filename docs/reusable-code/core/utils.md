@@ -890,6 +890,67 @@ const responsiblePersonIds = payload.responsiblePersonIds
 const fileIds = await readCommentFileIds(activity.id, ctx.transaction); // AFTER linkFiles/syncFileLinks
 ```
 
+## diffResponsibles
+
+**Location:** `core/src/events/domain/responsibles-diff.ts`
+
+**Description:** The `added`/`removed`/`leaderId`/`changed` diff shared by `requirement.assigned`
+and `task.assigned` (S-066 / REQ-014, D-1). **Pure**: no Sequelize, no transaction, no knowledge
+of the bus — just arithmetic over two `number[]`.
+
+**Shared, unlike the readers.** S-065's D-3 kept `readResponsiblePersonIds` and
+`readTaskResponsiblePersonIds` **separate** because each reads a different Sequelize model
+(`PersonRequirement` vs `PersonObjective`). That asymmetry does not exist here: the diff has no
+symbol from `@jiku/models`, it is identical arithmetic for both entities, and duplicating it would
+duplicate the trap below in two files — the copy is the one that is forgotten when it needs to
+change.
+
+`added` and `removed` are computed with `Set`, **deduplicated** and **sorted ascending** so a
+test's `deepEqual` never depends on `Set` iteration order. `to` is returned **verbatim**, never
+reordered or deduplicated: the order is contract information (ADR-004 — the first is the lead).
+`leaderId = to[0] ?? null` — **never** `undefined`: `null` is the explicit "no lead" value a
+connector can read, and `[]` is a legitimate payload meaning "unassign everyone".
+
+**The trap `changed` exists to avoid.** `from` comes back **normalised** by the reader (lead
+first, the rest by `personId` ascending); `to` is the payload's **raw** order. A predicate that
+compares the two full lists (`from.join(',') !== to.join(',')`, or an array `deepEqual`) reports a
+change on almost every `edit` that resends the same people in a different order — because the
+non-lead order the reader invents is not the order the user assigned them in. That would emit a
+spurious `assigned` with `added: []` and `removed: []` on a form that changed nothing. So
+`changed` compares the **set** (via `added`/`removed`) and the **lead** (`to[0]` vs `from[0]`)
+**separately**, never the two lists as a whole:
+```ts
+changed = added.length > 0 || removed.length > 0 || leaderId !== (from[0] ?? null)
+```
+
+**Accepted limitation:** for a requirement whose `people_requirements` rows are **all**
+`is_leader NULL` (legacy rows written before `core` took over), `from[0]` is just the lowest
+`personId`, not a real lead. An `edit` that puts a different id first then reports `changed: true`
+and a `leaderId` that "changed" from something that was never really set. This is accepted as the
+correct behavior available: the event reports exactly what the reader reports, and an extra event
+is preferable to a missing one — detecting the case would require telling "no lead" apart from
+"lead = the lowest id", and the table carries no such information (no PK, no order column).
+
+**Signature:**
+```ts
+interface ResponsiblesDiff {
+  from: number[];
+  to: number[];
+  added: number[];
+  removed: number[];
+  leaderId: number | null;
+  changed: boolean;
+}
+
+function diffResponsibles(from: number[], to: number[]): ResponsiblesDiff;
+```
+
+**Usage:** see `core/src/commands/requirements/requirements-edit.ts` and
+`core/src/commands/tasks/tasks-edit.ts` — both read the previous list **inside the transaction**,
+**before** the destroy/replace block (ADR-003: after it, the old set is already gone), then call
+`diffResponsibles(previous, payload.responsiblePersonIds)` and only emit `requirementAssigned` /
+`taskAssigned` when `assignment.changed` is `true`.
+
 ## requirementStateChanged / requirementUpdated / requirementResolved / requirementReopened
 
 **Location:** `core/src/events/domain/requirement.ts`

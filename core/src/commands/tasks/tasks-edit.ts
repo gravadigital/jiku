@@ -8,8 +8,9 @@ import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 import { activityVisibility } from './activity';
-import { taskStateChanged, taskUpdated } from '../../events/domain/task';
+import { taskAssigned, taskStateChanged, taskUpdated } from '../../events/domain/task';
 import { readTaskResponsiblePersonIds, taskToSnapshot } from '../../events/domain/task-snapshot';
+import { diffResponsibles } from '../../events/domain/responsibles-diff';
 
 const COMPONENT = 'tasks.edit';
 
@@ -175,6 +176,16 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
       await task.update(changes, { transaction: ctx.transaction });
     }
 
+    // LECTURA PREVIA (D-2, S-066): el ÚNICO momento en que la tabla todavía tiene el conjunto
+    // VIEJO de responsables — el `destroy` de abajo borra a los que salen. A diferencia de
+    // `requirements-edit.ts` (que hace `destroy` TOTAL + `create`), acá el `destroy` solo borra
+    // los que ya no vienen (`notIn`) y el `upsert` PRESERVA el `created_at` de los que se
+    // mantienen — pero eso no cambia esta lectura: el diff se computa sobre ids, y después del
+    // `destroy` los removidos ya no están en la tabla.
+    const previousResponsibleIds = payload.responsiblePersonIds
+      ? await readTaskResponsiblePersonIds(task.id, ctx.transaction)
+      : null;
+
     // Reemplazo total de responsables, igual que la api.
     if (payload.responsiblePersonIds) {
       await PersonObjective.destroy({
@@ -193,6 +204,12 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
         )
       );
     }
+
+    // El diff (D-1, D-5): `added`/`removed`/`leaderId` los calcula EL EMISOR. `changed`
+    // distingue un reemplazo real de un payload que reenvía la misma lista.
+    const assignment = payload.responsiblePersonIds
+      ? diffResponsibles(previousResponsibleIds!, payload.responsiblePersonIds)
+      : null;
 
     // Conjunto COMPLETO de vínculos, misma semántica que `requirements.{id}.edit`. NO genera
     // entrada de historial: ningún criterio de aceptación lo pide y `TRACKED` no lo incluye a
@@ -229,10 +246,13 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
 
     const reply = success<void>();
 
-    // TRAMPA DE ALCANCE: este comando TAMBIÉN reemplaza responsables (arriba), pero NO emite
-    // `task.assigned` — es S-066. Un `edit` que solo cambia `responsiblePersonIds` no declara
-    // ningún evento (stateChanged/titleChanged/descriptionChanged dan los tres `false`).
-    if (stateChanged || titleChanged || descriptionChanged) {
+    // Desde S-066, un `edit` que SOLO reemplaza responsables (`assignment?.changed`) TAMBIÉN
+    // declara evento (`task.assigned`), además de los tres cambios ya cubiertos por S-065. La
+    // condición se ENSANCHA (D-7) y no se duplica: `assigned` reusa el mismo
+    // `responsiblePersonIds`/`snapshot` que `stateChanged`/`titleChanged`/`descriptionChanged`.
+    // Y sigue habiendo un caso que NO emite nada: la misma lista en el mismo orden (D-5), o
+    // cualquier otro campo sin evento (`priority`, por ejemplo).
+    if (stateChanged || titleChanged || descriptionChanged || assignment?.changed) {
       // `responsiblePersonIds` sale del PAYLOAD cuando está presente (la única fuente fiel al
       // orden), y de la lectura ordenada cuando no — se llama DESPUÉS del bloque de reemplazo
       // de responsables de arriba, para que la lista del `snapshot` sea la que quedó escrita.
@@ -268,10 +288,26 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
         }));
       }
 
-      // Orden `task.state.changed` -> `task.updated`. Un `reply.events = []` no publicaría nada,
-      // pero cambia el envelope del `Reply` — por eso se asigna SOLO cuando hay algo (criterio
-      // 12): un `edit` de `priority` sigue devolviendo un `Reply` idéntico al de antes de esta
-      // story.
+      // `assigned` VA ÚLTIMO (D-6), igual que en `requirements-edit.ts`: no hay razón semántica
+      // para otro orden, y appendear acá deja los lotes existentes de S-065 byte a byte iguales.
+      if (assignment?.changed) {
+        events.push(taskAssigned({
+          task: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          from: assignment.from,
+          to: assignment.to,
+          added: assignment.added,
+          removed: assignment.removed,
+          leaderId: assignment.leaderId,
+        }));
+      }
+
+      // Orden `task.state.changed` -> `task.updated` -> `task.assigned`. Un `reply.events = []`
+      // no publicaría nada, pero cambia el envelope del `Reply` — por eso se asigna SOLO cuando
+      // hay algo (criterio 12): un `edit` de `priority` sigue devolviendo un `Reply` idéntico al
+      // de antes de esta story.
       reply.events = events;
     }
 
