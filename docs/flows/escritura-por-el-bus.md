@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-08-25
 last_updated: 2026-09-08
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067]
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068]
 ---
 
 # Escritura por el Bus
@@ -14,7 +14,7 @@ stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067]
 **Status:** Draft
 **Creado:** 2026-08-25
 **Última actualización:** 2026-09-08
-**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067
+**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068
 
 ## Descripción
 
@@ -326,6 +326,10 @@ de este flujo: acá solo se documenta que el paso 5 ahora tiene dos efectos, no 
 **En su inbox `_INBOX.{{user_id_hash}}.>`**, que es la única suscripción que su plantilla autoriza.
 Lo que permite que `core` le conteste es el bloque `response:` de `core.yaml`, no uno de la
 plantilla de persona — una persona **nunca recibe requests**, así que no tiene ese bloque.
+
+**El reply no es el último efecto cuando el comando declaró eventos.** Si el paso 5 publicó, el
+recorrido sigue en `JIKU_EVENTS` para cualquier conector suscripto — ver
+[`eventos-de-dominio.md`](eventos-de-dominio.md) para ese tramo, que este flujo no documenta.
 
 ## Manejo de Errores
 

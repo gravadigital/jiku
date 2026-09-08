@@ -26,7 +26,7 @@ tokens**; sí lee roles, y solo en el plano de consultas.
 
 ## Convenciones
 
-Las 12 son **custom**: el stack del servicio (Joi, Sequelize, Winston, Mocha, dotenv, GitHub
+Las 13 son **custom**: el stack del servicio (Joi, Sequelize, Winston, Mocha, dotenv, GitHub
 Actions) difiere del que recomienda el catálogo de Node (Zod, Prisma, Pino, Vitest +
 Testcontainers, `@t3-oss/env-core`, GitLab CI). `core` es un servicio existente que se importó al
 workflow y su stack es anterior al catálogo.
@@ -34,10 +34,13 @@ workflow y su stack es anterior al catálogo.
 Es el mismo caso que [`api`](../api/), con una diferencia: core **no declara `http-server`**. No
 expone HTTP en absoluto, y esa ausencia es estructural, no una omisión.
 
-Tres no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
+Cuatro no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
 
 - **`bus-consumer`** — la conexión al bus. El catálogo solo cubre colas (`queue`/BullMQ), que es otra
   cosa: esto es request/reply sincrónico, sin persistencia ni reintento.
+- **`bus-publisher`** — la publicación de eventos de dominio (REQ-014), fire-and-forget con
+  JetStream. Es la salida del servicio; `bus-consumer` es la entrada. El catálogo no tiene nada
+  parecido.
 - **`commands`** — la unidad de trabajo del servicio. Recoge la decisión más importante del
   codebase: la transacción es del despachador y el comando no puede tocarla.
 - **`contract-translation`** — las traducciones entre el vocabulario del bus y el de la base: cuatro
@@ -49,6 +52,7 @@ Tres no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
 |---|---|---|
 | [_base](./conventions/_base.md) | Convenciones generales (core) | `strict: true`, un archivo por comando, imports relativos, las dos representaciones de fecha, comentarios del por qué |
 | [bus-consumer](./conventions/bus-consumer.md) | Consumo del bus (NATS request/reply) | Gramática de subjects, queue group, el inbox hasheado, el drain al cerrar, lo que el patrón NO da |
+| [bus-publisher](./conventions/bus-publisher.md) | Publicación de eventos de dominio (NATS/JetStream) | El publicador y la emisión post-commit, la forma del sobre, el doble de test, el formato del log del fallo |
 | [commands](./conventions/commands.md) | Comandos (validar y escribir) | La interfaz `Command`, el registry por segmentos, la transacción del despachador, la edición parcial, el orden dentro de `execute` |
 | [contract-translation](./conventions/contract-translation.md) | Traducción contrato ↔ base | task/objective, properties/keyValuePairs, priority enum/entero, el escape transitorio `priorityValue`, y las seis traducciones de solo lectura de las fichas (incluida `hours-per-day` ← `hours_per_day`) |
 | [orm](./conventions/orm.md) | Acceso a datos (Sequelize, usuario dueño) | La conexión de escritura, modelos compartidos, sin repositorio, por qué toda operación lleva la transacción |
@@ -91,3 +95,4 @@ vive en `src/queries/`.
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. La api **no** tiene credenciales de S3 |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico que no conoce ningún recurso, más una ficha por recurso: las cinco listas blancas como DATO. Contrato: `docs/apis/core-queries.yaml` |
+| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), que el despachador emite post-commit. No confundir con `src/events/auth/`, el plano **entrante** (el consumidor del evento de autenticación). Contrato: `docs/apis/core-events.yaml` |

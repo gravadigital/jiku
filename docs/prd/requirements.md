@@ -36,6 +36,12 @@ status: Draft - Importado desde código existente
   imputan a la persona, no al usuario. `mustChargeWorkedTime` decide si aparece en la grilla de
   asignación semanal y en los reportes de carga. **El producto no da de alta personas** por
   ninguna interfaz.
+  **Desde REQ-014 la distinción `personId` ≠ `userId` pasa de nota del modelo a regla de un
+  contrato público.** En los eventos de dominio los **responsables viajan como ids numéricos de
+  `people`** (`responsiblePersonIds`, con su orden: el primero es el líder) y los **suscriptores
+  como `userId` ya resueltos** — justamente porque una Persona puede no tener Usuario y para un
+  responsable **puede no haber nadie a quien notificar**. El contrato de eventos declara que el
+  conector resuelve el mapeo Persona → Usuario por su cuenta y tolera que no haya destinatario.
 
 ### Usuario (`users`)
 - **Atributos clave:** `id` (string, PK — es el `sub` de Zitadel), `name`, `username`, `email`,
@@ -99,6 +105,14 @@ status: Draft - Importado desde código existente
     publica un comando directo al bus e incluye identidad en el cuerpo es rechazada: para ella la
     identidad **es el segundo token del subject**, que el auth-callout hace infalsificable
     (REQ-006 §19, extendido a escritura por REQ-007).
+  - **Desde REQ-014 sus datos ganan un TERCER USO**, después de la autorización HTTP y la clase de
+    caller del bus: alimentan los eventos de dominio. `name` alimenta `actor.name` con fallback
+    `name` → `email` → `id`, así que el valor **puede ser un id** y un conector **no debe asumir un
+    nombre humano**. `email` es el punto sensible: sigue siendo dato personal y **`actor.email`
+    nunca viaja en un evento** —para quien *hizo* la acción el correo no tiene uso—, pero sí viaja
+    dentro de `recipients`, donde **es la dirección de notificación** y sin él el bloque no cumple
+    su función. Una identidad con `identityType: 'service'` no tiene correo en Zitadel, y por eso
+    `email` **puede ser `null`** en un destinatario.
 
 ### Proyecto (`projects`)
 - **Atributos clave:** `code` (string), `name` (string), `type` (enum: interno/comercial/
@@ -163,6 +177,18 @@ status: Draft - Importado desde código existente
     (`resolutionType`, `resolutionConclusion`, `resolutionComment`) **se limpian** al salir de
     `resuelto` hacia un estado no terminal.
 
+  **Desde REQ-014 el requisito emite eventos de dominio** como efecto declarado de sus comandos:
+  alta, cambio de estado, actualización de `title`/`description`, resolución, reapertura,
+  asignación, comentarios y alta/baja de suscriptor. Ningún cambio de esquema. Tres consecuencias
+  sobre la entidad: la **libertad de transiciones de REQ-012 se propaga al contrato de eventos**
+  —`requirement.state.changed` declara explícitamente que un consumidor **no debe asumir
+  progresión**, y `requirement.reopened` existe precisamente porque `resuelto` dejó de ser
+  terminal—; la **semántica de las marcas temporales frente a la reapertura** (`inProgressAt` = la
+  primera entrada a `desarrollo`, `finishedAt` = la última resolución) pasa a ser **observable
+  desde afuera**; y los cambios de `priority`, `type`, `tags`, `scope`, `technicalSolution` y
+  `acceptanceCriteria` **no emiten ningún evento** —solo `title` y `description`, los dos campos
+  que junto con `state` el hook marca `public` (C-21)—.
+
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
   (**varchar, no date**, opt), `state` (enum: backlog/activo/en_revision/finalizado/cancelado,
@@ -180,6 +206,14 @@ status: Draft - Importado desde código existente
   **"visible para usuarios externos autenticados"**: desde REQ-002 no habilita acceso anónimo a
   los adjuntos de la tarea, y desde REQ-006 el recorte del modo externo de las consultas lo exige
   además del permiso de proyecto.
+  **Desde REQ-014 la tarea emite eventos de dominio** equivalentes a los del requisito
+  (`task.created`, `.state.changed`, `.updated`, `.assigned`, `.comment.created`, `.comment.edited`),
+  con `entity.type: "task"` — el nombre del bus, no `objectives` (ADR-004). El escape de
+  `priorityValue` **se formaliza también en el contrato de eventos**: el `snapshot` lleva
+  `priority` (nombre del enum) **y** `priorityValue` (entero 0-5), las dos formas, porque la
+  traducción ida y vuelta colapsaría el valor 5. A diferencia del requisito, **los eventos de tarea
+  no llevan `recipients`**, y `task.assigned` preserva el `createdAt` de las asignaciones que se
+  mantienen (`requirements` borra y recrea).
 
 ### HoraTrabajada (`worked_times`)
 - **Atributos clave:** `date` (timestamp), `minutes` (int)
@@ -239,12 +273,33 @@ status: Draft - Importado desde código existente
   externo**, sin importar la visibilidad del comentario. **No hay límite** de cantidad de ediciones
   ni ventana temporal, y `editedAt` refleja la última. La edición **no notifica** (la regla queda
   declarada en el comando aunque FG-2 no exista todavía).
+  **Desde REQ-014 la ausencia de historial de versiones de un comentario es una limitación
+  declarada del contrato de eventos.** `requirement.comment.edited` / `task.comment.edited` **no
+  pueden llevar el texto previo porque el producto no lo guarda**: el comando de edición escribe
+  `newValue`, `editedAt` y `editedBy` sin conservar el texto anterior. El evento transporta el
+  **texto actual**, y un conector que espeje el comentario **lo reemplaza completo** en lugar de
+  aplicar un diff. `editedAt` y `editedBy` viajan en `changes` **sin `from`/`to`** — la única
+  excepción a la forma de `changes` en todo el contrato de eventos. La inmutabilidad de
+  `visibilityLevel` se vuelve explícita también ahí: **nunca aparece en `changes`**. El `body` de
+  un comentario `internal` viaja en el **mismo subject** que uno `public` (sin corte por
+  visibilidad: los consumidores son aplicaciones internas), con el campo en el payload para que el
+  conector recorte si le importa.
 
 ### Suscriptor (`requirement_subscriptors` / `objectives_subscriptors`)
 - **Atributos clave:** `userId` (string, req)
 - **Relaciones:** belongs_to Requisito **o** Tarea, belongs_to Usuario
 - **Notas:** **Registra interés y nada más: no hay canal de notificación en el producto.**
   Sin unique compuesto en la base; `already_subscribed` lo valida core.
+  **Desde REQ-014 la suscripción tiene consecuencia observable, aunque el canal siga estando
+  fuera de Jiku.** Sigue sin haber notificación dentro del producto, pero **todo evento de dominio
+  de requisito transporta la lista de suscriptores resueltos** (`userId`, `name`, `email`) en un
+  bloque `recipients`, para que un conector externo pueda notificar sin hacer ninguna consulta
+  adicional. Dos detalles internos pasan a ser **parte del contrato**: la ausencia de unique
+  compuesto obliga a que **el conector deduplique por `userId`**, y `email` **puede ser `null`**
+  cuando el suscriptor es una identidad de servicio (`identityType: 'service'`), caso que el
+  conector debe tolerar salteando ese destinatario. La lista **vacía es el caso normal**.
+  **Las suscripciones a tareas siguen sin ninguna interfaz que las cree** (`objectives_subscriptors`
+  está siempre vacía), y por eso los eventos de tarea **no llevan `recipients`**.
 
 ### PermisoDeProyecto (`user_project_permissions`)
 - **Atributos clave:** `userId` (string, req), `projectId` (int)
@@ -769,7 +824,7 @@ para que ninguna regla de negocio dependa de que cada endpoint se acuerde de apl
 | ID | Requerimiento | Objetivo | Medición | Estado |
 |---|---|---|---|---|
 | NFR-R01 | Atomicidad de la escritura | Una transacción por comando, commit/rollback decidido por el despachador | 136 tests de core, entrando por el despachador | **[implementado]** |
-| NFR-R02 | Durabilidad del comando | **Ninguna.** Sin JetStream: sin cola, reintento, persistencia ni idempotencia. Core caído = la operación no ocurrió | — | **[limitación asumida]** |
+| NFR-R02 | Durabilidad del comando | **Ninguna para comandos.** Sin JetStream: sin cola, reintento, persistencia ni idempotencia. Core caído = la operación no ocurrió. **Desde REQ-014 los eventos de dominio sí tienen stream** (`JIKU_EVENTS`) con retención de **7 días**, best-effort y sin outbox — ver ADR-014 | — | **[limitación asumida para comandos; stream con retención acotada para eventos]** |
 | NFR-R03 | Disponibilidad de escritura | Igual a la de `core`. Sin degradación elegante ni reconciliación posterior | — | **[limitación asumida]** |
 | NFR-R04 | Respuesta garantizada | El despachador **nunca lanza**: todo error se traduce a un `Reply` de falla, con una última red en el consumer | Tests de core | **[implementado]** |
 | NFR-R05 | Healthchecks | No hay healthcheck en ningún servicio del compose | — | **[ausente]** |

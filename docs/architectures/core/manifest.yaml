@@ -13,9 +13,13 @@ language: node
 # validar en el borde del sistema, una transacción por unidad de trabajo— SÍ aplican y están
 # recogidas en cada convención custom.
 #
-# Tres convenciones no tienen equivalente en el catálogo y son NUEVAS, no reemplazos:
+# Cuatro convenciones no tienen equivalente en el catálogo y son NUEVAS, no reemplazos:
 #   - bus-consumer: la conexión al bus. El catálogo cubre colas (queue/BullMQ), que es otra
 #     cosa: esto es request/reply sincrónico y sin persistencia
+#   - bus-publisher: la publicación de eventos de dominio (REQ-014), fire-and-forget con
+#     JetStream. Es la SALIDA del servicio; bus-consumer es la ENTRADA. El catálogo no tiene
+#     nada parecido: no es una cola de trabajos, es un plano de notificación a conectores
+#     externos
 #   - commands: la unidad de trabajo del servicio —validar y escribir— con el registry, la
 #     interfaz Command y la semántica de edición parcial
 #   - contract-translation: las traducciones contrato <-> base. CUATRO DE ESCRITURA
@@ -33,6 +37,7 @@ language: node
 conventions:
   - _base                  # strict: true, un archivo por comando, imports relativos, comentarios del por qué
   - bus-consumer           # NATS request/reply: queue group, inbox hasheado, drain al cerrar
+  - bus-publisher          # eventos de dominio post-commit: JetStream, sobre, doble de test, log del fallo
   - commands               # la interfaz Command, el registry por segmentos, la edición parcial
   - contract-translation   # los nombres que difieren entre el bus y la base: 4 de escritura + 6 de lectura
   - orm                    # Sequelize con el usuario DUEÑO, modelos en paquete compartido
@@ -63,3 +68,7 @@ modules:
   - attachments            # `attachments.{id}.delete`: el borrado lógico del vínculo
   - files                  # las dos firmas contra S3. La api NO tiene credenciales de S3
   - queries                # ← `src/queries/`, NO `src/commands/`: la superficie de LECTURA
+  - events                 # ← `src/events/domain/`, NO `src/commands/events/`: los constructores
+                            #   puros de eventos de dominio (REQ-014), que el despachador emite.
+                            #   `src/events/auth/` es OTRA dirección (entrante: el consumidor del
+                            #   evento de autenticación) y no es este módulo
