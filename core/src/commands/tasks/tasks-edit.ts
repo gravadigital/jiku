@@ -1,13 +1,15 @@
 import joi from 'joi';
 import { Op } from 'sequelize';
 import { AttachmentEntityType, Objective, ObjectiveActivity, Person, PersonObjective, Requirement } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { DomainEvent, ErrorCode, Reply, TaskSnapshot, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
 import { activityVisibility } from './activity';
+import { taskStateChanged, taskUpdated } from '../../events/domain/task';
+import { readTaskResponsiblePersonIds, taskToSnapshot } from '../../events/domain/task-snapshot';
 
 const COMPONENT = 'tasks.edit';
 
@@ -157,6 +159,18 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
       changes.priority = resolvePriority(payload.priority, payload.priorityValue);
     }
 
+    // El diff del EVENTO, calculado ACÁ y NO derivado de `activities` (CA-4, D-2): ese array
+    // aplica dos reglas que son DEL HISTORIAL y no del contrato de eventos —coacciona los
+    // valores a string con `asComparable` y OMITE el paso a vacío—, así que limpiar la
+    // descripción no dejaría fila de historial pero SÍ tiene que emitir `task.updated`, con
+    // `to: null`. Se captura ANTES del update porque el modelo `Objective` no tiene
+    // `activityLog`: después del `update` Sequelize ya reseteó `_previousDataValues` y el valor
+    // anterior no existe en ninguna parte. Las variables existen SIEMPRE, corra o no el
+    // `update` de abajo: si no corre, la comparación posterior da "no cambió nada".
+    const previousTitle = task.title;
+    const previousDescription = task.description;
+    const previousState = task.state;
+
     if (Object.keys(changes).length > 0) {
       await task.update(changes, { transaction: ctx.transaction });
     }
@@ -202,7 +216,66 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
       )
     );
 
-    return success();
+    // LOS EVENTOS SE ARMAN ACÁ, AL FINAL — después del reemplazo de responsables y después de
+    // todo `return linkError` de arriba (REQ-014 / S-065, Task 4): el `snapshot` tiene que
+    // reflejar el estado COMPLETO de la tarea, y un `edit` que falla no llega a este punto.
+    //
+    // Comparar `!==` sobre los VALORES, no `String(...)`: la coacción a string es justamente lo
+    // que `asComparable` hace y lo que el evento no debe hacer. Un `edit` que manda el mismo
+    // valor que ya tenía no cambió nada y no debe emitir.
+    const stateChanged = task.state !== previousState;
+    const titleChanged = task.title !== previousTitle;
+    const descriptionChanged = task.description !== previousDescription;
+
+    const reply = success<void>();
+
+    // TRAMPA DE ALCANCE: este comando TAMBIÉN reemplaza responsables (arriba), pero NO emite
+    // `task.assigned` — es S-066. Un `edit` que solo cambia `responsiblePersonIds` no declara
+    // ningún evento (stateChanged/titleChanged/descriptionChanged dan los tres `false`).
+    if (stateChanged || titleChanged || descriptionChanged) {
+      // `responsiblePersonIds` sale del PAYLOAD cuando está presente (la única fuente fiel al
+      // orden), y de la lectura ordenada cuando no — se llama DESPUÉS del bloque de reemplazo
+      // de responsables de arriba, para que la lista del `snapshot` sea la que quedó escrita.
+      const responsiblePersonIds = payload.responsiblePersonIds
+        ?? await readTaskResponsiblePersonIds(task.id, ctx.transaction);
+      // El `snapshot` se construye UNA VEZ, sobre la instancia ya actualizada (el hook
+      // `setFinishedAt` ya escribió `finishedAt`), y se comparte entre los hasta dos eventos.
+      const snapshot = taskToSnapshot(task, responsiblePersonIds);
+      const entity = { id: task.id, projectId: task.projectId };
+      const events: DomainEvent<TaskSnapshot>[] = [];
+
+      if (stateChanged) {
+        events.push(taskStateChanged({
+          task: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          from: previousState,
+          to: task.state,
+        }));
+      }
+
+      if (titleChanged || descriptionChanged) {
+        events.push(taskUpdated({
+          task: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          title: titleChanged ? { from: previousTitle, to: task.title } : undefined,
+          description: descriptionChanged
+            ? { from: previousDescription, to: task.description }
+            : undefined,
+        }));
+      }
+
+      // Orden `task.state.changed` -> `task.updated`. Un `reply.events = []` no publicaría nada,
+      // pero cambia el envelope del `Reply` — por eso se asigna SOLO cuando hay algo (criterio
+      // 12): un `edit` de `priority` sigue devolviendo un `Reply` idéntico al de antes de esta
+      // story.
+      reply.events = events;
+    }
+
+    return reply;
   },
 };
 

@@ -7,6 +7,8 @@ import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
 import { resolveActor } from '../resolve-actor';
 import { TASK_PRIORITY_VALUES, TaskPriority, resolvePriority } from './priority';
+import { taskCreated } from '../../events/domain/task';
+import { taskToSnapshot } from '../../events/domain/task-snapshot';
 
 const COMPONENT = 'tasks.new';
 
@@ -153,7 +155,32 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
       )
     );
 
-    return success({ id: task.id });
+    // EL EVENTO SE ARMA ACÁ, AL FINAL — DESPUÉS de crear las filas de `PersonObjective` y
+    // DESPUÉS del posible `return linkError` de arriba (REQ-014 / S-065, Task 3): el `snapshot`
+    // tiene que reflejar el estado COMPLETO de la tarea (con sus responsables ya vinculados), y
+    // un alta que no llega a este punto NUNCA declara un evento.
+    //
+    // EL COMANDO DECLARA, NO PUBLICA (ADR-003): no tiene acceso a `commit`/`rollback` y por lo
+    // tanto no puede saber si esta escritura sobrevive. Quien publica es el despachador, después
+    // del commit.
+    const reply = success({ id: task.id });
+    reply.events = [
+      taskCreated({
+        task: { id: task.id, projectId: task.projectId },
+        actorId: actor,
+        // `ctx.actor` es el sobre de identidad completo (con `name`/`email` si vinieron), no el
+        // string ya resuelto por `resolveActor` — es la fuente del fallback `name` -> `email` ->
+        // `id` de `resolveEventActor()`. `undefined` en el canal directo.
+        actorEnvelope: ctx.actor,
+        // El payload TAL CUAL, no una relectura de `people_objectives`: es la única fuente fiel
+        // al orden semántico (el primero es el líder).
+        snapshot: taskToSnapshot(task, payload.responsiblePersonIds),
+      }),
+    ];
+    // NO ES `success(data, events)`: la firma de `success()` no cambia. Los eventos se adjuntan
+    // al objeto ya construido, el mismo patrón condicional con que `failure()` agrega
+    // `errorDetails` — la clave aparece solo cuando hay algo.
+    return reply;
   },
 };
 

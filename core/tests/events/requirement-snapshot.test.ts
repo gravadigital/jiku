@@ -358,7 +358,11 @@ describe('events/domain/requirement-snapshot — Task 3 de S-063', () => {
       let transaction: Transaction | undefined;
       try {
         transaction = await sequelize.transaction();
-        const ids = await readCommentFileIds(commentId, transaction);
+        const ids = await readCommentFileIds(
+          commentId,
+          AttachmentEntityType.RequirementComment,
+          transaction
+        );
         await transaction.commit();
         transaction = undefined;
 
@@ -374,7 +378,11 @@ describe('events/domain/requirement-snapshot — Task 3 de S-063', () => {
       let transaction: Transaction | undefined;
       try {
         transaction = await sequelize.transaction();
-        const ids = await readCommentFileIds(777777, transaction);
+        const ids = await readCommentFileIds(
+          777777,
+          AttachmentEntityType.RequirementComment,
+          transaction
+        );
         await transaction.commit();
         transaction = undefined;
 

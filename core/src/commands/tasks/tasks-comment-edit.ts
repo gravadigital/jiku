@@ -1,10 +1,13 @@
 import joi from 'joi';
-import { AttachmentEntityType, ObjectiveActivity } from '@jiku/models';
+import { AttachmentEntityType, Objective, ObjectiveActivity } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { taskCommentEdited } from '../../events/domain/task';
+import { readTaskResponsiblePersonIds, taskToSnapshot } from '../../events/domain/task-snapshot';
+import { readCommentFileIds } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'tasks.comment.edit';
 
@@ -94,6 +97,49 @@ export const tasksCommentEdit: Command<CommentEditPayload, never> = {
     // NO NOTIFICA, y la ausencia es una decisión, no un olvido: hoy no existe canal de
     // notificación en el producto. Cuando FG-2 lo agregue, la regla es que la EDICIÓN de un
     // comentario no dispara notificación — solo el alta.
+
+    // EL EVENTO SE ARMA ACÁ, AL FINAL (REQ-014 / S-065, Task 5, D-6). Este comando busca la
+    // actividad por el par `(id, objectiveId)` y NO leía la tarea hasta ahora — el `findByPk` de
+    // acá es NUEVO y solo alimenta el evento, no decide ninguna respuesta: si devolviera `null`
+    // (no debería, hay FK desde `objective_activity`), el comando NO FALLA — no declara evento y
+    // sigue devolviendo `success()`. Por la FK DE LA FILA (`activity.objectiveId`), no por
+    // `ctx.params.id`: la FK ya está validada por el `findOne` de arriba, que filtró justamente
+    // por ese par, y deja una sola fuente para el id de la tarea en todo el comando.
+    const task = await Objective.findByPk(activity.objectiveId, {
+      transaction: ctx.transaction,
+    });
+    if (task) {
+      const responsiblePersonIds = await readTaskResponsiblePersonIds(task.id, ctx.transaction);
+      const reply = success<never>();
+      reply.events = [
+        taskCommentEdited({
+          task: { id: task.id, projectId: task.projectId },
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot: taskToSnapshot(task, responsiblePersonIds),
+          comment: {
+            id: activity.id,
+            // EL TEXTO ACTUAL, ya escrito por el `update` de arriba — no hay `from`.
+            body: activity.newValue,
+            // CONJUNTO VIVO, leído DESPUÉS de `syncFileLinks`: el conjunto completo que queda
+            // vinculado, no un delta y no lo que traiga (o no traiga) el payload.
+            fileIds: await readCommentFileIds(
+              activity.id,
+              AttachmentEntityType.ObjectiveComment,
+              ctx.transaction
+            ),
+          },
+          // El de la RAÍZ es el del COMENTARIO, inmutable — nunca aparece en `changes`.
+          visibilityLevel: activity.visibilityLevel,
+          // LEÍDOS DE LA FILA, no recalculados: `editedAt`/`editedBy` son EXACTAMENTE los que el
+          // `update` de arriba acaba de escribir.
+          editedAt: activity.editedAt!.toISOString(),
+          editedBy: activity.editedBy!,
+        }),
+      ];
+      return reply;
+    }
+
     return success();
   },
 };
