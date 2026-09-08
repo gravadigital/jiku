@@ -125,6 +125,17 @@ sin traducción.
 **Es deuda con fecha de vencimiento declarada:** desaparece cuando la web hable en nombres de
 prioridad. No construyas nada nuevo sobre `priorityValue`.
 
+**Desde REQ-014 el escape es parte de DOS contratos, no uno (R-D).** El `snapshot` de un evento de
+tarea (`core/src/events/domain/task-snapshot.ts`) hace viajar las dos formas desde la **misma**
+columna: `priority` (el nombre, vía `priorityFromNumber` — el mismo traductor de arriba) **y**
+`priorityValue` (el entero 0-5 crudo). No es un descuido: es la **misma** contradicción deliberada
+de [ADR-004](../../../adrs/ADR-004-vocabulario-en-el-contrato.md), en una segunda superficie —el
+ida-y-vuelta entre el enum de 5 valores y la columna 0-5 colapsaría el `5` en `4`, en eventos igual
+que en lectura. **La consecuencia práctica: dar de baja `priorityValue` ya no es tocar un solo
+contrato.** Hay que cambiar `core-queries.yaml` **y** `core-events.yaml` a la vez, y el segundo
+tiene un consumidor que el primero no tenía — un conector externo que puede no estar bajo control
+de este equipo, lo que hace más difícil retirar el campo una vez publicado.
+
 ### responsiblePersonIds ↔ personIds
 
 Solo cambia el nombre del campo del payload; las tablas intermedias (`person_objectives`,
@@ -211,7 +222,9 @@ apareciera nunca**, un bug silencioso porque `items: []` es indistinguible de "n
   comparten los dos servicios. Vale para las de escritura y para las de lectura por igual.
 - Una traducción de LECTURA vive en la ficha del recurso, no en el archivo del endpoint: fuera de la
   ficha queda fuera de lo que `meta.describe` proyecta.
-- No construyas nada nuevo sobre `priorityValue`: es un escape con fecha de vencimiento.
+- No construyas nada nuevo sobre `priorityValue`: es un escape con fecha de vencimiento, y desde
+  REQ-014 es parte de **dos** contratos (`core-queries.yaml` y `core-events.yaml`, R-D). Darlo de
+  baja cambia los dos a la vez.
 - Un campo nuevo usa el mismo nombre en las dos puntas salvo que haya una razón que se pueda
   escribir en una línea.
 
@@ -222,3 +235,5 @@ apareciera nunca**, un bug silencioso porque `items: []` es indistinguible de "n
   columna.
 - **[`orm`](./orm.md)**: los modelos usan los nombres de la base, y el plano de consultas no los usa
   en absoluto: arma SQL explícito contra su conexión de solo lectura.
+- **[`bus-publisher`](./bus-publisher.md)**: el `snapshot` de un evento de dominio es la tercera
+  superficie donde el escape de `priorityValue` viaja, junto a `core-queries.yaml`.

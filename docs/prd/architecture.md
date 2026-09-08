@@ -48,9 +48,11 @@ Reconstruido desde el código y sus comentarios. Los ADRs de `docs/adrs/` desarr
 
 La contrapartida está asumida y documentada, no es un descubrimiento de esta consolidación:
 
-- **Sin JetStream, un comando perdido es un comando perdido.** No hay cola, reintento,
-  persistencia ni idempotencia. Si `core` está caído, la operación **no ocurrió** y el usuario ve
-  un 503. La disponibilidad de escritura del producto es exactamente la de `core`.
+- **Sin JetStream en el plano de comandos, un comando perdido es un comando perdido.** No hay
+  cola, reintento, persistencia ni idempotencia. Si `core` está caído, la operación **no ocurrió**
+  y el usuario ve un 503. La disponibilidad de escritura del producto es exactamente la de `core`.
+  Desde REQ-014 el plano de **eventos de dominio** sí tiene JetStream, con retención de 7 días —
+  pero es un plano distinto, fire-and-forget hacia conectores externos, no el de comandos.
 - **La política de acceso del bus es la única defensa de `core`.** Core confía en el
   `creator`/`author`/`editor` que viaja en el cuerpo del mensaje, sin verificar nada. Si el
   auth-callout falla, no hay segunda línea.
@@ -78,7 +80,7 @@ graph TB
     end
 
     subgraph Bus["Mensajería"]
-        Nats["NATS 2.10<br/>request/reply<br/>SIN JetStream"]
+        Nats["NATS 2.10<br/>request/reply sin JetStream<br/>eventos con JetStream"]
         Callout["auth-callout<br/>mintea permisos<br/>por rol del token"]
     end
 
@@ -109,6 +111,7 @@ graph TB
     Api -->|"Put/Get/Delete/Head + presigned"| S3
 
     Nats -->|"queue group gestion<br/>17 comandos"| Core
+    Core -->|"eventos de dominio<br/>{instance}.events.v1.*"| Nats
     Core -->|"LECTURA Y ESCRITURA<br/>usuario dueño"| PG
     Core -->|"token de bus<br/>auto-refresh ~1h"| Zitadel
     Callout -->|"autoriza subjects<br/>e inbox por hash"| Nats
@@ -144,7 +147,7 @@ No son workspaces del monorepo, pero son parte de la arquitectura en producción
 
 | Componente | Imagen | Rol |
 |---|---|---|
-| **nats** | `nats:2.10-alpine` | Bus de comandos. Configurado por `nats-server.conf` en modo operator, **sin JetStream** |
+| **nats** | `nats:2.10-alpine` | Bus de comandos y de eventos de dominio. Configurado por `nats-server.conf` en modo operator. **Sin JetStream para comandos y consultas; con JetStream, desde REQ-014, exclusivamente para el stream `JIKU_EVENTS` de eventos de dominio** |
 | **auth-callout** | Imagen externa publicada (`${AUTH_CALLOUT_IMAGE}`) | **Componente de seguridad crítico.** Valida el token contra Zitadel y mintea los permisos de publicación por subject e inbox según `rules.yaml`. Es lo que impide que alguien distinto de la api escriba comandos a `core` |
 | **database** | `postgres:15.4-alpine3.18` | Base compartida, en red propia sin exposición externa |
 
@@ -243,7 +246,9 @@ Si un archivo de un lote falla, la api **borra del bucket los ya subidos**.
   - El `user-id` va **crudo** en el subject; el inbox usa un **hash** (sha256 → base32 sin
     padding → 16 caracteres). Tiene que coincidir exactamente con lo que mintea el auth-callout:
     sin fijar `inboxPrefix` al conectar, las respuestas nunca llegarían.
-  - **Core no publica nada**: solo responde el `Reply` de la request. No hay eventos.
+  - **Core no publica nada en este plano**: solo responde el `Reply` de la request. Desde REQ-014,
+    `core` sí publica **eventos de dominio**, en un plano distinto —fire-and-forget, con
+    JetStream— hacia cualquier conector externo suscripto (ver `docs/apis/core-events.yaml`).
 
 - **`auth-callout` → `nats`** (NATS, **síncrono**)
   - Intercepta cada conexión al bus, valida el token contra Zitadel y mintea los permisos de

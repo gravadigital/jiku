@@ -125,7 +125,7 @@ pasó.
 
 ### Paso 3: El despachador emite, en su propio `try`/`catch`
 
-**Componente:** `core` · `bus/dispatcher.ts`, líneas 409-423 (verbatim):
+**Componente:** `core` · `bus/dispatcher.ts`, líneas 416-424 (verbatim):
 
 ```ts
 if (reply.status === 'success' && reply.events?.length) {

@@ -103,9 +103,14 @@ Un cliente nuevo se incorpora al portal en minutos y desde la interfaz, en lugar
 
 **Descripción:**
 
-El producto permite a un cliente **suscribirse a un requisito** y no tiene ningún canal por el
-cual llegue nada. La suscripción registra interés en una tabla y ahí termina: no hay envío de
-mails, ni push, ni webhooks, ni siquiera un indicador de novedades dentro de la aplicación.
+El producto permite a un cliente **suscribirse a un requisito**, y hasta REQ-014 eso no tenía
+ningún canal por el cual llegar a ninguna parte: la suscripción registraba interés en una tabla y
+ahí terminaba. **Desde REQ-014 el mecanismo que hace posible el canal ya existe**: todo evento de
+dominio de un requisito transporta la lista de suscriptores resueltos —`userId`, `name`, `email`—
+en un bloque `recipients`, así que un conector externo puede notificar sin hacer ninguna consulta
+adicional. **El canal en sí —email, push, Mattermost, u otro— sigue siendo alcance futuro**: nadie
+recibe todavía ninguna notificación, y este grupo sigue sin entregar su valor. Lo que cambió es que
+la precondición arquitectónica de "no hay por dónde" dejó de estar abierta.
 
 Quedan además tres tablas huérfanas de una funcionalidad de mail que se eliminó
 (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`), que ninguna
@@ -113,8 +118,8 @@ migración borra porque una migración destructiva perdería datos. Su presencia
 notificaciones por mail y que el camino a rehacerlo ya se recorrió una vez.
 
 Este grupo define el canal, el disparador y la preferencia: qué eventos notifican, a quién, por
-dónde, y cómo se apaga. Incluye la decisión de si las notificaciones son un servicio nuevo o un
-consumidor más del bus.
+dónde, y cómo se apaga. Incluye la decisión de si el canal se construye como un conector nuevo
+sobre el stream `JIKU_EVENTS` o de otra forma.
 
 **Por qué es importante:**
 
@@ -132,10 +137,13 @@ de pull —hay que entrar a mirar— cuando debería avisar.
 
 **Precondiciones:**
 - F-03 (requisitos) y F-08 (portal) operativos — **cumplido**
+- El mecanismo de emisión (eventos de dominio con `recipients`, stream `JIKU_EVENTS`) —
+  **cumplido desde REQ-014**
 - Decidir el canal: mail, notificación en producto, Mattermost, o combinación
-- Decidir la arquitectura: **si es un consumidor nuevo del bus, requiere resolver antes la
-  durabilidad de los mensajes** (ver FG-3) — hoy sin JetStream un evento perdido es un evento
-  perdido, lo que para una notificación es aceptable pero conviene decidirlo explícitamente
+- **Ya no depende de resolver antes la durabilidad de los mensajes (FG-3).** La garantía del plano
+  de eventos está definida y asumida: entrega best-effort con retención de 7 días, sin outbox
+  (D-9 de REQ-014, ver ADR-014). FG-3 sigue siendo deseable —observabilidad y healthchecks siguen
+  faltando—, pero ya no bloquea a este grupo
 
 **Postcondiciones:**
 - Un evento sobre un requisito suscripto genera una notificación entregada por el canal definido
@@ -404,7 +412,7 @@ graph LR
     FG5["FG-5<br/>Experiencia de uso"]
     FG6["FG-6<br/>Modelo de datos"]
 
-    FG3 -.->|"conviene antes:<br/>define la garantía<br/>que FG-2 hereda"| FG2
+    FG3 -.->|"deseable, ya no bloquea:<br/>la garantía de eventos<br/>ya está definida (REQ-014)"| FG2
     FG1 -.->|"habilita operar<br/>el portal sin tocar la base"| FG5
 
     classDef alta fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
@@ -415,14 +423,19 @@ graph LR
     class FG4,FG5,FG6 media
 ```
 
-**Ya no hay ninguna dependencia dura**: quedan solo dos recomendaciones de orden. Los grupos son
-independientes entre sí y pueden encararse en cualquier orden: el sistema ya está construido, así
-que ninguno necesita que otro exista primero.
+**No hay ninguna dependencia dura**: quedan solo dos recomendaciones de orden, y la de FG-3 → FG-2
+cambió de naturaleza con REQ-014 — dejó de ser un bloqueo ("no se puede encarar FG-2 hasta que
+FG-3 defina la garantía") porque la garantía **ya está definida y asumida** (best-effort con
+retención de 7 días, ver ADR-014). Los grupos son independientes entre sí y pueden encararse en
+cualquier orden: el sistema ya está construido, así que ninguno necesita que otro exista primero.
 
 ### Orden sugerido
 
-**FG-1 primero**, porque es el único que hoy hace imposible algo que el producto promete. Después
-**FG-3**, porque define la garantía de escritura que FG-2 va a heredar; encarar las notificaciones
-antes significa construirlas sobre una entrega que puede perderse en silencio. **FG-4 y FG-5** son
-los mejores candidatos a paralelizar: tocan capas distintas (servidor y presentación) y no
-compiten. **FG-6** conviene antes de cualquier trabajo grande sobre tareas o adjuntos.
+**FG-1 primero**, porque es el único que hoy hace imposible algo que el producto promete. **FG-2 ya
+no necesita esperar a FG-3**: el mecanismo de emisión que FG-2 hereda quedó resuelto por REQ-014, así
+que encararlo antes de FG-3 ya no significa construirlo sobre una garantía sin definir — la garantía
+está definida, y es una entrega best-effort con retención de 7 días. FG-3 sigue siendo valioso por
+su otra mitad, la observabilidad (healthchecks, métricas, logs que lleguen a algún lado), pero esa
+mitad no bloquea a FG-2. **FG-4 y FG-5** son los mejores candidatos a paralelizar: tocan capas
+distintas (servidor y presentación) y no compiten. **FG-6** conviene antes de cualquier trabajo
+grande sobre tareas o adjuntos.

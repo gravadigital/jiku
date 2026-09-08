@@ -4,8 +4,8 @@ title: Sincronización de identidades desde el evento de autenticación
 type: event
 status: Draft
 created: 2026-08-24
-last_updated: 2026-08-25
-stories: [S-016, S-018, S-023, S-029, S-034]
+last_updated: 2026-09-08
+stories: [S-016, S-018, S-023, S-029, S-034, S-068]
 ---
 
 # Sincronización de Identidades desde el Evento de Autenticación
@@ -13,8 +13,8 @@ stories: [S-016, S-018, S-023, S-029, S-034]
 **Tipo:** Evento
 **Status:** Draft
 **Creado:** 2026-08-24
-**Última actualización:** 2026-08-25
-**Stories:** S-016, S-018, S-023, S-029, S-034
+**Última actualización:** 2026-09-08
+**Stories:** S-016, S-018, S-023, S-029, S-034, S-068
 
 > ## REQ-007 — el flujo gana un SEGUNDO DISPARADOR
 >
@@ -172,6 +172,15 @@ que **solo puede publicar ese subject y no puede suscribirse a nada** (`deploy/n
 {instance}.events.auth                          3 segmentos, fire-and-forget, sin reply
 {instance}.{user-id}.{svc}.{version}.{method}    5+ segmentos, request/reply
 ```
+
+> **Comparte el prefijo `{instance}.events.` con el stream de eventos de dominio `JIKU_EVENTS`**
+> (REQ-014, ver [`eventos-de-dominio.md`](eventos-de-dominio.md)), pero **no entra a ese stream**:
+> `JIKU_EVENTS` filtra por `{instance}.events.v1.>` —**con la versión**—, y
+> `{instance}.events.auth` no tiene ese cuarto segmento, así que no matchea. Un stream configurado
+> sobre `{instance}.events.>` (sin versión) **sí** se comería este evento, persistiéndolo sin que
+> nadie lo haya pedido — el mismo namespace, dos publicadores, y solo el segmento de versión los
+> separa a nivel de infraestructura. Es la razón por la que el subject de eventos de dominio nunca
+> se declara sin su versión (ver `deploy/nats/create-events-stream.sh`).
 
 **Payload** (nombres verbatim del callout, `snake_case`):
 
@@ -362,9 +371,13 @@ de esa autenticación**.
 
 ## Notas
 
-- **La entrega no es durable, y es una decisión aceptada.** Cambiarla no es agregar una línea: exige
-  **JetStream habilitado** en el server y en la cuenta, el stream creado a mano, y **ampliar la
-  credencial `callout-events`**, que hoy **no puede suscribirse a nada**. Es **FG-3**.
+- **La entrega no es durable, y sigue siendo una decisión aceptada.** Cambiarla ya no exige lo que
+  exigía hasta S-060: **desde S-061, JetStream ya está habilitado** en el server y en la cuenta, y
+  el stream `JIKU_EVENTS` ya existe (para eventos de dominio, ver
+  [`eventos-de-dominio.md`](eventos-de-dominio.md)). Lo que sigue faltando, específicamente para
+  **este** evento, es únicamente: sumar el subject `{instance}.events.auth` a los subjects de algún
+  stream (o crear uno propio) y **ampliar la credencial `callout-events`**, que hoy **solo puede
+  publicar y no puede suscribirse a nada** — sigue siendo trabajo real, no un flag. Es **FG-3**.
 - **La consistencia es eventual, y asimétrica respecto del plano HTTP.** Revocar un rol en Zitadel
   tiene efecto **inmediato** en la autorización HTTP (sale del claim, en cada request) y **diferido**
   —potencialmente indefinido— en la del bus (sale de la base, y se corrige al reautenticar).
@@ -386,9 +399,11 @@ Desde REQ-006 este flujo **no solo condiciona la escritura**: condiciona tambié
 de lectura por el bus**. El servicio de consultas resuelve la **clase del caller** —conector, interno
 o externo— leyendo `users.roles`, y **sin fila no consulta**: la respuesta es `unknown_caller`.
 
-- **La entrega del evento sigue sin ser durable** (NATS core, sin JetStream). Un evento perdido deja
-  al caller sin fila, y **todas** sus consultas fallan hasta su próxima autenticación contra el bus —
-  con un token de ~1 h renovado en caliente, potencialmente en **días**.
+- **La entrega del evento sigue sin ser durable** — ya no porque JetStream no exista (existe, desde
+  S-061), sino porque **este subject, `{instance}.events.auth`, no está incluido en ningún
+  stream**. Un evento perdido deja al caller sin fila, y **todas** sus consultas fallan hasta su
+  próxima autenticación contra el bus — con un token de ~1 h renovado en caliente, potencialmente
+  en **días**.
 - **Incluye al service user de la api**, sin excepción por configuración: la exención del
   `CORE_TRUSTED_PUBLISHER_ID` vale para la compuerta de autorización, **no** para la resolución de la
   clase.
