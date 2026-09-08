@@ -5,8 +5,20 @@ import { getTrustedPublisherId } from '../../src/config';
 import { readDb } from '../../src/models/read';
 import { queryRegistry } from '../../src/queries';
 import { DEFAULT_PAYLOAD_BUDGET_BYTES, QueryDispatcher } from '../../src/queries/dispatcher';
+import { FakeEventPublisher } from './event-publisher';
 
-const dispatcher = new Dispatcher(registry);
+/**
+ * El doble del publicador que usa TODO test que pase por `dispatch()` (CA-10 de S-063).
+ *
+ * EXPORTADO A PROPÓSITO: es lo que le permite a un test asertar `fakePublisher.published` después
+ * de un `dispatch('requirements.new', …)`, sin tener que reconstruir el `Dispatcher` a mano. Los
+ * escenarios que SÍ necesitan un `Dispatcher` propio (para stubbear un fallo, o para inyectar un
+ * comando doble) construyen el suyo con `new Dispatcher(registry, new FakeEventPublisher())` —
+ * patrón ya usado por `times-rules.test.ts:637` para el registry.
+ */
+export const fakePublisher = new FakeEventPublisher();
+
+const dispatcher = new Dispatcher(registry, fakePublisher);
 
 /**
  * El presupuesto de bytes de la página, INYECTABLE.

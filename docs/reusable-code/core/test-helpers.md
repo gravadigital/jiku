@@ -535,3 +535,49 @@ await createFileWorld();
 // …
 await destroyFileWorld();
 ```
+
+## FakeEventPublisher
+
+**Location:** `core/tests/helpers/event-publisher.ts`
+
+**Description:** The `EventPublisher` test double (S-063 / REQ-014, CA-10). Accumulates every
+publish in memory (`published: Array<{ subject, payload }>`), never touching NATS, and exposes
+`reset()` for a `before`/`afterEach` that reuses the same instance across tests.
+
+Deliberately **not** a `sinon` mock (decision 5 of the story's technical design): a plain object
+with an array is easier to `deepEqual` against — a test does `pub.published[0].payload` and
+compares directly, without unpacking call arguments. A test that needs to simulate a **failed**
+publish (the R-A/R-B scenarios) can still `sinon.stub()` an instance's `publish` method, because
+it remains an ordinary class method.
+
+Accumulates the **object itself**, not a serialized form: serialization is
+`JetStreamEventPublisher`'s job (the real implementation), not this double's — so a test's
+`deepEqual` never has to decode anything.
+
+**Shared by both services, not copied** (AC-6 of Task 1): `core/tests/helpers/dispatch.ts`
+constructs and exports a single instance (`fakePublisher`) that every `dispatch()` call in that
+file's test suite uses. `api/tests/mocks/bus.ts` imports **this same file** by relative path
+(`../../../core/tests/helpers/event-publisher`) for the `FakeBus` that executes `core` for real
+(ADR-013) — not a second copy that could silently diverge.
+
+**Interface:**
+```ts
+class FakeEventPublisher implements EventPublisher {
+  published: Array<{ subject: string; payload: unknown }>;
+  publish(subject: string, payload: unknown): Promise<void>;
+  reset(): void;
+}
+```
+
+**Usage:**
+```ts
+import { fakePublisher } from '../helpers/dispatch';
+
+afterEach(() => fakePublisher.reset());
+
+it('publishes after commit', async () => {
+  const reply = await dispatch('requirements.new', { /* ... */ });
+  fakePublisher.published.length.should.equal(1);
+  fakePublisher.published[0].subject.should.equal('dev.events.v1.requirement.created');
+});
+```
