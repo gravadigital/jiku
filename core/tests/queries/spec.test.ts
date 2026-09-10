@@ -355,12 +355,13 @@ describe('queries/engine/spec — las dos fichas planas de S-027 (TS-97 a TS-100
     }
   });
 
-  it('la ficha de `attachments` declara `include` VACÍO y la de `files` solo `checksum`', () => {
-    // `include: ninguno` es el contrato de CA-2: los datos del archivo ya vienen APLANADOS, y la
-    // entidad dueña es polimórfica sin FK. `checksum` es incluible y no base (RF-17): 64
-    // caracteres por fila que nadie mira salvo que los pida, Y LO DECLARA QUIEN SUBE — nadie lo
-    // verifica.
-    [...attachmentsSpec.includableNames].should.deepEqual([]);
+  it('la ficha de `attachments` declara `checksum` como ÚNICO incluible, igual que `files` (S-061)', () => {
+    // ACTUALIZADO por S-061 (CA-17): hasta esa story, `attachments` no declaraba ningún incluible
+    // —los datos del archivo ya venían APLANADOS (CA-2) y la entidad dueña es polimórfica sin
+    // FK—. `checksum` es la excepción: es incluible y no base, con el MISMO criterio que ya regía
+    // en `files` (RF-17): 64 caracteres por fila que nadie mira salvo que los pida, Y LO DECLARA
+    // QUIEN SUBE — nadie lo verifica.
+    [...attachmentsSpec.includableNames].should.deepEqual(['checksum']);
     [...filesSpec.includableNames].should.deepEqual(['checksum']);
   });
 

@@ -282,7 +282,10 @@ status: Draft - Importado desde código existente
   `storageBucket`, `storageRegion`) son explícitamente no exponibles** en el contrato de lectura
   del bus, que además **no mintea URLs**: obtener los bytes sigue siendo el comando
   `files.{fileId}.request-download`. `checksum` se expone solo bajo pedido (`include`) y con la
-  advertencia de que nadie lo verifica.
+  advertencia de que nadie lo verifica. **Desde REQ-014 ese criterio tiene un segundo punto de
+  aplicación**: `checksum` es incluible —y además **filtrable**, con semántica OR/IN— también en el
+  recurso `attachments`, que es el que tiene `list`. La advertencia viaja con él: sigue siendo un
+  dato informado por quien sube, no una garantía de integridad del byte.
   **Desde REQ-007 los límites de subida pasan de la api a `core`** (C-50): **máximo 10 archivos de
   10 MB cada uno**, con **doble lista blanca de extensión y MIME type**. La **titularidad** —solo
   quien subió un archivo puede vincularlo, **sin excepción por rol**— se verifica en el mismo

@@ -4,8 +4,8 @@ title: Vinculación de archivos a entidades
 type: feature
 status: Draft
 created: 2026-08-19
-last_updated: 2026-08-25
-stories: [S-003, S-004, S-014, S-027, S-029, S-030, S-034]
+last_updated: 2026-09-09
+stories: [S-003, S-004, S-014, S-027, S-029, S-030, S-034, S-061]
 ---
 
 # Vinculación de Archivos a Entidades
@@ -449,3 +449,29 @@ REQ-006 expone en lectura por el bus el modelo que REQ-001 separó, con el recur
 nombre de base del comentario de tarea aparece en **un solo archivo**. El recorte externo del
 recurso reusa **ese mismo mapa** para sus cinco ramas, así que un sexto tipo de entidad se agrega
 en un único lugar y la traducción y el recorte lo aprenden juntos.
+### La deduplicación antes de vincular, ahora practicable (REQ-014 · S-061)
+
+**Ningún paso de este flujo cambia.** Lo que cambia es que **ya existe un camino de lectura que
+hace practicable deduplicar antes de vincular**, y vale la pena señalarlo porque el flujo de
+escritura siempre lo permitió y nadie podía descubrirlo.
+
+- **La escritura ya lo permitía.** `link-files.ts` valida titularidad contra `file.uploadedBy` y
+  **no** exige que el archivo esté sin vincular, así que vincular a un comentario un archivo que el
+  mismo actor subió antes es un camino legítimo del modelo. Es la contracara de D-04: **0..N
+  vínculos por archivo es un estado válido** (REQ-001).
+- **La lectura no lo permitía.** `attachments.list` no exponía `checksum` (su `includable` estaba
+  vacío) y `files` lo tenía como incluible pero sin `list` ni filtros. La única vía era un
+  `attachments.list` más un `files.get` por cada archivo ya vinculado.
+- **S-061 cierra ese hueco:** `checksum` pasa a ser **incluible** (no base) y **filtrable**
+  (`kind: 'string'`, uno o varios valores con semántica OR/IN) en la ficha de `attachments`. Un
+  consumidor pregunta `filter: {checksum: [...], uploadedBy: <su identidad>}` y resuelve en **una**
+  consulta si ya subió esos archivos, en vez de traerse todos los adjuntos de cada entidad del hilo
+  y comparar en memoria.
+- **El caso que lo motivó:** `jiku-mail-connector` crea requisitos desde mails y comentarios desde
+  las respuestas del hilo. Gmail arrastra los adjuntos del mail original en cada respuesta, así que
+  el mismo archivo entraba una y otra vez — verificado en una prueba local, un PNG de 98 KB como
+  `fileId 1000` con el mail original y como `fileId 1001` con la respuesta, byte por byte el mismo
+  archivo.
+- **El `checksum` lo declara quien sube y NADIE lo verifica** (D-13, `subida-de-archivos.md`).
+  Sirve para deduplicar contra lo que el propio actor subió; **no es una garantía de integridad del
+  byte**, y la advertencia va escrita en la ficha para que `meta.describe` la exponga.
