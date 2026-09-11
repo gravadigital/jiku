@@ -270,7 +270,7 @@ describe('nats-protocol · el tipo del payload del evento de dominio', () => {
     );
   });
 
-  it('TS-138: DomainEvent declara exactamente sus 11 campos', () => {
+  it('TS-138: DomainEvent declara exactamente sus 12 campos', () => {
     // La aserción fuerte es de compilación: una clave que falte es un error de tsc y una de más
     // es un excess-property error. Molde exacto: TS-66.
     const KEYS: Record<keyof DomainEvent, true> = {
@@ -285,8 +285,10 @@ describe('nats-protocol · el tipo del payload del evento de dominio', () => {
       changes: true,
       recipients: true,
       comment: true,
+      // Agregado en S-064: opcional y aditivo, sigue siendo v1 del contrato.
+      visibilityLevel: true,
     };
-    Object.keys(KEYS).length.should.equal(11);
+    Object.keys(KEYS).length.should.equal(12);
   });
 
   it('TS-139: un DomainEvent mínimo compila sin los tres opcionales', () => {
