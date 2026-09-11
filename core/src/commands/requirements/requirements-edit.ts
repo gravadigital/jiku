@@ -1,10 +1,13 @@
 import joi from 'joi';
 import { AttachmentEntityType, FieldActivityChange, Person, PersonRequirement, Requirement, RequirementActivity, RequirementActivityType, RequirementPriority, RequirementResolution, RequirementState, RequirementType, RequirementVisibilityLevel, VisibilityLevel } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { DomainEvent, ErrorCode, Reply, RequirementSnapshot, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { requirementAssigned, requirementReopened, requirementResolved, requirementStateChanged, requirementUpdated } from '../../events/domain/requirement';
+import { readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
+import { diffResponsibles } from '../../events/domain/responsibles-diff';
 
 const COMPONENT = 'requirements.edit';
 
@@ -144,12 +147,17 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       changes.resolutionComment = payload.resolutionComment ?? null;
     }
 
+    // Declarada ACÁ, antes del `if`, y no adentro: el bloque de eventos de más abajo (Task 4 de
+    // S-064) la necesita SIEMPRE, incluso cuando `changes` está vacío y el `if` de abajo no
+    // corre — en ese caso queda `[]`, que es exactamente "no hubo diff que traducir".
+    let logged: FieldActivityChange[] = [];
+
     if (Object.keys(changes).length > 0) {
       // El hook @BeforeUpdate del modelo calcula `activityLog` y, cuando cambia el
       // estado, completa las marcas de tiempo (scheduledAt, inProgressAt, ...).
       await requirement.update(changes, { transaction: ctx.transaction });
 
-      const logged: FieldActivityChange[] = requirement.activityLog || [];
+      logged = requirement.activityLog || [];
       await Promise.all(
         logged.map((change) =>
           RequirementActivity.create(
@@ -187,6 +195,16 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       }
     }
 
+    // LECTURA PREVIA (D-2, S-066): el ÚNICO momento en que la tabla todavía tiene el conjunto
+    // VIEJO de responsables — el `destroy` de abajo lo borra, y `people_requirements` no tiene
+    // historial. Va DENTRO de `ctx.transaction` (ADR-003) y SOLO cuando el payload trae la lista:
+    // si no la trae, no hay reemplazo, no hay diff y no hay evento, así que la consulta sería
+    // trabajo puro. Es una lectura DISTINTA de la del bloque de eventos de más abajo (esa lee el
+    // estado POSTERIOR): una es el "antes", la otra el "después", a propósito.
+    const previousResponsibleIds = payload.responsiblePersonIds
+      ? await readResponsiblePersonIds(requirement.id, ctx.transaction)
+      : null;
+
     // Reemplazo total de responsables.
     if (payload.responsiblePersonIds) {
       await PersonRequirement.destroy({
@@ -207,7 +225,131 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
       );
     }
 
-    return success();
+    // El diff (D-1, D-5): `added`/`removed`/`leaderId` los calcula EL EMISOR, no el conector.
+    // `changed` distingue un reemplazo real de un payload que reenvía la misma lista.
+    const assignment = payload.responsiblePersonIds
+      ? diffResponsibles(previousResponsibleIds!, payload.responsiblePersonIds)
+      : null;
+
+    // LOS EVENTOS SE ARMAN ACÁ, AL FINAL — después del reemplazo de responsables y después de
+    // todo `return linkError` de arriba (S-064, Task 4): el `snapshot` tiene que reflejar el
+    // estado COMPLETO del requisito, y un `edit` que falla no llega a este punto (CA-1, gratis
+    // por el orden, igual que en `requirements-new.ts`).
+    //
+    // La traducción del diff se hace con un `find` por tipo, sobre `logged` (la MISMA variable
+    // que ya se usó para escribir `RequirementActivity`, no una relectura).
+    const stateChange = logged.find((change) => change.type === 'state');
+    const titleChange = logged.find((change) => change.type === 'title');
+    const descriptionChange = logged.find((change) => change.type === 'description');
+
+    const events: DomainEvent<RequirementSnapshot>[] = [];
+
+    // Sin ninguna entrada de state/title/description NI cambio real de responsables, NO HAY NADA
+    // QUE DECLARAR: un `edit` de `priority` (o cualquier otro campo sin evento, CA-2) sigue
+    // devolviendo un `Reply` idéntico al de antes de esta story — `reply.events` ni se asigna
+    // (criterio 10). La condición se ENSANCHA (D-7) y no se duplica: `assigned` reusa el mismo
+    // `responsiblePersonIds`/`snapshot`/`recipients` que los demás eventos de este bloque, sin
+    // una segunda consulta a `resolveRecipients` (R-8).
+    if (stateChange || titleChange || descriptionChange || assignment?.changed) {
+      // `responsiblePersonIds` sale del PAYLOAD cuando está presente (D-4, regla 1: es la única
+      // fuente fiel al orden), y de la lectura ordenada cuando no. `recipients` se resuelve UNA
+      // SOLA VEZ (R-8) y el `snapshot`, UNA SOLA VEZ: los dos se comparten entre los hasta tres
+      // eventos de este bloque (CA-9).
+      const responsiblePersonIds = payload.responsiblePersonIds
+        ?? await readResponsiblePersonIds(requirement.id, ctx.transaction);
+      const snapshot = requirementToSnapshot(requirement, responsiblePersonIds);
+      const recipients = await resolveRecipients(
+        requirement.id,
+        responsiblePersonIds,
+        ctx.transaction
+      );
+      const entity = { id: requirement.id, projectId: requirement.projectId };
+
+      if (stateChange) {
+        events.push(requirementStateChanged({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange.previous,
+          to: stateChange.next,
+        }));
+      }
+
+      if (titleChange || descriptionChange) {
+        events.push(requirementUpdated({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          title: titleChange ? { from: titleChange.previous, to: titleChange.next } : undefined,
+          description: descriptionChange
+            ? { from: descriptionChange.previous, to: descriptionChange.next }
+            : undefined,
+        }));
+      }
+
+      // `resolved` y `reopened` van ADEMÁS de `state.changed`, nunca en su lugar (D-6): un
+      // requisito que entra o sale de `resuelto` sigue siendo, antes que nada, un cambio de
+      // estado (REQ-014 criterio 15). Mutuamente excluyentes por construcción: uno entra a
+      // `resuelto`, el otro sale — el `stateChange` de arriba es el mismo para los dos casos.
+      if (stateChange?.next === RequirementState.Resuelto) {
+        events.push(requirementResolved({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange.previous,
+          // LEÍDOS DE LA FILA YA ACTUALIZADA, no del payload (D-7): el hook acaba de escribir
+          // `finishedAt`, y los tres campos de resolución reflejan el valor EFECTIVO, que puede
+          // venir del payload o haber quedado como estaba.
+          resolutionType: requirement.resolutionType,
+          resolutionConclusion: requirement.resolutionConclusion,
+          resolutionComment: requirement.resolutionComment,
+          finishedAt: requirement.finishedAt!.toISOString(),
+        }));
+      } else if (leavesResolved) {
+        // `leavesResolved` YA ESTÁ CALCULADA arriba (no se recalcula): es la misma condición que
+        // decidió limpiar los datos de resolución.
+        events.push(requirementReopened({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: stateChange!.previous,
+          to: stateChange!.next,
+        }));
+      }
+
+      // `assigned` VA ÚLTIMO (D-6): los tests de S-064 asertan por índice sobre el orden que ya
+      // existe (`events[0]`, `events[1]`), y appendear acá los deja byte a byte iguales. No hay
+      // razón semántica para otro orden — `emitEvents` publica en paralelo (`Promise.allSettled`)
+      // y todos comparten `correlationId`.
+      if (assignment?.changed) {
+        events.push(requirementAssigned({
+          requirement: entity,
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot,
+          recipients,
+          from: assignment.from,
+          to: assignment.to,
+          added: assignment.added,
+          removed: assignment.removed,
+          leaderId: assignment.leaderId,
+        }));
+      }
+    }
+
+    const reply = success<void>();
+    if (events.length > 0) {
+      reply.events = events;
+    }
+    return reply;
   },
 };
 

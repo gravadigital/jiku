@@ -12,12 +12,14 @@ package: nats
 
 > **Convención nueva**, sin equivalente en el catálogo (que solo cubre colas con `queue`/BullMQ).
 > Esta no es una cola: es **request/reply sincrónico y sin persistencia**. La contraparte es
-> `bus-commands` en `api`, que publica.
+> `bus-commands` en `api`, que publica. Documenta la **entrada** del servicio — la **salida**,
+> desde REQ-014, la documenta [`bus-publisher`](./bus-publisher.md).
 
 ## Cuándo aplica
 
-Toda la superficie de entrada del servicio. Core no tiene otra: no expone HTTP ni escucha ninguna
-otra fuente de eventos.
+Los dos planos de entrada del servicio: **comandos** (`jiku-commands`) y **consultas**
+(`jiku-queries`), servidos como dos servicios micro sobre la misma conexión al bus. Core no expone
+HTTP ni escucha ninguna otra fuente de entrada.
 
 ## Paquete
 
@@ -30,37 +32,63 @@ nats                    # 2.29, cliente
 ## Gramática de subjects
 
 ```
-{instance}.{user-id}.{svc}.{version}.{comando}
-dev.323332022539911171.gestion.v1.clients.new
+{instance}.{user-id}.{svc}.{version}.{método}
+dev.323332022539911171.jiku-commands.v1.clients.new
+dev.323332022539911171.jiku-queries.v1.tasks.list
 ```
 
 | Segmento | Qué es | Variable |
 |---|---|---|
 | `instance` | Despliegue: `dev` / `prod` | `NATS_INSTANCE` |
 | `user-id` | **Quién publica**: el `sub` del token, crudo | — |
-| `svc` | A quién le habla: `gestion` | `NATS_SERVICE_NAME` |
+| `svc` | A qué plano le habla: `jiku-commands` o `jiku-queries` | `NATS_COMMAND_SERVICE` / `NATS_QUERY_SERVICE` |
 | `version` | Versión del protocolo: `v1` | `NATS_PROTOCOL_VERSION` |
-| `comando` | `clients.new`, `requirements.{id}.edit`, … | — |
+| `método` | `clients.new`, `requirements.{id}.edit`, `tasks.list`, … | — |
 
-Los helpers viven en `@jiku/nats-protocol` y **no se reimplementan**: `subscriptionSubject()`,
-`commandFromSubject()`, `callerFromSubject()`, `inboxPrefix()`.
+**Los dos servicios van en el mismo proceso y con una sola conexión al bus**, pero con dos nombres
+distintos en `{svc}` — nunca anidado uno bajo el otro: NATS compara los tokens **enteros**, así que
+un permiso sobre uno no habilita el otro. Es lo que permite dar acceso de solo lectura sin enumerar
+recurso por recurso.
 
-## Suscripción
+Los helpers viven en `@jiku/nats-protocol` y **no se reimplementan**: `groupSubject()`,
+`endpointSubject()`, `endpointName()`, `methodFromSubject()`, `callerFromSubject()`,
+`inboxPrefix()`.
+
+## Suscripción: un servicio micro con un grupo y un endpoint por patrón
+
+No hay una suscripción wildcard única de comandos. `core/src/bus/service.ts` registra **un
+servicio micro por plano**, sobre `nc.services.add()`:
 
 ```ts
-// core/src/bus/consumer.ts
-const subject = subscriptionSubject();          // {instance}.*.{svc}.{version}.>
-this.subscription = this.connection.subscribe(subject, { queue: SERVICE_NAME });
+// registerService(nc, spec) — un por plano, sobre la misma conexión
+const service = await nc.services.add({
+  name: spec.name,               // 'jiku-commands' o 'jiku-queries'
+  queue: spec.name,               // el queue group vive ACÁ, no en subscribe()
+  ...
+});
+
+const group = service.addGroup(groupSubject(spec.name));   // {instance}.*.{svc}.{version}
+
+for (const pattern of spec.patterns) {
+  group.addEndpoint(endpointName(pattern), {
+    subject: endpointSubject(pattern),   // {param} -> '*'
+    handler: (err, msg) => { /* … */ },
+  });
+}
 ```
 
-- El **wildcard `*` en el user-id** cubre a cualquier caller. Sumar otro publicador es una decisión
-  de política del bus, no un cambio de código acá.
-- El **queue group** hace que varias réplicas se repartan los mensajes en lugar de procesar cada
-  una lo mismo. Sin él, N réplicas ejecutarían N veces cada escritura.
+- **El wildcard `*` en el user-id** (dentro de `groupSubject()`) cubre a cualquier caller. Sumar
+  otro publicador es una decisión de política del bus, no un cambio de código acá.
+- **El queue group va en la configuración del servicio** (`queue: spec.name`), no en un
+  `subscribe()` a mano: micro lo hereda en cascada al grupo y a cada endpoint. Sin él, N réplicas
+  ejecutarían N veces cada escritura.
+- **Un endpoint por patrón**, no una suscripción wildcard que despacha internamente. Dos patrones
+  que armen el mismo subject (`endpointSubject()`) chocan **al arrancar**: micro rechaza el
+  duplicado.
 
 ## Autenticación
 
-Dos capas, y la segunda es la que importa:
+Dos capas, y la segunda es la que importa (`core/src/bus/host.ts:95-98`):
 
 ```ts
 const authenticators = [
@@ -76,7 +104,7 @@ const authenticators = [
 - `tokenAuthenticator` de nats.js espera una función **síncrona**, así que `currentToken()`
   devuelve el cacheado y la renovación corre aparte con `startAutoRefresh()`.
 
-## El inbox va hasheado
+## El inbox va hasheado, el subject no
 
 ```ts
 this.connection = await connect({
@@ -88,9 +116,9 @@ this.connection = await connect({
 
 Es el detalle que más fácil se rompe:
 
-- El `user-id` va **crudo** en el subject de comandos, pero el inbox usa un **hash**: sha256 →
-  base32 sin padding → los primeros 16 caracteres en minúscula
-  (`packages/nats-protocol/src/index.ts:76-87`).
+- El `user-id` va **crudo** en el subject de comandos y consultas, pero el inbox usa un **hash**:
+  sha256 → base32 sin padding → los primeros 16 caracteres en minúscula
+  (`packages/nats-protocol/src/index.ts:272-299`).
 - Tiene que dar **exactamente lo mismo** que el auth-callout, que es quien mintea el permiso
   `_INBOX.<hash>.>`. La referencia es `cmd/session` en el repo del callout.
 - **Hay que fijarlo al conectar.** Por defecto nats.js genera un `_INBOX.<aleatorio>` que ningún
@@ -100,55 +128,50 @@ Es el detalle que más fácil se rompe:
 
 ## Procesamiento de mensajes
 
+`core/src/bus/service.ts`, `handle()` — la última red antes de responder:
+
 ```ts
-for await (const message of this.subscription!) {
+async function handle(spec: ServiceSpec, msg: ServiceMsg): Promise<void> {
   let payload: unknown;
   try {
-    payload = message.data.length ? JSON.parse(new TextDecoder().decode(message.data)) : {};
+    payload = msg.data.length ? msg.json() : {};
   } catch {
-    message.respond(encode(failure(ErrorCode.INVALID_FIELDS, 'Malformed JSON payload')));
-    continue;
+    respond(msg, failure(ErrorCode.INVALID_FIELDS, 'Malformed JSON payload'));
+    return;
   }
 
-  // Sin await: cada mensaje se procesa sin bloquear la llegada del siguiente.
-  void this.dispatcher.dispatch(message.subject, payload)
-    .then((reply) => message.respond(encode(reply)))
-    .catch((error: Error) => {
-      logger.error(`[bus] ${message.subject}: ${error.message}`);
-      message.respond(encode(failure(ErrorCode.INTERNAL_ERROR, 'Internal error')));
-    });
+  try {
+    respond(msg, await spec.handle(msg.subject, payload));
+  } catch (error: any) {
+    logger.error(`[bus] ${msg.subject}: ${error.message}`);
+    respond(msg, failure(ErrorCode.INTERNAL_ERROR, 'Internal error'));
+  }
 }
 ```
 
 - **Un cuerpo vacío es `{}`**, no un error: los comandos de borrado no llevan payload.
 - Un cuerpo que no es JSON no se puede procesar ni reintentar: se responde el error y se sigue.
-- **El `dispatch` no se espera dentro del `for await`.** La concurrencia real la acota el pool de
-  Sequelize, no el consumer.
-- El `.catch()` es la **última red**: el despachador ya captura sus errores. Si llega acá, algo
-  falló al fallar.
+- **Sin `await` en el handler del endpoint** (`service.ts`, el `void handle(spec, msg)` del
+  registro): cada mensaje se procesa sin bloquear la llegada del siguiente. La concurrencia real la
+  acota el pool de Sequelize, no este archivo.
+- El `catch` de `handle()` es la **última red**: el despachador ya captura sus errores. Si llega
+  acá, algo falló al fallar.
 - **Todo mensaje se responde.** Siempre. Ver [`error-handling`](./error-handling.md).
 
 ## Apagado
 
-```ts
-async stop(): Promise<void> {
-  this.stopTokenRefresh?.();
-  if (this.subscription) await this.subscription.drain();
-  if (this.connection) { await this.connection.drain(); await this.connection.close(); }
-}
-```
+`SIGTERM` y `SIGINT` llaman a `stop()` (`core/src/index.ts:106-107`). El **drain** deja que los
+mensajes en vuelo terminen antes de cerrar: sin él, un deploy cortaría escrituras a medio camino, y
+—al no haber JetStream en este plano— esas operaciones se perderían sin rastro.
 
-`SIGTERM` y `SIGINT` llaman a `stop()` (`src/index.ts:27-28`). El **drain** deja que los mensajes
-en vuelo terminen antes de cerrar: sin él, un deploy cortaría escrituras a medio camino y —al no
-haber JetStream— esas operaciones se perderían sin rastro.
+## Lo que este patrón NO da, en el plano de comandos y consultas
 
-## Lo que este patrón NO da
+Explícito porque condiciona el producto. **Vale para comandos y consultas**; el plano de
+**eventos de dominio** tiene otras garantías —ver [`bus-publisher`](./bus-publisher.md):
 
-Explícito porque condiciona el producto:
-
-- **Sin cola.** Si core está caído, la request de la api expira por timeout y la operación no
+- **Sin cola.** Si core está caído, la request del caller expira por timeout y la operación no
   ocurrió.
-- **Sin reintento.** Ni del lado del bus ni del de la api.
+- **Sin reintento.** Ni del lado del bus ni del de quien publica.
 - **Sin persistencia.** Un mensaje no entregado no queda en ningún lado.
 - **Sin idempotencia.** No hay id de mensaje ni deduplicación. Si alguna vez se agrega reintento,
   hay que agregar idempotencia primero.
@@ -157,18 +180,23 @@ Explícito porque condiciona el producto:
 
 - Los helpers de subject se usan de `@jiku/nats-protocol`. No armes un subject a mano ni parsees
   con `split` fuera del paquete.
-- La suscripción siempre lleva `queue: SERVICE_NAME`. Sin queue group, N réplicas escriben N veces.
+- El queue group va en la configuración del servicio micro (`queue: spec.name`), nunca en un
+  `subscribe()` a mano.
 - `inboxPrefix` siempre se fija al conectar, con el user id del service user.
 - Todo mensaje recibido se responde: éxito, falla o error interno. Nunca se descarta en silencio.
-- El `dispatch` no se `await`ea dentro del loop de consumo.
+- El handler de un endpoint no se `await`ea: un mensaje no bloquea la llegada del siguiente.
 - `stop()` drena antes de cerrar. No agregues un `process.exit()` que se saltee el drain.
-- Core **no publica** en el bus. Si algún día lo hace, el inbox por réplica ya está resuelto, pero
-  la política del callout tiene que autorizarlo.
-- No agregues JetStream a un comando suelto: el modo de entrega es del protocolo entero, y
-  cambiarlo para uno solo deja dos semánticas conviviendo.
+- **Core sí publica al bus**, en un plano distinto: eventos de dominio, fire-and-forget, con
+  JetStream. Ver [`bus-publisher`](./bus-publisher.md) — no la documentación de esta convención.
+- No agregues JetStream a un comando o a una consulta sueltos: el modo de entrega de **este plano**
+  es del protocolo entero, y cambiarlo para uno solo deja dos semánticas conviviendo. **No aplica al
+  plano de eventos**, que usa JetStream por diseño desde REQ-014
+  ([ADR-014](../../../adrs/ADR-014-jetstream-para-eventos-de-dominio.md)).
 
 ## Integración con otras convenciones
 
+- **[`bus-publisher`](./bus-publisher.md)**: la salida del servicio — eventos de dominio,
+  post-commit, con JetStream.
 - **[`commands`](./commands.md)**: el despachador traduce el mensaje a la ejecución de un comando.
 - **[`error-handling`](./error-handling.md)**: el formato de `Reply` y el catálogo de códigos.
 - **[`env-config`](./env-config.md)**: `NATS_*` y `ZITADEL_*`, y qué rompe si faltan.

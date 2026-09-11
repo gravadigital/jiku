@@ -5,6 +5,8 @@ import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { requirementCreated } from '../../events/domain/requirement';
+import { requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'requirements.new';
 
@@ -137,7 +139,35 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
       )
     );
 
-    return success({ id: requirement.id });
+    // EL EVENTO SE ARMA ACÁ, AL FINAL — DESPUÉS de crear las filas de `PersonRequirement` y
+    // DESPUÉS del posible `return linkError` de arriba (REQ-014 / S-063, Task 4). El orden
+    // importa por dos razones: el snapshot tiene que reflejar el estado COMPLETO del requisito
+    // (con sus responsables ya vinculados), y si `linkFiles` falla el comando ya devolvió
+    // `failure` más arriba — este bloque ni se ejecuta, así que un alta que no llega a este punto
+    // NUNCA declara un evento (CA-2, gratis por el orden).
+    //
+    // EL COMANDO DECLARA, NO PUBLICA (ADR-003): no tiene acceso a `commit`/`rollback` y por lo
+    // tanto no puede saber si esta escritura sobrevive. Quien publica es el despachador, después
+    // del commit (Task 5).
+    const reply = success({ id: requirement.id });
+    reply.events = [
+      requirementCreated({
+        requirement: { id: requirement.id, projectId: requirement.projectId },
+        actorId: actor,
+        // `ctx.actor` es el sobre de identidad completo (con `name`/`email` si vinieron), no el
+        // string ya resuelto por `resolveActor` — es la fuente del fallback `name` -> `email` ->
+        // `id` de `resolveEventActor()`. `undefined` en el canal directo, y ESO es la señal de
+        // "no hay más que el id" que ese resolver necesita.
+        actorEnvelope: ctx.actor,
+        snapshot: requirementToSnapshot(requirement, personIds),
+        recipients: await resolveRecipients(requirement.id, personIds, ctx.transaction),
+      }),
+    ];
+    // NO ES `success(data, events)`: la firma de `success()` no cambia (D-1). Los eventos se
+    // adjuntan al objeto ya construido, el mismo patrón condicional con que `failure()` agrega
+    // `errorDetails` — la clave aparece solo cuando hay algo, así que un `Reply` sin eventos
+    // sigue viajando byte a byte igual que antes de esta story.
+    return reply;
   },
 };
 

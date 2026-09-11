@@ -27,6 +27,17 @@ asyncapi: '2.6.0'
 #
 #   That is the only mitigation of "the YAML and the sheets diverge", and it is cheap to run and
 #   expensive to reconstruct.
+#
+# CROSS-CUTTING NOTE WITH `core-events.yaml` (REQ-014)
+#   The `snapshot` of a domain event (`docs/apis/core-events.yaml`) DUPLICATES the shape of an
+#   entity relative to this document's resource sheets, and the two are INDEPENDENT on purpose
+#   (R-7): the event's cut does not depend on this document's `base`/`includable` split — that
+#   split exists so `include` can skip expensive columns, and a connector has no reason to know
+#   it. Two concrete contrasts, so nobody derives one shape from the other:
+#     - `description` is `truncatable` HERE (a caller may ask for a shortened value); in an
+#       event's `snapshot` it is ALWAYS COMPLETE, never truncated.
+#     - `totalMinutes` is a CALCULATED includable HERE (two subqueries over `worked_times`); it
+#       does NOT travel in an event's `snapshot` — it is not a column of the entity.
 
 info:
   title: Jiku core — NATS query contract (`jiku-queries`)

@@ -1,0 +1,114 @@
+# MOLDE GENÉRICO DE CONECTOR DE EVENTOS DE DOMINIO — NO es un conector real (S-067/REQ-014).
+#
+# Esta plantilla no está asociada a ningún rol de Zitadel ni a ninguna entrada de `rules.yaml`
+# (a propósito: ver más abajo "CÓMO ACTIVARLA"). Existe para que el primer conector que se
+# construya —fuera de este repositorio— tenga un molde de permisos correcto para copiar, en vez
+# de configurarse a mano. La forma más probable de una configuración a mano es
+# `{{instance}}.events.>` SIN la versión, que se come `{{instance}}.events.auth` (el evento de
+# autenticación, otro publicador, otra semántica) — ver la línea de `sub.allow` más abajo.
+#
+# QUÉ ES UN "CONECTOR" ACÁ: un proceso EXTERNO a Jiku que solo escucha el stream de eventos de
+# dominio `JIKU_EVENTS` (S-061) para replicar, notificar o integrar hacia otro sistema. Nunca
+# publica un comando ni contesta una consulta: por eso este molde no toca `jiku-commands` ni
+# `jiku-queries`, y por eso `response.max` es `0`.
+#
+# ------------------------------------------------------------------------------------------
+# QUÉ HACE CADA LÍNEA, Y SU MODO DE FALLO SI FALTA
+# ------------------------------------------------------------------------------------------
+#
+# `pub.allow: "$JS.API.>"`
+#   El protocolo de JetStream: es lo que le permite al cliente pedir/confirmar un consumidor
+#   durable y recibir el ack de sus propios `ack()` (`AckPolicy.Explicit`). NO lleva
+#   `{{instance}}`: es un subject GLOBAL A LA CUENTA, no del namespace del producto — prefijarlo
+#   rompe el protocolo de JetStream igual que omitirlo (mismo criterio que `templates/core.yaml`
+#   aplica a esta misma línea).
+#   SIN ESTA LÍNEA: el conector puede intentar crear su durable y NO VA A FUNCIONAR, pero el
+#   síntoma NO es un error claro de la llamada — `js.consumers.add()`/`js.publish()` del lado del
+#   protocolo de management pueden quedar colgados o fallar con un error de permisos genérico del
+#   servidor, según la operación. El defecto concreto depende de qué sub-subject de `$JS.API.>`
+#   se haya bloqueado.
+#
+# `sub.allow: "{{instance}}.events.v1.>"`
+#   El stream completo de eventos de dominio v1, LA VERSIÓN ENTERA — no un subject literal por
+#   cada uno de los 16 tipos del catálogo. Es la EXCEPCIÓN DECLARADA a la política general de
+#   `sub.allow` con subjects literales (ADR-008, regla 2): es legítima porque el permiso es por
+#   VERSIÓN DEL CONTRATO, no por tipo de evento — todos los consumidores de este plano son
+#   internos, sin corte por visibilidad (D-8 de REQ-014). Una `v2` de eventos SÍ costaría su
+#   propia línea nueva acá (deny-by-default sigue aplicando entre versiones).
+#   POR QUÉ LLEVA LA VERSIÓN Y QUÉ SE ROMPE SIN ELLA: `{{instance}}.events.>` (sin `.v1.`) se
+#   comería también `{{instance}}.events.auth` — el evento de autenticación que emite el
+#   auth-callout por otro canal, con otro publicador y otra semántica (3 segmentos, sin
+#   JetStream). Un conector con ese wildcard más ancho empezaría a recibir además ese evento, sin
+#   que nadie se lo haya pedido ni el conector lo sepa interpretar.
+#   SIN ESTA LÍNEA (o con un subject que no matchee el `filter_subject` del durable): el conector
+#   arranca, pide su durable, y NUNCA LE LLEGA NADA. La violación de permisos es ASÍNCRONA y sale
+#   en el log del SERVIDOR NATS ("Subscription Violation ... Subject ..."), nunca como un fallo de
+#   `subscribe()`/`consume()` — que resuelve igual y hasta puede imprimir su propia línea de log.
+#   Con el cliente nats.js actual esa violación asíncrona llega como `uncaughtException` y TIRA EL
+#   PROCESO: el síntoma es el conector reiniciando en loop, el mismo modo de fallo medido en S-016
+#   para `sub.allow` y documentado en `templates/core.yaml`. Si ves ese loop, revisá esta línea
+#   antes que el código del conector.
+#
+# `sub.allow: "_INBOX.{{user_id_hash}}.>"`
+#   El inbox propio del conector, por donde llegan las RESPUESTAS de `$JS.API` (el `PubAck` de un
+#   publish ajeno que nunca hace, pero también el `ConsumerInfo` al crear el durable y los acks
+#   del propio protocolo de consumo). VA EN `sub.allow`, NO EN `pub.allow`: un cliente SE
+#   SUSCRIBE a su propio inbox para recibir esas respuestas, nunca publica hacia él. Es por
+#   RÉPLICA (el hash del user id), no por endpoint: dos réplicas del mismo conector con distinto
+#   service user no se roban las respuestas entre sí.
+#
+#   ⚠️ NOTA SOBRE CA-1 DE LA STORY S-067: el criterio de aceptación de esa story enuncia el inbox
+#   del lado de `pub.allow` ("`pub.allow` sobre `$JS.API.>` y `_INBOX.{{user_id_hash}}.>`"). Es
+#   una IMPRECISIÓN DE REDACCIÓN del criterio, no una decisión: REQ-014 §2 lo agrupa igual que
+#   acá ("`pub.allow: $JS.API.>` + `sub.allow: {{instance}}.events.v1.>` +
+#   `_INBOX.{{user_id_hash}}.>`" — el inbox junto al `sub`), y `templates/core.yaml` (línea 110)
+#   ya pone su propio inbox en `sub.allow`. Poner el inbox en `pub.allow` en vez de `sub.allow`
+#   reproduce el síntoma exacto de S-016: el conector conecta, pide su durable, y NADIE LE
+#   CONTESTA porque el servidor le niega la suscripción a su propio inbox — la violación sale
+#   asíncrona en el log del SERVIDOR NATS, no como un error de la llamada. Esta plantilla
+#   implementa lo que dice el REQ y lo que hace `core.yaml`; la corrección de la redacción del
+#   criterio es una decisión del usuario, no de esta plantilla.
+#
+# `response.max: 0`
+#   El conector NUNCA contesta requests de nadie: no es un servicio micro, no atiende comandos ni
+#   consultas. Mismo valor y mismo motivo que `templates/observer.yaml`.
+#
+# ------------------------------------------------------------------------------------------
+# LO QUE ESTE MOLDE DELIBERADAMENTE NO CONCEDE
+# ------------------------------------------------------------------------------------------
+#
+# NINGÚN PERMISO SOBRE `jiku-queries` NI `jiku-commands`. Un conector de notificaciones real va a
+# querer, en algún momento, RESOLVER datos adicionales (por ejemplo Persona -> Usuario para armar
+# un destinatario) — y esa es la pregunta que quien copie este molde se va a hacer. La respuesta
+# NO es agrandar este molde: un conector que además consulta es el rol `internal-app`, con
+# `templates/api.yaml`, que es OTRO molde para OTRO tipo de cliente. Mezclar los dos roles en una
+# sola plantilla volvería a este molde tan ancho como el que ya existe, sin ganar nada.
+#
+# ------------------------------------------------------------------------------------------
+# CÓMO ACTIVARLA CUANDO APAREZCA UN CONECTOR REAL
+# ------------------------------------------------------------------------------------------
+#
+# 1. Crear el machine user del conector en Zitadel, con Access Token Type = JWT (igual que los
+#    demás service users del producto: el callout necesita leer sus claims del JWT, no de la
+#    introspección).
+# 2. Asignarle un rol NUEVO en Zitadel — este molde no está atado a ninguno, y no hay que
+#    reusar un rol existente: "un conector con permiso acotado es un ROL NUEVO, con su plantilla
+#    y su entrada en el mapa" (encabezado de `rules.yaml`).
+# 3. Copiar este archivo con el nombre del conector real (por ejemplo
+#    `templates/connector-notificaciones.yaml`) y, si hace falta algo más específico que este
+#    molde, ajustarlo ahí — nunca en este archivo, que se queda genérico.
+# 4. Agregar la regla correspondiente a `rules.yaml`, apuntando al `match` de ese rol nuevo y a
+#    la copia del paso 3. Una regla que apunte acá, a este molde sin rol, sería configuración
+#    muerta — el mismo motivo por el que `external-publisher` se eliminó de `rules.yaml`.
+
+pub:
+  allow:
+    - "$JS.API.>"
+
+sub:
+  allow:
+    - "{{instance}}.events.v1.>"
+    - "_INBOX.{{user_id_hash}}.>"
+
+response:
+  max: 0

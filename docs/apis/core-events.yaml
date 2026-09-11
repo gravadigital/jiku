@@ -1,0 +1,751 @@
+asyncapi: '2.6.0'
+
+# Messaging contract of `core` — the 16 domain events it PUBLISHES over NATS/JetStream (REQ-014).
+#
+# WHY AsyncAPI AND NOT OpenAPI
+#   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus. An
+#   OpenAPI spec would have to invent routes that do not exist. Same format and same reason as
+#   `docs/apis/core.yaml` (the 23 commands) and `docs/apis/core-queries.yaml` (the 23 queries).
+#
+# THIS FILE IS THE SOURCE OF TRUTH
+#   Where the code and this file disagree, the file wins — the same rule the other two contracts
+#   state. This is the reason S-062 (the story that writes this file) exists: everything S-063 to
+#   S-068 implement is verified against this document. It was written FIRST and the emitter code
+#   comes AFTER, the opposite order of the other two contracts (which were written by reading
+#   already-shipped code).
+#
+# WHY `subscribe:` AND NOT `publish:`
+#   In `core.yaml` and `core-queries.yaml` the CALLER publishes and `core` attends
+#   (`publish:` channels, from `core`'s point of view as the described application). HERE `core`
+#   is the EMITTER: AsyncAPI 2.6 declares operations from the perspective of the application
+#   described in the document, and the application described here is `core`, which PUBLISHES. So
+#   every one of the 16 channels below uses `subscribe:` — it says "core sends this", not
+#   "core receives this". A `publish:` here would claim the opposite of what is true.
+#
+# THE CROSS-CUTTING NOTE WITH `core-queries.yaml` (CA-8)
+#   The `snapshot` of an event DUPLICATES the shape of the entity relative to the read contract's
+#   resource sheet, and the duplication is deliberate and independent: the cut does NOT depend on
+#   `base`/`includable` from `core-queries.yaml` (R-7) — that distinction exists so `include` can
+#   skip expensive columns, and a connector has no reason to know it. Two concrete contrasts:
+#     - `description` is `truncatable` in `core-queries.yaml` (a read may ask for a shortened
+#       value); in a `snapshot` it is ALWAYS COMPLETE, never truncated.
+#     - `totalMinutes` is a CALCULATED includable in `core-queries.yaml` (two subqueries over
+#       `worked_times`); it does NOT travel in a `snapshot` — it is not a column of the entity.
+#   `core-queries.yaml` carries the symmetric half of this note in its own header.
+#
+# WHAT IS NOT HERE
+#   Only 16 channels — batch 1 (7 requirement events + 5 task events) and batch 2 (4 more:
+#   `requirement.assigned`, `task.assigned`, `requirement.resolved`, `requirement.reopened`).
+#   Batch 3 (`project.created`, `project.updated`, `client.created`, `client.updated`,
+#   `attachment.linked`, `attachment.unlinked`) is declared in REQ-014 as "when a connector asks
+#   for them" and is deliberately NOT in this catalogue — adding them would make this document
+#   claim the product emits events it does not emit yet.
+#
+# NO EMITTER YET. This file, and the `@jiku/nats-protocol` symbols it mirrors, exist with nobody
+# publishing anything: the post-commit emitter is S-063. Closing this contract does not turn on
+# a single event in production.
+
+info:
+  title: Jiku core — NATS domain events contract
+  version: 1.0.0
+  description: |
+    `core` publishes 16 domain events over NATS/JetStream, fire-and-forget, to any connector
+    subscribed to the stream `JIKU_EVENTS` (configured in S-061). Unlike the command and query
+    contracts, this is the **first** plane where `core` is the EMITTER rather than the attendant.
+
+    ## The subject and its grammar
+
+    ```
+    {instance}.events.{version}.{entidad}.{acción}
+    dev.events.v1.requirement.state.changed
+    ```
+
+    5 segments, fire-and-forget, **no reply** — this is not a micro endpoint. Identity travels in
+    the payload (`actor`), not in the subject.
+
+    | Segment | Value | Source |
+    |---|---|---|
+    | `instance` | `dev` / `prod` | `NATS_INSTANCE` |
+    | `events` | literal | — |
+    | `version` | `v1` | `NATS_EVENTS_VERSION` — **independent of `NATS_PROTOCOL_VERSION`** |
+    | `entidad` | `requirement` \| `task` | from the catalogue below. `task`, never `objective` (ADR-004) |
+    | `acción` | `created`, `state.changed`, … | from the catalogue below |
+
+    `{version}` goes **before** the entity, not at the end: this way a `pub.allow` or a
+    `filter_subject` can cover `dev.events.v1.requirement.>` — an entire version — without
+    enumerating events one by one.
+
+    **The `type` of the event payload IS the final segments of the subject.** `eventSubject(type)`
+    in `@jiku/nats-protocol` concatenates and cannot diverge: the subject's tail and
+    `DomainEvent.type` are the same string, computed once.
+
+    The channels below are named after the `type` (`requirement.state.changed`), NOT the full
+    subject: the `{instance}.events.{version}.` prefix is the same for all of them and depends on
+    the deployment. Same convention as `core.yaml` and `core-queries.yaml` use for their own
+    channel names.
+
+    ## Versioning
+
+    | Change | Version |
+    |---|---|
+    | Add an optional field to the payload | Same `v1`. The connector ignores it |
+    | Add a new event | Same `v1`. New subject, nobody breaks |
+    | Remove or rename a field | `v2` |
+    | Change a field's type or semantics | `v2` |
+    | Remove a field from the `snapshot` | `v2` |
+
+    ## The delivery guarantee
+
+    - **Delivery is at-least-once.** The connector **MUST** deduplicate by `eventId` (a ULID,
+      generated by `core` at emission time).
+    - **Publication is best-effort, with no outbox.** If the commit succeeds and the publish
+      fails, **the event is lost** and logged to `stdout`. There is no retry and no reconciliation
+      table. The connector **cannot detect** a lost event — for it, that event simply never
+      existed.
+    - **Retention is 7 days, with silent loss after that.** A connector down for more than 7 days
+      loses the events published while it was down, with no way to know which ones. This is
+      declared, expected behaviour, not an error condition.
+    - **This stream is NOT a reconstructible source of state.** A connector that needs the full,
+      current state of an entity queries `docs/apis/core-events.yaml`'s sibling contract,
+      `docs/apis/core-queries.yaml` — the event stream only carries what changed, when it changed,
+      and only for as long as retention allows.
+
+    ## The window between the commit and the publish
+
+    ```
+    1. Open transaction
+    2. The command validates and writes
+    3. COMMIT                      ← the data is already in Postgres
+    4. Publish the events          ← if this step fails, the event IS LOST
+    5. Reply the Reply
+    ```
+
+    Publishing before the commit is not an alternative: it would emit events for writes that later
+    roll back.
+
+    | Rule | |
+    |---|---|
+    | **The failure does NOT affect the command** | The write is already committed and the `Reply` is `success`. The user sees their operation done, because it is |
+    | **The failure does NOT propagate** | The emitter never throws: an error publishing cannot turn a successful command into a 500 |
+    | **It is logged to `stdout`** | Error level, with `eventId`, `type`, `entity.type:id`, `projectId` and the cause |
+    | **A lost event is never replayed** | No retry, no sweep. The connector cannot detect it |
+
+    JetStream parameters this contract assumes but does not configure (S-061 owns them):
+
+    | Parameter | Value |
+    |---|---|
+    | Stream | `JIKU_EVENTS` |
+    | Subjects | `{instance}.events.v1.>` — **with the version**, never `{instance}.events.>` (it would swallow `events.auth`) |
+    | Retention | `limits`, `max_age` **7 days** |
+    | Storage | `file` |
+    | Consumers | Durable, one per connector, with its own `filter_subject` |
+
+    ## The `snapshot` is the entity, complete
+
+    Every field of the entity goes INSIDE `snapshot`; outside it there is only what is NOT the
+    entity: `actor`, `entity`, `changes`, and `comment` on comment events. The cut does **not**
+    depend on `base`/`includable` from `core-queries.yaml` — see the note at the top of this file.
+
+    - **`description` travels COMPLETE, never truncated.** In `core-queries.yaml` it is
+      `truncatable`; here it is not.
+    - **`totalMinutes` does NOT travel.** It is a CALCULATED includable in `core-queries.yaml`
+      (two subqueries over `worked_times`), not a column of the entity.
+    - **`responsiblePersonIds` is the ordered list of ids** (the first is the lead), not the
+      resolved `responsiblePersons` objects.
+  license:
+    name: Apache-2.0
+  contact:
+    name: Grava Digital
+
+defaultContentType: application/json
+
+servers:
+  dev:
+    url: nats://localhost:4222
+    protocol: nats
+    description: Development instance. `NATS_INSTANCE=dev`.
+  prod:
+    url: nats://nats:4222
+    protocol: nats
+    description: Production instance. `NATS_INSTANCE=prod`.
+
+# ---------------------------------------------------------------------------
+# Subject grammar
+# ---------------------------------------------------------------------------
+#
+#   {instance}.events.{version}.{entidad}.{acción}
+#   dev.events.v1.requirement.state.changed
+#
+#   instance   deployment: dev / prod                       (NATS_INSTANCE)
+#   events     literal                                       —
+#   version    events plane version: `v1`                    (NATS_EVENTS_VERSION, INDEPENDENT
+#                                                              of NATS_PROTOCOL_VERSION)
+#   entidad    requirement | task                            from the catalogue below
+#   acción     created, state.changed, comment.created, ...  from the catalogue below
+#
+# THIS IS A DIFFERENT SUBJECT FAMILY FROM `{instance}.events.auth` (3 segments, core NATS, no
+# JetStream, literal `sub.allow` permission — see `@jiku/nats-protocol`). The wildcard used for
+# the stream and the `pub.allow` of THIS family MUST carry the version
+# (`{instance}.events.v1.>`), never a bare `{instance}.events.>` — that bare wildcard would
+# swallow `events.auth` too, silently turning an unrelated core-NATS message into a JetStream
+# message.
+#
+# The channels below are named after the `type` (the tail of the subject), NOT the full subject —
+# same convention `core.yaml` and `core-queries.yaml` use for their own channel names.
+
+channels:
+
+  # -------------------------------------------------------------------------
+  # requirement (10 channels)
+  # -------------------------------------------------------------------------
+
+  requirement.created:
+    description: 'A requirement was created. Carries `recipients` (its subscriptors, always empty at creation).'
+    subscribe:
+      operationId: requirementCreated
+      summary: Requirement created
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.state.changed:
+    description: 'The requirement''s `state` changed. Carries `changes` and `recipients`.'
+    subscribe:
+      operationId: requirementStateChanged
+      summary: Requirement state changed
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.updated:
+    description: 'One or more fields of the requirement changed (excluding a state transition, which is `requirement.state.changed`). Carries `changes` and `recipients`.'
+    subscribe:
+      operationId: requirementUpdated
+      summary: Requirement updated
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.comment.created:
+    description: 'A comment was created on the requirement. Carries `comment` and `recipients`.'
+    subscribe:
+      operationId: requirementCommentCreated
+      summary: Requirement comment created
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementCommentEvent'
+
+  requirement.comment.edited:
+    description: 'A comment on the requirement was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text) and `recipients`.'
+    subscribe:
+      operationId: requirementCommentEdited
+      summary: Requirement comment edited
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementCommentEvent'
+
+  requirement.subscriptor.added:
+    description: 'A subscriptor was added to the requirement. `recipients.subscriptors` already includes the new one.'
+    subscribe:
+      operationId: requirementSubscriptorAdded
+      summary: Requirement subscriptor added
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.subscriptor.removed:
+    description: 'A subscriptor was removed from the requirement. `recipients.subscriptors` no longer includes the one who left.'
+    subscribe:
+      operationId: requirementSubscriptorRemoved
+      summary: Requirement subscriptor removed
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.assigned:
+    description: 'The requirement''s `responsiblePersonIds` changed. Carries `changes` and `recipients`.'
+    subscribe:
+      operationId: requirementAssigned
+      summary: Requirement assigned
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.resolved:
+    description: 'The requirement entered a resolved state. `changes` carries `resolutionType`, `resolutionConclusion` and `resolutionComment` — this is where those three fields become the fact, and they do NOT travel in `RequirementSnapshot`. Carries `recipients`.'
+    subscribe:
+      operationId: requirementResolved
+      summary: Requirement resolved
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  requirement.reopened:
+    description: 'A previously resolved requirement was reopened. Carries `changes` and `recipients`.'
+    subscribe:
+      operationId: requirementReopened
+      summary: Requirement reopened
+      tags:
+        - name: requirement
+      message:
+        $ref: '#/components/messages/RequirementEvent'
+
+  # -------------------------------------------------------------------------
+  # task (6 channels)
+  # -------------------------------------------------------------------------
+  #
+  # NONE of the task events carry `recipients`: `objectives_subscriptors` exists and has the same
+  # shape, but no interface of the product creates task subscriptions today — the table is always
+  # empty. Adding the block later is compatible (a new field is the same `v1`).
+
+  task.created:
+    description: 'A task was created.'
+    subscribe:
+      operationId: taskCreated
+      summary: Task created
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskEvent'
+
+  task.state.changed:
+    description: 'The task''s `state` changed. Carries `changes`.'
+    subscribe:
+      operationId: taskStateChanged
+      summary: Task state changed
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskEvent'
+
+  task.updated:
+    description: 'One or more fields of the task changed (excluding a state transition, which is `task.state.changed`). Carries `changes`.'
+    subscribe:
+      operationId: taskUpdated
+      summary: Task updated
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskEvent'
+
+  task.comment.created:
+    description: 'A comment was created on the task. Carries `comment`.'
+    subscribe:
+      operationId: taskCommentCreated
+      summary: Task comment created
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskCommentEvent'
+
+  task.comment.edited:
+    description: 'A comment on the task was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text).'
+    subscribe:
+      operationId: taskCommentEdited
+      summary: Task comment edited
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskCommentEvent'
+
+  task.assigned:
+    description: 'The task''s `responsiblePersonIds` changed. Carries `changes`.'
+    subscribe:
+      operationId: taskAssigned
+      summary: Task assigned
+      tags:
+        - name: task
+      message:
+        $ref: '#/components/messages/TaskEvent'
+
+components:
+
+  messages:
+
+    # Grouped by payload shape, not one per channel — same organisational choice as
+    # `core-queries.yaml`'s `ListQuery`/`GetQuery`. Four shapes make explicit, at a glance, which
+    # events carry `recipients` and which carry `comment` — the asymmetry most likely to be
+    # implemented wrong. NO `x-reply` and NO `x-error-codes`: an event is fire-and-forget, there
+    # is no reply and there are no error codes on this plane.
+
+    RequirementEvent:
+      name: RequirementEvent
+      title: 'requirement.{acción}'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEvent'
+
+    RequirementCommentEvent:
+      name: RequirementCommentEvent
+      title: 'requirement.comment.{acción}'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEvent'
+
+    TaskEvent:
+      name: TaskEvent
+      title: 'task.{acción}'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEvent'
+
+    TaskCommentEvent:
+      name: TaskCommentEvent
+      title: 'task.comment.{acción}'
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEvent'
+
+  schemas:
+
+    DomainEvent:
+      type: object
+      additionalProperties: false
+      description: |
+        The envelope of every domain event `core` publishes. **Every field of the entity lives
+        inside `snapshot`**; outside it there is only what is NOT the entity: `actor`, `entity`,
+        `changes`, and `comment` on comment events.
+      required: [eventId, type, version, occurredAt, correlationId, actor, entity, snapshot]
+      properties:
+        eventId:
+          type: string
+          description: 'ULID, mandatory. The connector MUST deduplicate by this field — delivery is at-least-once.'
+        type:
+          $ref: '#/components/schemas/EventType'
+        version:
+          type: string
+          description: |
+            The `{version}` segment of the subject (`v1` today). Travels REDUNDANT with the
+            subject on purpose: an archived or re-forwarded message still states which contract
+            it satisfies, independent of the subject it arrived on.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Set by the emitter, at publish time.
+        correlationId:
+          type: string
+          description: Shared by every event emitted by the SAME command — lets a connector group a burst of events back into one user action.
+        actor:
+          $ref: '#/components/schemas/EventActor'
+        entity:
+          $ref: '#/components/schemas/EventEntityRef'
+        snapshot:
+          description: |
+            The entity, complete, AFTER the commit — with its hooks already run. Its shape is
+            `RequirementSnapshot` or `TaskSnapshot`, depending on `entity.type`.
+          oneOf:
+            - $ref: '#/components/schemas/RequirementSnapshot'
+            - $ref: '#/components/schemas/TaskSnapshot'
+        changes:
+          type: object
+          additionalProperties: true
+          description: |
+            Only on change events. Shape `{ field: { from, to } }`, EXCEPT where the product does
+            not keep the previous value — the case is the edited comment's `editedAt`/`editedBy`,
+            which travel bare, with no `from`/`to`.
+        recipients:
+          $ref: '#/components/schemas/EventRecipients'
+          description: 'In ALL requirement events. Task events do not carry it.'
+        comment:
+          $ref: '#/components/schemas/EventComment'
+          description: 'Only on comment events. The entity of the event, OUTSIDE of `changes`.'
+        visibilityLevel:
+          type: string
+          description: |
+            Only on comment events (added in S-064). The visibility of the COMMENT itself, not of
+            the requirement — that one lives in `snapshot.visibilityLevel`. A comment marked
+            `internal` on a `public` requirement is valid, and this is what tells the two apart.
+            It NEVER appears inside `changes`, even for `requirement.comment.edited` — visibility
+            is immutable once the comment is created.
+
+            Added after the initial S-062 catalogue as an optional, additive field: per the
+            versioning table above, this stays `v1` — an existing connector that does not know
+            this field simply ignores it.
+
+    EventType:
+      type: string
+      description: |
+        The catalogue of the 16 domain events `core` publishes. Source of truth for the 16
+        channel names above AND for `EVENT_TYPES`/`EventType` of `@jiku/nats-protocol` — the three
+        must be the exact same list, in the exact same order.
+
+        Batch 3 (`project.created`, `project.updated`, `client.created`, `client.updated`,
+        `attachment.linked`, `attachment.unlinked`) is deliberately NOT in this enum: REQ-014
+        declares it "when a connector asks for them".
+      enum:
+        - requirement.created
+        - requirement.state.changed
+        - requirement.updated
+        - requirement.comment.created
+        - requirement.comment.edited
+        - requirement.subscriptor.added
+        - requirement.subscriptor.removed
+        - requirement.assigned
+        - requirement.resolved
+        - requirement.reopened
+        - task.created
+        - task.state.changed
+        - task.updated
+        - task.comment.created
+        - task.comment.edited
+        - task.assigned
+
+    EventActor:
+      type: object
+      additionalProperties: false
+      description: |
+        Who acted behind the event. **`email` is NEVER declared here, and it is not an
+        oversight**: it is data-minimisation fixed at the type level. The email of whoever did the
+        action has no use for a connector — `name` is enough — and the only place email makes
+        sense is as a notification address for a RECIPIENT, in `EventRecipients`.
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: The Zitadel `sub`. ALWAYS present.
+        name:
+          type: string
+          description: |
+            Only on the events the catalogue marks "yes". Fallback `name` -> `email` -> `id` on
+            the emitting side, so **this value can be an id: a connector must not assume it is a
+            human name**.
+
+    EventEntityRef:
+      type: object
+      additionalProperties: false
+      description: Which entity the event is about. `type` uses the PRODUCT's vocabulary (ADR-004) — `task`, never `objective`.
+      required: [type, id, projectId]
+      properties:
+        type:
+          type: string
+          enum: [requirement, task]
+        id:
+          type: integer
+        projectId:
+          type: integer
+          description: ALWAYS present, regardless of the entity — an explicit rule of the envelope.
+
+    EventRecipients:
+      type: object
+      additionalProperties: false
+      description: |
+        Who to notify of a requirement event. In ALL requirement events, including
+        `subscriptor.added`/`.removed` (an `added` already carries the list WITH the new one; a
+        `removed`, WITHOUT the one who left). Task events never carry this block: no interface of
+        the product creates task subscriptions today.
+      required: [subscriptors, responsiblePersonIds]
+      properties:
+        subscriptors:
+          type: array
+          description: |
+            Can be `[]` — the most frequent case, since subscribing is optional and today nobody
+            uses it. There is NO compound unique constraint in the database
+            (`already_subscribed` is validated by `core`, not by the table): **the connector MUST
+            deduplicate by `userId`**.
+          items:
+            type: object
+            additionalProperties: false
+            required: [userId, name, email]
+            properties:
+              userId:
+                type: string
+                description: The Zitadel `sub`. Directly notifiable.
+              name:
+                type: string
+              email:
+                type: string
+                nullable: true
+                description: |
+                  **CAN be `null`** — only for a service identity (a Zitadel machine user has no
+                  email address). NEVER `null` for a person. **The connector MUST tolerate it and
+                  skip that recipient.**
+        responsiblePersonIds:
+          type: array
+          items:
+            type: integer
+          description: |
+            Ids of `people`. Redundant with `snapshot` ON PURPOSE: they are recipients in
+            addition to being entity data, so a connector builds the "who to notify" list reading
+            a single block. **`personId` != `userId`**: a Person may have no User, so notifying a
+            responsible requires resolving Person -> User, and there may be nobody to resolve to.
+
+    EventComment:
+      type: object
+      additionalProperties: false
+      description: The comment entity of a comment event, OUTSIDE of `changes` — the same role `snapshot` plays for the requirement/task.
+      required: [id, body, fileIds]
+      properties:
+        id:
+          type: integer
+        body:
+          type: string
+          description: |
+            The CURRENT text, complete. There is no `from` of the text: the edit command does not
+            keep the previous value, so a connector mirroring the comment REPLACES it completely
+            rather than applying a diff. `visibilityLevel` is immutable and never appears in
+            `changes`.
+        fileIds:
+          type: array
+          items:
+            type: integer
+          description: The COMPLETE set currently linked, not a delta.
+
+    RequirementSnapshot:
+      type: object
+      additionalProperties: false
+      description: |
+        The requirement, complete, as it travels in `DomainEvent.snapshot` of a requirement
+        event. **This list is FIXED and declared here**: it is NOT derived from
+        `core-queries.yaml`'s resource sheet — adding or removing a field from this snapshot is a
+        change of the EVENTS contract and, if it is a removal, requires `v2`.
+
+        **`description` travels COMPLETE, NEVER TRUNCATED.** In `core-queries.yaml` it is
+        `truncatable`; here it is not.
+
+        **`responsiblePersonIds` is the ordered list of ids — the FIRST is the lead** — not the
+        resolved person objects, and not `userId`s.
+
+        Deliberately excluded: `project`, `requirement`, `responsiblePersons` (relation objects —
+        their ids travel instead), `comments`/`attachments` (collections), `subscriptors` (that is
+        `recipients`, not entity data), `totalMinutes` (CALCULATED, two subqueries over
+        `worked_times`), `scope`/`technicalSolution`/`acceptanceCriteria` (long internal-work
+        text, no use for a connector), `resolutionType`/`resolutionConclusion`/`resolutionComment`
+        (they travel in `changes` of `requirement.resolved`, where they are the fact), and
+        `scheduledAt`/`inProgressAt`/`inReviewAt` (transition marks — `finishedAt` is the only one
+        a connector uses).
+
+        **The `snapshot` reflects the row AFTER the commit**, with its hooks already run.
+      required: [id, title, description, priority, state, tags, responsiblePersonIds, projectId, createdBy, visibilityLevel, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          nullable: true
+          enum: [funcionalidad, mejora, incidencia, otro]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+        state:
+          type: string
+          enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+        estimatedFinishDate:
+          type: string
+          format: date
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        responsiblePersonIds:
+          type: array
+          items:
+            type: integer
+          description: 'Ordered ids of `people`. The FIRST is the lead.'
+        projectId:
+          type: integer
+        createdBy:
+          type: string
+          description: The Zitadel `sub` of the creator.
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    TaskSnapshot:
+      type: object
+      additionalProperties: false
+      description: |
+        The task, complete, as it travels in `DomainEvent.snapshot` of a task event. Uses `task`
+        as the entity name, NEVER `objective` (ADR-004) — the base table is `objectives`, and
+        that stays a database detail.
+
+        **`priority` (the name) AND `priorityValue` (the raw 0-5 integer) BOTH travel.** This
+        CONTRADICTS ADR-004 ON PURPOSE (a deliberate contradiction, R-D of REQ-014): the round
+        trip between `priority` (5 enum values) and the `objectives.priority` column (0-5)
+        collapses 5 into 4, so `priorityValue` is a transitional escape — same escape
+        `core-queries.yaml` already formalised for the same reason. `RequirementSnapshot` does
+        NOT need this escape because `requirements.priority` already migrated to an enum column;
+        `objectives.priority` has not. The escape disappears when the web sends priority names,
+        and retiring it is `/product-change-technical-definition` work, not this contract's.
+
+        `requirementId` is G-01's traceability: optional and WITHOUT a constraint in the
+        database — it may point at a deleted requirement.
+      required: [id, title, state, area, priority, priorityValue, responsiblePersonIds, visibilityLevel, projectId, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+          description: 'OPTIONAL, unlike the requirement (`tasks.new` does not require it). Complete, never truncated.'
+        state:
+          type: string
+          enum: [backlog, activo, en_revision, finalizado, cancelado]
+        area:
+          type: string
+          enum: [diseño, desarrollo, gestion, investigacion]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+          description: The name.
+        priorityValue:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: 'The raw integer. See the schema description for why both forms travel.'
+        estimatedFinishDate:
+          type: string
+          format: date
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set by the hook on entering `finalizado`, `null` on leaving it.
+        responsiblePersonIds:
+          type: array
+          items:
+            type: integer
+          description: 'Ordered ids of `people`. Same semantics as `RequirementSnapshot`.'
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        projectId:
+          type: integer
+        requirementId:
+          type: integer
+          nullable: true
+          description: G-01 traceability. Optional and with NO constraint in the database.
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

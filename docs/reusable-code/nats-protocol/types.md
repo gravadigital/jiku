@@ -192,3 +192,79 @@ none: it would turn any typo into a valid access.
 **Nothing validates it in this package.** There is no `extractActor()`, no `isActor()`, no schema —
 the package does not throw and does not log. The extraction, the trusted-publisher guard, the
 `INSERT … ON CONFLICT` mirror over `users` and `resolveActor` all live in `core`.
+
+## DomainEvent
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** The envelope of every domain event `core` publishes (REQ-014). Declared molded on
+`AuthEvent` (REQ-014 says so explicitly), but with **two decisions reversed on purpose**, and
+understanding why matters more than the field list:
+
+1. **`type` is tightly typed to `EventType`** (the union of the 16 catalog literals), **not**
+   `string`. `AuthEvent.type` is `string` because it is written by a **different repository** and
+   this package only **reads** that contract — an unknown value there is legitimate, something
+   `core` may discard. `DomainEvent` is written by **this product's own emitter** (`core`), and this
+   package is the source of truth for that emitter — a `type` outside the catalog is an emitter bug
+   that must fail **at compile time**, not a legitimate wire value.
+2. **Field names are `camelCase`, verbatim of this contract** (`eventId`, `occurredAt`,
+   `correlationId`, `responsiblePersonIds`), **not** `snake_case` like `AuthEvent`. Same rule as
+   `Actor`: this product **authors** this contract, so the names are not transcribed from someone
+   else's wire format.
+
+Generic over `snapshot` (`DomainEvent<S = RequirementSnapshot | TaskSnapshot>`, default open) so an
+emitter can write `DomainEvent<RequirementSnapshot>` and get the snapshot narrowed, while a generic
+consumer that does not specialize still receives the union.
+
+`eventId` is a ULID string that **this package never generates** — zero runtime dependencies is a
+hard rule here (ADR-005), and adding a ULID library would turn a contract package into something
+more. `core`'s emitter (S-063) generates it.
+
+**Signature:**
+```ts
+interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
+  eventId: string;
+  type: EventType;
+  version: string;
+  occurredAt: string;
+  correlationId: string;
+  actor: EventActor;
+  entity: EventEntityRef;
+  snapshot: S;
+  changes?: Record<string, unknown>;
+  recipients?: EventRecipients;
+  comment?: EventComment;
+}
+```
+
+**Not a runtime symbol.** Like `AuthEvent`, this is a type: it is erased at compile time and
+`Object.keys(require('@jiku/nats-protocol')).includes('DomainEvent')` is `false`.
+
+## EventActor / EventEntityRef / EventRecipients / EventComment
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** The four component types of `DomainEvent` (REQ-014), also type-only symbols.
+
+- **`EventActor`** (`{ id, name? }`) — who acted. **Deliberately has no `email`**: this is data
+  minimization fixed at the type level, not just convention. `EventRecipients` is a THIRD case of
+  `email` in this package (alongside `AuthEvent.email: string | null` and `Actor.email?: string`),
+  and it copies `AuthEvent`'s form, not `Actor`'s: `email: string | null`, **required and nullable**,
+  never optional — an optional `email?` would make "I don't know this recipient's email" and "this
+  is a service identity with none" indistinguishable, which a connector cannot afford.
+- **`EventEntityRef`** (`{ type: 'requirement' | 'task', id, projectId }`) — which entity. `type`
+  uses this product's vocabulary (ADR-004): `task`, never `objective` — the base table stays
+  `objectives`, a database detail this contract does not leak.
+- **`EventRecipients`** (`{ subscriptors: EventSubscriptor[], responsiblePersonIds: number[] }`) —
+  who to notify of a requirement event. `subscriptors` can be `[]` (the most frequent case — nobody
+  used subscriptions before this channel existed); the database has no compound unique constraint,
+  so **a connector must deduplicate `subscriptors` by `userId`**. Task events never carry this
+  block. `responsiblePersonIds` is redundant with the entity's own `snapshot` on purpose: these are
+  ids of `people`, not `userId`s — a Person may have no User, so notifying a responsible requires a
+  Person → User resolution a connector may not be able to complete.
+- **`EventComment`** (`{ id, body, fileIds }`) — the comment entity of a comment event, outside of
+  `changes`. `body` is the **current, complete** text: the edit command does not keep the previous
+  value, so there is no `from` to send, and a connector mirroring the comment replaces it wholesale
+  rather than diffing.
+
+**Not runtime symbols.** All four are erased at compile time, same as `DomainEvent`.

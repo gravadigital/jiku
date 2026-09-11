@@ -17,6 +17,9 @@ import logger from '../logger';
 import { CommandRegistry } from '../commands/registry';
 import { mirrorUser } from '../user-mirror';
 import { extractActor } from './actor';
+import { EventPublisher } from './event-publisher';
+import { emitEvents } from './emit-events';
+import { generateUlid } from '../ulid';
 
 /**
  * Traduce un mensaje del bus a la ejecución de un comando.
@@ -41,21 +44,38 @@ const REDACTED_REPLY_KEYS = ['uploadUrl', 'downloadUrl'];
 
 /** Reemplaza por un marcador los valores sensibles del reply, solo para el log. */
 function redactReply(reply: Reply): Reply {
-  const data = reply.data;
-  if (!data || typeof data !== 'object') {
-    return reply;
-  }
+  let result = reply;
 
-  const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
-  let touched = false;
-  for (const key of REDACTED_REPLY_KEYS) {
-    if (key in redacted) {
-      redacted[key] = '[redacted]';
-      touched = true;
+  const data = reply.data;
+  if (data && typeof data === 'object') {
+    const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+    let touched = false;
+    for (const key of REDACTED_REPLY_KEYS) {
+      if (key in redacted) {
+        redacted[key] = '[redacted]';
+        touched = true;
+      }
+    }
+    if (touched) {
+      result = { ...result, data: redacted };
     }
   }
 
-  return touched ? { ...reply, data: redacted } : reply;
+  // `events` SE RECORTA A `{ type, eventId }` POR EVENTO (D-6 de S-063), NUNCA se loguea el
+  // sobre completo. Con `events` poblado, `JSON.stringify(reply)` incluiría título y descripción
+  // completa del requisito (`snapshot`) y el `name`/`email` de cada suscriptor (`recipients`) —
+  // exactamente lo que la convención `logging` prohíbe fuera de una traza opt-in, y esto ES una
+  // traza opt-in pero el email de un suscriptor no estaba antes en ninguna traza. El log del
+  // comando es sobre EL COMANDO; el evento tiene su propio log de fallo (`[events] publish
+  // failed`, en `emit-events.ts`) para lo que a él le pasa.
+  if (result.events?.length) {
+    result = {
+      ...result,
+      events: result.events.map((event) => ({ type: event.type, eventId: event.eventId }) as any),
+    };
+  }
+
+  return result;
 }
 
 /**
@@ -142,13 +162,25 @@ async function mirrorActor(actor: Actor): Promise<void> {
 }
 
 export class Dispatcher {
-  constructor(private registry: CommandRegistry) {}
+  // EL PUBLICADOR SE INYECTA POR CONSTRUCTOR, IGUAL QUE `registry` (Task 1 de S-063). Es un
+  // efecto externo del despachador (ADR-003): el comando no tiene acceso a él, y este archivo lo
+  // consume una sola vez, entre el commit y el `return reply` — ver el bloque de emisión más
+  // abajo en `dispatch()`.
+  constructor(private registry: CommandRegistry, private publisher: EventPublisher) {}
 
   async dispatch(subject: string, raw: unknown): Promise<Reply> {
     const name = commandFromSubject(subject);
     // El caller se resuelve UNA VEZ y se reusa en el contexto del comando: antes se calculaba
     // inline dentro de la llamada a `execute`, y la compuerta lo necesita antes.
     const caller = callerFromSubject(subject);
+
+    // UN `correlationId` POR INVOCACIÓN (CA-9, D-4 de S-063), generado ACÁ Y NO en el bloque de
+    // emisión de más abajo: la propiedad que CA-9 pide —que TODOS los eventos de un mismo comando
+    // lo compartan— se sostiene declarándolo donde se lee el invariante, aunque hoy un comando
+    // emita un solo evento. Se genera SIEMPRE, incluso para comandos que no van a declarar ningún
+    // evento: es un ULID, generarlo de más no cuesta nada medible, y así este bloque no necesita
+    // saber de antemano si va a hacer falta.
+    const correlationId = generateUlid();
 
     // EL SOBRE VA ANTES QUE LA COMPUERTA (S-029), y hay que leer por qué eso NO debilita nada.
     //
@@ -359,6 +391,36 @@ export class Dispatcher {
         await transaction.commit();
       } else {
         await transaction.rollback();
+      }
+
+      // LA EMISIÓN VA ACÁ Y EN SU PROPIO try/catch, y las dos cosas son la story (S-063).
+      //
+      // DESPUÉS DEL COMMIT porque publicar antes emitiría eventos de escrituras que después
+      // rollean. La ventana entre el commit y el publish está ASUMIDA (R-6 del REQ): si falla
+      // acá, el evento SE PIERDE y no se repone.
+      //
+      // EN SU PROPIO try/catch PORQUE EL `catch` DE MÁS ABAJO HACE `rollback()` — y para este
+      // punto la transacción YA ESTÁ COMMITEADA. Un rechazo que escapara de acá haría un rollback
+      // sobre una transacción terminada, ese segundo rechazo taparía el original, y un comando
+      // que escribió bien saldría `failure internal_error`: el usuario vería un error de algo
+      // que SÍ pasó (R-A). El precedente de cómo se evita está 200 líneas más arriba, en
+      // `mirrorActor`.
+      //
+      // `reply.events?.length` Y NO `reply.events !== undefined`: un `events: []` no tiene que
+      // entrar a este camino (TS-7) — no hay nada que publicar y entrar igual solo arriesgaría
+      // sin ganar nada.
+      //
+      // Y `emitEvents` YA NO RECHAZA NUNCA (garantía de la Task 2) así que este `await` es
+      // seguro. AUN ASÍ el try/catch propio va igual: la garantía tiene que ser LOCAL Y VISIBLE
+      // en este archivo, no una propiedad que alguien pueda romper editando otro (R-B).
+      try {
+        if (reply.status === 'success' && reply.events?.length) {
+          await emitEvents(reply.events, correlationId, this.publisher);
+        }
+      } catch (error: any) {
+        // INALCANZABLE si `emitEvents` cumple su contrato, y acá igual: es la garantía de que
+        // ninguna futura edición de `emitEvents` pueda convertir un éxito en `internal_error`.
+        logger.error(`[events] emisión no manejada en ${name}: ${error.message}`);
       }
 
       if (process.env.LOG_COMMANDS === 'true') {

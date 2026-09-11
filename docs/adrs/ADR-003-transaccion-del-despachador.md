@@ -39,6 +39,57 @@ La consecuencia es estructural: un comando que responde `failure` con tres filas
 **las pierde todas, sin tener que hacer nada**. Olvidarse el rollback dejó de ser posible porque
 el rollback no es responsabilidad del comando.
 
+### El despachador también es dueño de los efectos externos (REQ-014 / S-063)
+
+La propiedad de la transacción se extiende a **cualquier efecto externo que un comando declare**
+—hoy, la publicación de eventos de dominio ([ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md))—.
+**Esto no cambia la decisión de arriba: la amplía.** El comando sigue sin poder tocar la
+transacción, y ahora tampoco puede tocar lo que pasa después de ella.
+
+`core/src/bus/dispatcher.ts:396-415`, verbatim, es el registro de por qué el patrón tiene la forma
+que tiene:
+
+```
+// LA EMISIÓN VA ACÁ Y EN SU PROPIO try/catch, y las dos cosas son la story (S-063).
+//
+// DESPUÉS DEL COMMIT porque publicar antes emitiría eventos de escrituras que después
+// rollean. La ventana entre el commit y el publish está ASUMIDA (R-6 del REQ): si falla
+// acá, el evento SE PIERDE y no se repone.
+//
+// EN SU PROPIO try/catch PORQUE EL `catch` DE MÁS ABAJO HACE `rollback()` — y para este
+// punto la transacción YA ESTÁ COMMITEADA. Un rechazo que escapara de acá haría un rollback
+// sobre una transacción terminada, ese segundo rechazo taparía el original, y un comando
+// que escribió bien saldría `failure internal_error`: el usuario vería un error de algo
+// que SÍ pasó (R-A). El precedente de cómo se evita está 200 líneas más arriba, en
+// `mirrorActor`.
+//
+// `reply.events?.length` Y NO `reply.events !== undefined`: un `events: []` no tiene que
+// entrar a este camino (TS-7) — no hay nada que publicar y entrar igual solo arriesgaría
+// sin ganar nada.
+//
+// Y `emitEvents` YA NO RECHAZA NUNCA (garantía de la Task 2) así que este `await` es
+// seguro. AUN ASÍ el try/catch propio va igual: la garantía tiene que ser LOCAL Y VISIBLE
+// en este archivo, no una propiedad que alguien pueda romper editando otro (R-B).
+```
+
+**El modo de fallo que esto evita, etiquetado R-A del REQ:** si la publicación lanzara entre el
+`commit()` y el `return`, caería en el `catch` general de más abajo, que hace
+`await transaction.rollback()` — sobre una transacción **ya terminada**. Ese segundo rechazo
+**rechaza** y **tapa el error original**, y un comando que escribió bien saldría
+`failure internal_error`: el usuario vería un error de una operación que **sí ocurrió**. Es
+exactamente lo que D-9 de REQ-014 prohíbe.
+
+**Por qué el `try`/`catch` propio va igual, aunque el emisor ya prometa no rechazar (R-B del
+REQ):** en producción, un `unhandled rejection` del publicador **mata el proceso** — el logger de
+`core` corre con `exitOnError: true` en `NODE_ENV=production`. La garantía de "nunca lanza" tiene
+que ser **local y visible en este archivo**, no una propiedad que dependa de que nadie rompa
+`emit-events.ts` en un cambio futuro.
+
+**El precedente de este patrón ya existía en el mismo archivo, para otro efecto externo:**
+`mirrorActor` resuelve el mismo problema —una transacción propia que puede fallar después de que la
+principal ya cerró— con `await transaction.rollback().catch(() => undefined)`. La emisión de
+eventos es el **segundo** caso del mismo patrón, no uno inventado para la ocasión.
+
 ### El despachador nunca lanza
 
 Complemento necesario de lo anterior (`core/src/bus/dispatcher.ts:60-64`): todo error inesperado
@@ -63,6 +114,14 @@ tiene además una última red por si el despachador fallara al fallar
 - Los tests de comandos **DEBEN** entrar por el despachador (helper `dispatch()`), no llamando a
   `execute()` directamente: es lo único que verifica el comportamiento transaccional, incluido el
   rollback.
+- El despachador es dueño de los **efectos externos** que un comando declare (hoy, eventos de
+  dominio en `Reply.events`), igual que es dueño de la transacción. Un efecto externo **DEBE**
+  ejecutarse **después** del `commit()`, **solo** si el `reply` es `success`, y **NO DEBE**
+  propagar su error — ni al `reply` ni haciendo `rollback()` sobre la transacción, que para ese
+  punto **ya está commiteada** y terminada (R-A). Un rollback sobre una transacción terminada
+  rechaza, ese segundo rechazo tapa el original, y un comando que escribió bien saldría
+  `failure internal_error`: el usuario vería un error de una operación que sí ocurrió. La
+  implementación de referencia es la emisión de eventos de `core/src/bus/dispatcher.ts:396-415`.
 
 ## Consecuencias
 
@@ -92,7 +151,10 @@ tiene además una última red por si el despachador fallara al fallar
 - **Riesgo:** un comando futuro necesita persistir algo fuera de la transacción y alguien lo
   resuelve abriendo una segunda conexión.
   - **Mitigación:** ninguna automática. Debe rechazarse en revisión; el caso correcto sería
-    replantear el comando o el modelo.
+    replantear el comando o el modelo. **Distinto de un efecto externo no persistente** (como
+    publicar un evento): ese caso sí tiene un patrón declarado —después del commit, en su propio
+    `try`/`catch`, sin propagar error—, y no habilita abrir una segunda conexión de base de datos
+    para escribir. El patrón declarado es para efectos que no son una escritura a la base.
 - **Riesgo:** un comando lento mantiene la transacción abierta y genera contención en la base.
   - **Mitigación:** el timeout de 5 s de la api ([ADR-002](ADR-002-comandos-nats-sin-jetstream.md))
     acota indirectamente cuánto puede durar, pero **no cancela la transacción**: core sigue
@@ -143,6 +205,9 @@ PostgreSQL da atomicidad gratis; renunciar a ella sería pagar complejidad por n
 
 ## Referencias
 
-- Implementación: `core/src/bus/dispatcher.ts:42-64`, `core/src/bus/consumer.ts:101-105`
+- Implementación: `core/src/bus/dispatcher.ts:384-394` (la transacción), `core/src/bus/dispatcher.ts:430-434`
+  (el despachador nunca lanza), `core/src/bus/dispatcher.ts:396-415` (el efecto externo post-commit,
+  REQ-014 / S-063)
+- Flujo de punta a punta del efecto externo: [`docs/flows/eventos-de-dominio.md`](../flows/eventos-de-dominio.md)
 - Arquitectura: [`docs/architectures/core/`](../architectures/core/)
-- ADRs relacionados: [ADR-001](ADR-001-separacion-lectura-escritura.md), [ADR-002](ADR-002-comandos-nats-sin-jetstream.md), [ADR-013](ADR-013-tests-contra-base-real.md)
+- ADRs relacionados: [ADR-001](ADR-001-separacion-lectura-escritura.md), [ADR-002](ADR-002-comandos-nats-sin-jetstream.md), [ADR-013](ADR-013-tests-contra-base-real.md), [ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md) (el efecto externo que este ADR ahora cubre)

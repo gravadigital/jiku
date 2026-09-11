@@ -105,6 +105,20 @@ SQL
     echo "==> the rest of the stack"
     $COMPOSE up -d --build
 
+    # The JIKU_EVENTS stream (domain events, S-061) cannot be checked before nats is up —
+    # unlike the two preflights above, it needs the server actually answering the
+    # JetStream admin API. Checked here, right after the stack comes up, with the same
+    # style as the two guards above: name what is missing and the command that fixes it.
+    until docker exec jiku-local-nats wget -qO- http://127.0.0.1:8222/healthz >/dev/null 2>&1; do
+      sleep 1
+    done
+    if ! curl -s http://localhost:8222/jsz?streams=1 2>/dev/null | grep -q '"name": *"JIKU_EVENTS"'; then
+      echo "" >&2
+      echo "warning: JIKU_EVENTS is missing. Domain events have nowhere to be persisted." >&2
+      echo "Create it:" >&2
+      echo "  ./nats/create-events-stream.sh" >&2
+    fi
+
     echo
     echo "ready:"
     echo "  web       http://localhost:3000"

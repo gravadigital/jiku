@@ -1,10 +1,12 @@
 import joi from 'joi';
-import { AttachmentEntityType, RequirementActivity, RequirementActivityType } from '@jiku/models';
+import { AttachmentEntityType, Requirement, RequirementActivity, RequirementActivityType } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
 import { resolveActor } from '../resolve-actor';
+import { requirementCommentEdited } from '../../events/domain/requirement';
+import { readCommentFileIds, readResponsiblePersonIds, requirementToSnapshot, resolveRecipients } from '../../events/domain/requirement-snapshot';
 
 const COMPONENT = 'requirements.comment.edit';
 
@@ -93,6 +95,54 @@ export const requirementsCommentEdit: Command<CommentEditPayload, never> = {
     // NO NOTIFICA, y la ausencia es una decisión, no un olvido: hoy no existe canal de
     // notificación en el producto. Cuando FG-2 lo agregue, la regla es que la EDICIÓN de un
     // comentario no dispara notificación — solo el alta.
+
+    // EL EVENTO SE ARMA ACÁ, AL FINAL (S-064, Task 6). Este comando busca la actividad por el
+    // par `(id, requirementId)` y NO leía el requisito hasta ahora — el `findByPk` de acá es
+    // NUEVO y solo alimenta el evento, no decide ninguna respuesta: si devolviera `null` (no
+    // debería, hay FK), el comando no falla — no declara evento y sigue devolviendo `success()`.
+    const requirement = await Requirement.findByPk(activity.requirementId, {
+      transaction: ctx.transaction,
+    });
+    if (requirement) {
+      const responsiblePersonIds = await readResponsiblePersonIds(
+        requirement.id,
+        ctx.transaction
+      );
+      const reply = success<never>();
+      reply.events = [
+        requirementCommentEdited({
+          requirement: { id: requirement.id, projectId: requirement.projectId },
+          actorId: actor,
+          actorEnvelope: ctx.actor,
+          snapshot: requirementToSnapshot(requirement, responsiblePersonIds),
+          recipients: await resolveRecipients(
+            requirement.id,
+            responsiblePersonIds,
+            ctx.transaction
+          ),
+          comment: {
+            id: activity.id,
+            // EL TEXTO ACTUAL, ya escrito por el `update` de arriba — no hay `from` (CA-6).
+            body: activity.newValue,
+            // CONJUNTO VIVO, leído DESPUÉS de `syncFileLinks` (D-5): el conjunto completo que
+            // queda vinculado, no un delta y no lo que traiga (o no traiga) el payload.
+            fileIds: await readCommentFileIds(
+              activity.id,
+              AttachmentEntityType.RequirementComment,
+              ctx.transaction
+            ),
+          },
+          // El de la RAÍZ es el del COMENTARIO, inmutable — nunca aparece en `changes` (CA-7).
+          visibilityLevel: activity.visibilityLevel,
+          // LEÍDOS DE LA FILA, no recalculados: `editedAt`/`editedBy` son EXACTAMENTE los que el
+          // `update` de arriba acaba de escribir (TS-43 lo asserta contra la fila).
+          editedAt: activity.editedAt!.toISOString(),
+          editedBy: activity.editedBy!,
+        }),
+      ];
+      return reply;
+    }
+
     return success();
   },
 };
