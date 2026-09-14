@@ -431,9 +431,43 @@ export function rolesAuthorize(
  * base no contesta", que son `caller_not_authorized` e `internal_error`.
  */
 export async function readCallerRoles(caller: string): Promise<readonly string[]> {
+  return (await readCallerIdentity(caller)).roles;
+}
+
+/**
+ * Lo que la fila del caller aporta al despachador: sus roles Y su nombre.
+ *
+ * ES LA MISMA LECTURA QUE `readCallerRoles`, NO UNA SEGUNDA. Aquella pasó a delegar acá, así que
+ * los dos planos siguen pagando UN SOLO `SELECT` y ninguno cambió de comportamiento.
+ *
+ * POR QUÉ EXISTE (S-070): el plano de comandos ya traía la fila entera para autorizar al caller
+ * del canal directo y se quedaba **solo con `roles`**, descartando el `name` que venía en el mismo
+ * resultado. Los eventos de dominio necesitan justamente ese nombre —sin él, `actor.name` sale con
+ * el `sub` de Zitadel—, y traerlo de acá cuesta CERO consultas nuevas. La alternativa era un
+ * `findByPk` propio en el camino de eventos: la misma fila, leída dos veces.
+ *
+ * SE AGREGA UNA FUNCIÓN EN VEZ DE CAMBIARLE EL TIPO A `readCallerRoles`, porque esa la llama
+ * también el plano de CONSULTAS, que no tiene eventos ni necesita el nombre. Un retorno más ancho
+ * para todos, por un consumidor, es la clase de cambio que después nadie sabe por qué está.
+ *
+ * `name` PUEDE SER `undefined` Y NO ES LO MISMO QUE UNA FILA SIN NOMBRE: significa que **no hay
+ * fila**. La columna es NOT NULL, así que una fila existente siempre tiene algo —incluso el
+ * fallback `email ?? id` que el espejo escribe en `best-effort`—. Quien lo consuma tiene que
+ * tratar el `undefined` como "no sé", no como "no tiene".
+ *
+ * NO CAPTURA, por lo mismo que `readCallerRoles`: quien la llama ya tiene su try/catch y la
+ * compuerta que no puede decidir DENIEGA.
+ */
+export async function readCallerIdentity(
+  caller: string
+): Promise<{ roles: readonly string[]; name?: string }> {
   // SIN TRANSACCIÓN (ver el bloque de arriba) y POR PK, contra una tabla de decenas de filas.
   const user = await User.findByPk(caller);
-  return Array.isArray(user?.roles) ? user.roles : [];
+
+  return {
+    roles: Array.isArray(user?.roles) ? user.roles : [],
+    name: user?.name,
+  };
 }
 
 /**

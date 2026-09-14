@@ -9,7 +9,7 @@ import {
   failure,
 } from '@jiku/nats-protocol';
 import { sequelize } from '../models';
-import { Channel, authorizeWithRoles, readCallerRoles } from '../authorize-caller';
+import { Channel, authorizeWithRoles, readCallerIdentity } from '../authorize-caller';
 import { CallerClass, resolveCallerClass } from '../caller-class';
 import { getTrustedPublisherId } from '../config';
 import { authorizeEntityAccess } from '../entity-project';
@@ -243,8 +243,8 @@ export class Dispatcher {
       // siempre tiene el bueno —lo escribe el evento del callout, que sí viene enriquecido—. Este
       // es exactamente el hueco que el token vacío dejaba al descubierto.
       //
-      // NO TOCA EL CANAL DIRECTO: sin sobre no hay nada que completar y `resolveEventActor` sigue
-      // cayendo al `id`, tal como el contrato declara (R-5 de REQ-014).
+      // EL CANAL DIRECTO SE RESUELVE MÁS ABAJO, junto a los roles (S-070): allá no hay sobre que
+      // completar, pero sí una fila —la que la compuerta ya lee— de la que sale el mismo dato.
       //
       // Y NO COMPLETA CON EL `id`: si la fila quedó con el fallback `email ?? id` de un alta en
       // `best-effort`, `mirroredName` ES el `sub` y escribirlo en el sobre no agregaría nada —
@@ -274,6 +274,12 @@ export class Dispatcher {
     // es EL MISMO array, pasado un nivel más abajo, sin una sola consulta nueva. Es la misma forma
     // que ya usa `callerClass`.
     let roles: readonly string[];
+    // EL NOMBRE HUMANO DEL ACTOR, con la MISMA forma que `roles` y por la misma razón (S-070): se
+    // calcula adentro del `try`, donde está la lectura, y se usa afuera al armar el contexto.
+    //
+    // ARRANCA CON EL DEL SOBRE —ya enriquecido más arriba si hacía falta— y la rama directa lo
+    // completa con el de la fila. El exento lo deja en `undefined`: ese canal no toca la base.
+    let actorName: string | undefined = actor?.name;
     // LA IDENTIDAD DEL ACTOR, resuelta una vez y usada por las DOS compuertas: la del método y la
     // de entidad. Con sobre es `actor.id`, sin sobre el caller del subject — NUNCA el service user
     // de la api. Es la misma identidad que `resolveActor` elige y que la api usaba en
@@ -300,7 +306,24 @@ export class Dispatcher {
       // hacerlo depender de esa fila reintroduce la caída total y silenciosa de escritura que la
       // exención existe para evitar.
       const exemptDirect = !actor && caller === getTrustedPublisherId();
-      roles = actor ? actor.roles : exemptDirect ? [] : await readCallerRoles(caller);
+
+      if (actor) {
+        roles = actor.roles;
+      } else if (exemptDirect) {
+        roles = [];
+      } else {
+        // LA MISMA LECTURA DE SIEMPRE, que ahora además conserva el `name` (S-070). Era un
+        // `readCallerRoles(caller)` y pasó a `readCallerIdentity`, que hace EL MISMO `findByPk` y
+        // devuelve los dos campos en vez de tirar uno: cero consultas nuevas, y el nombre que los
+        // eventos necesitan sale de la fila que la compuerta ya traía.
+        const identity = await readCallerIdentity(caller);
+        roles = identity.roles;
+        // `!== caller` por lo mismo que en la rama del sobre: si la fila quedó con el fallback
+        // `email ?? id`, el "nombre" ES el `sub` y no agrega nada. Dejarlo en `undefined` hace que
+        // el último escalón de `resolveEventActor` siga siendo el que decide.
+        actorName = identity.name !== caller ? identity.name : undefined;
+      }
+
       const channel: Channel = actor ? 'envelope' : 'direct';
 
       // COMPUERTA 1 — "¿su rol habilita este método?".
@@ -434,7 +457,7 @@ export class Dispatcher {
     const transaction = await sequelize.transaction();
     try {
       const reply = await command.execute(validated.value, {
-        caller, params, transaction, actor, roles,
+        caller, params, transaction, actor, roles, actorName,
       });
 
       if (reply.status === 'success') {

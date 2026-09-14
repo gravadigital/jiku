@@ -90,6 +90,7 @@ export const tasksComment: Command<TasksCommentPayload, { id: number }> = {
         task: { id: task.id, projectId: task.projectId },
         actorId: actor,
         actorEnvelope: ctx.actor,
+        actorName: ctx.actorName,
         snapshot: taskToSnapshot(task, responsiblePersonIds),
         comment: {
           id: comment.id,

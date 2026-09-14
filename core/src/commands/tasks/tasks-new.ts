@@ -172,6 +172,7 @@ export const tasksNew: Command<TasksNewPayload, { id: number }> = {
         // string ya resuelto por `resolveActor` — es la fuente del fallback `name` -> `email` ->
         // `id` de `resolveEventActor()`. `undefined` en el canal directo.
         actorEnvelope: ctx.actor,
+        actorName: ctx.actorName,
         // El payload TAL CUAL, no una relectura de `people_objectives`: es la única fuente fiel
         // al orden semántico (el primero es el líder).
         snapshot: taskToSnapshot(task, payload.responsiblePersonIds),

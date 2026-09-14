@@ -20,6 +20,13 @@ export interface RequirementCreatedInput {
   actorId: string;
   /** El sobre de identidad del comando, si vino (canal de la api). `undefined` en el canal directo. */
   actorEnvelope: Actor | undefined;
+  /**
+   * El nombre humano ya resuelto por el despachador (`ctx.actorName`), o `undefined`.
+   *
+   * ES LO QUE DA NOMBRE AL CANAL DIRECTO (S-070), donde no hay sobre del que sacarlo. En el canal
+   * del sobre no decide nada: ahí el despachador ya completó `actorEnvelope.name`.
+   */
+  actorName?: string;
   snapshot: RequirementSnapshot;
   recipients: EventRecipients;
 }
@@ -49,7 +56,7 @@ export function requirementCreated(
 ): DomainEvent<RequirementSnapshot> {
   return {
     type: EVENT_TYPES.REQUIREMENT_CREATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -71,6 +78,13 @@ interface BaseEventInput {
   actorId: string;
   /** El sobre de identidad del comando, si vino. `undefined` en el canal directo. */
   actorEnvelope: Actor | undefined;
+  /**
+   * El nombre humano ya resuelto por el despachador (`ctx.actorName`), o `undefined`.
+   *
+   * ES LO QUE DA NOMBRE AL CANAL DIRECTO (S-070), donde no hay sobre del que sacarlo. En el canal
+   * del sobre no decide nada: ahí el despachador ya completó `actorEnvelope.name`.
+   */
+  actorName?: string;
   snapshot: RequirementSnapshot;
   recipients: EventRecipients;
 }
@@ -96,7 +110,7 @@ export function requirementStateChanged(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_STATE_CHANGED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -135,7 +149,7 @@ export function requirementUpdated(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_UPDATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -179,7 +193,7 @@ export function requirementResolved(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_RESOLVED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -213,7 +227,7 @@ export function requirementReopened(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_REOPENED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -258,7 +272,7 @@ export function requirementAssigned(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_ASSIGNED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -292,7 +306,7 @@ export function requirementCommentCreated(
 ): DomainEvent<RequirementSnapshot> {
   return {
     type: EVENT_TYPES.REQUIREMENT_COMMENT_CREATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,
@@ -337,7 +351,7 @@ export function requirementCommentEdited(
 
   return {
     type: EVENT_TYPES.REQUIREMENT_COMMENT_EDITED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'requirement',
       id: input.requirement.id,

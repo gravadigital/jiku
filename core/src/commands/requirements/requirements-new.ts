@@ -159,6 +159,7 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
         // `id` de `resolveEventActor()`. `undefined` en el canal directo, y ESO es la señal de
         // "no hay más que el id" que ese resolver necesita.
         actorEnvelope: ctx.actor,
+        actorName: ctx.actorName,
         snapshot: requirementToSnapshot(requirement, personIds),
         recipients: await resolveRecipients(requirement.id, personIds, ctx.transaction),
       }),

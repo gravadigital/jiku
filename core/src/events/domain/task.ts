@@ -33,6 +33,13 @@ interface BaseEventInput {
   actorId: string;
   /** El sobre de identidad del comando, si vino (canal de la api). `undefined` en el canal directo. */
   actorEnvelope: Actor | undefined;
+  /**
+   * El nombre humano ya resuelto por el despachador (`ctx.actorName`), o `undefined`.
+   *
+   * ES LO QUE DA NOMBRE AL CANAL DIRECTO (S-070), donde no hay sobre del que sacarlo. En el canal
+   * del sobre no decide nada: ahí el despachador ya completó `actorEnvelope.name`.
+   */
+  actorName?: string;
   snapshot: TaskSnapshot;
 }
 
@@ -47,7 +54,7 @@ export type TaskCreatedInput = BaseEventInput;
 export function taskCreated(input: TaskCreatedInput): DomainEvent<TaskSnapshot> {
   return {
     type: EVENT_TYPES.TASK_CREATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,
@@ -78,7 +85,7 @@ export function taskStateChanged(input: TaskStateChangedInput): DomainEvent<Task
 
   return {
     type: EVENT_TYPES.TASK_STATE_CHANGED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,
@@ -116,7 +123,7 @@ export function taskUpdated(input: TaskUpdatedInput): DomainEvent<TaskSnapshot> 
 
   return {
     type: EVENT_TYPES.TASK_UPDATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,
@@ -145,7 +152,7 @@ export function taskCommentCreated(
 ): DomainEvent<TaskSnapshot> {
   return {
     type: EVENT_TYPES.TASK_COMMENT_CREATED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,
@@ -184,7 +191,7 @@ export function taskCommentEdited(
 
   return {
     type: EVENT_TYPES.TASK_COMMENT_EDITED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,
@@ -227,7 +234,7 @@ export function taskAssigned(input: TaskAssignedInput): DomainEvent<TaskSnapshot
 
   return {
     type: EVENT_TYPES.TASK_ASSIGNED,
-    actor: resolveEventActor(input.actorId, input.actorEnvelope),
+    actor: resolveEventActor(input.actorId, input.actorEnvelope, input.actorName),
     entity: {
       type: 'task',
       id: input.task.id,

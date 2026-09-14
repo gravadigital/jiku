@@ -57,6 +57,34 @@ export interface CommandContext {
    * comando a un `?? []` y crearía un cuarto estado —"no vino"— que no existe.
    */
   roles: readonly string[];
+  /**
+   * El nombre HUMANO de quien actúa, resuelto por el despachador, o `undefined` si no hay ninguno
+   * que valga.
+   *
+   * EXISTE PARA LOS EVENTOS DE DOMINIO Y PARA NADA MÁS (S-070). Ningún comando decide nada con
+   * esto: es un dato de PRESENTACIÓN que viaja en `DomainEvent.actor.name`, no de autorización ni
+   * de dominio. La identidad con la que se escribe sigue saliendo de `resolveActor`, y los
+   * permisos de `roles` — no los mezcles.
+   *
+   * DE DÓNDE SALE EN CADA UNO DE LOS TRES CANALES, y la asimetría es deliberada:
+   *
+   *   - SOBRE: el `name` del claim, y si no vino, el de la fila que el espejo acaba de escribir
+   *     (S-068). El claim gana porque la api ya lo verificó contra Zitadel y es más fresco.
+   *   - DIRECTO (una persona publicando al bus): `users.name` de `ctx.caller` — el MISMO `findByPk`
+   *     que la compuerta ya hizo para leer los roles, no una consulta nueva.
+   *   - EXENTO (el publicador de confianza sin sobre): `undefined`, porque ese canal NO TOCA LA
+   *     BASE a propósito (S-017 CA-1). Consultar `users` para adornar un campo opcional
+   *     reintroduciría la caída total de escritura que la exención existe para evitar.
+   *
+   * `undefined` SIGNIFICA "NO HAY NOMBRE QUE VALGA", y su consecuencia la decide
+   * `resolveEventActor`: cae al `id`, que es lo que el contrato de eventos ya declara como posible
+   * ("`EventActor.name` PUEDE SER UN ID"). No le inventes un valor acá.
+   *
+   * NUNCA ES UN EMAIL DE LA FILA: `EventActor` no declara esa clave y la dirección de una persona
+   * no tiene por qué viajar a un conector externo. El único `email` que puede terminar en un
+   * evento es el del SOBRE, por el escalón que REQ-014 ya había decidido.
+   */
+  actorName?: string;
 }
 
 /**

@@ -38,11 +38,21 @@ import { Actor, EventActor } from '@jiku/nats-protocol';
  * `actor.email` NUNCA VIAJA (contrato: `EventActor` no declara esa clave). Este resolver no la
  * copia ni siquiera internamente más allá de leerla para el fallback.
  */
-export function resolveEventActor(actorId: string, envelope: Actor | undefined): EventActor {
+export function resolveEventActor(
+  actorId: string,
+  envelope: Actor | undefined,
+  resolvedName?: string
+): EventActor {
+  // `resolvedName` ES EL DEL CANAL DIRECTO (S-070): el `users.name` que el despachador leyó para
+  // autorizar, pasado por `ctx.actorName`. Va DESPUÉS de los dos claims del sobre —que son más
+  // frescos, ADR-007— y ANTES del `id`, que no es un nombre para nadie.
+  //
+  // NO ES UN CUARTO ESCALÓN PARA EL CANAL DEL SOBRE: ahí el despachador ya completó `envelope.name`
+  // con la fila (S-068), así que el valor llega por la primera rama y este parámetro no decide.
   if (envelope) {
-    return { id: actorId, name: envelope.name ?? envelope.email ?? actorId };
+    return { id: actorId, name: envelope.name ?? envelope.email ?? resolvedName ?? actorId };
   }
-  return { id: actorId, name: actorId };
+  return { id: actorId, name: resolvedName ?? actorId };
 }
 
 export default resolveEventActor;

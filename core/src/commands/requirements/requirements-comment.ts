@@ -91,6 +91,7 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
         requirement: { id: requirement.id, projectId: requirement.projectId },
         actorId: actor,
         actorEnvelope: ctx.actor,
+        actorName: ctx.actorName,
         snapshot: requirementToSnapshot(requirement, responsiblePersonIds),
         recipients: await resolveRecipients(requirement.id, responsiblePersonIds, ctx.transaction),
         comment: {

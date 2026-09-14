@@ -116,6 +116,7 @@ export const tasksCommentEdit: Command<CommentEditPayload, never> = {
           task: { id: task.id, projectId: task.projectId },
           actorId: actor,
           actorEnvelope: ctx.actor,
+          actorName: ctx.actorName,
           snapshot: taskToSnapshot(task, responsiblePersonIds),
           comment: {
             id: activity.id,

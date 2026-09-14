@@ -114,6 +114,7 @@ export const requirementsCommentEdit: Command<CommentEditPayload, never> = {
           requirement: { id: requirement.id, projectId: requirement.projectId },
           actorId: actor,
           actorEnvelope: ctx.actor,
+          actorName: ctx.actorName,
           snapshot: requirementToSnapshot(requirement, responsiblePersonIds),
           recipients: await resolveRecipients(
             requirement.id,

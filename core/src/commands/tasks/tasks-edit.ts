@@ -269,6 +269,7 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
           task: entity,
           actorId: actor,
           actorEnvelope: ctx.actor,
+          actorName: ctx.actorName,
           snapshot,
           from: previousState,
           to: task.state,
@@ -280,6 +281,7 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
           task: entity,
           actorId: actor,
           actorEnvelope: ctx.actor,
+          actorName: ctx.actorName,
           snapshot,
           title: titleChanged ? { from: previousTitle, to: task.title } : undefined,
           description: descriptionChanged
@@ -295,6 +297,7 @@ export const tasksEdit: Command<TasksEditPayload, void> = {
           task: entity,
           actorId: actor,
           actorEnvelope: ctx.actor,
+          actorName: ctx.actorName,
           snapshot,
           from: assignment.from,
           to: assignment.to,
