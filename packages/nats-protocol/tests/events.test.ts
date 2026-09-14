@@ -76,7 +76,7 @@ describe('nats-protocol · el tipo del payload del evento', () => {
       username: true,
       email: true,
       roles: true,
-      identity_type: true,
+      matched_role: true,
     };
     Object.keys(KEYS).length.should.equal(9);
   });
@@ -87,7 +87,7 @@ describe('nats-protocol · el tipo del payload del evento', () => {
     // seis ignorados no están declarados.
     const raw: Record<string, unknown> = {
       type: 'authenticated',
-      version: 1,
+      version: 2,
       id: '281234567890123456',
       name: 'Ana Pérez',
       username: 'ana@grava.digital',
@@ -96,36 +96,36 @@ describe('nats-protocol · el tipo del payload del evento', () => {
       authenticated_at: '2026-08-23T18:04:11.123Z',
       expires_at: '2026-08-23T19:04:11Z',
       instance: 'prod',
-      identity_type: 'person',
       matched_role: 'user',
       template: 'templates/person.yaml',
       client_ip: '10.1.2.3',
       session: 'UAWUJEWODGQJGMUGZBJH4Y6XKTVD5V4G5EQZXUJA5QV3ZL2TP2JY3ZNH',
     };
-    Object.keys(raw).length.should.equal(15);
+    // CATORCE Y NO QUINCE DESDE LA v2: `identity_type` se eliminó del payload.
+    Object.keys(raw).length.should.equal(14);
 
     const e = raw as unknown as AuthEvent;
     e.id.should.equal('281234567890123456');
     e.roles.should.eql(['user']);
-    e.identity_type.should.equal('person');
-    e.version.should.equal(1);
+    e.matched_role!.should.equal('user');
+    e.version.should.equal(2);
     e.type.should.equal('authenticated');
     e.instance.should.equal('prod');
     e.name.should.equal('Ana Pérez');
     e.username.should.equal('ana@grava.digital');
     e.email!.should.equal('ana@grava.digital');
 
-    // `identity_type` es `string`, NO el enum de @jiku/models: un valor fuera del enum es un
-    // evento INVÁLIDO —que el esquema Joi de core descarta— no un tipo imposible. Si acá
-    // estuviera el enum, el test de descarte de core no se podría escribir.
-    const robot: AuthEvent = { ...e, identity_type: 'robot' };
-    robot.identity_type.should.equal('robot');
+    // `matched_role` es `string` ABIERTO y no una unión de los roles de `rules.yaml`: un rol que
+    // core no conozca es un valor legítimo del cable —clasifica como `person`, el default de
+    // siempre— y no un tipo imposible. Es el mismo criterio con el que `roles` va `string[]`.
+    const desconocido: AuthEvent = { ...e, matched_role: 'rol-que-no-existe' };
+    desconocido.matched_role!.should.equal('rol-que-no-existe');
 
     // `type` y `version` van widened a propósito: en el cable un `version: 2` o un
     // `type: 'deauthenticated'` son valores legítimos que core descarta, y congelarlos como
     // literales volvería intipeable la rama de descarte.
-    const otro: AuthEvent = { ...e, type: 'deauthenticated', version: 2 };
-    otro.version.should.equal(2);
+    const otro: AuthEvent = { ...e, type: 'deauthenticated', version: 1 };
+    otro.version.should.equal(1);
   });
 
   it('TS-67b: `email` acepta `null`, que es la forma de una identidad de servicio', () => {
@@ -135,18 +135,20 @@ describe('nats-protocol · el tipo del payload del evento', () => {
     // compuertas del bus la rechazan con `caller_not_authorized` y `unknown_caller`.
     const service: AuthEvent = {
       type: 'authenticated',
-      version: 1,
+      version: 2,
       instance: 'prod',
       id: '387842544790142978',
       name: 'Jiku API',
       username: 'jiku-api',
       email: null,
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     };
 
     (service.email === null).should.be.true();
-    service.identity_type.should.equal('service');
+    // DESDE LA v2 la clase sale del rol que ganó la regla, no de un campo propio: `internal-app`
+    // es uno de los dos roles de servicio de `rules.yaml`.
+    service.matched_role!.should.equal('internal-app');
 
     // Y sigue admitiendo un string: la excepción es "PUEDE no tener", no "no tiene". Un service
     // user con dirección declarada en Zitadel la conserva.
