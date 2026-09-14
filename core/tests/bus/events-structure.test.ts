@@ -119,19 +119,23 @@ describe('bus/events-structure — gates estructurales de S-063 y S-067', () => 
       );
     for (const subject of [
       '$JS.API.INFO',
+      '$JS.API.STREAM.INFO.JIKU_EVENTS',
       '$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>',
       '$JS.API.CONSUMER.INFO.JIKU_EVENTS.>',
       '$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>',
     ]) {
       (connector.pub?.allow || []).should.containEql(subject);
     }
-    // Y NINGUNA LÍNEA DE ADMINISTRACIÓN DE STREAMS: ni borrar, ni vaciar, ni reconfigurar.
-    const streamAdmin = (connector.pub?.allow || []).filter((a) =>
-      a.startsWith('$JS.API.STREAM.')
+    // DEL PLANO DE STREAMS, SOLO LECTURA. `STREAM.INFO.JIKU_EVENTS` es legítimo —un conector
+    // resuelve el stream antes de bindear su consumidor— pero NADA que MUTE el stream: ni
+    // borrar (`DELETE`), ni vaciar (`PURGE`), ni reconfigurar (`UPDATE`), ni borrar mensajes
+    // sueltos (`MSG.DELETE`). Un conector es un LECTOR.
+    const streamMutations = (connector.pub?.allow || []).filter(
+      (a) => a.startsWith('$JS.API.STREAM.') && !a.startsWith('$JS.API.STREAM.INFO.')
     );
-    streamAdmin.should.deepEqual(
+    streamMutations.should.deepEqual(
       [],
-      `Un conector no administra streams (borrar/vaciar/reconfigurar): ${streamAdmin.join(', ')}`
+      `Un conector no muta streams (borrar/vaciar/reconfigurar): ${streamMutations.join(', ')}`
     );
     (connector.sub?.allow || []).should.containEql('_INBOX.{{user_id_hash}}.>');
     (connector.pub?.allow || []).should.not.containEql('_INBOX.{{user_id_hash}}.>');

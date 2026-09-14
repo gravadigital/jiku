@@ -184,7 +184,7 @@ echo "==> minting a throwaway consumer user for this run only"
 # le falta lo mismo — y se agrega en los dos lados, nunca ensanchando solo este.
 $NSC add user --account "$ACCOUNT" --name "$USER_NAME" \
   --allow-sub "$INSTANCE.events.$EVENTS_VERSION.>,_INBOX.>" \
-  --allow-pub '$JS.API.INFO,$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.INFO.JIKU_EVENTS.>,$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>' >/dev/null
+  --allow-pub '$JS.API.INFO,$JS.API.STREAM.INFO.JIKU_EVENTS,$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.INFO.JIKU_EVENTS.>,$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>' >/dev/null
 
 $NSC generate creds --account "$ACCOUNT" --name "$USER_NAME" > "$TMP_CREDS/consumer.creds"
 chmod 600 "$TMP_CREDS/consumer.creds"

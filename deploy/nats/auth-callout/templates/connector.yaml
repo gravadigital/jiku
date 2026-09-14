@@ -10,6 +10,7 @@ pub:
     # JetStream ACOTADO A JIKU_EVENTS. Nunca `$JS.API.>`: es administración completa de
     # JetStream sobre la cuenta (borrar, vaciar y reconfigurar cualquier stream).
     - "$JS.API.INFO"
+    - "$JS.API.STREAM.INFO.JIKU_EVENTS"
     - "$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>"
     - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>"
     - "$JS.API.CONSUMER.INFO.JIKU_EVENTS.>"

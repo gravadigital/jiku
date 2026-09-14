@@ -112,11 +112,13 @@ JetStream — `STREAM.DELETE.JIKU_EVENTS` (borrar el stream de eventos), `STREAM
 cuenta.
 
 Un conector es un **lector** del stream. `connector.yaml` enumera solo lo que un consumidor durable
-usa, acotado a `JIKU_EVENTS`:
+usa, acotado a `JIKU_EVENTS`. Del plano de streams lleva **solo lectura** (`STREAM.INFO`): nada que
+mute el stream —`DELETE`, `PURGE`, `UPDATE`, `MSG.DELETE`— y hay un test que lo hace cumplir.
 
 | Subject | Para qué |
 | --- | --- |
 | `$JS.API.INFO` | `jetstreamManager()` — el único que no nombra un stream |
+| `$JS.API.STREAM.INFO.JIKU_EVENTS` | Resolver el stream antes de bindear el consumidor |
 | `$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>` | Crear el durable (el cliente usa una de tres formas) |
 | `$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>` | Idem, forma legacy |
 | `$JS.API.CONSUMER.INFO.JIKU_EVENTS.>` | `consumers.get()` |
