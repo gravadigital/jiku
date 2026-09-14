@@ -111,7 +111,7 @@ function redactReply(reply: Reply): Reply {
  * cuando se pierde un evento. SI ALGUNA VEZ LA COMPUERTA LEE ESTA FILA PARA AUTORIZAR, HAY QUE
  * REVISAR ESTA DECISIÓN: un espejo no fatal se convertiría en un bypass silencioso.
  */
-async function mirrorActor(actor: Actor): Promise<void> {
+async function mirrorActor(actor: Actor): Promise<string | undefined> {
   // EN SU PROPIO `try`, y el precedente exacto está en `events/dispatcher.ts`: abrir una
   // transacción PUEDE FALLAR SOLA (pool agotado, base caída), y ese rechazo escaparía de
   // `dispatch()`.
@@ -120,11 +120,11 @@ async function mirrorActor(actor: Actor): Promise<void> {
     transaction = await sequelize.transaction();
   } catch (error: any) {
     logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
-    return;
+    return undefined;
   }
 
   try {
-    const outcome = await mirrorUser(
+    const { outcome, name } = await mirrorUser(
       {
         // EL SPREAD ACÁ SÍ, Y ES LA EXCEPCIÓN QUE CONFIRMA LA REGLA: `Actor` es una forma CERRADA
         // de cinco claves que el contrato declara, no un payload abierto como el del evento, y
@@ -152,12 +152,17 @@ async function mirrorActor(actor: Actor): Promise<void> {
     if (outcome === 'created') {
       logger.info(`[dispatch] ${actor.id}: created`);
     }
+
+    return name;
   } catch (error: any) {
     // EL ROLLBACK NO PUEDE SER LA FUENTE DE UN RECHAZO: si lo que falló fue el `commit`, la
     // transacción ya terminó y `rollback()` sobre una terminada rechaza. Ese segundo rechazo
     // taparía el error original, que es el que hay que ver.
     await transaction.rollback().catch(() => undefined);
     logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
+    // Sin nombre: el espejo falló y no hay fila de la que leerlo. El evento cae al escalón
+    // siguiente de `resolveEventActor`, igual que antes de este enriquecimiento.
+    return undefined;
   }
 }
 
@@ -197,13 +202,58 @@ export class Dispatcher {
     if ('error' in extracted) {
       return extracted.error;
     }
-    const { actor, payload } = extracted;
+    const { payload } = extracted;
+    let { actor } = extracted;
 
     // EL ESPEJO, ANTES DE AUTORIZAR (CA-8, RF-9) y en su propia transacción, que COMMITEA antes de
     // que se abra la del comando. Sin sobre no hay espejo: ni una transacción de más ni una
     // consulta de más para el 100% del tráfico de hoy. Ver `mirrorActor` para el porqué completo.
     if (actor) {
-      await mirrorActor(actor);
+      const mirroredName = await mirrorActor(actor);
+
+      // ── EL SOBRE SE COMPLETA CON EL NOMBRE DE LA FILA ───────────────────────────────────────
+      //
+      // POR QUÉ HACE FALTA: el access token de Zitadel NO TRAE los claims de perfil (`name`,
+      // `preferred_username`, `email`) —verificado sobre un token real, y ya documentado en
+      // `docs/flows/sincronizacion-de-identidades.md`—, y la api arma el sobre exclusivamente de
+      // ese token. Así que el sobre llega con `id` y `roles` y NADA MÁS, y el `actor.name` de los
+      // 16 eventos de dominio salía con el `sub` de Zitadel en vez del nombre de la persona.
+      //
+      // POR QUÉ ACÁ Y NO EN LOS 16 CONSTRUCTORES: son PUROS a propósito (S-063, y hay un test que
+      // lo afirma) y todos reciben el mismo `ctx.actor`. Completar el sobre UNA VEZ, en el único
+      // lugar por el que pasan todos los comandos, los arregla a los 16 sin tocar ninguno.
+      //
+      // POR QUÉ NO CUESTA UNA CONSULTA: `mirrorActor` YA leyó (o escribió) la fila en la
+      // transacción que acaba de commitear. El nombre viene de ese mismo `findByPk`, no de uno
+      // nuevo. Es la razón por la que esto se resuelve acá y no en la api, que tendría que pagar
+      // una llamada HTTP a Zitadel por comando dentro del timeout de 5 s de ADR-002.
+      //
+      // DÓNDE SE INSERTA LA FILA EN LA PRECEDENCIA, que es la decisión fina de este bloque. El
+      // escalón que `resolveEventActor` declara es `name` -> `email` -> `id`, y la fila entra
+      // ENTRE `email` y `id`:
+      //
+      //     name del sobre  ->  email del sobre  ->  NAME DE LA FILA  ->  id
+      //
+      // NO POR ENCIMA DE `email`: los dos claims del sobre salen del token que la api YA VERIFICÓ
+      // contra Zitadel y son MÁS FRESCOS que la fila, que es un espejo. Pisarlos con la fila sería
+      // la misma inversión de fuentes que ADR-007 prohíbe, y rompería el fallback a `email` que
+      // REQ-014 ya había decidido.
+      //
+      // SÍ POR ENCIMA DEL `id`: un `sub` de Zitadel no es un nombre para nadie, y la fila casi
+      // siempre tiene el bueno —lo escribe el evento del callout, que sí viene enriquecido—. Este
+      // es exactamente el hueco que el token vacío dejaba al descubierto.
+      //
+      // NO TOCA EL CANAL DIRECTO: sin sobre no hay nada que completar y `resolveEventActor` sigue
+      // cayendo al `id`, tal como el contrato declara (R-5 de REQ-014).
+      //
+      // Y NO COMPLETA CON EL `id`: si la fila quedó con el fallback `email ?? id` de un alta en
+      // `best-effort`, `mirroredName` ES el `sub` y escribirlo en el sobre no agregaría nada —
+      // dejarlo ausente hace que el último escalón de `resolveEventActor` siga siendo el que
+      // decide, que es donde el contrato quiere que esa decisión viva.
+      const completable = actor.name === undefined && actor.email === undefined;
+      if (completable && mirroredName && mirroredName !== actor.id) {
+        actor = { ...actor, name: mirroredName };
+      }
     }
 
     // LA COMPUERTA VA ANTES QUE EL RESTO (CA-6 de S-017), y las dos cosas que quedan detrás son el

@@ -36,7 +36,9 @@ import { EventContext, EventOutcome } from '../types';
  * lo manda—, pero es el caso peligroso del reemplazo total.
  */
 export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<EventOutcome> {
-  const outcome = await mirrorUser(
+  // Solo el `outcome`: el `name` que `mirrorUser` devuelve desde S-068 es para el enriquecimiento
+  // del sobre en el plano de COMANDOS, y este camino no lo necesita.
+  const { outcome } = await mirrorUser(
     {
       id: event.id,
       name: event.name,
