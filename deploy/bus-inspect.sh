@@ -53,9 +53,10 @@ for s in rows:
     ;;
 
   tail)
-    # An observer needs a service user with the `bus-observer` role in Zitadel (see
-    # nats/auth-callout/templates/observer.yaml). Without that, the way to see the
-    # traffic is core's log, which prints every command it serves.
+    # There is no eavesdropping role any more: `bus-observer` and its template were
+    # removed (it could read every caller's inbox, which made it unfit for anything but
+    # a development machine). The way to see the traffic is core's log, which prints
+    # every command it serves.
     echo "following the commands core serves  (ctrl-c to quit)"
     echo
     docker logs -f jiku-local-core 2>&1 | grep --line-buffered -E "\[cmd\]|dispatch"

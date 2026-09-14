@@ -18,7 +18,11 @@
 #
 # LOS TRES PERMISOS, Y LA ÚNICA DIFERENCIA CON `connector.yaml`:
 #   --allow-sub "$INSTANCE.events.$EVENTS_VERSION.>"   igual que la plantilla
-#   --allow-pub '$JS.API.>'                            igual que la plantilla
+#   --allow-pub  los subjects de $JS.API ACOTADOS AL STREAM   igual que la plantilla: NO es
+#                                                        `$JS.API.>`, que es administración
+#                                                        completa de JetStream (borrar y vaciar
+#                                                        cualquier stream) y un conector es un
+#                                                        LECTOR. Ver `connector.yaml`.
 #   --allow-sub '_INBOX.>'                              LA PLANTILLA usa '_INBOX.{{user_id_hash}}.>'
 #                                                        (por RÉPLICA); acá alcanza con '_INBOX.>'
 #                                                        porque este usuario es de UN SOLO USO,
@@ -49,7 +53,8 @@ uso: events-test-consumer.sh [opciones]
 
 Consumidor de prueba del stream de eventos de dominio JIKU_EVENTS (S-067, CA-3). Mintea una
 credencial DESCARTABLE con los tres permisos del molde `auth-callout/templates/connector.yaml`
-(sub sobre la versión entera de eventos, pub sobre $JS.API.>, sub sobre su propio inbox) y corre
+(sub sobre la versión entera de eventos, pub sobre los subjects de $JS.API acotados a
+JIKU_EVENTS, sub sobre su propio inbox) y corre
 el consumidor de `core/tests/tools/events-test-consumer.ts` con ella. La borra al salir, también
 si se corta con Ctrl-C.
 
@@ -174,9 +179,12 @@ echo "==> minting a throwaway consumer user for this run only"
 # Los MISMOS tres permisos que `auth-callout/templates/connector.yaml` (D-6). La única
 # diferencia es el inbox: acá alcanza '_INBOX.>' porque el usuario es de un solo uso y nadie
 # más lo comparte; la plantilla usa '_INBOX.{{user_id_hash}}.>' porque es por RÉPLICA.
+# LOS MISMOS SUBJECTS ACOTADOS QUE `connector.yaml`, no `$JS.API.>`: si el molde alcanza con
+# esto, este script tiene que alcanzar con esto (D-6). Si acá hiciera falta algo más, al molde
+# le falta lo mismo — y se agrega en los dos lados, nunca ensanchando solo este.
 $NSC add user --account "$ACCOUNT" --name "$USER_NAME" \
   --allow-sub "$INSTANCE.events.$EVENTS_VERSION.>,_INBOX.>" \
-  --allow-pub '$JS.API.>' >/dev/null
+  --allow-pub '$JS.API.INFO,$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>,$JS.API.CONSUMER.INFO.JIKU_EVENTS.>,$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>' >/dev/null
 
 $NSC generate creds --account "$ACCOUNT" --name "$USER_NAME" > "$TMP_CREDS/consumer.creds"
 chmod 600 "$TMP_CREDS/consumer.creds"

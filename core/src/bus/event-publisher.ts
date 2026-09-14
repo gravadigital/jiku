@@ -31,9 +31,20 @@ export interface EventPublisher {
  * y esta implementación lo codifica a JSON antes de publicar. Así el doble de test (`FakeEventPublisher`)
  * puede acumular el objeto tal cual y un test hace `deepEqual` sin deserializar nada.
  *
- * `js.publish()` ESPERA EL ACK DE JETSTREAM (el `PubAck`), y ese intercambio va por `$JS.API.*`
- * — de ahí que el `pub.allow` de `core.yaml` (Task 6) tenga que ganar esa línea. Un `nc.publish()`
- * pelado no lo requeriría, pero tampoco persistiría el mensaje en el stream: no se cambia por eso.
+ * `js.publish()` ESPERA EL ACK DE JETSTREAM (el `PubAck`), PERO ESE INTERCAMBIO NO VA POR
+ * `$JS.API`. Es un `request` al SUBJECT DEL EVENTO —el mismo que se pasa acá— y el `PubAck`
+ * vuelve por el INBOX del publicador. Se ve en `nats/lib/jetstream/jsclient.js`: `publish()` es
+ * `this.nc.request(subj, data, ro)` sobre `subj`, no sobre un subject de administración.
+ *
+ * CONSECUENCIA PARA LOS PERMISOS, Y ES LO QUE HAY QUE SABER SI SE TOCA ESTA CLASE: a `core` le
+ * alcanzan las dos líneas que ya tiene en `templates/core.yaml` —el `pub.allow` sobre el
+ * wildcard de eventos de la instancia y el `sub.allow` sobre su propio inbox—. NO necesita
+ * `$JS.API.>`, que es
+ * administración completa de JetStream sobre la cuenta (borrar, vaciar y reconfigurar cualquier
+ * stream); esa línea existió hasta que se la eliminó por ser un permiso enorme y sin uso.
+ *
+ * Un `nc.publish()` pelado no esperaría el ack, pero tampoco confirmaría que el mensaje quedó
+ * persistido en el stream: no se cambia por eso.
  */
 export class JetStreamEventPublisher implements EventPublisher {
   private codec = JSONCodec();

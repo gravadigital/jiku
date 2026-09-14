@@ -202,7 +202,9 @@ events-test-consumer.ts`, S-067).
 - Valida subject, `version` y payload completo contra `docs/apis/core-events.yaml` — el molde de
   permisos que un conector real necesita es `deploy/nats/auth-callout/templates/connector.yaml`
   (S-067): `sub.allow` sobre `{instance}.events.v1.>` (la excepción declarada a la política de
-  subjects literales, D-8 de S-067 / ADR-008 regla 2), `pub.allow` sobre `$JS.API.>`, y su propio
+  subjects literales, D-8 de S-067 / ADR-008 regla 2), `pub.allow` sobre los subjects de
+  JetStream **acotados al stream** —`$JS.API.INFO` y `$JS.API.CONSUMER.{CREATE,DURABLE.CREATE,INFO,MSG.NEXT}.JIKU_EVENTS.>`,
+  nunca `$JS.API.>`, que es administración completa de JetStream sobre la cuenta— y su propio
   inbox en `sub.allow`.
 
 ## La gramática del subject y su versionado independiente

@@ -1,166 +1,26 @@
-# rules.yaml — rol de Zitadel -> (tipo de identidad, plantilla)
+# Rol de Zitadel -> plantilla de permisos. Ver README.md.
 #
-# CÓMO SE EVALÚA
-#   Se recorren las reglas EN ORDEN y gana la PRIMERA cuyo `match` coincida con algún rol
-#   del token. Sin coincidencia, la conexión se RECHAZA: no hay permisos por defecto.
-#   Poner lo más restrictivo arriba.
+# Gana la PRIMERA regla que coincida; sin coincidencia la conexión se rechaza.
+# Las reglas de servicio van ARRIBA de las de persona: reordenar rompe eso en silencio.
 #
-# EL ROL ES LO ÚNICO QUE DECIDE
-#   No hay heurística que adivine si un token es de una persona o de un servicio: lo
-#   declara `type`, y el rol lo asigna quien administra Zitadel.
-#
-# `service` ES EL ENDPOINT, NO LA IDENTIDAD
-#   La identidad de todo caller —persona o servicio— es su `sub` de Zitadel, y es lo que
-#   va como `<user-id>` en el subject. El campo `service` de acá abajo nombra el ENDPOINT
-#   que ese usuario atiende: es el `{{service}}` de la plantilla y el segmento `<svc>` por
-#   el que otros lo llaman.
-#
-#   Gramática completa: <instance>.<user-id>.<svc>.<version>.<method>
-#
-# ROLES DEL PRODUCTO
-#   admin               administrador web  -> accede a NATS con CONSULTAS Y COMANDOS
-#   user                usuario de la web  -> accede a NATS con CONSULTAS Y COMANDOS
-#   external-user       usuario de opus    -> accede a NATS con permiso de SOLO CONSULTAS
-#   internal-app        conectores         -> la api y cualquier otro servicio que
-#                                             hable con core: publica comandos y consulta
-#   core                el servicio core   -> atiende los comandos
-#   bus-observer        diagnóstico local  -> escucha todo, no publica nada
-#
-# LAS PERSONAS CONECTAN AL BUS. DESDE S-035, `admin`/`user` TAMBIÉN ESCRIBEN
-#   Los tres roles de producto tienen regla acá, pero YA NO apuntan todos a la misma
-#   plantilla. Hasta S-035 los tres compartían `person.yaml` y esa plantilla SOLO daba
-#   lectura. Ahora hay DOS plantillas:
-#     - `templates/person-internal.yaml` (`admin`, `user`)      -> consultas Y comandos
-#     - `templates/person-external.yaml` (`external-user`)      -> solo consultas
-#
-#   LA ASIMETRÍA ES INTENCIONAL Y ES COHERENTE CON EL MAPA ROL -> MÉTODO DE core (S-030):
-#   `admin`/`user` tienen comandos reales en `authorize-caller.ts`, `external-user` tiene
-#   `commands: []`. Ampliar la plantilla compartida en vez de partirla le habría dado el
-#   permiso de publicación a `external-user` también, y el síntoma no habría sido un
-#   error: habría sido un `external-user` escribiendo hasta que el mapa de core lo frenara
-#   -con la segunda capa haciendo de primera-. Partirla es lo que mantiene las dos
-#   defensas independientes.
-#
-#   `external-user` sigue sin ganar ningún comando: sigue escribiendo solo por el portal,
-#   vía HTTP a la api (RF-1 §20 de REQ-007).
-#
-#   LA GARANTÍA DE QUE `external-user` NO ESCRIBA SIGUE SIENDO DE DOS CAPAS, y las dos
-#   tienen que seguir siendo verdad:
-#     1. templates/person-external.yaml no le da permiso de publicación sobre el prefijo
-#        de comandos -> el servidor NATS le rechaza la publicación con una violación de
-#        permisos, en el momento.
-#     2. El mapa rol -> método de core (core/src/authorize-caller.ts, S-030) tiene
-#        `commands: []` para `external-user` -> si ese permiso existiera por un error de
-#        plantilla, core responde `caller_not_authorized`.
-#   CADA UNA ALCANZA POR SÍ SOLA. Para `admin`/`user` la garantía es distinta: la
-#   plantilla YA autoriza el prefijo de comandos, y el mapa de core es el que RECORTA cuál
-#   de los comandos de ese prefijo puede cada uno — la plantilla no distingue `admin` de
-#   `user`, el mapa sí. Un rol nuevo con acceso al bus se declara en los dos lugares.
+# Todo cambio acá es un cambio de seguridad (ADR-007).
 
 version: 1
 
 rules:
-  # CONECTORES: la api y cualquier otro servicio que hable con core por el bus.
-  #
-  # VA PRIMERA porque gana la primera regla que coincida, y las de servicio tienen que
-  # ganarle a las de persona (ver el bloque de abajo).
-  #
-  # Para habilitar un conector: crear un machine user en Zitadel con Access Token Type =
-  # JWT y asignarle el rol `internal-app` en GESTION_ZITADEL_PROJECT_ID. No hace falta
-  # tocar nada de este archivo.
-  #
-  # ATENCIÓN AL TAMAÑO DE LO QUE SE CONCEDE. Este rol autoriza los DOS PLANOS COMPLETOS:
-  # `templates/api.yaml` publica sobre `jiku-commands.v1.>` y `jiku-queries.v1.>`, y el
-  # mapa rol -> método de core (`core/src/authorize-caller.ts`) le da `commands: ALL` y
-  # `queries: ALL`. Además cae en la clase `connector`, que NO RECORTA NINGUNA FILA en las
-  # consultas. Un conector con permiso acotado es un ROL NUEVO —con su plantilla y su
-  # entrada en ese mapa—, no una variante de este.
-  #
-  # AQUÍ VIVÍA `external-publisher`, ELIMINADO. Enumeraba 9 subjects de escritura con
-  # plantilla propia, para el canal de REQ-001 RF-11 (un servicio de afuera que sube
-  # archivos y los vincula sin pasar por la api). Ese rol nunca existió en Zitadel: el
-  # canal jamás se usó y las dos enumeraciones —plantilla y mapa— eran configuración
-  # muerta que había que sincronizar a mano. Un servicio externo hoy lleva `internal-app`.
-  #
-  # `service: api` reserva el nombre del endpoint, pero la api HOY NO ATIENDE NINGUNO:
-  # su plantilla no se suscribe a `{{instance}}.*.{{service}}.>`, solo publica y escucha
-  # su inbox. Queda declarado para el día que algo tenga que llamarla por el bus.
   - match: internal-app
-    type: service
-    service: api
-    template: templates/api.yaml
+    template: templates/connector.yaml
 
-  # Core: atiende DOS endpoints en un mismo proceso y con una sola conexión —
-  # `jiku-commands` (por donde entran todos los comandos) y `jiku-queries` (las consultas).
-  #
-  # `service` NOMBRA UNO SOLO, Y YA NO DETERMINA QUÉ ESCUCHA LA PLANTILLA. El placeholder
-  # `{{service}}` es un solo valor y acá hacen falta dos prefijos, así que
-  # `templates/core.yaml` los ENUMERA literalmente en su `sub.allow` en vez de usarlo.
-  # Consecuencia: cambiar este `service` NO mueve la suscripción — solo cambia cómo se
-  # identifica el endpoint en los logs del callout. Para mover la suscripción hay que
-  # editar la plantilla.
   - match: core
-    type: service
-    service: jiku-commands
     template: templates/core.yaml
 
-  # Rol de diagnóstico: escucha todo sin publicar. Solo para entornos locales.
-  # Ídem que `core`: su plantilla enumera los dos prefijos, así que este `service` tampoco
-  # determina qué escucha.
-  - match: bus-observer
-    type: service
-    service: bus-observer
-    template: templates/observer.yaml
-
-  # PERSONAS CON UN ROL DE PRODUCTO. Ya NO apuntan todas a la misma plantilla: `admin` y
-  # `user` ganan comandos, `external-user` no.
-  #
-  # POR QUÉ LA ASIMETRÍA: paridad con el mapa rol -> método de core (S-030). Ahí
-  # `admin`/`user` ya autorizan comandos reales y `external-user` tiene `commands: []`.
-  # Ampliar la plantilla compartida de siempre (`person.yaml`) se lo habría dado a los
-  # tres, con la segunda capa —el mapa de core— haciendo de primera. Partirla en dos
-  # (S-035) es lo que mantiene las dos defensas independientes: `person-internal.yaml`
-  # autoriza publicar sobre `jiku-queries.v1.>` Y `jiku-commands.v1.>`;
-  # `person-external.yaml` sigue autorizando SOLO `jiku-queries.v1.>` — el mismo permiso
-  # de siempre, sin cambios.
-  #
-  # `type: person` ES LO QUE PRODUCE `identity_type: "person"` EN EL EVENTO de
-  # {instance}.events.auth. Estas tres reglas son lo que hace observable la distinción
-  # person / service: hasta que existieron, las de servicio eran las únicas del archivo y
-  # TODO evento salía con `identity_type: "service"`.
-  #
-  # SIN `service`, A DIFERENCIA DE LAS TRES DE ARRIBA. Ese campo nombra el ENDPOINT que
-  # el usuario atiende, y una persona no atiende ninguno: ni person-internal.yaml ni
-  # person-external.yaml tienen `sub.allow` de servicio ni usan `{{service}}`. Declararlo
-  # sería inventar un endpoint que nadie atiende y nadie puede alcanzar.
-  #
-  # LAS TRES VAN ÚLTIMAS, Y NO ES ORDEN ALFABÉTICO NI CASUALIDAD. Gana la primera regla
-  # que coincida, así que un token que llegara con un rol de servicio Y uno de producto
-  # —un machine user al que alguien le asignó `admin` por error— tiene que caer en la
-  # regla DE SERVICIO, que es la que tiene el permiso acotado y correcto para lo que ese
-  # usuario hace. Con la de persona arriba perdería el permiso que necesita, y el síntoma
-  # sería una violación de permisos sobre un subject que "siempre funcionó". Es el mismo
-  # argumento por el que las reglas de SERVICIO van todas arriba, y si reordenás este
-  # archivo "para agrupar", rompés esto sin enterarte.
   - match: admin
-    type: person
     template: templates/person-internal.yaml
 
-  # Usuario de la web. Desde S-035, publica consultas Y comandos con
-  # person-internal.yaml, con el recorte de qué comando puede ejecutar a cargo del mapa
-  # de core (18 directos + 1 por sobre, distinto del de `admin`).
   - match: user
-    type: person
     template: templates/person-internal.yaml
 
-  # Usuario de opus, el portal de clientes. Sigue con person-external.yaml: la misma
-  # plantilla de solo consultas de siempre, sin cambio de permiso. RF-1 §20 de REQ-007:
-  # `external-user` no gana ni un comando con esta story.
   - match: external-user
-    type: person
     template: templates/person-external.yaml
 
-  # SIN catch-all: un token válido de Zitadel con un rol que no está acá NO conecta.
-  # Lo que queda afuera es CUALQUIER ROL QUE NO ESTÉ EN ESTAS SEIS REGLAS. Ya no son
-  # `user` ni `external-user` —los dos tienen regla, como `admin`—: es cualquier otro,
-  # y agregar uno es un cambio de seguridad (ADR-007), no un renglón más.
+  # Sin catch-all: un rol que no esté acá NO conecta.

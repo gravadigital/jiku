@@ -1,116 +1,28 @@
-# SERVICE USER de core.
+# El servicio `core`: atiende los dos planos y publica eventos de dominio. Ver README.md.
 #
-# Gramática: {instance}.{user-id}.{svc}.{version}.{comando}
-#
-# UN PROCESO, DOS SERVICIOS MICRO, UNA SOLA CONEXIÓN
-#   core atiende DOS endpoints: `jiku-commands` (las escrituras) y `jiku-queries` (las
-#   lecturas). Los dos viven en el mismo proceso y comparten la MISMA conexión al bus, y
-#   por eso las dos suscripciones están en esta única plantilla: el callout mintea los
-#   permisos por conexión, no por endpoint.
-#
-# IDENTIDAD vs ENDPOINT
-#   Son dos cosas distintas:
-#     - {{user_id}}  QUIÉN es: el `sub` de su service user. Único por réplica.
-#     - el endpoint  QUÉ atiende. Compartido entre réplicas, que es lo que permite
-#                    balancear con queue groups.
-#
-#   POR QUÉ ESTA PLANTILLA YA NO USA EL PLACEHOLDER DE ENDPOINT. El placeholder que el
-#   callout expande con el campo `service` de la regla que matcheó en rules.yaml da UN SOLO
-#   valor, y acá hacen falta DOS prefijos. No hay forma de expresarlo con esa variable, así
-#   que los dos van ENUMERADOS literalmente abajo. No lo "simplifiques" de vuelta al
-#   placeholder: perderías uno de los dos endpoints, y el que se pierde no da ningún error
-#   — simplemente nadie atiende ese prefijo.
-#
-# CÓMO ATIENDE
-#   Se suscribe a `{instance}.*.jiku-commands.v1.>` y a `{instance}.*.jiku-queries.v1.>`:
-#   el `*` cubre el user id de CUALQUIER caller (hoy solo la api, mañana otros servicios).
-#   El user id de quien llamó viene en el subject del mensaje, avalado por el callout —
-#   core lo lee de ahí y no del cuerpo.
-#
-#   Eso garantiza que core sepa QUÉ SERVICE USER le habla. NO le dice qué persona originó
-#   la acción: eso viaja en el cuerpo (`creator` / `author`), porque la api usa un único
-#   service_user para todos sus usuarios.
-#
-#   Los dos prefijos van SEPARADOS en el token `{svc}` y no anidados: el `>` de una
-#   suscripción se comería las consultas si compartieran ese token, el mensaje se
-#   entregaría a los dos queue groups y saldrían DOS respuestas al mismo inbox — el caller
-#   recibe la primera y descarta la segunda en silencio. NATS compara los tokens enteros,
-#   así que con `{svc}` distinto el problema no existe.
+# Es el ÚNICO que recibe requests por el bus (el único con `sub.allow` de servicio).
 
 pub:
   allow:
-    # Requests salientes bajo su propia identidad. Hoy core no llama a nadie;
-    # queda declarado porque es la forma del permiso en un despliegue real.
+    # Requests salientes. Hoy core no llama a nadie; queda declarado.
     - "{{instance}}.{{user_id}}.>"
-    # Los eventos de dominio que core publica al stream JIKU_EVENTS (REQ-014 / S-063). VA
-    # POR VERSIÓN ENTERA — no enumerando los 16 tipos del catálogo — porque
-    # `eventsStreamSubject()` (`packages/nats-protocol`) produce exactamente este patrón, y
-    # el comentario de esa función lo dice completo: "dev.events.v1.> CORRECTO — solo
-    # eventos de dominio v1 / dev.events.> MAL — SE COME dev.events.auth". Deny-by-default
-    # (ADR-008) sigue aplicando: un evento nuevo dentro de v1 no cuesta una línea nueva acá
-    # a propósito, porque el permiso es por VERSIÓN del contrato, no por tipo de evento —
-    # pero una v2 sí requeriría su propia línea.
-    # SIN ESTA LÍNEA, EL SÍNTOMA NO ES UN ERROR DE LA LLAMADA DE PUBLICACIÓN. `js.publish()`
-    # no falla localmente: la violación es ASÍNCRONA y sale en el log del SERVIDOR NATS
-    # ("Publish Violation ... Subject ..."). Con el cliente nats.js actual esa violación
-    # asíncrona llega como `uncaughtException` y TIRA EL PROCESO — o sea que el síntoma es
-    # CORE REINICIANDO EN LOOP, el mismo modo de fallo medido en S-016 para `sub.allow`. Si
-    # ves ese loop después de esta story, revisá esta línea antes que el código.
+    # Los eventos de dominio al stream JIKU_EVENTS. CON la versión: sin ella se comería
+    # `{{instance}}.events.auth`.
     - "{{instance}}.events.v1.>"
-    # El protocolo de JetStream (el ack del publish, el `PubAck` que `js.publish()`
-    # espera). SIN ESTA LÍNEA el publish NO CONFIRMA: el mensaje puede ni llegar a
-    # persistir en el stream, y el modo de fallo es el mismo de arriba — asíncrono, en el
-    # log del servidor, no en la llamada.
-    # NO LLEVA `{{instance}}`, y es la MISMA razón por la que `$SRV.>` (en `sub.allow`, más
-    # abajo) tampoco la lleva: es un subject global a la cuenta, no del namespace del
-    # producto — prefijarlo rompe el protocolo de JetStream igual que omitirlo.
-    - "$JS.API.>"
+    # NO lleva `$JS.API`, y no le hace falta: `js.publish()` es un request al subject del
+    # evento y el PubAck vuelve por el inbox. Las dos líneas de arriba son todo.
 
 sub:
   allow:
-    # Los comandos dirigidos a su endpoint de escrituras, de cualquier caller.
     - "{{instance}}.*.jiku-commands.v1.>"
-    # Las consultas, ídem. Todavía no hay servicio que las atienda; el permiso queda
-    # declarado para que registrarlo no requiera un segundo cambio de seguridad.
     - "{{instance}}.*.jiku-queries.v1.>"
-    # El evento de autenticación que publica el auth-callout, una vez por conexión
-    # aceptada. SIN ESTA LÍNEA core ARRANCA, REGISTRA LOS 20 COMANDOS Y LAS 6 CONSULTAS,
-    # LOGUEA `[events] suscripto a <subject>` Y NO RECIBE NI UN EVENTO: no espeja ni una
-    # identidad. La violación es ASÍNCRONA y sale en el log del SERVIDOR NATS
-    # (`Subscription Violation ... Subject "<instance>.events.auth"`), NUNCA como fallo de
-    # `subscribe()`, que resuelve igual y hasta alcanza a imprimir su línea de log.
-    # MEDIDO EN S-016, y no es lo que se esperaba: con el cliente nats.js actual esa
-    # violación asíncrona llega como `uncaughtException` y TIRA EL PROCESO segundos
-    # después de arrancar. O sea que el síntoma NO es silencioso como el de `$SRV.>`: es
-    # un core que reinicia en loop, y el log de core nombra la causa una sola vez, arriba
-    # del stack trace. Si ves ese loop, revisá esta línea antes que el código.
-    # VA LITERAL Y ENUMERADO: este subject y nada más. NUNCA un wildcard sobre el
-    # namespace de eventos — o sea `{{instance}}.events` seguido del comodín de cola.
-    # Deny-by-default aplica también en el bus (ADR-008): un evento futuro DEBE
-    # requerir una línea nueva acá, así que ningún consumidor empieza a recibir un
-    # tipo de evento nuevo porque alguien lo agregó al namespace. Ese wildcard existe
-    # a propósito SOLO en observer.yaml, que es el rol de diagnóstico local —y solo
-    # local— cuyo propósito ES ver todo. No lo tomes como precedente para acá: son
-    # dos políticas distintas a propósito.
-    # SON 3 SEGMENTOS Y NO SIGUE LA GRAMÁTICA del encabezado
-    # ({instance}.{user-id}.{svc}.{version}.{comando}): el evento es SOBRE una
-    # identidad, no publicado POR ella en su nombre — la identidad viaja en el campo
-    # `id` del cuerpo. No lo "corrijas" agregándole user id ni versión.
+    # El evento de autenticación del callout. LITERAL, nunca un wildcard sobre el namespace
+    # de eventos. Sin esta línea core no espeja ninguna identidad y reinicia en loop.
     - "{{instance}}.events.auth"
-    # Discovery y stats del protocolo de servicios de NATS (micro). SIN ESTA LÍNEA LOS
-    # SERVICIOS LEVANTAN, ATIENDEN REQUESTS Y SON INVISIBLES para `nats micro ls`: no hay
-    # error, no hay log, no hay síntoma — solo desaparece la observabilidad.
-    # No expone payloads de negocio, solo metadata del protocolo (nombre, versión,
-    # endpoints, contadores). NO lleva `{{instance}}`: es un subject global a la cuenta,
-    # no del namespace del producto; prefijarlo rompe el discovery igual que omitirlo.
+    # Discovery de micro: sin esto core es invisible para `nats micro ls`, en silencio.
     - "$SRV.>"
-    # Inbox propio (respuestas de los servicios que llame), bajo el hash de su user id.
-    # Es POR RÉPLICA, no por endpoint: dos réplicas con distinto service user no se roban
-    # las respuestas.
     - "_INBOX.{{user_id_hash}}.>"
 
 response:
-  # allow_responses: deja que core conteste al inbox del caller sin necesitar un
-  # permiso de pub explícito hacia ese inbox.
   max: 1
   ttl: 45s

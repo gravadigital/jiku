@@ -90,7 +90,7 @@ describe('bus/events-structure — gates estructurales de S-063 y S-067', () => 
     );
   });
 
-  it('CA-1, CA-2 (S-067) · connector.yaml declara el wildcard CON versión, y solo observer.yaml lo declara sin ella', () => {
+  it('CA-1, CA-2 (S-067) · connector.yaml declara el wildcard CON versión, y NINGÚN template lo declara sin ella', () => {
     // Parsear, no `grep` de texto crudo: el propio encabezado de `connector.yaml` MENCIONA el
     // patrón prohibido para explicar por qué está prohibido, y un `grep` de texto lo tomaría como
     // ofensor. Es la trampa concreta de esta task (Implementation Notes, Task 1 de S-067).
@@ -105,17 +105,47 @@ describe('bus/events-structure — gates estructurales de S-063 y S-067', () => 
 
     (connector.sub?.allow || []).should.containEql(VERSIONED_WILDCARD);
     (connector.sub?.allow || []).should.not.containEql(UNVERSIONED_WILDCARD);
-    (connector.pub?.allow || []).should.containEql('$JS.API.>');
+    // EL PERMISO DE JETSTREAM VA ACOTADO AL STREAM, NO ES `$JS.API.>`. El comodín entero es
+    // administración completa de JetStream sobre la cuenta —borrar, vaciar y reconfigurar
+    // CUALQUIER stream, JIKU_EVENTS incluido— y un conector es un LECTOR. Se enumera lo que un
+    // consumidor durable usa y nada más (ADR-008 en el plano de JetStream).
+    // `containEql` no acepta mensaje propio, así que la aserción va sobre el filtro: si la
+    // línea prohibida está, el array no está vacío y el mensaje la nombra.
+    (connector.pub?.allow || [])
+      .filter((a) => a === '$JS.API.>')
+      .should.deepEqual(
+        [],
+        'Un conector NO puede tener administración completa de JetStream: acotá el permiso al stream'
+      );
+    for (const subject of [
+      '$JS.API.INFO',
+      '$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>',
+      '$JS.API.CONSUMER.INFO.JIKU_EVENTS.>',
+      '$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>',
+    ]) {
+      (connector.pub?.allow || []).should.containEql(subject);
+    }
+    // Y NINGUNA LÍNEA DE ADMINISTRACIÓN DE STREAMS: ni borrar, ni vaciar, ni reconfigurar.
+    const streamAdmin = (connector.pub?.allow || []).filter((a) =>
+      a.startsWith('$JS.API.STREAM.')
+    );
+    streamAdmin.should.deepEqual(
+      [],
+      `Un conector no administra streams (borrar/vaciar/reconfigurar): ${streamAdmin.join(', ')}`
+    );
     (connector.sub?.allow || []).should.containEql('_INBOX.{{user_id_hash}}.>');
     (connector.pub?.allow || []).should.not.containEql('_INBOX.{{user_id_hash}}.>');
 
-    // La segunda mitad, la que hace de CA-2 una regla y no un párrafo: NINGÚN otro template
-    // —salvo `observer.yaml`, el rol de diagnóstico local cuyo propósito ES ver todo— puede
+    // La segunda mitad, la que hace de CA-2 una regla y no un párrafo: NINGÚN template puede
     // declarar el wildcard sin versión. Es lo que impide que la política se afloje copiando y
     // pegando un template dentro de seis meses.
+    //
+    // LA EXCEPCIÓN DE `observer.yaml` SE ELIMINÓ CON LA PLANTILLA. Era el rol de diagnóstico
+    // local `bus-observer`, cuyo propósito ERA ver todo; al eliminarse el rol, la regla ya no
+    // tiene excepciones y el chequeo recorre TODOS los templates del directorio.
     const offenders: string[] = [];
     for (const file of fs.readdirSync(TEMPLATES_DIR)) {
-      if (!file.endsWith('.yaml') || file === 'observer.yaml') {
+      if (!file.endsWith('.yaml')) {
         continue;
       }
       const doc = yaml.load(fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8')) as {
@@ -130,7 +160,7 @@ describe('bus/events-structure — gates estructurales de S-063 y S-067', () => 
 
     offenders.should.deepEqual(
       [],
-      `Ningún template salvo observer.yaml puede declarar "${UNVERSIONED_WILDCARD}" ` +
+      `Ningún template puede declarar "${UNVERSIONED_WILDCARD}" ` +
         `(ADR-008): se comería {{instance}}.events.auth. Ofensores: ${offenders.join(', ')}`
     );
   });

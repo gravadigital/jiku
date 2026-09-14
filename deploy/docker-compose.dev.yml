@@ -132,7 +132,7 @@ services:
       - NATS_INSTANCE=${NATS_INSTANCE}
       # Los DOS nombres de servicio del bus: la api publica los comandos en uno y las
       # consultas en el otro. El auth-callout autoriza los dos prefijos en
-      # nats/auth-callout/templates/api.yaml.
+      # nats/auth-callout/templates/connector.yaml.
       - NATS_COMMAND_SERVICE=${NATS_COMMAND_SERVICE}
       - NATS_QUERY_SERVICE=${NATS_QUERY_SERVICE}
       - NATS_PROTOCOL_VERSION=${NATS_PROTOCOL_VERSION}

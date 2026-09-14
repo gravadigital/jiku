@@ -206,6 +206,7 @@ requeriría su propio ADR.
 ## Referencias
 
 - Deploy del callout: `deploy/docker-compose.yml:59-85`, reglas en `deploy/nats/auth-callout/rules.yaml`
+  (la política completa, documentada: [`deploy/nats/auth-callout/README.md`](../../deploy/nats/auth-callout/README.md))
 - Paquete: `packages/zitadel-auth/`
 - Arquitectura de seguridad: [`docs/prd/architecture.md`](../prd/architecture.md)
 - Feature group relacionado: **FG-1** en [`docs/prd/feature-groups.md`](../prd/feature-groups.md)
