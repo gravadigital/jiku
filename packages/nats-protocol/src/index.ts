@@ -656,21 +656,26 @@ export interface Actor {
  * su autor: `identity_type` se llama así porque así llega. La traducción a `identityType` es de
  * core, en el handler, que es donde ADR-004 la quiere.
  *
- * DESCRIBE EL PAYLOAD VALIDADO. Los nueve son requeridos porque el esquema Joi de core aplica
- * defaults a `roles` (lista vacía) y a `identity_type` (`person`) antes de que el handler lo vea.
+ * DESCRIBE EL PAYLOAD VALIDADO. `roles` es requerido porque el esquema Joi de core le aplica su
+ * default (lista vacía) antes de que el handler lo vea.
  *
- * `type` y `version` van como `string` y `number` Y NO como los literales 'authenticated' y 1: en
- * el cable un `version: 2` es un valor legítimo que core descarta, y congelarlos haría el tipo
- * mentir sobre el contrato.
+ * `type` y `version` van como `string` y `number` Y NO como literales: en el cable una versión que
+ * core no entiende es un valor legítimo que se descarta, y congelarlos haría el tipo mentir sobre
+ * el contrato.
  *
- * `identity_type` es `string` y NO el enum `IdentityType` de `@jiku/models`: este paquete no
- * depende de nada, y un valor fuera del enum es un evento INVÁLIDO —que core descarta— no un tipo
- * imposible.
+ * **v2: `identity_type` YA NO EXISTE.** La versión 2 del evento lo eliminó. Reportaba el `type:` de
+ * la regla de `rules.yaml` —lo que el YAML declaraba— y no algo verificado sobre el principal; un
+ * consumidor que necesite la distinción la deriva de `matched_role`, que es un hecho leído del
+ * token. En core eso vive en `events/auth/identity-type.ts`.
+ *
+ * `matched_role` ES OPCIONAL en este tipo aunque el emisor siempre lo mande: es uno de los campos
+ * que el esquema de core deja pasar por `.unknown(true)` sin declararlo, así que el tipo no puede
+ * prometer que esté. Su ausencia clasifica como `person`, el mismo default de la v1.
  */
 export interface AuthEvent {
   /** Guarda: core solo procesa `'authenticated'`. No se persiste. */
   type: string;
-  /** Guarda: core solo procesa la versión `1`. No se persiste. */
+  /** Guarda: core solo procesa la versión `2`. No se persiste. */
   version: number;
   /** Guarda: tiene que coincidir con el `INSTANCE` del consumidor. No se persiste. */
   instance: string;
@@ -693,8 +698,17 @@ export interface AuthEvent {
   email: string | null;
   /** Tal cual vienen, sin filtrar ni validar contra ningún catálogo. */
   roles: string[];
-  /** Sale del `type` de la regla de `rules.yaml` que matcheó, no de una heurística. */
-  identity_type: string;
+  /**
+   * El `match` de la regla de `rules.yaml` que ganó, o `'*'` si la regla no declara ninguno.
+   *
+   * DESDE LA v2 ES LA FUENTE DE LA CLASIFICACIÓN persona/servicio, el papel que cumplía
+   * `identity_type` hasta la v1. No se persiste tal cual: core lo traduce a `users.identity_type`
+   * con `identityTypeFromMatchedRole`.
+   *
+   * OPCIONAL: el esquema de core no lo declara —entra por `.unknown(true)`— así que nada garantiza
+   * su presencia. Ausente clasifica como `person`.
+   */
+  matched_role?: string;
 }
 
 /**
