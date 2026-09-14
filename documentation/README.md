@@ -37,7 +37,7 @@ Five deployables and one external dependency:
 | `opus-web` | Client portal. A restricted view of the same data. |
 | `api` | The only HTTP surface. Authenticates, reads the database, turns writes into bus commands. |
 | `core` | Serves commands, authorises by role, validates business rules, writes. No HTTP at all. |
-| `nats` | The bus between api and core. Request/reply, no JetStream. |
+| `nats` | The bus between api and core. Commands and queries are request/reply with no JetStream; domain events are a separate plane, on JetStream. |
 | `auth-callout` | Authorises bus connections against the identity provider. A published image, not part of this repository. |
 
 Identity is not Jiku's job: an external provider (Zitadel) authenticates people and carries

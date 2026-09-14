@@ -56,6 +56,15 @@ group for the authentication event `core` consumes to mirror identities, and `SE
 what each service announces in discovery — validated as strict SemVer, so a `latest` there is a
 failed startup, not a default.
 
+`NATS_EVENTS_VERSION` is the version segment of the **domain events** `core` publishes
+(`{instance}.events.{version}.{entity}.{action}`), and it is **independent of**
+`NATS_PROTOCOL_VERSION` on purpose: sharing one value would drag the commands into a version bump
+of events they have nothing to do with. Its real default lives in the code, so the installation
+that does not set it gets `v1`. That plane is the only one on JetStream: it needs the
+`JIKU_EVENTS` stream to exist and the NATS account to carry JetStream limits — both are
+**installation steps, not configuration** (`deploy/nats/create-events-stream.sh` and
+`deploy/nats/enable-jetstream.sh`; a fresh `bootstrap.sh` does both).
+
 The auth-callout itself is configured by the `GESTION_IDP_*` and `AUTH_CALLOUT_*` variables, all
 with defaults, wired to the identity provider and the NATS credentials.
 

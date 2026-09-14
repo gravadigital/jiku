@@ -54,16 +54,18 @@ user on first login, is still a no-op: the api is read-only and never writes `us
 
 Two more consequences worth knowing:
 
-- **Delivery is not durable.** The event travels over core NATS without JetStream, so if `core`
-  is down when it is published, it is lost with no record and the identity is mirrored on its
-  next authentication.
+- **Delivery is not durable.** The identity event travels over core NATS without JetStream, so
+  if `core` is down when it is published, it is lost with no record and the identity is mirrored
+  on its next authentication. This is specific to this event: the domain events `core` publishes
+  do go through JetStream and are durable.
 - **Consistency is eventual, and asymmetric.** Revoking a role at the provider takes effect
   **immediately** for HTTP authorisation, which reads the token claim on every request, and
   **only at the next authentication** for the bus, which reads the mirrored row.
 
 ## A lost command is a lost command
 
-The protocol is direct request/reply with **no JetStream**, which means:
+Commands are direct request/reply with **no JetStream** — the domain-events plane uses it, the
+command plane deliberately does not — which means:
 
 - No retries and no distributed transaction.
 - If core writes and the reply is lost, **the client sees an error for an operation that
