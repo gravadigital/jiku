@@ -55,6 +55,13 @@ status: Draft - Importado desde código existente
   quien nunca conecta al bus:** una persona que solo usa `web` u `opus-web` autentica por HTTP
   contra la api, no dispara el callout, y sigue recibiendo 401 `user_not_found` en todas las
   rutas — su alta queda pendiente de FG-1.
+  **Desde REQ-015 sus datos ganan un cuarto uso.** Después de la autorización HTTP, la clase de
+  caller del bus y los eventos de dominio, ahora `email` es **la dirección a la que Jiku manda un
+  mail** y `name` **el nombre que aparece en el cuerpo** —con el fallback `name → email → id`, así
+  que puede terminar siendo un id y las plantillas tienen que tolerarlo—. `identityType: 'service'`
+  gana una consecuencia más: **esa identidad no recibe notificaciones**, porque un machine user de
+  Zitadel no tiene correo y su `email` es `null`. Saltearla **no puede hacer fallar** el encolado
+  del resto.
   - `roles` guarda el array del token **tal cual viene**, sin filtrar ni validar. Puede contener
     roles de producto (`admin`, `user`, `external-user`) y roles de bus (`internal-app`, `core`,
     `bus-observer`), o estar vacío. (`external-publisher` fue eliminado: nunca existió en
@@ -188,6 +195,15 @@ status: Draft - Importado desde código existente
   desde afuera**; y los cambios de `priority`, `type`, `tags`, `scope`, `technicalSolution` y
   `acceptanceCriteria` **no emiten ningún evento** —solo `title` y `description`, los dos campos
   que junto con `state` el hook marca `public` (C-21)—.
+  **Desde REQ-015 su alta acepta suscriptores.** `requirements.new` gana un campo **opcional** con
+  la lista de usuarios a suscribir, que se crean **en la misma transacción** que el requisito: es la
+  **única modificación de contrato** de ese requerimiento y es **aditiva** —un cliente que no manda
+  el campo no cambia en nada—. Sin ella, el aviso de alta no puede funcionar: habría una carrera
+  entre el alta y la suscripción y la lista de destinatarios saldría vacía. **Ningún cambio de
+  esquema:** las suscripciones ya tienen su tabla. Cuatro hechos sobre un requisito **público**
+  —alta, resolución, comentario público y reapertura— **encolan notificaciones por email** a sus
+  suscriptores; un requisito `internal` **no notifica nada** en ninguno de los cuatro casos, y ese
+  recorte por visibilidad es la única barrera entre un dato interno y el buzón de un cliente.
 
 ### Tarea (`objectives` en la base, `task` en el bus)
 - **Atributos clave:** `title` (string, req), `description` (text, opt), `estimatedFinishDate`
@@ -300,6 +316,15 @@ status: Draft - Importado desde código existente
   conector debe tolerar salteando ese destinatario. La lista **vacía es el caso normal**.
   **Las suscripciones a tareas siguen sin ninguna interfaz que las cree** (`objectives_subscriptors`
   está siempre vacía), y por eso los eventos de tarea **no llevan `recipients`**.
+  **Desde REQ-015 el canal está DENTRO de Jiku y la frase de arriba se cierra:** una suscripción a
+  un requisito **público** produce un mail al suscriptor cuando el requisito se crea, se resuelve,
+  se comenta o se reabre. Los dos detalles que REQ-014 volvió parte del contrato de eventos son
+  ahora además **reglas del encolado**, aplicadas por el producto y no por un conector: se
+  **deduplica por `userId`** y se **saltea al suscriptor sin correo**. Se les suman dos recortes
+  propios del canal: se **excluye al actor del hecho** (quien comenta no recibe su propio
+  comentario) y se **verifica el permiso de proyecto** — un suscriptor sin fila en
+  `user_project_permissions` para el proyecto del requisito **no recibe el mail**. Sigue **sin
+  unique compuesto** y sigue sin interfaz para las suscripciones a tareas.
 
 ### PermisoDeProyecto (`user_project_permissions`)
 - **Atributos clave:** `userId` (string, req), `projectId` (int)
@@ -313,7 +338,11 @@ status: Draft - Importado desde código existente
   payload. **Desde REQ-007 gana un TERCER punto de aplicación:** el despachador de comandos de
   `core` resuelve el proyecto **desde los 9 tipos de entidad** y verifica esta tabla antes de
   ejecutar cualquier comando que modifique una entidad de proyecto (C-71, C-58). La tabla **sigue
-  sin administrarse desde ninguna interfaz** (FG-1).
+  sin administrarse desde ninguna interfaz** (FG-1). **Desde REQ-015 gana un CUARTO punto de
+  aplicación:** recorta los **destinatarios de una notificación** por email — un suscriptor sin
+  fila para el proyecto del requisito no recibe el mail. Es el punto de aplicación de mayor
+  consecuencia de los cuatro, porque el dato sale por un canal **fuera del control del producto**:
+  un mail enviado no se puede desenviar.
 
 ### Archivo (`files`)
 - **Atributos clave:** `fileName` (string 255, req — el nombre original, **no** es la clave),
@@ -374,6 +403,47 @@ status: Draft - Importado desde código existente
   en lectura por el bus, pero **solo por lista blanca de claves** (`hours-per-day` y las cinco de
   archivos). Una clave no declarada **no existe** para esa API, aunque exista en la tabla. La
   escritura sigue siendo solo por SQL.
+  **Desde REQ-015 gana tres claves más**, los parámetros del proceso de envío de notificaciones:
+  `notification-dispatch-interval-seconds` (default `60`), `notification-batch-size` (default `50`)
+  y `notification-max-attempts` (default `5`). Como las anteriores, **tienen default en el código**
+  —el sistema envía sin ninguna fila cargada— y se ajustan por SQL sin redespliegue.
+  **NO entran en la lista blanca de `settings.list`**, y la omisión es deliberada: esa lista es
+  deny-by-default (ADR-008) y expone lo que un cliente del contrato necesita leer. Estas tres son
+  **parámetros de operación de un proceso interno**, no configuración que un consumidor del bus
+  tenga que conocer; declararlas sería ampliar un contrato público sin que nadie lo haya pedido.
+
+### NotificacionPendiente (`notification_outbox`)
+- **Atributos clave:** `type` (string 100, req — la clave del registro de tipos, **nunca texto
+  libre**), `channel` (string 20, req, default `email`), `recipientUserId` (string 100, req),
+  `recipientEmail` (string 255, req — **congelado al encolar**), `payload` (**jsonb**, req —
+  **congelado al encolar**), `status` (string 20, req, default `pending` — `pending` / `sent`),
+  `attempts` (int, req, default `0`), `nextAttemptAt` (timestamp, req, default `now()`),
+  `lastError` (text), `createdAt` (timestamp, req), `sentAt` (timestamp)
+- **Relaciones:** belongs_to Usuario (por `recipientUserId`). La entidad que originó el hecho
+  —hoy siempre un Requisito— viaja **dentro del payload y no como FK**, porque el payload está
+  congelado a propósito y una FK obligaría a que el origen siga existiendo para poder mandar el
+  mail.
+- **Notas:** **La cola de salida de notificaciones, y la primera entidad del producto que no es
+  dominio sino infraestructura de entrega.** Las filas se escriben **en la misma transacción del
+  comando que las origina**: si el comando commitea, el mail existe; si falla, no queda ningún mail
+  fantasma. Un proceso periódico las vacía por lotes, con `FOR UPDATE SKIP LOCKED` para que varias
+  réplicas de `core` no manden el mismo mail dos veces.
+  **Una fila por destinatario, no una por hecho:** duplica el payload, pero un mail que falla no
+  bloquea a los demás y el reintento es por mail real.
+  **Todo lo que viaja está congelado al encolar** —la dirección, el título, el nombre del proyecto,
+  el nombre del actor y el link—, porque el mail describe **un hecho pasado**: si el requisito
+  cambia de título mientras la fila espera, el mail dice el título de cuando ocurrió.
+  **El payload tiene forma genérica** (`entity` / `actor` / `title` / `project` / `link` comunes,
+  más un `data` específico por tipo) y `entity` **copia la forma de `EventEntityRef`** del contrato
+  de eventos, para no inventar un segundo vocabulario para lo mismo.
+  **La entrega es at-least-once** y está declarado, no descubierto: si el mail sale y el proceso
+  muere antes de marcar la fila, se reenvía. **Tras el máximo de intentos la fila se descarta** y
+  queda constancia solo en el log —sin payload y sin datos personales—, que es el mismo compromiso
+  que el producto ya asumió para un evento de dominio perdido. **No hay estado `failed`
+  consultable**: la observabilidad del canal es FG-3.
+  **`status` y `type` no son ENUM nativos** a propósito: un tipo de notificación nuevo se agrega al
+  registro del código, y obligar además a un `ALTER TYPE` contradiría que *"agregar un tipo es sumar
+  una entrada y su plantilla"*.
 
 ---
 
