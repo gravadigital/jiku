@@ -570,6 +570,12 @@ channels:
       Validation is deliberately **late** (after creating the entity) and that is safe: the
       dispatcher's rollback discards everything, which is the pattern
       `requirements-new.ts:116-121` already uses.
+
+      **Subscribers are created in the same transaction too** (S-070). `subscriberUserIds`
+      carries ids of `users` that already exist on their own; the command validates each one
+      exists, deduplicates, and inserts one `requirement_subscriptors` row per id, in the same
+      transaction as the requirement. Optional and additive: a client that does not send it
+      behaves exactly as before.
     publish:
       operationId: requirementsNew
       summary: Create a requirement
@@ -1167,6 +1173,7 @@ components:
         - project_not_found
         - invalid_responsible_person
         - file_not_owned
+        - user_not_found
         - internal_error
         - access_denied
 
@@ -2235,6 +2242,16 @@ components:
           type: [string, 'null']
         acceptanceCriteria:
           type: [string, 'null']
+        subscriberUserIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Users to subscribe to the requirement being created. Written in the SAME transaction as
+            the requirement: if anything fails, neither the requirement nor a single subscription
+            survives. Optional and ADDITIVE — a client that does not send it behaves exactly as
+            before. Duplicates are collapsed by the command before inserting; a duplicate is NOT an
+            error (unlike `requirements.{id}.subscriptors.new`, which answers `already_subscribed`).
 
     RequirementsEditPayload:
       type: object

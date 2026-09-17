@@ -200,7 +200,10 @@ channels:
   # -------------------------------------------------------------------------
 
   requirement.created:
-    description: 'A requirement was created. Carries `recipients` (its subscriptors, always empty at creation).'
+    description: |
+      A requirement was created. Carries `recipients` (its subscriptors, empty unless the
+      creation request came with `subscriberUserIds` — see `requirements.new` in `core.yaml`,
+      S-070 — in which case it reflects the subscriptors created in the same transaction).
     subscribe:
       operationId: requirementCreated
       summary: Requirement created

@@ -221,6 +221,7 @@ Declararlo en la ficha ES aplicarlo: el motor lo antepone al `WHERE` de los tres
 | Visibilidad automática de actividades: `state`/`title`/`description` públicas, el resto internas | `tasks/activity.ts:18` |
 | Los adjuntos tienen que ser drafts propios, vivos y anclados a la entidad correcta | `tasks/tasks-comment.ts:56-77` y equivalentes |
 | No se modifican semanas pasadas de la asignación semanal (C-36) | `times/week-assigned-times.ts` |
+| `subscriberUserIds` se deduplica antes de validar contra `users`, y valida existencia en lote (S-070) | `requirements/requirements-new.ts` |
 
 ### Reglas que NO viven acá
 

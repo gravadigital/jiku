@@ -1,5 +1,5 @@
 import joi from 'joi';
-import { AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementPriority, RequirementState, RequirementType, RequirementVisibilityLevel } from '@jiku/models';
+import { AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementPriority, RequirementState, RequirementSubscriptor, RequirementType, RequirementVisibilityLevel, User } from '@jiku/models';
 import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
@@ -26,6 +26,7 @@ export interface RequirementsNewPayload {
   scope?: string | null;
   technicalSolution?: string | null;
   acceptanceCriteria?: string | null;
+  subscriberUserIds?: string[];
 }
 
 const schema = joi.object({
@@ -42,6 +43,12 @@ const schema = joi.object({
     .valid(...Object.values(RequirementVisibilityLevel))
     .default(RequirementVisibilityLevel.Public),
   responsiblePersonIds: joi.array().items(joi.number().integer()).allow(null).optional(),
+  // Ids de usuario de Zitadel (`users.id`, VARCHAR): joi.string(), NUNCA joi.number() — con
+  // `convert: true` un número convertiría el string y el findAll contra la columna STRING no
+  // matchearía nada. Sin `.max()`: a diferencia de `fileIds`, el REQ no declara tope para
+  // suscriptores. Sin `.unique()`: CA-3 exige que un id repetido NO sea un error — Joi lo
+  // rechazaría con `failure`; la deduplicación real va en `execute`.
+  subscriberUserIds: joi.array().items(joi.string()).optional(),
   // El protocolo no declara `state` al crear, pero la api lo aceptaba y la web lo usa.
   state: joi.string().valid(...Object.values(RequirementState)).optional(),
   // Los archivos ya existen por su cuenta: `fileIds` son ids de `files`, no de drafts.
@@ -138,6 +145,39 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
         )
       )
     );
+
+    // SUSCRIPTORES (S-070) — corto circuito si no vinieron (CA-2 es gratis: cero consultas,
+    // cero inserts). Va ANTES del evento y DESPUÉS de PersonRequirement/linkFiles: mantiene el
+    // orden de `execute` (referencias del payload primero, evento al final) y sobre todo porque
+    // `resolveRecipients` más abajo LEE `requirement_subscriptors` DENTRO de esta misma
+    // transacción — si el insert fuera después del evento, `recipients.subscriptors` saldría
+    // vacío (mismo razonamiento que ya documenta `requirements-subscriptors.ts`).
+    if (payload.subscriberUserIds && payload.subscriberUserIds.length > 0) {
+      // Deduplicar PRIMERO, validar DESPUÉS: `requirement_subscriptors` no tiene unique
+      // compuesto (deuda de FG-6, no de esta story), así que la base no ataja un duplicado, y
+      // comparar la cuenta contra la lista CRUDA rechazaría por error un id que sí existe si
+      // viene repetido (p. ej. [U2, U2] con U2 existente daría 1 !== 2).
+      const subscriberIds = [...new Set(payload.subscriberUserIds)];
+
+      // Una sola consulta en lote, no N `findByPk` — mismo patrón que `Person.count` unas
+      // líneas más arriba para `responsiblePersonIds`.
+      const users = await User.findAll({
+        where: { id: subscriberIds },
+        transaction: ctx.transaction,
+      });
+      if (users.length !== subscriberIds.length) {
+        return failure(ErrorCode.USER_NOT_FOUND, 'User not found');
+      }
+
+      await Promise.all(
+        subscriberIds.map((userId) =>
+          RequirementSubscriptor.create(
+            { requirementId: requirement.id, userId },
+            { transaction: ctx.transaction }
+          )
+        )
+      );
+    }
 
     // EL EVENTO SE ARMA ACÁ, AL FINAL — DESPUÉS de crear las filas de `PersonRequirement` y
     // DESPUÉS del posible `return linkError` de arriba (REQ-014 / S-063, Task 4). El orden
