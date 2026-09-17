@@ -5,7 +5,7 @@ import nock from 'nock';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RequirementMailThread, RequirementSubscriptor, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
+import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RequirementSubscriptor, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -152,8 +152,7 @@ describe('POST /api/opus/requirements', () => {
     });
 
     after(() => {
-      return RequirementMailThread.destroy({ where: {} })
-        .then(() => RequirementActivity.destroy({ where: {} }))
+      return RequirementActivity.destroy({ where: {} })
         .then(() => RequirementSubscriptor.destroy({ where: {} }).then(() => Requirement.destroy({ where: { projectId: mmProjectId } })))
         .then(() => UserProjectPermission.destroy({ where: { projectId: mmProjectId } }))
         .then(() => Project.destroy({ where: { id: mmProjectId } }));

@@ -5,7 +5,7 @@ import {start} from '../mocks/app';
 import request from 'supertest';
 import {Application} from 'express';
 import nock from 'nock';
-import { Attachment, File, Objective, ObjectiveActivity, ObjectiveMailThread, Project, User } from '@jiku/models';
+import { Attachment, File, Objective, ObjectiveActivity, Project, User } from '@jiku/models';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -193,14 +193,6 @@ describe('POST /api/objectives/:id/comments', () => {
   });
 
   describe('Mattermost Notifications (S-079: apagadas globalmente)', () => {
-    before(() => {
-      return ObjectiveMailThread.create({ objectiveId: 2, messageId: '', mattermostPostId: 'post-obj2' });
-    });
-
-    after(() => {
-      return ObjectiveMailThread.destroy({ where: { objectiveId: 2 } });
-    });
-
     // TS-1: comentario publico en Objective ya NO dispara Mattermost
     it('TS-1: should NOT call Mattermost when comment is public (notifications turned off globally)', () => {
       const scope = nock(MATTERMOST_BASE).post('/messages/group').reply(200, { ok: true });

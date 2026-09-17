@@ -302,9 +302,12 @@ describe('S-015 - User gana roles e identityType', () => {
       Object.values(IdentityType).should.be.eql(['person', 'service']);
     });
 
-    // TS-13
-    it('TS-13: la story no agrega modelos: allModels sigue en 26', () => {
-      allModels.length.should.be.equal(26);
+    // TS-13. El número base era 26 al escribir esta story (S-015 no agrega modelos); S-069 lo
+    // movió a 24 (26 − 3 de los modelos de mail eliminados + 1 nuevo, NotificationOutbox). Lo
+    // que este escenario protege es que S-015 en sí misma no cambia el conteo, no un número
+    // fijo en el tiempo.
+    it('TS-13: la story no agrega modelos: allModels sigue en 24', () => {
+      allModels.length.should.be.equal(24);
     });
   });
 });

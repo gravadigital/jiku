@@ -11,8 +11,7 @@
 import Attachment from './attachment.model';
 import Client from './client.model';
 import File from './file.model';
-import InboundMailThread from './inbound-mail-thread.model';
-import ObjectiveMailThread from './objective-mail-thread.model';
+import NotificationOutbox from './notification-outbox.model';
 import ObjectiveSubscriptor from './objective-subscriptor.model';
 import Objective from './objectives.model';
 import ObjectiveActivity from './objective-activity.model';
@@ -24,7 +23,6 @@ import ProjectPerson from './project-person.model';
 import ProjectStatusUpdate from './project-status-update.model';
 import Project from './project.model';
 import RequirementActivity from './requirement-activity.model';
-import RequirementMailThread from './requirement-mail-thread.model';
 import RequirementSubscriptor from './requirement-subscriptor.model';
 import Requirement from './requirement.model';
 import Resource from './resource.model';
@@ -39,8 +37,7 @@ export { default as Attachment, AttachmentEntityType } from './attachment.model'
 export { RetentionStatus } from './retention-status.enum';
 export { default as Client } from './client.model';
 export { default as File, ByteStatus } from './file.model';
-export { default as InboundMailThread } from './inbound-mail-thread.model';
-export { default as ObjectiveMailThread } from './objective-mail-thread.model';
+export { default as NotificationOutbox } from './notification-outbox.model';
 export { default as ObjectiveSubscriptor } from './objective-subscriptor.model';
 export { default as Objective, statusObjective } from './objectives.model';
 export { default as ObjectiveActivity, activityVisibilityLevel } from './objective-activity.model';
@@ -52,7 +49,6 @@ export { default as ProjectPerson } from './project-person.model';
 export { default as ProjectStatusUpdate } from './project-status-update.model';
 export { default as Project, DefaultKeyValuePairs, defaultKeyValuePairsList } from './project.model';
 export { default as RequirementActivity, RequirementActivityType, VisibilityLevel } from './requirement-activity.model';
-export { default as RequirementMailThread } from './requirement-mail-thread.model';
 export { default as RequirementSubscriptor } from './requirement-subscriptor.model';
 export { default as Requirement, RequirementVisibilityLevel, RequirementType, RequirementPriority, RequirementState, RequirementResolution, FieldActivityChange } from './requirement.model';
 export { default as Resource } from './resource.model';
@@ -75,8 +71,7 @@ export const allModels = [
   Attachment,
   Client,
   File,
-  InboundMailThread,
-  ObjectiveMailThread,
+  NotificationOutbox,
   ObjectiveSubscriptor,
   Objective,
   ObjectiveActivity,
@@ -88,7 +83,6 @@ export const allModels = [
   ProjectStatusUpdate,
   Project,
   RequirementActivity,
-  RequirementMailThread,
   RequirementSubscriptor,
   Requirement,
   Resource,

@@ -2,7 +2,7 @@
 
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
-**Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
+**Extraído de** `packages/models/src/*.model.ts` — los 24 modelos Sequelize del paquete
 compartido — y de las 104 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
@@ -79,16 +79,16 @@ erDiagram
     requirements ||--o{ requirement_activity : tiene
     requirements ||--o{ requirement_subscriptors : tiene
     requirements ||--o{ worked_times : recibe
-    requirements ||--o| requirement_mail_threads : "hilo (sin uso)"
-    requirements ||--o{ inbound_mail_threads : "hilo (sin uso)"
 
     objectives ||--o{ objective_activity : tiene
     objectives ||--o{ objectives_subscriptors : tiene
     objectives ||--o{ worked_times : recibe
-    objectives ||--o| objective_mail_threads : "hilo (sin uso)"
+
+    users ||--o{ notification_outbox : recibe
 
     origins
     system_settings
+    notification_outbox
 ```
 
 `attachments` no aparece con relaciones porque **no tiene claves foráneas hacia las entidades**:
@@ -618,19 +618,16 @@ Cinco claves nuevas en `system_settings`, **configurables en caliente sin redesp
 - **Se leen por comando, sin caché.** "En caliente" lo exige; cachear con TTL rompería los criterios
   de configurabilidad. Es una lectura por índice `key` UNIQUE dentro de la transacción ya abierta.
 
-### Tablas sin uso
+### Cola de salida de notificaciones (`notification_outbox`)
 
-Quedaron de las notificaciones por mail que se eliminaron. **Ninguna migración las borra**, porque
-eliminar un modelo no elimina su tabla y una migración destructiva perdería datos.
-
-| Tabla | Forma |
-|---|---|
-| `objective_mail_threads` | `objective_id` (UNIQUE), `message_id`, `mattermost_post_id` |
-| `requirement_mail_threads` | `requirement_id` (UNIQUE), `message_id`, `mattermost_post_id`. Creada en `20260717_02` |
-| `inbound_mail_threads` | `requirement_id`, `message_id`. `updatedAt: false`. Creada en `20260703_03` |
-
-`inbound_mail_threads` declara dos índices: único sobre `message_id`
-(`uk_inbound_mail_threads_message_id`) e índice sobre `requirement_id`.
+Introducida por S-069 (REQ-015), en reemplazo de las tres tablas de la funcionalidad de mail
+eliminada (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`). Los
+tres modelos Sequelize se dan de baja en el plan `packages/models` de la story; las tres tablas
+las dropea el plan `api`, que se despliega junto. `type` y `status` son `VARCHAR`, no
+ENUM nativo: agregar un tipo de notificación es sumar una fila al registro de código, no un
+`ALTER TYPE`. El único índice es **parcial**, sobre `(next_attempt_at, id)` con
+`WHERE status = 'pending'`, para que su tamaño quede acotado a la cola pendiente y no al
+histórico. No hay ningún `UNIQUE` de idempotencia: la entrega es at-least-once (RF-25).
 
 ## Representación DBML
 
@@ -960,35 +957,24 @@ Table origins {
   updated_at timestamp
 }
 
-// --- Sin uso: quedaron de las notificaciones por mail eliminadas ---
+// --- Cola de salida de notificaciones (S-069 / REQ-015) ---
 
-Table objective_mail_threads {
-  id integer [pk, increment]
-  objective_id integer [not null, unique, ref: > objectives.id]
-  message_id varchar(500) [not null]
-  mattermost_post_id varchar(100)
+Table notification_outbox {
+  id bigint [pk, increment]
+  type varchar(100) [not null]
+  channel varchar(20) [not null, default: 'email']
+  recipient_user_id varchar(100) [not null, ref: > users.id]
+  recipient_email varchar(255) [not null]
+  payload jsonb [not null]
+  status varchar(20) [not null, default: 'pending']
+  attempts integer [not null, default: 0]
+  next_attempt_at timestamp [not null, default: `now()`]
+  last_error text
   created_at timestamp
-  updated_at timestamp
-}
-
-Table requirement_mail_threads {
-  id integer [pk, increment]
-  requirement_id integer [not null, unique, ref: > requirements.id]
-  message_id varchar(500) [not null]
-  mattermost_post_id varchar(100)
-  created_at timestamp
-  updated_at timestamp
-}
-
-Table inbound_mail_threads {
-  id integer [pk, increment]
-  requirement_id integer [not null, ref: > requirements.id]
-  message_id varchar(500) [not null]
-  created_at timestamp
+  sent_at timestamp
 
   indexes {
-    message_id [unique, name: 'uk_inbound_mail_threads_message_id']
-    requirement_id [name: 'idx_inbound_mail_threads_requirement_id']
+    (next_attempt_at, id) [name: 'idx_notification_outbox_pending']
   }
 }
 
