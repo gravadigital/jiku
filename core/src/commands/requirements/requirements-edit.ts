@@ -1,6 +1,6 @@
 import joi from 'joi';
 import { AttachmentEntityType, FieldActivityChange, Person, PersonRequirement, Requirement, RequirementActivity, RequirementActivityType, RequirementPriority, RequirementResolution, RequirementState, RequirementType, RequirementVisibilityLevel, VisibilityLevel } from '@jiku/models';
-import { DomainEvent, ErrorCode, Reply, RequirementSnapshot, failure, success } from '@jiku/nats-protocol';
+import { DomainEvent, ErrorCode, NotificationDeclaration, Reply, RequirementSnapshot, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { pickPresent, validateWith } from '../validate';
 import { syncFileLinks } from '../link-files';
@@ -243,6 +243,11 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
     const descriptionChange = logged.find((change) => change.type === 'description');
 
     const events: DomainEvent<RequirementSnapshot>[] = [];
+    // R-1 / CA-4 / CA-5 (S-072): este es el CAMINO REAL de producción para resolución y
+    // reapertura — ninguna ruta HTTP publica `requirements.{id}.resolve` directamente. Las
+    // declaraciones se agregan EN LAS MISMAS RAMAS que ya empujan `requirementResolved` /
+    // `requirementReopened`, más abajo — nunca en una condición separada.
+    const notifications: NotificationDeclaration[] = [];
 
     // Sin ninguna entrada de state/title/description NI cambio real de responsables, NO HAY NADA
     // QUE DECLARAR: un `edit` de `priority` (o cualquier otro campo sin evento, CA-2) sigue
@@ -314,6 +319,17 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
           resolutionComment: requirement.resolutionComment,
           finishedAt: requirement.finishedAt!.toISOString(),
         }));
+        // LA DECLARACIÓN VA EN LA MISMA RAMA QUE EL EVENTO (R-1, CA-4/CA-7): una segunda
+        // condición que vuelva a preguntar "¿entró a resuelto?" es exactamente cómo los dos
+        // caminos se desincronizan. `resolutionComment` sale de la FILA YA ACTUALIZADA, igual
+        // que el evento. `entity` se escribe completo acá (con `type: 'requirement'`) en vez de
+        // reusar la `const entity` de arriba, que es `{ id, projectId }` sin `type` — la forma
+        // que quieren los constructores de evento, no la que exige `NotificationDeclaration`.
+        notifications.push({
+          type: 'requirement.resolved',
+          entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+          data: { resolutionComment: requirement.resolutionComment },
+        });
       } else if (leavesResolved) {
         // `leavesResolved` YA ESTÁ CALCULADA arriba (no se recalcula): es la misma condición que
         // decidió limpiar los datos de resolución.
@@ -327,6 +343,12 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
           from: stateChange!.previous,
           to: stateChange!.next,
         }));
+        // SIN `resolutionComment` (CA-5): la reapertura limpió los tres campos de resolución en
+        // el MISMO `update`, y el mail de reapertura no los lleva.
+        notifications.push({
+          type: 'requirement.reopened',
+          entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+        });
       }
 
       // `assigned` VA ÚLTIMO (D-6): los tests de S-064 asertan por índice sobre el orden que ya
@@ -353,6 +375,9 @@ export const requirementsEdit: Command<RequirementsEditPayload, void> = {
     const reply = success<void>();
     if (events.length > 0) {
       reply.events = events;
+    }
+    if (notifications.length > 0) {
+      reply.notifications = notifications;
     }
     return reply;
   },

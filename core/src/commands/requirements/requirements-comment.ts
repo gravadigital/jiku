@@ -1,6 +1,6 @@
 import joi from 'joi';
-import { AttachmentEntityType, Requirement, RequirementActivity, RequirementActivityType, VisibilityLevel } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { AttachmentEntityType, Requirement, RequirementActivity, RequirementActivityType, RequirementVisibilityLevel, VisibilityLevel } from '@jiku/models';
+import { ErrorCode, NotificationDeclaration, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
@@ -49,7 +49,6 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
       return failure(ErrorCode.REQUIREMENT_NOT_FOUND, 'Requirement not found');
     }
 
-    // No notifica: las notificaciones se eliminaron del producto (ver docs/features.md).
     const activity = await RequirementActivity.create(
       {
         typeOfActivity: RequirementActivityType.Comment,
@@ -111,6 +110,35 @@ export const requirementsComment: Command<RequirementsCommentPayload, { id: numb
         visibilityLevel: activity.visibilityLevel,
       }),
     ];
+    // LA DOBLE CONDICIÓN DE VISIBILIDAD, EXPLÍCITA (CA-6): requisito `public` Y comentario
+    // `public` — los dos defaults van en DIRECCIONES OPUESTAS (`requirements.visibility_level`
+    // default `public`, `requirement_activities.visibility_level` default `internal`), así que
+    // un comentario sin `visibilityLevel` explícito NO notifica aunque el requisito sea público.
+    //
+    // Esta condición se escribe ACÁ aunque la regla 1 del escritor (S-071) haría lo mismo: el
+    // `push` de notificación tiene que vivir ESTRUCTURALMENTE solo donde corresponde (CA-7), no
+    // delegar toda la decisión al escritor. Las dos capas son deliberadamente redundantes — la
+    // del comando es la intención declarada, la del escritor es la barrera de seguridad.
+    //
+    // SE LEE `activity.visibilityLevel`, NO `payload.visibilityLevel`: `activity` es la fila
+    // escrita, con el default ya aplicado por Joi — mismo precedente que el evento de arriba
+    // (línea 108: "El de la RAÍZ es el del COMENTARIO").
+    if (
+      activity.visibilityLevel === VisibilityLevel.Public
+      && requirement.visibilityLevel === RequirementVisibilityLevel.Public
+    ) {
+      // `commentId` ES OBLIGATORIO en `data`: sin él, `passesVisibility()` del escritor nunca
+      // mira el comentario y solo confirma que el requisito es público — la mitad de la regla 1
+      // que chequea el comentario se activa por esta forma, no por el `type`.
+      const notifications: NotificationDeclaration[] = [
+        {
+          type: 'requirement.comment.created',
+          entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+          data: { comment: activity.newValue, commentId: activity.id },
+        },
+      ];
+      reply.notifications = notifications;
+    }
     return reply;
   },
 };

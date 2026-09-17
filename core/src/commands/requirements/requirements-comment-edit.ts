@@ -92,9 +92,11 @@ export const requirementsCommentEdit: Command<CommentEditPayload, never> = {
       }
     }
 
-    // NO NOTIFICA, y la ausencia es una decisión, no un olvido: hoy no existe canal de
-    // notificación en el producto. Cuando FG-2 lo agregue, la regla es que la EDICIÓN de un
-    // comentario no dispara notificación — solo el alta.
+    // NO NOTIFICA, Y AHORA ES UNA DECISIÓN DE PRODUCTO EXPLÍCITA, no la consecuencia de que no
+    // exista canal: desde REQ-015 el canal YA EXISTE y `requirements-comment.ts` sí declara. La
+    // regla (RF-16, CA-8 de S-072) es que el ALTA de un comentario notifica y su EDICIÓN no.
+    // Quien agregue acá un `reply.notifications` está cambiando una decisión de producto, no
+    // corrigiendo un olvido.
 
     // EL EVENTO SE ARMA ACÁ, AL FINAL (S-064, Task 6). Este comando busca la actividad por el
     // par `(id, requirementId)` y NO leía el requisito hasta ahora — el `findByPk` de acá es

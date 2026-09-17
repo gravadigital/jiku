@@ -1,6 +1,6 @@
 import joi from 'joi';
 import { Requirement, RequirementActivity, RequirementActivityType, RequirementResolution, RequirementState, RequirementType, VisibilityLevel } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { ErrorCode, NotificationDeclaration, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { resolveActor } from '../resolve-actor';
@@ -140,6 +140,23 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
           finishedAt: requirement.finishedAt!.toISOString(),
         }),
       ];
+      // MISMO `if` QUE EL EVENTO (D-8, y ahora también R-1 de S-072): la condición que decide si
+      // hubo transición real es una sola. `resolutionComment` sale de la FILA YA ACTUALIZADA,
+      // igual que el evento — el `update` de arriba ya resolvió
+      // `payload.comment ?? requirement.resolutionComment`.
+      //
+      // ESTE COMANDO NO ALCANZA POR SÍ SOLO: ninguna ruta HTTP lo publica hoy
+      // (docs/apis/core.yaml), así que la resolución real de producción entra por
+      // `requirements.{id}.edit`, que declara lo mismo en su propia rama. Las dos declaraciones
+      // son necesarias.
+      const notifications: NotificationDeclaration[] = [
+        {
+          type: 'requirement.resolved',
+          entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+          data: { resolutionComment: requirement.resolutionComment },
+        },
+      ];
+      reply.notifications = notifications;
       return reply;
     }
 
