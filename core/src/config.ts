@@ -12,13 +12,14 @@
  */
 
 let trustedPublisherId: string | null = null;
+let opusUrl: string | null = null;
 
 /**
  * Valida y cachea la configuración de arranque. La invoca `src/index.ts` después de
  * `dotenv.config()` y ANTES de `consumer.start()`, para que el fallo ocurra al arrancar y no
  * en el primer comando.
  *
- * Lanza si falta `CORE_TRUSTED_PUBLISHER_ID`.
+ * Lanza si falta `CORE_TRUSTED_PUBLISHER_ID` u `OPUS_URL`.
  */
 export function loadConfig(): void {
   const raw = process.env.CORE_TRUSTED_PUBLISHER_ID;
@@ -42,6 +43,29 @@ export function loadConfig(): void {
   }
 
   trustedPublisherId = raw.trim();
+
+  // `OPUS_URL` (REQ-015, S-071): la base absoluta CON ESQUEMA del portal, para armar
+  // `${OPUS_URL}/requirements/${id}` al encolar una notificación (CA-12). NO ES `OPUS_DOMAIN`
+  // (deploy/.env.dist), que es el host del ingress consumido como `https://${OPUS_DOMAIN}` en
+  // docker-compose — dos cosas distintas que conviene no unificar, porque unificarlas produce
+  // mails con links rotos.
+  //
+  // SIN DEFAULT, DELIBERADAMENTE (RF-33): depende de cada instalación, y cualquier default
+  // mandaría a todo el mundo un link al dominio equivocado. Un link roto en un mail ya enviado
+  // no se corrige después.
+  const rawOpusUrl = process.env.OPUS_URL;
+  if (rawOpusUrl === undefined || rawOpusUrl.trim() === '') {
+    throw new Error(
+      'Falta la variable de entorno OPUS_URL: es la base absoluta con esquema del portal ' +
+      '(por ejemplo https://opus.ejemplo.com) y sin ella el módulo de notificaciones no puede ' +
+      'armar el link de una notificación al encolarla. Configurala antes de arrancar.'
+    );
+  }
+
+  // SIN NORMALIZAR: no se le saca la barra final ni se le agrega esquema si falta. Un valor mal
+  // formado tiene que ser visible en el primer mail de la instalación, no corregido a medias por
+  // código que nadie revisó. Lo único que se valida acá es QUE ESTÉ.
+  opusUrl = rawOpusUrl.trim();
 }
 
 /**
@@ -57,7 +81,22 @@ export function getTrustedPublisherId(): string {
   return trustedPublisherId;
 }
 
+/**
+ * La base absoluta del portal, para armar el link de una notificación al encolarla.
+ *
+ * Lanza si `loadConfig()` no corrió, por la misma razón que `getTrustedPublisherId()`. Un
+ * comando NUNCA lee `process.env.OPUS_URL` directo (regla de `_base`): el módulo de
+ * notificaciones consume este accesor.
+ */
+export function getOpusUrl(): string {
+  if (opusUrl === null) {
+    throw new Error('La configuración no fue cargada: llamá a loadConfig() al arrancar');
+  }
+  return opusUrl;
+}
+
 /** Solo para tests: descarta la configuración cargada. */
 export function resetConfig(): void {
   trustedPublisherId = null;
+  opusUrl = null;
 }
