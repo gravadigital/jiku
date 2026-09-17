@@ -216,10 +216,13 @@ services:
       # del JSON key de la api. SIN ELLA CORE NO ARRANCA, a propósito.
       - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID}
       # Base absoluta CON ESQUEMA del portal (REQ-015/S-071), para armar el link de una
-      # notificación al encolarla. NO ES `OPUS_DOMAIN` (el host del ingress, arriba). SIN
-      # DEFAULT: core no arranca sin ella, para que un link roto no salga por heredar un valor
-      # genérico (CA-12).
-      - OPUS_URL=${OPUS_URL}
+      # notificación al encolarla. core la exige con esquema; el .env declara sólo el host
+      # (`OPUS_DOMAIN`, el mismo que consume el ingress arriba) y el esquema se agrega acá,
+      # para que no haya dos variables con el mismo dominio escrito dos veces.
+      # Sigue SIN DEFAULT: si `OPUS_DOMAIN` está vacío esto queda en `https://`, que el assert
+      # de core no rechaza — pero ese mismo vacío ya deja al ingress sin `VIRTUAL_HOST`, así
+      # que la instalación no llega a arrancar con un link roto (CA-12).
+      - OPUS_URL=https://${OPUS_DOMAIN}
       # Storage: core es el único dueño del bucket desde REQ-001. Firma las prefirmadas de PUT
       # y de GET, así que estas credenciales necesitan permiso de lectura Y de escritura.
       # Se leen perezosamente, al primer comando de files: el servicio arranca sin ellas.

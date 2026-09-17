@@ -158,16 +158,31 @@ describe('index.ts — arranque y parada del scheduler (CA-7)', () => {
 });
 
 describe('deploy — gates documentales de las seis variables (CA-11, CA-12)', () => {
-  it('TS-37 · las seis están en deploy/.env.dist, SMTP_PASSWORD vacía', () => {
+  it('TS-37 · las cinco SMTP_* están en deploy/.env.dist, SMTP_PASSWORD vacía', () => {
     const content = readFileSync(join(REPO_ROOT, 'deploy', '.env.dist'), 'utf8');
 
-    for (const variable of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM', 'OPUS_URL']) {
+    for (const variable of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_FROM']) {
       content.should.containEql(variable);
     }
 
     const passwordLine = content.split('\n').find((line) => line.startsWith('SMTP_PASSWORD='));
     (passwordLine !== undefined).should.be.true();
     passwordLine!.should.equal('SMTP_PASSWORD=');
+  });
+
+  // `OPUS_URL` es la sexta variable que core exige, pero NO se declara en el `.env`: el operador
+  // carga sólo `OPUS_DOMAIN` (el host, que el ingress ya necesitaba) y cada compose arma la base
+  // con esquema al pasarla a core. Dos variables con el mismo dominio escrito dos veces era una
+  // invitación a que se desincronizaran. El que la base llegue a core sigue cubierto por TS-38.
+  it('TS-37b · OPUS_URL NO se declara en deploy/.env.dist; OPUS_DOMAIN sí', () => {
+    const content = readFileSync(join(REPO_ROOT, 'deploy', '.env.dist'), 'utf8');
+    const lines = content.split('\n');
+
+    lines.some((line) => line.startsWith('OPUS_URL=')).should.be.false();
+
+    const domainLine = lines.find((line) => line.startsWith('OPUS_DOMAIN='));
+    (domainLine !== undefined).should.be.true();
+    domainLine!.should.equal('OPUS_DOMAIN=');
   });
 
   it('TS-38 · las seis están en los tres docker-compose, bloque core:', () => {
@@ -177,6 +192,21 @@ describe('deploy — gates documentales de las seis variables (CA-11, CA-12)', (
         content.should.containEql(`${variable}=`);
       }
     }
+  });
+
+  // El valor que recibe core, no sólo su presencia: en producción sale de `OPUS_DOMAIN` CON el
+  // esquema agregado en el compose —si llegara pelado, todos los links del mail saldrían rotos— y
+  // en dev/local es fijo, porque ahí no hay ingress y el portal es un puerto de localhost.
+  it('TS-38b · OPUS_URL se deriva de OPUS_DOMAIN en producción y es fija en dev/local', () => {
+    const lineFor = (file: string) =>
+      readFileSync(join(REPO_ROOT, 'deploy', file), 'utf8')
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.startsWith('- OPUS_URL='));
+
+    lineFor('docker-compose.yml')!.should.equal('- OPUS_URL=https://${OPUS_DOMAIN}');
+    lineFor('docker-compose.local.yml')!.should.equal('- OPUS_URL=http://localhost:3001');
+    lineFor('docker-compose.dev.yml')!.should.equal('- OPUS_URL=http://localhost:3002');
   });
 
   it('TS-39 · las seis están en core/README.md, tabla Configuration', () => {

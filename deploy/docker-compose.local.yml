@@ -155,9 +155,10 @@ services:
       # del JSON key de la api. SIN ELLA CORE NO ARRANCA, a propósito.
       - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID}
       # Base absoluta CON ESQUEMA del portal (REQ-015/S-071), para armar el link de una
-      # notificación al encolarla. NO ES `OPUS_DOMAIN`. SIN DEFAULT: core no arranca sin ella
-      # (CA-12), igual que en producción.
-      - OPUS_URL=${OPUS_URL}
+      # notificación al encolarla. Acá NO sale de `OPUS_DOMAIN` (que es el host del ingress y
+      # en local no hay ingress): el portal es el puerto publicado por el servicio `opus-web`
+      # de este mismo archivo, así que va fijo y tiene que seguir a `NEXTAUTH_URL` de ahí.
+      - OPUS_URL=http://localhost:3001
       # Storage: core es el único dueño del bucket desde REQ-001. Firma las prefirmadas de PUT
       # y de GET, así que estas credenciales necesitan permiso de lectura Y de escritura.
       # Se leen perezosamente, al primer comando de files: el servicio arranca sin ellas.

@@ -198,10 +198,11 @@ services:
       # stack con el IdP mock del callout y `cp .env.dist .env` sin editar, y el assert de core
       # rechaza el valor vacío además del ausente. No hay service user real cuyo `sub` proteger.
       - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID:-dev-api-service-user}
-      # Mismo criterio que arriba: el assert de core rechaza vacío y ausente por igual, así que
-      # este entorno necesita un default para levantar con `cp .env.dist .env` sin editar. En
-      # producción (docker-compose.yml) esta variable NO lleva default (CA-12).
-      - OPUS_URL=${OPUS_URL:-http://localhost:3001}
+      # Base absoluta CON ESQUEMA del portal (REQ-015/S-071). Acá NO sale de `OPUS_DOMAIN`
+      # (que es el host del ingress, y este entorno no tiene ingress): el portal es el puerto
+      # publicado por el servicio `opus-web` de este mismo archivo, así que va fijo y tiene que
+      # seguir a `NEXTAUTH_URL` de ahí — en dev es el 3002, no el 3001 de local.
+      - OPUS_URL=http://localhost:3002
       # Storage: core es el dueño del bucket. Se leen perezosamente, al primer comando de
       # files, así que el servicio arranca aunque no haya bucket en este entorno.
       - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}

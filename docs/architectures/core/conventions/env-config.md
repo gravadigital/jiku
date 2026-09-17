@@ -60,7 +60,7 @@ Los tests tienen el mismo problema resuelto de otra forma: ver [`testing`](./tes
 | `NODE_ENV` | Entorno | `production` (en `models/`) | — |
 | `LOG_COMMANDS` | Traza de comandos con payload | apagado | — |
 | `CORE_TRUSTED_PUBLISHER_ID` | El `sub` del service user de la api, contra el que se compara el `caller` del subject | **ninguno, a propósito** | **Falla el arranque** |
-| `OPUS_URL` | Base absoluta CON ESQUEMA del portal, para armar el link de una notificación al encolarla (REQ-015/S-071). **No es `OPUS_DOMAIN`**: esa es el host del ingress, sin esquema, declarada en `deploy/.env.dist` y consumida por el reverse proxy — `core` no la lee | **ninguno, a propósito** | **Falla el arranque**: cualquier default mandaría el link de todos los mails al dominio equivocado |
+| `OPUS_URL` | Base absoluta CON ESQUEMA del portal, para armar el link de una notificación al encolarla (REQ-015/S-071). **El operador no la declara**: en el `.env` hay una sola variable, `OPUS_DOMAIN` (el host sin esquema, que el ingress ya consumía), y cada compose le agrega el esquema al pasársela a `core` — `https://${OPUS_DOMAIN}` en producción, un `http://localhost:<puerto>` fijo en dev y local, donde no hay ingress. `core` sigue leyendo `OPUS_URL` y nunca `OPUS_DOMAIN` | **ninguno, a propósito** | **Falla el arranque**: cualquier default mandaría el link de todos los mails al dominio equivocado |
 | `STORAGE_S3_ENDPOINT` | Endpoint del proveedor compatible con S3 | — | Falla al construir el firmador |
 | `STORAGE_S3_CREDENTIALS_ACCESSKEY` · `STORAGE_S3_CREDENTIALS_SECRETKEY` | Credenciales de firma, de **lectura y escritura** | — | Ídem |
 | `STORAGE_S3_BUCKETNAME` · `STORAGE_S3_REGION` | Bucket y región | — | Ídem |
