@@ -257,8 +257,25 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
 - **No lanza.** Un error esperado es un `Reply` de falla; uno inesperado lo captura el despachador.
 - **No lee `process.env`.** Las constantes de negocio son constantes de módulo.
 - **No loguea el flujo normal.** El despachador ya traza con `LOG_COMMANDS`.
-- **No notifica.** Las notificaciones se eliminaron del producto
-  (`requirements-comment.ts:40`).
+- **No envía notificaciones — las declara.** Un comando que quiere notificar las pone en
+  `Reply.notifications`, con el mismo patrón declarativo que `Reply.events`: declara, no ejecuta.
+  Es el despachador quien las escribe.
+
+  > **Esta línea afirmaba que las notificaciones se habían eliminado del producto**, con
+  > referencia a `requirements-comment.ts:40`, y era cierta hasta REQ-015. S-071 y S-072 la
+  > derogaron: los cuatro comandos de requisitos (`requirements.new`, `.resolve`, `.reopen`,
+  > `.comment`) declaran hoy sus notificaciones en `Reply.notifications`.
+  >
+  > **La diferencia de momento entre los dos efectos declarativos es lo que un autor de comandos
+  > necesita saber.** Las notificaciones se escriben **dentro** de la transacción del comando,
+  > **antes** del `commit()` — un fallo al encolar **propaga** y produce el `rollback()` del
+  > comando entero, tratado igual que cualquier otro fallo de escritura. Los eventos se publican
+  > **después** del `commit()` — un fallo de publicación **no** propaga y no revierte nada. La
+  > razón: un evento va a JetStream, un bus **externo** que no participa de la transacción; la
+  > fila de `notification_outbox` es una escritura más sobre la **misma** base, así que no hay
+  > motivo para sacarla de la transacción. Ver [`scheduled-worker`](./scheduled-worker.md) por el
+  > detalle completo, incluida la discrepancia que esto abre con
+  > [ADR-003](../../../adrs/ADR-003-transaccion-del-despachador.md).
 
 ## Reglas
 
@@ -274,6 +291,9 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
 - Un `update` solo se dispara si hay cambios (`Object.keys(changes).length > 0`).
 - Una lista en el payload es el conjunto completo. Documentalo en el contrato si es nueva.
 - No agregues capa de repositorio ni de servicio: el comando es la unidad completa.
+- Un comando que quiere notificar **declara** en `Reply.notifications` con un `type` del registro
+  de notificaciones, y **nunca** escribe en `notification_outbox` por su cuenta ni construye un
+  mail — mismo criterio que con los eventos.
 
 ## Integración con otras convenciones
 
@@ -283,3 +303,5 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
 - **[`contract-translation`](./contract-translation.md)**: los nombres que difieren entre el bus y
   la base.
 - **[`orm`](./orm.md)**: los modelos y por qué no hay repositorio.
+- **[`scheduled-worker`](./scheduled-worker.md)**: el otro extremo del recorrido de una
+  notificación declarada acá — el proceso periódico que la toma, renderiza y envía.

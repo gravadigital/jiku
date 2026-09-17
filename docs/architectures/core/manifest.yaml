@@ -13,7 +13,7 @@ language: node
 # validar en el borde del sistema, una transacción por unidad de trabajo— SÍ aplican y están
 # recogidas en cada convención custom.
 #
-# Cuatro convenciones no tienen equivalente en el catálogo y son NUEVAS, no reemplazos:
+# Cinco convenciones no tienen equivalente en el catálogo y son NUEVAS, no reemplazos:
 #   - bus-consumer: la conexión al bus. El catálogo cubre colas (queue/BullMQ), que es otra
 #     cosa: esto es request/reply sincrónico y sin persistencia
 #   - bus-publisher: la publicación de eventos de dominio (REQ-014), fire-and-forget con
@@ -27,6 +27,12 @@ language: node
 #     responsiblePersonIds/personIds) y, desde REQ-006, SEIS DE SOLO LECTURA que viven en las
 #     fichas de `src/queries/` (body/new_value, authorId/changed_by, taskId/objective_id,
 #     task_comment/objective_comment, priorityValue, y hours-per-day/hours_per_day)
+#   - scheduled-worker: el plano de ejecución periódico del proceso de envío de notificaciones
+#     (REQ-015). NO es bus-consumer NI bus-publisher: no arranca en un mensaje sino en un
+#     temporizador (setTimeout encadenado, nunca setInterval), y su efecto sale del producto
+#     hacia un tercero (SMTP) en vez de hacia otro servicio de Jiku. Toma su trabajo con
+#     FOR UPDATE SKIP LOCKED porque el queue group `gestion` no reparte un proceso que corre
+#     por tiempo entre réplicas
 #
 # NO se declara `http-server`: este servicio no expone HTTP. No hay puerto, ni endpoints, ni
 # verbos, ni framework web. Es la diferencia estructural con `api`.
@@ -48,13 +54,16 @@ conventions:
   - env-config             # dotenv + process.env, sin asserts
   - dockerfile             # multi-stage con contexto en la raíz del monorepo
   - ci-github              # CI, imágenes dev y release en GitHub Actions
+  - scheduled-worker       # el plano periódico de envío: setTimeout encadenado, SKIP LOCKED, sin setInterval
 
 # LA LISTA DE MÓDULOS YA NO DESCRIBE SOLO `src/commands/`, y desde REQ-006 hay que decirlo.
 #
 # Los siete primeros son carpetas de comandos bajo `src/commands/`, una por entidad. El octavo
 # —`queries`— NO es una carpeta de comandos: es la SUPERFICIE DE LECTURA COMPLETA y vive en
 # `src/queries/`. Agregarlo a la misma lista sin esta aclaración dejaría a un lector buscando
-# `src/commands/queries/`, que no existe.
+# `src/commands/queries/`, que no existe. Con `events` ya son nueve entradas, y con
+# `notifications` son diez: cada una de las últimas tres tiene una naturaleza distinta a las
+# siete primeras y se aclara en su propio comentario.
 #
 # `queries` son 23 endpoints sobre 16 recursos, servidos por un MOTOR GENÉRICO más una ficha por
 # recurso: la ficha es un DATO —las cinco listas blancas del recurso— y el motor sabe cómo servirla.
@@ -72,3 +81,7 @@ modules:
                             #   puros de eventos de dominio (REQ-014), que el despachador emite.
                             #   `src/events/auth/` es OTRA dirección (entrante: el consumidor del
                             #   evento de autenticación) y no es este módulo
+  - notifications          # ← `src/notifications/`, NO `src/commands/notifications/`: un plano
+                            #   de ejecución completo (registro de tipos + reglas de destinatarios
+                            #   + plantillas + proceso periódico, REQ-015) que además ESCRIBE
+                            #   desde fuera del despachador (ver `scheduled-worker`)

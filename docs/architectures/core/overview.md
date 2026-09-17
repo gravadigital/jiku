@@ -10,9 +10,12 @@ consultas, es **leer roles** para decidir qué le recorta a cada caller.
 - **Expone:** **23 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
   (`jiku-queries`), request/reply sin JetStream, **dos micro servicios sobre una sola conexión**.
   **Desde REQ-014 publica además eventos de dominio**, en un tercer plano fire-and-forget con
-  JetStream (stream `JIKU_EVENTS`) — ver [ADR-014](../../adrs/ADR-014-jetstream-para-eventos-de-dominio.md)
+  JetStream (stream `JIKU_EVENTS`) — ver [ADR-014](../../adrs/ADR-014-jetstream-para-eventos-de-dominio.md).
+  **Desde REQ-015 corre además un cuarto plano, el único que no arranca en un mensaje**: el proceso
+  periódico de envío de notificaciones por email — ver [`scheduled-worker`](./conventions/scheduled-worker.md)
 - **Consume:** PostgreSQL `jiku` por **dos conexiones** —el usuario dueño para escribir, un rol de
-  **solo lectura** para las consultas—, NATS, Zitadel (solo para su propio token)
+  **solo lectura** para las consultas—, NATS, Zitadel (solo para su propio token), y **desde
+  REQ-015 un servidor SMTP** — la primera integración de red saliente hacia un tercero
 
 ## La decisión que define el servicio
 
@@ -83,6 +86,14 @@ core/
 │   │   ├── engine/           # el motor genérico: NO conoce ningún recurso
 │   │   ├── meta/             # meta.describe y la proyección de una ficha a su descripción
 │   │   └── {recurso}/        # una carpeta por recurso: {r}-spec.ts + {r}-list.ts / {r}-get.ts
+│   ├── notifications/        # EL PLANO DE NOTIFICACIONES (REQ-015) — no es `src/commands/notifications/`
+│   │   ├── registry.ts       # los 4 tipos vigentes: subject, template, resolveRecipients
+│   │   ├── recipients.ts     # las 4 reglas de filtrado al encolar
+│   │   ├── payload.ts        # el payload congelado (título, proyecto, link, actor)
+│   │   ├── write-notifications.ts   # el escritor: bulkCreate DENTRO de la transacción del comando
+│   │   ├── templates/        # render de cada tipo: texto plano + HTML
+│   │   └── dispatch/         # EL PLANO PERIÓDICO — ver `scheduled-worker`: scheduler, claim-batch,
+│   │                         #   run-cycle, settings, transport, backoff
 │   └── models/
 │       ├── index.ts          # conexión del DUEÑO (escritura)
 │       └── read.ts           # conexión de SOLO LECTURA (consultas), con statement_timeout propio
@@ -113,6 +124,38 @@ timeout (`NATS_REQUEST_TIMEOUT_MS`, 5000ms por defecto) y el usuario vería un 5
 real. El `consume()` del consumer tiene además una última red por si el despachador fallara al
 fallar (`core/src/bus/consumer.ts:101-105`).
 
+### El cuarto plano: el proceso periódico de envío, el único que no arranca en un mensaje
+
+Desde REQ-015, `core` corre **cuatro** planos, no tres: comandos, consultas y eventos arrancan en
+un mensaje del bus o en un commit; el proceso de envío de notificaciones arranca en un
+**temporizador interno** — ver [`scheduled-worker`](./conventions/scheduled-worker.md) por el
+mecanismo completo.
+
+```ts
+// core/src/index.ts
+await host.start();
+startDispatchLoop();          // ← DESPUÉS de host.start()
+```
+
+**Arranca después de `host.start()`:** es el primer plano que corre **por tiempo y no por
+mensaje**, y no depende de que el bus esté arriba —solo de la base—, pero mantener el orden
+documentado (comandos, consultas, notificaciones) es lo que hace obvio en el log qué arrancó y en
+qué secuencia.
+
+```ts
+async function shutdown(signal: string): Promise<void> {
+  await stopDispatchLoop();    // ← ANTES de host.stop(), esperando la corrida en curso
+  await host.stop();
+  process.exit(0);
+}
+```
+
+**Para antes de `host.stop()`, esperando la corrida en curso:** un `SIGTERM` a mitad de lote no
+corta el envío en seco. Los mails en curso completan, y por la garantía at-least-once los que no
+llegaron a marcarse se reenvían en la réplica siguiente, sin deduplicación. **Con un lote grande
+esto puede alargar la parada del contenedor** hasta lo que tarde ese lote — es la razón práctica,
+además del pool de conexiones, por la que el tamaño del lote es configurable.
+
 ## Módulos de dominio
 
 **La lista de módulos ya no describe solo `src/commands/`.** Los siete primeros son carpetas de
@@ -130,6 +173,7 @@ lectura completa** y vive en `src/queries/`.
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. **La api no tiene credenciales de S3** |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico más una ficha por recurso |
 | **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), sin efectos laterales. El despachador los emite post-commit — ver [`bus-publisher`](./conventions/bus-publisher.md). No confundir con `src/events/auth/`, el plano **entrante** del evento de autenticación |
+| **`notifications`** | — | **`src/notifications/`**, NO `src/commands/notifications/` | **Un plano de ejecución completo** (REQ-015): registro de 4 tipos + reglas de destinatarios + plantillas + el proceso periódico de envío. El comando **declara** en `Reply.notifications`; el despachador escribe la fila dentro de su transacción; el proceso periódico (`dispatch/`) la toma, renderiza y envía por SMTP — ver [`scheduled-worker`](./conventions/scheduled-worker.md) |
 
 **Son 23 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
 de la columna es la verificación, no la fuente.
@@ -242,6 +286,7 @@ dominio.
 | **NATS** | Recibir comandos **y consultas**, **y publicar eventos de dominio** | **Dos micro servicios sobre una sola conexión**, cada uno con su queue group: `jiku-commands` se suscribe por patrón con `{param}` y `jiku-queries` con un endpoint EXACTO por consulta —ninguna consulta lleva `{param}`, así que ningún subject lleva `*`—. **Desde REQ-014 publica eventos de dominio, post-commit, con JetStream** (ver [`bus-publisher`](./conventions/bus-publisher.md)) |
 | **Zitadel** | Su propio token de bus | Service user con key JSON. El token caduca en ~1h y se renueva solo; por eso no se pasa por variable de entorno |
 | **PostgreSQL** | Escribir **y leer** | **Dos conexiones**: el usuario dueño para los comandos —reintenta 5 veces con 1s de espera antes de abortar— y un rol de **solo lectura** con pool propio y `statement_timeout` de 8000 ms para las consultas. Ese timeout es MENOR que el del caller (10000 ms), y esa desigualdad es lo que hace que la base corte primero y el motor pueda responder `query_timeout` en vez de dejar un timeout mudo del bus |
+| **SMTP** | Enviar los mails de notificación (REQ-015) | **Es la primera y única integración de red saliente hacia un tercero** — NATS, PostgreSQL y Zitadel son infraestructura del propio producto, un servidor SMTP no. Cliente `nodemailer`, construido **perezosamente al primer ciclo que tenga una fila para enviar** (nunca al importar ni al arrancar). **Sin assert de arranque, a propósito**: su modo de fallo es ruidoso y recuperable (la fila queda `pending` con `last_error`), no silencioso — ver [`scheduled-worker`](./conventions/scheduled-worker.md) |
 
 ### El inbox va hasheado, el subject crudo
 
@@ -287,7 +332,9 @@ llamen (`core/src/bus/consumer.ts:44-46`).
 
 1. **Un comando perdido es un comando perdido.** Sin JetStream no hay cola, ni reintento, ni
    persistencia, ni idempotencia. Si core está caído cuando la api publica, la request expira por
-   timeout y **la operación no ocurrió**. No hay reconciliación posterior.
+   timeout y **la operación no ocurrió**. No hay reconciliación posterior. **Contraste desde
+   REQ-015:** el plano de notificaciones es lo opuesto — outbox persistente en la misma base,
+   at-least-once, con reintentos y backoff (ver [`scheduled-worker`](./conventions/scheduled-worker.md)).
 2. **La autorización del bus es la única defensa.** Ver arriba: core confía en el cuerpo sin
    verificar nada.
 3. **Los mensajes de error son texto de interfaz** y están mezclados entre inglés y español, a

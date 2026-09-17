@@ -4,8 +4,8 @@ title: Escritura por el bus — el recorrido completo de un comando de jiku-comm
 type: feature
 status: Draft
 created: 2026-08-25
-last_updated: 2026-09-08
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068]
+last_updated: 2026-09-17
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074]
 ---
 
 # Escritura por el Bus
@@ -13,8 +13,8 @@ stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-25
-**Última actualización:** 2026-09-08
-**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068
+**Última actualización:** 2026-09-17
+**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074
 
 ## Descripción
 
@@ -60,10 +60,15 @@ autoriza al caller directo **está escrita por el mismo claim** que autoriza al 
 | Persona (cliente NATS) | Publica el comando con su token de Zitadel y espera la respuesta en su inbox | Iniciador |
 | `auth-callout` | Mintea el User JWT desde `templates/person-internal.yaml`: **autoriza el subject de comandos** | Autorizador de transporte |
 | NATS | Transporta la request. Servicio micro `jiku-commands`, **queue group propio** | Transporte |
-| `core` · `bus/dispatcher.ts` | Extrae el sobre, espeja la identidad, autoriza el método, resuelve la clase del caller y, desde S-063, **publica los eventos de dominio del paso 5** | Autorizador / Emisor |
-| `core` · el comando (`registry.resolve()`) | Valida el payload con Joi, ejecuta las reglas de dominio y **declara** los eventos en `Reply.events` (S-063) | Procesador |
-| PostgreSQL | Ejecuta la escritura con el **usuario dueño**, dentro de la transacción del despachador | Almacenamiento |
+| `core` · `bus/dispatcher.ts` | Extrae el sobre, espeja la identidad, autoriza el método, resuelve la clase del caller, escribe las notificaciones declaradas (REQ-015, **dentro** de la transacción) y, desde S-063, **publica los eventos de dominio del paso 5** | Autorizador / Escritor / Emisor |
+| `core` · el comando (`registry.resolve()`) | Valida el payload con Joi, ejecuta las reglas de dominio, **declara** los eventos en `Reply.events` (S-063) y, desde REQ-015, **declara** las notificaciones en `Reply.notifications` | Procesador |
+| PostgreSQL | Ejecuta la escritura con el **usuario dueño**, dentro de la transacción del despachador — incluida, desde REQ-015, la fila de `notification_outbox` | Almacenamiento |
 | NATS / JetStream (stream `JIKU_EVENTS`) | **Desde S-063, destino de la publicación del paso 5**: persiste los eventos de dominio que el despachador publica tras el `COMMIT`, con retención de 7 días (S-061) | Transporte y almacenamiento (eventos) |
+
+**Desde REQ-015 hay un efecto más, pero no un servicio más:** la escritura de `notification_outbox`
+ocurre en PostgreSQL, dentro de la misma transacción — no suma un participante nuevo a la tabla de
+arriba. El envío efectivo del mail es del proceso periódico, documentado en
+[`envio-de-notificaciones.md`](envio-de-notificaciones.md), que este flujo no repite.
 
 **Quién NO participa:** **la `api`.** Es el punto del flujo. Tampoco `web` ni `opus-web`: los
 frontends no hablan con el bus (ADR-006). Tampoco un conector de eventos: **recibe** lo que este
@@ -113,6 +118,10 @@ sequenceDiagram
                         C-->>P: failure (código de la regla) + ROLLBACK
                     else
                         C->>DB: INSERT / UPDATE / DELETE
+                        alt reply success Y el comando declaró notificaciones (Reply.notifications, REQ-015)
+                            D->>DB: INSERT INTO notification_outbox (dentro de la MISMA transacción)
+                            Note over D,DB: un fallo acá PROPAGA: rollback del comando entero
+                        end
                         D->>DB: COMMIT
                         alt reply success Y el comando declaró eventos (Reply.events, S-063)
                             D->>JS: publish eventSubject(type) — un publish por evento
@@ -311,15 +320,46 @@ comandos de personas: si un comando inserta varias filas y falla en una validaci
 **La única escritura que sobrevive al rollback es el espejo de `users`** del paso 2c, y es
 deliberado: es un hecho sobre la identidad y no sobre la operación.
 
-**Desde S-063, entre el `commit()` y el `return reply`, el despachador publica los eventos que el
-comando declaró en `Reply.events`** — solo si el reply es `success` y la lista tiene elementos.
+**Este paso ahora tiene tres efectos, no dos — y lo que importa no es el conteo sino EL MOMENTO de
+cada uno.**
+
+**Efecto 1 — desde REQ-015, ANTES del `commit()`, el despachador escribe las notificaciones que el
+comando declaró en `Reply.notifications`** (`writeNotifications`, dentro del mismo `try` que
+envuelve `command.execute()`, **sin** `try/catch` propio): un `INSERT` más en `notification_outbox`
+sobre la **misma** base, en la **misma** transacción. **Un fallo acá PROPAGA** hacia el `catch` de
+más abajo, que hace `rollback()` del comando entero — el mismo tratamiento que cualquier otro fallo
+de escritura del comando.
+
+**Efecto 2 — desde S-063, DESPUÉS del `commit()`, entre el `commit()` y el `return reply`, el
+despachador publica los eventos que el comando declaró en `Reply.events`** — solo si el reply es
+`success` y la lista tiene elementos. La emisión va en su **propio** `try/catch` que no deja
+escapar nada: un fallo de publicación **no** revierte la transacción ya commiteada ni cambia el
+`reply` a `failure` — el evento se pierde y se loguea a `stdout`, nunca se repone.
+
+**La diferencia de momento entre los dos efectos declarativos no es un detalle de implementación,
+es la razón de producto:** un evento de dominio va a JetStream, un bus **externo** que no participa
+de esta transacción — por eso espera al commit, y por eso su pérdida está asumida (ADR-014,
+best-effort, sin outbox). La fila de `notification_outbox`, en cambio, es una escritura **más
+sobre la misma base**: sacarla de la transacción renunciaría a la única garantía que REQ-015
+persigue — *"si el comando commiteó, el mail existe; si el comando falló, rollback y no queda mail
+fantasma"*. Publicar un evento antes del commit sería el error inverso: emitiría eventos de una
+escritura que todavía puede no existir.
+
+> **La última Implementation Rule de [ADR-003](../adrs/ADR-003-transaccion-del-despachador.md)
+> dice que un efecto externo declarado DEBE ejecutarse después del `commit()` y NO DEBE propagar
+> su error.** Las notificaciones hacen lo contrario a propósito, porque no son un efecto
+> **externo**: son una escritura más sobre la base que el comando ya está escribiendo. Esta
+> discrepancia se deja registrada acá y en
+> [`scheduled-worker`](../architectures/core/conventions/scheduled-worker.md), como candidata a
+> una futura ampliación del ADR — no se resuelve editándolo desde esta story.
+
 Vale para los dos canales igual que el resto de este paso: un comando publicado por una persona
-directa y el mismo comando publicado por la api emiten el mismo evento. La emisión va en su
-**propio** `try/catch` que no deja escapar nada: un fallo de publicación **no** revierte la
-transacción ya commiteada ni cambia el `reply` a `failure` — el evento se pierde y se loguea a
-`stdout`, nunca se repone. El detalle completo (el sobre, el catálogo de tipos, el mecanismo
-R-A/R-B) es del contrato de eventos (`docs/apis/core-events.yaml`, S-062) y de la story S-063, no
-de este flujo: acá solo se documenta que el paso 5 ahora tiene dos efectos, no uno.
+directa y el mismo comando publicado por la api producen los mismos dos efectos declarativos. El
+detalle completo de la notificación (el registro de tipos, las reglas de destinatarios, el payload
+congelado) es de la convención [`scheduled-worker`](../architectures/core/conventions/scheduled-worker.md)
+y el detalle completo del evento (el sobre, el catálogo de tipos, el mecanismo R-A/R-B) es del
+contrato de eventos (`docs/apis/core-events.yaml`, S-062) y de la story S-063 — acá solo se
+documenta que el paso 5 tiene tres efectos, con dos momentos distintos.
 
 ### Paso 6: La persona recibe el reply
 
@@ -327,9 +367,15 @@ de este flujo: acá solo se documenta que el paso 5 ahora tiene dos efectos, no 
 Lo que permite que `core` le conteste es el bloque `response:` de `core.yaml`, no uno de la
 plantilla de persona — una persona **nunca recibe requests**, así que no tiene ese bloque.
 
-**El reply no es el último efecto cuando el comando declaró eventos.** Si el paso 5 publicó, el
-recorrido sigue en `JIKU_EVENTS` para cualquier conector suscripto — ver
-[`eventos-de-dominio.md`](eventos-de-dominio.md) para ese tramo, que este flujo no documenta.
+**El reply no es el último efecto cuando el comando declaró eventos o notificaciones.** Si el
+paso 5 publicó eventos, el recorrido sigue en `JIKU_EVENTS` para cualquier conector suscripto —
+ver [`eventos-de-dominio.md`](eventos-de-dominio.md) para ese tramo, que este flujo no documenta.
+
+**Si el paso 5 encoló notificaciones, el recorrido sigue fuera del proceso del comando por
+completo** — no en otro consumidor del bus, sino en el temporizador interno del proceso de envío,
+hasta **~60 segundos después** (el intervalo por defecto de `notification-dispatch-interval-seconds`).
+La persona que recibió el reply ya cerró su request; el mail sale en un ciclo posterior, del todo
+desacoplado de este recorrido — ver [`envio-de-notificaciones.md`](envio-de-notificaciones.md).
 
 ## Manejo de Errores
 
@@ -345,6 +391,7 @@ recorrido sigue en `JIKU_EVENTS` para cualquier conector suscripto — ver
 | Sobre y campo de dominio que difieren | `invalid_fields` + `errorDetails` | 400 | Paso 3 |
 | El cliente no fijó `inboxPrefix` | *(timeout)* | 504 | **Paso 1** — el error más caro de diagnosticar |
 | `core` caído | *(sin suscriptor / timeout)* | 503 / 504 | ADR-002 |
+| **Fallo al encolar la notificación (REQ-015)** | **el código de error del fallo** — el error **SÍ se propaga** | 500 (`internal_error`) | Paso 5, **rollback del comando entero**: la asimetría deliberada con la fila de abajo |
 | Commit OK, publicación del evento falla (S-063) | `success` — el error **no se propaga** | *(sin cambio, HTTP ya respondió)* | Paso 5, evento perdido y logueado a `stdout` |
 
 **Siempre hay respuesta.** Ningún caller queda esperando hasta el timeout, **incluido uno rechazado
@@ -364,12 +411,18 @@ se mudaron a `core` **antes** de abrir la puerta, así que un comando publicado 
 mismo comando publicado por la api aplican exactamente las mismas validaciones y devuelven el mismo
 reply.
 
-**Desde S-063, el estado final incluye un tercer efecto además de la fila y el reply:** si el
-comando declaró eventos y la transacción cerró en `success`, el paso 5 los publicó en
-`JIKU_EVENTS` — un comando publicado por una persona directa y el mismo comando publicado por la
-api emiten el mismo evento. El detalle del sobre, el catálogo de los 16 tipos y las tres garantías
-de entrega es del flujo `eventos-de-dominio` (`docs/flows/eventos-de-dominio.md`, S-067); acá solo
-se documenta que el resultado de un comando ya no es solo la fila y el reply.
+**El estado final ya no son solo dos cosas, sino hasta cuatro:** la fila que el comando escribió, el
+reply que la persona recibió y, condicionales a lo que el comando declaró, la notificación
+encolada (REQ-015) y el evento publicado (S-063). **Desde S-063, si el comando declaró eventos y la
+transacción cerró en `success`, el paso 5 los publicó en `JIKU_EVENTS`** — un comando publicado por
+una persona directa y el mismo comando publicado por la api emiten el mismo evento. El detalle del
+sobre, el catálogo de los 16 tipos y las tres garantías de entrega es del flujo `eventos-de-dominio`
+(`docs/flows/eventos-de-dominio.md`, S-067). **Desde REQ-015, si el comando declaró notificaciones,
+el paso 5 las escribió en `notification_outbox` dentro de la misma transacción** — el detalle del
+registro de tipos, el filtrado de destinatarios y el proceso periódico que finalmente las envía es
+de [`envio-de-notificaciones.md`](envio-de-notificaciones.md) y de la convención
+[`scheduled-worker`](../architectures/core/conventions/scheduled-worker.md). Acá solo se documenta
+que el resultado de un comando ya no es solo la fila y el reply.
 
 ## Notas
 
