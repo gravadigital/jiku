@@ -60,6 +60,9 @@ Todo mensaje empieza con el prefijo del componente. Es lo que hace grepeable un 
 | `[dispatch]` | Resolución de comando y errores del despachador |
 | `[cmd]` | La traza de comandos con `LOG_COMMANDS` |
 | `[DB]` | Conexión y sync de Sequelize |
+| `[events]` | Emisión de eventos de dominio a JetStream (`bus/emit-events.ts`) |
+| `[query]` | Errores del motor de consultas (`queries/engine/`) |
+| `[notifications]` | Proceso periódico de envío de notificaciones por SMTP (REQ-015/S-073, `notifications/dispatch/`): arranque/parada del scheduler y descarte de una fila que agotó sus intentos |
 
 ## Niveles
 
