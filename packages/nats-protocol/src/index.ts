@@ -337,6 +337,25 @@ export interface Reply<T = unknown> {
    * responder. Acá solo se declara el campo para que S-063 a S-066 puedan compilar contra él.
    */
   events?: DomainEvent[];
+  /**
+   * Notificaciones por mail declaradas por el comando (REQ-015).
+   *
+   * OPCIONAL Y AUSENTE POR DEFAULT, el mismo patrón que `events`: `success()` y `failure()` NO
+   * CAMBIAN DE FIRMA en esta story y siguen produciendo un envelope SIN LA CLAVE, así que un
+   * `Reply` sin notificaciones viaja BYTE A BYTE igual que hoy y los 23 comandos existentes no
+   * cambian.
+   *
+   * A DIFERENCIA DE `events`, ESTAS SE ESCRIBEN ANTES DEL COMMIT Y DENTRO DE LA TRANSACCIÓN
+   * (S-071). El evento se publica a un bus externo que no participa de la transacción, así que
+   * tiene que ir después del commit y tolerar perderse (best-effort, ADR-014). La notificación es
+   * una fila en `notification_outbox`, una escritura más en la MISMA base: puede y debe ir
+   * adentro, y de ahí sale la garantía que persigue el REQ ("si el comando commiteó, el mail
+   * existe; si el comando falló, rollback y no queda mail fantasma").
+   *
+   * HOY NADIE LO LLENA. El escritor lo consume S-071 (`writeNotifications`, invocado por el
+   * despachador antes del `commit()`); los cuatro comandos que lo declaran son S-072.
+   */
+  notifications?: NotificationDeclaration[];
   data?: T;
 }
 
@@ -817,6 +836,54 @@ export interface EventEntityRef {
   id: number;
   /** SIEMPRE presente, sea cual sea la entidad — regla explícita del sobre. */
   projectId: number;
+}
+
+/**
+ * Lo que un comando declara en `Reply.notifications` para pedir una notificación (REQ-015,
+ * S-071). El comando DECLARA, no escribe: el escritor de `core` es quien resuelve destinatarios,
+ * aplica el filtrado y arma el payload congelado a partir de esto.
+ *
+ * `entity` COPIA LA FORMA DE `EventEntityRef` a propósito (D-7): es el mismo vocabulario que ya
+ * usa el plano de eventos, y reusar el tipo evita un segundo vocabulario para lo mismo sin
+ * acoplar el módulo de notificaciones a nada nuevo (ya importa de este paquete).
+ */
+export interface NotificationDeclaration {
+  /** Clave del registro de tipos de `core/src/notifications/registry.ts`. */
+  type: string;
+  entity: EventEntityRef;
+  /**
+   * Destinatario explícito (CA-14): cuando viene, el escritor NO resuelve "suscriptores menos el
+   * actor" para este tipo — escribe (si sobrevive a las reglas 1/3/4) exactamente para este
+   * `userId`. Es lo que evita duplicar tipo/asunto/plantilla para el caso "avisar solo a la
+   * persona recién suscripta".
+   */
+  recipientOverride?: string;
+  /** Datos específicos del tipo, la parte del payload que NO es común (título/actor/link/etc). */
+  data?: Record<string, unknown>;
+}
+
+/**
+ * La forma congelada del `payload` de una fila de `notification_outbox` (REQ-015, S-071, CA-10).
+ *
+ * EXACTAMENTE ESTAS SEIS CLAVES: `entity`/`actor`/`title`/`project`/`link` son COMUNES a
+ * cualquier tipo; `data` es lo específico de cada uno. Es lo que permite que el primer tipo que
+ * no sea de requisito entre sin romper nada — el error que el REQ marca a evitar es un payload
+ * con forma de requisito (`requirementId`, `requirementTitle`, ...) que obliga a un segundo
+ * formato en cuanto aparece un tipo distinto.
+ */
+export interface NotificationPayload {
+  entity: EventEntityRef;
+  actor: EventActor;
+  title: string;
+  /**
+   * `name: string | null` (CA-13): el proyecto puede no tener nombre, y el payload lo congela
+   * así, sin lanzar. La plantilla (S-073) es quien decide cómo tolerarlo — no se inventa acá un
+   * `'Sin proyecto'` que haría indistinguible un proyecto sin nombre de uno llamado así.
+   */
+  project: { name: string | null };
+  /** Completo, armado al encolar (CA-12): `${OPUS_URL}/requirements/${id}`. */
+  link: string;
+  data?: Record<string, unknown>;
 }
 
 /**

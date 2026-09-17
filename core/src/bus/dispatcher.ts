@@ -16,6 +16,7 @@ import { authorizeEntityAccess } from '../entity-project';
 import logger from '../logger';
 import { CommandRegistry } from '../commands/registry';
 import { mirrorUser } from '../user-mirror';
+import { writeNotifications } from '../notifications/write-notifications';
 import { extractActor } from './actor';
 import { EventPublisher } from './event-publisher';
 import { emitEvents } from './emit-events';
@@ -459,6 +460,42 @@ export class Dispatcher {
       const reply = await command.execute(validated.value, {
         caller, params, transaction, actor, roles, actorName,
       });
+
+      // LA ESCRITURA DE NOTIFICACIONES VA ACÁ, ANTES DEL COMMIT Y SIN try/catch PROPIO (REQ-015,
+      // S-071) — Y ES EL PUNTO EXACTO DONDE ESTE BLOQUE Y EL DE `emitEvents` DE MÁS ABAJO
+      // SIGNIFICAN LO OPUESTO, aunque se parecen en la forma. Léase ESTE comentario y el de
+      // `emitEvents` como un solo texto: los dos son la misma decisión (ADR-003, "el despachador
+      // es dueño de los efectos externos que un comando declara") aplicada a dos naturalezas
+      // distintas de efecto.
+      //
+      // POR QUÉ ACÁ Y NO DESPUÉS: el evento se publica a JetStream, un bus EXTERNO que no
+      // participa de esta transacción — por eso tiene que esperar al commit, y por eso su pérdida
+      // está asumida (ADR-014, best-effort, sin outbox). La fila de `notification_outbox`, en
+      // cambio, es una escritura MÁS sobre la MISMA base: no hay ninguna razón para sacarla de la
+      // transacción, y sacarla renunciaría a la única garantía que este REQ persigue —"si el
+      // comando commiteó, el mail existe; si el comando falló, rollback y no queda mail
+      // fantasma"—. Publicar un evento ANTES del commit sería el error inverso: emitiría eventos
+      // de una escritura que todavía puede no existir.
+      //
+      // POR QUÉ SIN try/catch PROPIO, A DIFERENCIA DEL BLOQUE DE EVENTOS: `writeNotifications`
+      // corre DENTRO del `try` que ya envuelve a `command.execute()`, así que un fallo suyo (una
+      // consulta que rechaza, un `bulkCreate` que rechaza, un tipo desconocido en el registro)
+      // PROPAGA hacia el `catch` de más abajo, que hace `rollback()` y responde
+      // `internal_error` — exactamente el mismo tratamiento que cualquier otro fallo de escritura
+      // del comando. Un `try/catch` acá, copiado del bloque de `emitEvents`, convertiría un fallo
+      // de encolado en un `success` silencioso SIN FILA Y SIN MAIL: es la clase de error que este
+      // REQ existe para evitar (R-4), y es EL ERROR MÁS FÁCIL DE COMETER ACÁ porque los dos
+      // bloques se parecen en la forma.
+      //
+      // `reply.notifications?.length` Y NO `!== undefined`, mismo criterio que `reply.events`:
+      // un `notifications: []` no tiene nada que escribir, y entrar igual solo arriesgaría sin
+      // ganar nada. Un comando que no declara el campo (los 23 de hoy) no cambia su
+      // comportamiento en absoluto.
+      if (reply.status === 'success' && reply.notifications?.length) {
+        await writeNotifications(reply.notifications, {
+          caller, params, transaction, actor, roles, actorName,
+        });
+      }
 
       if (reply.status === 'success') {
         await transaction.commit();
