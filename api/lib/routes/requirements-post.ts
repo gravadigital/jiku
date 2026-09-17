@@ -25,6 +25,12 @@ const createSchema = joi.object({
   scope: joi.string().optional(),
   technicalSolution: joi.string().optional(),
   acceptanceCriteria: joi.string().optional(),
+  // Ids de usuario de Zitadel (S-070). Se pasa SIN transformar al comando: la api no
+  // deduplica, no agrega al creador y no valida que existan — esa validación es de `core`,
+  // que la hace dentro de la misma transacción del alta y responde `user_not_found` si
+  // alguno no existe (ya mapeado a 404 en STATUS_BY_ERROR_CODE). Esta ruta no tiene el
+  // auto-suscribir del portal: eso es específico de `opus`.
+  subscriberUserIds: joi.array().items(joi.string()).optional(),
 });
 
 /**
@@ -56,7 +62,7 @@ async function createRequirement(req: Request, res: Response) {
   const {
     title, description, type, priority, state, visibilityLevel, responsiblePersonIds,
     estimatedFinishDate, projectId, tags, fileIds, scope, technicalSolution,
-    acceptanceCriteria,
+    acceptanceCriteria, subscriberUserIds,
   } = req.body;
 
   const data = await sendCommand<{ id: number }>(res, 'requirements.new', {
@@ -75,6 +81,7 @@ async function createRequirement(req: Request, res: Response) {
     ...(scope !== undefined ? { scope } : {}),
     ...(technicalSolution !== undefined ? { technicalSolution } : {}),
     ...(acceptanceCriteria !== undefined ? { acceptanceCriteria } : {}),
+    ...(subscriberUserIds !== undefined ? { subscriberUserIds } : {}),
   });
   if (!data) {
     return;

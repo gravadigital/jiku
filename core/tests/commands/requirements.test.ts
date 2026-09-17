@@ -14,6 +14,9 @@ import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
 const CREATOR = 'zitadel-sub-reqs';
 const OTHER_USER = 'zitadel-sub-reqs-2';
 const ADMIN_ID_REQS = 'zitadel-sub-reqs-admin';
+// S-070: usuario que NO existe en `users` — sin fila creada a propósito. Ejercita CA-4
+// (`user_not_found` + rollback completo) en `requirements.new` con `subscriberUserIds`.
+const GHOST_USER = 'zitadel-sub-reqs-fantasma';
 
 /**
  * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`: el `caller` que ejercita la rama de la api, y desde
@@ -375,7 +378,12 @@ describe('requirements', () => {
         });
       });
 
-      it('TS-37 · requirements.new no crea suscriptores hoy: recipients.subscriptors es [] en el alta', async () => {
+      // S-070: renombrado de "TS-37 · requirements.new no crea suscriptores hoy" — desde esta
+      // story el comando SÍ los crea (ver el describe de más abajo). El nombre anterior afirmaba
+      // lo contrario de lo que el servicio hace ahora; el assert no cambia, porque este caso
+      // puntual (sin el campo) sigue comportándose igual (CA-2). Pasa a ser TS-9 de la tabla de
+      // Test Scenarios de S-070.
+      it('TS-9 (ex TS-37) · sin subscriberUserIds, recipients.subscriptors sigue siendo []', async () => {
         await dispatch<{ id: number }>('requirements.new', {
           creator: CREATOR, title: 'T', description: 'D', projectId,
         });
@@ -434,6 +442,183 @@ describe('requirements', () => {
         }
 
         messages.some((m) => m.includes('lautaro@grava.digital')).should.be.false();
+      });
+    });
+
+    /**
+     * S-070: `requirements.new` acepta suscriptores. Test Scenarios TS-1 a TS-13 del Story Plan
+     * `S-070.core.requirements-new-acepta-suscriptores.md`. Entra por `dispatch()` real (ADR-013
+     * / ADR-003): comando -> despachador -> transacción -> commit/rollback. `fakePublisher` se
+     * resetea en su propio `beforeEach` porque es GLOBAL a todo `dispatch()` del archivo.
+     */
+    describe('requirements.new — suscriptores (S-070)', () => {
+      beforeEach(() => {
+        fakePublisher.reset();
+      });
+
+      it('TS-1 · alta con dos suscriptores crea el requisito y las dos filas', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER],
+        });
+
+        reply.status.should.equal('success');
+        reply.data!.id.should.be.a.Number();
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(2);
+        rows.map((r) => r.userId).sort().should.deepEqual([CREATOR, OTHER_USER].sort());
+      });
+
+      it('TS-2 · las tres suscripciones del escenario de la story (creador + dos explícitos)', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER, ADMIN_ID_REQS],
+        });
+
+        reply.status.should.equal('success');
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(3);
+        new Set(rows.map((r) => r.userId)).should.deepEqual(
+          new Set([CREATOR, OTHER_USER, ADMIN_ID_REQS])
+        );
+      });
+
+      it('TS-3 · el requisito y las suscripciones son de la MISMA transacción (commit conjunto)', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER],
+        });
+
+        const requirement = await Requirement.findByPk(reply.data!.id);
+        const subscriptors = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        requirement!.should.be.ok();
+        subscriptors.length.should.equal(2);
+      });
+
+      it('TS-4 · un id repetido NO es error: se colapsa antes de insertar', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [OTHER_USER, OTHER_USER],
+        });
+
+        reply.status.should.equal('success');
+        const count = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        count.should.equal(1);
+      });
+
+      it('TS-5 · deduplicación con varios repetidos y mezcla', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER, CREATOR, OTHER_USER, CREATOR],
+        });
+
+        reply.status.should.equal('success');
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(2);
+        new Set(rows.map((r) => r.userId)).should.deepEqual(new Set([CREATOR, OTHER_USER]));
+      });
+
+      it('TS-6 · userId inexistente -> user_not_found', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [OTHER_USER, GHOST_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('user_not_found');
+      });
+
+      it('TS-7 · el fallo hace rollback completo: no queda ni el requisito ni ninguna suscripción', async () => {
+        const before = await Requirement.count();
+
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'Fantasma', description: 'D', projectId,
+          responsiblePersonIds: [personA], subscriberUserIds: [OTHER_USER, GHOST_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('user_not_found');
+        (await Requirement.count()).should.equal(before);
+        ((await Requirement.findOne({ where: { title: 'Fantasma' } })) === null).should.be.true();
+        (await RequirementSubscriptor.count()).should.equal(0);
+        (await PersonRequirement.count()).should.equal(0);
+      });
+
+      it('TS-8 · recipients.subscriptors del evento YA refleja los suscriptores recién creados', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          responsiblePersonIds: [personA, personB], subscriberUserIds: [OTHER_USER],
+        });
+
+        const event = ev('requirement.created');
+        event.recipients!.subscriptors.length.should.equal(1);
+        event.recipients!.subscriptors[0].should.deepEqual({
+          userId: OTHER_USER, name: 'Otro', email: 'otro-reqs@mail.com',
+        });
+        event.recipients!.responsiblePersonIds.should.deepEqual([personA, personB]);
+      });
+
+      it('TS-10 · sin el campo, el alta se comporta exactamente igual que antes', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Sin suscriptores', description: 'D', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        const requirement = await Requirement.findByPk(reply.data!.id);
+        requirement!.title.should.equal('Sin suscriptores');
+        const links = await PersonRequirement.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        links.length.should.equal(2);
+        links.find((l) => l.personId === personA)!.isLeader!.should.be.true();
+        const subs = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        subs.should.equal(0);
+      });
+
+      it('TS-11 · subscriberUserIds: [] (array vacío explícito) no rompe ni inserta nada', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [],
+        });
+
+        reply.status.should.equal('success');
+        const count = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        count.should.equal(0);
+      });
+
+      it('TS-12 · un campo desconocido sigue siendo rechazado (el esquema no se abrió)', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIdz: [OTHER_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_fields');
+      });
+
+      it('TS-13 · tipo inválido en el array lo ataja Joi, antes de la transacción', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [123],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_fields');
       });
     });
   });

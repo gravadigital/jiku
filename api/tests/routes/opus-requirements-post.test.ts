@@ -6,6 +6,7 @@ import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
 import { Attachment, AttachmentEntityType, File, Project, Requirement, RequirementActivity, RequirementSubscriptor, RetentionStatus, User, UserProjectPermission } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
 
 const MATTERMOST_BASE = process.env.MATTERMOST_INTEGRATION_URL || 'https://mattermost-bot.gestion.dev.grava.io/api';
 
@@ -321,6 +322,212 @@ describe('POST /api/opus/requirements', () => {
         .expect(400)
         .then((response) => {
           response.body.code.should.equal('invalid_fields');
+        });
+    });
+  });
+
+  /**
+   * S-070: la ruta pasa de N+1 comandos (`requirements.new` + un
+   * `requirements.{id}.subscriptors.new` por suscriptor) a un solo `requirements.new` con
+   * `subscriberUserIds`, armando el set con el creador incluido y primero.
+   */
+  describe('S-070: un solo comando con subscriberUserIds', () => {
+    afterEach(() => {
+      fakeBus.reset();
+    });
+
+    // TS-8 (CA-6): el N+1 desaparece, se publica exactamente un comando
+    it('TS-8: publica exactamente UN comando requirements.new, ninguno de suscripción', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta unificada', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-01'] })
+        .expect(201)
+        .then(() => {
+          fakeBus.sent.should.have.length(1);
+          fakeBus.sent[0].command.should.equal('requirements.new');
+          fakeBus.sent.some((c) => /subscriptors\.new$/.test(c.command)).should.be.false();
+        });
+    });
+
+    // TS-9 (CA-6, CA-7): el creador va en el set junto al suscriptor explícito
+    it('TS-9: el creador y el suscriptor explícito quedan ambos en el set y en la base', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta con creador y suscriptor', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-01'] })
+        .expect(201)
+        .then((res) => {
+          const payload = fakeBus.last!.payload as any;
+          payload.subscriberUserIds.should.have.length(2);
+          payload.subscriberUserIds.should.containDeep(['zitadel-sub-04', 'zitadel-sub-01']);
+          return RequirementSubscriptor.findAll({ where: { requirementId: res.body.id } });
+        })
+        .then((rows) => {
+          rows.should.have.length(2);
+          rows.map((r) => r.userId).should.containDeep(['zitadel-sub-04', 'zitadel-sub-01']);
+        });
+    });
+
+    // TS-10 (CA-6, CA-7): sin subscriberUserIds, el creador se suscribe igual
+    it('TS-10: sin subscriberUserIds, el creador se suscribe igual (un solo comando)', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta sin suscriptores', description: 'Desc', projectId })
+        .expect(201)
+        .then((res) => {
+          fakeBus.sent.should.have.length(1);
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual(['zitadel-sub-04']);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(1));
+    });
+
+    // TS-11 (CA-6, CA-7): el creador repetido en el cuerpo se colapsa por el Set de la api
+    it('TS-11: el creador repetido en el cuerpo se colapsa a un solo elemento', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta creador repetido', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-04', 'zitadel-sub-01'] })
+        .expect(201)
+        .then((res) => {
+          const payload = fakeBus.last!.payload as any;
+          payload.subscriberUserIds.should.have.length(2);
+          payload.subscriberUserIds.filter((id: string) => id === 'zitadel-sub-04').should.have.length(1);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(2));
+    });
+
+    // TS-12 (CA-7): el creador va primero en el array
+    it('TS-12: el creador va primero en subscriberUserIds', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta orden creador', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-04', 'zitadel-sub-01'] })
+        .expect(201)
+        .then(() => {
+          (fakeBus.last!.payload as any).subscriberUserIds[0].should.equal('zitadel-sub-04');
+        });
+    });
+
+    // TS-13 (CA-6): userId inexistente → 404 y rollback completo, nada nuevo queda escrito
+    it('TS-13: un userId inexistente responde 404 user_not_found y hace rollback completo', () => {
+      let subscriptorCountBefore: number;
+      return RequirementSubscriptor.count({ where: { userId: 'zitadel-sub-04' } })
+        .then((c) => { subscriptorCountBefore = c; })
+        .then(() => request(application)
+          .post('/api/opus/requirements')
+          .set('Authorization', 'Bearer token_04_external_user')
+          .send({ title: 'Alta con fantasma', description: 'Desc', projectId, subscriberUserIds: ['no-existe-jamas'] })
+          .expect(404))
+        .then((res) => {
+          res.body.code.should.equal('user_not_found');
+          return Requirement.findOne({ where: { title: 'Alta con fantasma' } });
+        })
+        .then((found) => {
+          (found === null).should.be.true();
+          return RequirementSubscriptor.count({ where: { userId: 'zitadel-sub-04' } });
+        })
+        .then((countAfter) => {
+          countAfter.should.equal(subscriptorCountBefore);
+        });
+    });
+
+    // TS-14: ids numéricos rechazados por Joi (regresión, el esquema ya lo declaraba)
+    it('TS-14: ids numéricos en subscriberUserIds son rechazados por Joi', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta ids numericos', description: 'Desc', projectId, subscriberUserIds: [123] })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+          (fakeBus.last === undefined).should.be.true();
+        });
+    });
+
+    // TS-15: bus caído → 503 y no escribe nada
+    it('TS-15: bus caído responde 503 y no escribe nada', () => {
+      fakeBus.failWithNoResponders();
+
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta bus caido', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-01'] })
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+          return Requirement.findOne({ where: { title: 'Alta bus caido' } });
+        })
+        .then((found) => {
+          (found === null).should.be.true();
+        });
+    });
+
+    // TS-16: timeout → 504, sin comandos de suscripción como reintento
+    it('TS-16: timeout responde 504 y no publica comandos de suscripción', () => {
+      fakeBus.failWithTimeout();
+
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta timeout', description: 'Desc', projectId, subscriberUserIds: ['zitadel-sub-01'] })
+        .expect(504)
+        .then((res) => {
+          res.body.code.should.equal('gateway_timeout');
+          fakeBus.sent.some((c) => /subscriptors\.new$/.test(c.command)).should.be.false();
+        });
+    });
+
+    // TS-17: regresión, fileIds + subscriberUserIds conviven
+    it('TS-17: fileIds y subscriberUserIds juntos siguen funcionando', () => {
+      return File.create({
+        fileName: 'attach.png',
+        fileSize: 2048,
+        mimeType: 'image/png',
+        storageKey: `grava-gestion/f/${Math.random()}.png`,
+        storageBucket: 'test-bucket',
+        storageRegion: 'us-east-1',
+        byteStatus: 'pending',
+        retentionStatus: RetentionStatus.Active,
+        uploadedBy: 'zitadel-sub-04',
+      } as any, { validate: false })
+        .then((file) => request(application)
+          .post('/api/opus/requirements')
+          .set('Authorization', 'Bearer token_04_external_user')
+          .send({
+            title: 'Req con adjunto y suscriptor', description: 'Desc', projectId,
+            fileIds: [file.id], subscriberUserIds: ['zitadel-sub-01'],
+          })
+          .expect(201)
+          .then((res) => Attachment.findOne({ where: { fileId: file.id } })
+            .then((att) => {
+              att!.entityType.should.equal(AttachmentEntityType.Requirement);
+              att!.entityId!.should.equal(res.body.id);
+              return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+            })
+            .then((count) => count.should.equal(2))
+            .then(() => Attachment.destroy({ where: { fileId: file.id }, force: true }))
+            .then(() => File.destroy({ where: { id: file.id }, force: true }))));
+    });
+
+    // TS-18: regresión, el 403 de permiso de proyecto sigue vigente. La autorización la
+    // hace `core` (compuerta del despachador, no `validateProject`), así que el comando SÍ
+    // se publica y es `core` quien lo rechaza — igual que TS-4 de este mismo archivo.
+    it('TS-18: el 403 access_denied sigue vigente y no crea nada', () => {
+      return request(application)
+        .post('/api/opus/requirements')
+        .set('Authorization', 'Bearer token_04_external_user')
+        .send({ title: 'Alta sin permiso', description: 'Desc', projectId: projectNoPermId, subscriberUserIds: ['zitadel-sub-01'] })
+        .expect(403)
+        .then((res) => {
+          res.body.code.should.equal('access_denied');
+          return Requirement.findOne({ where: { title: 'Alta sin permiso' } });
+        })
+        .then((found) => {
+          (found === null).should.be.true();
         });
     });
   });
