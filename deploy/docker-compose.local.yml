@@ -154,6 +154,10 @@ services:
       # para distinguir el canal de la api del de un publicador externo. Es el campo `userId`
       # del JSON key de la api. SIN ELLA CORE NO ARRANCA, a propósito.
       - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID}
+      # Base absoluta CON ESQUEMA del portal (REQ-015/S-071), para armar el link de una
+      # notificación al encolarla. NO ES `OPUS_DOMAIN`. SIN DEFAULT: core no arranca sin ella
+      # (CA-12), igual que en producción.
+      - OPUS_URL=${OPUS_URL}
       # Storage: core es el único dueño del bucket desde REQ-001. Firma las prefirmadas de PUT
       # y de GET, así que estas credenciales necesitan permiso de lectura Y de escritura.
       # Se leen perezosamente, al primer comando de files: el servicio arranca sin ellas.
@@ -164,6 +168,13 @@ services:
       - STORAGE_S3_REGION=${STORAGE_S3_REGION}
       - STORAGE_S3_FORCEPATHSTYLE=${STORAGE_S3_FORCEPATHSTYLE}
       - STORAGE_S3_KEY_PREFIX=${STORAGE_S3_KEY_PREFIX}
+      # SMTP (REQ-015/S-073): primera dependencia de red saliente de `core`. Lectura perezosa,
+      # sin assert de arranque.
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
       # Traza de diagnóstico: imprime cada comando y su respuesta. Ver bus-inspect.sh
       - LOG_COMMANDS=${LOG_COMMANDS:-false}
       # En NODE_ENV=production el logger escribe a archivo y exige estas rutas.

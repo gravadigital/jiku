@@ -14,6 +14,7 @@ import { QueryDispatcher, budgetFrom } from './queries/dispatcher';
 import { queryRegistry } from './queries';
 import { EventDispatcher } from './events/dispatcher';
 import { syncUser } from './events/auth/user-sync';
+import { startDispatchLoop, stopDispatchLoop } from './notifications/dispatch';
 
 // EL PUBLICADOR SE RESUELVE DE FORMA PEREZOSA, EN UN OBJETO INTERMEDIO (D-3 de S-063), por el
 // mismo problema de orden que resuelve el presupuesto de bytes tres líneas más abajo: `dispatcher`
@@ -92,15 +93,36 @@ async function main(): Promise<void> {
   logger.info(`[core] ${registry.patterns().length} registered commands`);
   logger.info(`[core] ${queryRegistry.patterns().length} registered queries`);
   await host.start();
+
+  // El proceso de envío de notificaciones arranca DESPUÉS de `host.start()` (CA-7, REQ-015/
+  // S-073): es el primer plano de `core` que corre por TIEMPO y no por mensaje, y no depende de
+  // que el bus esté arriba —solo de la base—, pero mantener el orden documentado (comandos,
+  // consultas, notificaciones) es lo que hace obvio en el log qué arrancó y en qué secuencia.
+  startDispatchLoop();
 }
 
-/** Para los servicios y drena el bus antes de salir, para no cortar mensajes en vuelo. */
-function shutdown(signal: string): void {
+/**
+ * Para los servicios y drena el bus antes de salir, para no cortar mensajes en vuelo.
+ *
+ * PASA A `async` (CA-7): antes de `host.stop()`, espera a que el proceso de envío pare — cancela
+ * su timer y ESPERA la corrida en curso. Un `SIGTERM` a mitad de lote no corta el envío en seco:
+ * los mails en curso completan, y por at-least-once los que no llegaron a marcarse se reenvían
+ * en la réplica siguiente, sin lógica de deduplicación de por medio. Con un lote grande, esto
+ * puede alargar la parada del contenedor hasta lo que tarde ese lote — es la razón práctica,
+ * además del tamaño del pool, por la que `notification-batch-size` es configurable.
+ *
+ * SE CONSERVA el `.catch(() => process.exit(1))`: un fallo al cerrar (acá o en `host.stop()`)
+ * sigue terminando el proceso, nunca lo deja colgado esperando para siempre.
+ */
+async function shutdown(signal: string): Promise<void> {
   logger.info(`[core] ${signal} recibido, cerrando`);
-  host
-    .stop()
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1));
+  try {
+    await stopDispatchLoop();
+    await host.stop();
+    process.exit(0);
+  } catch {
+    process.exit(1);
+  }
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));

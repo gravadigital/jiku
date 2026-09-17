@@ -697,6 +697,19 @@ describe('notifications (S-071)', () => {
       }
     });
 
+    it('TS-41 (S-073) · OPUS_URL vacía (solo espacios) se trata igual que ausente', async () => {
+      const original = process.env.OPUS_URL;
+      process.env.OPUS_URL = '   ';
+      const { loadConfig, resetConfig } = await import('../../src/config');
+      resetConfig();
+      try {
+        (() => loadConfig()).should.throw(/OPUS_URL/);
+      } finally {
+        process.env.OPUS_URL = original;
+        loadConfig();
+      }
+    });
+
     it('TS-33 · estructural: recipients.ts no nombra ningún tipo de notificación', async () => {
       const fs = await import('fs');
       const path = await import('path');

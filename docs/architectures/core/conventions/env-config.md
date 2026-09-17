@@ -12,8 +12,8 @@ package: dotenv
 
 > **Reemplaza** la convención `env-config` del catálogo, que usa `@t3-oss/env-core` con un esquema
 > Zod validado al arrancar y un objeto `env` tipado. Este servicio usa `dotenv` y lee `process.env`
-> directamente, **casi sin validación**: desde REQ-001 (S-002) hay **un** assert de arranque, el de
-> `CORE_TRUSTED_PUBLISHER_ID`. `api` tiene dos.
+> directamente, **casi sin validación**: desde REQ-001 (S-002) hay `CORE_TRUSTED_PUBLISHER_ID`, y
+> desde REQ-015 (S-071) también `OPUS_URL` — **dos** asserts de arranque en total.
 
 ## Cuándo aplica
 
@@ -59,12 +59,18 @@ Los tests tienen el mismo problema resuelto de otra forma: ver [`testing`](./tes
 | `NATS_USER_ID` | Fallback del inbox sin service user (solo tests) | `SERVICE_NAME` | — |
 | `NODE_ENV` | Entorno | `production` (en `models/`) | — |
 | `LOG_COMMANDS` | Traza de comandos con payload | apagado | — |
-| `CORE_TRUSTED_PUBLISHER_ID` | El `sub` del service user de la api, contra el que se compara el `caller` del subject | **ninguno, a propósito** | **Falla el arranque** (el único assert del servicio) |
+| `CORE_TRUSTED_PUBLISHER_ID` | El `sub` del service user de la api, contra el que se compara el `caller` del subject | **ninguno, a propósito** | **Falla el arranque** |
+| `OPUS_URL` | Base absoluta CON ESQUEMA del portal, para armar el link de una notificación al encolarla (REQ-015/S-071) | **ninguno, a propósito** | **Falla el arranque**: cualquier default mandaría el link de todos los mails al dominio equivocado |
 | `STORAGE_S3_ENDPOINT` | Endpoint del proveedor compatible con S3 | — | Falla al construir el firmador |
 | `STORAGE_S3_CREDENTIALS_ACCESSKEY` · `STORAGE_S3_CREDENTIALS_SECRETKEY` | Credenciales de firma, de **lectura y escritura** | — | Ídem |
 | `STORAGE_S3_BUCKETNAME` · `STORAGE_S3_REGION` | Bucket y región | — | Ídem |
 | `STORAGE_S3_FORCEPATHSTYLE` | `'true'` para MinIO y compatibles | `false` | — |
 | `STORAGE_S3_KEY_PREFIX` | Prefijo de las claves de storage | `grava-gestion` | **Cambiarlo con datos cargados deja inaccesibles los archivos existentes** |
+| `SMTP_HOST` | Host del servidor SMTP (REQ-015/S-073) — primera dependencia de red saliente del servicio | — | El envío falla; las filas quedan `pending` con `last_error` |
+| `SMTP_PORT` | Puerto SMTP | `587` | Toma el default |
+| `SMTP_USER` | Usuario de autenticación SMTP | — | El envío falla según lo que exija el proveedor |
+| `SMTP_PASSWORD` | Contraseña SMTP. **Secreto** | — | Ídem. Va vacía en `.env.dist`, nunca un placeholder que parezca válido |
+| `SMTP_FROM` | Remitente de los mails de notificación | — | El envío falla |
 | `LOGGER_INFO_PATH` · `LOGGER_ERROR_PATH` · `LOGGER_*_LEVEL` · `LOGGER_FILE_MAX_SIZE` · `LOGGER_MAX_FILES` | Transports de archivo en producción | — | Los transports quedan con `filename: undefined` |
 
 ### La que rompe de forma no obvia
@@ -74,20 +80,35 @@ conectarse al bus: las creds del sentinel no conceden permisos por sí solas —
 dispara el auth-callout que mintea los permisos. El síntoma es `Authorization Violation`, no una
 variable faltante.
 
-## Validación al arrancar: un solo assert
+## Validación al arrancar: dos asserts
 
-**Hay exactamente un assert**, y lo agregó S-002: `loadConfig()` en `src/config.ts`, invocado por
-`src/index.ts` después de `dotenv.config()` y antes de `consumer.start()`. Lanza si
-`CORE_TRUSTED_PUBLISHER_ID` está ausente **o vacío**.
+**Hay dos asserts**, los dos en `loadConfig()` de `src/config.ts`, invocado por `src/index.ts`
+después de `dotenv.config()` y antes de `host.start()`:
 
-**Por qué esta variable y no las otras candidatas:** su modo de fallo es silencioso y corrompe datos.
-Un default vacío haría que ningún `caller` coincida con el publicador confiable, así que todos los
-comandos caerían por la rama externa de `resolveActor`: `files.uploaded_by` quedaría con el service
-user de la api en vez de la persona, y ningún usuario podría vincular lo que subió. El único síntoma
-sería un `file_not_owned` — que parece un problema de permisos y no de configuración.
+1. **`CORE_TRUSTED_PUBLISHER_ID`** (S-002). Lanza si está ausente **o vacío**.
+2. **`OPUS_URL`** (REQ-015/S-071). Lanza si está ausente **o vacío** (con `.trim()`).
 
-**El patrón `process.env.X || 'default'` está prohibido para esta variable**, aunque sea la convención
-en todo el resto del servicio: `|| ''` es exactamente el bug que el assert previene.
+**Por qué estas dos y no las otras candidatas:** el modo de fallo de las dos es silencioso y corrompe
+datos (o, en el caso de `OPUS_URL`, produce un dato ya publicado que no se puede corregir después).
+
+- Un `CORE_TRUSTED_PUBLISHER_ID` vacío haría que ningún `caller` coincida con el publicador
+  confiable, así que todos los comandos caerían por la rama externa de `resolveActor`:
+  `files.uploaded_by` quedaría con el service user de la api en vez de la persona, y ningún usuario
+  podría vincular lo que subió. El único síntoma sería un `file_not_owned` — que parece un problema
+  de permisos y no de configuración.
+- Un `OPUS_URL` ausente o con default enviaría el link de **todos** los mails de notificación al
+  dominio equivocado — y a diferencia de un bug de código, un link roto en un mail ya enviado no se
+  corrige después.
+
+**El patrón `process.env.X || 'default'` está prohibido para estas dos variables**, aunque sea la
+convención en todo el resto del servicio: `|| ''` (o un default no vacío) es exactamente el bug que
+el assert previene.
+
+**`SMTP_*` (REQ-015/S-073), en cambio, NO lleva assert de arranque**, a propósito: su modo de fallo
+es ruidoso y recuperable (la fila queda `pending` con `last_error`), no silencioso ni destructivo —
+el criterio que separa "assert de arranque" de "lectura perezosa" en esta convención. `SMTP_*` se
+lee perezosamente, al primer ciclo del proceso de envío que tenga una fila para mandar, con el mismo
+criterio que `STORAGE_S3_*`.
 
 Fuera de ese assert no hay esquema ni validación. Las consecuencias, para que no sorprendan:
 
@@ -113,7 +134,9 @@ Fuera de ese assert no hay esquema ni validación. Las consecuencias, para que n
 | `ZITADEL_*` | `@jiku/zitadel-auth`, vía `serviceUserFromEnv()` | En `start()` |
 | `LOGGER_*`, `NODE_ENV` | `src/logger.ts:12` | **Al importar el módulo** |
 | `CORE_TRUSTED_PUBLISHER_ID` | `src/config.ts` | En `loadConfig()`, al arrancar — **nunca dentro de un comando** |
+| `OPUS_URL` | `src/config.ts` | En `loadConfig()`, al arrancar |
 | `STORAGE_S3_*` | `src/commands/files/storage.ts` | Al construir el firmador, **perezosamente al primer uso** (no al importar: si no, la suite de tests no arrancaría sin credenciales) |
+| `SMTP_*` | `src/notifications/dispatch/transport.ts` | Al construir el transporte, **perezosamente al primer ciclo con filas para enviar** (mismo criterio que `STORAGE_S3_*`) |
 | `LOG_COMMANDS` | `src/bus/dispatcher.ts:33` | **En cada comando** |
 
 Las que se leen al importar no se pueden cambiar en caliente. `LOG_COMMANDS` es la excepción: se

@@ -198,6 +198,10 @@ services:
       # stack con el IdP mock del callout y `cp .env.dist .env` sin editar, y el assert de core
       # rechaza el valor vacío además del ausente. No hay service user real cuyo `sub` proteger.
       - CORE_TRUSTED_PUBLISHER_ID=${CORE_TRUSTED_PUBLISHER_ID:-dev-api-service-user}
+      # Mismo criterio que arriba: el assert de core rechaza vacío y ausente por igual, así que
+      # este entorno necesita un default para levantar con `cp .env.dist .env` sin editar. En
+      # producción (docker-compose.yml) esta variable NO lleva default (CA-12).
+      - OPUS_URL=${OPUS_URL:-http://localhost:3001}
       # Storage: core es el dueño del bucket. Se leen perezosamente, al primer comando de
       # files, así que el servicio arranca aunque no haya bucket en este entorno.
       - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
@@ -207,6 +211,14 @@ services:
       - STORAGE_S3_REGION=${STORAGE_S3_REGION}
       - STORAGE_S3_FORCEPATHSTYLE=${STORAGE_S3_FORCEPATHSTYLE}
       - STORAGE_S3_KEY_PREFIX=${STORAGE_S3_KEY_PREFIX}
+      # SMTP (REQ-015/S-073): lectura perezosa, sin assert de arranque. Sin default: si falta,
+      # el envío falla y las filas quedan `pending` con `last_error` (comportamiento esperado
+      # en dev sin un SMTP real).
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
     volumes:
       - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
     depends_on:

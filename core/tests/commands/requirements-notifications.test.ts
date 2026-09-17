@@ -517,6 +517,27 @@ describe('requirements-notifications (S-072)', () => {
       });
     });
 
+    it('TS-43 (S-073) · CA-13: el comando responde rápido, sin esperar ningún SMTP', async () => {
+      // El comando NUNCA importa el proceso de envío (TS-42, gate estructural): este test es la
+      // verificación funcional complementaria — el `Reply` llega rápido y la fila queda
+      // `pending`, lista para que el proceso PERIÓDICO (Task 5/6 de S-073), desacoplado, la
+      // levante en su próximo ciclo.
+      const requirementId = await createPublicRequirement([U1, U2, U3]);
+
+      const startedAt = Date.now();
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: U1, comment: 'Rápido, sin SMTP', visibilityLevel: 'public',
+        actor: { id: U1, roles: ['user'] },
+      });
+      const elapsedMs = Date.now() - startedAt;
+
+      reply.status.should.equal('success');
+      (elapsedMs < 1000).should.be.true();
+      const rows = await allRows();
+      rows.length.should.equal(2);
+      rows.forEach((row) => row.status.should.equal('pending'));
+    });
+
     it('TS-27 · comentario internal en requisito public no encola', async () => {
       const requirementId = await createPublicRequirement([U1, U2, U3]);
 
