@@ -1,6 +1,6 @@
 import joi from 'joi';
 import { AttachmentEntityType, Person, PersonRequirement, Project, Requirement, RequirementPriority, RequirementState, RequirementSubscriptor, RequirementType, RequirementVisibilityLevel, User } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { ErrorCode, NotificationDeclaration, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { linkFiles } from '../link-files';
@@ -208,6 +208,18 @@ export const requirementsNew: Command<RequirementsNewPayload, { id: number }> = 
     // adjuntan al objeto ya construido, el mismo patrón condicional con que `failure()` agrega
     // `errorDetails` — la clave aparece solo cuando hay algo, así que un `Reply` sin eventos
     // sigue viajando byte a byte igual que antes de esta story.
+    //
+    // EL COMANDO DECLARA Y NO ESCRIBE (REQ-015, S-072): el escritor de S-071 resuelve los
+    // destinatarios (suscriptores menos el creador), aplica las cuatro reglas de filtrado y
+    // escribe en la transacción del despachador. Por eso acá no hay exclusión del creador ni
+    // chequeo de visibilidad — los hace el escritor, no este comando.
+    const notifications: NotificationDeclaration[] = [
+      {
+        type: 'requirement.created',
+        entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+      },
+    ];
+    reply.notifications = notifications;
     return reply;
   },
 };

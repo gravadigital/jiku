@@ -1,6 +1,6 @@
 import joi from 'joi';
 import { Requirement, RequirementSubscriptor, User } from '@jiku/models';
-import { ErrorCode, Reply, failure, success } from '@jiku/nats-protocol';
+import { ErrorCode, NotificationDeclaration, Reply, failure, success } from '@jiku/nats-protocol';
 import { Command, CommandContext } from '../types';
 import { validateWith } from '../validate';
 import { resolveActor } from '../resolve-actor';
@@ -71,6 +71,12 @@ export const requirementsSubscriptorsNew: Command<SubscriptorNewPayload, { id: n
     const responsiblePersonIds = await readResponsiblePersonIds(requirement.id, ctx.transaction);
     const reply = success({ id: subscription.id });
     reply.events = [
+      // ESTE EVENTO NO LLEVA `actor.name` (D-2, y sigue sin llevarlo): `SubscriptorEventInput`
+      // no declara `actorEnvelope` ni `actorName` — es una forma cerrada, a propósito, porque
+      // `actorId` acá puede no ser una persona (`?? ctx.caller`). CA-9 de S-072 no pide tocar
+      // esta firma: pide que `ctx.actorName` esté poblado para el MAIL (ver la declaración de
+      // notificación más abajo), y eso lo resuelve el propio despachador al armar `ctx`, sin que
+      // este comando tenga que pasar nada.
       requirementSubscriptorAdded({
         requirement: { id: requirement.id, projectId: requirement.projectId },
         actorId,
@@ -79,6 +85,23 @@ export const requirementsSubscriptorsNew: Command<SubscriptorNewPayload, { id: n
         recipients: await resolveRecipients(requirement.id, responsiblePersonIds, ctx.transaction),
       }),
     ];
+    // DECLARA CON `recipientOverride` (CA-2): mismo tipo que el alta (`requirement.created`,
+    // mismo asunto y plantilla), pero dirigido a EXACTAMENTE este suscriptor, no a "suscriptores
+    // menos el actor". `resolveRequirementRecipients` respeta el override y ni siquiera consulta
+    // `RequirementSubscriptor` cuando viene.
+    //
+    // NO SE EXCLUYE AL ACTOR ACÁ (CA-10): si `payload.userId === ctx.actor?.id`, la regla 3 del
+    // escritor descarta el candidato SOLA. Comparar a mano acá crearía un segundo lugar donde
+    // esa regla puede desincronizarse — el mismo error estructural que CA-7 evita en el comando
+    // de comentario.
+    const notifications: NotificationDeclaration[] = [
+      {
+        type: 'requirement.created',
+        entity: { type: 'requirement', id: requirement.id, projectId: requirement.projectId },
+        recipientOverride: payload.userId,
+      },
+    ];
+    reply.notifications = notifications;
     return reply;
   },
 };

@@ -576,6 +576,9 @@ channels:
       exists, deduplicates, and inserts one `requirement_subscriptors` row per id, in the same
       transaction as the requirement. Optional and additive: a client that does not send it
       behaves exactly as before.
+
+      **REQ-015:** declares a `requirement.created` notification; core enqueues one row per
+      `subscriberUserIds` entry other than the creator.
     publish:
       operationId: requirementsNew
       summary: Create a requirement
@@ -635,6 +638,13 @@ channels:
 
       **This does not touch authorization.** The role -> method map and the dispatcher's entity
       check are unrelated planes and neither changes because of this note.
+
+      **REQ-015:** this command declares notifications on the two resolution transitions —
+      `requirement.resolved` when the state enters `resuelto`, `requirement.reopened` when it
+      leaves `resuelto` towards a non-terminal state. **This is the channel through which
+      resolution actually arrives**, since no HTTP route publishes
+      `requirements.{id}.resolve`. Any other field change (`title`, `description`, `priority`,
+      or a state change that is neither) notifies nothing.
     publish:
       operationId: requirementsEdit
       summary: Edit a requirement
@@ -662,6 +672,10 @@ channels:
       >
       > **The state transition table (C-15) that used to be validated alongside C-17 here is gone
       > (REQ-012): `invalid_state_transition` is no longer emitted by this command either.**
+
+      **REQ-015:** on a real transition into `resuelto`, this command declares a
+      `requirement.resolved` notification. Because no HTTP route publishes it,
+      `requirements.{id}.edit` declares the same thing on its own branch — both are required.
     parameters:
       id:
         description: Requirement id (`requirements.id`).
@@ -679,7 +693,12 @@ channels:
     description: |
       Comment on a requirement. Stored as a `RequirementActivity` of type `comment`.
 
-      It does not notify: notifications were removed from the product.
+      **REQ-015 — it DOES notify now.** When the requirement is `public` **and** the comment is
+      `public`, the command declares a `requirement.comment.created` notification, and core
+      enqueues one `notification_outbox` row per subscriber other than the author. Note the two
+      defaults run in **opposite directions**: `requirements.visibility_level` defaults to
+      `public`, while a comment's `visibility_level` defaults to `internal` — so a comment sent
+      without `visibilityLevel` does **not** notify.
     parameters:
       id:
         description: Requirement id (`requirements.id`).
@@ -701,8 +720,9 @@ channels:
       **REQ-011.** Closes the asymmetry with tasks: today only the task's comment can be edited.
       `visibilityLevel` is immutable once the comment exists and is rejected with `invalid_fields`
       if sent. `fileIds` is the COMPLETE set that must end up linked, resolved with
-      `syncFileLinks` — same semantics as `requirements.{id}.edit`. Does not notify (no
-      notification channel exists in the product yet).
+      `syncFileLinks` — same semantics as `requirements.{id}.edit`. **Does not notify BY PRODUCT
+      DECISION** (RF-16 / S-072 CA-8): creating a comment notifies, editing one does not — **even
+      though the notification channel now exists** (REQ-015). This is not an omission.
     parameters:
       id:
         description: Requirement id (`requirements.id`).
@@ -726,6 +746,10 @@ channels:
 
       Core checks that the user exists and is not subscribed already. **The permission over the
       project is validated by the api**, because it depends on the role.
+
+      **REQ-015:** declares a `requirement.created` notification aimed only at the newly
+      subscribed user (`recipientOverride`), not at the requirement's whole subscriber list. If
+      the actor subscribes themselves, nothing is enqueued.
     parameters:
       id:
         description: Requirement id (`requirements.id`).
