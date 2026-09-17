@@ -4,8 +4,8 @@ title: Alta de requisito desde el portal de clientes
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-09-01
-stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034, S-049]
+last_updated: 2026-09-17
+stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034, S-049, S-070, S-072, S-074]
 ---
 
 # Alta de Requisito desde el Portal de Clientes
@@ -13,8 +13,8 @@ stories: [S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034, S-049]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-27
-**Stories:** S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034
+**Última actualización:** 2026-09-17
+**Stories:** S-003, S-004, S-007, S-014, S-029, S-030, S-033, S-034, S-049, S-070, S-072, S-074
 
 > ## REQ-007 — la autorización por rol y por entidad se muda a `core`
 >
@@ -82,6 +82,8 @@ sequenceDiagram
             C->>DB: INSERT people_requirements (el 1º es líder)
             C->>DB: UPDATE files SET byte_status='uploaded'
             C->>DB: INSERT attachments (entity_type, entity_id, file_id)
+            C->>DB: INSERT requirement_subscriptors (subscriberUserIds, deduplicados)
+            C->>DB: INSERT notification_outbox (requirement.created, dentro de esta misma transacción)
             C-->>N: success { id }
             Note over C: commit
         end
@@ -137,6 +139,10 @@ POST /api/opus/requirements        ← al propio origen de opus-web
   "fileIds": [1234, 1235]
 }
 ```
+
+> **`subscriptorIds` del portal se traduce a `subscriberUserIds` en el comando (paso 5).** Viaja
+> **en el mismo comando único** `requirements.new`, junto con el resto del payload, y `core` lo
+> **deduplica antes de validar** contra `users`, validando existencia **en lote** (S-070).
 
 **El único campo obligatorio es `title`.** El estado no es editable: se muestra como un chip fijo
 "Análisis".
@@ -202,6 +208,7 @@ requisitos en el proyecto de otro.
   "state": "analisis",
   "visibilityLevel": "public",
   "responsiblePersonIds": [],
+  "subscriberUserIds": ["3233...", "3234..."],
   "fileIds": [1234, 1235]
 }
 ```
@@ -211,7 +218,12 @@ requisitos en el proyecto de otro.
 `projectId` (integer, req) · `type` (enum|null) · `priority` (enum, default `sin_prioridad`) ·
 `state` (enum, default `analisis`) · `visibilityLevel` (enum, default `public`) ·
 `responsiblePersonIds` (integer[]) · `estimatedFinishDate` (date-time|null) · `tags` (Tag[]) ·
-`fileIds` (`FileIds`, integer[], `maxItems: 10`)
+`subscriberUserIds` (IdentityUserId[], REQ-015/S-070 — deduplicado antes de validar, existencia
+verificada en lote contra `users`) · `fileIds` (`FileIds`, integer[], `maxItems: 10`)
+
+> **Desde REQ-015/S-072, este mismo comando declara `requirement.created` en
+> `Reply.notifications`.** El despachador escribe la fila en `notification_outbox` —ver paso 6—;
+> `requirements.new` no llama a nada del proceso de envío directamente.
 
 > **El sobre de identidad (S-029, entregado).** Todo comando que publica la api lleva además la
 > clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
@@ -246,7 +258,7 @@ El despachador abre la transacción. Validaciones:
    **Si uno solo falla, se descarta toda la escritura.**
 3. **Las personas responsables existen** → `person_not_found`
 
-**Operaciones de BD:**
+**Operaciones de BD, todas en la MISMA transacción:**
 ```sql
 INSERT INTO requirements (title, description, project_id, type, priority, state,
                           visibility_level, created_by)
@@ -262,11 +274,20 @@ UPDATE files SET byte_status = 'uploaded' WHERE id IN (1234, 1235);
 INSERT INTO attachments (entity_type, entity_id, file_id)
 VALUES ('requirement', {nuevoId}, 1234), ('requirement', {nuevoId}, 1235);
 
--- si vinieron suscriptores
+-- subscriberUserIds, ya deduplicados y validados en lote (S-070). Se escriben en ESTA misma
+-- transacción, junto con el resto de la escritura del requisito.
 INSERT INTO requirement_subscriptors (requirement_id, user_id) VALUES (...);
+
+-- REQ-015/S-072: el comando declaró `requirement.created` en Reply.notifications; el
+-- DESPACHADOR (no el comando) escribe acá, ANTES del commit — ver escritura-por-el-bus.md paso 5.
+-- Se encola solo si la regla 1 de filtrado deja pasar al destinatario: con
+-- visibilityLevel: 'public' (el default de este flujo) pasa; con 'internal' no se encolaría.
+INSERT INTO notification_outbox (type, recipient_user_id, recipient_email, payload)
+VALUES ('requirement.created', ...);
 ```
 
-**Response (éxito):** `{ "status": "success", "data": { "id": 412 } }` → **commit**
+**Response (éxito):** `{ "status": "success", "data": { "id": 412 } }` → **commit** (con la fila de
+`notification_outbox` ya escrita)
 
 **Ref:** `core/src/commands/requirements/requirements-new.ts:130` · `docs/db-schemas/jiku.md`
 
@@ -279,6 +300,12 @@ INSERT INTO requirement_subscriptors (requirement_id, user_id) VALUES (...);
 
 La api relee la base para armar el recurso completo. El portal muestra una **pantalla de éxito
 durante 1,8 segundos** y cierra el modal, invalidando las queries del tablero.
+
+**El portal confirma sin esperar el mail.** La notificación ya quedó encolada en el paso 6, dentro
+de la misma transacción que creó el requisito, pero el **envío** efectivo es asíncrono: sale por el
+proceso periódico de `core`, hasta **~60 segundos después** (el intervalo por defecto) — ver
+[`envio-de-notificaciones.md`](envio-de-notificaciones.md). La pantalla de éxito del cliente no
+tiene ninguna dependencia de si el mail salió o no.
 
 ## Manejo de Errores
 
@@ -308,7 +335,9 @@ del tablero. El equipo interno lo ve en `web` con el mismo estado.
   `entity_type: 'requirement'`, `entity_id: {nuevoId}` y `file_id`
 - `files`: los archivos vinculados pasan a `byte_status: 'uploaded'`
 - `requirement_subscriptors`: filas de los suscriptores elegidos
-- **Ninguna notificación se envía a nadie** (ver Notas)
+- `notification_outbox`: fila nueva con `type: 'requirement.created'`, `status: 'pending'` —
+  **desde REQ-015/S-072** (ver Notas). El envío efectivo lo hace el proceso periódico, no este
+  flujo
 
 ## Notas
 
@@ -325,8 +354,12 @@ del tablero. El equipo interno lo ve en `web` con el mismo estado.
   producto**, no por omisión: cualquier estado es alcanzable desde cualquier otro, incluidos
   `resuelto` y `cancelado` (dejan de ser terminales), y `invalid_state_transition` queda sin
   emisor. El portal puede llevar un requisito a cualquier estado, igual que `web`.
-- **Los suscriptores no reciben nada.** La suscripción se registra en la base y **no hay canal de
-  notificación en el producto**. Es la brecha del feature group FG-2.
+- **Desde REQ-015/S-072 (deroga la nota anterior de este documento, que decía que no había canal de
+  notificación):** el comando `requirements.new` declara `requirement.created` en
+  `Reply.notifications`, y el despachador encola la fila dentro de esta misma transacción —ver paso
+  6—. El destinatario efectivo depende de las reglas de filtrado del registro de notificaciones
+  (`docs/architectures/core/conventions/scheduled-worker.md`), y el envío del mail es del proceso
+  periódico, hasta ~60s después — ver [`envio-de-notificaciones.md`](envio-de-notificaciones.md).
 - **Un usuario interno puede usar esta misma superficie.** `opus-web` no corta navegación por rol,
   así que un `user` o `admin` que entre al portal puede crear requisitos y cambiar estado y
   prioridad inline (pregunta abierta 4).

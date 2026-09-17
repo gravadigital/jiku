@@ -60,7 +60,7 @@ Los tests tienen el mismo problema resuelto de otra forma: ver [`testing`](./tes
 | `NODE_ENV` | Entorno | `production` (en `models/`) | — |
 | `LOG_COMMANDS` | Traza de comandos con payload | apagado | — |
 | `CORE_TRUSTED_PUBLISHER_ID` | El `sub` del service user de la api, contra el que se compara el `caller` del subject | **ninguno, a propósito** | **Falla el arranque** |
-| `OPUS_URL` | Base absoluta CON ESQUEMA del portal, para armar el link de una notificación al encolarla (REQ-015/S-071) | **ninguno, a propósito** | **Falla el arranque**: cualquier default mandaría el link de todos los mails al dominio equivocado |
+| `OPUS_URL` | Base absoluta CON ESQUEMA del portal, para armar el link de una notificación al encolarla (REQ-015/S-071). **No es `OPUS_DOMAIN`**: esa es el host del ingress, sin esquema, declarada en `deploy/.env.dist` y consumida por el reverse proxy — `core` no la lee | **ninguno, a propósito** | **Falla el arranque**: cualquier default mandaría el link de todos los mails al dominio equivocado |
 | `STORAGE_S3_ENDPOINT` | Endpoint del proveedor compatible con S3 | — | Falla al construir el firmador |
 | `STORAGE_S3_CREDENTIALS_ACCESSKEY` · `STORAGE_S3_CREDENTIALS_SECRETKEY` | Credenciales de firma, de **lectura y escritura** | — | Ídem |
 | `STORAGE_S3_BUCKETNAME` · `STORAGE_S3_REGION` | Bucket y región | — | Ídem |
@@ -166,3 +166,6 @@ credenciales con los del contenedor efímero. Ver [`testing`](./testing.md).
 - **[`orm`](./orm.md)**: `POSTGRESQL_*` y el reintento de conexión.
 - **[`logging`](./logging.md)**: `LOG_COMMANDS` y la deuda de los `LOGGER_*`.
 - **[`testing`](./testing.md)**: `.env.test`, `CI` y `KEEP_DB`.
+- **[`scheduled-worker`](./scheduled-worker.md)**: `SMTP_*`, la única variable de este servicio
+  leída perezosamente al primer ciclo con filas para enviar, con el mismo criterio de
+  "sin assert" que `STORAGE_S3_*`.
