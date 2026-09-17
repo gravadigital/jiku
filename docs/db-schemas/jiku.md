@@ -2,8 +2,8 @@
 
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
-**Extraído de** `packages/models/src/*.model.ts` — los 26 modelos Sequelize del paquete
-compartido — y de las 104 migraciones de `api/db-upgrade/migrations/`.
+**Extraído de** `packages/models/src/*.model.ts` — los 24 modelos Sequelize del paquete
+compartido — y de las 106 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -33,7 +33,7 @@ porque el rol de la instalación se lo permite.
 |---|---|
 | Nombres de tabla | `snake_case`, plural (`projects`, `worked_times`). Las intermedias, `{plural}_{plural}` |
 | Nombres de columna | `snake_case` en la base, `camelCase` en el modelo (`underscored: true` lo traduce) |
-| Clave primaria | `id` `INTEGER` autoincremental, **salvo `users`**, cuyo `id` es `VARCHAR(100)`: el `sub` de Zitadel |
+| Clave primaria | `id` `INTEGER` autoincremental, **salvo `users`** (`VARCHAR(100)`: el `sub` de Zitadel) y **salvo `notification_outbox`** (`BIGSERIAL`: tabla de flujo que crece con cada hecho notificado, S-069) |
 | Timestamps | `created_at` / `updated_at` en casi todas (`timestamps: true`) |
 | Referencias a usuario | `VARCHAR(100)` — nunca un entero, porque son ids de Zitadel |
 | Enums | Tipos `ENUM` de PostgreSQL, con **valores en español** (son los que viajan al front) |
@@ -79,16 +79,16 @@ erDiagram
     requirements ||--o{ requirement_activity : tiene
     requirements ||--o{ requirement_subscriptors : tiene
     requirements ||--o{ worked_times : recibe
-    requirements ||--o| requirement_mail_threads : "hilo (sin uso)"
-    requirements ||--o{ inbound_mail_threads : "hilo (sin uso)"
 
     objectives ||--o{ objective_activity : tiene
     objectives ||--o{ objectives_subscriptors : tiene
     objectives ||--o{ worked_times : recibe
-    objectives ||--o| objective_mail_threads : "hilo (sin uso)"
+
+    users ||--o{ notification_outbox : recibe
 
     origins
     system_settings
+    notification_outbox
 ```
 
 `attachments` no aparece con relaciones porque **no tiene claves foráneas hacia las entidades**:
@@ -618,19 +618,16 @@ Cinco claves nuevas en `system_settings`, **configurables en caliente sin redesp
 - **Se leen por comando, sin caché.** "En caliente" lo exige; cachear con TTL rompería los criterios
   de configurabilidad. Es una lectura por índice `key` UNIQUE dentro de la transacción ya abierta.
 
-### Tablas sin uso
+### Cola de salida de notificaciones (`notification_outbox`)
 
-Quedaron de las notificaciones por mail que se eliminaron. **Ninguna migración las borra**, porque
-eliminar un modelo no elimina su tabla y una migración destructiva perdería datos.
-
-| Tabla | Forma |
-|---|---|
-| `objective_mail_threads` | `objective_id` (UNIQUE), `message_id`, `mattermost_post_id` |
-| `requirement_mail_threads` | `requirement_id` (UNIQUE), `message_id`, `mattermost_post_id`. Creada en `20260717_02` |
-| `inbound_mail_threads` | `requirement_id`, `message_id`. `updatedAt: false`. Creada en `20260703_03` |
-
-`inbound_mail_threads` declara dos índices: único sobre `message_id`
-(`uk_inbound_mail_threads_message_id`) e índice sobre `requirement_id`.
+Introducida por S-069 (REQ-015), en reemplazo de las tres tablas de la funcionalidad de mail
+eliminada (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`). Los
+tres modelos Sequelize se dan de baja en el plan `packages/models` de la story; las tres tablas
+las dropea el plan `api`, que se despliega junto. `type` y `status` son `VARCHAR`, no
+ENUM nativo: agregar un tipo de notificación es sumar una fila al registro de código, no un
+`ALTER TYPE`. El único índice es **parcial**, sobre `(next_attempt_at, id)` con
+`WHERE status = 'pending'`, para que su tamaño quede acotado a la cola pendiente y no al
+histórico. No hay ningún `UNIQUE` de idempotencia: la entrega es at-least-once (RF-25).
 
 ## Representación DBML
 
@@ -960,35 +957,24 @@ Table origins {
   updated_at timestamp
 }
 
-// --- Sin uso: quedaron de las notificaciones por mail eliminadas ---
+// --- Cola de salida de notificaciones (S-069 / REQ-015) ---
 
-Table objective_mail_threads {
-  id integer [pk, increment]
-  objective_id integer [not null, unique, ref: > objectives.id]
-  message_id varchar(500) [not null]
-  mattermost_post_id varchar(100)
+Table notification_outbox {
+  id bigint [pk, increment, note: 'BIGSERIAL: tabla de flujo. El driver pg lo devuelve como string']
+  type varchar(100) [not null, note: 'clave del registro de tipos (S-071). VARCHAR y no ENUM a proposito']
+  channel varchar(20) [not null, default: 'email']
+  recipient_user_id varchar(100) [not null, ref: > users.id]
+  recipient_email varchar(255) [not null, note: 'congelado al encolar']
+  payload jsonb [not null]
+  status varchar(20) [not null, default: 'pending', note: 'pending / sent. No hay failed']
+  attempts integer [not null, default: 0]
+  next_attempt_at timestamp [not null, default: `now()`]
+  last_error text
   created_at timestamp
-  updated_at timestamp
-}
-
-Table requirement_mail_threads {
-  id integer [pk, increment]
-  requirement_id integer [not null, unique, ref: > requirements.id]
-  message_id varchar(500) [not null]
-  mattermost_post_id varchar(100)
-  created_at timestamp
-  updated_at timestamp
-}
-
-Table inbound_mail_threads {
-  id integer [pk, increment]
-  requirement_id integer [not null, ref: > requirements.id]
-  message_id varchar(500) [not null]
-  created_at timestamp
+  sent_at timestamp
 
   indexes {
-    message_id [unique, name: 'uk_inbound_mail_threads_message_id']
-    requirement_id [name: 'idx_inbound_mail_threads_requirement_id']
+    (next_attempt_at, id) [name: 'idx_notification_outbox_pending', note: 'PARCIAL: WHERE status = pending. Acotado a la cola, no al historico']
   }
 }
 
@@ -1024,7 +1010,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **105** |
+| Cantidad | **106** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`

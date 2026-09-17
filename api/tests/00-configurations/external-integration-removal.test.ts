@@ -90,9 +90,12 @@ describe('S-010 - baja de la integración con sistemas externos', () => {
   });
 
   describe('barrel de @jiku/models', () => {
-    // TS-1
-    it('TS-1: el barrel exporta 26 clases, no 29', () => {
-      allModels.length.should.be.equal(26);
+    // TS-1. El número base era 26 (29 − 3 de la integración externa) al escribir esta story;
+    // S-069 lo movió a 24 (26 − 3 de los modelos de mail eliminados + 1 nuevo,
+    // NotificationOutbox). Lo que este escenario protege sigue siendo lo mismo: que las 3
+    // clases de la integración externa no están, no un número fijo en el tiempo.
+    it('TS-1: el barrel exporta 24 clases, no 29', () => {
+      allModels.length.should.be.equal(24);
     });
 
     // TS-2
