@@ -175,10 +175,6 @@ react-select's computed styles through a node jsdom does not accept. `web` decla
   `STORAGE_S3_KEY_PREFIX` on an installation that already has data makes existing files
   unreachable. Documented in full — with what to do about it — in
   [deploy/.env.dist](../deploy/.env.dist).
-- **Three unused tables remain**: `objective_mail_threads`, `requirement_mail_threads` and
-  `inbound_mail_threads`, left over from the removed email notifications. No migration drops
-  them, because removing a model does not remove its table and a destructive migration would
-  lose data.
 - **`week-assigned-times`** is still present but its future is undecided — it may be kept,
   reshaped or removed.
 - **Both frontends run NextAuth v5, which has no stable release yet.** They are pinned to the

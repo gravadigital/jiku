@@ -53,7 +53,7 @@ api/
 │       ├── bus/              cliente NATS, sendCommand/runCommand, protocolo, traductores
 │       ├── middlewares/      7 compartidos: auth, roles, entidades del path, fechas
 │       └── *.ts              validación, storage, permisos de adjuntos, helpers
-├── db-upgrade/migrations/   103 migraciones, corren al arrancar
+├── db-upgrade/migrations/   106 migraciones, corren al arrancar
 ├── tests/                    61 archivos de rutas + utils + configuraciones
 └── types/
 ```
@@ -236,4 +236,4 @@ Importan porque condicionan qué se puede planificar sobre este servicio.
    - Los tres modelos Sequelize de las tablas sin uso de las notificaciones por mail eliminadas
      (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`) se dieron de
      baja en S-069 (REQ-015), que las reemplaza por `notification_outbox`. Las tres tablas en sí
-     las dropea la migración del plan `S-069.api.*`, que se despliega junto con este cambio
+     ya las dropeó la migración `20260917_01_notification_outbox`, del mismo plan `S-069.api`

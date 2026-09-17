@@ -3,7 +3,7 @@
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
 **Extraído de** `packages/models/src/*.model.ts` — los 24 modelos Sequelize del paquete
-compartido — y de las 104 migraciones de `api/db-upgrade/migrations/`.
+compartido — y de las 106 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -33,7 +33,7 @@ porque el rol de la instalación se lo permite.
 |---|---|
 | Nombres de tabla | `snake_case`, plural (`projects`, `worked_times`). Las intermedias, `{plural}_{plural}` |
 | Nombres de columna | `snake_case` en la base, `camelCase` en el modelo (`underscored: true` lo traduce) |
-| Clave primaria | `id` `INTEGER` autoincremental, **salvo `users`**, cuyo `id` es `VARCHAR(100)`: el `sub` de Zitadel |
+| Clave primaria | `id` `INTEGER` autoincremental, **salvo `users`** (`VARCHAR(100)`: el `sub` de Zitadel) y **salvo `notification_outbox`** (`BIGSERIAL`: tabla de flujo que crece con cada hecho notificado, S-069) |
 | Timestamps | `created_at` / `updated_at` en casi todas (`timestamps: true`) |
 | Referencias a usuario | `VARCHAR(100)` — nunca un entero, porque son ids de Zitadel |
 | Enums | Tipos `ENUM` de PostgreSQL, con **valores en español** (son los que viajan al front) |
@@ -960,13 +960,13 @@ Table origins {
 // --- Cola de salida de notificaciones (S-069 / REQ-015) ---
 
 Table notification_outbox {
-  id bigint [pk, increment]
-  type varchar(100) [not null]
+  id bigint [pk, increment, note: 'BIGSERIAL: tabla de flujo. El driver pg lo devuelve como string']
+  type varchar(100) [not null, note: 'clave del registro de tipos (S-071). VARCHAR y no ENUM a proposito']
   channel varchar(20) [not null, default: 'email']
   recipient_user_id varchar(100) [not null, ref: > users.id]
-  recipient_email varchar(255) [not null]
+  recipient_email varchar(255) [not null, note: 'congelado al encolar']
   payload jsonb [not null]
-  status varchar(20) [not null, default: 'pending']
+  status varchar(20) [not null, default: 'pending', note: 'pending / sent. No hay failed']
   attempts integer [not null, default: 0]
   next_attempt_at timestamp [not null, default: `now()`]
   last_error text
@@ -974,7 +974,7 @@ Table notification_outbox {
   sent_at timestamp
 
   indexes {
-    (next_attempt_at, id) [name: 'idx_notification_outbox_pending']
+    (next_attempt_at, id) [name: 'idx_notification_outbox_pending', note: 'PARCIAL: WHERE status = pending. Acotado a la cola, no al historico']
   }
 }
 
@@ -1010,7 +1010,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **105** |
+| Cantidad | **106** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`

@@ -69,6 +69,38 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+### Added
+
+- **Outbox table for notifications.** `notification_outbox` (schema only in this change — nothing
+  writes to it yet) with a **partial** index on `(next_attempt_at, id)` scoped to
+  `WHERE status = 'pending'`, so its size tracks the pending queue and not the historical total.
+  `type` and `status` are `VARCHAR`, not native `ENUM`, so a future notification type is a new row
+  in a code registry rather than an `ALTER TYPE`. There is deliberately no uniqueness constraint
+  beyond the primary key: delivery is at-least-once by design (RF-25), and a unique constraint on
+  the natural key would break the legitimate case of two consecutive comments from the same
+  author.
+- **Three new `system_settings` keys**, seeded with defaults: `notification-dispatch-interval-seconds`
+  (`60`), `notification-batch-size` (`50`) and `notification-max-attempts` (`5`). Nothing reads
+  them yet — the reader with in-code defaults ships in a later story.
+
+### Removed
+
+- **The three unused tables from the removed mail-notification feature are gone.**
+  `objective_mail_threads`, `requirement_mail_threads` and `inbound_mail_threads`, together with
+  the two indexes of the latter (`uk_inbound_mail_threads_message_id`,
+  `idx_inbound_mail_threads_requirement_id`), are dropped by the migration in this change.
+
+### Notes for existing installations
+
+- **The three unused mail tables are now dropped.** `objective_mail_threads`,
+  `requirement_mail_threads` and `inbound_mail_threads` are removed by the migration in this
+  release, together with the two indexes of `inbound_mail_threads`. **Verify they hold no rows
+  you care about before deploying**: the migration's `down` recreates the three tables empty, so
+  the structure is reversible but the data is not.
+- **New table `notification_outbox`** and three new `system_settings` keys
+  (`notification-dispatch-interval-seconds`, `notification-batch-size`,
+  `notification-max-attempts`, seeded with `60`, `50` and `5`). Nothing reads them yet.
+
 ## [1.4.0] - 2026-09-14
 
 `core` becomes a publisher for the first time. It emits 16 domain events over JetStream so an
