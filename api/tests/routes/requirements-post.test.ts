@@ -4,7 +4,7 @@ import { ErrorCode, NatsError } from 'nats';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, File, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, User } from '@jiku/models';
+import { Attachment, File, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, RequirementSubscriptor, User } from '@jiku/models';
 import { fakeBus } from '../mocks/bus';
 
 describe('POST /api/requirements', () => {
@@ -47,6 +47,7 @@ describe('POST /api/requirements', () => {
 
   after(() => {
     return RequirementActivity.destroy({ where: {} })
+      .then(() => RequirementSubscriptor.destroy({ where: {} }))
       .then(() => Requirement.destroy({ where: {} }))
       .then(() => Attachment.destroy({ where: {}, force: true }))
       .then(() => File.destroy({ where: {}, force: true }))
@@ -639,6 +640,147 @@ describe('POST /api/requirements', () => {
           return Requirement.findByPk(res.body.id).then((requirement) => {
             (requirement === null).should.be.false();
           });
+        });
+    });
+  });
+
+  /**
+   * S-070: `requirements.new` acepta `subscriberUserIds`. Esta ruta lo pasa SIN transformar
+   * —no deduplica, no agrega al creador, no valida existencia (eso es de `core`)— así que
+   * los tests verifican las tres capas: el payload publicado, el status HTTP, y la fila
+   * escrita en `requirement_subscriptors`.
+   */
+  describe('S-070: subscriberUserIds en POST /api/requirements', () => {
+    afterEach(() => {
+      fakeBus.reset();
+    });
+
+    // TS-1: camino feliz, el campo llega SIN transformar y core crea la suscripción
+    it('TS-1: pasa subscriberUserIds sin transformar y crea la suscripción', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req con suscriptores', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['zitadel-sub-04'],
+        })
+        .expect(201)
+        .then((res) => {
+          fakeBus.last!.command.should.equal('requirements.new');
+          fakeBus.last!.payload.should.have.property('subscriberUserIds');
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual(['zitadel-sub-04']);
+          return RequirementSubscriptor.findAll({ where: { requirementId: res.body.id } });
+        })
+        .then((rows) => {
+          rows.should.have.length(1);
+          rows[0].userId.should.equal('zitadel-sub-04');
+        });
+    });
+
+    // TS-2: sin el campo, la clave NO está en el payload publicado (spread condicional)
+    it('TS-2: sin el campo, la clave subscriberUserIds no está en el payload publicado', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req sin suscriptores', description: 'Desc', projectId: 1 })
+        .expect(201)
+        .then((res) => {
+          Object.prototype.hasOwnProperty.call(fakeBus.last!.payload, 'subscriberUserIds').should.be.false();
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(0));
+    });
+
+    // TS-3: array vacío explícito, se pasa tal cual
+    it('TS-3: array vacío explícito se pasa tal cual y no crea suscripciones', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req array vacio', description: 'Desc', projectId: 1, subscriberUserIds: [] })
+        .expect(201)
+        .then((res) => {
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual([]);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(0));
+    });
+
+    // TS-4: id numérico rechazado por Joi antes del bus
+    it('TS-4: un id numérico en subscriberUserIds lo rechaza Joi antes del bus', () => {
+      fakeBus.reset();
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req ids numericos', description: 'Desc', projectId: 1, subscriberUserIds: [123] })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+          (fakeBus.last === undefined).should.be.true();
+        });
+    });
+
+    // TS-5: subscriberUserIds que no es array
+    it('TS-5: subscriberUserIds que no es un array es rechazado por Joi', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req no array', description: 'Desc', projectId: 1, subscriberUserIds: 'zitadel-sub-04' })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    // TS-6: userId inexistente → 404 user_not_found y rollback completo en core
+    it('TS-6: un userId inexistente responde 404 user_not_found y no queda nada escrito', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req usuario fantasma', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['no-existe-jamas'],
+        })
+        .expect(404)
+        .then((res) => {
+          res.body.code.should.equal('user_not_found');
+          return Requirement.findOne({ where: { title: 'Req usuario fantasma' } });
+        })
+        .then((requirement) => {
+          (requirement === null).should.be.true();
+        });
+    });
+
+    // TS-7: duplicados no son error, la api NO deduplica, core los colapsa
+    it('TS-7: duplicados no son error; la api no deduplica pero core colapsa a 1 fila', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req duplicado', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['zitadel-sub-04', 'zitadel-sub-04'],
+        })
+        .expect(201)
+        .then((res) => {
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual(['zitadel-sub-04', 'zitadel-sub-04']);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(1));
+    });
+
+    // TS-19: regresión, el 404 project_not_found local sigue ganando antes del comando
+    it('TS-19 (S-070): el 404 project_not_found local sigue cortando antes del comando', () => {
+      fakeBus.reset();
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req proyecto fantasma', description: 'Desc', projectId: 99999,
+          subscriberUserIds: ['zitadel-sub-04'],
+        })
+        .expect(404)
+        .then((res) => {
+          res.body.code.should.equal('project_not_found');
+          (fakeBus.last === undefined).should.be.true();
         });
     });
   });

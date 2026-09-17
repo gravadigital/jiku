@@ -587,6 +587,13 @@ paths:
                 scope: { type: string }
                 technicalSolution: { type: string }
                 acceptanceCriteria: { type: string }
+                subscriberUserIds:
+                  type: array
+                  items: { type: string }
+                  description: |
+                    Ids de usuario de Zitadel. Opcional y aditivo: un cliente que no lo manda
+                    sigue funcionando igual. Las suscripciones las crea core en la MISMA
+                    transacción que el requisito (S-070); este campo se pasa sin transformar.
       responses:
         '201':
           description: Created
@@ -2171,9 +2178,9 @@ paths:
         Usa el **mismo comando** que la ruta interna (`requirements.new`); lo que cambia es el rol
         que lo habilita y que acá el creador puede suscribir a otros usuarios de una.
 
-        Las suscripciones son comandos aparte: se publica un
-        `requirements.{id}.subscriptors.new` por cada usuario. **El creador queda suscripto
-        siempre.**
+        Se publica **un solo** `requirements.new` con `subscriberUserIds`, incluyendo al
+        creador: core crea el requisito y todas sus suscripciones en la misma transacción
+        (S-070). **El creador queda suscripto siempre.**
 
         Los `fileIds` son ids de `files`, ya subidos por quien publica el requisito.
         `attachmentScope` **desaparece** (REQ-001, S-003): existía solo para elegir el anclaje del
