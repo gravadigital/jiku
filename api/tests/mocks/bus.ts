@@ -171,9 +171,19 @@ export class FakeBus implements Bus {
       const instance = new Dispatcher(registry, new FakeEventPublisher());
       this.dispatcher = (subject: string, payload: unknown) =>
         instance.dispatch(subject, payload);
-    } catch {
+    } catch (error: any) {
       // core no disponible: los tests que dependan de la escritura real fallarán con un
       // mensaje claro, en vez de pasar en falso.
+      //
+      // EL `catch` IMPRIME LA CAUSA, Y NO ES COSMÉTICO. Tragarla convierte dos modos de fallo
+      // MUY distintos en el mismo síntoma mudo: "core no está instalado" (legítimo, el doble
+      // sigue sirviendo en modo respuestas fijas) y "core SÍ está pero su arranque rechazó"
+      // —que es lo que pasa cuando `loadConfig()` suma un assert nuevo y `.env.test` de la api
+      // no lo acompaña—. En el segundo caso el degradado silencioso deja `{status:'success'}`
+      // sin `data` para TODO comando, así que cada ruta de escritura se cuelga esperando un id
+      // que no llega, y la suite entera muere por timeout a 60s por test, con el error real
+      // a varias capas de distancia de su síntoma.
+      console.error(`[FakeBus] core no disponible, se despacha con respuestas fijas: ${error?.message}`);
       this.dispatcher = null;
     }
 
