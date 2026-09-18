@@ -181,6 +181,7 @@ export function InputMultipleSelect(props: InputProps) {
     }),
     menu: (provided: Record<string, unknown>) => ({
       ...provided,
+      backgroundColor: 'var(--bg-surface)',
       fontSize: '0.875rem',
       zIndex: 'var(--z-dropdown)',
     }),
