@@ -8,13 +8,27 @@ import { readDb } from './models/read';
 import { loadConfig } from './config';
 import { BusHost } from './bus/host';
 import { Dispatcher } from './bus/dispatcher';
+import { EventPublisher } from './bus/event-publisher';
 import { registry } from './commands';
 import { QueryDispatcher, budgetFrom } from './queries/dispatcher';
 import { queryRegistry } from './queries';
 import { EventDispatcher } from './events/dispatcher';
 import { syncUser } from './events/auth/user-sync';
 
-const dispatcher = new Dispatcher(registry);
+// EL PUBLICADOR SE RESUELVE DE FORMA PEREZOSA, EN UN OBJETO INTERMEDIO (D-3 de S-063), por el
+// mismo problema de orden que resuelve el presupuesto de bytes tres líneas más abajo: `dispatcher`
+// se construye ACÁ, antes de que `host` exista (se declara más abajo) y mucho antes de que
+// `host.start()` abra la conexión. `host.eventPublisher()` LANZA si se llama antes de `start()`,
+// así que no se puede invocar al construir `dispatcher` — hay que envolverlo en un objeto cuyo
+// `publish()` recién resuelve el publicador real en el primer uso, análogo a la closure de
+// `budgetFrom(host.maxPayload())`. La diferencia con esa closure es de FORMA, no de fondo:
+// `Dispatcher` pide un `EventPublisher` (un objeto con `.publish()`), no una función, así que el
+// proveedor perezoso tiene que tener esa forma.
+const eventPublisher: EventPublisher = {
+  publish: (subject, payload) => host.eventPublisher().publish(subject, payload),
+};
+
+const dispatcher = new Dispatcher(registry, eventPublisher);
 
 // La conexión de lectura se inyecta acá y no se importa dentro de `queries/`: es lo que permite
 // testear el módulo con otra conexión, lo que hace que el import de `read.ts` —y con él la

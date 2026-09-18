@@ -241,3 +241,62 @@ failure(ErrorCode.INVALID_FIELDS, 'Campo no declarado en filter', {
 contract asks for it, and adding it would be behaviour the contract does not declare. A consumer
 that does not know the field ignores it (`api/lib/utils/bus/protocol.ts` projects the envelope into
 a new object and never reads it), so the field is compatible in both directions.
+
+## eventSubject
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** Builds the subject of a domain event (REQ-014): `{instance}.events.{version}.{type}`
+— 5 segments, fire-and-forget, no reply. Takes the event's **`type`** (the tail segments,
+e.g. `'requirement.state.changed'`) rather than an entity and an action as separate parameters, on
+purpose: the subject's tail and the payload's `DomainEvent.type` field **cannot diverge**, because
+this function is the single place that concatenates them.
+
+`{version}` sits before the entity, not at the end, so a `pub.allow` or a `filter_subject` can cover
+`dev.events.v1.requirement.>` — a whole version — without enumerating events one by one.
+
+**Signature:**
+```ts
+function eventSubject(type: string): string;
+```
+
+**Usage:**
+```ts
+import { EVENT_TYPES, eventSubject } from '@jiku/nats-protocol';
+
+eventSubject(EVENT_TYPES.REQUIREMENT_CREATED); // 'dev.events.v1.requirement.created'
+eventSubject('task.comment.edited');           // 'dev.events.v1.task.comment.edited' (6 segments)
+```
+
+## eventsStreamSubject
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** The wildcard subject of the domain-events stream and its publish permission:
+`{instance}.events.{version}.>`.
+
+**The wildcard MUST carry the version, and this is not cosmetic.** `{instance}.events.>` (without
+the version) would also match `{instance}.events.auth` — the plain, non-JetStream authentication
+event — and a stream configured with that bare wildcard would silently start persisting it, with
+no test in the whole monorepo going red over it. `TS-132`/`TS-133` exist specifically to catch a
+regression here.
+
+Exists as one function so the stream's subject filter and the NATS `pub.allow` permission are
+always written from the same value (ADR-008) — the alternative is two hand-written copies of the
+same wildcard that can drift.
+
+**Signature:**
+```ts
+function eventsStreamSubject(): string;
+```
+
+**Usage:**
+```ts
+import { eventsStreamSubject } from '@jiku/nats-protocol';
+
+eventsStreamSubject(); // 'dev.events.v1.>' — used to configure the JIKU_EVENTS stream (S-061)
+```
+
+**No stream configured yet.** As of S-062 this helper exists so S-061 (`deploy/`) and S-063
+(`core`'s emitter) can both read the same wildcard from one place; it does not itself create any
+JetStream stream or open any connection.

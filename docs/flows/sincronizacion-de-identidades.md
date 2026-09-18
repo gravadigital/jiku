@@ -4,8 +4,8 @@ title: Sincronización de identidades desde el evento de autenticación
 type: event
 status: Draft
 created: 2026-08-24
-last_updated: 2026-08-25
-stories: [S-016, S-018, S-023, S-029, S-034]
+last_updated: 2026-09-08
+stories: [S-016, S-018, S-023, S-029, S-034, S-068]
 ---
 
 # Sincronización de Identidades desde el Evento de Autenticación
@@ -13,8 +13,8 @@ stories: [S-016, S-018, S-023, S-029, S-034]
 **Tipo:** Evento
 **Status:** Draft
 **Creado:** 2026-08-24
-**Última actualización:** 2026-08-25
-**Stories:** S-016, S-018, S-023, S-029, S-034
+**Última actualización:** 2026-09-08
+**Stories:** S-016, S-018, S-023, S-029, S-034, S-068
 
 > ## REQ-007 — el flujo gana un SEGUNDO DISPARADOR
 >
@@ -173,12 +173,21 @@ que **solo puede publicar ese subject y no puede suscribirse a nada** (`deploy/n
 {instance}.{user-id}.{svc}.{version}.{method}    5+ segmentos, request/reply
 ```
 
+> **Comparte el prefijo `{instance}.events.` con el stream de eventos de dominio `JIKU_EVENTS`**
+> (REQ-014, ver [`eventos-de-dominio.md`](eventos-de-dominio.md)), pero **no entra a ese stream**:
+> `JIKU_EVENTS` filtra por `{instance}.events.v1.>` —**con la versión**—, y
+> `{instance}.events.auth` no tiene ese cuarto segmento, así que no matchea. Un stream configurado
+> sobre `{instance}.events.>` (sin versión) **sí** se comería este evento, persistiéndolo sin que
+> nadie lo haya pedido — el mismo namespace, dos publicadores, y solo el segmento de versión los
+> separa a nivel de infraestructura. Es la razón por la que el subject de eventos de dominio nunca
+> se declara sin su versión (ver `deploy/nats/create-events-stream.sh`).
+
 **Payload** (nombres verbatim del callout, `snake_case`):
 
 ```json
 {
   "type": "authenticated",
-  "version": 1,
+  "version": 2,
   "id": "281234567890123456",
   "name": "Ana Pérez",
   "username": "ana@grava.digital",
@@ -187,7 +196,6 @@ que **solo puede publicar ese subject y no puede suscribirse a nada** (`deploy/n
   "authenticated_at": "2026-08-23T18:04:11.123Z",
   "expires_at": "2026-08-23T19:04:11Z",
   "instance": "prod",
-  "identity_type": "person",
   "matched_role": "user",
   "template": "templates/person.yaml",
   "client_ip": "10.1.2.3",
@@ -200,10 +208,15 @@ que **solo puede publicar ese subject y no puede suscribirse a nada** (`deploy/n
 ack, no hay reintento. **Esta ausencia es la causa raíz de que la entrega no sea durable**, y está en
 infraestructura, no en el código de `core`.
 
-> **`identity_type` sale del `type` de la regla que matcheó**, no de una heurística — `rules.yaml` lo
-> dice: *"No hay heurística que adivine si un token es de una persona o de un servicio: lo declara
-> `type`"*. **Antes de S-018 las cuatro reglas eran `type: service`, así que todo evento llegaba con
-> `identity_type: "service"`.**
+> **`identity_type` YA NO VIAJA EN EL PAYLOAD (v2, S-069).** Hasta la v1 salía del `type:` de la
+> regla que matcheó, o sea describía **lo que el YAML declaraba** y no algo verificado sobre el
+> principal; la v2 del callout lo eliminó por esa razón. **La columna `users.identity_type` sigue**,
+> y su valor se **deriva de `matched_role`** —el rol que efectivamente ganó la regla, leído del
+> token— en `core/src/events/auth/identity-type.ts`: `internal-app` y `core` dan `service`, todo lo
+> demás (y la ausencia del campo) da `person`.
+>
+> **Si se agrega un rol de servicio a `rules.yaml`, hay que agregarlo también a `SERVICE_ROLES`.**
+> Si no, esa identidad se espeja como `person` y nada falla; hay un test que cuenta la lista.
 
 ### Paso 4: `core` recibe el evento
 
@@ -236,9 +249,9 @@ comandos.
 | Guarda | Condición | Si falla |
 |---|---|---|
 | `type` | `=== 'authenticated'` | descarta + `warn` |
-| `version` | `=== 1` | descarta + `warn` |
+| `version` | `=== 2` | descarta + `warn`. **Un evento v1 se descarta**: el orden de despliegue es callout primero |
 | `instance` | `=== INSTANCE` del consumidor | descarta + `warn` **con los dos valores** |
-| obligatorios | `id`, `name`, `username` presentes, y `email` **solo si `identity_type` no es `service`** | descarta **sin crear fila parcial** |
+| obligatorios | `id`, `name`, `username` presentes, y `email` **solo si `matched_role` no es un rol de servicio** | descarta **sin crear fila parcial** |
 
 - **`email` es obligatorio para una PERSONA y opcional para un SERVICE USER**, y la condición es
   la guarda entera. Un machine user de Zitadel **no tiene dirección de correo**: `userinfo` no
@@ -248,7 +261,8 @@ comandos.
   compuertas del bus la rechazaban. Las **tres formas de decir "no hay"** —ausente, `null` y
   cadena vacía— se normalizan a `null`. Para una persona las tres siguen siendo descarte, porque
   ahí el faltante significa que el emisor está mal configurado y ese diagnóstico hay que
-  conservarlo. La condición se apoya en `identity_type`, cuyo default es `person`: un evento sin
+  conservarlo. La condición se apoya en `matched_role` (v2): si no es un rol de servicio —su
+  ausencia incluida— la rama exige `email`. Un evento sin
   ese campo cae en la rama obligatoria, que es fallar del lado seguro.
 - **`.unknown(true)` es deliberado:** el schema del callout vive en otro repo y puede crecer. **Un
   campo nuevo no puede tirar el consumidor.**
@@ -277,7 +291,7 @@ comandos.
 | `username` | `username` | `username` | `VARCHAR` NOT NULL |
 | `email` | `email` | `email` | `VARCHAR` **NULL** — vacío para una identidad de servicio |
 | `roles` | `roles` | `roles` | `JSONB` NOT NULL DEFAULT `'[]'` |
-| `identity_type` | `identityType` | `identity_type` | ENUM `identity_type` NOT NULL DEFAULT `'person'` |
+| `matched_role` → derivado | `identityType` | `identity_type` | ENUM `identity_type` NOT NULL DEFAULT `'person'`. **No viaja en la v2**: se deriva del rol |
 
 > **Los tres nombres conviven y ninguno se "normaliza".** El payload es `snake_case`, la base también,
 > y el modelo es `camelCase` por `underscored: true`.
@@ -306,7 +320,7 @@ y la convención `logging` prohíbe datos de negocio fuera de `LOG_COMMANDS`.
 |---|---|---|
 | Rol sin regla en `rules.yaml` | **La conexión se rechaza.** No se emite ningún evento | `authorization violation` en el cliente |
 | Cuerpo no-JSON | `warn` + descarte. **No hay reply que mandar** | línea de `warn` en `core` |
-| `type` ≠ `authenticated` o `version` ≠ `1` | descarta sin escribir | `warn` en `core` |
+| `type` ≠ `authenticated` o `version` ≠ `2` | descarta sin escribir | `warn` en `core` |
 | `instance` ≠ la del consumidor | descarta sin escribir, **con los dos valores en el log** | `warn` con los dos valores |
 | Falta `id`, `name` o `username` | descarta **sin crear fila parcial** | `warn` en `core` |
 | Falta `email` **y es una persona** | descarta **sin crear fila parcial** | `warn` en `core` nombrando `email` |
@@ -354,17 +368,23 @@ de esa autenticación**.
   cargar horas y sin ver proyectos: eso es **FG-1**.
 - **No da de alta al usuario que solo usa `web` u `opus-web`.** Quien nunca conecta al bus sigue
   recibiendo **401 `user_not_found`**, y `POST /api/auth/present` **sigue siendo un no-op**.
-- **No persiste `authenticated_at`, `expires_at`, `client_ip`, `session`, `matched_role` ni
-  `template`.** El evento **sincroniza identidad, no audita accesos** — y `client_ip` y `session`
-  quedan afuera también por minimización de datos personales.
+- **No persiste `authenticated_at`, `expires_at`, `client_ip`, `session` ni `template`.** El evento
+  **sincroniza identidad, no audita accesos** — y `client_ip` y `session` quedan afuera también por
+  minimización de datos personales. **`matched_role` tampoco se persiste como tal**, pero desde la
+  v2 **sí se lee**: es de donde sale `identity_type`. Ninguna columna guarda el rol que ganó; lo que
+  se guarda es la clase que se derivó de él.
 - **No invalida conexiones establecidas.** Roles revocados en Zitadel sobreviven en la fila hasta la
   próxima autenticación.
 
 ## Notas
 
-- **La entrega no es durable, y es una decisión aceptada.** Cambiarla no es agregar una línea: exige
-  **JetStream habilitado** en el server y en la cuenta, el stream creado a mano, y **ampliar la
-  credencial `callout-events`**, que hoy **no puede suscribirse a nada**. Es **FG-3**.
+- **La entrega no es durable, y sigue siendo una decisión aceptada.** Cambiarla ya no exige lo que
+  exigía hasta S-060: **desde S-061, JetStream ya está habilitado** en el server y en la cuenta, y
+  el stream `JIKU_EVENTS` ya existe (para eventos de dominio, ver
+  [`eventos-de-dominio.md`](eventos-de-dominio.md)). Lo que sigue faltando, específicamente para
+  **este** evento, es únicamente: sumar el subject `{instance}.events.auth` a los subjects de algún
+  stream (o crear uno propio) y **ampliar la credencial `callout-events`**, que hoy **solo puede
+  publicar y no puede suscribirse a nada** — sigue siendo trabajo real, no un flag. Es **FG-3**.
 - **La consistencia es eventual, y asimétrica respecto del plano HTTP.** Revocar un rol en Zitadel
   tiene efecto **inmediato** en la autorización HTTP (sale del claim, en cada request) y **diferido**
   —potencialmente indefinido— en la del bus (sale de la base, y se corrige al reautenticar).
@@ -386,9 +406,11 @@ Desde REQ-006 este flujo **no solo condiciona la escritura**: condiciona tambié
 de lectura por el bus**. El servicio de consultas resuelve la **clase del caller** —conector, interno
 o externo— leyendo `users.roles`, y **sin fila no consulta**: la respuesta es `unknown_caller`.
 
-- **La entrega del evento sigue sin ser durable** (NATS core, sin JetStream). Un evento perdido deja
-  al caller sin fila, y **todas** sus consultas fallan hasta su próxima autenticación contra el bus —
-  con un token de ~1 h renovado en caliente, potencialmente en **días**.
+- **La entrega del evento sigue sin ser durable** — ya no porque JetStream no exista (existe, desde
+  S-061), sino porque **este subject, `{instance}.events.auth`, no está incluido en ningún
+  stream**. Un evento perdido deja al caller sin fila, y **todas** sus consultas fallan hasta su
+  próxima autenticación contra el bus — con un token de ~1 h renovado en caliente, potencialmente
+  en **días**.
 - **Incluye al service user de la api**, sin excepción por configuración: la exención del
   `CORE_TRUSTED_PUBLISHER_ID` vale para la compuerta de autorización, **no** para la resolución de la
   clase.

@@ -313,8 +313,15 @@ servers:
 #     caller in the subject, total-replacement update semantics, and no `status` to decide the
 #     transaction. Four `if`s make a different dispatcher.
 #
-# CORE CONSUMES, IT STILL DOES NOT PUBLISH. The ADR-002 rule ("Core MUST NOT publish messages")
-# is intact.
+# CORE PUBLISHES SINCE REQ-014, BUT ONLY ON THE EVENTS PLANE. Commands stay request/reply with NO
+# JetStream (D-3, and the title of ADR-002 still holds) — this section describes the identity
+# event, and nothing here changes about how the 23 commands are dispatched. The domain events
+# `core` now publishes have their OWN contract, `docs/apis/core-events.yaml`, and their OWN
+# subject family: `{instance}.events.{version}.{entidad}.{acción}` — 5 segments, with its own
+# version (`NATS_EVENTS_VERSION`), distinct from this section's `{instance}.events.auth` (3
+# segments). The publish permission (`pub.allow`) for that family is configured separately from
+# this section's subscription permission, and its wildcard MUST carry the version
+# (`{instance}.events.v1.>`) so it does not swallow `events.auth`.
 #
 # THE SUBSCRIPTION PERMISSION IS THE LITERAL SUBJECT in `templates/core.yaml` `sub.allow` — never
 # `{{instance}}.events.>`. Deny-by-default applies on the bus too (ADR-008): a future event MUST
@@ -1409,6 +1416,24 @@ components:
         data:
           type: object
           description: Reply body. Absent on edits and deletes.
+        events:
+          type: array
+          items:
+            $ref: '../apis/core-events.yaml#/components/schemas/DomainEvent'
+          description: |
+            Domain events emitted by the command (REQ-014). Full contract: `core-events.yaml`.
+
+            **Optional, additive, and absent by default**: `success()` and `failure()` in
+            `@jiku/nats-protocol` keep producing an envelope WITHOUT this key, so a `Reply`
+            without events travels **byte-for-byte** identical to today and the 23 commands are
+            unchanged.
+
+            **Nobody fills this today.** The post-commit emitter is S-063: only then does the
+            dispatcher build the `DomainEvent[]` and attach them to the already-built `Reply`,
+            after `COMMIT` and before responding.
+
+            `ReplyWithId`, `ReplyEmpty` and `ReplyWithUploadTicket` inherit this field through
+            `allOf` — none of the three needed a change of their own.
 
     ReplyWithId:
       allOf:

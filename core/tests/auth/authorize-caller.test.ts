@@ -13,6 +13,7 @@ import {
   rolesAuthorize,
 } from '../../src/authorize-caller';
 import { Dispatcher } from '../../src/bus/dispatcher';
+import { FakeEventPublisher } from '../helpers/event-publisher';
 import { CLASS_BY_ROLE } from '../../src/caller-class';
 import { registry } from '../../src/commands';
 import { getTrustedPublisherId } from '../../src/config';
@@ -491,7 +492,7 @@ describe('la compuerta de autorización · plano de comandos', () => {
     it('TS-23b · un subject SIN caller (segundo segmento vacío) se rechaza', async () => {
       // `callerFromSubject` devuelve `''`, que no es el publicador confiable —`loadConfig()`
       // garantiza que no sea vacío— y no tiene fila. Cae en el rechazo, que es lo correcto.
-      const reply = await new Dispatcher(registry).dispatch('dev..jiku-commands.v1.clients.new', {
+      const reply = await new Dispatcher(registry, new FakeEventPublisher()).dispatch('dev..jiku-commands.v1.clients.new', {
         name: 'X',
       });
 

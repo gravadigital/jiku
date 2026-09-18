@@ -13,14 +13,14 @@ const SERVICE_ID = '281234567890999999';
 /** Evento válido mínimo, sobre el que cada test cambia UN campo. */
 const validEvent = (): Record<string, unknown> => ({
   type: 'authenticated',
-  version: 1,
+  version: 2,
   id: PERSON_ID,
   name: 'Ana Pérez',
   username: 'ana@grava.digital',
   email: 'ana@grava.digital',
   roles: ['user'],
   instance: 'dev',
-  identity_type: 'person',
+  matched_role: 'admin',
 });
 
 /**
@@ -88,7 +88,7 @@ describe('events/auth/user-sync', () => {
       username: 'external-connector',
       email: 'connector@grava.digital',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     });
 
     const service = (await User.findByPk(SERVICE_ID))!;
@@ -108,7 +108,7 @@ describe('events/auth/user-sync', () => {
       name: 'Jiku API',
       username: 'jiku-api',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     };
     // Zitadel no devuelve el claim `email` en `userinfo` para un machine user, así que el
     // callout OMITE la clave. Es el evento tal cual llega en producción.
@@ -135,7 +135,7 @@ describe('events/auth/user-sync', () => {
       name: 'Jiku API',
       username: 'jiku-api',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     });
 
     // Ausente. El callout omite la clave cuando `userinfo` no trae el claim.
@@ -165,7 +165,7 @@ describe('events/auth/user-sync', () => {
       username: 'external-connector',
       email: 'connector@grava.digital',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     });
 
     // La excepción es "puede no tener", no "no tiene". Un service user con dirección declarada
@@ -181,7 +181,7 @@ describe('events/auth/user-sync', () => {
       username: 'external-connector',
       email: 'connector@grava.digital',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     });
 
     const withoutEmail: Record<string, unknown> = {
@@ -190,7 +190,7 @@ describe('events/auth/user-sync', () => {
       name: 'External Connector',
       username: 'external-connector',
       roles: ['internal-app'],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     };
     delete withoutEmail.email;
     await dispatcher().dispatch(withoutEmail);
@@ -218,35 +218,49 @@ describe('events/auth/user-sync', () => {
     user.roles.should.deepEqual(['user']);
   });
 
-  it('TS-19 · identity_type ausente → person (el default de la columna)', async () => {
+  it('TS-19 · matched_role ausente → person (la rama segura de siempre)', async () => {
     const event = validEvent();
-    delete event.identity_type;
+    delete event.matched_role;
 
     await dispatcher().dispatch(event);
 
     const user = (await User.findByPk(PERSON_ID))!;
-    // El evento NO se descarta: los obligatorios son cuatro y este no es uno.
+    // El evento NO se descarta: los obligatorios son cuatro y este no es uno. Desde S-069 el
+    // valor se DERIVA, y la ausencia da `person` — el mismo resultado que el default de la v1.
     user.identityType.should.equal('person');
   });
 
-  it('TS-20 · identity_type fuera del enum → DESCARTA, sin tocar la fila', async () => {
-    await User.create({
-      id: PERSON_ID,
-      name: 'External Connector',
-      username: 'external-connector',
-      email: 'connector@grava.digital',
-      roles: ['internal-app'],
-      identityType: IdentityType.Service,
-    } as any);
+  it('TS-20 · un matched_role DESCONOCIDO se espeja como person, y NO descarta', async () => {
+    // ESTE TEST CAMBIÓ DE SENTIDO EN S-069, y conviene decir por qué en vez de borrarlo. Probaba
+    // que un `identity_type` fuera del enum DESCARTABA el evento: sin esa validación Joi, la
+    // columna —un ENUM nativo en producción— habría dado un error de Postgres, rollback, y un
+    // evento perdido SIN `warn`.
+    //
+    // Esa guarda ya no puede existir porque EL CAMPO NO VIAJA. Y su motivo tampoco: el valor sale
+    // de `identityTypeFromMatchedRole`, cuyo tipo de retorno es `IdentityType`, así que un valor
+    // fuera del enum es IMPOSIBLE DE CONSTRUIR. La garantía pasó de una validación a un tipo, y
+    // por eso un rol desconocido ahora se procesa en vez de descartarse.
     const warn = sinon.spy(logger, 'warn');
 
-    await dispatcher().dispatch({ ...validEvent(), identity_type: 'robot' });
+    await dispatcher().dispatch({ ...validEvent(), matched_role: 'rol-inventado' });
 
-    warn.callCount.should.equal(1);
-    // Sin la validación Joi esto sería un error de Postgres -> rollback -> evento perdido SIN
-    // `warn`: la columna es un ENUM nativo en producción.
+    warn.callCount.should.equal(0);
     const user = (await User.findByPk(PERSON_ID))!;
-    user.identityType.should.equal('service');
+    user.identityType.should.equal(IdentityType.Person);
+  });
+
+  it('TS-20b · los dos roles de servicio de `rules.yaml` se espejan como service', async () => {
+    for (const role of ['internal-app', 'core']) {
+      await dispatcher().dispatch({
+        ...validEvent(),
+        id: SERVICE_ID,
+        matched_role: role,
+        email: null,
+      });
+
+      (await User.findByPk(SERVICE_ID))!.identityType.should.equal(IdentityType.Service);
+      await User.destroy({ where: { id: SERVICE_ID } });
+    }
   });
 
   it('TS-21 · el log distingue ALTA de ACTUALIZACIÓN', async () => {

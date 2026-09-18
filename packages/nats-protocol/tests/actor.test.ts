@@ -95,14 +95,14 @@ describe('nats-protocol · el sobre de identidad', () => {
     const a: Actor = { id: '1', roles: [], email: undefined };
     const e: AuthEvent = {
       type: 'authenticated',
-      version: 1,
+      version: 2,
       instance: 'dev',
       id: '1',
       name: 'n',
       username: 'u',
       email: null,
       roles: [],
-      identity_type: 'service',
+      matched_role: 'internal-app',
     };
 
     (a.email === undefined).should.be.true();

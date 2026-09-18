@@ -1,15 +1,31 @@
 import joi from 'joi';
 import { Transaction } from 'sequelize';
-import { IdentityType } from '@jiku/models';
 import { AuthEvent, INSTANCE } from '@jiku/nats-protocol';
+import { SERVICE_ROLES } from './auth/identity-type';
 import { sequelize } from '../models';
 import logger from '../logger';
 import { EventHandler } from './types';
 
 /** El único `type` que este consumidor procesa. Cualquier otro se descarta (CA-11). */
 const AUTHENTICATED = 'authenticated';
-/** La única versión del contrato que este consumidor entiende (CA-11). */
-const SUPPORTED_VERSION = 1;
+/**
+ * La única versión del contrato que este consumidor entiende (CA-11).
+ *
+ * **v2 desde S-069.** La v2 del callout es BREAKING y cambia una sola cosa que a core le importa:
+ * **elimina `identity_type` del payload**. Ese campo reportaba el `type:` de la regla de
+ * `rules.yaml` —lo que el YAML decía— y no algo verificado sobre el principal; la clasificación se
+ * deriva ahora de `matched_role`, que es un hecho leído del token (ver
+ * `events/auth/identity-type.ts`).
+ *
+ * ES UN REEMPLAZO, NO UNA LISTA: `valid(2)` y no `valid(1, 2)`. Un evento v1 se descarta con su
+ * `warn`, que es el comportamiento correcto una vez que el emisor emite v2 — aceptar las dos
+ * dejaría entrando un payload CON `identity_type`, que es justo el campo que esta versión deroga.
+ *
+ * CONSECUENCIA DE DESPLIEGUE, y hay que conocerla: mientras el callout siga emitiendo v1, este
+ * consumidor descarta TODO evento y `users` deja de refrescarse —sin alta de identidades nuevas y
+ * sin cambios de rol—. El orden es **callout primero, core después**.
+ */
+const SUPPORTED_VERSION = 2;
 
 /**
  * Esquema del evento de autenticación.
@@ -57,11 +73,20 @@ const schema = joi
     // ahí el faltante no es una propiedad de la identidad sino un emisor mal configurado, y el
     // `warn` es el único diagnóstico que hay. Inventarle un valor taparía el problema.
     //
-    // La condición se apoya en `identity_type`, que se declara DESPUÉS en este objeto: Joi
-    // resuelve la dependencia y aplica su `.default('person')` antes de evaluar este `when`, así
-    // que un evento SIN `identity_type` cae en la rama obligatoria. Falla del lado seguro.
-    email: joi.string().when('identity_type', {
-      is: IdentityType.Service,
+    // LA CONDICIÓN SE APOYA AHORA EN `matched_role` Y YA NO EN `identity_type` (v2, S-069): el
+    // campo que la decidía DESAPARECIÓ del payload. Se compara contra la misma lista de roles de
+    // servicio de la que sale la clasificación, así que la regla del `email` y la columna
+    // `identity_type` NO PUEDEN DISCREPAR — una sola fuente decide las dos.
+    //
+    // EL `.required()` DEL `is` NO ES DECORACIÓN, Y ES LA TRAMPA DE ESTE BLOQUE: sin él, un evento
+    // SIN `matched_role` SATISFACE la condición —Joi da por buena la ausencia contra un esquema
+    // opcional— y cae en `then`, que es la rama que vuelve el `email` opcional. O sea, justo al
+    // revés de lo que hay que hacer: un emisor que dejara de mandar el campo empezaría a crear
+    // personas sin dirección, en silencio. Con `.required()` la ausencia cae en `otherwise` y
+    // exige `email`, que es la MISMA rama segura en la que caía un evento sin `identity_type` en
+    // la v1. Hay un test por cada mitad.
+    email: joi.string().when('matched_role', {
+      is: joi.string().valid(...SERVICE_ROLES).required(),
       then: joi.string().allow(null).empty('').default(null),
       otherwise: joi.string().required(),
     }),
@@ -72,17 +97,21 @@ const schema = joi
     // `warn` en vez de escribir un JSONB con números que la compuerta compararía contra strings
     // y nunca matchearía.
     roles: joi.array().items(joi.string()).default([]),
-    // Sale del `type` de la regla de `rules.yaml` que matcheó, no de una heurística. Se valida
-    // acá y no se delega a la base porque la columna es un ENUM NATIVO en producción y un STRING
-    // en el `sync()` de los tests: un valor fuera del enum pasaría la suite y en producción
-    // sería un error de Postgres -> rollback -> EVENTO PERDIDO SIN `warn`. Validarlo lo
-    // convierte en un descarte diagnosticable.
-    // El enum se DERIVA del modelo: un enum literal se desincroniza en silencio cuando la base
-    // cambia; uno derivado rompe la compilación.
-    identity_type: joi
-      .string()
-      .valid(...Object.values(IdentityType))
-      .default(IdentityType.Person),
+    // `identity_type` YA NO SE DECLARA: la v2 lo eliminó del payload (S-069). La columna sigue
+    // existiendo y sigue importando —separa una persona de un service user, y de eso depende que
+    // un `Usuario` de servicio no aparezca en `people.list`—, pero su valor se DERIVA de
+    // `matched_role` en `auth/identity-type.ts`, que es un hecho leído del token y no lo que
+    // declaraba el YAML.
+    //
+    // NO SE VALIDA `matched_role` CONTRA UN CATÁLOGO, a propósito y por el mismo criterio con el
+    // que `roles` no se valida: un rol desconocido es un valor legítimo del cable que clasifica
+    // como `person` (el default de siempre), no un evento a descartar. El catálogo vive en
+    // `rules.yaml`, no acá.
+    //
+    // Y NO HACE FALTA VALIDARLO PARA PROTEGER LA COLUMNA —que es un ENUM NATIVO en producción y un
+    // STRING en el `sync()` de los tests, la razón por la que el campo viejo SÍ se validaba—:
+    // `identityTypeFromMatchedRole` devuelve un `IdentityType`, así que un valor fuera del enum es
+    // hoy IMPOSIBLE DE CONSTRUIR. La garantía pasó de una validación a un tipo.
   })
   .unknown(true);
 

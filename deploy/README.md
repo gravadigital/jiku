@@ -14,7 +14,12 @@ deploy/
 ├── docker-compose.dev.yml    no external dependencies (mock IdP)
 └── nats/
     ├── nats-server.conf
-    ├── auth-callout/         rules.yaml + templates/ (access policy)
+    ├── bootstrap.sh          generates the NATS identity (JetStream limits included)
+    ├── add-events-user.sh    adds the auth-callout's events publisher to an older install
+    ├── enable-jetstream.sh   grants JetStream limits to an install that predates them
+    ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
+    ├── events-test-consumer.sh   verification tool: consumes JIKU_EVENTS and validates it (S-067)
+    ├── auth-callout/         rules.yaml + templates/ (access policy — see its README.md)
     └── creds/                NATS identity — NOT versioned
 ```
 
@@ -90,14 +95,20 @@ The server runs in operator mode and needs an identity, generated once:
 
 ```sh
 cd nats
-./bootstrap.sh            # requires nsc
-./add-events-user.sh      # only if bootstrap.sh predates the events credential
+./bootstrap.sh                  # requires nsc — also grants JetStream limits to the APP account
+./add-events-user.sh            # only if bootstrap.sh predates the events credential
+./enable-jetstream.sh           # only if bootstrap.sh predates the JetStream limits (see below)
+./create-events-stream.sh       # creates JIKU_EVENTS, the domain events stream
 ```
 
 Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
 copy**: regenerating it forces reissuing the credentials of every service.
 
 Without `nats/creds/nats-resolver.conf` the server does not start.
+
+`JetStream` itself is enabled in `nats-server.conf` and needs a **persistent volume** at its
+`store_dir` — the three compose files already declare it. Without one, the `JIKU_EVENTS` stream
+is lost on the next container recreate, silently.
 
 #### The events credential is a deployment precondition, not an optional step
 
@@ -454,6 +465,8 @@ cp .env.dist .env      # fill in, including each service's version
 ./service-user-key.sh core <key.json>
 cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
 cd nats && ./add-events-user.sh && cd ..   # only if that creds/ predates the events credential
+cd nats && ./enable-jetstream.sh && cd ..  # only if that creds/ predates the JetStream limits
+cd nats && ./create-events-stream.sh && cd ..
 docker compose pull
 docker compose up -d
 ```
@@ -480,7 +493,7 @@ Differences from the local environment:
 | ------------------------------------------------- | --------------------------- | --------- |
 | Passwords, client ids, service user keys          | `deploy/.env`               | no        |
 | NATS identity (operator, accounts, sentinels)     | `deploy/nats/creds/`        | no        |
-| Bus access policy (roles → permissions)           | `deploy/nats/auth-callout/` | **yes**   |
+| Bus access policy (roles → permissions)           | [`deploy/nats/auth-callout/`](nats/auth-callout/README.md) | **yes**   |
 
 The access policy is versioned on purpose: it is a product decision, not a secret.
 
@@ -524,8 +537,8 @@ To enable one:
 3. Give it a JSON key and hand that to the service.
 
 Nothing in `deploy/` needs changing: the rule and the template
-([nats/auth-callout/templates/api.yaml](nats/auth-callout/templates/api.yaml)) are already
-versioned.
+([nats/auth-callout/templates/connector.yaml](nats/auth-callout/templates/connector.yaml)) are
+already versioned.
 
 > **`external-publisher` used to be the role here, and it is gone.** It enumerated nine subjects
 > with a template of its own, and it **never existed in Zitadel** — the channel was never used and
@@ -609,13 +622,13 @@ enough on its own:
 3. Confirm core's role → method map still rejects `external-user` even if the template's permission
    existed by mistake (read `commands: []` for `external-user` in `authorize-caller.ts`).
 
-| Caller                                | Commands                                       | Queries                            |
-| -------------------------------------- | ----------------------------------------------- | ----------------------------------- |
-| the api (`internal-app`)               | the whole `jiku-commands.v1` prefix             | the whole `jiku-queries.v1` prefix  |
-| **`admin` / `user`** (`person-internal`) | **the whole `jiku-commands.v1` prefix, trimmed by core's role → method map** | the whole `jiku-queries.v1` prefix  |
-| **`external-user`** (`person-external`) | **none**                                        | the whole `jiku-queries.v1` prefix  |
+| Caller                                | Commands                                       | Queries                            | Domain events |
+| -------------------------------------- | ----------------------------------------------- | ----------------------------------- | ------------- |
+| the api and any external service (`internal-app`, `connector`) | the whole `jiku-commands.v1` prefix | the whole `jiku-queries.v1` prefix | consumes `<instance>.events.v1.>` |
+| **`admin` / `user`** (`person-internal`) | **the whole `jiku-commands.v1` prefix, trimmed by core's role → method map** | the whole `jiku-queries.v1` prefix | none |
+| **`external-user`** (`person-external`) | **none**                                        | the whole `jiku-queries.v1` prefix  | none |
 
-Of the three, `external-user` is now the only one that cannot write at all — `admin` and `user`
+Of the three, `external-user` is the only one that cannot write at all — `admin` and `user`
 moved from that same restriction to full command access, trimmed only by what their role is allowed
 to execute. `person-external.yaml` remains the narrowest permission in
 `nats/auth-callout/templates/`, on purpose.
@@ -716,12 +729,13 @@ its reply:
 
 Off by default: the payload carries business data.
 
-**A `nats sub` is no good for eavesdropping.** The permissions the auth-callout mints are
-deliberately narrow: `internal-app` only publishes under its own session and `core` only
-listens on its endpoint. That is what the `bus-observer` role in
-[nats/auth-callout/templates/observer.yaml](nats/auth-callout/templates/observer.yaml) is for,
-which listens to everything without being able to publish. It needs a service user with that
-role and is **for local environments only**: it would read the contents of every command.
+**A `nats sub` is no good for eavesdropping, and there is no longer a role that is.** The
+permissions the auth-callout mints are deliberately narrow: `internal-app` only publishes under
+its own session and `core` only listens on its endpoint. The `bus-observer` role existed for
+exactly this — it listened to everything without being able to publish — and **it and its
+template were removed**: it could read `_INBOX.>` entire, meaning every caller's replies, which
+made it unfit for anything but a development machine, and it was no longer in use. To follow the
+traffic locally, read core's log (`bus-inspect.sh tail`), which prints every command it serves.
 
 ---
 
@@ -746,4 +760,16 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   Hub (`gravadigital/nats-zitadel-auth-callout`), and it ships **only the callout** — the NATS
   server is a compose service of its own. What is here is its configuration
   (`nats/auth-callout/`), mounted by path and read at startup.
-- **JetStream is off**: the protocol is direct request/reply.
+- **JetStream is enabled, but scoped to domain events only.** Commands and queries are still
+  direct request/reply with no JetStream. JetStream backs only the `JIKU_EVENTS` stream, on
+  `<instance>.events.v1.>` — see `nats/creds/README.md` for how it is enabled and
+  `nats/create-events-stream.sh` for the stream itself. **Since S-063, `core` actually publishes
+  into that stream** (post-commit domain events, starting with `requirement.created`): its
+  `pub.allow` (`nats/auth-callout/templates/core.yaml`) carries `<instance>.events.v1.>` for that
+  reason. It carries **no `$JS.API` permission at all**, and does not need one: `js.publish()` is
+  a request to the event subject itself and the `PubAck` returns on the publisher's own inbox, so
+  the two permissions it already has are the whole of what a publisher needs. A consumer is the
+  one that talks to `$JS.API`, and `templates/connector.yaml` grants it **scoped to
+  `JIKU_EVENTS`** — never `$JS.API.>`, which is full JetStream administration over the account
+  (deleting, purging and reconfiguring any stream). The ADR-002 rule against `core` publishing is superseded by this,
+  though the ADR document itself is updated only at REQ-014's documentary close (S-068).

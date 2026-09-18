@@ -882,3 +882,29 @@ interface ResourceDescription extends Partial<VariantDescription> {
   "defaults": { "sort": ["-createdAt"], "limit": 50, "maxLimit": 200 },
   "enums": { "state": [{ "value": "backlog", "label": "backlog" }, …] } }
 ```
+
+## EventPublisher
+
+**Location:** `core/src/bus/event-publisher.ts`
+
+**Description:** The contract of the domain-event publisher (S-063 / REQ-014). A single method,
+declared in `bus/` because it is **transport**, not domain: it does not know about `DomainEvent`,
+`eventSubject()` or any other piece of `@jiku/nats-protocol` — it just moves an already-built
+payload to a subject.
+
+Deliberately an interface and not the `NatsConnection` itself (decision 1 of the story's
+technical design): exposing `BusHost`'s connection would break the encapsulation `maxPayload()`
+already relies on (`private connection: NatsConnection | null`). `Dispatcher` receives an
+`EventPublisher` **by constructor**, exactly like `registry` — which is what keeps a command from
+ever reaching it: only `dispatch()` holds a reference, and only between the commit and the
+`return reply`.
+
+**Interface:**
+```ts
+interface EventPublisher {
+  publish(subject: string, payload: unknown): Promise<void>;
+}
+```
+
+**Implementations:** `JetStreamEventPublisher` (production, see Services) and
+`FakeEventPublisher` (tests, see Test Helpers).

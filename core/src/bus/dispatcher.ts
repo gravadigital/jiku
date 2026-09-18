@@ -9,7 +9,7 @@ import {
   failure,
 } from '@jiku/nats-protocol';
 import { sequelize } from '../models';
-import { Channel, authorizeWithRoles, readCallerRoles } from '../authorize-caller';
+import { Channel, authorizeWithRoles, readCallerIdentity } from '../authorize-caller';
 import { CallerClass, resolveCallerClass } from '../caller-class';
 import { getTrustedPublisherId } from '../config';
 import { authorizeEntityAccess } from '../entity-project';
@@ -17,6 +17,9 @@ import logger from '../logger';
 import { CommandRegistry } from '../commands/registry';
 import { mirrorUser } from '../user-mirror';
 import { extractActor } from './actor';
+import { EventPublisher } from './event-publisher';
+import { emitEvents } from './emit-events';
+import { generateUlid } from '../ulid';
 
 /**
  * Traduce un mensaje del bus a la ejecución de un comando.
@@ -41,21 +44,38 @@ const REDACTED_REPLY_KEYS = ['uploadUrl', 'downloadUrl'];
 
 /** Reemplaza por un marcador los valores sensibles del reply, solo para el log. */
 function redactReply(reply: Reply): Reply {
-  const data = reply.data;
-  if (!data || typeof data !== 'object') {
-    return reply;
-  }
+  let result = reply;
 
-  const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
-  let touched = false;
-  for (const key of REDACTED_REPLY_KEYS) {
-    if (key in redacted) {
-      redacted[key] = '[redacted]';
-      touched = true;
+  const data = reply.data;
+  if (data && typeof data === 'object') {
+    const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+    let touched = false;
+    for (const key of REDACTED_REPLY_KEYS) {
+      if (key in redacted) {
+        redacted[key] = '[redacted]';
+        touched = true;
+      }
+    }
+    if (touched) {
+      result = { ...result, data: redacted };
     }
   }
 
-  return touched ? { ...reply, data: redacted } : reply;
+  // `events` SE RECORTA A `{ type, eventId }` POR EVENTO (D-6 de S-063), NUNCA se loguea el
+  // sobre completo. Con `events` poblado, `JSON.stringify(reply)` incluiría título y descripción
+  // completa del requisito (`snapshot`) y el `name`/`email` de cada suscriptor (`recipients`) —
+  // exactamente lo que la convención `logging` prohíbe fuera de una traza opt-in, y esto ES una
+  // traza opt-in pero el email de un suscriptor no estaba antes en ninguna traza. El log del
+  // comando es sobre EL COMANDO; el evento tiene su propio log de fallo (`[events] publish
+  // failed`, en `emit-events.ts`) para lo que a él le pasa.
+  if (result.events?.length) {
+    result = {
+      ...result,
+      events: result.events.map((event) => ({ type: event.type, eventId: event.eventId }) as any),
+    };
+  }
+
+  return result;
 }
 
 /**
@@ -91,7 +111,7 @@ function redactReply(reply: Reply): Reply {
  * cuando se pierde un evento. SI ALGUNA VEZ LA COMPUERTA LEE ESTA FILA PARA AUTORIZAR, HAY QUE
  * REVISAR ESTA DECISIÓN: un espejo no fatal se convertiría en un bypass silencioso.
  */
-async function mirrorActor(actor: Actor): Promise<void> {
+async function mirrorActor(actor: Actor): Promise<string | undefined> {
   // EN SU PROPIO `try`, y el precedente exacto está en `events/dispatcher.ts`: abrir una
   // transacción PUEDE FALLAR SOLA (pool agotado, base caída), y ese rechazo escaparía de
   // `dispatch()`.
@@ -100,11 +120,11 @@ async function mirrorActor(actor: Actor): Promise<void> {
     transaction = await sequelize.transaction();
   } catch (error: any) {
     logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
-    return;
+    return undefined;
   }
 
   try {
-    const outcome = await mirrorUser(
+    const { outcome, name } = await mirrorUser(
       {
         // EL SPREAD ACÁ SÍ, Y ES LA EXCEPCIÓN QUE CONFIRMA LA REGLA: `Actor` es una forma CERRADA
         // de cinco claves que el contrato declara, no un payload abierto como el del evento, y
@@ -132,23 +152,40 @@ async function mirrorActor(actor: Actor): Promise<void> {
     if (outcome === 'created') {
       logger.info(`[dispatch] ${actor.id}: created`);
     }
+
+    return name;
   } catch (error: any) {
     // EL ROLLBACK NO PUEDE SER LA FUENTE DE UN RECHAZO: si lo que falló fue el `commit`, la
     // transacción ya terminó y `rollback()` sobre una terminada rechaza. Ese segundo rechazo
     // taparía el error original, que es el que hay que ver.
     await transaction.rollback().catch(() => undefined);
     logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
+    // Sin nombre: el espejo falló y no hay fila de la que leerlo. El evento cae al escalón
+    // siguiente de `resolveEventActor`, igual que antes de este enriquecimiento.
+    return undefined;
   }
 }
 
 export class Dispatcher {
-  constructor(private registry: CommandRegistry) {}
+  // EL PUBLICADOR SE INYECTA POR CONSTRUCTOR, IGUAL QUE `registry` (Task 1 de S-063). Es un
+  // efecto externo del despachador (ADR-003): el comando no tiene acceso a él, y este archivo lo
+  // consume una sola vez, entre el commit y el `return reply` — ver el bloque de emisión más
+  // abajo en `dispatch()`.
+  constructor(private registry: CommandRegistry, private publisher: EventPublisher) {}
 
   async dispatch(subject: string, raw: unknown): Promise<Reply> {
     const name = commandFromSubject(subject);
     // El caller se resuelve UNA VEZ y se reusa en el contexto del comando: antes se calculaba
     // inline dentro de la llamada a `execute`, y la compuerta lo necesita antes.
     const caller = callerFromSubject(subject);
+
+    // UN `correlationId` POR INVOCACIÓN (CA-9, D-4 de S-063), generado ACÁ Y NO en el bloque de
+    // emisión de más abajo: la propiedad que CA-9 pide —que TODOS los eventos de un mismo comando
+    // lo compartan— se sostiene declarándolo donde se lee el invariante, aunque hoy un comando
+    // emita un solo evento. Se genera SIEMPRE, incluso para comandos que no van a declarar ningún
+    // evento: es un ULID, generarlo de más no cuesta nada medible, y así este bloque no necesita
+    // saber de antemano si va a hacer falta.
+    const correlationId = generateUlid();
 
     // EL SOBRE VA ANTES QUE LA COMPUERTA (S-029), y hay que leer por qué eso NO debilita nada.
     //
@@ -165,13 +202,58 @@ export class Dispatcher {
     if ('error' in extracted) {
       return extracted.error;
     }
-    const { actor, payload } = extracted;
+    const { payload } = extracted;
+    let { actor } = extracted;
 
     // EL ESPEJO, ANTES DE AUTORIZAR (CA-8, RF-9) y en su propia transacción, que COMMITEA antes de
     // que se abra la del comando. Sin sobre no hay espejo: ni una transacción de más ni una
     // consulta de más para el 100% del tráfico de hoy. Ver `mirrorActor` para el porqué completo.
     if (actor) {
-      await mirrorActor(actor);
+      const mirroredName = await mirrorActor(actor);
+
+      // ── EL SOBRE SE COMPLETA CON EL NOMBRE DE LA FILA ───────────────────────────────────────
+      //
+      // POR QUÉ HACE FALTA: el access token de Zitadel NO TRAE los claims de perfil (`name`,
+      // `preferred_username`, `email`) —verificado sobre un token real, y ya documentado en
+      // `docs/flows/sincronizacion-de-identidades.md`—, y la api arma el sobre exclusivamente de
+      // ese token. Así que el sobre llega con `id` y `roles` y NADA MÁS, y el `actor.name` de los
+      // 16 eventos de dominio salía con el `sub` de Zitadel en vez del nombre de la persona.
+      //
+      // POR QUÉ ACÁ Y NO EN LOS 16 CONSTRUCTORES: son PUROS a propósito (S-063, y hay un test que
+      // lo afirma) y todos reciben el mismo `ctx.actor`. Completar el sobre UNA VEZ, en el único
+      // lugar por el que pasan todos los comandos, los arregla a los 16 sin tocar ninguno.
+      //
+      // POR QUÉ NO CUESTA UNA CONSULTA: `mirrorActor` YA leyó (o escribió) la fila en la
+      // transacción que acaba de commitear. El nombre viene de ese mismo `findByPk`, no de uno
+      // nuevo. Es la razón por la que esto se resuelve acá y no en la api, que tendría que pagar
+      // una llamada HTTP a Zitadel por comando dentro del timeout de 5 s de ADR-002.
+      //
+      // DÓNDE SE INSERTA LA FILA EN LA PRECEDENCIA, que es la decisión fina de este bloque. El
+      // escalón que `resolveEventActor` declara es `name` -> `email` -> `id`, y la fila entra
+      // ENTRE `email` y `id`:
+      //
+      //     name del sobre  ->  email del sobre  ->  NAME DE LA FILA  ->  id
+      //
+      // NO POR ENCIMA DE `email`: los dos claims del sobre salen del token que la api YA VERIFICÓ
+      // contra Zitadel y son MÁS FRESCOS que la fila, que es un espejo. Pisarlos con la fila sería
+      // la misma inversión de fuentes que ADR-007 prohíbe, y rompería el fallback a `email` que
+      // REQ-014 ya había decidido.
+      //
+      // SÍ POR ENCIMA DEL `id`: un `sub` de Zitadel no es un nombre para nadie, y la fila casi
+      // siempre tiene el bueno —lo escribe el evento del callout, que sí viene enriquecido—. Este
+      // es exactamente el hueco que el token vacío dejaba al descubierto.
+      //
+      // EL CANAL DIRECTO SE RESUELVE MÁS ABAJO, junto a los roles (S-070): allá no hay sobre que
+      // completar, pero sí una fila —la que la compuerta ya lee— de la que sale el mismo dato.
+      //
+      // Y NO COMPLETA CON EL `id`: si la fila quedó con el fallback `email ?? id` de un alta en
+      // `best-effort`, `mirroredName` ES el `sub` y escribirlo en el sobre no agregaría nada —
+      // dejarlo ausente hace que el último escalón de `resolveEventActor` siga siendo el que
+      // decide, que es donde el contrato quiere que esa decisión viva.
+      const completable = actor.name === undefined && actor.email === undefined;
+      if (completable && mirroredName && mirroredName !== actor.id) {
+        actor = { ...actor, name: mirroredName };
+      }
     }
 
     // LA COMPUERTA VA ANTES QUE EL RESTO (CA-6 de S-017), y las dos cosas que quedan detrás son el
@@ -192,6 +274,12 @@ export class Dispatcher {
     // es EL MISMO array, pasado un nivel más abajo, sin una sola consulta nueva. Es la misma forma
     // que ya usa `callerClass`.
     let roles: readonly string[];
+    // EL NOMBRE HUMANO DEL ACTOR, con la MISMA forma que `roles` y por la misma razón (S-070): se
+    // calcula adentro del `try`, donde está la lectura, y se usa afuera al armar el contexto.
+    //
+    // ARRANCA CON EL DEL SOBRE —ya enriquecido más arriba si hacía falta— y la rama directa lo
+    // completa con el de la fila. El exento lo deja en `undefined`: ese canal no toca la base.
+    let actorName: string | undefined = actor?.name;
     // LA IDENTIDAD DEL ACTOR, resuelta una vez y usada por las DOS compuertas: la del método y la
     // de entidad. Con sobre es `actor.id`, sin sobre el caller del subject — NUNCA el service user
     // de la api. Es la misma identidad que `resolveActor` elige y que la api usaba en
@@ -218,7 +306,24 @@ export class Dispatcher {
       // hacerlo depender de esa fila reintroduce la caída total y silenciosa de escritura que la
       // exención existe para evitar.
       const exemptDirect = !actor && caller === getTrustedPublisherId();
-      roles = actor ? actor.roles : exemptDirect ? [] : await readCallerRoles(caller);
+
+      if (actor) {
+        roles = actor.roles;
+      } else if (exemptDirect) {
+        roles = [];
+      } else {
+        // LA MISMA LECTURA DE SIEMPRE, que ahora además conserva el `name` (S-070). Era un
+        // `readCallerRoles(caller)` y pasó a `readCallerIdentity`, que hace EL MISMO `findByPk` y
+        // devuelve los dos campos en vez de tirar uno: cero consultas nuevas, y el nombre que los
+        // eventos necesitan sale de la fila que la compuerta ya traía.
+        const identity = await readCallerIdentity(caller);
+        roles = identity.roles;
+        // `!== caller` por lo mismo que en la rama del sobre: si la fila quedó con el fallback
+        // `email ?? id`, el "nombre" ES el `sub` y no agrega nada. Dejarlo en `undefined` hace que
+        // el último escalón de `resolveEventActor` siga siendo el que decide.
+        actorName = identity.name !== caller ? identity.name : undefined;
+      }
+
       const channel: Channel = actor ? 'envelope' : 'direct';
 
       // COMPUERTA 1 — "¿su rol habilita este método?".
@@ -352,13 +457,43 @@ export class Dispatcher {
     const transaction = await sequelize.transaction();
     try {
       const reply = await command.execute(validated.value, {
-        caller, params, transaction, actor, roles,
+        caller, params, transaction, actor, roles, actorName,
       });
 
       if (reply.status === 'success') {
         await transaction.commit();
       } else {
         await transaction.rollback();
+      }
+
+      // LA EMISIÓN VA ACÁ Y EN SU PROPIO try/catch, y las dos cosas son la story (S-063).
+      //
+      // DESPUÉS DEL COMMIT porque publicar antes emitiría eventos de escrituras que después
+      // rollean. La ventana entre el commit y el publish está ASUMIDA (R-6 del REQ): si falla
+      // acá, el evento SE PIERDE y no se repone.
+      //
+      // EN SU PROPIO try/catch PORQUE EL `catch` DE MÁS ABAJO HACE `rollback()` — y para este
+      // punto la transacción YA ESTÁ COMMITEADA. Un rechazo que escapara de acá haría un rollback
+      // sobre una transacción terminada, ese segundo rechazo taparía el original, y un comando
+      // que escribió bien saldría `failure internal_error`: el usuario vería un error de algo
+      // que SÍ pasó (R-A). El precedente de cómo se evita está 200 líneas más arriba, en
+      // `mirrorActor`.
+      //
+      // `reply.events?.length` Y NO `reply.events !== undefined`: un `events: []` no tiene que
+      // entrar a este camino (TS-7) — no hay nada que publicar y entrar igual solo arriesgaría
+      // sin ganar nada.
+      //
+      // Y `emitEvents` YA NO RECHAZA NUNCA (garantía de la Task 2) así que este `await` es
+      // seguro. AUN ASÍ el try/catch propio va igual: la garantía tiene que ser LOCAL Y VISIBLE
+      // en este archivo, no una propiedad que alguien pueda romper editando otro (R-B).
+      try {
+        if (reply.status === 'success' && reply.events?.length) {
+          await emitEvents(reply.events, correlationId, this.publisher);
+        }
+      } catch (error: any) {
+        // INALCANZABLE si `emitEvents` cumple su contrato, y acá igual: es la garantía de que
+        // ninguna futura edición de `emitEvents` pueda convertir un éxito en `internal_error`.
+        logger.error(`[events] emisión no manejada en ${name}: ${error.message}`);
       }
 
       if (process.env.LOG_COMMANDS === 'true') {

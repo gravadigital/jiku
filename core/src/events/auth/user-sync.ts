@@ -1,8 +1,8 @@
-import { IdentityType } from '@jiku/models';
 import { AuthEvent } from '@jiku/nats-protocol';
 import logger from '../../logger';
 import { mirrorUser } from '../../user-mirror';
 import { EventContext, EventOutcome } from '../types';
+import { identityTypeFromMatchedRole } from './identity-type';
 
 /**
  * Espeja la identidad que el auth-callout acaba de autenticar.
@@ -13,11 +13,12 @@ import { EventContext, EventOutcome } from '../types';
  *
  * LO QUE SÍ QUEDA ACÁ SON LAS DOS COSAS QUE SON DEL EVENTO Y DE NADIE MÁS:
  *
- *  1. LA TRADUCCIÓN DE NOMBRES. `identity_type` viene `snake_case` porque así lo manda el callout,
- *     y el modelo es `camelCase` por `underscored: true`. El cast es seguro porque el esquema Joi
- *     del despachador ya validó contra `Object.values(IdentityType)`: el valor ESTÁ en el enum. No
- *     lo saques ni dupliques la validación acá. Y los campos se ENUMERAN, nunca un `...event`: con
- *     el `.unknown(true)` del esquema, un spread metería `client_ip`, `session` y cualquier campo
+ *  1. LA TRADUCCIÓN DE NOMBRES, y desde S-069 también LA DERIVACIÓN DE `identityType`. La v2 del
+ *     evento ELIMINÓ `identity_type` del payload, así que ya no hay nada que castear: el valor se
+ *     deriva de `matched_role` con `identityTypeFromMatchedRole`, y su tipo de retorno es
+ *     `IdentityType`, de modo que un valor fuera del enum es imposible de construir (antes eso lo
+ *     garantizaba una validación Joi). Y los campos se ENUMERAN, nunca un `...event`: con el
+ *     `.unknown(true)` del esquema, un spread metería `client_ip`, `session` y cualquier campo
  *     nuevo del emisor en la fila.
  *
  *  2. EL LOG. El módulo compartido devuelve `'created' | 'updated'` y NO loguea: el prefijo y el
@@ -30,13 +31,20 @@ import { EventContext, EventOutcome } from '../types';
  * despachador antes de llegar acá, así que el best-effort no tiene nada que hacer en este camino —
  * y esa es exactamente la diferencia que el parámetro existe para expresar (D-7).
  *
- * CUIDADO SI ALGÚN DÍA `identity_type` DEJA DE VENIR: el default del esquema es `person`, así que
- * un emisor que dejara de mandarlo degradaría TODAS las filas de servicio a `person` en silencio.
- * Hoy no puede pasar —sale del `type` de la regla de `rules.yaml` que matcheó y el callout siempre
- * lo manda—, pero es el caso peligroso del reemplazo total.
+ * EL CUIDADO QUE ESTE DOCBLOCK ANUNCIABA **YA OCURRIÓ**, y vale dejar registrado que la predicción
+ * era correcta: decía *"si algún día `identity_type` deja de venir... degradaría TODAS las filas de
+ * servicio a `person` en silencio"*. La v2 lo eliminó del payload (S-069). Lo que evita la
+ * degradación es que el valor se DERIVA de `matched_role` en vez de caer a un default: los dos
+ * roles de servicio de `rules.yaml` siguen produciendo `service`.
+ *
+ * SIGUE SIENDO EL CASO PELIGROSO DEL REEMPLAZO TOTAL, ahora desplazado un paso: si alguien agrega
+ * un rol de servicio a `rules.yaml` y no lo agrega a `SERVICE_ROLES`, esa identidad se espeja como
+ * `person` sin que nada falle. Hay un test que cuenta la lista para que el olvido se vea.
  */
 export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<EventOutcome> {
-  const outcome = await mirrorUser(
+  // Solo el `outcome`: el `name` que `mirrorUser` devuelve desde S-068 es para el enriquecimiento
+  // del sobre en el plano de COMANDOS, y este camino no lo necesita.
+  const { outcome } = await mirrorUser(
     {
       id: event.id,
       name: event.name,
@@ -46,7 +54,8 @@ export async function syncUser(event: AuthEvent, ctx: EventContext): Promise<Eve
       // Acá no hay nada que decidir — si hubiera un `?? algo`, sería el lugar equivocado.
       email: event.email,
       roles: event.roles,
-      identityType: event.identity_type as IdentityType,
+      // DERIVADO, ya no leído: la v2 no manda `identity_type`. Ver `identity-type.ts`.
+      identityType: identityTypeFromMatchedRole(event.matched_role),
     },
     'strict',
     ctx.transaction,

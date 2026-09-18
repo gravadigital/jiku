@@ -270,7 +270,7 @@ describe('RequirementResolutionCard', () => {
     expect(screen.getByRole('button', { name: 'Reabrir' })).toBeDisabled();
   });
 
-  it('TS-28: los campos de resolución siguen disabled con el requisito ya Resuelto', () => {
+  it('TS-28: los campos de resolución siguen editables con el requisito ya Resuelto', () => {
     render(
       <RequirementResolutionCard
         requirement={{
@@ -283,9 +283,9 @@ describe('RequirementResolutionCard', () => {
       />
     );
 
-    expect(screen.getByLabelText('Tipo de resolución')).toBeDisabled();
-    expect(screen.getByLabelText('Conclusión interna')).toBeDisabled();
-    expect(screen.getByLabelText('Nota para cliente')).toBeDisabled();
+    expect(screen.getByLabelText('Tipo de resolución')).not.toBeDisabled();
+    expect(screen.getByLabelText('Conclusión interna')).not.toBeDisabled();
+    expect(screen.getByLabelText('Nota para cliente')).not.toBeDisabled();
   });
 
   it('TS-29: en Resuelto se conservan "Cierre estimado", "Fecha de finalización" y "Reabrir"; no se ven "Resolver" ni "Cancelar"', () => {
@@ -323,7 +323,7 @@ describe('RequirementResolutionCard', () => {
     expect(screen.queryByRole('button', { name: /^cancelar$/i })).not.toBeInTheDocument();
   });
 
-  it('no existe ningún botón "Guardar" separado — los campos se guardan al confirmar Resolver', () => {
+  it('en un paso de trabajo, no existe botón "Guardar" separado — los campos se guardan al confirmar Resolver', () => {
     render(
       <RequirementResolutionCard
         requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
@@ -582,12 +582,13 @@ describe('RequirementResolutionCard', () => {
     });
   });
 
-  describe('TS-5/TS-6/TS-7: con el requisito cerrado, los 3 campos se ven pero quedan de solo lectura', () => {
-    // Decisión: resolutionType/resolutionConclusion son requeridos (gate de API) antes de
-    // transicionar a resuelto, así que ya están completos al llegar a ese estado. Sin un
-    // botón "Resolver"/"Cancelar" visible en estado cerrado, no hay mecanismo de guardado —
-    // los 3 campos quedan visibles como registro histórico, pero deshabilitados.
-    it('TS-5: con el requisito ya Resuelto, los 3 campos de resolución están disabled', () => {
+  describe('TS-5/TS-6/TS-7: con el requisito cerrado, los 3 campos siguen editables', () => {
+    // Decisión: el backend (core) permite editar resolutionType/resolutionConclusion/
+    // resolutionComment en cualquier estado vía PATCH — REQ-012 derogó la validación de
+    // secuencia. Bloquearlos en la UI obligaba a "Reabrir" solo para corregir una nota, así
+    // que quedan habilitados también en Resuelto/Cancelado, con un botón "Guardar" propio
+    // (no hay "Resolver"/"Cancelar" visibles en ese estado para disparar el guardado).
+    it('TS-5: con el requisito ya Resuelto, los 3 campos de resolución NO están disabled', () => {
       render(
         <RequirementResolutionCard
           requirement={{
@@ -602,12 +603,12 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toBeDisabled();
-      expect(screen.getByLabelText('Conclusión interna')).toBeDisabled();
-      expect(screen.getByLabelText('Nota para cliente')).toBeDisabled();
+      expect(screen.getByLabelText('Tipo de resolución')).not.toBeDisabled();
+      expect(screen.getByLabelText('Conclusión interna')).not.toBeDisabled();
+      expect(screen.getByLabelText('Nota para cliente')).not.toBeDisabled();
     });
 
-    it('TS-6: con el requisito ya Cancelado, los 3 campos de resolución están disabled', () => {
+    it('TS-6: con el requisito ya Cancelado, los 3 campos de resolución NO están disabled', () => {
       render(
         <RequirementResolutionCard
           requirement={{ ...baseRequirement, type: 'incidencia', state: 'cancelado' }}
@@ -615,12 +616,12 @@ describe('RequirementResolutionCard', () => {
         />
       );
 
-      expect(screen.getByLabelText('Tipo de resolución')).toBeDisabled();
-      expect(screen.getByLabelText('Conclusión interna')).toBeDisabled();
-      expect(screen.getByLabelText('Nota para cliente')).toBeDisabled();
+      expect(screen.getByLabelText('Tipo de resolución')).not.toBeDisabled();
+      expect(screen.getByLabelText('Conclusión interna')).not.toBeDisabled();
+      expect(screen.getByLabelText('Nota para cliente')).not.toBeDisabled();
     });
 
-    it('TS-7: en un paso de trabajo (no cerrado), los 3 campos NO están disabled', () => {
+    it('TS-7: en un paso de trabajo (no cerrado), los 3 campos tampoco están disabled', () => {
       render(
         <RequirementResolutionCard
           requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
@@ -631,6 +632,117 @@ describe('RequirementResolutionCard', () => {
       expect(screen.getByLabelText('Tipo de resolución')).not.toBeDisabled();
       expect(screen.getByLabelText('Conclusión interna')).not.toBeDisabled();
       expect(screen.getByLabelText('Nota para cliente')).not.toBeDisabled();
+    });
+
+    it('con isPending, los 3 campos quedan disabled sin importar el estado', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'resuelto' }}
+          onUpdate={vi.fn()}
+          isPending
+        />
+      );
+
+      expect(screen.getByLabelText('Tipo de resolución')).toBeDisabled();
+      expect(screen.getByLabelText('Conclusión interna')).toBeDisabled();
+      expect(screen.getByLabelText('Nota para cliente')).toBeDisabled();
+    });
+  });
+
+  describe('con el requisito cerrado, "Guardar" persiste ediciones a los campos de resolución', () => {
+    it('en Resuelto, muestra un botón "Guardar" junto a "Reabrir"', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'resuelto' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
+    });
+
+    it('en Cancelado, muestra un botón "Guardar" junto a "Reabrir"', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'cancelado' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
+    });
+
+    it('para type distinto de incidencia, no muestra "Guardar" aunque esté cerrado (no hay campos que editar)', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'funcionalidad', state: 'resuelto' }}
+          onUpdate={vi.fn()}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
+    });
+
+    it('click en "Guardar" con campos editados dispara onUpdate por cada campo cambiado, sin tocar state', () => {
+      const onUpdate = vi.fn();
+      render(
+        <RequirementResolutionCard
+          requirement={{
+            ...baseRequirement,
+            type: 'incidencia',
+            state: 'resuelto',
+            resolutionType: 'error_interno',
+            resolutionConclusion: 'Se corrigió el cálculo',
+            resolutionComment: 'Ya está disponible',
+          }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+        target: { value: 'Se corrigió el cálculo (aclaración agregada)' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledWith({
+        resolutionConclusion: 'Se corrigió el cálculo (aclaración agregada)',
+      });
+    });
+
+    it('click en "Guardar" sin cambios no dispara ningún onUpdate', () => {
+      const onUpdate = vi.fn();
+      render(
+        <RequirementResolutionCard
+          requirement={{
+            ...baseRequirement,
+            type: 'incidencia',
+            state: 'resuelto',
+            resolutionType: 'error_interno',
+            resolutionConclusion: 'Se corrigió el cálculo',
+            resolutionComment: 'Ya está disponible',
+          }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+      expect(onUpdate).not.toHaveBeenCalled();
+    });
+
+    it('"Guardar" queda deshabilitado mientras hay una mutación en vuelo (isPending)', () => {
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'resuelto' }}
+          onUpdate={vi.fn()}
+          isPending
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
     });
   });
 

@@ -1,0 +1,28 @@
+# `internal-app`: la api y cualquier servicio externo. Ver README.md.
+#
+# Es el permiso más ancho del producto: los dos planos completos, sin recorte de método ni
+# de fila en el mapa de core. Un conector acotado es un ROL NUEVO, no una variante de este.
+
+pub:
+  allow:
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
+    # JetStream ACOTADO A JIKU_EVENTS. Nunca `$JS.API.>`: es administración completa de
+    # JetStream sobre la cuenta (borrar, vaciar y reconfigurar cualquier stream).
+    - "$JS.API.INFO"
+    - "$JS.API.STREAM.INFO.JIKU_EVENTS"
+    - "$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.INFO.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>"
+
+sub:
+  allow:
+    # CON la versión: `{{instance}}.events.>` se comería `{{instance}}.events.auth`.
+    - "{{instance}}.events.v1.>"
+    # El cliente DEBE fijar `inboxPrefix`, o las respuestas nunca llegan (síntoma: timeout).
+    - "_INBOX.{{user_id_hash}}.>"
+
+response:
+  # No atiende ningún endpoint: solo emite y escucha su inbox.
+  max: 0

@@ -8,7 +8,9 @@ consultas, es **leer roles** para decidir qué le recorta a cada caller.
 
 - **Tipo:** worker (consumidor de bus) · **Lenguaje:** node (TypeScript, `strict`) · **Path:** `core/`
 - **Expone:** **23 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
-  (`jiku-queries`), request/reply sin JetStream, **dos micro servicios sobre una sola conexión**
+  (`jiku-queries`), request/reply sin JetStream, **dos micro servicios sobre una sola conexión**.
+  **Desde REQ-014 publica además eventos de dominio**, en un tercer plano fire-and-forget con
+  JetStream (stream `JIKU_EVENTS`) — ver [ADR-014](../../adrs/ADR-014-jetstream-para-eventos-de-dominio.md)
 - **Consume:** PostgreSQL `jiku` por **dos conexiones** —el usuario dueño para escribir, un rol de
   **solo lectura** para las consultas—, NATS, Zitadel (solo para su propio token)
 
@@ -127,6 +129,7 @@ lectura completa** y vive en `src/queries/`.
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. **La api no tiene credenciales de S3** |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico más una ficha por recurso |
+| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), sin efectos laterales. El despachador los emite post-commit — ver [`bus-publisher`](./conventions/bus-publisher.md). No confundir con `src/events/auth/`, el plano **entrante** del evento de autenticación |
 
 **Son 23 comandos**, y el número sale de contar `src/commands/index.ts`, no de esta tabla: la suma
 de la columna es la verificación, no la fuente.
@@ -235,7 +238,7 @@ dominio.
 
 | Integración | Para qué | Particularidad |
 |---|---|---|
-| **NATS** | Recibir comandos **y consultas** | **Dos micro servicios sobre una sola conexión**, cada uno con su queue group: `jiku-commands` se suscribe por patrón con `{param}` y `jiku-queries` con un endpoint EXACTO por consulta —ninguna consulta lleva `{param}`, así que ningún subject lleva `*`—. **No publica nada** |
+| **NATS** | Recibir comandos **y consultas**, **y publicar eventos de dominio** | **Dos micro servicios sobre una sola conexión**, cada uno con su queue group: `jiku-commands` se suscribe por patrón con `{param}` y `jiku-queries` con un endpoint EXACTO por consulta —ninguna consulta lleva `{param}`, así que ningún subject lleva `*`—. **Desde REQ-014 publica eventos de dominio, post-commit, con JetStream** (ver [`bus-publisher`](./conventions/bus-publisher.md)) |
 | **Zitadel** | Su propio token de bus | Service user con key JSON. El token caduca en ~1h y se renueva solo; por eso no se pasa por variable de entorno |
 | **PostgreSQL** | Escribir **y leer** | **Dos conexiones**: el usuario dueño para los comandos —reintenta 5 veces con 1s de espera antes de abortar— y un rol de **solo lectura** con pool propio y `statement_timeout` de 8000 ms para las consultas. Ese timeout es MENOR que el del caller (10000 ms), y esa desigualdad es lo que hace que la base corte primero y el motor pueda responder `query_timeout` en vez de dejar un timeout mudo del bus |
 

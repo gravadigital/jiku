@@ -1,11 +1,19 @@
 type Protocol = typeof import('../../src/index');
 
-/** Las cuatro variables que el módulo lee al importarse. Se resetean SIEMPRE. */
+/**
+ * Las cinco variables que el módulo lee al importarse. Se resetean SIEMPRE.
+ *
+ * `NATS_EVENTS_VERSION` se sumó en REQ-014: sin ella acá, un `reload({ NATS_EVENTS_VERSION: 'v2'
+ * })` dejaría la variable puesta en `process.env` y CONTAMINARÍA los tests siguientes — y el tipo
+ * `Partial<Record<ProtocolEnvKey, string>>` la rechazaría en compilación si no estuviera en esta
+ * lista (TS2345).
+ */
 const PROTOCOL_ENV_KEYS = [
   'NATS_INSTANCE',
   'NATS_PROTOCOL_VERSION',
   'NATS_COMMAND_SERVICE',
   'NATS_QUERY_SERVICE',
+  'NATS_EVENTS_VERSION',
 ] as const;
 
 type ProtocolEnvKey = (typeof PROTOCOL_ENV_KEYS)[number];

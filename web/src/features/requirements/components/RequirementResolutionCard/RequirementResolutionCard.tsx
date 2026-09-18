@@ -106,6 +106,10 @@ export function RequirementResolutionCard({
     onUpdate({ state: 'cancelado' });
   };
 
+  const handleSave = () => {
+    saveChangedFields();
+  };
+
   // Devuelve el requisito al trabajo. No manda ningún campo de resolución: el servidor
   // limpia los tres en la misma escritura, pero un valor explícito en el payload
   // ganaría sobre esa limpieza (RF-10) — por eso NO se llama a saveChangedFields() acá.
@@ -138,7 +142,7 @@ export function RequirementResolutionCard({
             options={RESOLUTION_TYPE_OPTIONS}
             value={drafts.resolutionType}
             onChange={(value) => handleDraftChange('resolutionType', value)}
-            disabled={isPending || isClosed}
+            disabled={isPending}
           />
           <Input
             variant="textarea"
@@ -146,7 +150,7 @@ export function RequirementResolutionCard({
             placeholder="Describí la conclusión interna de esta incidencia..."
             value={drafts.resolutionConclusion}
             onChange={(value) => handleDraftChange('resolutionConclusion', value)}
-            disabled={isPending || isClosed}
+            disabled={isPending}
           />
           <Input
             variant="textarea"
@@ -154,7 +158,7 @@ export function RequirementResolutionCard({
             placeholder="Describí la resolución de esta incidencia..."
             value={drafts.resolutionComment}
             onChange={(value) => handleDraftChange('resolutionComment', value)}
-            disabled={isPending || isClosed}
+            disabled={isPending}
           />
         </div>
       )}
@@ -165,26 +169,32 @@ export function RequirementResolutionCard({
             <dt>Fecha de finalización</dt>
             <dd>{formatDate(getResolutionDate(requirement))}</dd>
           </dl>
-          <Button
-            variant="secondary-dismiss"
-            onClick={handleReopen}
-            disabled={isPending}
-          >
-            Reabrir
-          </Button>
+          <div className={styles.actions}>
+            <Button variant="secondary-dismiss" onClick={handleReopen} disabled={isPending}>
+              Reabrir
+            </Button>
+            {showResolutionFields && (
+              <Button variant="primary" onClick={handleSave} disabled={isPending}>
+                Guardar
+              </Button>
+            )}
+          </div>
         </>
       ) : isClosed ? (
         <>
           <div className={`${styles.resultBadge} ${styles.resultBadgeCancelled}`}>
             {RESULT_LABELS[state as 'resuelto' | 'cancelado']}
           </div>
-          <Button
-            variant="secondary-dismiss"
-            onClick={handleReopen}
-            disabled={isPending}
-          >
-            Reabrir
-          </Button>
+          <div className={styles.actions}>
+            <Button variant="secondary-dismiss" onClick={handleReopen} disabled={isPending}>
+              Reabrir
+            </Button>
+            {showResolutionFields && (
+              <Button variant="primary" onClick={handleSave} disabled={isPending}>
+                Guardar
+              </Button>
+            )}
+          </div>
         </>
       ) : (
         <div className={styles.actions}>

@@ -79,7 +79,9 @@ aleatorio y **las respuestas nunca llegan**.
 - **NO SE DEBE** transportar datos estructurados dentro de `errorMessage`. El caso actual de
   `daily_limit_exceeded` —que la api recupera parseando el mensaje con un regex— es deuda
   explícita, no un patrón a imitar.
-- Core **NO DEBE** publicar mensajes: solo responde el `Reply` de la request que recibe.
+- Core **NO DEBE** publicar en el plano de comandos: solo responde el `Reply` de la request que
+  recibe. **Sí publica eventos de dominio**, en un plano distinto y con JetStream — ver
+  [ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md).
 
 ## Consecuencias
 
@@ -115,9 +117,14 @@ aleatorio y **las respuestas nunca llegan**.
 - **Riesgo:** no hay forma de saber cuántas escrituras se perdieron.
   - **Mitigación:** ninguna hoy — no hay métricas ni logs verificables en producción. Es el
     contenido del feature group **FG-3**.
-- **Riesgo:** una feature futura que necesite entrega garantizada (por ejemplo notificaciones,
-  FG-2) se construye sobre esta base y hereda la pérdida silenciosa.
-  - **Mitigación:** FG-2 declara explícitamente que conviene resolver FG-3 antes.
+- **Riesgo:** una feature futura que necesite entrega garantizada se construye sobre **este**
+  plano de comandos y hereda la pérdida silenciosa.
+  - **Mitigación:** ninguna automática — es una decisión de diseño a rechazar en revisión. **Ya no
+    es el caso de FG-2**: desde REQ-014, FG-2 (notificaciones) se construye sobre el plano de
+    **eventos de dominio**, que tiene stream con retención de 7 días
+    ([ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md)), y no sobre este. El riesgo sigue
+    vigente para cualquier feature que sí decida apoyarse en un comando request/reply para algo
+    que necesite entrega garantizada.
 
 ## Alternativas Consideradas
 
@@ -139,6 +146,14 @@ aleatorio y **las respuestas nunca llegan**.
 para un modelo asíncrono superaba el beneficio, dado que el producto es interno y la caída de core
 es un evento raro y visible. **Es la alternativa a reconsiderar en FG-3** — el descarte fue una
 decisión de momento, no permanente.
+
+> **Este descarte sigue vigente para comandos, y la adopción de JetStream para eventos de dominio
+> ([ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md)) no lo reabre.** Son dos planos con dos
+> semánticas distintas sobre la misma infraestructura de bus: los comandos siguen siendo
+> request/reply síncrono porque el usuario espera una respuesta inmediata en el momento; los
+> eventos son fire-and-forget hacia un conector que no está esperando nada. Que uno haya adoptado
+> JetStream no dice nada sobre si el otro debería — la reconsideración de esta alternativa **para
+> comandos** sigue siendo, exclusivamente, el contenido de FG-3.
 
 ---
 
@@ -173,4 +188,4 @@ inalcanzable desde la red de ingress por diseño.
 - Contrato completo: [`docs/apis/core.yaml`](../apis/core.yaml) (AsyncAPI 2.6, 17 comandos, 21 códigos de error)
 - Arquitectura: [`docs/prd/architecture.md`](../prd/architecture.md)
 - Feature group que lo revisa: **FG-3** en [`docs/prd/feature-groups.md`](../prd/feature-groups.md)
-- ADRs relacionados: [ADR-001](ADR-001-separacion-lectura-escritura.md), [ADR-003](ADR-003-transaccion-del-despachador.md), [ADR-007](ADR-007-identidad-zitadel-auth-callout.md)
+- ADRs relacionados: [ADR-001](ADR-001-separacion-lectura-escritura.md), [ADR-003](ADR-003-transaccion-del-despachador.md), [ADR-007](ADR-007-identidad-zitadel-auth-callout.md), [ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md) (JetStream, pero para el plano de eventos, no el de comandos)

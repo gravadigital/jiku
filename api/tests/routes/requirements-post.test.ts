@@ -580,4 +580,66 @@ describe('POST /api/requirements', () => {
       });
     });
   });
+
+  /**
+   * CA-6 de S-063: la api IGNORA `Reply.events` por proyección de claves — el mismo mecanismo
+   * que ya usa con `errorDetails` — y el contrato HTTP de esta ruta no cambia en nada.
+   *
+   * ADR-013 exige verificar LAS TRES CAPAS (comando publicado, traducción HTTP, fila escrita),
+   * no solo el status: por eso este test corre el camino FELIZ con `fakeBus` ejecutando core de
+   * verdad (sin `reply()`/`failWith()`), y confirma además que el `Reply` que core devolvió SÍ
+   * traía `events` — así el test prueba que el campo estuvo presente y fue ignorado, no que
+   * nunca llegó.
+   */
+  describe('CA-6 de S-063: un Reply con events no rompe nada', () => {
+    afterEach(() => {
+      fakeBus.reset();
+    });
+
+    // TS-49: un `Reply` de `failure` que ADEMÁS trae `events` poblado (caso hipotético — hoy
+    // ningún comando emite eventos en un `failure`, CA-2 lo prohíbe) no cambia la traducción de
+    // errores: mismo status HTTP y mismo `body.code`/`body.message` que sin `events`, y la
+    // clave `events` no aparece en el body.
+    it('TS-49: un Reply de failure con events no cambia el status ni el body de error', () => {
+      fakeBus.reply('requirements.new', {
+        status: 'failure',
+        errorCode: 'invalid_fields',
+        errorMessage: '"title" is required',
+        events: [{ type: 'requirement.created', eventId: 'x' } as any],
+      } as any);
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'T', description: 'D', type: 'funcionalidad', projectId: 1 })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+          res.body.message.should.equal('"title" is required');
+          JSON.stringify(res.body).should.not.containEql('"events"');
+        });
+    });
+
+    it('201, recurso completo y fila escrita — con el camino feliz ejecutando core de verdad (ADR-013)', () => {
+      // NO usa `reply()`/`failWith()`: el `FakeBus` ejecuta `requirements.new` en `core` de
+      // verdad, que desde S-063 declara `requirement.created` en `Reply.events` para este
+      // comando (ver `requirements-new.ts`). Ese `Reply.events` SÍ existe en este camino — lo
+      // confirma la suite de `core` (`tests/commands/requirements.test.ts`, describe
+      // `requirement.created — de punta a punta`) — así que este test no repite esa aserción:
+      // fija que, estando presente, no cambia NADA de esta ruta.
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Con evento', description: 'D', type: 'funcionalidad', projectId: 1 })
+        .expect(201)
+        .then((res) => {
+          res.body.title.should.equal('Con evento');
+          JSON.stringify(res.body).should.not.containEql('"events"');
+
+          return Requirement.findByPk(res.body.id).then((requirement) => {
+            (requirement === null).should.be.false();
+          });
+        });
+    });
+  });
 });

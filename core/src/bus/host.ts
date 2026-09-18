@@ -12,6 +12,7 @@ import { COMMAND_SERVICE, inboxPrefix } from '@jiku/nats-protocol';
 import { serviceUserFromEnv } from '@jiku/zitadel-auth';
 import logger from '../logger';
 import { ServiceSpec, registerService } from './service';
+import { EventPublisher, JetStreamEventPublisher } from './event-publisher';
 
 /**
  * Consumidor de un subject de eventos: fire-and-forget, sin reply.
@@ -158,6 +159,31 @@ export class BusHost {
    */
   maxPayload(): number | undefined {
     return this.connection?.info?.max_payload;
+  }
+
+  /**
+   * El publicador de eventos de dominio (REQ-014 / S-063), sobre la conexión de este host.
+   *
+   * MISMO CRITERIO QUE `maxPayload()`: "lo que sale del host es un dato, no la conexión". Lo que
+   * sale acá es un OBJETO — el publicador —, construido sobre la conexión privada, nunca la
+   * conexión misma.
+   *
+   * LANZA SI EL HOST TODAVÍA NO ARRANCÓ, a propósito: a diferencia de `maxPayload()` (un número
+   * opcional que el llamador puede tratar como "no lo sé todavía"), el publicador es una
+   * dependencia obligatoria del `Dispatcher` y construirlo sin conexión sería un bug de orden de
+   * arranque que conviene que falle ruidosamente y no como un `undefined` que se cuela.
+   *
+   * SE LLAMA UNA SOLA VEZ, en `src/index.ts`, DESPUÉS de `host.start()` — nunca durante la
+   * evaluación del módulo, que es cuando `Dispatcher` se construye. El proveedor perezoso real
+   * está en el emisor (Task 2): esta clase resuelve el CLIENTE JetStream recién en el primer
+   * `publish()` (ver `JetStreamEventPublisher`), así que ni siquiera esta llamada necesita ser
+   * perezosa por sí misma.
+   */
+  eventPublisher(): EventPublisher {
+    if (!this.connection) {
+      throw new Error('[bus] eventPublisher() tiene que llamarse después de start()');
+    }
+    return new JetStreamEventPublisher(this.connection);
   }
 
   /** Para los servicios y drena para que los mensajes en vuelo terminen antes de cerrar. */

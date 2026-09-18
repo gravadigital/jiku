@@ -155,3 +155,66 @@ the compiler does not catch a hand-written code. That is why three codes are sti
 literals today (`resolution_required`, `worked_time_not_found`, `unworked_time_not_found`).
 Narrowing the signature would break those three, so it is a separate requirement — the rule
 meanwhile is enforced by convention, not by the type system.
+
+## EVENTS_VERSION
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** The `{version}` segment of a domain event's subject (REQ-014):
+`{instance}.events.{version}.{entidad}.{acción}`. Same environment-constant pattern as the other
+four: read from `process.env.NATS_EVENTS_VERSION` **at import time**, with `||` and not `??` — an
+empty string must still fall back to `'v1'`, or the subject would carry an empty token that NATS
+rejects (`dev.events..requirement.created`).
+
+**INDEPENDENT of `PROTOCOL_VERSION`, and it has to stay that way.** They read two different
+environment variables so that a `v2` of the events contract never drags the 23 commands along, and
+a `v2` of the command protocol never drags the events plane along. Sharing the variable would be
+the bug — `TS-130` in the test suite exists specifically to catch it, in both directions.
+
+**Signature:**
+```ts
+const EVENTS_VERSION: string; // NATS_EVENTS_VERSION || 'v1'
+```
+
+**Usage:**
+```ts
+import { EVENTS_VERSION, eventSubject } from '@jiku/nats-protocol';
+
+eventSubject('requirement.created'); // 'dev.events.v1.requirement.created'
+```
+
+## EVENT_TYPES
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** The catalog of the **16** domain events `core` publishes, as a frozen object
+(`as const`) with a derived union type `EventType`. Same `as const` + derived-type pattern as
+`ErrorCode`/`ErrorCodeValue`. **Source of truth is the contract**, `docs/apis/core-events.yaml` —
+this constant, the contract's 16 channel names and its `EventType` enum are the SAME list, in the
+SAME order; a test (`TS-155`) verifies the three never diverge.
+
+Ordered by entity — the 10 `requirement` events, then the 6 `task` events — not by the REQ batch
+that added each one, same criterion `ErrorCode` uses (by family, not by requirement). **Does not
+include the 6 batch-3 events** (`project.created`, `project.updated`, `client.created`,
+`client.updated`, `attachment.linked`, `attachment.unlinked`): REQ-014 declares those "when a
+connector asks for them", and the shipped catalog is exactly 16, not 22.
+
+**Signature:**
+```ts
+const EVENT_TYPES: {
+  readonly REQUIREMENT_CREATED: 'requirement.created';
+  readonly REQUIREMENT_STATE_CHANGED: 'requirement.state.changed';
+  // ...16 members in total, 10 requirement.* + 6 task.*
+};
+type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
+```
+
+**Usage:**
+```ts
+import { EVENT_TYPES, eventSubject } from '@jiku/nats-protocol';
+
+eventSubject(EVENT_TYPES.TASK_ASSIGNED); // 'dev.events.v1.task.assigned'
+```
+
+**No emitter yet.** As of S-062 this catalog exists and nobody publishes anything with it — the
+post-commit emitter is S-063, and the constructors of each event batch are S-064 to S-066.

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Generates the NATS identity the server needs in operator mode.
+# Generates the NATS identity the server needs in operator mode, and leaves the APP
+# account enabled for JetStream (the storage and memory limits a stream needs to be
+# created — see the account edit below).
 #
 # Operator mode is a requirement of the auth-callout: authorisation is decided with
 # account-signed JWTs, and that is what lets the callout issue a different User JWT per
@@ -31,12 +33,28 @@ APP_ACCOUNT="${NATS_APP_ACCOUNT:-GESTION}"
 AUTH_ACCOUNT="${NATS_AUTH_ACCOUNT:-GESTION_AUTH}"
 OUT="creds"
 
+# JetStream limits for the APP account, needed to create the JIKU_EVENTS stream (S-061).
+JS_STORAGE="${NATS_JS_STORAGE:-1G}"
+JS_MEMORY="${NATS_JS_MEMORY:-256M}"
+JS_STREAMS="${NATS_JS_STREAMS:-10}"
+JS_CONSUMERS="${NATS_JS_CONSUMERS:-100}"
+
 FORCE=false
 [[ "${1:-}" == "--force" ]] && FORCE=true
 
 if ! command -v nsc >/dev/null 2>&1; then
   echo "error: nsc is missing. Install it with:" >&2
   echo "  curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh" >&2
+  exit 1
+fi
+
+# The JetStream account-limit flags have changed names across nsc versions (--js-storage vs
+# --js-disk-storage, --js-memory vs --js-mem-storage). Fail loudly instead of silently
+# skipping the limits if the installed nsc does not have the ones this script uses.
+if ! nsc edit account --help 2>&1 | grep -q -- '--js-disk-storage'; then
+  echo "error: the installed nsc does not support --js-disk-storage on 'edit account'." >&2
+  echo "This script needs it to grant the APP account JetStream storage limits." >&2
+  echo "Check 'nsc edit account --help' and update the flag names in this script." >&2
   exit 1
 fi
 
@@ -73,6 +91,30 @@ $NSC edit operator --sk generate >/dev/null
 echo "==> account $APP_ACCOUNT (the services')"
 $NSC add account --name "$APP_ACCOUNT" >/dev/null
 $NSC edit account --name "$APP_ACCOUNT" --sk generate >/dev/null
+
+# JetStream limits for the events stream (JIKU_EVENTS, S-061).
+#
+# WHY THEY ARE SET HERE AND NOT IN A SEPARATE SCRIPT
+#   These limits live in the ACCOUNT JWT, and an account JWT is signed by the OPERATOR.
+#   This script generates the operator's signing key into a throwaway store and DISCARDS
+#   it on exit — only the two ACCOUNT signing keys are persisted to creds/. So this is the
+#   only moment in the lifetime of an installation when the limits CAN be assigned.
+#
+#   That is why add-events-user.sh's trick does not work for this: adding a user does not
+#   touch the account JWT, so it needs no operator. Assigning JetStream limits does.
+#
+#   An installation that already ran bootstrap.sh without these limits cannot gain them
+#   without either re-bootstrapping (--force, which reissues every credential) or still
+#   having the operator key. See enable-jetstream.sh and creds/README.md.
+#
+# WITHOUT A NON-ZERO --js-disk-storage the account cannot create streams even though the
+# server has JetStream enabled, and the error shows up only when creating the stream:
+# "no JetStream default or applicable tiered limit present".
+$NSC edit account --name "$APP_ACCOUNT" \
+  --js-disk-storage "$JS_STORAGE" \
+  --js-mem-storage "$JS_MEMORY" \
+  --js-streams "$JS_STREAMS" \
+  --js-consumer "$JS_CONSUMERS" >/dev/null
 
 echo "==> account $AUTH_ACCOUNT (the callout's)"
 $NSC add account --name "$AUTH_ACCOUNT" >/dev/null

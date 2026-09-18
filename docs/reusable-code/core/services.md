@@ -372,3 +372,49 @@ in `replacements`. `build-sql.ts` has no escaping of payload strings — if it n
 the signal that a name arrived from the message body.
 
 **Usage:** see `core/src/queries/tasks/tasks-list.ts`; the whole resource is three declarations.
+
+## JetStreamEventPublisher
+
+**Location:** `core/src/bus/event-publisher.ts`
+
+**Description:** The real implementation of `EventPublisher` (S-063 / REQ-014): publishes domain
+events over JetStream, so they land in the `JIKU_EVENTS` stream (S-061).
+
+It resolves the JetStream client **lazily**, on the first `publish()` call, never at construction
+time. This is the same fix as the query engine's byte-budget provider, for the same reason:
+`Dispatcher` (and the `EventPublisher` it receives) is constructed in `src/index.ts` **before**
+`BusHost.start()` opens the connection, so the JetStream client cannot exist yet when the
+publisher object is built.
+
+`js.publish(subject, payload)` waits for JetStream's `PubAck`, and that round trip is what
+requires the `$JS.API.>` line in `core`'s `pub.allow` (`deploy/nats/auth-callout/templates/core.yaml`).
+A bare `nc.publish()` would not need that permission, but it also would not persist the message
+in the stream — do not "simplify" this to a plain publish for that reason.
+
+Encodes the payload to JSON itself (`JSONCodec()`), not the caller: this keeps the `EventPublisher`
+interface transport-agnostic and lets the test double (`FakeEventPublisher`) accumulate the plain
+object for `deepEqual` assertions instead of a decoded buffer.
+
+**Interface:**
+```ts
+interface EventPublisher {
+  publish(subject: string, payload: unknown): Promise<void>;
+}
+
+class JetStreamEventPublisher implements EventPublisher {
+  constructor(connection: NatsConnection);
+  publish(subject: string, payload: unknown): Promise<void>;
+}
+```
+
+**Usage:**
+```ts
+// In src/index.ts, AFTER host.start() — see the lazy provider pattern there.
+const publisher: EventPublisher = {
+  publish: (subject, payload) => host.eventPublisher().publish(subject, payload),
+};
+const dispatcher = new Dispatcher(registry, publisher);
+```
+
+**Do not** expose the `NatsConnection` from `BusHost` to build this elsewhere: `host.eventPublisher()`
+is the one method that constructs it, on the same host that owns the connection.

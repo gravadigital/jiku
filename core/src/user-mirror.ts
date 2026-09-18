@@ -59,6 +59,29 @@ export type MirrorMode = 'strict' | 'best-effort';
 export type MirrorOutcome = 'created' | 'updated';
 
 /**
+ * El resultado del espejo: qué se hizo, y el `name` QUE QUEDÓ EN LA FILA.
+ *
+ * `name` EXISTE PARA UN SOLO CONSUMIDOR: el enriquecimiento del sobre en `bus/dispatcher.ts`, que
+ * lo usa para completar el `actor.name` de los eventos de dominio cuando el access token de la api
+ * no trae el claim de perfil. Sale de ACÁ y no de un `findByPk` del llamador porque esta función
+ * YA leyó la fila (o la acaba de escribir): devolver lo que ya tiene en la mano es gratis, y un
+ * segundo `SELECT` sobre la misma PK en la misma transacción sería puro costo.
+ *
+ * ES EL NOMBRE EFECTIVO, no el del sobre: en un alta en `best-effort` la columna puede haber
+ * quedado con el fallback `email ?? id` (`users.name` es NOT NULL), y ese —y no el `undefined`
+ * del sobre— es el valor que el evento tiene que publicar.
+ *
+ * NUNCA SE DEVUELVE EL `email`, y es deliberado: `EventActor` no declara esa clave y el único
+ * llamador construye justamente un `EventActor`. Devolverlo sería ofrecerle al evento un dato
+ * personal que el contrato no pide.
+ */
+export interface MirrorResult {
+  outcome: MirrorOutcome;
+  /** El `name` tal como quedó en la fila. Siempre un string: la columna es NOT NULL. */
+  name: string;
+}
+
+/**
  * La identidad a espejar, ya traducida a los nombres del modelo.
  *
  * LA AUSENCIA DE UNA CLAVE ES SIGNIFICATIVA en modo best-effort: se distingue por
@@ -156,7 +179,7 @@ export async function mirrorUser(
   mode: MirrorMode,
   transaction: Transaction,
   component: string
-): Promise<MirrorOutcome> {
+): Promise<MirrorResult> {
   if (mode === 'best-effort') {
     const missing = PROFILE_FIELDS.filter(
       (field) => !Object.prototype.hasOwnProperty.call(identity, field)
@@ -179,13 +202,21 @@ export async function mirrorUser(
   const existing = await User.findByPk(identity.id, { transaction });
 
   if (!existing) {
-    await User.create({ id: identity.id, ...fieldsForCreate(identity, mode) }, { transaction });
-    return 'created';
+    const created = await User.create(
+      { id: identity.id, ...fieldsForCreate(identity, mode) },
+      { transaction }
+    );
+    // El `name` de la fila RECIÉN CREADA, que en `best-effort` puede ser el fallback
+    // `email ?? id` y no lo que traía el sobre.
+    return { outcome: 'created', name: created.name };
   }
 
   // El `id` no entra en la escritura: es la PK, y la fila se encontró POR ella.
   await existing.update(fieldsForUpdate(identity, mode), { transaction });
-  return 'updated';
+  // DESPUÉS del `update`: si el sobre traía `name`, este es el nuevo; si no, `pickPresent` lo
+  // dejó intacto y este es el que la fila ya tenía —el que escribió el evento del callout—, que
+  // es exactamente el dato que el enriquecimiento busca.
+  return { outcome: 'updated', name: existing.name };
 }
 
 export default mirrorUser;

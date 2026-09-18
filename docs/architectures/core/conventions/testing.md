@@ -140,6 +140,51 @@ Los 136 casos existentes dan la vara. Para un comando nuevo:
   (`tasks.test.ts:202`)
 - El líder queda asignado al primero de la lista
 
+## El doble del publicador de eventos
+
+**No contradice "no hay dobles de la base".** `FakeEventPublisher` es un doble del **bus**, una
+frontera externa (NATS), no del almacenamiento del servicio — la misma clase de doble que
+`S3Double`, ya aceptado para la otra frontera externa del servicio.
+
+`core/tests/helpers/event-publisher.ts`:
+
+```ts
+export class FakeEventPublisher implements EventPublisher {
+  published: PublishedEvent[] = [];   // { subject, payload }
+
+  async publish(subject: string, payload: unknown): Promise<void> {
+    this.published.push({ subject, payload });
+  }
+
+  reset(): void {
+    this.published = [];
+  }
+}
+```
+
+**No es un mock de `sinon` a propósito**: un objeto propio con un array es más útil para asertar
+`subject` y `payload` con `deepEqual` directo. `publish` sigue siendo un método de clase común, así
+que un test que necesite simular un **fallo** de publicación stubbea esa instancia con `sinon`
+(`sinon.stub(publisher, 'publish').rejects(...)` o `.throws(...)` para un throw sincrónico) — el
+doble cubre el camino feliz, el stub cubre el fallo.
+
+**Hay una instancia compartida**, `fakePublisher` en `core/tests/helpers/dispatch.ts`, inyectada en
+el `Dispatcher` de `dispatch()`. Por ser compartida, **todo archivo que la use hace
+`fakePublisher.reset()` en su `beforeEach`** — sin eso, un evento publicado por un test anterior
+queda visible en el siguiente.
+
+**Patrón de aserción real:**
+
+```ts
+const found = fakePublisher.published.find((p) => (p.payload as { type: string }).type === type);
+```
+
+Buscar por `type` dentro de `published`, no asumir posición ni cantidad: un comando puede declarar
+varios eventos en un mismo lote.
+
+**`api/tests/mocks/bus.ts` importa este mismo archivo por ruta relativa**, no una copia: es el
+mismo doble en los dos servicios, lo que evita que diverjan.
+
 ## Fixtures
 
 Cada archivo crea lo suyo en un `before`, usando los modelos directamente. No hay factories ni
@@ -171,6 +216,9 @@ npm run test:coverage                          # con nyc
 - Si un comando puede fallar después de escribir, hay un test que verifica que **no quedó nada**.
 - No dependas de la zona horaria local: `TZ=UTC` está fijado.
 - No dejes datos entre archivos: el truncado es al arrancar la corrida, no entre tests.
+- Un comando que emite eventos de dominio asierta los eventos publicados por el doble
+  (`fakePublisher.published`), nunca por un `spy` sobre el publicador real. `reset()` va en el
+  `beforeEach` del archivo.
 
 ## Integración con otras convenciones
 
@@ -178,3 +226,5 @@ npm run test:coverage                          # con nyc
 - **[`orm`](./orm.md)**: por qué `sequelize.sync()` en tests y qué implica.
 - **[`ci-github`](./ci-github.md)**: cómo provee la base el pipeline.
 - **[`env-config`](./env-config.md)**: `CI`, `KEEP_DB` y `.env.test`.
+- **[`bus-publisher`](./bus-publisher.md)**: el publicador real que `FakeEventPublisher` dobla, y
+  el formato del sobre que un test compara.

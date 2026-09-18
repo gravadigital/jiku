@@ -301,14 +301,14 @@ describe('docs/architectures/core — la documentación describe el servicio que
     manifest.should.containEql('src/queries/');
   });
 
-  it('TS-101 · las 12 convenciones del manifiesto siguen resolviendo a archivos existentes (CA-17)', () => {
+  it('TS-101 · las 13 convenciones del manifiesto siguen resolviendo a archivos existentes (CA-17)', () => {
     const declared = [
       ...arch('manifest.yaml').matchAll(/^ {2}- (\w[\w-]*)\s*(?:#.*)?$/gm),
     ]
       .map(([, name]) => name)
       .filter((name) => existsSync(join(ARCH_DIR, 'conventions', `${name}.md`)));
 
-    declared.should.have.length(12);
+    declared.should.have.length(13);
   });
 
   it('TS-102 · `overview.md` dice VEINTITRÉS comandos, y son los del registro (CA-18)', () => {

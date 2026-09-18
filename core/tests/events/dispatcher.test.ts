@@ -7,6 +7,7 @@ import { AuthEvent } from '@jiku/nats-protocol';
 import { sequelize } from '../../src/models';
 import logger from '../../src/logger';
 import { EventDispatcher } from '../../src/events/dispatcher';
+import { identityTypeFromMatchedRole } from '../../src/events/auth/identity-type';
 import { EventContext, EventOutcome } from '../../src/events/types';
 
 const PERSON_ID = '281234567890123456';
@@ -21,14 +22,14 @@ const SERVICE_ID = '281234567890999999';
  */
 const validEvent = (): Record<string, unknown> => ({
   type: 'authenticated',
-  version: 1,
+  version: 2,
   id: PERSON_ID,
   name: 'Ana Pérez',
   username: 'ana@grava.digital',
   email: 'ana@grava.digital',
   roles: ['user'],
   instance: 'dev',
-  identity_type: 'person',
+  matched_role: 'admin',
 });
 
 const SESSION = 'UAWUJEWODGQJGMUGZBJH4Y6XKTVD5V4G5EQZXUJA5QV3ZL2TP2JY3ZNH';
@@ -112,11 +113,14 @@ describe('events/dispatcher', () => {
     user.roles.should.deepEqual(['user']);
   });
 
-  it('TS-4 · version ≠ 1 → descarta sin escribir', async () => {
+  it('TS-4 · version ≠ 2 → descarta sin escribir (la v1 incluida)', async () => {
     const warn = sinon.spy(logger, 'warn');
     const dispatcher = new EventDispatcher(applied);
 
-    await dispatcher.dispatch({ ...validEvent(), version: 2 });
+    // LA `1` ES EL CASO REAL desde S-069, no un número inventado: es lo que emite un callout que
+    // todavía no se actualizó, y el descarte es lo que hace visible un despliegue en el orden
+    // equivocado (core antes que el callout).
+    await dispatcher.dispatch({ ...validEvent(), version: 1 });
 
     warn.callCount.should.equal(1);
     ((await User.findByPk(PERSON_ID)) === null).should.be.true();
@@ -173,18 +177,19 @@ describe('events/dispatcher', () => {
     }
   });
 
-  it('TS-5c · identity_type AUSENTE sin email descarta: el default es `person`', async () => {
+  it('TS-5c · matched_role AUSENTE sin email descarta: la rama segura es `person`', async () => {
     const warn = sinon.spy(logger, 'warn');
     const dispatcher = new EventDispatcher(applied);
     const event = validEvent();
-    delete event.identity_type;
+    delete event.matched_role;
     delete event.email;
 
     await dispatcher.dispatch(event);
 
-    // La excepción se apoya en `identity_type === 'service'`, y su ausencia cae en el default
-    // `person`. Un emisor que dejara de mandar `identity_type` NO abre la puerta a filas sin
-    // email: falla del lado seguro.
+    // Desde S-069 la excepción se apoya en `matched_role` ∈ SERVICE_ROLES, y su ausencia cae en
+    // `otherwise`, que exige `email`. Es la MISMA rama segura en la que caía un evento sin
+    // `identity_type` en la v1: un emisor que deje de mandar el campo NO abre la puerta a filas
+    // sin email.
     warn.callCount.should.equal(1);
     String(warn.firstCall.args[0]).should.containEql('email');
     (await User.count({ where: { id: PERSON_ID } })).should.equal(0);
@@ -217,7 +222,7 @@ describe('events/dispatcher', () => {
           username: event.username,
           email: event.email,
           roles: event.roles,
-          identityType: event.identity_type,
+          identityType: identityTypeFromMatchedRole(event.matched_role),
         } as any,
         { transaction: ctx.transaction }
       );
@@ -246,7 +251,7 @@ describe('events/dispatcher', () => {
           username: event.username,
           email: event.email,
           roles: event.roles,
-          identityType: event.identity_type,
+          identityType: identityTypeFromMatchedRole(event.matched_role),
         } as any,
         { transaction: ctx.transaction }
       );
@@ -344,7 +349,9 @@ describe('events/dispatcher', () => {
 
     await dispatcher.dispatch({ ...validEvent(), instance: 'prod' });
     await dispatcher.dispatch({ ...validEvent(), type: 'deauthenticated' });
-    await dispatcher.dispatch({ ...validEvent(), version: 2 });
+    // `1` y no `2` desde S-069: la `2` es ahora la versión VÁLIDA, así que dejarla acá haría que
+    // este test pasara por la razón equivocada —un evento que se procesa SÍ abre transacción—.
+    await dispatcher.dispatch({ ...validEvent(), version: 1 });
     await dispatcher.dispatch(missingName);
     await dispatcher.dispatch(null);
 
@@ -420,7 +427,7 @@ describe('events/dispatcher', () => {
             username: event.username,
             email: event.email,
             roles: event.roles,
-            identityType: event.identity_type,
+            identityType: identityTypeFromMatchedRole(event.matched_role),
           } as any,
           { transaction: ctx.transaction }
         );

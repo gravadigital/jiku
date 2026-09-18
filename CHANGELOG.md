@@ -69,6 +69,163 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-14
+
+`core` becomes a publisher for the first time. It emits 16 domain events over JetStream so an
+external connector can react to what happens in the product without polling — the mechanism and
+the contract that FG-2 (notifications) was blocked on. The connector itself is out of scope and
+is built outside Jiku.
+
+**This release is not a drop-in upgrade of the `core` image alone.** It carries two
+incompatible changes that need action on an existing installation, both detailed under
+*Notes for existing installations*:
+
+- **`core` stops accepting v1 of the authentication event.** The auth-callout must be deployed
+  **before** `core`. While the callout still emits v1, `core` discards every authentication
+  event and `users` stops being refreshed — no new identities, no role changes — with no error
+  surfaced to the user.
+- **The bus authorization policy changed.** Two templates were removed (`api.yaml`,
+  `observer.yaml`) along with the `external-publisher` and `bus-observer` roles, and
+  `rules.yaml` lost its `type` and `service` fields.
+
+The HTTP contract is untouched (the 61 routes are unchanged) and there are no database
+migrations.
+
+### Added
+
+- **Domain events: `core` publishes what already happened.** A closed catalogue of **16 events**
+  over requirements and tasks, produced by **12 commands**, published on the new subject family
+  `{instance}.events.{version}.{entity}.{action}`. The full contract is
+  [`docs/apis/core-events.yaml`](docs/apis/core-events.yaml). Each event is **self-contained**:
+  it carries a `snapshot` of the resulting state and, where it applies, a `changes` with what
+  moved, so a connector needs no follow-up query to notify. Every requirement event also carries
+  the resolved subscriber list.
+
+- **Emission happens after the commit, and never blocks the user.** The command *declares* its
+  events; the dispatcher *emits* them, after `COMMIT` and before replying. A command has no way
+  of knowing whether its write survives, so it is not the one to publish. If publication fails
+  after a successful commit the reply is still `success` and the error is not propagated — the
+  user's operation did happen — and the failure is logged to `stdout` at error level.
+
+- **JetStream, and only for events.** First use of JetStream in the product: the `JIKU_EVENTS`
+  stream, enabled in `nats-server.conf` with a named volume behind `store_dir`. Commands and
+  queries stay request/reply **without** JetStream — they are separate planes over the same
+  infrastructure, and [ADR-002](docs/adrs/) is not repealed.
+
+- **Three provisioning scripts, so the infrastructure is reproducible rather than remembered.**
+  `deploy/nats/create-events-stream.sh` creates and verifies the stream,
+  `deploy/nats/enable-jetstream.sh` grants JetStream limits to an account that predates them,
+  and `deploy/nats/events-test-consumer.sh` is a throwaway consumer for checking the plane end
+  to end. `bootstrap.sh` covers a fresh installation on its own.
+
+- **A connector permission template.** `deploy/nats/auth-callout/templates/connector.yaml`
+  defines what an external consumer gets: both command and query planes, plus JetStream
+  **scoped to `JIKU_EVENTS`** — never `$JS.API.>`, which is account-wide JetStream
+  administration (deleting, purging or reconfiguring any stream). A test enforces that the
+  connector carries only `STREAM.INFO` from the stream plane, nothing that mutates.
+
+- **`deploy/nats/auth-callout/README.md`.** The bus authorization policy — who can publish and
+  subscribe to what — written down in one place, including the failure modes of a missing
+  permission. A missing `sub.allow` shows up as **the service restarting in a loop**, not as a
+  clear error; a client that does not set `inboxPrefix` sees **a timeout**, not a permission
+  error. Both send you looking in the wrong place.
+
+- **`NATS_EVENTS_VERSION`** in `deploy/.env.dist`. Deliberately **independent** of
+  `NATS_PROTOCOL_VERSION`: sharing one variable would drag the 23 commands into a `v2` of events
+  they have nothing to do with. Its default lives in the code (`EVENTS_VERSION` of
+  `@jiku/nats-protocol`); the line in `.env.dist` exists so the variable is declared where
+  someone looks for it.
+
+- **`Reply.events`**, optional and additive. `success()` and `failure()` keep producing an
+  envelope without the key, so a reply without events travels **byte-for-byte** as it does
+  today and the 23 commands are unchanged.
+
+### Changed
+
+- **`core` consumes v2 of the authentication event, and no longer accepts v1.** The callout's v2
+  drops `identity_type` from the payload — that field reported the `type:` a rule declared in
+  `rules.yaml`, not anything verified about the principal. The `users.identity_type` **column
+  stays**: it is what keeps a service `Usuario` out of `people.list`. What changes is where the
+  value comes from — it is now derived from `matched_role`, the role that actually won the rule,
+  read from the token: `internal-app` and `core` yield `service`, everything else yields
+  `person`. Same partition the derogated `type:` expressed, not a new classification. The
+  `email` condition — required for a person, optional for a service user — now rests on that
+  same role list, so the rule and the column cannot disagree. **Adding a service role to
+  `rules.yaml` means adding it to `SERVICE_ROLES` too**, or that identity is mirrored as
+  `person` with nothing failing; a test counts the list so the omission is visible.
+
+- **The bus authorization policy was consolidated.** `api.yaml` is gone: the api is not a
+  special case of the bus, it is the first connector, and it uses `connector.yaml` like any
+  other. `observer.yaml` and the `bus-observer` role are gone — it listened to everything
+  including `_INBOX.>` entire, which made it unsuitable anywhere but a development machine
+  (`deploy/bus-inspect.sh` covers that locally). The `external-publisher` role is gone: it
+  enumerated 9 write subjects for a channel that was never used and never existed in Zitadel.
+  `rules.yaml` lost `type` and `service`, neither of which did anything observable.
+
+- **Event wildcards always carry the version.** `{instance}.events.v1.>`, never
+  `{instance}.events.>`, which would swallow `{instance}.events.auth` — a different publisher
+  with different semantics, and a consumer would start receiving it without having asked. The
+  same reason the `JIKU_EVENTS` stream subject carries the version. A test enforces it.
+
+- **The actor's name is now filled in on every event, including the direct channel.** Events
+  originating from `users` and those arriving over the direct channel both resolve the actor's
+  name rather than leaving it empty.
+
+- **`docs/apis/core.yaml` and `docs/apis/core-queries.yaml` record what an event is not.** An
+  event's `snapshot` deliberately does **not** follow the query document's `base`/`includable`
+  split: `description` always travels complete (it is truncatable in a query), and
+  `totalMinutes` does not travel at all (it is a calculated value, not a column).
+
+### Fixed
+
+- **The resolution of a closed incident could not be edited.** Once an incident was closed the
+  resolution fields were locked, so a correction to what was written at closing time was
+  impossible without reopening it.
+
+### Notes for existing installations
+
+Four steps, and **the order of the first two matters**.
+
+1. **Deploy the auth-callout first, before `core`.** `core` 1.4.0 only accepts **v2** of
+   `{instance}.events.auth`. Deploying `core` while the callout still emits v1 leaves `core`
+   discarding every authentication event: `users` stops being refreshed, new identities are not
+   created and role changes never land. Nothing fails loudly — the events are simply dropped.
+   The reverse order is safe: a v2-emitting callout with the old `core` is the same situation
+   in the opposite direction and resolves as soon as `core` moves.
+
+2. **Give the NATS account JetStream limits, and create the stream.** JetStream is new in this
+   release and an account created by an earlier `bootstrap.sh` has no storage limits, so stream
+   creation fails.
+
+   ```sh
+   deploy/nats/enable-jetstream.sh --operator-key <path-to-seed>   # only on an existing install
+   deploy/nats/create-events-stream.sh
+   ```
+
+   `enable-jetstream.sh` **needs the operator's signing key**: JetStream limits live in the
+   account JWT, and an account JWT is signed by the operator. `bootstrap.sh` generates that key
+   into a throwaway store and discards it, so unless you kept the seed outside `creds/` the only
+   other way is `bootstrap.sh --force`, which **reissues every credential** and requires
+   redistributing them to `api`, `core` and the auth-callout. See
+   [`deploy/nats/creds/README.md`](deploy/nats/creds/README.md) for the trade-off.
+   A fresh installation needs neither script: `bootstrap.sh` does both.
+
+3. **The `store_dir` needs a volume.** The three compose files mount a named volume for
+   `/data/jetstream`. Without it JetStream lives on the container's ephemeral filesystem and
+   `JIKU_EVENTS` **disappears on the next recreate, silently**. If you deploy from your own
+   compose file, add the volume.
+
+4. **Re-read the auth-callout templates if you customised them.** `templates/api.yaml` and
+   `templates/observer.yaml` no longer exist, and `rules.yaml` no longer has `type` or
+   `service`. A service that was carrying `external-publisher` or `bus-observer` will be
+   **rejected at connection time** — there is no catch-all and no default permission. An api
+   deployment pointing at `api.yaml` must point at `connector.yaml`. Consult
+   [`deploy/nats/auth-callout/README.md`](deploy/nats/auth-callout/README.md) before changing
+   anything there.
+
+`NATS_EVENTS_VERSION` needs no action: it defaults to `v1` in the code, and the line in
+`.env.dist` is a declaration, not a requirement.
+
 ## [1.3.2] - 2026-09-07
 
 Frontend-only release. No change to the HTTP contract, the NATS protocol, the database schema

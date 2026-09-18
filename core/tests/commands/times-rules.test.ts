@@ -13,6 +13,7 @@ import {
   SUBMISSION_WINDOW_DAYS, isWithinSubmissionWindow, toDayUTC,
 } from '../../src/commands/times/window';
 import { dispatch } from '../helpers/dispatch';
+import { FakeEventPublisher } from '../helpers/event-publisher';
 import { HOY, HOY_M10, HOY_M11, MANANA, dayOffset } from '../helpers/dates';
 
 /**
@@ -634,7 +635,10 @@ describe('S-031 · reglas de horas y ausencias en core', () => {
           return success();
         },
       };
-      probeDispatcher = new Dispatcher(new CommandRegistry().register(doble));
+      probeDispatcher = new Dispatcher(
+        new CommandRegistry().register(doble),
+        new FakeEventPublisher()
+      );
     });
 
     function probe(payload: unknown, caller = getTrustedPublisherId()): Promise<Reply<unknown>> {

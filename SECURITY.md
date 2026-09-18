@@ -49,12 +49,6 @@ stops holding.
 The bus identity (operator, accounts, sentinels) is generated once and placed on the
 server by hand, outside git. There is no rotation mechanism yet.
 
-### The `bus-observer` role reads every command
-
-It exists for local debugging and can read the contents of every message on the bus,
-including business data. The access policy file marks it as local-only. Do not grant it in
-a production deployment.
-
 ### A pre-signed download URL outlives the request that produced it
 
 Every read path answers with a redirect to a pre-signed storage URL. Once issued, that URL
