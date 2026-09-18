@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Zitadel from 'next-auth/providers/zitadel';
+import { buildSessionUser, subFromAccount } from './session-identity';
 
 const { ZITADEL_CLIENT_ID, ZITADEL_ISSUER, ZITADEL_PROJECT_ID } = process.env;
 
@@ -21,6 +22,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       token.accessToken ??= account?.access_token;
       token.refreshToken ??= account?.refresh_token;
       token.expiresAt ??= (account?.expires_at ?? 0) * 1000;
+      // El `sub` de Zitadel, rescatado de `account.providerAccountId`: NextAuth v5 pisa el
+      // `id` que devuelve `profile()` con un UUID aleatorio, y la api busca en `users` por
+      // el `sub`. Ver `session-identity.ts`. `account` solo llega en el login, de ahí el `??=`.
+      //
+      // Va en una clave propia y NO en `token.sub`, que la librería ya inicializa con ese
+      // mismo UUID antes de llamar a este callback (`@auth/core/.../callback/index.js:251`):
+      // un `token.sub ??= ...` nunca se ejecutaría.
+      token.identitySub ??= subFromAccount(account);
       token.error = null;
       return token;
     },
@@ -31,12 +40,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email?: string;
         roles: string[];
       };
+      // El spread conserva los campos que NextAuth agrega a `session.user` (`emailVerified`
+      // y demás de `AdapterUser`); `buildSessionUser` decide los cuatro que nos importan.
       session.user = {
         ...session.user,
-        id: tokenUser.id,
-        name: tokenUser.name ?? session.user?.name ?? '',
-        email: tokenUser.email ?? session.user?.email ?? '',
-        roles: tokenUser.roles,
+        ...buildSessionUser(tokenUser, token.identitySub, session.user),
       };
       session.accessToken = token.accessToken as string;
       // El middleware necesita `expiresAt` para rechazar sesiones cuyo access token ya
