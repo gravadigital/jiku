@@ -282,8 +282,9 @@ function conditionSql(condition: FilterCondition, params: Params): string {
   const { spec, operator } = condition;
 
   // El filtro que NO vive en la tabla del recurso se resuelve con una subconsulta sobre la tabla
-  // que lo declara. `responsiblePersonId` es el caso: filtra por `people_objectives` IGNORANDO
-  // `active`, a diferencia de la relación `responsiblePersons`, que solo devuelve los activos.
+  // que lo declara. `responsiblePersonId` es el caso: filtra por `people_objectives`. Desde S-074
+  // NINGUNA de las dos lecturas mira `active` —la columna existe pero ningún comando la escribe—,
+  // así que el filtro y la relación `responsiblePersons` coinciden sobre el mismo dato.
   if (spec.via) {
     const inner = `SELECT ${spec.via.parentKey} FROM ${spec.via.table}`;
     switch (operator.op) {

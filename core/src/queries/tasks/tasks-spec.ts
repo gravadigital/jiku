@@ -124,11 +124,26 @@ const INCLUDABLE: Record<string, IncludableSpec> = {
     table: 'people_objectives',
     parentKey: 'objective_id',
     join: { table: 'people', on: 'j.id = r.person_id' },
-    // SOLO LOS ACTIVOS, y la asimetría con el filtro `responsiblePersonId` —que IGNORA `active`—
-    // PARECE UN BUG Y NO LO ES: buscar "las tareas de fulano" tiene que encontrar también las que
-    // ya no tiene asignadas, mientras que mostrar "los responsables de esta tarea" tiene que
-    // mostrar a los de hoy. Las dos reglas son distintas a propósito.
-    where: 'r.active = true',
+    // SIN `where` SOBRE `active`, igual que el filtro `responsiblePersonId` — y la simetría es
+    // deliberada, no un olvido.
+    //
+    // Esta relación llevaba `where: 'r.active = true'`, defendido como una asimetría a propósito
+    // ("el filtro busca histórico, el include muestra los de hoy"). El razonamiento no se sostenía
+    // contra la base: `people_objectives.active` EXISTE como columna pero NINGÚN comando la
+    // escribe — `tasks-new.ts` y `tasks-edit.ts` insertan `personId`, `objectiveId` e `isLeader` y
+    // nada más—, así que queda `NULL` en toda fila que escribió `core`. Y en PostgreSQL
+    // `NULL = true` es `NULL`, no `false`: el predicado descartaba TODAS las filas y el include
+    // devolvía `[]` para todas las tareas, con la suite en verde porque los fixtures eran los
+    // únicos que llenaban la columna.
+    //
+    // El daño no era cosmético: `responsiblePersonIds` REEMPLAZA la lista entera al escribir, así
+    // que "sumar un responsable" (leer, agregar, reescribir) leía `[]` y borraba a los que
+    // estaban, sin rastro — `activity` no registra cambios de responsables.
+    //
+    // La misma trampa ya estaba documentada en `events/domain/task-snapshot.ts` (D-8, S-065), que
+    // por eso NO filtra por esta columna. `requirements` nunca la tuvo: `people_requirements` no
+    // tiene `active`. Mientras ningún comando la escriba, esta columna no describe un estado del
+    // dominio y no puede decidir qué se lee.
     order: [{ expr: 'j.id', dir: 'ASC' }],
     fields: {
       id: 'j.id',
@@ -202,8 +217,9 @@ const FILTERABLE: Record<string, FilterableSpec> = {
   createdBy: { column: 'created_by', kind: 'string' },
   // Filtrable y NO ordenable: la columna es VARCHAR (`docs/db-schemas/jiku.md`, inconsistencia 1).
   estimatedFinishDate: { column: 'estimated_finish_date', kind: 'string' },
-  // No vive en `objectives`: se resuelve con una subconsulta sobre `people_objectives`, IGNORANDO
-  // `active` (ver el comentario de `responsiblePersons`).
+  // No vive en `objectives`: se resuelve con una subconsulta sobre `people_objectives`. No mira
+  // `active`, igual que la relación `responsiblePersons` desde S-074 — las dos lecturas del mismo
+  // dato tienen que coincidir (ver el comentario de `responsiblePersons`).
   responsiblePersonId: {
     kind: 'integer',
     via: { table: 'people_objectives', parentKey: 'objective_id', column: 'person_id' },

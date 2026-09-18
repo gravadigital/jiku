@@ -143,12 +143,16 @@ describe('queries/tasks — el contrato del recurso', () => {
 
     await createComments(8160, 25);
     await createComments(8161, 3);
-    await assignPerson(8180, PERSON_ACTIVE, { isLeader: true, active: true });
+    // SIN `active`: es lo que escriben `tasks.new` y `tasks.{id}.edit` (solo `personId`,
+    // `objectiveId` e `isLeader`), así que la columna queda `NULL` igual que en producción.
+    await assignPerson(8180, PERSON_ACTIVE, { isLeader: true });
     // La misma persona en las cuatro que TS-9 discrimina: dos activas, una finalizada nueva y una
     // finalizada vieja. Es lo que hace que el `or` tenga algo que dejar afuera.
     for (const taskId of [8141, 8142, 8143, 8144]) {
-      await assignPerson(taskId, PERSON_ACTIVE, { isLeader: false, active: true });
+      await assignPerson(taskId, PERSON_ACTIVE, { isLeader: false });
     }
+    // `active: false` EXPLÍCITO, la fila heredada de la api: desde S-074 el include la devuelve
+    // igual. La columna no la escribe ningún comando, así que no describe un estado del dominio.
     await assignPerson(8180, PERSON_INACTIVE, { isLeader: false, active: false });
     await subscribe(8180);
   });
@@ -426,16 +430,42 @@ describe('queries/tasks — el contrato del recurso', () => {
       few.data!.commentsTruncated.should.be.false();
     });
 
-    it('TS-56 · `responsiblePersons` devuelve SOLO los `active = true`', async () => {
+    it('TS-56 · `responsiblePersons` devuelve los responsables reales, sin filtrar por `active`', async () => {
       const reply = await dispatchQuery<Record<string, any>>('tasks.get', {
         id: 8180,
         include: ['responsiblePersons'],
       });
 
-      // La otra regla de `active`, la opuesta a la del filtro. Parece un bug y no lo es.
+      // LA REGRESIÓN DE S-074, y el caso que la suite no cubría: la fila del LÍDER se escribe
+      // como la escriben los comandos —sin `active`, o sea `NULL`— y TIENE que venir. Con el
+      // `where: 'r.active = true'` de la ficha esta lista salía VACÍA, porque en PostgreSQL
+      // `NULL = true` es `NULL` y no `false`.
+      //
+      // La fila con `active: false` (PERSON_INACTIVE) viene TAMBIÉN: ningún comando escribe esa
+      // columna, así que no distingue responsables vigentes de históricos y filtrar por ella solo
+      // podía esconder datos. Orden por `j.id` ascendente, el de la ficha.
       reply.data!.responsiblePersons.should.deepEqual([
         { id: PERSON_ACTIVE, firstName: 'Ana', lastName: 'Pérez', isLeader: true },
+        { id: PERSON_INACTIVE, firstName: 'Beto', lastName: 'Gómez', isLeader: false },
       ]);
+    });
+
+    it('TS-56 · el include y el filtro `responsiblePersonId` coinciden sobre la misma tarea', async () => {
+      // LA CONTRADICCIÓN QUE REPORTÓ EL BUG: el filtro encontraba la tarea y el include no la
+      // mostraba, sobre el mismo dato. Las dos lecturas tienen que responder lo mismo, o no hay
+      // forma de distinguir "no tiene responsables" de "la lectura está rota" — `[]` es válido.
+      const porFiltro = await dispatchQuery<Record<string, any>>('tasks.list', {
+        filter: { id: 8180, responsiblePersonId: PERSON_ACTIVE },
+      });
+      porFiltro.data!.items.length.should.equal(1);
+
+      const porInclude = await dispatchQuery<Record<string, any>>('tasks.get', {
+        id: 8180,
+        include: ['responsiblePersons'],
+      });
+      porInclude
+        .data!.responsiblePersons.map((p: Record<string, any>) => p.id)
+        .should.containEql(PERSON_ACTIVE);
     });
 
     it('`subscriptors` es una lista de escalares', async () => {

@@ -142,16 +142,21 @@ describe('queries/tasks — la ficha como DATO (CA-30)', () => {
     [...tasksSpec.filterable.q.search!].should.deepEqual(['title', 'description']);
   });
 
-  it('TS-53 · `responsiblePersonId` filtra por otra tabla, y la relación tiene OTRA regla', () => {
-    // La asimetría de `active` es deliberada y está declarada en la ficha, no escondida en el SQL.
+  it('TS-53 · `responsiblePersonId` filtra por otra tabla, y NINGUNO de los dos mira `active`', () => {
     tasksSpec.filterable.responsiblePersonId.via!.table.should.equal('people_objectives');
     tasksSpec.filterable.responsiblePersonId.via!.column.should.equal('person_id');
-    // El filtro NO menciona `active`...
+
+    // NI EL FILTRO NI LA RELACIÓN MENCIONAN `active`, y la simetría es la corrección de S-074.
+    // `people_objectives.active` existe en la tabla pero NINGÚN comando la escribe: `tasks.new` y
+    // `tasks.{id}.edit` insertan `personId`, `objectiveId` e `isLeader` y nada más, así que la
+    // columna queda `NULL` en toda fila que escribió `core`. Un `where: 'r.active = true'`
+    // devolvía CERO FILAS SIEMPRE (`NULL = true` es `NULL`), y el include salía `[]` para todas
+    // las tareas — indistinguible de "no tiene responsables".
+    //
+    // Es el MISMO razonamiento que ya estaba escrito en `events/domain/task-snapshot.ts` (D-8,
+    // S-065) para `readTaskResponsiblePersonIds`, que por eso nunca filtró por esta columna.
     JSON.stringify(tasksSpec.filterable.responsiblePersonId).should.not.containEql('active');
-    // ...y la relación SÍ, con solo los activos.
-    (tasksSpec.includable.responsiblePersons as ManyRelationSpec).where!.should.equal(
-      'r.active = true'
-    );
+    ((tasksSpec.includable.responsiblePersons as ManyRelationSpec).where === undefined).should.be.true();
   });
 
   it('TS-53 · el default de orden es `["-createdAt"]`', () => {

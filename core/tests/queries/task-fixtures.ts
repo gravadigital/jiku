@@ -180,10 +180,24 @@ export async function createComments(objectiveId: number, count: number): Promis
   );
 }
 
+/**
+ * Asigna una persona a una tarea.
+ *
+ * `active` ES OPCIONAL, Y ESA OPCIONALIDAD ES LA CORRECCIÓN DE S-074. Mientras fue obligatoria,
+ * TODO fixture escribía la columna explícitamente y NINGÚN test reprodujo lo que los comandos
+ * producen de verdad: `tasks.new` y `tasks.{id}.edit` escriben `personId`, `objectiveId` e
+ * `isLeader` y NADA MÁS, así que en producción `active` queda `NULL` en todas las filas.
+ *
+ * Esa brecha es lo que dejó pasar el bug: la ficha filtraba por `r.active = true`, en PostgreSQL
+ * `NULL = true` es `NULL` (no `false`), y el include devolvía `[]` para toda tarea — con la suite
+ * en verde, porque los fixtures eran los únicos que llenaban la columna.
+ *
+ * Omitir `active` es ahora el caso POR DEFECTO, que es el que corre en producción.
+ */
 export async function assignPerson(
   objectiveId: number,
   personId: number,
-  options: { isLeader: boolean; active: boolean }
+  options: { isLeader: boolean; active?: boolean }
 ): Promise<void> {
   await PersonObjective.create({ objectiveId, personId, ...options } as any);
 }

@@ -64,7 +64,7 @@ describe('queries/engine/include — resolución por lote (CA-11)', () => {
     sql.should.containEql('r.changed_by AS "authorId"');
   });
 
-  it('la relación con JOIN trae los campos de la otra tabla, y filtra por `active`', async () => {
+  it('la relación con JOIN trae los campos de la otra tabla, y NO filtra por `active`', async () => {
     const { ctx, query } = contextWith([]);
 
     await attachCollections(tasksSpec, ['responsiblePersons'], [{ id: 1 }], ctx, 'tasks.list');
@@ -73,8 +73,10 @@ describe('queries/engine/include — resolución por lote (CA-11)', () => {
     sql.should.containEql('FROM people_objectives r');
     sql.should.containEql('INNER JOIN people j ON j.id = r.person_id');
     sql.should.containEql('j.first_name AS "firstName"');
-    // La regla OPUESTA a la del filtro `responsiblePersonId`, y es deliberado.
-    sql.should.containEql('r.active = true');
+    // S-074: el SQL NO puede volver a mencionar `active`. Ningún comando escribe esa columna, así
+    // que queda `NULL` y `NULL = true` descarta TODAS las filas — el include devolvía `[]` para
+    // toda tarea. Es la misma regla que ya cumple el plano de eventos (TS-94).
+    sql.should.not.containEql('active');
   });
 
   it('los ids van como VALOR, nunca concatenados al SQL', async () => {

@@ -578,11 +578,27 @@ ADR-001) y llevan el prefijo `20260819_01` .. `20260819_05`.
 | Tabla | Une | Columnas extra |
 |---|---|---|
 | `projects_persons` | `projects` ↔ `people` | — |
-| `people_objectives` | `people` ↔ `objectives` | `is_leader`, `active` |
+| `people_objectives` | `people` ↔ `objectives` | `is_leader`, `active` (**columna muerta**, ver abajo) |
 | `people_requirements` | `people` ↔ `requirements` | `is_leader`. Creada en `20260703_01` |
 
 `is_leader` se lee vía `through: { attributes: ['isLeader'] }` y la api lo **aplana** al nivel de
 la persona en las respuestas de requisitos.
+
+> **`people_objectives.active` es una columna MUERTA: ningún comando la escribe.** `tasks.new` y
+> `tasks.{id}.edit` insertan `person_id`, `objective_id` e `is_leader` y nada más, así que la
+> columna queda **`NULL`** en toda fila que escribió `core`. Las filas heredadas de la api pueden
+> tener `true` o `false`.
+>
+> **Nada puede filtrar por ella.** En PostgreSQL `NULL = true` es `NULL`, no `false`, así que un
+> `WHERE active = true` descarta **todas** las filas escritas por `core` — y como `[]` es un valor
+> válido del contrato, el síntoma es silencioso. Ya pasó dos veces: la ficha de consultas de
+> `tasks` lo tuvo hasta **S-074** (el include `responsiblePersons` devolvía `[]` para todas las
+> tareas) y el plano de eventos lo evitó documentándolo en `readTaskResponsiblePersonIds` (D-8,
+> S-065).
+>
+> Mientras ningún comando la escriba, esta columna **no describe un estado del dominio** y no
+> puede decidir qué se lee. `people_requirements` no la tiene, y por eso el mismo include de
+> `requirements` nunca estuvo roto.
 
 ### Auxiliares
 
