@@ -6,6 +6,7 @@ import { join } from 'path';
 import * as sinon from 'sinon';
 import { ErrorCode, Reply } from '@jiku/nats-protocol';
 import { readDb } from '../../src/models/read';
+import { attachmentsSpec } from '../../src/queries/attachments/attachments-spec';
 import { ATTACHMENT_ENTITY_TYPES } from '../../src/queries/entity-type';
 import { dispatchQuery } from '../helpers/dispatch';
 import {
@@ -27,6 +28,7 @@ import {
   CA_INTERNAL,
   CA_MAIN,
   CR_MAIN,
+  Q_EXTERNAL_2,
   REQ_MAIN,
   TASK_FOREIGN,
   TASK_MAIN,
@@ -38,6 +40,10 @@ import {
   destroySecondExternalCaller,
 } from './activity-fixtures';
 import {
+  FILE_LINKED_CHECKSUM,
+  FILE_PURGED_CHECKSUM,
+  FILE_SECOND_CHECKSUM,
+  FILE_THEIRS_CHECKSUM,
   LINK_DELETED,
   LINK_LEGACY,
   LINK_PROJECT,
@@ -45,15 +51,19 @@ import {
   LINK_REQUIREMENT,
   LINK_REQ_COMMENT,
   LINK_REQ_INTERNAL,
+  LINK_SECOND,
   LINK_TASK,
   LINK_TASK_COMMENT,
   LINK_TASK_COMMENT_INTERNAL,
   LINK_TASK_FOREIGN,
   LINK_TASK_INTERNAL,
+  LINK_TASK_TIE,
+  LINK_THEIRS,
   LINK_TO_PURGED,
   TASK_MAIN_LINKS_IN_ORDER,
   createFileWorld,
   destroyFileWorld,
+  getInternalTaskFileId,
   getLinkedFileId,
 } from './file-fixtures';
 
@@ -281,7 +291,7 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
     error.errorDetails!.value!.should.equal('deletedAt');
   });
 
-  it('TS-40 · ni `retentionStatus`: los cuatro filtros son los cuatro y nada más', async () => {
+  it('TS-40 · ni `retentionStatus`: los cinco filtros son los cinco y nada más', async () => {
     const error = failed(
       await dispatchQuery('attachments.list', { filter: { retentionStatus: 'deleted' } })
     );
@@ -292,6 +302,8 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
       'entityId',
       'fileId',
       'uploadedBy',
+      // + `checksum` (S-061): FILTRABLE ganó su quinta entrada.
+      'checksum',
     ]);
   });
 
@@ -339,6 +351,8 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
       'uploadedBy',
       'byteStatus',
       'createdAt',
+      // + `checksum` (S-061): `fieldNames` es BASE ∪ INCLUDABLE, y el incluible nuevo lo suma solo.
+      'checksum',
     ]);
   });
 
@@ -392,11 +406,14 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
     }
   });
 
-  it('TS-49 · `include` ES NINGUNO: la ficha no declara ni uno solo', async () => {
+  it('TS-49 · `include` es EXACTAMENTE UNO, y `file` no es ese uno', async () => {
+    // `file` sigue siendo la relación anidada que la ficha decidió NO declarar
+    // (`attachments-spec.ts`), así que sigue siendo un nombre desconocido: el escenario prueba lo
+    // mismo de siempre, contra un `allowed` que ya no es vacío.
     const error = failed(await dispatchQuery('attachments.list', { include: ['file'] }));
 
     error.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
-    (error.errorDetails!.allowed as string[]).should.deepEqual([]);
+    (error.errorDetails!.allowed as string[]).should.deepEqual(['checksum']);
   });
 
   /* ------------------------------------------------------------------------------------------
@@ -670,6 +687,289 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
     error.errorCode!.should.equal(ErrorCode.QUERY_TIMEOUT);
     error.errorMessage!.should.not.containEql('SELECT');
   });
+
+  /* ------------------------------------------------------------------------------------------
+   * CA-1, CA-2, CA-3 · EL INCLUIBLE NUEVO (S-061)
+   * ---------------------------------------------------------------------------------------- */
+
+  it('TS-109 · sin `include`, la clave `checksum` NO viaja', async () => {
+    // Sin este escenario, un `checksum` que se filtrara solo en `INCLUDABLE` pero no en
+    // `project.ts` viajaría siempre, y CA-1 quedaría roto sin que ningún test lo note.
+    const item = items(
+      await dispatchQuery<Collection>('attachments.list', { filter: TASK_FILTER })
+    )[0];
+
+    Object.keys(item).should.deepEqual([
+      'id',
+      'entityType',
+      'entityId',
+      'fileId',
+      'fileName',
+      'mimeType',
+      'fileSize',
+      'uploadedBy',
+      'byteStatus',
+      'createdAt',
+    ]);
+    (item.checksum === undefined).should.be.true();
+  });
+
+  it('TS-110 · con `include`, llega el valor real, APLANADO y al final del orden', async () => {
+    // Sin este escenario, un `from` mal declarado pasaría inadvertido: PostgreSQL respondería
+    // `column t.checksum does not exist` recién en la primera request real.
+    const item = items(
+      await dispatchQuery<Collection>('attachments.list', {
+        filter: TASK_FILTER,
+        include: ['checksum'],
+      })
+    )[0];
+
+    item.checksum!.should.equal(FILE_LINKED_CHECKSUM);
+    // Al mismo nivel que `fileName`, no anidado bajo `file`.
+    (item.file === undefined).should.be.true();
+    Object.keys(item).should.deepEqual([
+      'id',
+      'entityType',
+      'entityId',
+      'fileId',
+      'fileName',
+      'mimeType',
+      'fileSize',
+      'uploadedBy',
+      'byteStatus',
+      'createdAt',
+      'checksum',
+    ]);
+  });
+
+  it('TS-111 · CA-3: `checksum` en NULL viaja como `null`, sin omitir la clave', async () => {
+    // El NULL es el estado MAYORITARIO —el checksum es opcional y nadie lo verifica—, así que un
+    // consumidor que asuma `hasOwnProperty` implícito por `!== undefined` se rompe con la mayoría
+    // de los archivos. Caller interno (default): sin recorte de filas, el vínculo aparece.
+    const item = items(
+      await dispatchQuery<Collection>('attachments.list', {
+        filter: { fileId: getInternalTaskFileId() },
+        include: ['checksum'],
+      })
+    )[0];
+
+    (item.checksum === null).should.be.true();
+    Object.prototype.hasOwnProperty.call(item, 'checksum').should.be.true();
+  });
+
+  /* ------------------------------------------------------------------------------------------
+   * CA-4, CA-5, CA-6, CA-13, CA-16 · EL FILTRO NUEVO (S-061)
+   * ---------------------------------------------------------------------------------------- */
+
+  it('TS-112 · CA-4: un checksum acota EXACTAMENTE a los vínculos de ese archivo', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: FILE_LINKED_CHECKSUM },
+    });
+
+    const got = ids(reply).slice().sort((a, b) => a - b);
+    const expected = [
+      LINK_PROJECT,
+      LINK_REQUIREMENT,
+      LINK_TASK,
+      LINK_TASK_TIE,
+      LINK_TASK_COMMENT,
+      LINK_REQ_COMMENT,
+      LINK_PROJECT_FOREIGN,
+      LINK_REQ_INTERNAL,
+      LINK_TASK_COMMENT_INTERNAL,
+    ].sort((a, b) => a - b);
+    got.should.deepEqual(expected);
+  });
+
+  it('TS-113a · CA-5: el AND discrimina — el checksum existe pero lo subió otro', async () => {
+    // SIN este caso, TS-113b pasaría igual con un motor que ignorara `uploadedBy` por completo.
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: FILE_THEIRS_CHECKSUM, uploadedBy: CREATOR },
+    });
+
+    items(reply).should.have.length(0);
+    reply.data!.page.returned.should.equal(0);
+  });
+
+  it('TS-113b · CA-5: el caso de uso real — `checksum` + `uploadedBy`, camino feliz', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: FILE_LINKED_CHECKSUM, uploadedBy: CREATOR },
+      include: ['checksum'],
+    });
+
+    items(reply).length.should.be.above(0);
+    for (const item of items(reply)) {
+      item.uploadedBy!.should.equal(CREATOR);
+      item.checksum!.should.equal(FILE_LINKED_CHECKSUM);
+    }
+  });
+
+  it('TS-114 · CA-6: lista de checksums con semántica OR/IN, en UNA consulta', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: [FILE_LINKED_CHECKSUM, FILE_SECOND_CHECKSUM, FILE_THEIRS_CHECKSUM] },
+    });
+
+    const got = ids(reply);
+    got.should.containEql(LINK_TASK);
+    got.should.containEql(LINK_SECOND);
+    got.should.containEql(LINK_THEIRS);
+  });
+
+  it('TS-115a · CA-13: el predicado fijo no se relaja — archivo no retenido', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: FILE_PURGED_CHECKSUM },
+    });
+
+    items(reply).should.have.length(0);
+    ids(reply).should.not.containEql(LINK_TO_PURGED);
+  });
+
+  it('TS-115b · CA-13: el predicado fijo no se relaja — vínculo borrado y fila legado', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: FILE_LINKED_CHECKSUM },
+    });
+
+    const got = ids(reply);
+    got.should.not.containEql(LINK_DELETED);
+    got.should.not.containEql(LINK_LEGACY);
+  });
+
+  it('TS-116a · CA-16: un valor numérico PASA la validación de campos y falla en la base', async () => {
+    // AJUSTADO respecto del Story Plan durante la implementación: CA-16/TS-116a asumían que
+    // PostgreSQL compara el número contra `varchar(64)` y devuelve cero filas. Verificado contra
+    // base real: NO es así — `character varying = integer` no tiene operador y Postgres lo
+    // rechaza (`42883`), que el despachador traduce a `internal_error` (no hay traducción
+    // específica para ese código en `execute-sql.ts`, a diferencia de `57014`/timeout).
+    // Comportamiento UNIFORME del motor para todo `kind: 'string'` —confirmado igual hoy con
+    // `uploadedBy`, filtro preexistente, no es una particularidad de `checksum`—. NO se cambia el
+    // motor: sería un cambio transversal a los 16 recursos, fuera de alcance de esta story.
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: 12345 as unknown as string },
+    });
+
+    reply.status.should.equal('failure');
+    reply.errorCode!.should.equal(ErrorCode.INTERNAL_ERROR);
+  });
+
+  it('TS-116b · CA-16: un operador de rango sobre texto — mismo comportamiento', async () => {
+    const reply = await dispatchQuery<Collection>('attachments.list', {
+      filter: { checksum: { gte: 'a' } },
+    });
+
+    reply.status.should.equal('success');
+  });
+
+  /* ------------------------------------------------------------------------------------------
+   * CA-9, CA-11, CA-12, CA-14, CA-15 · LA SUPERFICIE Y EL MODO EXTERNO (S-061)
+   * ---------------------------------------------------------------------------------------- */
+
+  it('TS-117 · CA-11: `include: [checkSum]` — deny-by-default', async () => {
+    const error = failed(await dispatchQuery('attachments.list', { include: ['checkSum'] }));
+
+    error.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    error.errorDetails!.field!.should.equal('include');
+    error.errorDetails!.value!.should.equal('checkSum');
+    (error.errorDetails!.allowed as string[]).should.deepEqual(['checksum']);
+  });
+
+  it('TS-118a · CA-12: `storageKey` no existe como campo incluible', async () => {
+    const error = failed(await dispatchQuery('attachments.list', { include: ['storageKey'] }));
+
+    error.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    (error.errorDetails!.allowed as string[]).should.deepEqual(['checksum']);
+    (error.errorDetails!.allowed as string[]).should.not.containEql('storageKey');
+  });
+
+  it('TS-118b · CA-12: `storageBucket` no existe como filtro', async () => {
+    const error = failed(
+      await dispatchQuery('attachments.list', { filter: { storageBucket: 'x' } })
+    );
+
+    error.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    (error.errorDetails!.allowed as string[]).should.deepEqual([
+      'entityType',
+      'entityId',
+      'fileId',
+      'uploadedBy',
+      'checksum',
+    ]);
+  });
+
+  it('TS-119 · CA-9: modo externo CON permiso lo obtiene, recortado por el `externalScope`', async () => {
+    const reply = await dispatchQuery<Collection>(
+      'attachments.list',
+      { filter: { checksum: FILE_LINKED_CHECKSUM }, include: ['checksum'] },
+      Q_EXTERNAL
+    );
+
+    for (const item of items(reply)) {
+      item.checksum!.should.equal(FILE_LINKED_CHECKSUM);
+    }
+    const got = ids(reply);
+    got.should.containEql(LINK_TASK);
+    got.should.containEql(LINK_PROJECT);
+    got.should.not.containEql(LINK_PROJECT_FOREIGN);
+    got.should.not.containEql(LINK_REQ_INTERNAL);
+    got.should.not.containEql(LINK_TASK_COMMENT_INTERNAL);
+  });
+
+  it('TS-120 · CA-14: externo SIN permiso recibe colección vacía, NUNCA un oráculo', async () => {
+    // `Q_EXTERNAL_2` tiene permiso sobre `PROJECT_MAIN` (ver `before`), así que el checksum tiene
+    // que ser uno cuyo único vínculo vivo esté en un proyecto AJENO: `FILE_THEIRS_CHECKSUM`
+    // (`LINK_THEIRS`, sobre `PROJECT_OTHER`). Filtrar por `FILE_LINKED_CHECKSUM` no serviría: ese
+    // checksum también tiene un vínculo en `PROJECT_MAIN` (`LINK_PROJECT`), que SÍ vería.
+    const reply = await dispatchQuery<Collection>(
+      'attachments.list',
+      { filter: { checksum: FILE_THEIRS_CHECKSUM } },
+      Q_EXTERNAL_2
+    );
+
+    reply.status.should.equal('success');
+    items(reply).should.have.length(0);
+    reply.data!.page.returned.should.equal(0);
+    (reply.errorCode === undefined).should.be.true();
+  });
+
+  it('TS-121 · CA-15: identidad sin resolver FALLA, NUNCA `items: []`, con el filtro nuevo', async () => {
+    // AJUSTADO respecto del Story Plan durante la implementación: CA-15/TS-121 asumían
+    // `errorCode: 'unknown_caller'`. Verificado: es el mismo caso que TS-68 ya deja fijado —LA
+    // COMPUERTA 1 (`authorizeWithRoles`) ENSOMBRECE A LA 2 (`resolveCallerClass`): sin fila no hay
+    // roles, y sin roles el caller muere en la de MÉTODO (`caller_not_authorized`) antes de llegar
+    // a la de CLASE. `unknown_caller` nunca se emite para un caller SIN fila en absoluto —es la
+    // respuesta de una fila CON roles que no resuelven a ninguna clase (TS-67 gana el más
+    // restrictivo con roles mixtos, por ejemplo)—. Lo que esta story fija es que el filtro nuevo
+    // entra por el MISMO camino que TS-68: sigue siendo un `failure`, nunca `items: []`.
+    const error = failed(
+      await dispatchQuery(
+        'attachments.list',
+        { filter: { checksum: FILE_LINKED_CHECKSUM } },
+        Q_NO_ROW
+      )
+    );
+
+    error.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+    ((error as any).data === undefined).should.be.true();
+  });
+
+  it('TS-122 · CA-8: `meta.describe` refleja los dos cambios SIN CÓDIGO PROPIO', async () => {
+    // `describe-spec.ts` recorre `spec.includableNames` / `spec.filterableNames`, derivados con
+    // `Object.keys()` de los mismos mapas que la Tarea 1 escribió: no hay una segunda copia que
+    // mantener, así que este test verifica un comportamiento que ya existía, aplicado a la
+    // entrada nueva. El criterio "cero código propio" se verifica aparte, a mano
+    // (`git diff --stat core/src/queries/meta/`), porque no es una propiedad que un test pueda
+    // afirmar sobre sí mismo.
+    const reply = await dispatchQuery<{ resources: Record<string, any> }>(
+      'meta.describe',
+      { resources: ['attachments'] },
+      Q_INTERNAL
+    );
+
+    reply.status.should.equal('success');
+    const attachments = reply.data!.resources.attachments;
+
+    attachments.includable.checksum.kind.should.equal('field');
+    attachments.filterable.checksum.kind.should.equal('string');
+  });
 });
 
 /**
@@ -681,6 +981,12 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
 describe('queries/attachments — los gates de CA-17 (S-027, Task 7)', () => {
   const REPO_ROOT = join(__dirname, '..', '..', '..');
   const ENGINE = join(REPO_ROOT, 'core', 'src', 'queries', 'engine');
+  const SPEC_PATH = join(REPO_ROOT, 'docs', 'apis', 'core-queries.yaml');
+
+  /** El yaml del contrato de consultas. Mismo patrón que `contract-spec.test.ts:25`. */
+  function spec(): string {
+    return readFileSync(SPEC_PATH, 'utf8');
+  }
 
   /**
    * El código SIN COMENTARIOS, con el mismo criterio que `matchesInCode` en `registry.test.ts`.
@@ -725,5 +1031,62 @@ describe('queries/attachments — los gates de CA-17 (S-027, Task 7)', () => {
       .filter(Boolean);
 
     hits.should.deepEqual(['core/src/queries/entity-type.ts']);
+  });
+
+  /* ------------------------------------------------------------------------------------------
+   * CA-10, CA-7 · LOS DOS GATES DE S-061
+   * ---------------------------------------------------------------------------------------- */
+
+  it('TS-123 · CA-10: `models/read.ts` NO registra los modelos de `@jiku/models`', () => {
+    // Reescrito respecto del CA-10 original del REQ, que pedía blindar contra un `@DefaultScope`
+    // de `attachment.model.ts` que YA NO EXISTE (`checksum` migró a `files` con REQ-001). El
+    // invariante real que protege este gate es el de ADR-001/ADR-005: dos instancias de Sequelize
+    // en el MISMO proceso se pelean las clases del paquete, y la segunda que registre el índice
+    // las REASIGNA — `Objective.findAll()` empezaría a salir por la conexión equivocada y
+    // rompería la separación lectura/escritura SIN UN SOLO SÍNTOMA. `codeOf()` descarta
+    // comentarios a propósito: el de `read.ts` MENCIONA los modelos al explicarse, y el gate va
+    // sobre lo que se EJECUTA, no sobre lo que se documenta.
+    const code = codeOf(join(REPO_ROOT, 'core', 'src', 'models', 'read.ts'));
+
+    code.includes('models:').should.be.false();
+    code.includes('allModels').should.be.false();
+  });
+
+  it('TS-124 · CA-7: el yaml y la ficha coinciden, VALOR POR VALOR y en el MISMO ORDEN', () => {
+    // Cierra el hueco de H-3/TS-95: TS-95 verifica que el recurso DECLARE las listas blancas,
+    // pero no su CONTENIDO. El yaml puede desincronizarse de la ficha sin que nada lo note. Se
+    // compara contra `attachmentsSpec` IMPORTADO, no una lista escrita a mano acá: escribirla a
+    // mano crearía una TERCERA copia del contrato, que es justo el problema que este gate existe
+    // para evitar. Sin parser YAML: se aísla el bloque del recurso como ya hace TS-95 y se lee
+    // con un regex sobre `includable: [...]` / `filterable: [...]`.
+    const source = spec();
+    const block = source.slice(source.indexOf('\n  attachments:\n'));
+    const own = block.slice(0, block.indexOf('\n\n  ') + 1 || undefined);
+
+    const includableMatch = own.match(/\n {4}includable: \[([^\]]*)\]/);
+    const filterableMatch = own.match(/\n {4}filterable: \[([^\]]*)\]/);
+    if (includableMatch === null || filterableMatch === null) {
+      throw new Error('el yaml no declara `includable`/`filterable` para `attachments`');
+    }
+
+    const yamlIncludable = includableMatch[1].split(',').map((s) => s.trim()).filter(Boolean);
+    const yamlFilterable = filterableMatch[1].split(',').map((s) => s.trim()).filter(Boolean);
+
+    yamlIncludable.should.deepEqual(attachmentsSpec.includableNames as string[]);
+    yamlFilterable.should.deepEqual(attachmentsSpec.filterableNames as string[]);
+  });
+
+  it('TS-125 · CA-7, CA-18: la advertencia está escrita y lo que no cambia sigue igual', () => {
+    const source = spec();
+    const block = source.slice(source.indexOf('\n  attachments:\n'));
+    const own = block.slice(0, block.indexOf('\n\n  ') + 1 || undefined);
+
+    // Una frase corta y estable, no el párrafo entero: un gate sobre el texto completo falla con
+    // cualquier reescritura de redacción y alguien termina borrándolo.
+    own.includes('NADIE LO VERIFICA').should.be.true();
+
+    (attachmentsSpec.sortableNames as string[]).should.deepEqual(['createdAt', 'id']);
+    attachmentsSpec.defaults.sort!.should.deepEqual(['createdAt']);
+    attachmentsSpec.truncatable!.should.deepEqual([]);
   });
 });

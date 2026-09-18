@@ -1363,9 +1363,13 @@ x-resources:
       Dos exclusiones PERMANENTES en el predicado fijo: el vínculo borrado y el archivo no
       retenido. `entityType` traduce en LAS DOS DIRECCIONES (`task_comment` <->
       `objective_comment`). CERO URLS MINTEADAS.
+      `checksum` es INCLUIBLE y no base, con el mismo criterio que en `files`: no lo necesita
+      ninguna pantalla y agranda la respuesta. LO DECLARA QUIEN SUBE Y NADIE LO VERIFICA — no es
+      una garantía de integridad del byte. Es FILTRABLE para que un consumidor pueda deduplicar
+      contra los vínculos ya existentes en UNA consulta, combinándolo con `uploadedBy`.
     base: [id, entityType, entityId, fileId, fileName, mimeType, fileSize, uploadedBy, byteStatus, createdAt]
-    includable: []
-    filterable: [entityType, entityId, fileId, uploadedBy]
+    includable: [checksum]
+    filterable: [entityType, entityId, fileId, uploadedBy, checksum]
     enums:
       entityType: [project, requirement, requirement_comment, task, task_comment]
     sortable: [createdAt, id]

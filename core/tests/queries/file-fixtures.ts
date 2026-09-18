@@ -71,6 +71,14 @@ export const LINK_LEGACY = 6013;
 export const LINK_UNLINKED = 6014;
 /** El EMPATE de `created_at` con `LINK_TASK`: el desempate por `id` tiene que ser ASC. */
 export const LINK_TASK_TIE = 6015;
+/** S-061 · vínculo vivo de `FILE_SECOND_NAME` (checksum propio de `CREATOR`) sobre `PROJECT_MAIN`. */
+export const LINK_SECOND = 6016;
+/**
+ * S-061 · vínculo vivo de `FILE_THEIRS_NAME` (checksum de OTRO uploader) sobre `PROJECT_OTHER`
+ * (SIN permiso para `Q_EXTERNAL` / `Q_EXTERNAL_2`): es lo que hace que TS-120 (CA-14) filtre por
+ * un checksum real y reciba `items: []` en vez de "vacío por casualidad".
+ */
+export const LINK_THEIRS = 6017;
 
 /**
  * Los cuatro vínculos vivos de `TASK_MAIN`, EN EL ORDEN POR DEFECTO (`createdAt` ASC, `id` ASC).
@@ -99,9 +107,27 @@ export const FILE_UNLINKED_AGAIN_NAME = 'desvinculado.pdf';
 export const FILE_PURGED_NAME = 'purgado.pdf';
 /** Vínculo vivo a `TASK_INTERNAL`: permitida pero interna. */
 export const FILE_INTERNAL_TASK_NAME = 'de-tarea-interna.pdf';
+/**
+ * S-061 · un SEGUNDO checksum de `CREATOR`, para que CA-5 (checksum + uploadedBy con AND) y CA-6
+ * (lista con semántica OR/IN) tengan algo que discriminar. Vinculado a `PROJECT_MAIN` y no a
+ * `TASK_MAIN`: vincularlo ahí rompería `TASK_MAIN_LINKS_IN_ORDER` (TS-51, TS-60).
+ */
+export const FILE_SECOND_NAME = 'segundo-de-creator.pdf';
+/**
+ * S-061 · un checksum subido por OTRO uploader (`Q_EXTERNAL`): es lo que hace que TS-113a
+ * ("el AND discrimina") no pase por vacuidad. Vinculado a `PROJECT_OTHER` —SIN permiso para
+ * `Q_EXTERNAL` / `Q_EXTERNAL_2`—, para que TS-120 (CA-14) tenga un checksum real que no vea.
+ */
+export const FILE_THEIRS_NAME = 'de-otro-uploader.pdf';
 
-/** El `checksum` del único archivo que lo declara. Los demás lo tienen en NULL a propósito. */
+/** El `checksum` del único archivo que lo declara hasta S-061. Los demás lo tienen en NULL a propósito. */
 export const FILE_LINKED_CHECKSUM = 'a'.repeat(64);
+/** S-061 · checksum de `FILE_SECOND_NAME`. Distinguible a simple vista, como `FILE_LINKED_CHECKSUM`. */
+export const FILE_SECOND_CHECKSUM = 'b'.repeat(64);
+/** S-061 · checksum de `FILE_THEIRS_NAME`. */
+export const FILE_THEIRS_CHECKSUM = 'c'.repeat(64);
+/** S-061 · checksum del archivo purgado (`FILE_PURGED_NAME`), para que TS-115a pueda filtrar por él. */
+export const FILE_PURGED_CHECKSUM = 'd'.repeat(64);
 
 const ids: Record<string, number> = {};
 
@@ -126,6 +152,12 @@ export function getPurgedFileId(): number {
 export function getInternalTaskFileId(): number {
   return ids[FILE_INTERNAL_TASK_NAME];
 }
+export function getSecondFileId(): number {
+  return ids[FILE_SECOND_NAME];
+}
+export function getTheirsFileId(): number {
+  return ids[FILE_THEIRS_NAME];
+}
 
 interface FileSeed {
   name: string;
@@ -141,8 +173,12 @@ const FILE_SEEDS: FileSeed[] = [
   { name: FILE_ORPHAN_THEIRS_NAME, uploadedBy: Q_EXTERNAL_2 },
   { name: FILE_ONLY_FOREIGN_NAME, uploadedBy: Q_EXTERNAL },
   { name: FILE_UNLINKED_AGAIN_NAME, uploadedBy: Q_EXTERNAL },
-  { name: FILE_PURGED_NAME, uploadedBy: CREATOR, retentionStatus: 'purged' },
+  // S-061 · CA-13 (TS-115a): con checksum, para poder filtrar por él y comprobar que no aparece.
+  { name: FILE_PURGED_NAME, uploadedBy: CREATOR, retentionStatus: 'purged', checksum: FILE_PURGED_CHECKSUM },
   { name: FILE_INTERNAL_TASK_NAME, uploadedBy: CREATOR },
+  // S-061 · CA-4, CA-5, CA-6: un segundo checksum de CREATOR y uno de OTRO uploader.
+  { name: FILE_SECOND_NAME, uploadedBy: CREATOR, checksum: FILE_SECOND_CHECKSUM },
+  { name: FILE_THEIRS_NAME, uploadedBy: Q_EXTERNAL, checksum: FILE_THEIRS_CHECKSUM },
 ];
 
 /**
@@ -156,7 +192,7 @@ async function pinCreatedAt(id: number, iso: string): Promise<void> {
   });
 }
 
-/** Los siete archivos y los quince vínculos. */
+/** Los nueve archivos y los diecisiete vínculos (S-027 + S-061). */
 export async function createFileWorld(): Promise<void> {
   for (const seed of FILE_SEEDS) {
     const file: File = await File.create({
@@ -236,6 +272,11 @@ export async function createFileWorld(): Promise<void> {
       fileId: getUnlinkedAgainFileId(),
       deletedAt: new Date('2026-07-02T00:00:00.000Z'),
     },
+
+    // S-061 · CA-4, CA-5, CA-6: dos checksums más, cada uno con al menos un vínculo vivo VISIBLE
+    // (sobre `PROJECT_MAIN`, no `TASK_MAIN`: no tocar `TASK_MAIN_LINKS_IN_ORDER`).
+    { id: LINK_SECOND, entityType: 'project', entityId: PROJECT_MAIN, fileId: getSecondFileId() },
+    { id: LINK_THEIRS, entityType: 'project', entityId: PROJECT_OTHER, fileId: getTheirsFileId() },
   ] as any);
 
   // EL ORDEN POR DEFECTO ES `createdAt` ASC, y `LINK_TASK` / `LINK_TASK_TIE` EMPATAN: el desempate
@@ -255,6 +296,8 @@ export async function createFileWorld(): Promise<void> {
   await pinCreatedAt(LINK_TO_PURGED, '2026-01-12T00:00:00.000Z');
   await pinCreatedAt(LINK_LEGACY, '2026-01-13T00:00:00.000Z');
   await pinCreatedAt(LINK_UNLINKED, '2026-01-14T00:00:00.000Z');
+  await pinCreatedAt(LINK_SECOND, '2026-01-15T00:00:00.000Z');
+  await pinCreatedAt(LINK_THEIRS, '2026-01-16T00:00:00.000Z');
 }
 
 /**

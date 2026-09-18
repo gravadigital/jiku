@@ -116,15 +116,22 @@ const BASE: Record<string, BaseSpec> = {
 };
 
 /**
- * NADA ES INCLUIBLE, y el objeto vacío es el contrato (CA-2).
+ * UN SOLO INCLUIBLE (S-061): `checksum`, DEL ARCHIVO. ES INCLUIBLE Y NO BASE, con el mismo
+ * criterio que rige en `files`: 64 caracteres por fila que nadie mira salvo que los pida.
  *
- * Lo único incluible que el otro recurso declara es del ARCHIVO, no del vínculo, y su lugar es
- * la ficha de ese recurso — acá no se declara ni se nombra.
+ * `from: FILES` porque la columna es DEL ARCHIVO, no del vínculo: `attachments` no tiene
+ * `checksum` en absoluto. Sin `from`, PostgreSQL responde `column t.checksum does not exist` en
+ * la primera request.
+ *
+ * ES UN DATO INFORMADO, NO UNA GARANTÍA DE INTEGRIDAD: LO DECLARA QUIEN SUBE Y NADIE LO VERIFICA
+ * (misma advertencia que `files-spec.ts`, y `meta.describe` la expone igual).
  */
-const INCLUDABLE: Record<string, IncludableSpec> = {};
+const INCLUDABLE: Record<string, IncludableSpec> = {
+  checksum: { kind: 'field', column: 'checksum', from: FILES },
+};
 
 /**
- * Los cuatro filtros declarados.
+ * Los CINCO filtros declarados.
  *
  * `entityType` ES LA DIRECCIÓN DE ENTRADA. `enum` valida contra los cinco valores DEL CONTRATO
  * —que es lo que viaja en `errorDetails.allowed` (CA-4)— y `values` los traduce a los de la base
@@ -147,6 +154,12 @@ const FILTERABLE: Record<string, FilterableSpec> = {
   // DEL ARCHIVO, no del vínculo: la tabla del recurso NO TIENE `uploaded_by` (H-1 del plan). Sin
   // `from`, PostgreSQL responde `column t.uploaded_by does not exist` en la primera request.
   uploadedBy: { column: 'uploaded_by', from: FILES, kind: 'string' },
+  // ÍDEM `uploadedBy`, DEL ARCHIVO: mismo `from: FILES` y misma razón (S-061). `kind: 'string'` y
+  // no `'enum'`: un checksum no tiene lista de valores válidos. FILTRABLE para que un consumidor
+  // (p. ej. `jiku-mail-connector`) pueda deduplicar contra los vínculos ya existentes en UNA
+  // consulta, combinándolo con `uploadedBy` (CA-5). Va AL FINAL: el orden de la clave es el orden
+  // de `errorDetails.allowed`.
+  checksum: { column: 'checksum', from: FILES, kind: 'string' },
 };
 
 /**
