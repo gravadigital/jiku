@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
 import { Op, literal } from 'sequelize';
-import { Project, Requirement } from '@jiku/models';
+import { Project, Requirement, User } from '@jiku/models';
 import logger from '../logger';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import validateQueryParams from '../utils/validate-query-params';
@@ -52,7 +52,13 @@ function getRequirementsReport(req: Request, res: Response) {
 
   return Requirement.findAll({
     where: whereClause,
-    include: [{ model: Project, as: 'project', attributes: ['id', 'name'] }],
+    include: [
+      { model: Project, as: 'project', attributes: ['id', 'name'] },
+      // Mismos atributos que el detalle (`requirements-id-get.ts`): `createdBy` es el id de
+      // Zitadel y no se le muestra a nadie, así que el reporte necesita el autor embebido
+      // para poder nombrarlo.
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'identityType'] },
+    ],
     attributes: {
       include: [
         [literal(`(
@@ -78,6 +84,12 @@ function getRequirementsReport(req: Request, res: Response) {
           type: raw.type,
           state: raw.state,
           createdBy: raw.createdBy,
+          creator: raw.creator ? {
+            id: raw.creator.id,
+            name: raw.creator.name,
+            email: raw.creator.email,
+            identityType: raw.creator.identityType,
+          } : null,
           createdAt: raw.createdAt,
           inProgressAt: raw.inProgressAt,
           finishedAt: raw.finishedAt,

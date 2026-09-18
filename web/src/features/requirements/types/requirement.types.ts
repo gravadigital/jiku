@@ -213,7 +213,14 @@ export interface RequirementReportItem {
   title: string;
   type: RequirementType;
   state: RequirementState;
+  /** El `sub` de Zitadel del autor. Es un id: nunca se muestra en pantalla. */
   createdBy: string;
+  /**
+   * El autor con su nombre, para poder nombrarlo. Opcional porque contra una api
+   * anterior al arreglo no llega, y `null` si la fila del usuario ya no existe: en
+   * ambos casos la columna cae al guion en vez de imprimir el id.
+   */
+  creator?: RequirementCreator | null;
   createdAt: string;
   inProgressAt: string | null;
   finishedAt: string | null;

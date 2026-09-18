@@ -163,12 +163,46 @@ describe('GET /api/requirements/report', () => {
         item.id.should.equal(100);
         item.title.should.equal('Falla en login');
         item.should.have.properties([
-          'id', 'title', 'type', 'state', 'createdBy', 'createdAt',
+          'id', 'title', 'type', 'state', 'createdBy', 'creator', 'createdAt',
           'inProgressAt', 'finishedAt', 'totalMinutes',
           'resolutionType', 'resolutionConclusion', 'resolutionComment', 'project'
         ]);
         item.project.id.should.equal(1);
         item.project.name.should.equal('Project1');
+      });
+  });
+
+  // El reporte devuelve el autor como `creator`, igual que el detalle: `createdBy` es el
+  // id de Zitadel y no se le puede mostrar a nadie. Sin este embebido la columna
+  // "Creado por" de la pantalla imprimía el id crudo.
+  it('should embed the creator with its name, not just the createdBy id', () => {
+    return request(application)
+      .get('/api/requirements/report')
+      .query({ search: '100' })
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        response.body.should.have.length(1);
+        const item = response.body[0];
+        item.createdBy.should.equal('zitadel-sub-01');
+        item.creator.id.should.equal('zitadel-sub-01');
+        item.creator.name.should.equal('User 01');
+        item.creator.should.have.properties(['id', 'name', 'email', 'identityType']);
+      });
+  });
+
+  // El `creator` del reporte es un payload de autoría como el de las demás rutas (S-019):
+  // no filtra `roles` ni `username`.
+  it('should not leak roles nor username in the report creator', () => {
+    return request(application)
+      .get('/api/requirements/report')
+      .query({ search: '100' })
+      .set('Authorization', 'Bearer token_01_user')
+      .expect(200)
+      .then((response) => {
+        response.body.should.have.length(1);
+        const { creator } = response.body[0];
+        Object.keys(creator).sort().should.eql(['email', 'id', 'identityType', 'name']);
       });
   });
 

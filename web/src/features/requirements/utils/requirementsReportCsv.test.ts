@@ -8,7 +8,8 @@ const items: RequirementReportItem[] = [
     title: 'Req A',
     type: 'incidencia',
     state: 'resuelto',
-    createdBy: 'ivan@grava.io',
+    createdBy: '298372847362847',
+    creator: { id: '298372847362847', name: 'Iván Pérez', email: 'ivan@grava.io' },
     createdAt: '2026-06-01T00:00:00Z',
     inProgressAt: '2026-06-02T00:00:00Z',
     finishedAt: '2026-06-05T00:00:00Z',
@@ -23,7 +24,8 @@ const items: RequirementReportItem[] = [
     title: 'Req B',
     type: 'funcionalidad',
     state: 'analisis',
-    createdBy: 'ana@grava.io',
+    createdBy: '110298347298347',
+    creator: { id: '110298347298347', name: 'Ana Gómez', email: 'ana@grava.io' },
     createdAt: '2026-05-01T00:00:00Z',
     inProgressAt: null,
     finishedAt: null,
@@ -55,6 +57,22 @@ describe('buildRequirementsReportCsv', () => {
     expect(lines[2]).toContain('2');
     expect(lines[2]).toContain('Req B');
     expect(lines[2]).toContain('0h 0m');
+  });
+
+  it('la columna "Creado por" lleva el nombre del autor, no su id', () => {
+    const csv = buildRequirementsReportCsv(items);
+    const lines = csv.slice(1).split('\n');
+
+    expect(lines[1]).toContain('Iván Pérez');
+    expect(lines[1]).not.toContain('298372847362847');
+    expect(lines[2]).toContain('Ana Gómez');
+  });
+
+  it('la columna "Creado por" cae al guion cuando la api no manda el autor', () => {
+    const csv = buildRequirementsReportCsv([{ ...items[0], creator: null }]);
+
+    expect(csv).not.toContain('298372847362847');
+    expect(csv.slice(1).split('\n')[1].split(',')[4]).toBe('-');
   });
 
   it('escapa valores con comas envolviéndolos en comillas dobles', () => {

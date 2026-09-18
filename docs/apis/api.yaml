@@ -612,6 +612,12 @@ paths:
     get:
       tags: [requirements]
       summary: Reporte de requisitos
+      description: |
+        Devuelve `creator` embebido —un `AuthorUser`— además del `createdBy` crudo. `createdBy`
+        es el `sub` de Zitadel y no se le muestra a nadie: la columna "Creado por" del reporte
+        y su exportación a CSV leen `creator.name`. Es el mismo embebido que ya hacía el
+        detalle (`GET /requirements/{reqid}`); el reporte era la única ruta de requisito que
+        no lo traía, y por eso la pantalla imprimía el id.
       x-roles: [user, admin]
       parameters:
         - name: search
@@ -635,7 +641,37 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { type: object }
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    title: { type: string }
+                    type: { type: string }
+                    state: { type: string }
+                    createdBy:
+                      type: string
+                      description: El `sub` de Zitadel del autor. Es un id, no se muestra en pantalla.
+                    creator:
+                      allOf:
+                        - $ref: '#/components/schemas/AuthorUser'
+                      nullable: true
+                      description: |
+                        El autor con su nombre. `null` si la fila del usuario ya no existe.
+                    createdAt: { type: string, format: date-time }
+                    inProgressAt: { type: string, format: date-time, nullable: true }
+                    finishedAt: { type: string, format: date-time, nullable: true }
+                    totalMinutes:
+                      type: integer
+                      description: Minutos directos del requisito más los de sus tareas vinculadas.
+                    resolutionType: { type: string, nullable: true }
+                    resolutionConclusion: { type: string, nullable: true }
+                    resolutionComment: { type: string, nullable: true }
+                    project:
+                      type: object
+                      nullable: true
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
         '400': { $ref: '#/components/responses/InvalidFields' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccessDenied' }

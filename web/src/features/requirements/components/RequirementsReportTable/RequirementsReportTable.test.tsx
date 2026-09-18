@@ -23,7 +23,8 @@ const baseItem: RequirementReportItem = {
   title: 'Error al iniciar sesión',
   type: 'incidencia',
   state: 'resuelto',
-  createdBy: 'ivan@grava.io',
+  createdBy: '298372847362847',
+  creator: { id: '298372847362847', name: 'Iván Pérez', email: 'ivan@grava.io' },
   createdAt: '2026-06-01T00:00:00Z',
   inProgressAt: '2026-06-02T00:00:00Z',
   finishedAt: '2026-06-05T00:00:00Z',
@@ -41,8 +42,49 @@ describe('RequirementsReportTable', () => {
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Error al iniciar sesión')).toBeInTheDocument();
     expect(screen.getByText('Proyecto Alpha')).toBeInTheDocument();
-    expect(screen.getByText('ivan@grava.io')).toBeInTheDocument();
+    expect(screen.getByText('Iván Pérez')).toBeInTheDocument();
     expect(screen.getByText('El cliente confirmó el error')).toBeInTheDocument();
+  });
+
+  it('"Creado por" muestra el nombre del autor, nunca su id', () => {
+    render(<RequirementsReportTable items={[baseItem]} />);
+
+    expect(screen.getByText('Iván Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('298372847362847')).not.toBeInTheDocument();
+  });
+
+  it('"Creado por" marca al autor cuando es una identidad automática, igual que el detalle', () => {
+    render(
+      <RequirementsReportTable
+        items={[
+          {
+            ...baseItem,
+            creator: {
+              id: 'svc-opus',
+              name: 'Opus',
+              email: null,
+              identityType: 'service',
+            },
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('Opus')).toBeInTheDocument();
+    expect(screen.getByText('Automático')).toBeInTheDocument();
+  });
+
+  it('"Creado por" no marca al autor cuando es una persona', () => {
+    render(<RequirementsReportTable items={[baseItem]} />);
+
+    expect(screen.queryByText('Automático')).not.toBeInTheDocument();
+  });
+
+  it('"Creado por" cae al guion cuando la api no manda el autor, en vez de mostrar el id', () => {
+    render(<RequirementsReportTable items={[{ ...baseItem, creator: null }]} />);
+
+    expect(screen.queryByText('298372847362847')).not.toBeInTheDocument();
+    expect(screen.getAllByText('-').length).toBeGreaterThan(0);
   });
 
   it('TS-5: muestra mensaje de estado vacío cuando no hay items', () => {

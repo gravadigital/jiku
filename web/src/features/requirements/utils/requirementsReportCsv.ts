@@ -40,7 +40,8 @@ function itemToRow(item: RequirementReportItem): string[] {
     getTypeLabel(item.type),
     item.title,
     item.project?.name ?? PLACEHOLDER,
-    item.createdBy,
+    // El nombre del autor, igual que en la tabla: `createdBy` es un id de Zitadel.
+    item.creator?.name ?? PLACEHOLDER,
     formatCellDate(item.createdAt),
     formatCellDate(item.inProgressAt),
     formatCellDate(item.finishedAt),

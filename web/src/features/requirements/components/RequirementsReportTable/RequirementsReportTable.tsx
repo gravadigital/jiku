@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Card, EmptyState, Table } from '@/shared/components/ui';
+import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { labelFromDate } from '@/shared/utils/dateFormatter';
 import { formatMinutes } from '@/shared/utils/format-minutes';
 import { getTypeLabel } from '../../utils/requirementHelpers';
@@ -41,7 +42,16 @@ export function RequirementsReportTable({ items }: RequirementsReportTableProps)
     type: getTypeLabel(item.type),
     title: item.title,
     project: item.project?.name ?? PLACEHOLDER,
-    createdBy: item.createdBy,
+    // `createdBy` es el id de Zitadel del autor: no se muestra. El nombre viene en
+    // `creator`, y su ausencia cae al guion como cualquier otra columna sin dato. La
+    // marca de identidad automática acompaña al nombre igual que en el detalle.
+    createdBy: item.creator ? (
+      <>
+        {item.creator.name} <AutomatedIdentityBadge identityType={item.creator.identityType} />
+      </>
+    ) : (
+      PLACEHOLDER
+    ),
     createdAt: formatCellDate(item.createdAt),
     inProgressAt: formatCellDate(item.inProgressAt),
     finishedAt: formatCellDate(item.finishedAt),
