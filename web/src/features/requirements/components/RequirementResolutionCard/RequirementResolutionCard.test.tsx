@@ -517,7 +517,7 @@ describe('RequirementResolutionCard', () => {
   });
 
   describe('TS-3/TS-4: "Resolver" guarda los campos de resolución cambiados y transiciona', () => {
-    it('TS-3: con los 3 campos cargados, "Resolver" dispara onUpdate con los 3 campos + state: resuelto', () => {
+    it('TS-3: con los 3 campos cargados, "Resolver" dispara UN onUpdate con los 3 campos + state: resuelto', () => {
       const onUpdate = vi.fn();
       render(
         <RequirementResolutionCard
@@ -535,12 +535,49 @@ describe('RequirementResolutionCard', () => {
       });
       fireEvent.click(screen.getByRole('button', { name: /^resolver$/i }));
 
-      expect(onUpdate).toHaveBeenCalledWith({ resolutionType: 'error_interno' });
+      expect(onUpdate).toHaveBeenCalledTimes(1);
       expect(onUpdate).toHaveBeenCalledWith({
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Bug en el endpoint de horas',
+        resolutionComment: 'El problema fue resuelto',
+        state: 'resuelto',
+      });
+    });
+
+    // El bug: `Resolver` mandaba un PATCH por campo MÁS uno de `state`, los cuatro en
+    // paralelo y sin esperarse. La validación de core lee
+    // `payload.resolutionType ?? requirement.resolutionType` (requirements-edit.ts), así que
+    // el PATCH de `state` —que no llevaba los campos— los buscaba en la fila. Si llegaba
+    // antes de que los otros commitearan, la fila seguía vacía y respondía
+    // RESOLUTION_REQUIRED ("Se requiere tipo y conclusión"). Al segundo click funcionaba
+    // porque los campos ya se habían persistido en el intento fallido.
+    //
+    // Un payload único elimina la carrera en vez de ordenarla: la validación lee del propio
+    // payload y nunca necesita consultar la fila.
+    it('regresión: "Resolver" en una incidencia nunca manda `state` en un payload separado de los campos de resolución', () => {
+      const onUpdate = vi.fn();
+      render(
+        <RequirementResolutionCard
+          requirement={{ ...baseRequirement, type: 'incidencia', state: 'desarrollo' }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      selectResolutionType('error_interno');
+      fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+        target: { value: 'Bug en el endpoint de horas' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /^resolver$/i }));
+
+      const payloads = onUpdate.mock.calls.map((call) => call[0]);
+      expect(payloads).toHaveLength(1);
+      // El payload que transiciona a `resuelto` lleva tipo y conclusión con él, que es
+      // exactamente lo que la validación de core necesita para no consultar la fila.
+      const transition = payloads.find((p) => p.state === 'resuelto');
+      expect(transition).toMatchObject({
+        resolutionType: 'error_interno',
         resolutionConclusion: 'Bug en el endpoint de horas',
       });
-      expect(onUpdate).toHaveBeenCalledWith({ resolutionComment: 'El problema fue resuelto' });
-      expect(onUpdate).toHaveBeenCalledWith({ state: 'resuelto' });
     });
 
     it('TS-4: con incidencia sin cambios en los campos, "Resolver" dispara onUpdate solo con state: resuelto', () => {
@@ -685,7 +722,7 @@ describe('RequirementResolutionCard', () => {
       expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
     });
 
-    it('click en "Guardar" con campos editados dispara onUpdate por cada campo cambiado, sin tocar state', () => {
+    it('click en "Guardar" con campos editados dispara un solo onUpdate con los cambios, sin tocar state', () => {
       const onUpdate = vi.fn();
       render(
         <RequirementResolutionCard
@@ -709,6 +746,37 @@ describe('RequirementResolutionCard', () => {
       expect(onUpdate).toHaveBeenCalledTimes(1);
       expect(onUpdate).toHaveBeenCalledWith({
         resolutionConclusion: 'Se corrigió el cálculo (aclaración agregada)',
+      });
+    });
+
+    it('click en "Guardar" con DOS campos editados los manda juntos en un solo onUpdate', () => {
+      const onUpdate = vi.fn();
+      render(
+        <RequirementResolutionCard
+          requirement={{
+            ...baseRequirement,
+            type: 'incidencia',
+            state: 'resuelto',
+            resolutionType: 'error_interno',
+            resolutionConclusion: 'Se corrigió el cálculo',
+            resolutionComment: 'Ya está disponible',
+          }}
+          onUpdate={onUpdate}
+        />
+      );
+
+      fireEvent.change(screen.getByLabelText('Conclusión interna'), {
+        target: { value: 'Conclusión nueva' },
+      });
+      fireEvent.change(screen.getByLabelText('Nota para cliente'), {
+        target: { value: 'Nota nueva' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledWith({
+        resolutionConclusion: 'Conclusión nueva',
+        resolutionComment: 'Nota nueva',
       });
     });
 
@@ -840,12 +908,20 @@ describe('RequirementResolutionCard', () => {
       });
       fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
 
-      const payloads = onUpdate.mock.calls.map((call) => call[0]);
-      expect(payloads).toContainEqual({ resolutionType: 'fuera_de_alcance' });
-      expect(payloads).toContainEqual({ resolutionConclusion: 'Se decidió no hacerlo' });
-      expect(payloads).not.toContainEqual({ resolutionType: 'error_interno' });
-      expect(payloads).not.toContainEqual({ resolutionConclusion: 'Se corrigió el cálculo' });
-      expect(payloads).toContainEqual({ state: 'resuelto' });
+      // Dos llamadas en total: la de "Reabrir" al principio y la de este "Resolver".
+      // La que importa acá es la segunda, y es UNA sola: campos y transición juntos.
+      expect(onUpdate).toHaveBeenCalledTimes(2);
+      const payload = onUpdate.mock.calls[1][0];
+      expect(payload).toEqual(
+        expect.objectContaining({
+          resolutionType: 'fuera_de_alcance',
+          resolutionConclusion: 'Se decidió no hacerlo',
+          state: 'resuelto',
+        })
+      );
+      // Lo editado pisa la sugerencia: ninguno de los valores viejos viaja.
+      expect(payload.resolutionType).not.toBe('error_interno');
+      expect(payload.resolutionConclusion).not.toBe('Se corrigió el cálculo');
     });
 
     it('TS-26: aceptar la sugerencia sin editarla la guarda tal cual', () => {
@@ -879,11 +955,15 @@ describe('RequirementResolutionCard', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
 
-      const payloads = onUpdate.mock.calls.map((call) => call[0]);
-      expect(payloads).toContainEqual({ resolutionType: 'error_interno' });
-      expect(payloads).toContainEqual({ resolutionConclusion: 'Se corrigió el cálculo' });
-      expect(payloads).toContainEqual({ resolutionComment: 'Ya está disponible' });
-      expect(payloads).toContainEqual({ state: 'resuelto' });
+      // Dos llamadas en total: la de "Reabrir" y la de este "Resolver". La sugerencia
+      // completa viaja con la transición en un solo payload.
+      expect(onUpdate).toHaveBeenCalledTimes(2);
+      expect(onUpdate.mock.calls[1][0]).toEqual({
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Se corrigió el cálculo',
+        resolutionComment: 'Ya está disponible',
+        state: 'resuelto',
+      });
     });
 
     it('TS-27: un requisito cancelado reabierto conserva sus campos por la vía normal (el servidor no limpia al salir de cancelado)', () => {
@@ -962,10 +1042,17 @@ describe('S-057: preservación de comportamiento (CA-3) — card de resolución'
 
     fireEvent.click(screen.getByRole('button', { name: 'Resolver' }));
 
-    expect(onUpdate).toHaveBeenCalledWith({ resolutionType: 'error_interno' });
-    expect(onUpdate).toHaveBeenCalledWith({ resolutionConclusion: 'Se corrigió el cálculo' });
-    expect(onUpdate).toHaveBeenCalledWith({ resolutionComment: 'Ya está disponible' });
-    expect(onUpdate).toHaveBeenCalledWith({ state: 'resuelto' });
+    // Los tres campos y la transición viajan en UN payload. Antes eran cuatro llamadas
+    // separadas, y esa separación era la carrera que devolvía RESOLUTION_REQUIRED en el
+    // primer submit (ver el test de regresión de TS-3). Lo que TS-9 preserva es QUÉ se
+    // manda, no en cuántos requests.
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).toHaveBeenCalledWith({
+      resolutionType: 'error_interno',
+      resolutionConclusion: 'Se corrigió el cálculo',
+      resolutionComment: 'Ya está disponible',
+      state: 'resuelto',
+    });
   });
 
   it('TS-10: la card de resolución sigue reabriendo igual', () => {

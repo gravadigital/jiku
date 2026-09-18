@@ -88,18 +88,32 @@ export function RequirementResolutionCard({
     setDrafts((prev) => ({ ...prev, [field]: value }));
   };
 
-  const saveChangedFields = () => {
+  // Los campos cambiados como UN payload, no uno por campo: las escrituras salen en
+  // paralelo y sin esperarse, así que N payloads son N requests cuyo orden de llegada
+  // nadie garantiza. Devuelve `null` cuando no hay nada que guardar, para distinguirlo
+  // de un payload vacío.
+  const changedFields = (): UpdateRequirementPayload | null => {
     const current = draftsFromRequirement(requirement);
-    (Object.keys(drafts) as (keyof ResolutionDrafts)[]).forEach((field) => {
-      if (drafts[field] !== current[field]) {
-        onUpdate({ [field]: drafts[field] } as UpdateRequirementPayload);
-      }
-    });
+    const changed = (Object.keys(drafts) as (keyof ResolutionDrafts)[]).filter(
+      (field) => drafts[field] !== current[field]
+    );
+    if (changed.length === 0) return null;
+    return Object.fromEntries(
+      changed.map((field) => [field, drafts[field]])
+    ) as UpdateRequirementPayload;
   };
 
+  // La transición y los campos de resolución viajan JUNTOS, en una sola escritura.
+  // Separarlos era una condición de carrera: la validación de core lee
+  // `payload.resolutionType ?? requirement.resolutionType` (requirements-edit.ts), así que
+  // un PATCH de `state` sin los campos los busca en la fila — y si llega antes de que el
+  // PATCH de los campos haya commiteado, la fila todavía está vacía y responde
+  // RESOLUTION_REQUIRED ("Se requiere tipo y conclusión"). El segundo click funcionaba
+  // porque para entonces los campos ya se habían persistido en el intento fallido.
+  // Con un payload único la validación lee del payload y nunca consulta la fila.
   const handleResolve = () => {
-    if (showResolutionFields) saveChangedFields();
-    onUpdate({ state: 'resuelto' });
+    const fields = showResolutionFields ? changedFields() : null;
+    onUpdate({ ...fields, state: 'resuelto' });
   };
 
   const handleCancel = () => {
@@ -107,7 +121,8 @@ export function RequirementResolutionCard({
   };
 
   const handleSave = () => {
-    saveChangedFields();
+    const fields = changedFields();
+    if (fields) onUpdate(fields);
   };
 
   // Devuelve el requisito al trabajo. No manda ningún campo de resolución: el servidor
