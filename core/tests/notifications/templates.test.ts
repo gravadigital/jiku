@@ -124,3 +124,130 @@ describe('notifications/templates — render (S-073)', () => {
     (rendered === undefined).should.be.true();
   });
 });
+
+/**
+ * El layout compartido (`templates/layout.ts`): el diseño de `templates-email-jiku/` aplicado a
+ * las cuatro plantillas. Se afirma sobre lo ESTRUCTURAL y sobre la paleta —lo que rompería el
+ * render o la identidad visual— y NO sobre el texto exacto de cada párrafo, que es redacción y
+ * cambia sin que nada esté mal.
+ */
+describe('notifications/templates — el layout del diseño', () => {
+  const TIPOS = [
+    'requirement.created',
+    'requirement.resolved',
+    'requirement.reopened',
+    'requirement.comment.created',
+  ];
+
+  it('las cuatro plantillas emiten un documento HTML completo, no un fragmento', () => {
+    for (const tipo of TIPOS) {
+      const rendered = renderNotification(tipo, basePayload({
+        data: { resolutionComment: 'listo', comment: 'listo', commentId: 99 },
+      }));
+
+      rendered!.html.should.startWith('<!DOCTYPE html>');
+      rendered!.html.should.containEql('<html lang="es">');
+      rendered!.html.should.containEql('</html>');
+      // El `meta viewport` es lo que hace que el mail no salga diminuto en un teléfono.
+      rendered!.html.should.containEql('name="viewport"');
+    }
+  });
+
+  it('el encabezado lleva el wordmark Jiku en texto, sin <img> ni logo remoto', () => {
+    const rendered = renderNotification('requirement.created', basePayload());
+
+    rendered!.html.should.containEql('>\n                  Jiku\n');
+    // La decisión de v2: ninguna imagen remota. Un `<img>` roto en el encabezado de cada mail es
+    // peor que un wordmark tipográfico, y muchos clientes bloquean imágenes por defecto.
+    rendered!.html.should.not.containEql('<img');
+  });
+
+  it('el botón principal apunta al link del payload, una sola vez y como href', () => {
+    const rendered = renderNotification('requirement.created', basePayload());
+
+    rendered!.html.should.containEql('href="https://opus.ejemplo.com/requirements/412"');
+    rendered!.html.should.containEql('Ver el requisito');
+  });
+
+  it('usa la paleta del diseño y tablas, que es lo que sobrevive a Outlook y Gmail', () => {
+    const rendered = renderNotification('requirement.created', basePayload());
+
+    // Los tres colores que definen la identidad del mail.
+    rendered!.html.should.containEql('#0B1934');
+    rendered!.html.should.containEql('#61CCB9');
+    rendered!.html.should.containEql('#12897A');
+    // Tablas con `role="presentation"`: el patrón de correo, y lo que evita que un lector de
+    // pantalla anuncie la maquetación como si fuera una tabla de datos.
+    rendered!.html.should.containEql('role="presentation"');
+  });
+
+  it('el preheader repite el primer párrafo, que es lo que se lee junto al asunto', () => {
+    const rendered = renderNotification('requirement.created', basePayload());
+
+    // El bloque oculto existe y NO quedó con el texto de ejemplo del diseño original.
+    rendered!.html.should.containEql('display:none');
+    rendered!.html.should.not.containEql('Resumen de una línea');
+  });
+
+  it('el pie no promete nada que el producto no tenga: sin baja ni preferencias', () => {
+    const rendered = renderNotification('requirement.created', basePayload());
+
+    rendered!.html.should.containEql('Correo automático enviado por Jiku');
+    // El diseño v1 traía estos tres, y los tres llevarían a un 404 hoy.
+    rendered!.html.should.not.containEql('Darme de baja');
+    rendered!.html.should.not.containEql('Preferencias de correo');
+    rendered!.html.should.not.containEql('ejemplo.com/baja');
+  });
+
+  it('el comentario y la resolución van en el bloque de cita, escapados', () => {
+    const comentario = renderNotification(
+      'requirement.comment.created',
+      basePayload({ data: { comment: 'No anda <b>nada</b>', commentId: 99 } })
+    );
+    // El bloque de cita se reconoce por su barra lateral.
+    comentario!.html.should.containEql('border-left:3px solid #61CCB9');
+    // Escapado incluso dentro de la cita: es el campo más expuesto a texto de usuario.
+    comentario!.html.should.containEql('&lt;b&gt;nada&lt;/b&gt;');
+    comentario!.html.should.not.containEql('<b>nada</b>');
+
+    const resuelto = renderNotification(
+      'requirement.resolved',
+      basePayload({ data: { resolutionComment: 'Se corrigió' } })
+    );
+    resuelto!.html.should.containEql('border-left:3px solid #61CCB9');
+    resuelto!.html.should.containEql('Se corrigió');
+  });
+
+  it('reopened es la única sin bloque de cita: no tiene data propio', () => {
+    const rendered = renderNotification('requirement.reopened', basePayload());
+
+    rendered!.html.should.not.containEql('border-left:3px solid #61CCB9');
+  });
+
+  it('el texto plano sigue siendo texto plano: sin etiquetas ni entidades HTML', () => {
+    for (const tipo of TIPOS) {
+      const rendered = renderNotification(tipo, basePayload({
+        data: { resolutionComment: 'listo', comment: 'listo', commentId: 99 },
+      }));
+
+      rendered!.text.should.not.containEql('<table');
+      rendered!.text.should.not.containEql('<p>');
+      rendered!.text.should.not.containEql('&amp;');
+      rendered!.text.should.not.containEql('DOCTYPE');
+      // Y sigue llevando el link crudo, que es lo único accionable en la versión de texto.
+      rendered!.text.should.containEql('https://opus.ejemplo.com/requirements/412');
+    }
+  });
+
+  it('un título con comillas no rompe el atributo href ni el documento', () => {
+    const rendered = renderNotification(
+      'requirement.created',
+      basePayload({ title: 'Se rompió el "login" & el alta' })
+    );
+
+    rendered!.html.should.containEql('&quot;login&quot;');
+    rendered!.html.should.containEql('&amp;');
+    // El href del botón queda intacto: el título no se filtra al atributo.
+    rendered!.html.should.containEql('href="https://opus.ejemplo.com/requirements/412"');
+  });
+});

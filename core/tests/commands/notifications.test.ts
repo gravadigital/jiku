@@ -585,7 +585,7 @@ describe('notifications (S-071)', () => {
 
       const rows = await allRows();
       const row = rows.find((r) => r.recipientUserId === U2)!;
-      (row.payload as any).link.should.equal(`https://opus.ejemplo.com/requirements/${R412}`);
+      (row.payload as any).link.should.equal(`https://opus.ejemplo.com/projects/${P1}/requirements/${R412}`);
     });
 
     it('TS-22 · project.name null se congela sin lanzar', async () => {

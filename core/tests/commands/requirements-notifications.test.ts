@@ -137,7 +137,7 @@ describe('requirements-notifications (S-072)', () => {
         payload.title.should.equal('Alta con subs');
         payload.entity.id.should.equal(reply.data!.id);
         payload.project.should.deepEqual({ name: 'Portal Norte' });
-        payload.link.should.equal(`https://opus.ejemplo.com/requirements/${reply.data!.id}`);
+        payload.link.should.equal(`https://opus.ejemplo.com/projects/${P1}/requirements/${reply.data!.id}`);
         payload.actor.name.should.equal('Ana Pérez');
       });
     });
@@ -286,7 +286,7 @@ describe('requirements-notifications (S-072)', () => {
       rows[0].type.should.equal('requirement.resolved');
       (rows[0].payload as any).data.resolutionComment.should.equal('Se corrigió el índice');
       (rows[0].payload as any).actor.name.should.equal('Ana Pérez');
-      (rows[0].payload as any).link.should.equal(`https://opus.ejemplo.com/requirements/${requirementId}`);
+      (rows[0].payload as any).link.should.equal(`https://opus.ejemplo.com/projects/${P1}/requirements/${requirementId}`);
     });
 
     it('TS-13 · la resolución por edit declara ADEMÁS el evento, no en su lugar', async () => {

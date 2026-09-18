@@ -1,5 +1,6 @@
 import { NotificationPayload } from '../types';
-import { escapeHtml, textoODefecto } from './format';
+import { textoODefecto } from './format';
+import { renderLayout } from './layout';
 import { RenderedMail } from './types';
 
 const SIN_PROYECTO = 'sin proyecto';
@@ -7,6 +8,10 @@ const SIN_PROYECTO = 'sin proyecto';
 /**
  * Plantilla de `requirement.resolved` (REQ-015/S-073): un requisito se marcó como resuelto.
  * Incluye `payload.data.resolutionComment`, el comentario de resolución.
+ *
+ * El comentario de resolución va en el BLOQUE DE CITA del layout, igual que el comentario de
+ * `requirement.comment.created`: los dos son texto escrito por una persona, y mostrarlos con la
+ * misma forma es lo que hace que el mail se lea igual en los dos casos.
  */
 export function renderRequirementResolved(payload: NotificationPayload): RenderedMail {
   const titulo = textoODefecto(payload.title, 'un requisito sin título');
@@ -28,13 +33,14 @@ export function renderRequirementResolved(payload: NotificationPayload): Rendere
     `Podés verlo acá: ${payload.link}\n\n` +
     'Saludos.';
 
-  const html =
-    '<p>Hola,</p>' +
-    `<p>${escapeHtml(actor)} resolvió el requisito "${escapeHtml(titulo)}" en ` +
-    `${escapeHtml(proyecto)}.</p>` +
-    `<p>Comentario de resolución: ${escapeHtml(comentario)}</p>` +
-    `<p>Podés verlo acá: <a href="${escapeHtml(payload.link)}">${escapeHtml(payload.link)}</a></p>` +
-    '<p>Saludos.</p>';
+  const html = renderLayout({
+    etiqueta: 'Requisito resuelto',
+    titulo,
+    parrafos: [`${actor} resolvió este requisito en ${proyecto}.`],
+    cita: comentario,
+    textoBoton: 'Ver el requisito',
+    link: payload.link,
+  });
 
   return { text, html };
 }

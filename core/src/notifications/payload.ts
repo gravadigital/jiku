@@ -21,9 +21,20 @@ import { getOpusUrl } from '../config';
  * `actor` sale de `resolveEventActor()` TAL CUAL (CA-11): el mismo fallback `name -> email ->
  * ctx.actorName -> id` que ya usan los 16 eventos de dominio, sin reescribirlo acá.
  *
- * `link` se arma ACÁ, no al enviar (CA-12): `${OPUS_URL}/requirements/${id}`, SIN normalizar — si
- * `OPUS_URL` trae una barra final el link tendrá dos, y es preferible que sea visible (y se
- * corrija en la instalación) a que un `replace` silencioso esconda una configuración mal puesta.
+ * `link` se arma ACÁ, no al enviar (CA-12): `${OPUS_URL}/projects/${projectId}/requirements/${id}`,
+ * SIN normalizar — si `OPUS_URL` trae una barra final el link tendrá dos, y es preferible que sea
+ * visible (y se corrija en la instalación) a que un `replace` silencioso esconda una configuración
+ * mal puesta.
+ *
+ * EL SEGMENTO `/projects/${projectId}/` NO ES OPCIONAL, y su ausencia era un 404. RF-28 del REQ-015
+ * y S-071 documentan `${OPUS_URL}/requirements/${id}`, pero esa ruta NO EXISTE en `opus-web`: su
+ * única ruta de requisito es `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]`,
+ * anidada bajo el proyecto. El link del mail se abría con 404 para todos los destinatarios. Acá el
+ * código se aparta deliberadamente de la especificación porque la especificación nombra una ruta
+ * que no responde; RF-28 y S-071 quedan por corregir.
+ *
+ * `projectId` sale de `declaration.entity.projectId` y NO cuesta una consulta nueva: ya viaja en la
+ * declaración y la regla 4 del filtrado (`recipients.ts`) lo usa para el permiso de proyecto.
  *
  * `project.name` puede ser `null` (CA-13) y se congela tal cual, sin lanzar ni inventar un texto
  * de reemplazo: la plantilla (S-073) es quien decide cómo presentarlo.
@@ -51,7 +62,7 @@ export async function buildNotificationPayload(
     // Puede no existir la fila (no debería, hay FK) o su `name` puede ser `null` en la base — en
     // los dos casos se congela `null`, nunca un texto inventado.
     project: { name: project ? project.name : null },
-    link: `${getOpusUrl()}/requirements/${declaration.entity.id}`,
+    link: `${getOpusUrl()}/projects/${declaration.entity.projectId}/requirements/${declaration.entity.id}`,
     data: declaration.data,
   };
 }

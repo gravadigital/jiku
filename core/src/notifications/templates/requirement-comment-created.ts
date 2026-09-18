@@ -1,5 +1,6 @@
 import { NotificationPayload } from '../types';
-import { escapeHtml, textoODefecto } from './format';
+import { textoODefecto } from './format';
+import { renderLayout } from './layout';
 import { RenderedMail } from './types';
 
 const SIN_PROYECTO = 'sin proyecto';
@@ -7,6 +8,10 @@ const SIN_PROYECTO = 'sin proyecto';
 /**
  * Plantilla de `requirement.comment.created` (REQ-015/S-073): un comentario nuevo en un
  * requisito. Incluye `payload.data.comment`, el texto del comentario.
+ *
+ * EL COMENTARIO VA EN EL BLOQUE DE CITA del layout, no como un párrafo más: es texto de OTRA
+ * persona y conviene que se lea como tal. El layout lo escapa igual que el resto (CA-8) — un
+ * comentario es exactamente el campo por el que un usuario podría intentar inyectar HTML.
  */
 export function renderRequirementCommentCreated(payload: NotificationPayload): RenderedMail {
   const titulo = textoODefecto(payload.title, 'un requisito sin título');
@@ -25,13 +30,14 @@ export function renderRequirementCommentCreated(payload: NotificationPayload): R
     `Podés verlo acá: ${payload.link}\n\n` +
     'Saludos.';
 
-  const html =
-    '<p>Hola,</p>' +
-    `<p>${escapeHtml(actor)} comentó en el requisito "${escapeHtml(titulo)}" de ` +
-    `${escapeHtml(proyecto)}:</p>` +
-    `<p>"${escapeHtml(comentario)}"</p>` +
-    `<p>Podés verlo acá: <a href="${escapeHtml(payload.link)}">${escapeHtml(payload.link)}</a></p>` +
-    '<p>Saludos.</p>';
+  const html = renderLayout({
+    etiqueta: 'Nuevo comentario',
+    titulo,
+    parrafos: [`${actor} comentó en este requisito de ${proyecto}.`],
+    cita: comentario,
+    textoBoton: 'Ver el comentario',
+    link: payload.link,
+  });
 
   return { text, html };
 }
