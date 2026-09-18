@@ -77,7 +77,10 @@ export default function ObjectiveEdition({ params }: { readonly params: Promise<
   const { data: persons = [], isLoading: isLoadingPersons } = usePersons();
   const { data: requirements = [] } = useRequirements({
     enabled: Boolean(objective?.projectId),
-    filters: { projectId: objective?.projectId ?? 0 },
+    // El selector necesita el proyecto entero, no una página: sin `limit` la api aplica su
+    // default de 20 y los requisitos más antiguos (orden createdAt DESC) desaparecen del
+    // selector sin aviso. 100 es el máximo que el contrato permite.
+    filters: { projectId: objective?.projectId ?? 0, limit: 100 },
   });
   const updateObjectiveMutation = useUpdateObjective();
 

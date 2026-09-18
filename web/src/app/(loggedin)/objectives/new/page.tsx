@@ -90,7 +90,10 @@ export default function Form() {
   });
   const { data: requirements = [] } = useRequirements({
     enabled: Boolean(selectedProjectId),
-    filters: { projectId: Number(selectedProjectId) || 0 },
+    // El selector necesita el proyecto entero, no una página: sin `limit` la api aplica su
+    // default de 20 y los requisitos más antiguos (orden createdAt DESC) desaparecen del
+    // selector sin aviso. 100 es el máximo que el contrato permite.
+    filters: { projectId: Number(selectedProjectId) || 0, limit: 100 },
   });
   const createObjectiveMutation = useCreateObjective();
 
