@@ -37,6 +37,16 @@ is what the reports compare against.
 Reports aggregate hours by person, by project and by requirement; the requirements report
 exports to CSV.
 
+**Notifications** reach a requirement's subscribers by email, on four events: the requirement is
+created, it is resolved, it is reopened, and a **public** comment lands on a **public**
+requirement. The actor never gets a mail about their own action. Mail is enqueued inside the
+same transaction that writes the change — if the write fails there is no mail — and delivered by
+a separate process, so an unreachable mail server never blocks anyone's work. It needs
+`SMTP_*` configured; see [configuration.md](configuration.md).
+
+> The two visibility defaults run in opposite directions: a requirement defaults to `public`, a
+> comment defaults to `internal`. A comment posted without an explicit visibility notifies nobody.
+
 **Comments** on a task or a requirement can be edited afterwards by their author, or by an
 `admin` — text and attachments alike. Editing never notifies, and the "edited" marker is shown
 only on the internal frontend, never on the portal.
@@ -82,8 +92,8 @@ screen the team shares with the client — it stays fully visible on the interna
 
 Stated plainly, because some of it used to exist and was removed before publishing:
 
-- **No notifications.** Requirements have subscribers, but nothing sends them anything.
-- **No scheduled jobs.** No reminders, no recurring reports.
+- **No reminders or recurring reports.** The only scheduled work is the notification delivery
+  process; nothing else runs on a timer.
 - **No user administration.** Users come from the identity provider. Whoever connects to the bus
   is created automatically from the authentication event; someone who only uses the web and is
   not yet in the database gets a 401 — see [known-limitations.md](known-limitations.md).

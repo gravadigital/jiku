@@ -69,37 +69,147 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-21
+
 ### Added
 
-- **Outbox table for notifications.** `notification_outbox` (schema only in this change — nothing
-  writes to it yet) with a **partial** index on `(next_attempt_at, id)` scoped to
+- **Email notifications (REQ-015).** Jiku sends email again, on four events: a requirement is
+  created, a public comment lands on a public requirement, a requirement is resolved, and a
+  requirement is reopened. A command does not send anything — it **declares** what should be
+  notified in the new optional `Reply.notifications`, and core resolves recipients, applies the
+  filtering rules and writes one `notification_outbox` row per recipient **inside the command's
+  own transaction**. That is the guarantee the feature is built on: if the command committed the
+  mail exists, and if it rolled back no ghost mail survives. Delivery is a separate periodic
+  process, so an unreachable SMTP server never fails a write.
+- **Periodic delivery process in `core`.** A chained-`setTimeout` worker claims a batch with
+  `FOR UPDATE SKIP LOCKED`, renders the templates, sends over SMTP, and marks each row. Failures
+  get exponential backoff and are discarded after `notification-max-attempts`. It starts and
+  stops with the service, and the stop waits for the cycle in flight. Tuned at runtime by three
+  `system_settings` keys, read fresh every cycle with no cache:
+  `notification-dispatch-interval-seconds` (`60`), `notification-batch-size` (`50`) and
+  `notification-max-attempts` (`5`).
+- **Five `SMTP_*` variables** — `SMTP_HOST`, `SMTP_PORT` (defaults to `587`), `SMTP_USER`,
+  `SMTP_PASSWORD` and `SMTP_FROM`. This is the first outbound network dependency `core` has ever
+  had: everything else it talks to is on the internal network. Read **lazily**, at the first
+  cycle that has something to send, with no startup assert — a misconfigured SMTP server leaves
+  rows `pending` with `last_error`, which is noisy and recoverable, so it does not justify
+  refusing to boot.
+- **`OPUS_URL` in `core`** — the absolute base of the client portal, used to build a
+  notification's link when it is enqueued. **Required, with no default, asserted at startup.**
+  See the notes below.
+- **`notification_outbox` table**, with a **partial** index on `(next_attempt_at, id)` scoped to
   `WHERE status = 'pending'`, so its size tracks the pending queue and not the historical total.
-  `type` and `status` are `VARCHAR`, not native `ENUM`, so a future notification type is a new row
-  in a code registry rather than an `ALTER TYPE`. There is deliberately no uniqueness constraint
-  beyond the primary key: delivery is at-least-once by design (RF-25), and a unique constraint on
-  the natural key would break the legitimate case of two consecutive comments from the same
+  `type` and `status` are `VARCHAR` and not native `ENUM`, so a future notification type is a new
+  row in a code registry rather than an `ALTER TYPE`. There is deliberately no uniqueness
+  constraint beyond the primary key: delivery is at-least-once by design, and a unique constraint
+  on the natural key would break the legitimate case of two consecutive comments from the same
   author.
-- **Three new `system_settings` keys**, seeded with defaults: `notification-dispatch-interval-seconds`
-  (`60`), `notification-batch-size` (`50`) and `notification-max-attempts` (`5`). Nothing reads
-  them yet — the reader with in-code defaults ships in a later story.
+- **`subscriberUserIds` on requirement creation**, over HTTP (`POST /requirements` and the
+  portal's route) and over the bus (`requirements.new`). Optional and additive: a client that
+  does not send it behaves exactly as before. Core validates each id, deduplicates, and inserts
+  the subscriptions **in the same transaction as the requirement**.
+- **`checksum` on the `attachments` query** — includable and filterable (S-061), so a consumer
+  can deduplicate against existing links in a single query by combining it with `uploadedBy`. It
+  is not in the base field set, because no screen needs it and it makes every response bigger.
+  **It is declared by whoever uploads and verified by nobody**: it is not an integrity guarantee
+  about the bytes.
+
+### Changed
+
+- **`GET /requirements/report` now embeds `creator`.** It was the only requirement route that did
+  not, which is why the report's "Created by" column — and its CSV export — printed the author's
+  Zitadel id instead of their name. The raw `createdBy` is still there. `creator` is optional on
+  the `web` side, so the two services do not have to be deployed together.
+- **The client portal creates a requirement and its subscriptions in one command.** It used to
+  publish `requirements.new` and then one `requirements.{id}.subscriptors.new` per subscriber; if
+  one of those failed, the requirement was left created and with no subscribers. Atomicity now
+  comes from core's transaction. The creator is still always subscribed.
+- **`OPUS_DOMAIN` is now the single declaration of the portal's host.** `OPUS_URL` was removed
+  from `deploy/.env.dist`: each compose derives it — `https://${OPUS_DOMAIN}` in production, a
+  fixed localhost port in dev and local, where there is no ingress. Two variables holding the
+  same domain written twice was an invitation to let them drift apart.
+- **The four email templates share one layout**, with the Jiku design: night-blue header with the
+  wordmark as text, section label, large title, action button and an automatic-mail footer. No
+  remote logo and no unsubscribe or preferences links, deliberately: an image would need hosting
+  and a new environment variable, and neither of those routes exists in the product yet. The
+  plain-text body is unchanged.
 
 ### Removed
 
-- **The three unused tables from the removed mail-notification feature are gone.**
+- **The three unused tables from the removed mail feature are gone.**
   `objective_mail_threads`, `requirement_mail_threads` and `inbound_mail_threads`, together with
   the two indexes of the latter (`uk_inbound_mail_threads_message_id`,
-  `idx_inbound_mail_threads_requirement_id`), are dropped by the migration in this change.
+  `idx_inbound_mail_threads_requirement_id`), are dropped by this release's migration. Their
+  three models left `@jiku/models` with them.
+
+### Fixed
+
+- **A task's responsible people never came back through `include`.** `tasks.list` and `tasks.get`
+  with `include: ['responsiblePersons']` returned `[]` for every task, including those that did
+  have them, while the `responsiblePersonId` filter found the very same task — two reads
+  contradicting each other about the same data. The query spec filtered the relation on
+  `r.active = true`, but no command ever writes `people_objectives.active`, so it stays `NULL`,
+  and in PostgreSQL `NULL = true` is `NULL`, not `false`: the predicate discarded every row.
+  **This was not cosmetic.** Because `responsiblePersonIds` replaces the whole list on write, the
+  read-add-rewrite procedure for adding one responsible person read `[]` and silently deleted
+  whoever was there, leaving no trace in `activity`.
+- **Resolving an issue took two clicks.** The first submit failed with "Se requiere tipo y
+  conclusión" even with every field filled, and the second worked without a reload. `handleResolve`
+  fired one PATCH per changed resolution field plus one for `state`, all in parallel and unawaited;
+  core resolves the validation as `payload.resolutionType ?? requirement.resolutionType`, so if the
+  `state` PATCH — which did not carry the fields — arrived before the others committed, it read an
+  empty row and answered `RESOLUTION_REQUIRED`. The transition and the fields now travel in a single
+  payload. "Guardar" had the same latent shape and was collapsed too.
+- **The requirement selector in a task only offered the 20 most recent.** `objectives/new` and
+  `objectives/edit` called `useRequirements` without `limit`, so the api applied its default of
+  20 and a project with more requirements silently lost the oldest ones.
+- **The `InputMultipleSelect` menu was unreadable in dark mode.** react-select's menu declared no
+  `backgroundColor` and fell back to the library's hardcoded white, while the options used
+  `--text-primary` — near-white in dark mode. Only the focused option resolved correctly.
+- **The client portal used a random UUID as the session id.** NextAuth v5 discards the `id`
+  returned by `profile()` and replaces it with a `crypto.randomUUID()`, but the api looks users up
+  in `users` by their Zitadel `sub`: every subscription answered `404 user_not_found`, and
+  `isSubscribed` could never be true, so the unsubscribe button was unreachable. The `sub` is now
+  recovered from `account.providerAccountId`.
+- **Notification links opened on a 404.** The link was built as `${OPUS_URL}/requirements/${id}`,
+  a route that does not exist in the portal — its only requirement route is nested under the
+  project. It now carries the project segment, taken from data that already travelled in the
+  declaration.
 
 ### Notes for existing installations
 
-- **The three unused mail tables are now dropped.** `objective_mail_threads`,
-  `requirement_mail_threads` and `inbound_mail_threads` are removed by the migration in this
-  release, together with the two indexes of `inbound_mail_threads`. **Verify they hold no rows
-  you care about before deploying**: the migration's `down` recreates the three tables empty, so
-  the structure is reversible but the data is not.
-- **New table `notification_outbox`** and three new `system_settings` keys
-  (`notification-dispatch-interval-seconds`, `notification-batch-size`,
-  `notification-max-attempts`, seeded with `60`, `50` and `5`). Nothing reads them yet.
+- **`core` will not start without `OPUS_URL`.** It is the absolute base of the client portal
+  **with scheme** (for example `https://opus.example.com`), used to build the link in every
+  notification. There is deliberately no default: any default would mail everyone a link to the
+  wrong domain, and a broken link in an already-sent email cannot be fixed afterwards. If you
+  deploy with the composes under `deploy/`, they derive it for you and there is nothing to do. **If
+  you run `core` any other way, set it before deploying or the service will refuse to boot.**
+- **`OPUS_DOMAIN` must be a bare host, with no scheme and no trailing slash** (`opus.example.com`).
+  The production compose now interpolates it as `https://${OPUS_DOMAIN}`, so a value that already
+  carries `https://` produces `https://https://…` in every link of every notification sent.
+  `OPUS_URL` is no longer declared in `deploy/.env.dist`: remove it from your `.env` if you added
+  it by hand.
+- **Destructive migration.** `20260917_01_notification_outbox.js` drops `objective_mail_threads`,
+  `requirement_mail_threads` and `inbound_mail_threads`. **Verify they hold no rows you care about
+  before deploying.** The `down` recreates the three tables empty, so the schema is reversible but
+  the data is not. The check is deliberately operational and outside the migration: a migration
+  that skips itself depending on the data leaves two different schemas in two installations.
+- **Fill in the five `SMTP_*` variables, or nothing gets delivered.** There is no startup assert:
+  the service boots fine, enqueues rows normally, and every one of them stays `pending` with a
+  `last_error`. `SMTP_PASSWORD` is a secret and ships blank.
+- **The product sends email again, and to people who never opted in.** Every subscriber of a
+  requirement now receives mail on creation, resolution, reopening, and on any public comment over
+  a public requirement. Existing requirements already have subscribers, so the first deployment
+  starts mailing them with no further action. Note the two visibility defaults run in opposite
+  directions: a requirement defaults to `public`, a comment defaults to `internal`, so a comment
+  posted without an explicit `visibilityLevel` notifies nobody. Editing a comment never notifies,
+  by product decision.
+- **New table `notification_outbox`** and three new `system_settings` keys —
+  `notification-dispatch-interval-seconds`, `notification-batch-size` and
+  `notification-max-attempts`, seeded with `60`, `50` and `5`. They are read fresh on every cycle,
+  so changing one takes effect without a restart.
+- **Client-portal sessions issued before this release keep the bad id** until each user logs in
+  again. Their subscriptions will keep answering 404 until they do.
 
 ## [1.4.0] - 2026-09-14
 

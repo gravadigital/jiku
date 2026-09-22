@@ -4,14 +4,14 @@ Everything is configured at runtime, in one file: `deploy/.env`, copied from
 `deploy/.env.dist`. The published images carry no configuration, so the same image runs in any
 installation.
 
-`deploy/.env.dist` has 49 variables with working defaults for a local run. Twelve are blank
+`deploy/.env.dist` has 55 variables with working defaults for a local run. Sixteen are blank
 and must be filled in.
 
-## The twelve
+## The sixteen
 
 | Variable | What goes in it |
 |---|---|
-| `DOMAIN`, `OPUS_DOMAIN` | public hostnames of the two frontends |
+| `DOMAIN`, `OPUS_DOMAIN` | public hostnames of the two frontends, **bare hosts with no scheme** — see below |
 | `DATABASE_READONLY_PASSWORD` | password for the read-only user, shared by api and core |
 | `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID` | the identity provider application the frontends use |
 | `GESTION_ZITADEL_PROJECT_ID` | the project where the roles live |
@@ -19,6 +19,7 @@ and must be filled in.
 | `API_SERVICE_USER_KEY_B64`, `CORE_SERVICE_USER_KEY_B64` | the machine-user keys each service uses to reach the bus — `deploy/service-user-key.sh` |
 | `CORE_TRUSTED_PUBLISHER_ID` | the `sub` of the api's machine user. **`core` refuses to start without it** — see below |
 | `DUMP_FILE` | a `.sql` holding the schema — see [installation.md](installation.md) |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | the mail server notifications go out through — see below |
 
 Two more are not in that list but must not keep their defaults on a server:
 `DATABASE_PASSWORD` and the `STORAGE_S3_*` credentials.
@@ -90,6 +91,26 @@ frontend images, so one image still serves every environment.
 
 Note that the `STORAGE_S3_*` variables are read **lazily, on the first file command**. A core
 container that started cleanly proves nothing about the storage being configured correctly.
+
+**Notifications** — `SMTP_HOST`, `SMTP_PORT` (defaults to `587`), `SMTP_USER`, `SMTP_PASSWORD`
+and `SMTP_FROM`. This is the only outbound network dependency `core` has; everything else it
+talks to is on the internal network. Like the storage credentials they are read **lazily**, at
+the first delivery cycle that has something to send, and there is no startup assert: a
+misconfigured mail server leaves rows `pending` with a `last_error` recorded, which is noisy and
+recoverable, so it does not justify refusing to boot. **A core container that started cleanly
+proves nothing about mail working either** — check that notifications are actually arriving.
+
+Three `system_settings` rows tune the delivery process at runtime, without a restart:
+`notification-dispatch-interval-seconds` (`60`), `notification-batch-size` (`50`) and
+`notification-max-attempts` (`5`). They are read fresh on every cycle.
+
+**The portal's hostname** — `OPUS_DOMAIN` is a **bare host, with no scheme and no trailing
+slash** (`opus.example.com`). It is consumed in two forms: bare by the ingress, and as
+`https://${OPUS_DOMAIN}` for `NEXTAUTH_URL` and for the `OPUS_URL` that `core` uses to build the
+link inside every notification. A value that carries `https://` produces `https://https://…` in
+every mail sent, and a broken link in an already-delivered email cannot be fixed afterwards.
+**`core` refuses to start if `OPUS_URL` does not reach it**; the composes derive it, so with the
+composes under `deploy/` there is nothing to set by hand.
 
 ## Two that change behaviour
 
