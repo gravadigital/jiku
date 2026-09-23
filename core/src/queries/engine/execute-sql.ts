@@ -2,6 +2,7 @@ import { QueryTypes } from 'sequelize';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import logger from '../../logger';
 import { span, tagSql } from '../../timing';
+import { toPositional } from './positional';
 import { QueryContext } from '../types';
 import { SqlPlan } from './types';
 
@@ -51,14 +52,22 @@ export async function selectRows<Row extends object>(
   plan: SqlPlan,
   label: string
 ): Promise<{ rows: Row[] } | { error: Reply<never> }> {
+  // PARAMETRIZADA cuando se puede (`positional.ts`): es lo que permite que la conexión de lectura
+  // la prepare con nombre y PostgreSQL reuse el plan. Si no se sabe reescribir, va como siempre.
+  const positional = toPositional(plan.sql, plan.replacements);
   try {
     const rows = await span(
       `sql:${label}`,
       () =>
-        ctx.db.query<Row>(tagSql(plan.sql, label), {
-          type: QueryTypes.SELECT,
-          replacements: plan.replacements,
-        }),
+        positional
+          ? ctx.db.query<Row>(tagSql(positional.sql, label), {
+            type: QueryTypes.SELECT,
+            bind: positional.bind,
+          })
+          : ctx.db.query<Row>(tagSql(plan.sql, label), {
+            type: QueryTypes.SELECT,
+            replacements: plan.replacements,
+          }),
       (result) => ({ rows: result.length, sql: plan.sql })
     );
     return { rows };

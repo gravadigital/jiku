@@ -753,7 +753,7 @@ describe('queries/tasks — el contrato del recurso', () => {
       ids(byValue.data!.items).should.deepEqual([8170]);
     });
 
-    it('TS-52 · un valor hostil viaja en `replacements` y la tabla sigue en pie', async () => {
+    it('TS-52 · un valor hostil viaja como parámetro (`bind`) y la tabla sigue en pie', async () => {
       const spy = sinon.spy(readDb, 'query');
       const hostile = "O'Brien; DROP TABLE objectives;--";
 
@@ -762,7 +762,7 @@ describe('queries/tasks — el contrato del recurso', () => {
       reply.status.should.equal('success');
       reply.data!.items.should.deepEqual([]);
       String(spy.firstCall.args[0]).should.not.containEql(hostile);
-      JSON.stringify((spy.firstCall.args[1] as any).replacements).should.containEql('DROP TABLE');
+      JSON.stringify((spy.firstCall.args[1] as any).bind).should.containEql('DROP TABLE');
       // Y la tabla existe: si la inyección hubiera pasado, esto reventaría.
       (await Objective.count()).should.be.above(0);
     });

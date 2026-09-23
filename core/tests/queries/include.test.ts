@@ -31,7 +31,7 @@ describe('queries/engine/include — resolución por lote (CA-11)', () => {
 
     // Dos relaciones, dos consultas. Con 50 items. No 100, no 50 por relación.
     query.callCount.should.equal(2);
-    (query.firstCall.args[1] as any).replacements.ids.length.should.equal(50);
+    (query.firstCall.args[1] as any).bind[0].length.should.equal(50);
   });
 
   it('sin items no se consulta nada', async () => {
@@ -84,9 +84,10 @@ describe('queries/engine/include — resolución por lote (CA-11)', () => {
 
     await attachCollections(tasksSpec, ['subscriptors'], [{ id: 8140 }, { id: 8141 }], ctx, 'x');
 
-    String(query.firstCall.args[0]).should.containEql('IN (:ids)');
+    // `= ANY($1)`: la lista viaja como UN parámetro, y el texto no depende de cuántos ids trae.
+    String(query.firstCall.args[0]).should.containEql('= ANY($1)');
     String(query.firstCall.args[0]).should.not.containEql('8140');
-    (query.firstCall.args[1] as any).replacements.ids.should.deepEqual([8140, 8141]);
+    (query.firstCall.args[1] as any).bind[0].should.deepEqual([8140, 8141]);
   });
 
   it('agrupa por item y marca el truncado cuando hay más que el tope', async () => {
@@ -203,6 +204,6 @@ describe('queries/engine/include — la relación en el conjunto base (S-025)', 
 
     // 1 consulta, no 20: con `limit: 200` la diferencia sería 1 contra 200.
     query.callCount.should.equal(1);
-    (query.firstCall.args[1] as any).replacements.ids.length.should.equal(20);
+    (query.firstCall.args[1] as any).bind[0].length.should.equal(20);
   });
 });

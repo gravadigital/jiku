@@ -1,6 +1,7 @@
 import { Sequelize } from 'sequelize-typescript';
 import { instrumentPool } from '../timing';
 import { installIsoTimestamptzParser } from './timestamptz';
+import { installNamedStatements } from './named-statements';
 
 /**
  * Conexión de SOLO LECTURA del servicio de consultas.
@@ -51,5 +52,9 @@ instrumentPool(readDb, 'read');
 // es la parte más cara del parseo de las páginas grandes. Ver `timestamptz.ts`. SOLO en esta
 // conexión: la de escritura sigue con los modelos y sus `Date`.
 installIsoTimestamptzParser(readDb);
+
+// Las consultas parametrizadas van como sentencias preparadas con nombre, para que PostgreSQL
+// reuse el plan entre requests. Ver `named-statements.ts` y `queries/engine/positional.ts`.
+installNamedStatements(readDb);
 
 export default readDb;

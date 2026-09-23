@@ -47,7 +47,7 @@ describe('queries/engine/execute-sql — la traducción de errores de PostgreSQL
     (result as { rows: { n: number }[] }).rows.should.deepEqual([{ n: 1 }]);
   });
 
-  it('ejecuta con `QueryTypes.SELECT` y los valores en `replacements`', async () => {
+  it('ejecuta con `QueryTypes.SELECT` y los valores PARAMETRIZADOS en `bind`', async () => {
     const query = sinon.stub().resolves([]);
     const ctx: QueryContext = {
       caller: 'test',
@@ -57,9 +57,11 @@ describe('queries/engine/execute-sql — la traducción de errores de PostgreSQL
 
     await selectRows(ctx, { sql: 'SELECT :p0', replacements: { p0: 'x' } }, 'tasks.list');
 
-    query.firstCall.args[0].should.equal('SELECT :p0');
+    // Parametrizada (`positional.ts`): es lo que permite reusar el plan de la sentencia.
+    query.firstCall.args[0].should.equal('SELECT $1');
     query.firstCall.args[1].type.should.equal('SELECT');
-    query.firstCall.args[1].replacements.should.deepEqual({ p0: 'x' });
+    query.firstCall.args[1].bind.should.deepEqual(['x']);
+    (query.firstCall.args[1].replacements === undefined).should.be.true();
     // SIN transacción: este plano no abre ninguna (ADR-003).
     (query.firstCall.args[1].transaction === undefined).should.be.true();
   });

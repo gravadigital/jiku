@@ -97,11 +97,14 @@ export function withTrace<T>(
  *
  * Es lo que permite cruzar la línea `duration:` del log de PostgreSQL
  * (`log_min_duration_statement`) con el tramo de core que la ejecutó: la diferencia entre los
- * dos es driver, red hasta la base y parseo de filas. Sin traza el SQL no cambia.
+ * dos es driver, red hasta la base y parseo de filas. Sin traza, o sin QUERY_TIMING_SQL, el SQL
+ * no cambia.
  */
 export function tagSql(sql: string, label: string): string {
   const trace = currentTrace();
-  if (!trace) {
+  // Solo con QUERY_TIMING_SQL: el comentario cambia en cada request, así que cada sentencia sería
+  // un texto nuevo y ninguna reusaría su plan (`models/named-statements.ts`).
+  if (!trace || !TIMING_SQL) {
     return sql;
   }
   return `/* ${(trace.id ?? '-').replace(/[^\w.-]/g, '')} ${label.replace(/[^\w.#-]/g, '')} */\n${sql}`;
