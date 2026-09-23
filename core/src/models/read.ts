@@ -35,6 +35,12 @@ export const readDb = new Sequelize({
     // ESTRICTAMENTE MENOR que NATS_QUERY_TIMEOUT_MS del caller: la base tiene que cortar antes
     // que el bus, o el caller espera un timeout que no explica nada.
     statement_timeout: Number(process.env.POSTGRESQL_STATEMENT_TIMEOUT_MS) || 8000,
+    // random_page_cost de ESTAS sesiones, como parámetro de arranque (sin un viaje extra a la
+    // base). El default del servidor (4) está pensado para disco rotacional, y con él el planner
+    // ignora los índices trigram de la búsqueda `q` (migración 20260923_02) por una diferencia de
+    // costo estimado mínima: medido, 5,9 ms de Seq Scan contra 0,65 ms con el índice. 1.1 es el
+    // valor habitual para SSD. Solo esta conexión: la de escritura y la de la api no cambian.
+    options: `-c random_page_cost=${Number(process.env.POSTGRESQL_READ_RANDOM_PAGE_COST) || 1.1}`,
   },
 });
 
