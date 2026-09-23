@@ -3,6 +3,8 @@ import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { matchesPattern } from './commands/registry';
 import { getTrustedPublisherId } from './config';
 import logger from './logger';
+import { QueryTypes } from 'sequelize';
+import { sequelize } from './models';
 import { span } from './timing';
 
 /**
@@ -433,6 +435,30 @@ export function rolesAuthorize(
  */
 export async function readCallerRoles(caller: string): Promise<readonly string[]> {
   return (await readCallerIdentity(caller)).roles;
+}
+
+/**
+ * Los roles del caller para el plano de CONSULTAS: la MISMA lectura por PK, sin el ORM.
+ *
+ * POR QUÉ UNA SEGUNDA FUNCIÓN: `User.findByPk` arma una consulta con el query generator, instancia
+ * el modelo y lo clona, y todo eso es CPU del único hilo en CADA request de consulta. Medido en local
+ * (A/B de punta a punta, traza apagada): las consultas chicas bajan de ~2,3 a ~1,9 ms (−11 % a
+ * −22 %). El plano de comandos sigue con `readCallerIdentity`: necesita además el `name`, y su
+ * comportamiento no se toca.
+ *
+ * NO CAMBIA NINGUNA DECISIÓN: sigue siendo UNA lectura por request y SIN cache (CA-17 de S-023), la
+ * misma fila y la misma conexión que antes, y un solo `SELECT` para las dos compuertas (CA-5). Igual
+ * que `readCallerRoles`, NO CAPTURA: una base caída rechaza y la compuerta del despachador DENIEGA.
+ */
+export async function readCallerRolesForQueries(caller: string): Promise<readonly string[]> {
+  const rows = await span('auth.readCaller', () =>
+    sequelize.query<{ roles: unknown }>('SELECT roles FROM users WHERE id = :id', {
+      type: QueryTypes.SELECT,
+      replacements: { id: caller },
+    })
+  );
+  const roles = rows[0]?.roles;
+  return Array.isArray(roles) ? roles : [];
 }
 
 /**

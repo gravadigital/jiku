@@ -6,7 +6,7 @@ import {
   failure,
   methodFromSubject,
 } from '@jiku/nats-protocol';
-import { authorizeWithRoles, readCallerRoles } from '../authorize-caller';
+import { authorizeWithRoles, readCallerRolesForQueries } from '../authorize-caller';
 import logger from '../logger';
 import { spanSync } from '../timing';
 import { resolveCallerClass } from '../caller-class';
@@ -101,7 +101,9 @@ export class QueryDispatcher {
       // ACÁ NO HAY EXENCIÓN DE LA LECTURA, y es la diferencia deliberada con el plano de comandos:
       // la clase la necesita TODO caller, la api incluida (CA-8). En comandos el exento sigue sin
       // tocar la base porque allá no hay clase que resolver.
-      const roles = await readCallerRoles(caller);
+      //
+      // SIN ORM (`readCallerRolesForQueries`): la misma fila por PK, más barata de leer.
+      const roles = await readCallerRolesForQueries(caller);
 
       // COMPUERTA 1 (S-017) — "¿puede ejecutar este método?", con su exención por `sub` INTACTA.
       const denied = authorizeWithRoles(caller, roles, method, 'queries');
