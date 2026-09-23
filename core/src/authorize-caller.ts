@@ -3,6 +3,7 @@ import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import { matchesPattern } from './commands/registry';
 import { getTrustedPublisherId } from './config';
 import logger from './logger';
+import { span } from './timing';
 
 /**
  * LA COMPUERTA DE AUTORIZACIÓN DEL CALLER: la segunda línea de defensa del producto.
@@ -462,7 +463,7 @@ export async function readCallerIdentity(
   caller: string
 ): Promise<{ roles: readonly string[]; name?: string }> {
   // SIN TRANSACCIÓN (ver el bloque de arriba) y POR PK, contra una tabla de decenas de filas.
-  const user = await User.findByPk(caller);
+  const user = await span('auth.readCaller', () => User.findByPk(caller));
 
   return {
     roles: Array.isArray(user?.roles) ? user.roles : [],

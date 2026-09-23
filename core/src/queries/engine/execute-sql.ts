@@ -1,6 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
 import logger from '../../logger';
+import { span, tagSql } from '../../timing';
 import { QueryContext } from '../types';
 import { SqlPlan } from './types';
 
@@ -51,10 +52,15 @@ export async function selectRows<Row extends object>(
   label: string
 ): Promise<{ rows: Row[] } | { error: Reply<never> }> {
   try {
-    const rows = await ctx.db.query<Row>(plan.sql, {
-      type: QueryTypes.SELECT,
-      replacements: plan.replacements,
-    });
+    const rows = await span(
+      `sql:${label}`,
+      () =>
+        ctx.db.query<Row>(tagSql(plan.sql, label), {
+          type: QueryTypes.SELECT,
+          replacements: plan.replacements,
+        }),
+      (result) => ({ rows: result.length, sql: plan.sql })
+    );
     return { rows };
   } catch (error: any) {
     if (isStatementTimeout(error)) {

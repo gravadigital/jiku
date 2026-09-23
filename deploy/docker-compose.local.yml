@@ -178,6 +178,11 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       # Traza de diagnóstico: imprime cada comando y su respuesta. Ver bus-inspect.sh
       - LOG_COMMANDS=${LOG_COMMANDS:-false}
+      # Trazas de tiempo por request (src/timing.ts): una línea `[timing]` por mensaje y el
+      # desglose en el header `Jiku-Timing` de la respuesta. QUERY_TIMING_SQL suma el SQL al log.
+      - QUERY_TIMING=${QUERY_TIMING:-false}
+      - QUERY_TIMING_SQL=${QUERY_TIMING_SQL:-false}
+      - QUERY_TIMING_LOOP_MS=${QUERY_TIMING_LOOP_MS:-30000}
       # En NODE_ENV=production el logger escribe a archivo y exige estas rutas.
       - LOGGER_INFO_PATH=/tmp/core_info.log
       - LOGGER_INFO_LEVEL=info

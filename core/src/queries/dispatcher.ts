@@ -8,6 +8,7 @@ import {
 } from '@jiku/nats-protocol';
 import { authorizeWithRoles, readCallerRoles } from '../authorize-caller';
 import logger from '../logger';
+import { spanSync } from '../timing';
 import { resolveCallerClass } from '../caller-class';
 import { QueryRegistry } from './registry';
 import { CallerClass, QueryContext } from './types';
@@ -148,7 +149,7 @@ export class QueryDispatcher {
       // LA VALIDACIÓN VA ANTES DE `execute` Y SIN TOCAR LA BASE (convención `validation`), que es
       // el mismo criterio por el que en el plano de comandos corre antes de abrir la transacción:
       // un payload inválido no puede costar una conexión del pool de lectura.
-      const validated = query.validate(raw);
+      const validated = spanSync('validate', () => query.validate(raw));
       if ('error' in validated) {
         return validated.error;
       }

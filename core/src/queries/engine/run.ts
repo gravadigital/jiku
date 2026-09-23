@@ -9,6 +9,7 @@ import { paginate } from './paginate';
 import { projectRow } from './project';
 import { deniesAllRows, resolveVariant } from './spec';
 import { ValidatedGetQuery, ValidatedListQuery } from './types';
+import { spanSync } from '../../timing';
 
 /**
  * EL MOTOR, en su forma ejecutable: dos funciones que sirven a CUALQUIER recurso con ficha.
@@ -97,7 +98,9 @@ export async function runList(
   // La fila extra del `LIMIT limit + 1` NO SE DEVUELVE: solo dice que hay página siguiente.
   const hasMore = selected.rows.length > query.limit;
   const rows = hasMore ? selected.rows.slice(0, query.limit) : selected.rows;
-  const entries = rows.map((row) => projectRow(spec, query.fields, query.sort.length, row));
+  const entries = spanSync('project', () =>
+    rows.map((row) => projectRow(spec, query.fields, query.sort.length, row))
+  );
 
   const failed = await attachCollections(
     spec,
@@ -110,12 +113,14 @@ export async function runList(
     return failed;
   }
 
-  const page = paginate(entries, {
-    hasMore,
-    budgetBytes,
-    truncatable: spec.truncatable,
-    scope: query.scope,
-  });
+  const page = spanSync('paginate', () =>
+    paginate(entries, {
+      hasMore,
+      budgetBytes,
+      truncatable: spec.truncatable,
+      scope: query.scope,
+    })
+  );
 
   const meta: Record<string, unknown> = {
     // El EFECTIVO tras el tope silencioso de 200, no `items.length`: es lo que el caller pidió y

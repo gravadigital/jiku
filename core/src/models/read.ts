@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize-typescript';
+import { instrumentPool } from '../timing';
 
 /**
  * Conexión de SOLO LECTURA del servicio de consultas.
@@ -35,5 +36,8 @@ export const readDb = new Sequelize({
     statement_timeout: Number(process.env.POSTGRESQL_STATEMENT_TIMEOUT_MS) || 8000,
   },
 });
+
+// Espera por conexión del pool, como tramo de la traza (solo con QUERY_TIMING=true).
+instrumentPool(readDb, 'read');
 
 export default readDb;
