@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize-typescript';
 import { instrumentPool } from '../timing';
+import { installIsoTimestamptzParser } from './timestamptz';
 
 /**
  * Conexión de SOLO LECTURA del servicio de consultas.
@@ -39,5 +40,10 @@ export const readDb = new Sequelize({
 
 // Espera por conexión del pool, como tramo de la traza (solo con QUERY_TIMING=true).
 instrumentPool(readDb, 'read');
+
+// `timestamptz` llega como el string ISO que antes producía `Date#toJSON()`, sin crear el `Date`:
+// es la parte más cara del parseo de las páginas grandes. Ver `timestamptz.ts`. SOLO en esta
+// conexión: la de escritura sigue con los modelos y sus `Date`.
+installIsoTimestamptzParser(readDb);
 
 export default readDb;
