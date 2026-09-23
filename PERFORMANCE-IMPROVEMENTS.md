@@ -12,6 +12,32 @@ hay que validarla con un prototipo.
 
 ---
 
+## 0. Estado (2026-09-23): qué se implementó y qué rindió
+
+**De punta a punta, contra la línea base original: mediana −19,7 %, y las 38 queries del benchmark
+mejoran** (entre −6 % y −72 %). Medido con A/B alternado, 4 corridas por lado, la traza apagada y
+tráfico sostenido. El throughput con 20 requests concurrentes pasa de 69 a 87 req/s. Datos crudos
+y detalle en `local/perf-baseline/RESULTS-2.md`.
+
+| Mejora | Estado | Resultado medido (A/B, traza apagada) |
+|---|---|---|
+| P1 — índices del sort por defecto | Implementada | `worked-times.list` −56 %, `tasks.list` −26 % |
+| C2 — includes en paralelo | Implementada | Fase de includes −47 % a −58 % |
+| C3 — `timestamptz` como ISO | Implementada | `paginate` + `encode` −60 % a −75 % |
+| P2/H3 — trigramas + `random_page_cost` 1,1 en la lectura | Implementada | `tasks.list/q` −43 %; ningún plan empeora |
+| C5/H2 — consultas parametrizadas y preparadas con nombre | Implementada (`plan_cache_mode = auto`) | −12 % a −23 % en 10 queries |
+| H1 — roles del caller sin el ORM (sin cache: CA-17 intacto) | Implementada | Mediana −9,2 % |
+| C1 — cache de roles | **Descartada** | Contradice CA-17 de S-023 |
+| C4/H4 — serializar una sola vez | **Descartada** | −4 % en páginas grandes (throughput +11 %) |
+| H6 — saltear `sequelize.query()` en los SELECT | **Descartada** | Mediana −2,4 %, dentro del ruido (throughput +11 %) |
+| Planes genéricos forzados | **No implementada, a decidir** | −16 % en `worked-times.list` 200 por persona, con el riesgo de planes genéricos peores para valores poco comunes |
+
+**Las secciones 1 a 4 son el análisis inicial.** Sus ahorros y la proyección de la §4 se estimaron con
+micro-benchmarks y **no se sostuvieron todos** de punta a punta: H1 rindió más de lo estimado, y C4 y
+el `pg` directo, menos. La tabla de arriba es la medición real.
+
+---
+
 ## 1. Dónde se va el tiempo de una query
 
 Core + PostgreSQL es **entre el 61 % y el 85 % del tiempo de cada query** (mediana 65 %), medido de
