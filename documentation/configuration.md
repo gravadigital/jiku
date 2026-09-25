@@ -33,7 +33,9 @@ pins that release; `dev` tracks the tip of the `dev` branch and is republished o
 **Database** — the api connects read-only; migrations use `POSTGRESQL_MIGRATION_USER`, the owner.
 Two sets of credentials for one database, which is what enforces the read/write split. `core`
 reuses the same read-only role for the queries it serves over the bus, with a pool and a cutoff
-of its own: `POSTGRESQL_READ_POOL_MAX` and `POSTGRESQL_STATEMENT_TIMEOUT_MS`. The statement
+of its own: `POSTGRESQL_READ_POOL_MAX`, `POSTGRESQL_STATEMENT_TIMEOUT_MS` and
+`POSTGRESQL_READ_RANDOM_PAGE_COST` (default `1.1`, the usual value for SSD storage; without it the
+planner ignores the trigram indexes behind the `q` search — raise it only on spinning disks). The statement
 timeout must stay **strictly below** `NATS_QUERY_TIMEOUT_MS`, so the database gives up before the
 bus does — otherwise a slow query leaves the caller on a timeout that explains nothing.
 
