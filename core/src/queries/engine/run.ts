@@ -89,6 +89,19 @@ export async function runList(
     keys = decoded.keys;
   }
 
+  // EL `COUNT` ARRANCA YA, EN PARALELO con las filas y los includes: no depende de ellos (mismo
+  // filtro, sin cursor), así que esperarlo al final hacía que la request pagara la SUMA de los dos.
+  // Va DESPUÉS de validar el cursor, para que un cursor inválido siga sin tocar la base.
+  //
+  // El orden de los errores no cambia: filas, includes y recién después el `COUNT`. Si se sale
+  // antes por otro error, el `catch` vacío evita que un rechazo del `COUNT` quede sin manejar; el
+  // `await` de abajo sigue viendo el rechazo cuando sí se llega hasta él.
+  const counting =
+    query.count === true
+      ? selectRows<CountRow>(ctx, buildCountSql(spec, query, ctx), label)
+      : undefined;
+  counting?.catch(() => undefined);
+
   const rowsPlan = buildRowsSql(spec, query, ctx, keys);
   const selected = await selectRows<Record<string, unknown>>(ctx, rowsPlan, label);
   if ('error' in selected) {
@@ -133,8 +146,8 @@ export async function runList(
     meta.cursor = page.cursor;
   }
 
-  if (query.count === true) {
-    const counted = await selectRows<CountRow>(ctx, buildCountSql(spec, query, ctx), label);
+  if (counting) {
+    const counted = await counting;
     if ('error' in counted) {
       return counted.error;
     }

@@ -694,6 +694,32 @@ describe('queries/tasks — el contrato del recurso', () => {
       reply.data!.page.total!.should.equal(128);
     });
 
+    it('TS-35b · con `true`, el COUNT corre EN PARALELO con la consulta de filas', async () => {
+      // Se registra cuándo empieza y termina cada sentencia, pasando a la base real.
+      const events: string[] = [];
+      const original = readDb.query.bind(readDb);
+      sinon.stub(readDb, 'query').callsFake((async (sql: string, options: unknown) => {
+        const kind = /COUNT\(/i.test(sql) ? 'count' : 'rows';
+        events.push(`${kind}:start`);
+        try {
+          return await original(sql, options as any);
+        } finally {
+          events.push(`${kind}:end`);
+        }
+      }) as any);
+
+      const reply = await dispatchQuery<Page>('tasks.list', {
+        filter: { projectId: PROJECT_COUNT },
+        page: { limit: 50 },
+        count: true,
+      });
+
+      reply.data!.items.length.should.equal(50);
+      reply.data!.page.total!.should.equal(128);
+      // Las dos arrancan antes de que termine la primera: antes, el COUNT esperaba a las filas.
+      events.slice(0, 2).sort().should.deepEqual(['count:start', 'rows:start']);
+    });
+
     it('TS-36 · `"only"` NO ejecuta la consulta de filas', async () => {
       const spy = sinon.spy(readDb, 'query');
 
