@@ -23,6 +23,16 @@ import {
 } from './task-fixtures';
 
 /**
+ * Cuántos `SELECT` a `users` llegaron a la base desde que se llamó. Es lo que CA-5 y CA-17 cuidan
+ * (una lectura por request, compartida por las dos compuertas), medido sobre la sentencia y no sobre
+ * el método del ORM que la emitía antes.
+ */
+function usersLookups(): () => number {
+  const spy = sinon.spy(sequelize, 'query');
+  return () => spy.getCalls().filter((call) => String(call.args[0]).includes('FROM users')).length;
+}
+
+/**
  * LAS DOS COMPUERTAS DEL PLANO DE CONSULTAS, y el único `SELECT` que las alimenta.
  *
  *   1. `authorizeWithRoles` -> "¿puede ejecutar este método?" -> `caller_not_authorized` (S-017)
@@ -60,17 +70,17 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
   });
 
   it('TS-10 · un caller interno consulta y se lee `users` UNA SOLA vez', async () => {
-    const findByPk = sinon.spy(User, 'findByPk');
+    const lookups = usersLookups();
 
     const reply = await dispatchQuery('tasks.list', {}, Q_INTERNAL);
 
     reply.status.should.equal('success');
     // Las DOS compuertas comen del MISMO `roles`: implementado ingenuamente serían dos lecturas.
-    findByPk.callCount.should.equal(1);
+    lookups().should.equal(1);
   });
 
   it('TS-11 · el caller EXENTO con fila también paga un solo `SELECT`', async () => {
-    const findByPk = sinon.spy(User, 'findByPk');
+    const lookups = usersLookups();
 
     const reply = await dispatchQuery('tasks.list', {});
 
@@ -78,7 +88,7 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
     // UNO, no cero: en consultas la exención de la compuerta 1 no exime de la LECTURA, porque la
     // clase la necesita todo caller (CA-8). Es la asimetría deliberada con el plano de comandos,
     // donde el exento sigue sin tocar la base (TS-33 de S-017, intacto).
-    findByPk.callCount.should.equal(1);
+    lookups().should.equal(1);
   });
 
   it('TS-12 · CA-8/CA-9: la api SIN fila pasa la compuerta 1 y FALLA la 2', async () => {
@@ -210,7 +220,7 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
   });
 
   it('TS-18 · CA-4: NINGUNA ficha vuelve a consultar `users`', async () => {
-    const findByPk = sinon.spy(User, 'findByPk');
+    const lookups = usersLookups();
 
     const reply = await dispatchQuery(
       'tasks.list',
@@ -231,23 +241,28 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
     reply.status.should.equal('success');
     // Cuatro consultas SQL o más las dispara el `include`, y ninguna es a `users`: la clase ya
     // viajó en el contexto.
-    findByPk.callCount.should.equal(1);
+    lookups().should.equal(1);
   });
 
   it('TS-19 · CA-17: sin cache — dos requests hacen dos lookups', async () => {
-    const findByPk = sinon.spy(User, 'findByPk');
+    const lookups = usersLookups();
 
     await dispatchQuery('tasks.list', {}, Q_INTERNAL);
     await dispatchQuery('tasks.list', {}, Q_INTERNAL);
 
     // Cachear reintroduciría los roles obsoletos con una ventana adicional y no medible, para
     // ahorrar un SELECT por PK contra una tabla de decenas de filas.
-    findByPk.callCount.should.equal(2);
+    lookups().should.equal(2);
   });
 
   it('TS-20 · si el lookup falla, se DENIEGA con internal_error y no escapa nada', async () => {
     const error = sinon.spy(logger, 'error');
-    sinon.stub(User, 'findByPk').rejects(new Error('pool agotado'));
+    // Solo la lectura de `users` falla: el resto de la conexión de escritura sigue andando.
+    const real = sequelize.query.bind(sequelize);
+    sinon.stub(sequelize, 'query').callsFake(((sql: unknown, options: unknown) =>
+      String(sql).includes('FROM users')
+        ? Promise.reject(new Error('pool agotado'))
+        : real(sql as string, options as any)) as any);
 
     // Resuelve, no rechaza: el stack NO cruza el bus (ADR-003).
     const reply = await dispatchQuery('tasks.list', {}, Q_INTERNAL);

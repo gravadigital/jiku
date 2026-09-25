@@ -9,6 +9,7 @@ import { paginate } from './paginate';
 import { projectRow } from './project';
 import { deniesAllRows, resolveVariant } from './spec';
 import { ValidatedGetQuery, ValidatedListQuery } from './types';
+import { spanSync } from '../../timing';
 
 /**
  * EL MOTOR, en su forma ejecutable: dos funciones que sirven a CUALQUIER recurso con ficha.
@@ -88,6 +89,19 @@ export async function runList(
     keys = decoded.keys;
   }
 
+  // EL `COUNT` ARRANCA YA, EN PARALELO con las filas y los includes: no depende de ellos (mismo
+  // filtro, sin cursor), así que esperarlo al final hacía que la request pagara la SUMA de los dos.
+  // Va DESPUÉS de validar el cursor, para que un cursor inválido siga sin tocar la base.
+  //
+  // El orden de los errores no cambia: filas, includes y recién después el `COUNT`. Si se sale
+  // antes por otro error, el `catch` vacío evita que un rechazo del `COUNT` quede sin manejar; el
+  // `await` de abajo sigue viendo el rechazo cuando sí se llega hasta él.
+  const counting =
+    query.count === true
+      ? selectRows<CountRow>(ctx, buildCountSql(spec, query, ctx), label)
+      : undefined;
+  counting?.catch(() => undefined);
+
   const rowsPlan = buildRowsSql(spec, query, ctx, keys);
   const selected = await selectRows<Record<string, unknown>>(ctx, rowsPlan, label);
   if ('error' in selected) {
@@ -97,7 +111,9 @@ export async function runList(
   // La fila extra del `LIMIT limit + 1` NO SE DEVUELVE: solo dice que hay página siguiente.
   const hasMore = selected.rows.length > query.limit;
   const rows = hasMore ? selected.rows.slice(0, query.limit) : selected.rows;
-  const entries = rows.map((row) => projectRow(spec, query.fields, query.sort.length, row));
+  const entries = spanSync('project', () =>
+    rows.map((row) => projectRow(spec, query.fields, query.sort.length, row))
+  );
 
   const failed = await attachCollections(
     spec,
@@ -110,12 +126,14 @@ export async function runList(
     return failed;
   }
 
-  const page = paginate(entries, {
-    hasMore,
-    budgetBytes,
-    truncatable: spec.truncatable,
-    scope: query.scope,
-  });
+  const page = spanSync('paginate', () =>
+    paginate(entries, {
+      hasMore,
+      budgetBytes,
+      truncatable: spec.truncatable,
+      scope: query.scope,
+    })
+  );
 
   const meta: Record<string, unknown> = {
     // El EFECTIVO tras el tope silencioso de 200, no `items.length`: es lo que el caller pidió y
@@ -128,8 +146,8 @@ export async function runList(
     meta.cursor = page.cursor;
   }
 
-  if (query.count === true) {
-    const counted = await selectRows<CountRow>(ctx, buildCountSql(spec, query, ctx), label);
+  if (counting) {
+    const counted = await counting;
     if ('error' in counted) {
       return counted.error;
     }

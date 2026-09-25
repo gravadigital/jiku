@@ -6,8 +6,9 @@ import {
   failure,
   methodFromSubject,
 } from '@jiku/nats-protocol';
-import { authorizeWithRoles, readCallerRoles } from '../authorize-caller';
+import { authorizeWithRoles, readCallerRolesForQueries } from '../authorize-caller';
 import logger from '../logger';
+import { spanSync } from '../timing';
 import { resolveCallerClass } from '../caller-class';
 import { QueryRegistry } from './registry';
 import { CallerClass, QueryContext } from './types';
@@ -100,7 +101,9 @@ export class QueryDispatcher {
       // ACÁ NO HAY EXENCIÓN DE LA LECTURA, y es la diferencia deliberada con el plano de comandos:
       // la clase la necesita TODO caller, la api incluida (CA-8). En comandos el exento sigue sin
       // tocar la base porque allá no hay clase que resolver.
-      const roles = await readCallerRoles(caller);
+      //
+      // SIN ORM (`readCallerRolesForQueries`): la misma fila por PK, más barata de leer.
+      const roles = await readCallerRolesForQueries(caller);
 
       // COMPUERTA 1 (S-017) — "¿puede ejecutar este método?", con su exención por `sub` INTACTA.
       const denied = authorizeWithRoles(caller, roles, method, 'queries');
@@ -148,7 +151,7 @@ export class QueryDispatcher {
       // LA VALIDACIÓN VA ANTES DE `execute` Y SIN TOCAR LA BASE (convención `validation`), que es
       // el mismo criterio por el que en el plano de comandos corre antes de abrir la transacción:
       // un payload inválido no puede costar una conexión del pool de lectura.
-      const validated = query.validate(raw);
+      const validated = spanSync('validate', () => query.validate(raw));
       if ('error' in validated) {
         return validated.error;
       }

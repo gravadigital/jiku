@@ -694,6 +694,32 @@ describe('queries/tasks — el contrato del recurso', () => {
       reply.data!.page.total!.should.equal(128);
     });
 
+    it('TS-35b · con `true`, el COUNT corre EN PARALELO con la consulta de filas', async () => {
+      // Se registra cuándo empieza y termina cada sentencia, pasando a la base real.
+      const events: string[] = [];
+      const original = readDb.query.bind(readDb);
+      sinon.stub(readDb, 'query').callsFake((async (sql: string, options: unknown) => {
+        const kind = /COUNT\(/i.test(sql) ? 'count' : 'rows';
+        events.push(`${kind}:start`);
+        try {
+          return await original(sql, options as any);
+        } finally {
+          events.push(`${kind}:end`);
+        }
+      }) as any);
+
+      const reply = await dispatchQuery<Page>('tasks.list', {
+        filter: { projectId: PROJECT_COUNT },
+        page: { limit: 50 },
+        count: true,
+      });
+
+      reply.data!.items.length.should.equal(50);
+      reply.data!.page.total!.should.equal(128);
+      // Las dos arrancan antes de que termine la primera: antes, el COUNT esperaba a las filas.
+      events.slice(0, 2).sort().should.deepEqual(['count:start', 'rows:start']);
+    });
+
     it('TS-36 · `"only"` NO ejecuta la consulta de filas', async () => {
       const spy = sinon.spy(readDb, 'query');
 
@@ -753,7 +779,7 @@ describe('queries/tasks — el contrato del recurso', () => {
       ids(byValue.data!.items).should.deepEqual([8170]);
     });
 
-    it('TS-52 · un valor hostil viaja en `replacements` y la tabla sigue en pie', async () => {
+    it('TS-52 · un valor hostil viaja como parámetro (`bind`) y la tabla sigue en pie', async () => {
       const spy = sinon.spy(readDb, 'query');
       const hostile = "O'Brien; DROP TABLE objectives;--";
 
@@ -762,7 +788,7 @@ describe('queries/tasks — el contrato del recurso', () => {
       reply.status.should.equal('success');
       reply.data!.items.should.deepEqual([]);
       String(spy.firstCall.args[0]).should.not.containEql(hostile);
-      JSON.stringify((spy.firstCall.args[1] as any).replacements).should.containEql('DROP TABLE');
+      JSON.stringify((spy.firstCall.args[1] as any).bind).should.containEql('DROP TABLE');
       // Y la tabla existe: si la inyección hubiera pasado, esto reventaría.
       (await Objective.count()).should.be.above(0);
     });

@@ -53,7 +53,7 @@ api/
 │       ├── bus/              cliente NATS, sendCommand/runCommand, protocolo, traductores
 │       ├── middlewares/      7 compartidos: auth, roles, entidades del path, fechas
 │       └── *.ts              validación, storage, permisos de adjuntos, helpers
-├── db-upgrade/migrations/   106 migraciones, corren al arrancar
+├── db-upgrade/migrations/   108 migraciones, corren al arrancar
 ├── tests/                    61 archivos de rutas + utils + configuraciones
 └── types/
 ```

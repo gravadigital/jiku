@@ -123,6 +123,8 @@ services:
       - POSTGRESQL_READ_USER=${DATABASE_READONLY_USER}
       - POSTGRESQL_READ_PASSWORD=${DATABASE_READONLY_PASSWORD}
       - POSTGRESQL_READ_POOL_MAX=${POSTGRESQL_READ_POOL_MAX}
+      # random_page_cost de las sesiones de lectura (core/src/models/read.ts); 1.1 si falta.
+      - POSTGRESQL_READ_RANDOM_PAGE_COST=${POSTGRESQL_READ_RANDOM_PAGE_COST:-1.1}
       # Corte de la sentencia de lectura, ESTRICTAMENTE MENOR que NATS_QUERY_TIMEOUT_MS: la
       # base tiene que vencer antes que el bus, o el caller espera sin saber por qué.
       - POSTGRESQL_STATEMENT_TIMEOUT_MS=${POSTGRESQL_STATEMENT_TIMEOUT_MS}
@@ -178,6 +180,11 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       # Traza de diagnóstico: imprime cada comando y su respuesta. Ver bus-inspect.sh
       - LOG_COMMANDS=${LOG_COMMANDS:-false}
+      # Trazas de tiempo por request (src/timing.ts): una línea `[timing]` por mensaje y el
+      # desglose en el header `Jiku-Timing` de la respuesta. QUERY_TIMING_SQL suma el SQL al log.
+      - QUERY_TIMING=${QUERY_TIMING:-false}
+      - QUERY_TIMING_SQL=${QUERY_TIMING_SQL:-false}
+      - QUERY_TIMING_LOOP_MS=${QUERY_TIMING_LOOP_MS:-30000}
       # En NODE_ENV=production el logger escribe a archivo y exige estas rutas.
       - LOGGER_INFO_PATH=/tmp/core_info.log
       - LOGGER_INFO_LEVEL=info

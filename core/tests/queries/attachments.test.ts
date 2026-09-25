@@ -834,7 +834,7 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
     got.should.not.containEql(LINK_LEGACY);
   });
 
-  it('TS-116a · CA-16: un valor numérico PASA la validación de campos y falla en la base', async () => {
+  it('TS-116a · CA-16: un valor numérico PASA la validación de campos y NO coincide con nada', async () => {
     // AJUSTADO respecto del Story Plan durante la implementación: CA-16/TS-116a asumían que
     // PostgreSQL compara el número contra `varchar(64)` y devuelve cero filas. Verificado contra
     // base real: NO es así — `character varying = integer` no tiene operador y Postgres lo
@@ -843,12 +843,17 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
     // Comportamiento UNIFORME del motor para todo `kind: 'string'` —confirmado igual hoy con
     // `uploadedBy`, filtro preexistente, no es una particularidad de `checksum`—. NO se cambia el
     // motor: sería un cambio transversal a los 16 recursos, fuera de alcance de esta story.
+    //
+    // CAMBIÓ CON LAS SENTENCIAS PARAMETRIZADAS (`queries/engine/positional.ts`): el valor ya no se
+    // interpola como literal numérico sino que viaja como parámetro, y PostgreSQL lo toma con el
+    // tipo de la columna. `checksum = $1` con 12345 compara el texto '12345' y no coincide con
+    // nada: `items: []`, que es exactamente lo que CA-16/TS-116a esperaban originalmente.
     const reply = await dispatchQuery<Collection>('attachments.list', {
       filter: { checksum: 12345 as unknown as string },
     });
 
-    reply.status.should.equal('failure');
-    reply.errorCode!.should.equal(ErrorCode.INTERNAL_ERROR);
+    reply.status.should.equal('success');
+    reply.data!.items.should.deepEqual([]);
   });
 
   it('TS-116b · CA-16: un operador de rango sobre texto — mismo comportamiento', async () => {

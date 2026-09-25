@@ -46,6 +46,13 @@ export async function attachCollections(
 
   const ids = items.map((item) => item.id);
 
+  // DOS FASES. Primero se arma el SQL de cada relación y se lanzan TODAS a la vez; después se
+  // aplican los resultados en el orden de `relations`. Las relaciones son independientes entre sí
+  // —cada una lee su propia tabla con el mismo lote de ids—, así que el costo pasa de la SUMA de
+  // las consultas a la más lenta de ellas. La regla de RF-36 no cambia: sigue siendo una consulta
+  // por relación, nunca una por item. El pool de lectura acota cuántas corren de verdad a la vez.
+  const planned: { name: string; relation: ManyRelationSpec; sql: string }[] = [];
+
   for (const name of relations) {
     // EN LOS DOS MAPAS: `comments.attachments` vive en el conjunto BASE (CA-6 de S-025), y un
     // lookup que solo mirara `includable` la dejaría en `[]` sin error ni log.
@@ -103,14 +110,23 @@ export async function attachCollections(
         .join('\n');
     }
 
-    const result = await selectRows<CollectionRow>(
-      ctx,
-      { sql, replacements: { ids } },
-      `${label}#${name}`
-    );
+    planned.push({ name, relation, sql });
+  }
+
+  const results = await Promise.all(
+    planned.map(({ name, sql }) =>
+      selectRows<CollectionRow>(ctx, { sql, replacements: { ids } }, `${label}#${name}`)
+    )
+  );
+
+  for (const [index, { name, relation }] of planned.entries()) {
+    const result = results[index];
+    // El error que se devuelve es el de la PRIMERA relación en el orden de `relations`, como
+    // cuando corrían en serie: el caller ve la misma respuesta aunque falle más de una.
     if ('error' in result) {
       return result.error;
     }
+    const fieldNames = Object.keys(relation.fields);
 
     const grouped = new Map<string, CollectionRow[]>();
     for (const row of result.rows) {

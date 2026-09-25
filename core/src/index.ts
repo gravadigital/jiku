@@ -15,6 +15,7 @@ import { queryRegistry } from './queries';
 import { EventDispatcher } from './events/dispatcher';
 import { syncUser } from './events/auth/user-sync';
 import { startDispatchLoop, stopDispatchLoop } from './notifications/dispatch';
+import { startLoopMonitor } from './timing';
 
 // EL PUBLICADOR SE RESUELVE DE FORMA PEREZOSA, EN UN OBJETO INTERMEDIO (D-3 de S-063), por el
 // mismo problema de orden que resuelve el presupuesto de bytes tres líneas más abajo: `dispatcher`
@@ -86,6 +87,7 @@ async function main(): Promise<void> {
   // Antes que nada: si falta configuración obligatoria, el proceso tiene que morir acá y no
   // atender el primer comando con una identidad mal resuelta.
   loadConfig();
+  startLoopMonitor();
 
   await initializeDb();
   // Una línea por servicio, no una sola con los dos números: es lo que hace obvio en el log si

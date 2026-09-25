@@ -1,4 +1,4 @@
-import { NatsConnection, Service, ServiceMsg } from 'nats';
+import { NatsConnection, Service, ServiceMsg, headers as natsHeaders } from 'nats';
 import {
   ErrorCode,
   INSTANCE,
@@ -10,6 +10,15 @@ import {
   groupSubject,
 } from '@jiku/nats-protocol';
 import logger from '../logger';
+import {
+  SENT_AT_HEADER,
+  TRACE_ID_HEADER,
+  Trace,
+  logTrace,
+  spanSync,
+  timingHeaders,
+  withTrace,
+} from '../timing';
 
 /**
  * Versión que el servicio anuncia en el bus. Micro la valida como SemVer ESTRICTO y rechaza el
@@ -38,12 +47,25 @@ export interface ServiceSpec {
  * micro, que NO es el status HTTP: ese lo decide `httpStatusFor` de la api sobre el `errorCode`
  * del cuerpo). Los headers son un agregado, nunca un reemplazo del cuerpo.
  */
-function respond(msg: ServiceMsg, reply: Reply): void {
+function respond(msg: ServiceMsg, reply: Reply, trace?: Trace): void {
+  const body = spanSync('encode', () => encode(reply));
+  // CON TRAZA (QUERY_TIMING=true), el desglose de tiempos viaja en headers: el cuerpo —el
+  // envelope— no cambia ni un byte. Ver `timing.ts`.
+  let opts: { headers: ReturnType<typeof natsHeaders> } | undefined;
+  if (trace) {
+    trace.respBytes = body.length;
+    const h = natsHeaders();
+    for (const [key, value] of Object.entries(timingHeaders(trace))) {
+      h.set(key, value);
+    }
+    opts = { headers: h };
+    logTrace(trace);
+  }
   if (reply.status === 'success') {
-    msg.respond(encode(reply));
+    msg.respond(body, opts);
     return;
   }
-  msg.respondError(500, reply.errorCode ?? 'error', encode(reply));
+  msg.respondError(500, reply.errorCode ?? 'error', body, opts);
 }
 
 /**
@@ -57,24 +79,34 @@ function respond(msg: ServiceMsg, reply: Reply): void {
  * alertas sobre esa métrica.
  */
 async function handle(spec: ServiceSpec, msg: ServiceMsg): Promise<void> {
-  let payload: unknown;
-  try {
-    // Un cuerpo vacío es `{}`, no un error: los comandos de borrado no llevan payload.
-    payload = msg.data.length ? msg.json() : {};
-  } catch {
-    logger.warn(`[bus] payload inválido en ${msg.subject}`);
-    respond(msg, failure(ErrorCode.INVALID_FIELDS, 'Malformed JSON payload'));
-    return;
-  }
+  await withTrace(
+    {
+      subject: msg.subject,
+      reqBytes: msg.data.length,
+      sentAt: msg.headers?.get(SENT_AT_HEADER),
+      id: msg.headers?.get(TRACE_ID_HEADER) || undefined,
+    },
+    async (trace) => {
+      let payload: unknown;
+      try {
+        // Un cuerpo vacío es `{}`, no un error: los comandos de borrado no llevan payload.
+        payload = spanSync('decode', () => (msg.data.length ? msg.json() : {}));
+      } catch {
+        logger.warn(`[bus] payload inválido en ${msg.subject}`);
+        respond(msg, failure(ErrorCode.INVALID_FIELDS, 'Malformed JSON payload'), trace);
+        return;
+      }
 
-  try {
-    respond(msg, await spec.handle(msg.subject, payload));
-  } catch (error: any) {
-    // El despachador ya captura sus errores; esto es la última red, la que el `.catch()` del
-    // consumer tenía antes de que este servicio lo reemplazara.
-    logger.error(`[bus] ${msg.subject}: ${error.message}`);
-    respond(msg, failure(ErrorCode.INTERNAL_ERROR, 'Internal error'));
-  }
+      try {
+        respond(msg, await spec.handle(msg.subject, payload), trace);
+      } catch (error: any) {
+        // El despachador ya captura sus errores; esto es la última red, la que el `.catch()` del
+        // consumer tenía antes de que este servicio lo reemplazara.
+        logger.error(`[bus] ${msg.subject}: ${error.message}`);
+        respond(msg, failure(ErrorCode.INTERNAL_ERROR, 'Internal error'), trace);
+      }
+    }
+  );
 }
 
 /**

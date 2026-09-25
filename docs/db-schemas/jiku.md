@@ -3,7 +3,7 @@
 PostgreSQL. Es la única base del producto y la comparten los dos servicios de backend.
 
 **Extraído de** `packages/models/src/*.model.ts` — los 24 modelos Sequelize del paquete
-compartido — y de las 106 migraciones de `api/db-upgrade/migrations/`.
+compartido — y de las 108 migraciones de `api/db-upgrade/migrations/`.
 
 ## Quién escribe y quién lee
 
@@ -757,6 +757,9 @@ Table objectives {
     (project_id, created_at, id) [name: 'idx_objectives_project_created_id', note: 'REQ-006: keyset de tasks.list por proyecto con el sort default ["-createdAt"]. DESC en created_at e id']
     (priority, created_at, id) [name: 'idx_objectives_priority_created_id', note: 'REQ-006: sort ["-priority", ...]. DESC en las tres']
     (state, created_at, id) [name: 'idx_objectives_state_created_id', note: 'REQ-006: filter.state + sort default. DESC en created_at e id']
+    (created_at, id) [name: 'idx_objectives_created_id', note: '20260923_01: tasks.list SIN filtro con el sort default ["-createdAt"]. DESC en las dos']
+    title [name: 'idx_objectives_title_trgm', type: gin, note: '20260923_02: gin_trgm_ops, para la búsqueda q (ILIKE)']
+    description [name: 'idx_objectives_description_trgm', type: gin, note: '20260923_02: gin_trgm_ops, para la búsqueda q (ILIKE)']
   }
 }
 
@@ -773,6 +776,7 @@ Table worked_times {
   indexes {
     (person_id, date, id) [name: 'idx_worked_times_person_date_id', note: 'REQ-006: keyset de worked-times.list con sort default ["-date"]. DESC en date e id']
     (project_id, date, id) [name: 'idx_worked_times_project_date_id', note: 'REQ-006: idem por proyecto. DESC en date e id']
+    (date, id) [name: 'idx_worked_times_date_id', note: '20260923_01: worked-times.list SIN filtro con el sort default ["-date"]. DESC en las dos']
     requirement_id [name: 'idx_worked_times_requirement_id', note: 'REQ-006: requirements.totalMinutes. Subconsulta correlacionada POR FILA: con limit 200 son 200. YA EXISTIA: lo creo 20260626_01 junto con la columna, asi que 20260824_02 no lo crea (IF NOT EXISTS) ni lo dropea']
     objective_id [name: 'idx_worked_times_objective_id', note: 'REQ-006: la otra mitad de totalMinutes. Las dos juntas son 400 subconsultas con limit 200']
   }
@@ -924,6 +928,7 @@ Table people_objectives {
   updated_at timestamp
   indexes {
     (person_id, objective_id) [name: 'idx_people_objectives_person_objective', note: 'REQ-006: filter.responsiblePersonId de tasks']
+    objective_id [name: 'idx_people_objectives_objective_id', note: '20260923_01: include responsiblePersons de tasks (WHERE objective_id IN (...))']
   }
 }
 
@@ -1026,7 +1031,7 @@ npm start --workspace @jiku/api               # las corre y después sirve
 | Nombre | `YYYYMMDD_NN_descripcion.js` |
 | Tabla de control | `sequelize_meta` |
 | Credenciales | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD`, con fallback a las de la api |
-| Cantidad | **106** |
+| Cantidad | **108** |
 | Naturaleza | Se esperan **aditivas**: el esquema no está versionado aparte del producto |
 
 En `testing` y `development` el arranque hace además `sequelize.sync()`
@@ -1052,6 +1057,8 @@ En `testing` y `development` el arranque hace además `sequelize.sync()`
 
 | Migración | Efecto |
 |---|---|
+| `20260923_02_tasks_search_trgm` | Crea la extensión `pg_trgm` (trusted desde PG 13: la crea el dueño, sin superusuario) y dos GIN trigram en `objectives.title` y `objectives.description`, para la búsqueda `q` de `tasks.list` (`ILIKE '%…%'`, que ningún btree resuelve). El planner los elige con `random_page_cost = 1.1`, que core fija solo en las sesiones de su conexión de lectura. El `down` dropea los índices y **no** la extensión |
+| `20260923_01_default_sort_indexes` | Índices para el sort por defecto de los `list` **sin filtro**, que los de `20260824_02` no cubren porque empiezan todos por una columna de filtro: `worked_times ("date" DESC, id DESC)`, `objectives (created_at DESC, id DESC)` y `people_objectives (objective_id)` (el include `responsiblePersons` filtra por `objective_id IN (…)`). Aditiva, idempotente, sin transacción, igual que `20260824_02` |
 | `20260901_01_activity_edited_at_edited_by` | REQ-011. Agrega `edited_at TIMESTAMP NULL` y `edited_by VARCHAR(100) NULL REFERENCES users(id)` a `requirement_activity` y `objective_activity`, un solo `ALTER TABLE` por tabla con los dos `ADD COLUMN`, en SQL crudo dentro de una transacción. Columnas nullable sin default: sin downtime y sin backfill. `NULL` significa "nunca editado" |
 | `20260825_01_users_email_nullable` | `users.email` deja de ser `NOT NULL`, para que una **identidad de servicio** pueda espejarse: un machine user de Zitadel no tiene dirección de correo y su evento se descartaba con `"email" is required`, dejándolo sin fila y por lo tanto rechazado por las dos compuertas del bus. Cambio de **catálogo**, sin reescritura de tabla y sin backfill. **El `down` no es incondicional**: restaurar el `NOT NULL` falla si ya existe alguna fila de servicio, y se deja fallar a propósito |
 | `20260824_02_query_indexes` | Creó los 18 índices compuestos **terminados en `id`** que el keyset del contrato de consultas necesita, más el GIN sobre `requirements.tags`. Aditiva, solo `CREATE INDEX`. El de `user_project_permissions(user_id)` es condicional por catálogo y **contra una base migrada no se crea**, porque `uk_user_project_permissions` ya lo cubre. **No borra** `idx_projects_client_id` ni `idx_worked_times_requirement_id`. Ver "Los índices del keyset" abajo |

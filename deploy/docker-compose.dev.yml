@@ -167,6 +167,8 @@ services:
       - POSTGRESQL_READ_USER=${DATABASE_READONLY_USER}
       - POSTGRESQL_READ_PASSWORD=${DATABASE_READONLY_PASSWORD}
       - POSTGRESQL_READ_POOL_MAX=${POSTGRESQL_READ_POOL_MAX}
+      # random_page_cost de las sesiones de lectura (core/src/models/read.ts); 1.1 si falta.
+      - POSTGRESQL_READ_RANDOM_PAGE_COST=${POSTGRESQL_READ_RANDOM_PAGE_COST:-1.1}
       # Corte de la sentencia de lectura, ESTRICTAMENTE MENOR que NATS_QUERY_TIMEOUT_MS: la
       # base tiene que vencer antes que el bus, o el caller espera sin saber por qué.
       - POSTGRESQL_STATEMENT_TIMEOUT_MS=${POSTGRESQL_STATEMENT_TIMEOUT_MS}

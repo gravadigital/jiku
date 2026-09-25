@@ -249,14 +249,16 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
       // EL CONTEO SUBE CUANDO SE AGREGA UNA MIGRACIÓN LEGÍTIMA, y actualizarlo es parte del
       // cambio: 103 -> 104 con `20260825_01_users_email_nullable.js`, 104 -> 105 con
       // `20260901_01_activity_edited_at_edited_by.js` (S-046), y 105 -> 106 con
-      // `20260917_01_notification_outbox.js` (S-069). Que rompa es el punto — obliga a mirar si
+      // `20260917_01_notification_outbox.js` (S-069), y 106 -> 108 con
+      // `20260923_01_default_sort_indexes.js` y `20260923_02_tasks_search_trgm.js` (rendimiento del
+      // plano de queries: índices del sort por defecto y trigramas para `q`). Que rompa es el punto — obliga a mirar si
       // la migración nueva era la que se quería. Al tocarlo, actualizá también el "Cantidad" de
       // `docs/db-schemas/jiku.md`.
       const migrations = readdirSync(MIGRATIONS_DIR);
       migrations.filter((name) => name.includes('query_indexes')).should.be.eql([
         '20260824_02_query_indexes.js',
       ]);
-      migrations.should.have.length(106);
+      migrations.should.have.length(108);
     });
 
     it('TS-2: solo crea índices — ni ALTER, ni columnas, ni tipos, ni datos', () => {

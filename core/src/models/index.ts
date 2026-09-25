@@ -1,6 +1,7 @@
 import { Sequelize } from 'sequelize-typescript';
 import { allModels } from '@jiku/models';
 import logger from '../logger';
+import { instrumentPool } from '../timing';
 
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
@@ -25,6 +26,9 @@ export const sequelize = new Sequelize({
   models: allModels,
   logging: false,
 });
+
+// Espera por conexión del pool, como tramo de la traza (solo con QUERY_TIMING=true).
+instrumentPool(sequelize, 'write');
 
 function waitInterval(seconds: number) {
   return new Promise((resolve) => {
