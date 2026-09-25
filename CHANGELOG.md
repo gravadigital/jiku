@@ -69,6 +69,8 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-25
+
 ### Changed
 
 - **Faster reads over the bus.** Measured locally end to end, alternating the old and new builds

@@ -171,6 +171,10 @@ react-select's computed styles through a node jsdom does not accept. `web` decla
 
 ## Operational notes
 
+- **`core` cannot sit behind PgBouncer in transaction pooling mode.** Its read queries use
+  named prepared statements so PostgreSQL can reuse their plans, and those do not survive a
+  pooler that hands each transaction a different server connection. Jiku's own composes connect
+  directly to PostgreSQL; if you put PgBouncer in front of `core`, use session pooling.
 - **File storage keys** carry a prefix, persisted in `files.storage_key`. Changing
   `STORAGE_S3_KEY_PREFIX` on an installation that already has data makes existing files
   unreachable. Documented in full — with what to do about it — in
