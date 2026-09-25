@@ -69,6 +69,52 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster reads over the bus.** Measured locally end to end, alternating the old and new builds
+  with instrumentation off: the median query of the 38-scenario benchmark is **~20 % faster**,
+  every one of them improves (from −6 % to −72 %), and throughput under 20 concurrent requests on
+  the heaviest page goes from 69 to 87 req/s. What changed in `core`:
+  - collection includes run in parallel instead of one after another, and so does the `COUNT` of
+    `count: true` with the page query;
+  - `timestamptz` values are read straight into the ISO string the bus already returned, without
+    building and re-serialising a `Date` — the output is byte for byte the same;
+  - read queries are parameterised (`IN (…)` lists become `= ANY($n)`) and prepared with a name,
+    so PostgreSQL can reuse their plans (`plan_cache_mode` stays `auto`);
+  - the caller's roles are read with a plain `SELECT` instead of through the ORM. Still one
+    lookup per request and **no cache** (CA-17 of S-023 is unchanged).
+- **A number on a text filter now matches nothing instead of failing.** For example
+  `attachments.list` with `filter: { checksum: 12345 }` used to answer `internal_error`, because
+  the value reached PostgreSQL as an integer literal compared against `varchar`. Values now travel
+  as parameters typed by their column, so the answer is `items: []`, which is what CA-16 of S-061
+  specifies. The test had been adjusted to the old answer because the engine could not meet the
+  criterion; it now asserts the specified one.
+
+### Added
+
+- **Indexes for the default sort of unfiltered lists** (`20260923_01`): `worked_times (date DESC,
+  id DESC)`, `objectives (created_at DESC, id DESC)` and `people_objectives (objective_id)`. An
+  unfiltered `worked-times.list` used to sort the whole table to return 50 rows.
+- **Trigram indexes for the `q` search of tasks** (`20260923_02`), on `objectives.title` and
+  `objectives.description`, with the `pg_trgm` extension. `tasks.list` with `q` is about 60 %
+  faster.
+- **`POSTGRESQL_READ_RANDOM_PAGE_COST`** (default `1.1`), applied only to `core`'s read-only
+  sessions. With PostgreSQL's default of `4` the planner ignores the trigram indexes. Raise it
+  only if the database runs on spinning disks.
+- **Per-request timing in `core`, off by default.** `QUERY_TIMING=true` logs one `[timing]` line
+  per bus request and returns the breakdown in a `Jiku-Timing` reply header; the reply body does
+  not change. `QUERY_TIMING_SQL` and `QUERY_TIMING_LOOP_MS` refine it. It costs about 12 % of
+  latency while on, so it is a diagnostic tool, not something to leave enabled.
+
+### Notes for existing installations
+
+- **Both migrations run on api startup and are additive.** `20260923_02` runs
+  `CREATE EXTENSION IF NOT EXISTS pg_trgm`, which needs the database owner — the migration user
+  already is. `pg_trgm` is a trusted extension since PostgreSQL 13, so no superuser is required.
+- **Read queries now use named prepared statements**, which do not work through PgBouncer in
+  transaction pooling mode. Jiku's own composes connect directly to PostgreSQL; an installation
+  that puts PgBouncer in front of `core` has to use session pooling.
+
 ## [1.5.0] - 2026-09-21
 
 ### Added
