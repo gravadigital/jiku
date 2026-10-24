@@ -79,7 +79,8 @@ publicDocsHeaders → publicDocsAccessLog → requirePublicHost → publicDocsRa
 Y en `app.ts` el orden relevante es: `publicHostOnly` (**primer** middleware, antes de `cors()` y
 de `validateToken`) → `cors()` → `docsWriteJson` (parser de 768kb solo para `POST`/`PUT` bajo
 `/api/docs`) → `express.json()` → logger de requests (con `ignoreRoute` para `/p/docs/*`) →
-`validateToken` global → `publicRoutes` → `lib/routes` bajo `/api`. Detalle en
+`validateToken` global → `publicRoutes` → `lib/routes` bajo `/api` → fallback 404 → `payloadTooLargeHandler`
+(413 `payload_too_large`, ver [`error-handling`](./error-handling.md)). Detalle en
 [`bus-modules`](./bus-modules.md).
 
 ## Cómo se escribe un archivo de ruta

@@ -130,7 +130,8 @@ Tres capas, detalladas en [`conventions/auth-jwt.md`](./conventions/auth-jwt.md)
 
    **Límite de cuerpo:** las escrituras de `/api/docs` (`POST`/`PUT`) aceptan hasta **768kb**
    (`DOCS_WRITE_BODY_LIMIT`: 256 KiB de contenido con holgura por el escapado de JSON); el resto
-   de la api conserva los 100 kb de body-parser.
+   de la api conserva los 100 kb de body-parser. Lo que supera el límite responde
+   `413 { "code": "payload_too_large" }` (manejador al final de `app.ts`, REQ-017).
 
 2. **Por rol:** `hasAnyRole([...])` sobre el claim `urn:zitadel:iam:org:project:roles`.
    Roles: `admin`, `user`, `external-user`.

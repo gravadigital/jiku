@@ -77,6 +77,7 @@ El log lleva el endpoint y la función; la respuesta **no** lleva el detalle del
 | 403 | `access_denied` | autenticado, pero el rol o el permiso de proyecto no alcanzan |
 | 404 | `{entidad}_not_found` | la entidad del path no existe |
 | 404 | `id_not_found`, `not_found` | falta el id en el path, o no hay ruta |
+| 413 | `payload_too_large` | el cuerpo JSON supera el límite del parser (768 KiB en `POST`/`PUT` de `/api/docs`, 100 kb en el resto); lo responde `payloadTooLargeHandler` antes de la ruta |
 | 500 | `internal_error` | cualquier error inesperado |
 | 503 | `service_unavailable` | el bus no responde |
 | 404 / 503 / 504 | `module_not_installed` / `module_unavailable` / `gateway_timeout` | módulos opcionales; ver [`bus-modules`](./bus-modules.md) |
@@ -127,9 +128,11 @@ app.use((res: Response) => {
 > dos handlers juntos: firma de cuatro argumentos, `{ code: 'not_found' }`, status 404, y
 > `logger` en lugar de `console`.
 
+Después de los dos va `payloadTooLargeHandler` (ver abajo); un 404 de ruta inexistente le llega con `next(err)` y lo delega.
+
 ## El error handler de multer
 
-El único error handler bien formado del servicio, montado después de la ruta de adjuntos:
+El primer error handler bien formado del servicio, montado después de la ruta de adjuntos:
 
 ```ts
 // lib/routes/attachments-post.ts:138-150
@@ -146,6 +149,28 @@ router.use(multerErrorHandler);
 
 Es el modelo a seguir si necesitás capturar errores de una librería: cuatro argumentos, tratá lo
 que reconocés, delegá el resto con `next(err)`.
+
+## El manejador del 413 (REQ-017)
+
+```ts
+// app.ts
+function payloadTooLargeHandler(err: any, _req: Request, res: Response, next: NextFunction) {
+  if (err?.type === 'entity.too.large' && !res.headersSent) {
+    return res.status(413).json({
+      code: 'payload_too_large',
+      message: 'El cuerpo de la solicitud supera el límite permitido',
+    });
+  }
+  return next(err);
+}
+// DD-3: AL FINAL de la cadena, para recibir el error de cualquier parser sin interceptar nada más.
+app.use(payloadTooLargeHandler);
+```
+
+Va **al final de la cadena** para recibir el error de cualquier parser (el de `/api/docs` con 768 KiB
+y el global con 100 kb). **Solo atiende `err.type === 'entity.too.large'`** y delega todo lo demás con
+`next(err)`: JSON malformado, el 404 del fallback. **No loguea**: es un error del cliente y en
+`/p/docs/*` la URL lleva el token del link. Mismo modelo que multer.
 
 ## Rollback de efectos externos
 

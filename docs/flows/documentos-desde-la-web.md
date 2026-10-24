@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-24
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -14,7 +14,7 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087]
 **Status:** Draft
 **Creado:** 2026-10-24
 **Última actualización:** 2026-10-24
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088
 
 ## Descripción
 
@@ -358,7 +358,7 @@ traducir y `details` verbatim (la clave no existe si no viene). Mapa completo en
 | 3-5 | Alta con nombre repetido, o nombre inválido | 409 / 400 | `already_exists` / `file_name_invalid` | Error junto al campo en el alta |
 | 5 | Frontmatter o vínculo inválido | 400 | `frontmatter_invalid` / `invalid_relation` | Mensaje bajo el editor |
 | 5 | Contenido supera 256 KiB | 400 | `{ "code": "content_too_large" }` | Mensaje bajo el editor |
-| 5 | **Cuerpo supera 768 KiB** | 413 | respuesta de body-parser (antes de llegar a la ruta) | El tope de `/api/docs` es `768kb` solo para `POST`/`PUT`; el resto de la api conserva 100 kb |
+| 3-7 | **Cuerpo supera 768 KiB** | 413 | `{ "code": "payload_too_large" }` | Lo responde el manejador de errores de `app.ts` antes de llegar a la ruta, sin llamar al bus. El tope de `/api/docs` es `768kb` solo para `POST`/`PUT`; el resto de la api conserva 100 kb |
 | 7 | Tipo o tamaño de adjunto no permitido | 400 | `attachment_type_not_allowed` / `attachment_too_large` | Mensaje en la zona de adjuntos |
 | 7 | URL de subida prefirmada vencida | — (la rechaza S3) | — | La web pide volver a intentarlo (`expired_upload_url`, código propio de la web) |
 | 7 | Adjuntos no configurados en jiku-docs | 503 | `{ "code": "attachments_not_configured" }` | Error de sistema |
@@ -404,4 +404,4 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
 
 **Origen:** REQ-016 · stories S-077 (cliente de módulos), S-078 y S-079 (rutas de lectura y
 escritura de la api), S-081 (panel y visor de web), S-082 (editor con reserva, carpetas, búsqueda y
-adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento).
+adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON).
