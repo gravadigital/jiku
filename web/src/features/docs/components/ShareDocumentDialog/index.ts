@@ -1,0 +1,1 @@
+export { ShareDocumentDialog } from './ShareDocumentDialog';

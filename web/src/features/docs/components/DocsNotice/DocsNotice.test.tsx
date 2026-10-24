@@ -27,4 +27,16 @@ describe('DocsNotice', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByText('Aviso')).toBeInTheDocument();
   });
+
+  it('P-13: success usa la familia resolved, ícono check y role=status', () => {
+    const { container } = render(
+      <DocsNotice intent="success" role="status">
+        Listo
+      </DocsNotice>
+    );
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Listo');
+    expect(notice.className).toMatch(/success/);
+    expect(container.querySelector('path[data-icon="check"]')).not.toBeNull();
+  });
 });

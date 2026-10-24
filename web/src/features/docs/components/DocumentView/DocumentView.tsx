@@ -22,6 +22,7 @@ import { DocumentBreadcrumb } from '../DocumentBreadcrumb';
 import { DocumentContent } from '../DocumentContent';
 import { DocumentEditor } from '../DocumentEditor';
 import { DocumentRelations } from '../DocumentRelations';
+import { ShareDocumentDialog } from '../ShareDocumentDialog';
 import styles from './DocumentView.module.scss';
 
 interface DocumentViewProps {
@@ -59,7 +60,7 @@ const BackButton = ({ href }: { href: string }) => (
 export function DocumentView({ id }: DocumentViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { status, isKnown } = useModule('docs');
+  const { status, isKnown, sharing } = useModule('docs');
   // Con un bloqueo vigente se revisa cada 60 s si venció (CA-S12); el flag es estado porque
   // se deriva del propio documento que esta consulta trae.
   const [polling, setPolling] = useState(false);
@@ -77,6 +78,7 @@ export function DocumentView({ id }: DocumentViewProps) {
   const [now, setNow] = useState(() => new Date());
   const editWrapRef = useRef<HTMLSpanElement>(null);
   const [focusEdit, setFocusEdit] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const editParamHandled = useRef(false);
 
   const lockedByOther = isLockActive(doc?.lock, now, session.sessionId);
@@ -88,6 +90,9 @@ export function DocumentView({ id }: DocumentViewProps) {
     Boolean(doc) &&
     (doc?.folder.effectivePermission === 'write' || doc?.folder.effectivePermission === 'manage') &&
     !doc?.contentUrl;
+
+  // CA-32 / CA-S16: "Compartir" solo con la función configurada y permiso `manage`.
+  const canShare = sharing && doc?.folder.effectivePermission === 'manage';
 
   useEffect(() => {
     setPolling(lockedByOther);
@@ -195,6 +200,16 @@ export function DocumentView({ id }: DocumentViewProps) {
         {/* Va primero en el DOM para respetar el orden de foco de la UX (Volver → aviso → contenido). */}
         <div className={styles.actions}>
           <BackButton href={folderHref} />
+          {canShare && !editing && (
+            <Button
+              variant="secondary-nav"
+              icon="↗"
+              disabled={moduleDown}
+              onClick={() => setShareOpen(true)}
+            >
+              Compartir
+            </Button>
+          )}
           {canEdit && !editing && (
             <span ref={editWrapRef}>
               <Button
@@ -223,6 +238,10 @@ export function DocumentView({ id }: DocumentViewProps) {
       </div>
 
       {renderNotice()}
+
+      {canShare && (
+        <ShareDocumentDialog open={shareOpen} doc={doc} onClose={() => setShareOpen(false)} />
+      )}
 
       {editing ? (
         <DocumentEditor

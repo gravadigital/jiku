@@ -164,3 +164,9 @@ interface ModuleState { module: string; status: ModuleStatus; features?: { shari
 **Location:** `web/src/features/docs/types/docs.types.ts`
 
 **Description:** `DocsFolder`, `DocsFolderPage`, `DocsSearchHit`, `DocsSearchResponse`, `DocsWriteResult`, `DocsIdResult`, `DocsLockGrant`, `DocsAttachmentUpload`, `DocsAttachmentConfirm`, `DocsDocumentSort`, `DocsError`, `DocsResult<T>` (`{ ok: true; data } | { ok: false; error }`), payloads, `FolderTrail`, `RootFolders`. `ApiError` in `web/src/lib/axios.ts` gains `details?`.
+
+## Share types (S-083)
+
+**Location:** `web/src/features/docs/types/docs.types.ts`
+
+**Description:** `DocsShare`, `DocsSharePage`, `DocsShareCreated` (the only place with `token`/`url`; the web uses only `url`), `DocsShareRevoked`, verbatim from `api.yaml`; `ShareExpiryDays = 7 | 15 | 30 | 90 | 180` and `CreateShareInput` (`expiresInDays`, `includeAttachments`, `note?`, `acknowledgeSecretWarning?`).

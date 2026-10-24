@@ -9,3 +9,6 @@ export { useCreateDocument } from './useCreateDocument';
 export { useSaveDocument } from './useSaveDocument';
 export { useUploadDocAttachment } from './useUploadDocAttachment';
 export { useEditSession } from './useEditSession';
+export { useDocumentShares } from './useDocumentShares';
+export { useCreateShare } from './useCreateShare';
+export { useRevokeShare } from './useRevokeShare';

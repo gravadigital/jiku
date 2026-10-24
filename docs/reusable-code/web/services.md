@@ -229,3 +229,13 @@ await updateRequirementComment(12, 7, { comment: 'texto corregido', fileIds: [3,
 **Signature:** `releaseLockKeepalive(id, sessionId): void / uploadDocAttachment(documentId, file)`
 
 **Usage:** `unwrap(await releaseLockKeepalive(...))` on the client (hooks do it).
+
+## listShares / createShare / revokeShare
+
+**Location:** `web/src/features/docs/services/sharesApi.ts`
+
+**Description:** Server Actions for shared links (`GET`/`POST /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`). `createShare` validates `expiresInDays`, computes `expiresAt` from the server clock, sends `mode: 'latest'` and omits empty keys; none of them logs the URL or token; all return `DocsResult`.
+
+**Signature:** `listShares(documentId) / createShare(documentId, input) / revokeShare(shareId)`
+
+**Usage:** `unwrap(await createShare(documentId, input))` on the client (hooks do it).
