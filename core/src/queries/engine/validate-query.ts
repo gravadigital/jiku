@@ -1,7 +1,7 @@
 import joi from 'joi';
 import { ErrorCode, Reply, failure } from '@jiku/nats-protocol';
-import { FilterableSpec, ResourceSpec } from '../types';
-import { enumValues, isRelation, resolveVariant, specFor } from './spec';
+import { CallerClass, FilterableSpec, ResourceSpec } from '../types';
+import { enumValues, isRelation, resolveForClass, resolveVariant, specFor } from './spec';
 import {
   FilterCondition,
   FilterGroup,
@@ -794,9 +794,13 @@ function parseCount(raw: unknown): { count: boolean | 'only' } | Invalid {
  * ------------------------------------------------------------------------------------------- */
 
 export function validateList(
-  resource: ResourceSpec,
-  payload: unknown
+  baseResource: ResourceSpec,
+  payload: unknown,
+  callerClass?: CallerClass
 ): Valid<ValidatedListQuery> | Invalid {
+  // LA FICHA PARA ESTA CLASE, PRIMERO (S-086): suma los incluibles que la ficha declara para
+  // `callerClass`. Sin clase —o sin entrada— es la misma ficha: falla cerrado (ADR-008).
+  const resource = resolveForClass(baseResource, callerClass);
   // Cuerpo vacío = `{}`: es lo que decodifica `bus/service.ts`, y un `list` sin palancas es una
   // consulta legítima.
   const raw = payload === undefined || payload === null ? {} : payload;
@@ -861,9 +865,12 @@ export function validateList(
 }
 
 export function validateGet(
-  resource: ResourceSpec,
-  payload: unknown
+  baseResource: ResourceSpec,
+  payload: unknown,
+  callerClass?: CallerClass
 ): Valid<ValidatedGetQuery> | Invalid {
+  // Ídem `validateList`: la ficha efectiva para la clase, antes que la variante.
+  const resource = resolveForClass(baseResource, callerClass);
   const raw = payload === undefined || payload === null ? {} : payload;
   if (!isPlainObject(raw)) {
     return invalid('La consulta espera un objeto', { field: 'payload', value: raw });

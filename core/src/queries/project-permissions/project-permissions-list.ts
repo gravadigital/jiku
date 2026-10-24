@@ -1,4 +1,4 @@
-import { Query } from '../types';
+import { CallerClass, Query } from '../types';
 import { runList } from '../engine/run';
 import { ValidatedListQuery } from '../engine/types';
 import { validateList } from '../engine/validate-query';
@@ -19,7 +19,8 @@ export type ProjectPermissionsListPayload = ValidatedListQuery;
 export const projectPermissionsList: Query<ProjectPermissionsListPayload> = {
   pattern: 'project-permissions.list',
 
-  validate: (payload: unknown) => validateList(projectPermissionsSpec, payload),
+  validate: (payload: unknown, callerClass?: CallerClass) =>
+    validateList(projectPermissionsSpec, payload, callerClass),
 
   execute: (payload, ctx) => runList(projectPermissionsSpec, payload, ctx),
 };

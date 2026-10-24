@@ -490,8 +490,9 @@ para correrlos con el stack levantado.
 ### Pendientes fuera de este REQ
 
 - **F-30 — `users.list` no expone `roles` ni `identityType`.** D-10 de jiku-docs pide hacerlos
-  incluibles solo para la clase `connector` (CA-7 de core). **No implementado**: story de
-  seguimiento.
+  incluibles solo para la clase `connector` (CA-7 de core). **Resuelto por REQ-017 (S-086):**
+  `users` declara `roles` e `identityType` en `includableByClass.connector`; para personas siguen sin
+  existir. Riesgo aceptado R-2 en `documentation/known-limitations.md`.
 - **F-31 — Enlaces del importador de HedgeDoc.** El importador reescribe enlaces a
   `{JIKU_WEB_URL}/docs/documents/{id}` y la web sirve `/docs/{id}`. NOT DOCUMENTED - needs
   verification. Story de seguimiento.

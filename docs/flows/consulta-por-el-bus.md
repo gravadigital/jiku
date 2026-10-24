@@ -5,7 +5,7 @@ type: feature
 status: Active
 created: 2026-08-24
 last_updated: 2026-10-24
-stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085]
+stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085, S-086]
 ---
 
 # Consulta por el Bus
@@ -14,7 +14,7 @@ stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085]
 **Status:** Active
 **Creado:** 2026-08-24
 **Última actualización:** 2026-10-24
-**Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085
+**Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085, S-086
 
 ## Descripción
 
@@ -94,7 +94,7 @@ el molde `list`/`get`.
 |---|---|
 | `settings.list` | **Todos.** Es un `list` sobre el motor; lo único propio es que su lista blanca de claves vive en el predicado fijo de la ficha, así que se aplica ANTES del filtro y también en el `COUNT` |
 | `requirements.tags` | Los pasos 1-5, pero **arma su propio SQL**: es un agregado que COLAPSA filas y devuelve una lista sin paginar, así que no hay keyset, ni cursor, ni presupuesto de bytes (pasos 6 y 7). Sí usa el mismo ejecutor, para que un `statement_timeout` siga siendo `query_timeout`, y el mismo recorte de la ficha de `requirements` |
-| `meta.describe` | Los pasos 1-4 y nada más: **no toca la base**. Se deriva de estructuras en memoria —las mismas fichas que validan— y es la única consulta del contrato que no depende de PostgreSQL. Tampoco pasa por el paso 5: describe el CONTRATO, no los datos, y es idéntica para todos los callers |
+| `meta.describe` | Los pasos 1-4 y nada más: **no toca la base**. Se deriva de estructuras en memoria —las mismas fichas que validan— y es la única consulta del contrato que no depende de PostgreSQL. Tampoco pasa por el paso 5: describe el CONTRATO, no los datos, es idéntica para todas las personas (internas y externas) y un conector ve además los incluibles que una ficha declara para su clase (S-086) |
 
 **El contrato del plano de consultas es [`docs/apis/core-queries.yaml`](../apis/core-queries.yaml)**,
 y `meta.describe` es su reflejo en datos: compararlos es una verificación mecánica de que el código y
@@ -204,7 +204,7 @@ sequenceDiagram
         D-->>C: failure caller_not_authorized
     else autorizado
         D->>Q: execute(payload, {caller, callerClass, db})
-        Q->>Q: validate contra listas blancas del recurso
+        Q->>Q: validate(raw, callerClass): ficha de la clase + listas blancas
         alt nombre no declarado / get con page / cursor inválido
             Q-->>C: failure invalid_fields | invalid_cursor
         else válido
@@ -325,12 +325,14 @@ Responde *"¿puede ejecutar este método?"*.
 - **Sin fila, con `roles: []` o con roles desconocidos → `unknown_caller`, nunca una lista vacía.**
 - **La api no es excepción en esta segunda compuerta.** Un caller exento de 3.3 que no tenga fila
   recibe `unknown_caller`.
-- La clase se resuelve **una sola vez** y viaja en `QueryContext.callerClass`.
+- La clase se resuelve **una sola vez** y viaja en `QueryContext.callerClass` y como segundo argumento de `validate`
+  (`query.validate(raw, callerClass)`, S-086): además de decidir el recorte de filas del Paso 5,
+  decide qué incluibles existen (Paso 4).
 
 **Ref:** `core/src/authorize-caller.ts` (`readCallerRoles` / `authorizeWithRoles`),
 `core/src/caller-class.ts` (`resolveCallerClass` — subió de `queries/` a `src/` en S-030, porque
 desde esa story el plano de ESCRITURA resuelve la misma clase con la misma precedencia),
-`core/src/queries/dispatcher.ts`,
+`core/src/queries/dispatcher.ts`, `core/src/queries/types.ts` (`Query.validate`),
 `docs/db-schemas/jiku.md` (tabla `users`)
 
 ---
@@ -342,7 +344,7 @@ desde esa story el plano de ESCRITURA resuelve la misma clase con la misma prece
 **Tipo:** Interno
 
 Cada uno de los **16 recursos** declara, **como dato**, cuatro listas blancas más su default de orden
-y su recorte externo: `base`, `includable` (con `kind: field|relation` y el tope de las colecciones),
+y su recorte externo (y, opcionalmente, incluibles por clase): `base`, `includable` (con `kind: field|relation` y el tope de las colecciones),
 `filterable`, `sortable`.
 
 - **Un nombre no declarado en `filter`, `sort`, `fields` o `include` responde `invalid_fields`**, con
@@ -358,10 +360,23 @@ y su recorte externo: `base`, `includable` (con `kind: field|relation` y el tope
   verifica `h` contra el `filter`+`sort` **de esta request**. No coincide, malformado o de otra `v` →
   `invalid_cursor`. **Cambiar solo el `limit` sí es válido.**
 
+**Incluibles por clase (REQ-017, S-086).** Una ficha puede declarar `includableByClass`;
+`resolveForClass(resource, callerClass)` los suma **antes que `resolveVariant`**, tanto en la
+validación como en la ejecución (`runList`/`runGet`), con la misma clase que resolvió el despachador.
+
+- Un nombre declarado solo para otra clase responde `invalid_fields` **idéntico** a uno inexistente:
+  `errorDetails.allowed` no lo lista.
+- **Solo incluibles:** nunca filtro, orden ni `q`.
+- Hoy solo `users`: `roles` e `identityType` para `connector`.
+  `{ "filter": { "id": ["<sub>"] }, "include": ["roles", "identityType"] }` responde, para un
+  conector, `allowed = ["email","person","roles","identityType"]` ante un nombre inválido; para una
+  persona, `allowed = ["email","person"]`.
+
 **La misma estructura que valida es la que `meta.describe` proyecta** (S-028): la descripción del
 contrato **no puede desactualizarse** porque no hay una segunda copia.
 
-**Ref:** `docs/apis/core-queries.yaml`, `core/src/queries/<recurso>/`
+**Ref:** `docs/apis/core-queries.yaml`, `core/src/queries/<recurso>/`,
+`core/src/queries/engine/spec.ts` (`resolveForClass`)
 
 ---
 
@@ -401,7 +416,7 @@ directamente en el SQL, **antes** del filtro del caller y **combinado con AND**:
 | `project-permissions` | solo filas de proyectos permitidos |
 | `requirements.tags` | tags de proyectos permitidos |
 | `worked-times` · `unworked-times` · `week-assigned-times` · `settings` | **sin acceso** → `items: []` |
-| `meta.describe` | igual para todos: describe el **contrato**, no los datos |
+| `meta.describe` | igual para todas las personas; el conector suma los incluibles de su clase. Describe el **contrato**, no los datos |
 
 > **Este paso recorta FILAS, no campos** (REQ-011, decisión D-3). `comments` ganó `editedAt` y
 > `editedBy` en su conjunto `base` (Paso 4, 9 → 11 campos), y ningún `externalScope` de esta
@@ -409,7 +424,9 @@ directamente en el SQL, **antes** del filtro del caller y **combinado con AND**:
 > quitadas. Recortar esos dos campos para el modo externo **no es responsabilidad de este
 > plano** — hoy la omisión real ocurre en la proyección campo a campo de
 > `GET /opus/requirements/{reqid}` en la `api`, que no serializa el modelo. Si las lecturas
-> migran a este motor, alguien tiene que agregar ese recorte acá.
+> migran a este motor, alguien tiene que agregar ese recorte acá. Los incluibles por clase **no** son un recorte de este
+> paso: se resuelven en el Paso 4 como nombres que existen o no para la clase, y ninguna fila pedida
+> pierde columnas.
 
 **Ref:** `core/src/queries/engine/build-sql.ts` (`externalScopeSql`),
 `core/src/queries/types.ts` (`ExternalScopeSpec`), `docs/db-schemas/jiku.md`
@@ -586,9 +603,11 @@ campos que el contrato declara, recortada según su clase, y puede recorrer la c
 - **El modo interno no recorta filas, y es una decisión explícita de la v1.** Un caller con rol `user`
   que publique directo al bus ve horas, ausencias, comentarios internos y todos los proyectos. La
   autorización fina por rol (`admin` vs `user`) sigue siendo de la api sobre HTTP.
-- **`internal-app` tiene `queries: []` en `ROLE_METHODS`.** Un caller con ese rol que **no** sea el
-  publicador confiable es rechazado en el Paso 3.3 y **nunca llega a la clase conector**. Habilitar un
-  segundo conector es un cambio deliberado en **dos** archivos —ese mapa y la plantilla del callout—.
+- **`internal-app` tiene `queries: ALL` en `ROLE_METHODS`** (`core/src/authorize-caller.ts`). Por eso
+  **cualquier** identidad con ese rol (la api, jiku-docs y cualquier conector futuro) llega a la clase
+  `connector`, no recibe recorte de filas y, desde S-086, ve `roles` e `identityType` de todos los
+  usuarios (R-2, [known-limitations](../../documentation/known-limitations.md)). Dar ese rol es un
+  cambio de seguridad en el proveedor de identidad y en la plantilla del callout.
 - **Ninguna plantilla del auth-callout cambió con REQ-006:** `person.yaml` y `api.yaml` publican sobre
   `jiku-queries.v1.>` desde S-011 y el comodín cubre los 23 métodos.
 - **Flujos relacionados:** `autenticacion-y-entrada` (dónde se resuelve la identidad),

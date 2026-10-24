@@ -1,4 +1,4 @@
-import { Query } from '../types';
+import { CallerClass, Query } from '../types';
 import { runList } from '../engine/run';
 import { ValidatedListQuery } from '../engine/types';
 import { validateList } from '../engine/validate-query';
@@ -21,7 +21,8 @@ export type CommentsListPayload = ValidatedListQuery;
 export const commentsList: Query<CommentsListPayload> = {
   pattern: 'comments.list',
 
-  validate: (payload: unknown) => validateList(commentsSpec, payload),
+  validate: (payload: unknown, callerClass?: CallerClass) =>
+    validateList(commentsSpec, payload, callerClass),
 
   execute: (payload, ctx) => runList(commentsSpec, payload, ctx),
 };

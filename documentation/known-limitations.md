@@ -186,6 +186,11 @@ design: Jiku reads and writes documentation over the bus and keeps none of it.
 - **Every connector can read all documentation.** The `internal-app` role gained access to
   jiku-docs, which treats it as a trusted service. Granting that role to a new connector grants
   this too.
+- **Every connector can read everyone's roles.** Core gives any caller with the `internal-app`
+  role the `roles` and `identityType` of every user through `users.list`, because jiku-docs needs
+  them to classify who calls it. That holds **whether or not jiku-docs is installed**: granting
+  `internal-app` to a new connector grants this too. People (internal and external) cannot
+  request them.
 
 ## The `bus-observer` role reads everything
 

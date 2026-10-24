@@ -9,9 +9,12 @@ import {
   enumLabeled,
   enumValues,
   isRelation,
+  resolveForClass,
   resolveVariant,
   specFor,
 } from '../../src/queries/engine/spec';
+import { usersSpec } from '../../src/queries/users/users-spec';
+import { validateList } from '../../src/queries/engine/validate-query';
 import { activitySpec } from '../../src/queries/activity/activity-spec';
 import { attachmentsSpec } from '../../src/queries/attachments/attachments-spec';
 import { filesSpec } from '../../src/queries/files/files-spec';
@@ -589,5 +592,59 @@ describe('queries/spec — las etiquetas de enum en la ficha (S-028, Task 1)', (
   it('un enum ausente proyecta la lista vacía en las dos direcciones', () => {
     enumValues(undefined).should.deepEqual([]);
     enumLabeled(undefined).should.deepEqual([]);
+  });
+});
+
+describe('queries/engine/spec — resolveForClass (S-086)', () => {
+  it('TS-33 · es la identidad para una ficha sin `includableByClass`', () => {
+    resolveForClass(tasksSpec, 'connector').should.equal(tasksSpec);
+  });
+
+  it('TS-34 · es la identidad para una clase sin entrada', () => {
+    resolveForClass(usersSpec, 'internal').should.equal(usersSpec);
+    resolveForClass(usersSpec, 'external').should.equal(usersSpec);
+  });
+
+  it('TS-35 · la clase ausente falla cerrado', () => {
+    resolveForClass(usersSpec, undefined).should.equal(usersSpec);
+    resolveForClass(usersSpec).should.equal(usersSpec);
+  });
+
+  it('TS-36 · para el conector deriva los arrays, no los copia', () => {
+    const s = resolveForClass(usersSpec, 'connector');
+
+    s.includableNames.should.deepEqual(['email', 'person', 'roles', 'identityType']);
+    s.includableNames.should.deepEqual(Object.keys(s.includable));
+    s.fieldNames.should.deepEqual([...Object.keys(s.base), ...Object.keys(s.includable)]);
+    s.filterableNames.should.equal(usersSpec.filterableNames);
+    s.sortableNames.should.equal(usersSpec.sortableNames);
+    s.includable.roles.should.deepEqual({ kind: 'field', column: 'roles' });
+    s.includable.identityType.should.deepEqual({ kind: 'field', column: 'identity_type' });
+  });
+
+  it('TS-37 · no muta la ficha original', () => {
+    resolveForClass(usersSpec, 'connector');
+
+    usersSpec.includableNames.should.deepEqual(['email', 'person']);
+    usersSpec.includable.should.not.have.property('roles');
+  });
+
+  it('TS-38 · `validateList` sin clase falla cerrado', () => {
+    const result: any = validateList(usersSpec, { include: ['roles'] });
+
+    result.error.errorCode.should.equal('invalid_fields');
+    result.error.errorDetails.field.should.equal('include');
+  });
+
+  it('TS-39 · `validateList` con clase conector acepta', () => {
+    const result: any = validateList(usersSpec, { include: ['roles', 'identityType'] }, 'connector');
+
+    result.should.have.property('value');
+    JSON.stringify(result.value).should.containEql('roles');
+    JSON.stringify(result.value).should.containEql('identityType');
+  });
+
+  it('TS-40 · `validateGet` reenvía la clase sin regresión', () => {
+    validateGet(tasksSpec, { id: 1 }, 'connector').should.deepEqual(validateGet(tasksSpec, { id: 1 }));
   });
 });

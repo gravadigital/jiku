@@ -1,4 +1,4 @@
-import { Query } from '../types';
+import { CallerClass, Query } from '../types';
 import { runGet } from '../engine/run';
 import { ValidatedGetQuery } from '../engine/types';
 import { validateGet } from '../engine/validate-query';
@@ -26,7 +26,8 @@ export type TasksGetPayload = ValidatedGetQuery;
 export const tasksGet: Query<TasksGetPayload> = {
   pattern: 'tasks.get',
 
-  validate: (payload: unknown) => validateGet(tasksSpec, payload),
+  validate: (payload: unknown, callerClass?: CallerClass) =>
+    validateGet(tasksSpec, payload, callerClass),
 
   execute: (payload, ctx) => runGet(tasksSpec, payload, ctx),
 };

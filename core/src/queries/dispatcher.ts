@@ -151,7 +151,7 @@ export class QueryDispatcher {
       // LA VALIDACIÓN VA ANTES DE `execute` Y SIN TOCAR LA BASE (convención `validation`), que es
       // el mismo criterio por el que en el plano de comandos corre antes de abrir la transacción:
       // un payload inválido no puede costar una conexión del pool de lectura.
-      const validated = spanSync('validate', () => query.validate(raw));
+      const validated = spanSync('validate', () => query.validate(raw, callerClass));
       if ('error' in validated) {
         return validated.error;
       }

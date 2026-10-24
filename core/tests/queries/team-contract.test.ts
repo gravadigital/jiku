@@ -118,8 +118,8 @@ describe('queries/S-026 — las transversales de los seis recursos', () => {
   });
 
   it('CA-7 · `roles` e `identityType` no aparecen en NINGUNA lista de `users`', () => {
-    // La única protección es NO DECLARARLOS (ADR-008): no hay código que los excluya, así que la
-    // única forma de romper CA-7 es escribirlos.
+    // Para las personas la protección es NO DECLARARLOS en las listas comunes (ADR-008): existen solo
+    // en `includableByClass.connector` (S-086), que `resolveForClass` suma únicamente a esa clase.
     for (const forbidden of ['roles', 'identityType']) {
       [
         ...usersSpec.fieldNames,
@@ -128,5 +128,6 @@ describe('queries/S-026 — las transversales de los seis recursos', () => {
         ...usersSpec.includableNames,
       ].should.not.containEql(forbidden);
     }
+    Object.keys(usersSpec.includableByClass!).should.deepEqual(['connector']);
   });
 });

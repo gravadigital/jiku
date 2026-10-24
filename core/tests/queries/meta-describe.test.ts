@@ -2,6 +2,7 @@ import 'mocha';
 import 'should';
 import sinon from 'sinon';
 import { readFileSync } from 'fs';
+import { User } from '@jiku/models';
 import { join } from 'path';
 import { readDb } from '../../src/models/read';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../../src/queries/engine/validate-query';
@@ -298,6 +299,89 @@ describe('queries/meta.describe — la descripción derivada (S-028, Task 4)', (
     JSON.stringify(external).should.equal(JSON.stringify(internal));
   });
 
+  describe('por clase (S-086)', () => {
+    const DOCS = 'sub-q-docs-users';
+
+    before(async () => {
+      await User.create({
+        id: DOCS,
+        name: 'jiku-docs',
+        username: 'q-docs-users',
+        email: null,
+        roles: ['internal-app', 'docs'],
+        identityType: 'service',
+      } as any);
+    });
+
+    after(async () => {
+      await User.destroy({ where: { id: DOCS } });
+    });
+
+    const usersFor = async (caller: string): Promise<any> =>
+      describeOf(await dispatchQuery('meta.describe', { resources: ['users'] }, caller)).users;
+
+    it('TS-25 · el conector ve los dos incluibles en `users`', async () => {
+      const users = await usersFor(DOCS);
+
+      Object.keys(users.includable).should.deepEqual(['email', 'person', 'roles', 'identityType']);
+      users.includable.roles.should.deepEqual({ kind: 'field' });
+      users.includable.identityType.should.deepEqual({ kind: 'field' });
+    });
+
+    it('TS-26 · en el conector, `filterable`, `sortable` y `enums` no cambian', async () => {
+      const users = await usersFor(DOCS);
+
+      Object.keys(users.filterable).should.deepEqual(['id', 'username', 'email', 'q']);
+      users.sortable.should.deepEqual(['name', 'username']);
+      users.enums.should.deepEqual({});
+    });
+
+    it('TS-27 · la interna no ve los incluibles en ninguna lista', async () => {
+      const users = await usersFor(Q_INTERNAL);
+
+      Object.keys(users.includable).should.deepEqual(['email', 'person']);
+      JSON.stringify(users).should.not.containEql('roles');
+      JSON.stringify(users).should.not.containEql('identityType');
+    });
+
+    it('TS-28 · la externa, ídem', async () => {
+      const users = await usersFor(Q_EXTERNAL);
+
+      Object.keys(users.includable).should.deepEqual(['email', 'person']);
+      JSON.stringify(users).should.not.containEql('roles');
+      JSON.stringify(users).should.not.containEql('identityType');
+    });
+
+    it('TS-30 · el conector difiere SOLO en esos dos incluibles de `users`', async () => {
+      const connector = JSON.parse(JSON.stringify(await dispatchQuery('meta.describe', {}, DOCS)));
+      const internal = await dispatchQuery('meta.describe', {}, Q_INTERNAL);
+
+      delete connector.data.resources.users.includable.roles;
+      delete connector.data.resources.users.includable.identityType;
+
+      JSON.stringify(connector).should.equal(JSON.stringify(internal));
+    });
+
+    it('TS-31 · la descripción del conector no filtra la columna', async () => {
+      JSON.stringify(await dispatchQuery('meta.describe', {}, DOCS)).should.not.containEql(
+        'identity_type'
+      );
+    });
+
+    it('TS-32 · lo descripto para el conector se puede pedir', async () => {
+      const users = await usersFor(DOCS);
+
+      for (const name of Object.keys(users.includable)) {
+        const reply: any = await dispatchQuery(
+          'users.list',
+          { filter: { id: [Q_INTERNAL] }, include: [name] },
+          DOCS
+        );
+        reply.status.should.equal('success', `${name}: ${JSON.stringify(reply)}`);
+      }
+    });
+  });
+
   it('TS-71 · CA-14: describe `settings` aunque el externo no pueda leerlo', async () => {
     const resources = describeOf(
       await dispatchQuery('meta.describe', { resources: ['settings'] }, Q_EXTERNAL)
@@ -339,6 +423,7 @@ describe('queries/meta.describe — la descripción derivada (S-028, Task 4)', (
       'hours_per_day',
       'first_name',
       'created_at',
+      'identity_type',
     ]) {
       serialized.should.not.containEql(name);
     }
