@@ -1967,7 +1967,7 @@
             "default",
             "terminal"
           ],
-          "annotation": "nunca ejecuta HTML ni scripts; enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe a /api/docs/attachments/{id} de opus-web, con la sesión del cliente · los títulos del markdown bajan un nivel [REQ-016 Escenario F]"
+          "annotation": "nunca ejecuta HTML ni scripts; enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe a /api/docs/documents/{documentId}/attachments/{id} de opus-web, con el id del documento abierto y la sesión del cliente · un enlace o imagen al adjunto de otro documento se renderiza pero no abre (404, imagen rota) · los títulos del markdown bajan un nivel [REQ-016 Escenario F, REQ-017 DD-2, CA-11, R-3]"
         },
         {
           "name": "titulo-adjuntos",
@@ -1997,7 +1997,7 @@
             "default",
             "terminal"
           ],
-          "annotation": "un enlace por adjunto (icono download), abre en pestaña nueva vía /api/docs/attachments/{id} → 302"
+          "annotation": "un enlace por adjunto (icono download), abre en pestaña nueva vía /api/docs/documents/{documentId}/attachments/{id} → 302, con el documentId de cada adjunto (o el del documento abierto si faltara) [REQ-017 DD-2]"
         },
         {
           "name": "indicador-carga",

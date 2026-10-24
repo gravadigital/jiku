@@ -291,6 +291,9 @@ público vinculado** [REQ-016 RF-24, CA-34, CA-35].
   Probá de nuevo en unos minutos."`; el visor ofrece "Reintentar".
 - **Documento interno o de otro proyecto por URL directa** — `"Este documento no existe o no está
   compartido con vos."`: el portal no revela que existe.
+- **Adjunto ajeno al documento** — Si el contenido enlaza el adjunto de **otro** documento (o el de
+  uno interno, conociendo su id), el enlace no abre: el proxy responde 404 y no se genera ninguna
+  descarga. Los adjuntos del propio documento se abren como siempre [REQ-017 CA-8, CA-9, R-3].
 
 ### Estado final
 

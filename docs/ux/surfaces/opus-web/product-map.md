@@ -111,8 +111,16 @@ el gap bloqueante de navegación en mobile.
 > `"Los documentos no están disponibles en este momento…"`. Lo que ve el cliente lo recorta la api a
 > `visibility: public` **por superficie**, igual que los requisitos desde 2026-09-06: un rol interno
 > ve en el portal exactamente los mismos documentos que el cliente [REQ-016 DD-3, CA-34]. **Una ruta
-> sin pantalla:** `/api/docs/attachments/[id]`, el proxy de adjuntos con la sesión del cliente.
+> sin pantalla:** `/api/docs/documents/[documentId]/attachments/[id]`, el proxy de adjuntos con la
+> sesión del cliente (la ruta la fija REQ-017; nació como `/api/docs/attachments/[id]`).
 > **Fuera de esta superficie:** edición, búsqueda y compartir [REQ-016 §Fuera de Alcance].
+
+> **REQ-017 no agrega ni quita pantallas ni overlays.** Cierra la brecha F-13: el proxy de adjuntos
+> pasa a pedir **el adjunto bajo su documento** (`/api/docs/documents/[documentId]/attachments/[id]`)
+> y la api solo lo sirve si el documento es `public` y el adjunto le pertenece, para todo rol. Para el
+> cliente no cambia nada visible en `documento` (#6); el único efecto observable es que **un enlace al
+> adjunto de otro documento deja de abrir** (404 del proxy), y se acepta sin tratamiento visible
+> [REQ-017 RF-7, RF-8, DD-2, R-3].
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de

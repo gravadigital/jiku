@@ -9,7 +9,7 @@ audiences:
   - cliente
 fidelity: mid
 status: diseñada
-version: "1.0"
+version: "1.1"
 date: 2026-10-24
 ---
 
@@ -33,7 +33,7 @@ date: 2026-10-24
 
 **Salidas user-driven:**
 - A `tablero-requisitos` del proyecto · `boton-volver` o el nivel de proyecto del breadcrumb
-- Descarga de un adjunto · click en un ítem de `lista-adjuntos` (`/api/docs/attachments/{id}` de opus-web → 302)
+- Descarga de un adjunto · click en un ítem de `lista-adjuntos` (`/api/docs/documents/{documentId}/attachments/{id}` de opus-web → 302) [REQ-017 DD-2]
 
 **Salidas automáticas:**
 - Ninguna. Con el módulo `not_installed` la ruta responde 404.
@@ -126,7 +126,7 @@ date: 2026-10-24
 - Texto/label: el markdown del documento, renderizado; el frontmatter no se muestra
 - Icono: nada
 - Asset: imágenes a ancho máximo de la columna
-- Annotation: **nunca ejecuta HTML ni scripts**; los enlaces solo pueden ser `http(s)`, `mailto` o adjuntos. Todo enlace o imagen cuyo path sea `/docs/attachments/{id}` se reescribe a `/api/docs/attachments/{id}` de opus-web, que lo resuelve con la sesión del cliente [REQ-016 Escenario F]. Los títulos del markdown se desplazan un nivel para no competir con el h1
+- Annotation: **nunca ejecuta HTML ni scripts**; los enlaces solo pueden ser `http(s)`, `mailto` o adjuntos. Todo enlace o imagen cuyo path sea `/docs/attachments/{id}` se reescribe a `/api/docs/documents/{documentId}/attachments/{id}` de opus-web —con el id **del documento abierto**—, que lo resuelve con la sesión del cliente [REQ-016 Escenario F, REQ-017 DD-2, CA-11]. Un enlace o imagen que apunta al adjunto de **otro** documento se renderiza igual, pero no abre: el proxy responde 404 (enlace que no descarga, imagen rota) [REQ-017 R-3]. Los títulos del markdown se desplazan un nivel para no competir con el h1
 
 ### titulo-adjuntos
 - Texto/label: `"Adjuntos"`
@@ -138,7 +138,7 @@ date: 2026-10-24
 - Texto/label: un enlace por adjunto con su nombre de archivo
 - Icono: download
 - Asset: nada
-- Annotation: abre en pestaña nueva
+- Annotation: abre en pestaña nueva. El `href` lleva el documento y el adjunto: `/api/docs/documents/{documentId}/attachments/{id}`, con el `documentId` que trae cada adjunto (o, si faltara, el del documento abierto) [REQ-017 DD-2]
 
 ### indicador-carga
 - Texto/label: `"Cargando documento..."`
@@ -217,7 +217,7 @@ date: 2026-10-24
 
 **Eventos:**
 - boton-volver / breadcrumb (proyecto o "Documentación") · on click → navega a `/projects/{projectId}/requirements`
-- adjunto de lista-adjuntos o enlace de adjunto en el contenido · on click → abre `/api/docs/attachments/{id}` en pestaña nueva
+- adjunto de lista-adjuntos o enlace de adjunto en el contenido · on click → abre `/api/docs/documents/{documentId}/attachments/{id}` en pestaña nueva (302 a la descarga; 404 si el adjunto no pertenece a este documento público) [REQ-017 DD-2, CA-8, CA-9]
 - boton-reintentar · on click → vuelve a pedir el documento (y el estado del módulo)
 
 **Validaciones:**
@@ -246,6 +246,19 @@ date: 2026-10-24
 
 **Alternativas descartadas:**
 - Listado de todos los documentos del proyecto en una pantalla aparte: el cliente tiene pocos documentos por proyecto y la sección del tablero ya los muestra.
+
+**Preguntas abiertas:**
+- Ninguna.
+
+### REQ-017 — Roles para conectores y cierre de brechas de docs (2026-10-24)
+
+**Decisiones tomadas:**
+- **El adjunto se pide bajo su documento.** El proxy pasa de `/api/docs/attachments/{id}` a `/api/docs/documents/{documentId}/attachments/{id}`, y la api verifica que el documento sea `public` y que el adjunto le pertenezca antes de generar la descarga. Cierra la brecha F-13: un rol interno que conocía el id de un adjunto de un documento `internal` podía bajarlo por el portal [REQ-017 RF-7, RF-8, CA-8, DD-2]. **Para el cliente no cambia nada visible**: los adjuntos del propio documento se ven y se descargan como antes [CA-9, CA-11].
+- **Un enlace al adjunto de otro documento deja de abrir, y no se le da tratamiento visible.** Es el único efecto observable del cambio: el enlace sigue en el texto y al abrirlo el proxy responde 404 (en una imagen, se ve rota). Se acepta porque es el comportamiento correcto para una superficie compartida con el cliente, y porque es un caso raro: el editor de la web inserta los adjuntos del documento que se está editando [REQ-017 DD-2, R-3]. Queda registrado en `known-limitations.md`.
+- **Sin cambios de layout, bloques ni estados, en ningún viewport.** Es un cambio de URL y de autorización; mobile y desktop quedan igual.
+
+**Alternativas descartadas:**
+- Detectar en el visor los enlaces a adjuntos que no están en la lista del documento y mostrarlos como texto sin enlace (o con un aviso "Adjunto no disponible"): agrega lógica al renderizador de markdown para un caso marginal que el REQ acepta como límite conocido. Si aparece en la práctica, se diseña aparte.
 
 **Preguntas abiertas:**
 - Ninguna.

@@ -314,7 +314,8 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
 | Documento `public` vinculado a su proyecto o a un requisito público | ✅ Sí — la última versión |
 | Documento `internal` | ❌ Nunca — la api recorta a `public` **por superficie**, para todo rol [DD-3] |
 | Autor, versiones, reservas de edición | ❌ No — el portal muestra título, fecha, contenido y adjuntos |
-| Adjuntos del documento | ✅ Sí, por el proxy de opus-web con la sesión del cliente |
+| Adjuntos del documento | ✅ Sí, por el proxy de opus-web con la sesión del cliente, pedidos bajo su documento [REQ-017] |
+| Enlace al adjunto de **otro** documento | ❌ No — en la web abre; en el portal el proxy responde 404, aunque el otro documento también sea `public` [REQ-017 DD-2, R-3] |
 
 ### La discontinuidad
 
