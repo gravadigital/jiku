@@ -1,11 +1,11 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — los 74 endpoints que sirve.
+# Contrato HTTP de `api` — los 86 endpoints que sirve.
 #
 # REQ-016 / S-077 — `x-jiku-module`
 #   Una operación marcada `x-jiku-module: docs` depende del módulo opcional `docs` (jiku-docs):
 #   su disponibilidad la dicta el registro `JIKU_MODULES` del bus. Las dos rutas `/modules` solo
-#   REPORTAN ese estado; las rutas de documentación (S-078 en adelante, `x-jiku-module: docs`) responden además
+#   REPORTAN ese estado; las rutas de documentación (S-078 en adelante, `x-jiku-module: docs`; las escrituras, S-079) responden además
 #   `ModuleNotInstalled` (404) / `ModuleUnavailable` (503) según `requireModule`.
 #
 # EXTRAÍDO DEL CÓDIGO
@@ -20,10 +20,10 @@ openapi: 3.0.3
 #   compartido (`@jiku/models`), documentadas en docs/db-schemas/jiku.md.
 #
 # AUTENTICACIÓN: SE APLICA GLOBAL, NO POR RUTA
-#   `api/app.ts:32-35` instala `validateToken` para TODO path excepto las exenciones de
+#   `api/app.ts` instala `validateToken` para TODO path excepto las exenciones de
 #   `api/config/public.ts`, armadas como regex de lookahead negativo. Es deny-by-default. Por eso
 #   `security` se declara a nivel raíz y **no se sobreescribe en ninguna operación**: desde REQ-002
-#   la lista de exenciones está vacía en los cuatro métodos. El mecanismo se conserva —agregar una
+#   la lista de exenciones está vacía en los cinco métodos (`put` se suma en REQ-016 / H-3: antes el único `PUT` declaraba `validateToken` en su cadena). El mecanismo se conserva —agregar una
 #   ruta pública sigue siendo un cambio de una línea en `api/config/public.ts`— pero ninguna ruta lo
 #   usa, así que no queda una sola operación con `security: []`.
 #
@@ -2114,7 +2114,7 @@ paths:
         '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   # ==========================================================================
-  # docs — módulo de documentación (jiku-docs, REQ-016 / S-078)
+  # docs — módulo de documentación (jiku-docs, REQ-016 / S-078, S-079)
   # ==========================================================================
 
   /docs/documents:
@@ -2152,6 +2152,44 @@ paths:
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+    post:
+      tags: [docs]
+      summary: Crea un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.new` de jiku-docs en nombre de la persona (REQ-016, ruta 8). La api fija `via: human` (DD-9), calcula
+        `checksum = "sha256:" + hex(sha256(utf8(content)))` y, si el cliente no manda `id`, genera el ULID (DD-8).
+        Reenviar el mismo `id` tras un 504 es seguro (`already_exists`); **un alta sin `id` no es idempotente**: la api genera uno nuevo por pedido.
+        `content` inline de hasta 256 KiB (el body de esta ruta admite hasta 768 KiB de JSON; más allá, 413). `contentUploadId`, `via` y `checksum` no se aceptan (400). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [folderId, fileName, content]
+              properties:
+                id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                fileName: { type: string, minLength: 1, description: "Archivo `.md` de hasta 200 caracteres, sin `/` ni `\\`: lo valida jiku-docs (`file_name_invalid`)" }
+                content: { type: string, description: "Markdown, hasta 256 KiB (`content_too_large`)" }
+                message: { type: string, minLength: 1, description: "Mensaje de la versión (máximo 500, lo valida jiku-docs)" }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsWriteResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
 
   /docs/documents/{id}:
     get:
@@ -2180,6 +2218,68 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ModuleForbidden' }
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+    put:
+      tags: [docs]
+      summary: Edita un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.update` (REQ-016, ruta 9, CA-17, CA-18). La api fija `via: human` y calcula el `checksum` (DD-8, DD-9).
+        `version_conflict` responde 409 con `details.currentVersion`; `document_locked`, 409 con `details.holder`, `details.via` y `details.expiresAt`.
+        La autenticación es la global de `app.ts` (H-3): un `PUT` sin token es 401. El body admite hasta 768 KiB de JSON. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [baseVersion, content]
+              properties:
+                baseVersion: { type: integer, minimum: 1 }
+                content: { type: string }
+                sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                message: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsWriteResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+    delete:
+      tags: [docs]
+      summary: Borra un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.delete` con `{ baseVersion }` (REQ-016, ruta 11). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: baseVersion, in: query, required: true, description: "Versión sobre la que se borra", schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsIdResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
@@ -2343,6 +2443,307 @@ paths:
               description: '`downloadUrl` prefirmada'
             X-Content-Type-Options:
               schema: { type: string, enum: [nosniff] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/move:
+    post:
+      tags: [docs]
+      summary: Mueve o renombra un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.move` (REQ-016, ruta 10). Al menos uno de `folderId` / `fileName`. `DocumentsMove` no declara `via`: no se manda. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [baseVersion]
+              properties:
+                baseVersion: { type: integer, minimum: 1 }
+                folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                fileName: { type: string, minLength: 1 }
+                sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsWriteResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/restore:
+    post:
+      tags: [docs]
+      summary: Restaura una versión
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.restore` (REQ-016, ruta 12): la versión `fromVersion` pasa a ser una versión nueva. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [fromVersion, baseVersion]
+              properties:
+                fromVersion: { type: integer, minimum: 1 }
+                baseVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsWriteResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/lock:
+    post:
+      tags: [docs]
+      summary: Toma o renueva el lock de edición
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.lock` con `via: human` (REQ-016, ruta 13, CA-S8). Idempotente: repetir con el mismo `sessionId` renueva el lock y devuelve el `expiresAt` nuevo.
+        `document_locked` (409) trae `details.holder`, `details.via` y `details.expiresAt`. El `sessionId` lo genera la web (DD-8). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId]
+              properties:
+                sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                ttlSeconds: { type: integer, minimum: 30, maximum: 300, description: "Default 120 en jiku-docs" }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsLock' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/unlock:
+    post:
+      tags: [docs]
+      summary: Libera el lock de edición
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.unlock` (REQ-016, ruta 14). `force` no se expone (400). Es la ruta que llama el BFF con `keepalive` de la web. `lock_not_held` responde 409. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId]
+              properties:
+                sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsIdResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/attachments:
+    post:
+      tags: [docs]
+      summary: Pide la subida de un adjunto
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `attachments.request-upload` (REQ-016, ruta 15, CA-19). El `checksum` del binario lo calcula quien tiene el archivo (el navegador) y se manda tal cual; el `id` lo genera la api si falta (DD-8).
+        `uploadUrl` nunca se loguea. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [documentId, fileName, mimeType, fileSize, checksum]
+              properties:
+                id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                documentId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                fileName: { type: string, minLength: 1 }
+                mimeType: { type: string, minLength: 1 }
+                fileSize: { type: integer, minimum: 1 }
+                checksum: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsAttachmentUpload' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/attachments/{id}/confirm:
+    post:
+      tags: [docs]
+      summary: Confirma la subida de un adjunto
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `attachments.{id}.confirm` (REQ-016, ruta 16). Sin cuerpo (o `{}`). `checksum_mismatch` y `upload_not_found` responden 400. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del adjunto (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsAttachmentConfirm' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/shares:
+    get:
+      tags: [docs]
+      summary: Lista los links compartidos de un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Consulta `shares.list` con `filter: { documentId, status? }` y `sort: ['-createdAt']` (REQ-016, ruta 18). Nunca incluye el token (CA-31). Funciona sin `JIKU_PUBLIC_URL`. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: status, in: query, schema: { type: string, enum: [active, revoked, expired] } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsSharePage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+    post:
+      tags: [docs]
+      summary: Crea un link compartido
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `shares.new` (REQ-016, ruta 19, CA-S9). Responde 404 `sharing_not_configured` si la api no tiene `JIKU_PUBLIC_URL` (DD-14); el chequeo va después de validar el `id`. El `token` y la `url` se devuelven **solo acá** y no se loguean.
+        `secret_warning_not_acknowledged` (400): reenviar con `acknowledgeSecretWarning: true`. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mode, expiresAt]
+              properties:
+                id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+                mode: { type: string, enum: [latest, pinned] }
+                version: { type: integer, minimum: 1, description: "Obligatoria con `pinned` (la valida jiku-docs)" }
+                expiresAt: { type: string, format: date-time, description: "Futuro y como máximo 180 días (`share_expiry_invalid`)" }
+                includeAttachments: { type: boolean }
+                note: { type: string, minLength: 1 }
+                acknowledgeSecretWarning: { type: boolean }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsShareCreated' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/shares/{id}:
+    delete:
+      tags: [docs]
+      summary: Revoca un link compartido
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `shares.{id}.revoke` (REQ-016, ruta 20). Funciona sin `JIKU_PUBLIC_URL`. Un `id` mal formado responde 404 `share_not_found` sin llamar al bus. La api no autoriza: jiku-docs exige `manage` o ser el creador del link.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del link (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsShareRevoked' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ModuleForbidden' }
         '404': { $ref: '#/components/responses/ModuleNotFound' }
@@ -3178,9 +3579,11 @@ components:
     ModuleGatewayTimeout:
       description: |
         Una consulta o comando a jiku-docs no respondió a tiempo: `gateway_timeout` si no hubo reply
-        dentro de `NATS_QUERY_TIMEOUT_MS` (10 s para consultas; 5 s para el comando de descarga), o
-        `query_timeout` si jiku-docs lo informó. Las rutas de este módulo son de **lectura**, así que
-        reintentar es seguro.
+        dentro de `NATS_QUERY_TIMEOUT_MS` (10 s para consultas) o `NATS_REQUEST_TIMEOUT_MS` (5 s para
+        comandos), o `query_timeout` si jiku-docs lo informó. En una **escritura** un 504 significa
+        "pudo haberse aplicado": reintentar es seguro con el mismo `baseVersion`, `sessionId` o `id`
+        (jiku-docs responde `version_conflict` / `already_exists`), y **un alta sin `id` del cliente no es
+        idempotente** (la api genera un `id` nuevo por pedido).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ModuleError' }
@@ -3192,7 +3595,9 @@ components:
     ModuleBadRequest:
       description: |
         Validación de Joi (`invalid_fields`, primer error, incluye un parámetro no declarado) o
-        entrada rechazada por jiku-docs (`invalid_cursor`, `semantic_search_not_configured`).
+        entrada rechazada por jiku-docs (`invalid_cursor`, `semantic_search_not_configured`). Las reglas
+        de dominio de las escrituras las valida jiku-docs y su código llega sin traducir
+        (`file_name_invalid`, `content_too_large`, `checksum_mismatch`, `secret_warning_not_acknowledged`).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ModuleError' }
@@ -3201,6 +3606,14 @@ components:
               value: { code: invalid_fields, message: 'Invalid field - "limit" must be less than or equal to 200' }
             invalidCursor:
               value: { code: invalid_cursor, message: Cursor inválido, details: { cursor: abc } }
+            fileNameInvalid:
+              value: { code: file_name_invalid, message: El nombre de archivo no es válido }
+            contentTooLarge:
+              value: { code: content_too_large, message: El contenido supera los 256 KiB }
+            checksumMismatch:
+              value: { code: checksum_mismatch, message: El checksum no coincide con el contenido }
+            secretWarningNotAcknowledged:
+              value: { code: secret_warning_not_acknowledged, message: El documento tiene una posible credencial }
     ModuleForbidden:
       description: Rol insuficiente (`access_denied`) o permiso que niega jiku-docs (`permission_denied`)
       content:
@@ -3211,6 +3624,10 @@ components:
               value: { code: access_denied, message: Access denied }
             permissionDenied:
               value: { code: permission_denied, message: Sin permiso }
+            sharingBlocked:
+              value: { code: sharing_blocked, message: La carpeta no permite links compartidos }
+            callerNotAuthorized:
+              value: { code: caller_not_authorized, message: El caller no está autorizado }
     ModuleNotFound:
       description: |
         Módulo no instalado, o recurso inexistente / no visible para la persona. jiku-docs no distingue
@@ -3227,10 +3644,31 @@ components:
               value: { code: folder_not_found, message: Carpeta no encontrada }
             attachmentNotFound:
               value: { code: attachment_not_found, message: Adjunto no encontrado }
+            shareNotFound:
+              value: { code: share_not_found, message: Link compartido no encontrado }
+            sharingNotConfigured:
+              value: { code: sharing_not_configured, message: Los links compartidos no están configurados }
             projectNotFound:
               value: { code: project_not_found, message: Project not found }
             requirementNotFound:
               value: { code: requirement_not_found, message: Requirement not found }
+    ModuleConflict:
+      description: |
+        Conflicto de escritura en jiku-docs, con su `code` SIN traducir y `details` verbatim (DD-7).
+        `version_conflict` trae `details.currentVersion`; `document_locked`, `details.holder`, `details.via` y
+        `details.expiresAt`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          examples:
+            versionConflict:
+              value: { code: version_conflict, message: El documento cambió, details: { currentVersion: 7 } }
+            documentLocked:
+              value: { code: document_locked, message: Otra sesión tiene el lock, details: { holder: zitadel-sub-03, via: human, expiresAt: '2026-10-24T13:04:11.000Z' } }
+            lockNotHeld:
+              value: { code: lock_not_held, message: La sesión no tiene el lock }
+            alreadyExists:
+              value: { code: already_exists, message: Ya existe }
     InternalError:
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:
@@ -3458,6 +3896,82 @@ components:
       description: Sin `page`
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/DocsSearchHit' } }
+
+    DocsWriteResult:
+      type: object
+      required: [id, version]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        version: { type: integer }
+        path: { type: string }
+        warnings: { type: array, items: { type: string }, description: "Por ejemplo `possible_secret_detected` (no bloquea)" }
+    DocsIdResult:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+    DocsLock:
+      type: object
+      required: [id, sessionId, expiresAt]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        expiresAt: { type: string, format: date-time }
+    DocsAttachmentUpload:
+      type: object
+      required: [id, uploadUrl, expiresIn, link]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        uploadUrl: { type: string, description: "URL prefirmada para el PUT del binario. No se loguea" }
+        expiresIn: { type: integer, description: Segundos }
+        link: { type: string, description: "`{JIKU_WEB_URL}/docs/attachments/{id}`" }
+    DocsAttachmentConfirm:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        status: { type: string, enum: [ready] }
+    DocsShare:
+      type: object
+      description: Nunca incluye el token ni su hash
+      required: [id, documentId, mode, status, createdBy, createdAt, expiresAt]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        documentId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        mode: { type: string, enum: [latest, pinned] }
+        version: { type: integer, nullable: true }
+        includeAttachments: { type: boolean }
+        note: { type: string, nullable: true }
+        status: { type: string, enum: [active, revoked, expired] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        revokedBy: { type: string, nullable: true }
+        revokeReason: { type: string, enum: [manual, document_deleted], nullable: true }
+        accessCount: { type: integer }
+        lastAccessAt: { type: string, format: date-time, nullable: true }
+    DocsSharePage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsShare' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+    DocsShareCreated:
+      type: object
+      required: [id, token, url, expiresAt]
+      description: El único lugar donde aparecen `token` y `url`. La api no los loguea
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        token: { type: string, pattern: '^jds_[A-Za-z0-9_-]{43}$' }
+        url: { type: string }
+        expiresAt: { type: string, format: date-time }
+    DocsShareRevoked:
+      type: object
+      required: [id, revokedAt]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        revokedAt: { type: string, format: date-time }
 
     Error:
       type: object

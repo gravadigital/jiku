@@ -82,20 +82,10 @@ describe('Cobertura global de validateToken — ninguna ruta queda exenta', () =
       });
   });
 
-  // TS-12: PUT, y ES UN CASO DISTINTO DE LOS CUATRO ANTERIORES.
-  //
-  // El 401 de este endpoint NO sale de la instalación global: sale de su propia cadena
-  // (`week-assigned-times-put.ts:120-121`, que declara `validateToken` como primer
-  // middleware). La interfaz `PublicPath` de `config/public.ts` declara solo `get`, `patch`,
-  // `post` y `delete`, así que `publicPaths('put')` nunca se llama —lanzaría `TypeError`— y
-  // `app.ts` no instala nada para `PUT`.
-  //
-  // La asimetría se deja documentada, no tapada: cerrarla (agregar `put` a `PublicPath`) es
-  // otro alcance, afecta a un endpoint ajeno a adjuntos, y mezclarlo escondería el corte que
-  // S-009 sí hace. Si mañana aparece un `PUT` nuevo sin `validateToken` en su cadena, este
-  // test seguirá verde y el endpoint quedará abierto: la protección de este método hoy
-  // depende de que su autor la declare.
-  it('responde 401 en PUT /api/week-assigned-times sin token, por su cadena propia', () => {
+  // TS-12: PUT. Desde REQ-016 (H-3) `app.ts` instala `validateToken` tambien para `PUT`
+  // (`publicPaths('put')`): la asimetria con los otros cuatro metodos se cerro y
+  // `week-assigned-times-put.ts` ya no declara `validateToken` en su cadena.
+  it('responde 401 en PUT /api/week-assigned-times sin token, por la cobertura global (H-3)', () => {
     return request(application)
       .put('/api/week-assigned-times')
       .send({ weekStart: '2026-08-17', assignments: [] })
@@ -103,6 +93,18 @@ describe('Cobertura global de validateToken — ninguna ruta queda exenta', () =
       .then(res => {
         res.body.code.should.equal('unauthorized');
         fakeBus.sent.length.should.equal(0);
+      });
+  });
+
+  // S-079 · TS-16 (CA-S6): un PUT de docs sin token es 401 aunque el modulo no este instalado.
+  it('S-079 · TS-16: responde 401 en PUT /api/docs/documents/:id sin token', () => {
+    return request(application)
+      .put('/api/docs/documents/01JB2Z3K4M5N6P7Q8R9S0T1V2W')
+      .send({ baseVersion: 6, content: 'x' })
+      .expect(401)
+      .then(res => {
+        res.body.should.deepEqual({ code: 'unauthorized', message: 'Unauthorized' });
+        fakeBus.moduleSent.length.should.equal(0);
       });
   });
 });

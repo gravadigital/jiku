@@ -17,15 +17,10 @@ import publicPaths from '../../config/public';
  * correcta, porque lo que importa no es el contenido de la lista sino el regex que produce.
  *
  * Vive en `tests/utils/` porque no necesita base de datos: corre con `npm run test:unit`.
- *
- * NO SE INVOCA `publicPaths('put')`: la interfaz `PublicPath` no declara `put`, así que
- * `(publicPath as any)['put']` es `undefined` y el `.map` lanza `TypeError`. Ese método nunca
- * se llama desde `app.ts` (instala solo get/patch/post/delete) y el `PUT` de la api se cubre
- * por la cadena propia de su ruta — ver `tests/routes/auth-global.test.ts`.
  */
 describe('config/public.ts — el mecanismo de exenciones de validateToken', () => {
-  // Los cuatro métodos que `app.ts:29-32` instala globalmente. No hay un quinto.
-  const METHODS = ['get', 'patch', 'post', 'delete'];
+  // Los cinco métodos que `app.ts` instala globalmente (`put` desde REQ-016 / H-3).
+  const METHODS = ['get', 'patch', 'post', 'put', 'delete'];
 
   describe('con la lista de exenciones vacía, el regex no exime ningún path', () => {
     METHODS.forEach((method) => {

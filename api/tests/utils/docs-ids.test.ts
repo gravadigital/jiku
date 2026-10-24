@@ -20,11 +20,12 @@ describe('lib/modules/docs/ids (S-078)', () => {
     (joiUlid().validate(FOLDER_ID).error === undefined).should.equal(true);
   });
 
-  it('S-078 · respondDocsNotFound arma el 404 de cada recurso', () => {
+  it('S-079 · TS-50 / S-078 · respondDocsNotFound arma el 404 de cada recurso', () => {
     const cases: Array<[any, string]> = [
       ['document_not_found', 'Documento no encontrado'],
       ['folder_not_found', 'Carpeta no encontrada'],
       ['attachment_not_found', 'Adjunto no encontrado'],
+      ['share_not_found', 'Link compartido no encontrado'],
     ];
     for (const [code, message] of cases) {
       const out: any = {};

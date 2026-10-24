@@ -114,12 +114,12 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
   });
 
   // S-078 · TS-47: el par propio de las rutas de módulo (su texto no describe a core).
-  it('S-078 · TS-47: las rutas de módulo declaran el par 503/504 de módulo (11/11)', () => {
+  it('S-078 · TS-47 (S-079: 23/23): las rutas de módulo declaran el par 503/504 de módulo', () => {
     const unavailable = countLinesWith(MODULE_UNAVAILABLE_REF);
     const timeout = countLinesWith(MODULE_GATEWAY_TIMEOUT_REF);
 
     unavailable.should.equal(timeout);
-    unavailable.should.equal(11);
+    unavailable.should.equal(23);
   });
 
   // TS-22: ninguna clave '503' o '504' apunta a otro componente. Es lo que impide que una
@@ -326,5 +326,48 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     componentBlock('ModuleUnavailable').should.match(/code: module_unavailable/);
     spec.should.match(/\n {4}ModuleError:/);
     spec.should.match(/\n {4}ModulesResponse:/);
+  });
+
+  it('S-079 · TS-47: las doce rutas de escritura declaran el módulo, roles, 409 (solo donde el contrato de jiku-docs lo produce) y el par 503/504', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const ops: Array<[string, string, boolean]> = [
+      ['/docs/documents', 'post', true], ['/docs/documents/{id}', 'put', true], ['/docs/documents/{id}', 'delete', true],
+      ['/docs/documents/{id}/move', 'post', true], ['/docs/documents/{id}/restore', 'post', true],
+      ['/docs/documents/{id}/lock', 'post', true], ['/docs/documents/{id}/unlock', 'post', true],
+      ['/docs/attachments', 'post', true], ['/docs/attachments/{id}/confirm', 'post', false],
+      ['/docs/documents/{id}/shares', 'get', false], ['/docs/documents/{id}/shares', 'post', true],
+      ['/docs/shares/{id}', 'delete', false],
+    ];
+    ops.forEach(([name, verb, conflict]) => {
+      const whole = '\n' + pathBlock(spec, name);
+      const start = whole.indexOf(`\n    ${verb}:`);
+      start.should.be.above(-1, `${name} no declara ${verb}`);
+      const rest = whole.slice(start + 1);
+      const next = rest.slice(1).search(/\n {4}\S/);
+      const block = next === -1 ? rest : rest.slice(0, next + 1);
+      const label = `${verb} ${name}`;
+      block.should.match(/x-jiku-module: docs/, label);
+      block.should.match(/x-roles: \[admin, user\]/, label);
+      block.should.match(/'503': \{ \$ref: '#\/components\/responses\/ModuleUnavailable' \}/, label);
+      block.should.match(/'504': \{ \$ref: '#\/components\/responses\/ModuleGatewayTimeout' \}/, label);
+      if (conflict) block.should.match(/'409': \{ \$ref: '#\/components\/responses\/ModuleConflict' \}/, label);
+      else block.should.not.match(/'409'/, label);
+    });
+  });
+
+  it('S-079 · TS-48: ModuleConflict y el encabezado', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const start = spec.indexOf('\n    ModuleConflict:');
+    start.should.be.above(-1, 'components no declara ModuleConflict');
+    const rest = spec.slice(start + 1);
+    const block = rest.slice(0, rest.slice(1).search(/\n {4}\S/) + 1);
+    block.should.match(/code: version_conflict/);
+    block.should.match(/currentVersion: 7/);
+    block.should.match(/code: document_locked/);
+    block.should.match(/holder: /);
+    block.should.match(/via: human/);
+    block.should.match(/expiresAt: /);
+    spec.should.match(/los 86 endpoints/);
+    spec.should.match(/cinco métodos/);
   });
 });

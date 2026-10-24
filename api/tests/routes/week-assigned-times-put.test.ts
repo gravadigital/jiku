@@ -6,6 +6,8 @@ import { Application } from 'express';
 import { Person, Project, User, WeekAssignedTime } from '@jiku/models';
 import { dayOffset } from '../helpers/dates';
 import { fakeBus } from '../mocks/bus';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 /**
  * S-032 (api) · `PUT /api/week-assigned-times` pasa a comando + relectura.
@@ -383,5 +385,16 @@ describe('PUT /api/week-assigned-times', () => {
       .then((response) => {
         response.body.weekEnd.should.equal(expectedWeekEnd);
       });
+  });
+
+  it('S-079 · TS-17: sin validateToken propio y sigue en 401 sin token (H-3)', async () => {
+    const res = await request(application)
+      .put('/api/week-assigned-times')
+      .send({ weekStart: '2026-08-17', allocations: [] });
+    res.status.should.equal(401);
+    res.body.code.should.equal('unauthorized');
+    fakeBus.sent.length.should.equal(0);
+    const source = readFileSync(path.join(__dirname, '../../lib/routes/week-assigned-times-put.ts'), 'utf8');
+    source.should.not.containEql('validateToken');
   });
 });

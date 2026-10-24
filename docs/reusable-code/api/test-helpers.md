@@ -224,9 +224,9 @@ and `hasAnyRole` answers 403 `access_denied`.
 
 **Description:** Shared by the route tests of the documentation module. `docsAvailable()`,
 `docsUnavailable()` and `docsNotInstalled()` leave the registry settled; `success(data)` and
-`failure(code, message, details?)` build a `Reply`; `DOC_ID`, `FOLDER_ID`, `ATT_ID`,
+`failure(code, message, details?)` build a `Reply`; `DOC_ID`, `FOLDER_ID`, `ATT_ID`, `SESSION_ID`, `SHARE_ID`, `FOLDER2_ID`,
 `QUERY_SUBJECT_PREFIX`, `COMMAND_SUBJECT_PREFIX` are the example ids and subjects;
-`itRespectsModuleState(getApp, url, token)` registers the "404 not installed / 503 unavailable, no module
+`itRespectsModuleState(getApp, url, token, title?, { method?, body? })` (default `get`, no body) registers the "404 not installed / 503 unavailable, no module
 call" test.
 
 **Usage example:**

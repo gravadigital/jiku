@@ -1,6 +1,5 @@
 import { Request, Response, Router } from 'express';
 import joi from 'joi';
-import validateToken from '../utils/middlewares/validate-token';
 import validateBodyFields from '../utils/validate-body-fields';
 import { runCommand } from '../utils/bus/send-command';
 import logger from '../logger';
@@ -87,10 +86,6 @@ async function putWeekAssignedTimes(req: Request, res: Response) {
  * @response {503} Service unavailable - Bus caído (ADR-002)
  * @response {504} Gateway timeout - El bus no respondió a tiempo (ADR-002)
  */
-router.put('/week-assigned-times',
-  validateToken,
-  validateBodyFields(putWeekAssignedTimesSchema),
-  putWeekAssignedTimes
-);
+router.put('/week-assigned-times', validateBodyFields(putWeekAssignedTimesSchema), putWeekAssignedTimes);
 
 export default router;
