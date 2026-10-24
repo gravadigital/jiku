@@ -6,6 +6,7 @@ import { QueryRegistry } from '../../src/queries/registry';
 import { queryRegistry } from '../../src/queries';
 import settingsList from '../../src/queries/settings/settings-list';
 import { dispatchQuery } from '../helpers/dispatch';
+import { RESOURCE_SPECS } from '../../src/queries/resources';
 import { PROJECT_MAIN, createWorld, destroyWorld } from './task-fixtures';
 
 /**
@@ -316,3 +317,61 @@ function testFiles(dir = TESTS_DIR): string[] {
     return entry.name.endsWith('.test.ts') ? [full] : [];
   });
 }
+
+describe('el plano de consultas decide por ficha, no por handler (S-086, CA-8)', () => {
+  const resourceFiles = (): string[] =>
+    readdirSync(QUERIES_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !['engine', 'meta'].includes(entry.name))
+      .flatMap((entry) =>
+        readdirSync(join(QUERIES_DIR, entry.name))
+          .filter((file) => file.endsWith('.ts'))
+          .map((file) => join(QUERIES_DIR, entry.name, file))
+      );
+
+  it('TS-41 · solo `users` declara `includableByClass`', () => {
+    RESOURCE_SPECS.filter((s) => s.includableByClass !== undefined)
+      .map((s) => s.name)
+      .should.deepEqual(['users']);
+  });
+
+  it('TS-42 · los incluibles por clase no pisan nombres de la ficha', () => {
+    for (const spec of RESOURCE_SPECS.filter((s) => s.includableByClass !== undefined)) {
+      for (const extra of Object.values(spec.includableByClass!)) {
+        for (const name of Object.keys(extra!)) {
+          spec.base.should.not.have.property(name);
+          spec.includable.should.not.have.property(name);
+          spec.filterable.should.not.have.property(name);
+          spec.sortable.should.not.have.property(name);
+        }
+      }
+    }
+  });
+
+  it('TS-44 · toda consulta list/get reenvía la clase a `validate`', () => {
+    const files = resourceFiles().filter((f) => /-(list|get)\.ts$/.test(f));
+    const calling = files.filter((f) => /validate(List|Get)\(/.test(readFileSync(f, 'utf8')));
+
+    calling.length.should.equal(21);
+    for (const file of calling) {
+      readFileSync(file, 'utf8').should.match(
+        /validate(List|Get)\(\s*\w+,\s*payload,\s*callerClass\s*\)/,
+        file
+      );
+    }
+  });
+
+  it('TS-45 · ningún archivo de recurso decide por clase', () => {
+    // `requirements-tags.ts` es la agregación declarada como excepción (S-028): ya decidía el recorte
+    // externo por su cuenta antes de S-086 y no toca incluibles. Es la única excepción.
+    for (const file of resourceFiles().filter((f) => !f.endsWith('requirements-tags.ts'))) {
+      // Solo código: los comentarios pueden citar la comparación (p. ej. `tasks-spec.ts`).
+      const source = readFileSync(file, 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+        .join('\n');
+      source.includes('callerClass ===').should.be.false(file);
+      source.includes('callerClass !==').should.be.false(file);
+      source.includes("'connector'").should.be.false(file);
+    }
+  });
+});

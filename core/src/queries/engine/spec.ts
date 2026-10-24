@@ -1,5 +1,6 @@
 import {
   BaseSpec,
+  CallerClass,
   EnumSpec,
   IncludableSpec,
   QueryContext,
@@ -147,6 +148,35 @@ export function enumLabeled(
  *
  * NO NOMBRA NINGÚN RECURSO, y ese es el criterio que decide si la abstracción quedó bien.
  */
+/**
+ * LA FICHA EFECTIVA PARA UNA CLASE DE CALLER (S-086): suma los incluibles que la ficha declara
+ * en `includableByClass` para esa clase.
+ *
+ * Mismo molde que `resolveVariant`: FUSIONA el mapa y RE-DERIVA los arrays con `Object.keys` —no
+ * los copia—, porque el validador devuelve `includableNames` y `fieldNames` por referencia en
+ * `errorDetails.allowed`. El orden es el de la ficha y después el de la clase
+ * (`email, person, roles, identityType`), que es el que viaja en `allowed` y en `meta.describe`.
+ *
+ * DEVUELVE LA MISMA REFERENCIA sin `includableByClass`, sin clase o sin entrada para ella: la
+ * clase ausente FALLA CERRADO (ADR-008) y una ficha que no declara nada no cambia. No toca
+ * `filterable`, `sortable` ni `enums`.
+ *
+ * NO NOMBRA NINGÚN RECURSO NI CLASE: la clase llega por parámetro.
+ */
+export function resolveForClass(resource: ResourceSpec, callerClass?: CallerClass): ResourceSpec {
+  const extra = callerClass ? resource.includableByClass?.[callerClass] : undefined;
+  if (!extra) {
+    return resource;
+  }
+  const includable = { ...resource.includable, ...extra };
+  return {
+    ...resource,
+    includable,
+    includableNames: Object.keys(includable),
+    fieldNames: [...Object.keys(resource.base), ...Object.keys(includable)],
+  };
+}
+
 export function deniesAllRows(resource: ResourceSpec, ctx: QueryContext): boolean {
   return ctx.callerClass === 'external' && resource.externalScope.kind === 'none';
 }

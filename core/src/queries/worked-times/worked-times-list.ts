@@ -1,4 +1,4 @@
-import { Query } from '../types';
+import { CallerClass, Query } from '../types';
 import { runList } from '../engine/run';
 import { ValidatedListQuery } from '../engine/types';
 import { validateList } from '../engine/validate-query';
@@ -20,7 +20,8 @@ export type WorkedTimesListPayload = ValidatedListQuery;
 export const workedTimesList: Query<WorkedTimesListPayload> = {
   pattern: 'worked-times.list',
 
-  validate: (payload: unknown) => validateList(workedTimesSpec, payload),
+  validate: (payload: unknown, callerClass?: CallerClass) =>
+    validateList(workedTimesSpec, payload, callerClass),
 
   execute: (payload, ctx) => runList(workedTimesSpec, payload, ctx),
 };

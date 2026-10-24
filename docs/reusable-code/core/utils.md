@@ -478,6 +478,27 @@ function resolveVariant(resource: ResourceSpec, value?: string): ResourceSpec
 const spec = resolveVariant(resource, query.variant);
 ```
 
+## resolveForClass
+
+**Location:** `core/src/queries/engine/spec.ts`
+
+Resolves the effective `ResourceSpec` for a caller class (S-086). Same mold as `resolveVariant`: merges
+`includableByClass[callerClass]` into `includable` and re-derives `includableNames` and `fieldNames`
+with `Object.keys` (the validator returns them by reference in `errorDetails.allowed`). Returns the
+same reference with no `includableByClass`, no class, or no entry for the class. Filters, sort and
+enums are never changed.
+
+**Signature:**
+```ts
+function resolveForClass(resource: ResourceSpec, callerClass?: CallerClass): ResourceSpec
+```
+
+**Usage:**
+```ts
+// core/src/queries/engine/run.ts
+const spec = resolveVariant(resolveForClass(resource, ctx.callerClass), query.variant);
+```
+
 ## specFor
 
 **Location:** `core/src/queries/engine/spec.ts`

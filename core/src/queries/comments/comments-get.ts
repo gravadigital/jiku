@@ -1,4 +1,4 @@
-import { Query } from '../types';
+import { CallerClass, Query } from '../types';
 import { runGet } from '../engine/run';
 import { ValidatedGetQuery } from '../engine/types';
 import { validateGet } from '../engine/validate-query';
@@ -22,7 +22,8 @@ export type CommentsGetPayload = ValidatedGetQuery;
 export const commentsGet: Query<CommentsGetPayload> = {
   pattern: 'comments.get',
 
-  validate: (payload: unknown) => validateGet(commentsSpec, payload),
+  validate: (payload: unknown, callerClass?: CallerClass) =>
+    validateGet(commentsSpec, payload, callerClass),
 
   execute: (payload, ctx) => runGet(commentsSpec, payload, ctx),
 };

@@ -1406,12 +1406,15 @@ x-resources:
   users:
     endpoints: [users.list]
     note: >-
-      `email` es INCLUIBLE, no base: es dato personal. `roles` NO SE EXPONE en absoluto — es el
-      insumo de la compuerta de autorización. `email` PUEDE VENIR `null`, y solo para una identidad
+      `email` es INCLUIBLE, no base: es dato personal. `roles` e `identityType` existen SOLO para
+      la clase `connector` (`includableByClass`): son el insumo con el que un conector clasifica a
+      quien lo llama. Para `internal` y `external` no existen (`invalid_fields`), y para ninguna
+      clase son filtrables ni ordenables. `email` PUEDE VENIR `null`, y solo para una identidad
       de servicio: un machine user de Zitadel no tiene dirección de correo. Nunca es `null` para
       una persona.
     base: [id, name, username, createdAt, updatedAt]
     includable: [email, person]
+    includableByClass: { connector: [roles, identityType] }
     filterable: [id, username, email, q]
     sortable: [name, username]
     defaultSort: [name]

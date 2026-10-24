@@ -5,6 +5,7 @@ import { join } from 'path';
 import { registry as commandRegistry } from '../../src/commands';
 import { queryRegistry } from '../../src/queries';
 import { RESOURCE_NAMES } from '../../src/queries/resources';
+import { usersSpec } from '../../src/queries/users/users-spec';
 
 /**
  * `docs/apis/core-queries.yaml` — LA SPEC CONTRA EL CÓDIGO (S-028, Task 6).
@@ -71,6 +72,25 @@ describe('docs/apis/core-queries.yaml — la spec del contrato de consultas (S-0
       /\n {4}(base|discriminator):/
         .test(own)
         .should.be.true(`${name} no declara ni base ni discriminador`);
+    }
+  });
+
+  it('TS-47 · `includableByClass` de `users` coincide con la ficha y ningún otro recurso lo declara (S-086)', () => {
+    const source = spec();
+    const block = (name: string): string => {
+      const from = source.slice(source.indexOf(`\n  ${name}:\n`));
+      return from.slice(0, from.indexOf('\n\n  ') + 1 || undefined);
+    };
+
+    const declared = block('users').match(/\n {4}includableByClass: \{ connector: \[([^\]]*)\] \}/);
+    (declared !== null).should.be.true('x-resources.users no declara includableByClass');
+    declared![1]
+      .split(',')
+      .map((name) => name.trim())
+      .should.deepEqual(Object.keys(usersSpec.includableByClass!.connector!));
+
+    for (const name of RESOURCE_NAMES.filter((n) => n !== 'users')) {
+      block(name).should.not.containEql('includableByClass:');
     }
   });
 

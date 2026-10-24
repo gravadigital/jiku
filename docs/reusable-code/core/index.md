@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-002 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code core` to complete it.
 
-**Last updated:** 2026-09-08 (S-067)
+**Last updated:** 2026-10-24 (S-086)
 
 ## Utils
 
-Total: 44
+Total: 45
 
 - **authorizeCaller** (`core/src/authorize-caller.ts`) - The method gate as one call: exempts the api's channel by `sub`, otherwise reads `users.roles` and authorises against the closed deny-by-default map. Never throws and fails closed. **Since S-030 NO dispatcher calls it** — both planes chain `readCallerRoles` + `authorizeWithRoles` themselves so a single `SELECT` feeds the method gate AND the caller class. Kept as the right shape for any future plane that only needs the method. **It does not know the channel**, so it always evaluates the most restrictive list: routing an envelope command through it would reject the portal's six live paths.
 - **readCallerRoles** (`core/src/authorize-caller.ts`) - The read on its own: `User.findByPk(caller)` plus the `Array.isArray` guard for the unchecked `JSONB`. Extracted so the query plane can feed BOTH gates with a single `SELECT`. Does not catch: the caller decides.
@@ -29,6 +29,7 @@ Total: 44
 - **resolveVariant** (`core/src/queries/engine/spec.ts`) - Resolves a resource VARIANT into a complete, effective `ResourceSpec`: merges the variant's `base` / `includable` / `filterable` / `enums` overrides and RE-DERIVES the four name arrays with `Object.keys`. A spec without a discriminator returns the same reference; an unknown value THROWS, so a table is never resolved by omission. This is what lets the rest of the engine keep operating on a single `ResourceSpec` with no per-variant branch.
 - **specFor** (`core/src/queries/engine/spec.ts`) - Resolves a name of the returned set against BOTH maps (`base` and `includable`) in one call. Exists because that lookup lived in four places — `selectParts`, `projectRow`, `attachCollections`, `parseProjection` — and the one that forgets a new shape does not fail to compile: it returns the field empty.
 - **isRelation** (`core/src/queries/engine/spec.ts`) - Narrows a `BaseSpec | IncludableSpec` to a `RelationSpec` by checking `kind`, so a base-set relation is recognised wherever it is declared. Uses `'kind' in spec` and not a cast: a cast would switch off exactly the check the three base-set shapes need.
+- **resolveForClass** (`core/src/queries/engine/spec.ts`) - Resolves the effective `ResourceSpec` for a caller CLASS: merges the includables the spec declares in `includableByClass[class]` and RE-DERIVES `includableNames` / `fieldNames` with `Object.keys`. Returns the same reference when the spec has no `includableByClass`, the class is absent or has no entry (fails closed, ADR-008). Never touches filterable/sortable/enums. Applied BEFORE `resolveVariant` in `validateList`/`validateGet`, `runList`/`runGet` and `describeResource`.
 - **deniesAllRows** (`core/src/queries/engine/spec.ts`) - Answers the question `runList` and `runGet` ask BEFORE building anything: can this caller see no row at all of this resource? True if and only if the caller class is `external` and the spec's `externalScope.kind` is `'none'`. It is what makes the "no external access" clip cost ZERO SQL instead of a `WHERE FALSE` that would still pay a round-trip. Lives next to `resolveVariant` because it is spec resolution, and it names no resource.
 - **enumValues** (`core/src/queries/engine/spec.ts`) - Projects a spec's enum to its list of VALUES, in order. Exists because since S-028 a spec may declare its entries as plain strings or as `{ value, label }`, and `errorDetails.allowed` has to keep being a list of STRINGS — the error catalog does not change shape because a label was added somewhere.
 - **enumLabeled** (`core/src/queries/engine/spec.ts`) - The same enum as `{ value, label }[]`, with the RAW VALUE as the label's fallback. It is what `meta.describe` projects. The fallback is not laziness: a `label: undefined` in the response would force every consumer to handle the case, and the raw value is always a legitimate label.

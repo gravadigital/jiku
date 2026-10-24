@@ -2,11 +2,12 @@ import {
   BaseSpec,
   FilterableSpec,
   IncludableSpec,
+  CallerClass,
   RelationSpec,
   ResourceSpec,
 } from '../types';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../engine/validate-query';
-import { enumLabeled, isRelation, resolveVariant } from '../engine/spec';
+import { enumLabeled, isRelation, resolveForClass, resolveVariant } from '../engine/spec';
 
 /**
  * LA PROYECCIÓN DE UNA FICHA A LA FORMA DE LA DESCRIPCIÓN.
@@ -187,8 +188,15 @@ function describeVariant(spec: ResourceSpec): VariantDescription {
  *
  * LA VARIANTE SE ARMA CON `resolveVariant()`, la MISMA función que usa el motor antes de validar. Es
  * lo que hace que la descripción y el validador vuelvan a leer literalmente la misma estructura.
+ *
+ * LA CLASE SE RESUELVE ANTES QUE LA VARIANTE (S-086), con `resolveForClass()`: lo que se describe
+ * es lo que el validador de ESA clase acepta. Sin clase es la vista de persona.
  */
-export function describeResource(resource: ResourceSpec): ResourceDescription {
+export function describeResource(
+  baseResource: ResourceSpec,
+  callerClass?: CallerClass
+): ResourceDescription {
+  const resource = resolveForClass(baseResource, callerClass);
   const common = {
     sortable: resource.sortableNames,
     defaults: {

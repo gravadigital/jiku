@@ -10,22 +10,26 @@ import {
 /**
  * LA FICHA DE `users` — un DATO, no código.
  *
- * DOS COLUMNAS DE `users` NO APARECEN EN NINGUNA DE LAS CUATRO LISTAS, Y ES LA DECISIÓN MÁS FÁCIL
- * DE REVERTIR POR ACCIDENTE: las dos existen en la tabla desde S-015 y las dos son candidatos
- * naturales de filtro.
+ * DOS COLUMNAS DE `users` SIGUEN FUERA DE LAS CUATRO LISTAS COMUNES (base, includable, filterable,
+ * sortable), Y ES LA DECISIÓN MÁS FÁCIL DE REVERTIR POR ACCIDENTE: las dos existen en la tabla
+ * desde S-015 y las dos son candidatos naturales de filtro.
  *
  *   `roles`        -> es EL CONTROL DE ACCESO EFECTIVO de toda la superficie de lectura del bus
- *                     (S-023). Exponerlo publica el modelo de autorización a cualquier caller —
- *                     incluido el externo, que con eso puede enumerar quién es admin.
- *   `identityType` -> distingue persona de servicio. No lo necesita ninguna pantalla y filtra
- *                     estructura interna del espejo de identidad.
+ *                     (S-023). Para una PERSONA (interna o externa) NO EXISTE: publicarlo le
+ *                     permitiría enumerar quién es admin.
+ *   `identityType` -> distingue persona de servicio. Ninguna pantalla lo necesita.
  *
- * NO HACE FALTA CÓDIGO PARA EXCLUIRLAS: la ficha es el lugar donde algo se declara o no existe, y
- * "NO ESTÁ DECLARADO" ES LA ÚNICA FORMA DE "NO SE PUEDE PEDIR" (ADR-008). El validador responde
- * `invalid_fields` para cualquier nombre fuera de estas listas, en las cuatro palancas a la vez.
+ * PARA LAS PERSONAS "NO ESTÁ DECLARADO PARA TU CLASE" ES "NO EXISTE" (ADR-008): el validador
+ * responde `invalid_fields` en `include` y `fields`, idéntico a un nombre inexistente.
  *
- * LA ÚNICA FORMA DE ROMPER CA-7 ES ESCRIBIRLAS. Mismo precedente que `ticketSlug` en `projects`.
- * Tampoco aparecen como columna de `q`.
+ * EXISTEN SOLO EN `includableByClass.connector` (S-086, D-10 de REQ-017): un conector (jiku-docs,
+ * la api, cualquier `internal-app`) los necesita para clasificar a quien lo llama. `roles` viaja
+ * tal cual, incluidos los roles desconocidos como `docs`. RIESGO CONOCIDO (R-2): todo
+ * `internal-app` ve los roles de todos; es la consecuencia de D-10.
+ *
+ * PARA NINGUNA CLASE son filtrables, ordenables ni entran en `q`: `includableByClass` solo lleva
+ * incluibles. Y NO se agrega `enums.identityType`: `enums` es del recurso y `meta.describe` lo
+ * publicaría a las personas.
  */
 
 /** El conjunto BASE: cinco campos. `id` es el `sub` de Zitadel, no un entero. */
@@ -69,6 +73,18 @@ const INCLUDABLE: Record<string, IncludableSpec> = {
     targetKey: 'user_id',
     optional: true,
     fields: { id: 'id', firstName: 'first_name', lastName: 'last_name' },
+  },
+};
+
+/**
+ * Incluibles que SOLO ve la clase `connector` (S-086). El orden —`roles`, `identityType`— es el
+ * que viaja en `errorDetails.allowed` y en `meta.describe`. Sin `transform`: `pg` entrega el
+ * `jsonb` como array y el enum como string.
+ */
+const INCLUDABLE_BY_CLASS: Record<string, Record<string, IncludableSpec>> = {
+  connector: {
+    roles: { kind: 'field', column: 'roles' },
+    identityType: { kind: 'field', column: 'identity_type' },
   },
 };
 
@@ -136,6 +152,7 @@ export const usersSpec: ResourceSpec = {
 
   base: BASE,
   includable: INCLUDABLE,
+  includableByClass: INCLUDABLE_BY_CLASS,
   filterable: FILTERABLE,
   sortable: SORTABLE,
 
@@ -146,7 +163,8 @@ export const usersSpec: ResourceSpec = {
   sortableNames: Object.keys(SORTABLE),
 
   defaults: { sort: ['name'] },
-  // Ningún enum: el único de la tabla es `identity_type`, que NO se declara (CA-7).
+  // Ningún enum: `identity_type` NO se declara porque `enums` se publica a todas las clases en
+  // `meta.describe` y filtraría el nombre a las personas.
   enums: {},
 
   // Ningún texto sin cota que truncar.

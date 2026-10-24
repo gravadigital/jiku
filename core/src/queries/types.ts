@@ -75,8 +75,14 @@ export interface Query<TPayload = any, TData = unknown> {
   /** Patrón del método, SIN `{param}`: `projects.list`, `tasks.get`. */
   readonly pattern: string;
 
-  /** Valida y normaliza el payload. Devuelve el error del protocolo si no es válido. */
-  validate(payload: unknown): { value: TPayload } | { error: Reply<never> };
+  /**
+   * Valida y normaliza el payload. Devuelve el error del protocolo si no es válido.
+   *
+   * `callerClass` llega YA RESUELTA por la compuerta 2 del despachador: es lo que permite que la
+   * ficha sume los incluibles declarados para esa clase (`includableByClass`). Una consulta que no
+   * la necesita (`meta.describe`, `requirements.tags`) puede ignorarla.
+   */
+  validate(payload: unknown, callerClass: CallerClass): { value: TPayload } | { error: Reply<never> };
 
   execute(payload: TPayload, ctx: QueryContext): Promise<Reply<TData>>;
 }
@@ -657,6 +663,18 @@ export interface ResourceSpec {
   readonly baseNames: readonly string[];
   readonly includable: Readonly<Record<string, IncludableSpec>>;
   readonly includableNames: readonly string[];
+  /**
+   * INCLUIBLES VISIBLES SOLO PARA UNA CLASE DE CALLER (S-086). Los suma `resolveForClass()`
+   * (`engine/spec.ts`) antes de validar, ejecutar y describir.
+   *
+   * SOLO INCLUIBLES: filtros y orden por clase no son representables por tipo, así que un nombre
+   * declarado acá NUNCA es filtrable ni ordenable, y tampoco entra en `q`. Su ausencia —o la de la
+   * clase— significa "nada extra", jamás "todo": para las demás clases el nombre no existe
+   * (`invalid_fields`, ADR-008).
+   */
+  readonly includableByClass?: Readonly<
+    Partial<Record<CallerClass, Readonly<Record<string, IncludableSpec>>>>
+  >;
   /** `base ∪ includable`: lo que `fields` acepta nombrar. */
   readonly fieldNames: readonly string[];
   readonly filterable: Readonly<Record<string, FilterableSpec>>;

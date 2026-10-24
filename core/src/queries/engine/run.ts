@@ -7,7 +7,7 @@ import { selectRows } from './execute-sql';
 import { attachCollections } from './include';
 import { paginate } from './paginate';
 import { projectRow } from './project';
-import { deniesAllRows, resolveVariant } from './spec';
+import { deniesAllRows, resolveForClass, resolveVariant } from './spec';
 import { ValidatedGetQuery, ValidatedListQuery } from './types';
 import { spanSync } from '../../timing';
 
@@ -35,7 +35,7 @@ export async function runList(
 ): Promise<Reply> {
   // LA VARIANTE, PRIMERO: de acá en adelante `spec` es la ficha EFECTIVA y el resto del motor no
   // sabe que hubo variantes. Para un recurso sin discriminador es la identidad.
-  const spec = resolveVariant(resource, query.variant);
+  const spec = resolveVariant(resolveForClass(resource, ctx.callerClass), query.variant);
   const label = `${spec.name}.list`;
   // El presupuesto llega POR EL CONTEXTO, resuelto por request desde `nc.info.max_payload`. El
   // motor no conoce la conexión, y el default cubre al despachador construido sin proveedor.
@@ -47,8 +47,9 @@ export async function runList(
   // el contrato promete es que NO SE CONSULTA. Un `WHERE FALSE` daría el mismo resultado y pagaría
   // un round-trip a la base por cada request de un portal que no tiene por qué leer nada.
   //
-  // Y VA DESPUÉS DE `validate()`, que corre en el despachador: la gramática es la MISMA para las
-  // tres clases, así que un nombre no declarado sigue siendo `invalid_fields` y no `items: []`.
+  // Y VA DESPUÉS DE `validate()`, que corre en el despachador: la gramática de FILTROS Y ORDEN es
+  // la misma para las tres clases, y los INCLUIBLES solo suman lo que la ficha declara para la clase
+  // (`includableByClass`): un nombre no declarado sigue siendo `invalid_fields` y no `items: []`.
   //
   // NO ES UN ERROR, y la diferencia es del contrato: un `caller_not_authorized` diría "el recurso
   // existe y te está vedado"; `items: []` dice "no hay nada para vos".
@@ -167,7 +168,7 @@ export async function runGet(
 ): Promise<Reply> {
   // Ídem `runList`: la ficha efectiva primero. En un `get` la variante es lo que decide CONTRA QUÉ
   // TABLA se resuelve el id, y los ids de las dos tablas de actividad SE PISAN.
-  const spec = resolveVariant(resource, query.variant);
+  const spec = resolveVariant(resolveForClass(resource, ctx.callerClass), query.variant);
   const label = `${spec.name}.get`;
 
   // EL MISMO CORTE QUE EN `runList`, SIN TOCAR LA BASE.

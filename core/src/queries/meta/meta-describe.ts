@@ -19,12 +19,15 @@ import { ResourceDescription, describeResource } from './describe-spec';
  *
  * NO TOCA LA BASE. Es la consulta más barata del contrato y la única que no depende de PostgreSQL.
  *
- * ES IGUAL PARA TODOS LOS CALLERS (CA-14), y eso es CORRECTO: describe el CONTRATO, no los datos.
+ * ES IGUAL PARA TODAS LAS PERSONAS (internas y externas; CA-14), y eso es CORRECTO: describe el
+ * CONTRATO, no los datos. El CONECTOR ve además lo que una ficha declara para su clase
+ * (`includableByClass`, S-086): describirle un nombre que el validador le rechaza —o no
+ * describirle uno que acepta— rompería la propiedad "derivado, no mantenido" (CA-12 de S-028).
  * Saber que existe un campo `email` incluible no da acceso a ningún email —el recorte de filas y la
  * lista blanca de campos siguen operando en cada consulta—, y un portal que no puede leer `settings`
- * igual necesita saber que el recurso existe para entender el error que recibe. `execute` IGNORA
- * `ctx.callerClass` a propósito: es lo que hace que CA-14 salga gratis en vez de depender de que
- * nadie agregue una rama.
+ * igual necesita saber que el recurso existe para entender el error que recibe. `execute` pasa
+ * `ctx.callerClass` a `describeResource` y nada más: la diferencia por clase sale de la ficha, no
+ * de una rama acá.
  *
  * NO ES UN RECURSO Y NO TIENE FICHA: `meta` no aparece en `meta.describe`, no tiene `list`, y
  * publicar `meta.list` responde `unknown_command` porque el patrón no está en el registro.
@@ -120,7 +123,7 @@ export const metaDescribe: Query<MetaDescribePayload> = {
 
   validate: validateDescribe,
 
-  execute: (payload) => {
+  execute: (payload, ctx) => {
     // SE RECORREN LAS FICHAS, no una lista de nombres escrita acá: el orden de la respuesta es el
     // del registro, y un recurso nuevo aparece sin tocar este archivo.
     const specs = payload.resources
@@ -129,7 +132,7 @@ export const metaDescribe: Query<MetaDescribePayload> = {
 
     const resources: Record<string, ResourceDescription> = {};
     for (const spec of specs) {
-      resources[spec.name] = describeResource(spec);
+      resources[spec.name] = describeResource(spec, ctx.callerClass);
     }
 
     return Promise.resolve(success({ resources }));
