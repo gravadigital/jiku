@@ -166,6 +166,66 @@ await updateRequirementComment(12, 7, { comment: 'texto corregido', fileIds: [3,
 
 **Description:** Server Action for `GET /docs/documents/{id}`; downloads `contentUrl` server-side and returns it as `content`. Rejects with `{ code: 'content_unavailable', status: 502 }` if the download fails.
 
-**Signature:** `getDocument(id: string): Promise<DocsDocumentDetail>`
+**Signature:** `getDocument(id: string): Promise<DocsResult<DocsDocumentDetail>>` (S-082: no longer throws, P-2)
 
 **Usage:** `const doc = await getDocument(id);`
+
+## searchDocuments
+
+**Location:** `web/src/features/docs/services/docsApi.ts`
+
+**Description:** Server Action for `GET /docs/search` (limit 50); returns `DocsResult`.
+
+**Signature:** `searchDocuments({ q, limit? }): Promise<DocsResult<DocsSearchResponse>>`
+
+**Usage:** `unwrap(await searchDocuments(...))` on the client (hooks do it).
+
+## createDocument / updateDocument
+
+**Location:** `web/src/features/docs/services/docsApi.ts`
+
+**Description:** Server Actions for `POST /docs/documents` and `PUT /docs/documents/{id}`; drop `undefined` keys and a blank `message`; never throw (`DocsResult`).
+
+**Signature:** `createDocument(payload) / updateDocument(id, payload): Promise<DocsResult<DocsWriteResult>>`
+
+**Usage:** `unwrap(await createDocument(...))` on the client (hooks do it).
+
+## lockDocument / unlockDocument
+
+**Location:** `web/src/features/docs/services/docsApi.ts`
+
+**Description:** Server Actions for the edit lock (`sessionId` only; no `ttlSeconds`, never `force`); `DocsResult` keeps `details` (`holder`, `via`, `expiresAt`).
+
+**Signature:** `lockDocument(id, sessionId) / unlockDocument(id, sessionId)`
+
+**Usage:** `unwrap(await lockDocument(...))` on the client (hooks do it).
+
+## listFolders / listAllFolders / getFolderTrail
+
+**Location:** `web/src/features/docs/services/foldersApi.ts`
+
+**Description:** Server Actions over `GET /docs/folders[/{id}]`: one page, all pages (cap 10 x 200) and the ancestor trail (cap 20 levels, unreadable ancestors as text).
+
+**Signature:** `getFolderTrail(id): Promise<DocsResult<FolderTrail>>`
+
+**Usage:** `unwrap(await listFolders(...))` on the client (hooks do it).
+
+## requestAttachmentUpload / confirmAttachment
+
+**Location:** `web/src/features/docs/services/docsAttachmentsApi.ts`
+
+**Description:** Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
+
+**Signature:** `requestAttachmentUpload(payload) / confirmAttachment(id)`
+
+**Usage:** `unwrap(await requestAttachmentUpload(...))` on the client (hooks do it).
+
+## releaseLockKeepalive / uploadDocAttachment
+
+**Location:** `web/src/features/docs/services/docsClientApi.ts`
+
+**Description:** Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
+
+**Signature:** `releaseLockKeepalive(id, sessionId): void / uploadDocAttachment(documentId, file)`
+
+**Usage:** `unwrap(await releaseLockKeepalive(...))` on the client (hooks do it).

@@ -5,3 +5,9 @@ export const formatDateTime = (iso: string): string => {
   const d = new Date(iso);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+/** `HH:mm` con getters locales (igual que `formatDateTime`). */
+export const formatTime = (iso: string): string => {
+  const d = new Date(iso);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};

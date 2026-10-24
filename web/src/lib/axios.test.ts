@@ -57,4 +57,30 @@ describe('apiClient response interceptor (S-034)', () => {
     });
     expect(window.location.href).toBe('/login');
   });
+
+  it('TS-1 (S-082): conserva `details` cuando viene y no agrega la clave cuando no', async () => {
+    const { apiClient } = await import('./axios');
+    const rejectedHandler = apiClient.interceptors.response.handlers?.[0]?.rejected;
+
+    const conflict = new AxiosError('x');
+    conflict.response = {
+      status: 409,
+      data: {
+        code: 'version_conflict',
+        message: 'El documento cambió',
+        details: { currentVersion: 7 },
+      },
+    } as AxiosResponse;
+    await expect(rejectedHandler!(conflict)).rejects.toEqual({
+      code: 'version_conflict',
+      message: 'El documento cambió',
+      status: 409,
+      details: { currentVersion: 7 },
+    });
+
+    const plain = new AxiosError('x');
+    plain.response = { status: 404, data: { code: 'nf', message: 'nf' } } as AxiosResponse;
+    const rejected = await rejectedHandler!(plain).catch((e: object) => e);
+    expect('details' in (rejected as object)).toBe(false);
+  });
 });

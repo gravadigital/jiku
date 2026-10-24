@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-10-24 (S-081: módulo `features/docs`)
+**Last updated:** 2026-10-24 (S-082: escritura del módulo `features/docs`)
 
 ## Components
 
-Total: 26
+Total: 33
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -35,10 +35,17 @@ Total: 26
 - **DocsPanel** (`web/src/features/docs/components/DocsPanel/DocsPanel.tsx`) - The "Documentación" card embedded in project, requirement and task detail: lists the documents linked to a `scope` (`projectId | requirementId | taskId`), 10 per page with cursor "Ver más". Renders nothing when the optional docs module is `not_installed`; shows the unavailable notice when `unavailable` or on query error.
 - **DocsNotice** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - Local inline alert (`role="alert"`, `warning`/`error` intent over the `review`/`urgent` state tokens) covering the accepted DS gap `alert`; not in `shared/components/ui` on purpose.
 - **DocumentView** (`web/src/features/docs/components/DocumentView/DocumentView.tsx`) - Client container of `/docs/[id]` (read mode): header, breadcrumb, version meta, safe markdown content, links, topics and attachments, with loading / not found / module-unavailable states. Calls `notFound()` if the module becomes `not_installed`.
+- **DocsBrowser** (`web/src/features/docs/components/DocsBrowser/DocsBrowser.tsx`) - Client container of `/docs`: folder-by-level table + global text search (debounced, kept in `?q=`), folder in `?folder=`, all loading / empty / error / not-found / module-unavailable states, and the O-11 trigger. `DocumentView`'s sibling.
+- **FolderBreadcrumb** (`web/src/features/docs/components/FolderBreadcrumb/FolderBreadcrumb.tsx`) - `<nav aria-label="Ruta de la carpeta">`: `Inicio` plus one level per folder, last level without link and `aria-current="page"`, unreadable ancestors (`id: null`) as text.
+- **SearchSnippet** (`web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`) - Renders a search `snippet` as text with `<mark>` on the match; never interprets HTML (P-8).
+- **NewDocumentDialog** (`web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`) - O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title suggests the file name until edited by hand, creates with a client-generated ULID and navigates to `/docs/{id}?editar=1`.
+- **DocumentEditor** (`web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`) - Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
+- **DocumentAttachZone** (`web/src/features/docs/components/DocumentAttachZone/DocumentAttachZone.tsx`) - Single-file `Dropzone` wired to `useUploadDocAttachment`; shows `Subiendo {name}…` in an `aria-live` line and maps module errors to messages.
+- **DocsNotice `info` / `role`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-082 adds the neutral `info` intent and `role?: 'alert' | 'none'` (default `alert`) so initial/silent states are not announced.
 
 ## Services
 
-Total: 10
+Total: 16
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -50,10 +57,16 @@ Total: 10
 - **getModules** (`web/src/features/docs/services/modulesApi.ts`) - Server Action for `GET /modules`: state of the optional bus modules.
 - **listDocuments** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents`; drops `undefined`/empty filter keys (the api answers 400 to undeclared keys).
 - **getDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents/{id}`; when the api returns `contentUrl` it downloads the content server-side and returns it as `content`.
+- **searchDocuments** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/search` (limit 50); returns `DocsResult`.
+- **createDocument / updateDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for `POST /docs/documents` and `PUT /docs/documents/{id}`; drop `undefined` keys and a blank `message`; never throw (`DocsResult`).
+- **lockDocument / unlockDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for the edit lock (`sessionId` only; no `ttlSeconds`, never `force`); `DocsResult` keeps `details` (`holder`, `via`, `expiresAt`).
+- **listFolders / listAllFolders / getFolderTrail** (`web/src/features/docs/services/foldersApi.ts`) - Server Actions over `GET /docs/folders[/{id}]`: one page, all pages (cap 10 x 200) and the ancestor trail (cap 20 levels, unreadable ancestors as text).
+- **requestAttachmentUpload / confirmAttachment** (`web/src/features/docs/services/docsAttachmentsApi.ts`) - Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
+- **releaseLockKeepalive / uploadDocAttachment** (`web/src/features/docs/services/docsClientApi.ts`) - Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
 
 ## Hooks
 
-Total: 11
+Total: 19
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -64,10 +77,18 @@ Total: 11
 - **useModules / useModule** (`web/src/features/docs/hooks/useModules.ts`) - `GET /modules` polled every 60 s (`['modules']`); `useModule(name)` resolves `{ status, sharing, isKnown }` and behaves as `not_installed` while loading or on error.
 - **useDocuments** (`web/src/features/docs/hooks/useDocuments.ts`) - Cursor-paginated `useInfiniteQuery` (10 per page) of the documents linked to a project, requirement or task.
 - **useDocument** (`web/src/features/docs/hooks/useDocument.ts`) - Document detail by ULID; does not retry 404 or `module_unavailable`.
+- **useFolderTrail** (`web/src/features/docs/hooks/useFolderTrail.ts`) - Folder + ancestor trail (`['docs-folder-trail', id]`).
+- **useRootFolders** (`web/src/features/docs/hooks/useRootFolders.ts`) - All visible folders resolved to the `/docs` root view with `resolveRoot` in `select`.
+- **useFolderContents** (`web/src/features/docs/hooks/useFolderContents.ts`) - Infinite query that exhausts subfolders then documents (50 per page) — one table, one "Ver más".
+- **useDocsSearch** (`web/src/features/docs/hooks/useDocsSearch.ts`) - Global text search; enabled only with a trimmed query of 2+ characters.
+- **useCreateDocument** (`web/src/features/docs/hooks/useCreateDocument.ts`) - Create mutation; invalidates the folder contents and `['docs-documents']`.
+- **useSaveDocument** (`web/src/features/docs/hooks/useSaveDocument.ts`) - Save mutation (`retry: 0`); invalidates the document, listings and `['docs-folder-contents']` by prefix.
+- **useUploadDocAttachment** (`web/src/features/docs/hooks/useUploadDocAttachment.ts`) - Attachment upload mutation; invalidates the document.
+- **useEditSession** (`web/src/features/docs/hooks/useEditSession.ts`) - Lifecycle of the edit lock: acquire with a new `sessionId`, renew every 60 s, `lost`/blocked detection, `release()` and keepalive release on `pagehide`/unmount.
 
 ## Utils
 
-Total: 16
+Total: 27
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
@@ -85,10 +106,21 @@ Total: 16
 - **personName** (`web/src/features/docs/utils/persons.ts`) - Resolves a Zitadel `sub` against `Person.userId`, falling back to `"otra persona"`.
 - **formatDateTime** (`web/src/features/docs/utils/dates.ts`) - ISO string to `DD/MM/AAAA HH:mm` (local getters).
 - **MarkdownViewer `mode="document"`** (`web/src/features/attachments/components/MarkdownViewer/MarkdownViewer.tsx`) - Standard-markdown mode (GFM only, no Jiku placeholders or `remark-breaks`), shifted headings, links restricted by `docsUrlTransform`, no raw HTML.
+- **newUlid** (`web/src/features/docs/utils/ulid.ts`) - ULID from `Date.now()` + `crypto.getRandomValues` (lock `sessionId`, document `id`).
+- **sha256Checksum** (`web/src/features/docs/utils/checksum.ts`) - `sha256:` + hex of a `Blob` via `crypto.subtle`.
+- **slugifyFileName / normalizeFileName** (`web/src/features/docs/utils/slug.ts`) - Suggests `guia-de-despliegue.md` from a title; appends `.md` only when missing.
+- **highlightSnippet** (`web/src/features/docs/utils/snippet.ts`) - Splits a search snippet into `{ text, mark? }` segments from `<b>` marks or the query terms; never HTML.
+- **isLockActive / lockedMessage** (`web/src/features/docs/utils/lockState.ts`) - Is another session's lock still valid; `"{persona} lo está editando hasta las {HH:mm}…"`.
+- **resolveRoot** (`web/src/features/docs/utils/folders.ts`) - Builds the `/docs` root view from all visible folders (visible root or top-level visible folders).
+- **attachmentMarkdown** (`web/src/features/docs/utils/attachmentMarkdown.ts`) - `![name](link)` for images, `[name](link)` otherwise; escapes `[`, `]` and `\`.
+- **formatTime** (`web/src/features/docs/utils/dates.ts`) - ISO string to `HH:mm` (local getters).
+- **shouldRetryDocsQuery** (`web/src/features/docs/utils/moduleInvalidation.ts`) - Retry policy of docs queries: never 404, 403 or `module_unavailable`.
+- **toResult / unwrap** (`web/src/features/docs/utils/docsResult.ts`) - P-2: Server Actions return `DocsResult` instead of throwing; `unwrap` re-throws the `DocsError` on the client.
+- **docsErrors** (`web/src/features/docs/utils/docsErrors.ts`) - `code` → UI message mapping for create, save and attachment errors.
 
 ## Types
 
-Total: 12
+Total: 14
 
 - **UploadTicket** (`web/src/features/attachments/types/attachment.types.ts`) - Upload permission for a single object: `fileId`, `uploadUrl`, `expiresIn`.
 - **UploadTicketRequest** (`web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
@@ -102,3 +134,5 @@ Total: 12
 - **THEME_STORAGE_KEY** (`web/src/features/theme/types/theme.types.ts`) - The single constant (`'jiku.theme'`) for both the `localStorage` key and the cookie name — declared once so client and server never desync on a duplicated literal.
 - **ModuleState / ModuleStatus** (`web/src/features/docs/types/module.types.ts`) - Response of `GET /modules`.
 - **DocsDocument, DocsDocumentDetail, DocsDocumentPage, DocumentsFilters…** (`web/src/features/docs/types/docs.types.ts`) - Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates as ISO strings.
+- **DocsResult, DocsError, DocsFolder, DocsSearchHit, DocsWriteResult, DocsLockGrant, FolderTrail, RootFolders…** (`web/src/features/docs/types/docs.types.ts`) - Write/folder/search contract types of S-082, verbatim from `docs/apis/api.yaml`; `ApiError.details?` added in `lib/axios.ts`.
+- **ApiError.details** (`web/src/lib/axios.ts`) - Optional `details` copied by the interceptor only when the api sends it (`holder`, `expiresAt`, `currentVersion`).

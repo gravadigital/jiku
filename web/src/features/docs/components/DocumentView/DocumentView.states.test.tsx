@@ -7,8 +7,21 @@ import { DocumentView } from './DocumentView';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
+}));
+vi.mock('../../hooks/useFolderTrail', () => ({ useFolderTrail: () => ({ data: undefined }) }));
+vi.mock('../../hooks/useEditSession', () => ({
+  useEditSession: () => ({
+    phase: 'idle',
+    sessionId: null,
+    blockedBy: null,
+    start: vi.fn(),
+    release: vi.fn(),
+    markBlocked: vi.fn(),
+    clearBlocked: vi.fn(),
+  }),
 }));
 vi.mock('../../hooks/useDocument', () => ({ useDocument: vi.fn() }));
 vi.mock('../../hooks/useModules', () => ({ useModule: vi.fn() }));

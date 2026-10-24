@@ -1,0 +1,11 @@
+.snippet {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+  line-height: var(--text-body-default-leading);
+}
+
+.mark {
+  background: var(--state-review-tint);
+  color: var(--text-primary);
+}

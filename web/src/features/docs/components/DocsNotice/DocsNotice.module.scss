@@ -19,6 +19,12 @@
   color: var(--state-urgent-text);
 }
 
+.info {
+  background: var(--state-neutral-tint);
+  border-color: var(--state-neutral-border);
+  color: var(--state-neutral-text);
+}
+
 .icon {
   flex-shrink: 0;
 }

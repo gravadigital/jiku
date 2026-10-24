@@ -25,3 +25,12 @@ export async function withModuleInvalidation<T>(
     throw error;
   }
 }
+
+const NO_RETRY_CODES = ['module_unavailable', 'document_not_found', 'permission_denied'];
+
+/** Política de reintento de las consultas de docs: nada de reintentar 404, 403 ni `module_unavailable`. */
+export function shouldRetryDocsQuery(count: number, error: unknown): boolean {
+  const { code, status } = (error ?? {}) as { code?: string; status?: number };
+  if (status === 404 || status === 403 || (code && NO_RETRY_CODES.includes(code))) return false;
+  return count < 1;
+}

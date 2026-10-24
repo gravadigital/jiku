@@ -1,6 +1,10 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
-import { isModuleUnavailable, withModuleInvalidation } from './moduleInvalidation';
+import {
+  isModuleUnavailable,
+  shouldRetryDocsQuery,
+  withModuleInvalidation,
+} from './moduleInvalidation';
 
 describe('withModuleInvalidation', () => {
   it('TS-11: module_unavailable invalida [modules] y relanza', async () => {
@@ -35,5 +39,15 @@ describe('withModuleInvalidation', () => {
     );
     expect(isModuleUnavailable(null)).toBe(false);
     expect(isModuleUnavailable('module_unavailable')).toBe(false);
+  });
+});
+
+describe('shouldRetryDocsQuery', () => {
+  it('no reintenta 404, 403 ni module_unavailable; reintenta una vez el resto', () => {
+    expect(shouldRetryDocsQuery(0, { status: 404 })).toBe(false);
+    expect(shouldRetryDocsQuery(0, { status: 403 })).toBe(false);
+    expect(shouldRetryDocsQuery(0, { code: 'module_unavailable', status: 503 })).toBe(false);
+    expect(shouldRetryDocsQuery(0, { code: 'internal_error', status: 500 })).toBe(true);
+    expect(shouldRetryDocsQuery(1, { code: 'internal_error', status: 500 })).toBe(false);
   });
 });

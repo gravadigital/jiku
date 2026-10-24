@@ -158,3 +158,9 @@ interface ModuleState { module: string; status: ModuleStatus; features?: { shari
 **Location:** `web/src/features/docs/types/docs.types.ts`
 
 **Description:** `DocsDocument`, `DocsDocumentDetail` (adds `folder`), `DocsDocumentPage`, `DocsAttachment`, `DocsLock`, `DocsRelations`, `DocsPageInfo`, `DocumentsFilters`. Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates are ISO strings.
+
+## Docs write types (S-082)
+
+**Location:** `web/src/features/docs/types/docs.types.ts`
+
+**Description:** `DocsFolder`, `DocsFolderPage`, `DocsSearchHit`, `DocsSearchResponse`, `DocsWriteResult`, `DocsIdResult`, `DocsLockGrant`, `DocsAttachmentUpload`, `DocsAttachmentConfirm`, `DocsDocumentSort`, `DocsError`, `DocsResult<T>` (`{ ok: true; data } | { ok: false; error }`), payloads, `FolderTrail`, `RootFolders`. `ApiError` in `web/src/lib/axios.ts` gains `details?`.

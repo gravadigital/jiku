@@ -2,28 +2,28 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDocument } from '../services/docsApi';
-import { withModuleInvalidation } from '../utils/moduleInvalidation';
+import { unwrap } from '../utils/docsResult';
+import { shouldRetryDocsQuery, withModuleInvalidation } from '../utils/moduleInvalidation';
 
 interface UseDocumentOptions {
   id: string;
   enabled?: boolean;
+  /** Para revisar si el bloqueo venció sin recargar (S-082). */
+  refetchInterval?: number | false;
 }
 
-const NO_RETRY_CODES = ['module_unavailable', 'document_not_found'];
-
-const shouldRetry = (count: number, error: unknown): boolean => {
-  const { code, status } = (error ?? {}) as { code?: string; status?: number };
-  if (status === 404 || (code && NO_RETRY_CODES.includes(code))) return false;
-  return count < 1;
-};
-
-export const useDocument = ({ id, enabled = true }: UseDocumentOptions) => {
+export const useDocument = ({
+  id,
+  enabled = true,
+  refetchInterval = false,
+}: UseDocumentOptions) => {
   const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: ['docs-document', id],
-    queryFn: () => withModuleInvalidation(queryClient, () => getDocument(id)),
+    queryFn: () => withModuleInvalidation(queryClient, async () => unwrap(await getDocument(id))),
     enabled,
-    retry: shouldRetry,
+    retry: shouldRetryDocsQuery,
+    refetchInterval,
   });
 };

@@ -302,3 +302,91 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 **Signature:** `MarkdownViewer({ content, mode? })`
 
 **Usage:** `<MarkdownViewer mode="document" content={doc.content} />`
+
+## newUlid
+
+**Location:** `web/src/features/docs/utils/ulid.ts`
+
+**Description:** ULID from `Date.now()` + `crypto.getRandomValues` (lock `sessionId`, document `id`).
+
+**Usage:** see the unit test next to the file.
+
+## sha256Checksum
+
+**Location:** `web/src/features/docs/utils/checksum.ts`
+
+**Description:** `sha256:` + hex of a `Blob` via `crypto.subtle`.
+
+**Usage:** see the unit test next to the file.
+
+## slugifyFileName / normalizeFileName
+
+**Location:** `web/src/features/docs/utils/slug.ts`
+
+**Description:** Suggests `guia-de-despliegue.md` from a title; appends `.md` only when missing.
+
+**Usage:** see the unit test next to the file.
+
+## highlightSnippet
+
+**Location:** `web/src/features/docs/utils/snippet.ts`
+
+**Description:** Splits a search snippet into `{ text, mark? }` segments from `<b>` marks or the query terms; never HTML.
+
+**Usage:** see the unit test next to the file.
+
+## isLockActive / lockedMessage
+
+**Location:** `web/src/features/docs/utils/lockState.ts`
+
+**Description:** Is another session's lock still valid; `"{persona} lo está editando hasta las {HH:mm}…"`.
+
+**Usage:** see the unit test next to the file.
+
+## resolveRoot
+
+**Location:** `web/src/features/docs/utils/folders.ts`
+
+**Description:** Builds the `/docs` root view from all visible folders (visible root or top-level visible folders).
+
+**Usage:** see the unit test next to the file.
+
+## attachmentMarkdown
+
+**Location:** `web/src/features/docs/utils/attachmentMarkdown.ts`
+
+**Description:** `![name](link)` for images, `[name](link)` otherwise; escapes `[`, `]` and `\`.
+
+**Usage:** see the unit test next to the file.
+
+## formatTime
+
+**Location:** `web/src/features/docs/utils/dates.ts`
+
+**Description:** ISO string to `HH:mm` (local getters).
+
+**Usage:** see the unit test next to the file.
+
+## shouldRetryDocsQuery
+
+**Location:** `web/src/features/docs/utils/moduleInvalidation.ts`
+
+**Description:** Retry policy of docs queries: never 404, 403 or `module_unavailable`.
+
+**Usage:** see the unit test next to the file.
+
+## toResult / unwrap
+
+**Location:** `web/src/features/docs/utils/docsResult.ts`
+
+**Description:** P-2: Server Actions return `DocsResult` instead of throwing; `unwrap` re-throws the `DocsError` on the client.
+
+**Usage:** see the unit test next to the file.
+
+## docsErrors
+
+**Location:** `web/src/features/docs/utils/docsErrors.ts`
+
+**Description:** `code` → UI message mapping for create, save and attachment errors.
+
+**Usage:** see the unit test next to the file.
