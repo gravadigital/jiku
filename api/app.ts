@@ -27,6 +27,24 @@ function docsWriteJson(req: Request, res: Response, next: NextFunction) {
   return req.method === 'POST' || req.method === 'PUT' ? docsJsonParser(req, res, next) : next();
 }
 
+/**
+ * DD-3 de REQ-017: el 413 de body-parser (`entity.too.large`, de cualquiera de los parsers: el de
+ * /api/docs con 768 KiB o el global con 100 kb) sale con la forma de error de toda la api en lugar del
+ * HTML del finalhandler. Cuatro argumentos, y todo lo que no reconoce sigue su camino con next(err): el
+ * 404 del fallback de arriba y cualquier otro error no cambian. No loguea: es un error del cliente, y en
+ * /p/docs/* la URL lleva el token del link.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function payloadTooLargeHandler(err: any, _req: Request, res: Response, next: NextFunction) {
+  if (err?.type === 'entity.too.large' && !res.headersSent) {
+    return res.status(413).json({
+      code: 'payload_too_large',
+      message: 'El cuerpo de la solicitud supera el límite permitido',
+    });
+  }
+  return next(err);
+}
+
 export function initialize(): Application {
   const app: Application = express();
   app.set('query parser', 'extended');
@@ -87,6 +105,8 @@ export function initialize(): Application {
       message: 'Not Found'
     });
   });
+  // DD-3: AL FINAL de la cadena, para recibir el error de cualquier parser sin interceptar nada más.
+  app.use(payloadTooLargeHandler);
   return app;
 }
 

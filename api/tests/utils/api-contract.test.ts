@@ -372,8 +372,8 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     block.should.match(/holder: /);
     block.should.match(/via: human/);
     block.should.match(/expiresAt: /);
-    // S-080 suma dos operaciones (las rutas públicas): 86 -> 88.
-    spec.should.match(/los 88 endpoints/);
+    // S-088: el encabezado cuenta operaciones: 89 (72 internas, 15 del portal, 2 públicas).
+    spec.should.match(/las 89 operaciones/);
     spec.should.match(/cinco métodos/);
   });
 
@@ -423,7 +423,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
       block.should.match(/X-Robots-Tag: noindex/, name);
     });
     spec.should.match(/idéntica para cualquier causa/);
-    spec.should.match(/los 88 endpoints/);
+    spec.should.match(/las 89 operaciones/);
     spec.should.not.match(/no queda una sola operación con `security: \[\]`/);
     // Los 503 de las rutas públicas no cuentan en los pares de core ni de módulo.
     const count = (needle: string) => spec.split('\n').filter((l) => l.includes(needle)).length;
@@ -431,5 +431,51 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     count("'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }").should.equal(23);
     count("'503': { $ref: '#/components/responses/BusUnavailable' }").should.equal(28);
     count("'504': { $ref: '#/components/responses/GatewayTimeout' }").should.equal(28);
+  });
+
+  const WRITES_413: Array<[string, string]> = [
+    ['/docs/documents', 'post'], ['/docs/documents/{id}', 'put'],
+    ['/docs/documents/{id}/move', 'post'], ['/docs/documents/{id}/restore', 'post'],
+    ['/docs/documents/{id}/lock', 'post'], ['/docs/documents/{id}/unlock', 'post'],
+    ['/docs/attachments', 'post'], ['/docs/attachments/{id}/confirm', 'post'],
+    ['/docs/documents/{id}/shares', 'post'],
+  ];
+
+  it('S-088 · TS-9 (CA-1): el encabezado coincide con las operaciones declaradas', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const operations = spec.split('\n').filter((l) => /^    (get|post|put|delete|patch):$/.test(l)).length;
+    operations.should.equal(89);
+    const header = /las (\d+) operaciones/.exec(spec);
+    (header !== null).should.be.true('el encabezado no dice "las N operaciones"');
+    Number(header![1]).should.equal(operations);
+    spec.should.not.match(/los 88 endpoints/);
+  });
+
+  it('S-088 · TS-10/TS-11/TS-12 (CA-2): las nueve escrituras declaran 413 y el componente PayloadTooLarge', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const line = "'413': { $ref: '#/components/responses/PayloadTooLarge' }";
+    WRITES_413.forEach(([name, verb]) => {
+      operation(spec, name, verb).should.containEql(line);
+    });
+    spec.split('\n').filter((l) => l.includes(line)).length.should.equal(9);
+    (spec.match(/'413':/g) || []).length.should.equal(9);
+    const start = spec.indexOf('\n    PayloadTooLarge:');
+    start.should.be.above(-1, 'components no declara PayloadTooLarge');
+    const rest = spec.slice(start + 1);
+    const block = rest.slice(0, rest.slice(1).search(/\n {4}\S/) + 1);
+    block.should.match(/code: payload_too_large/);
+    block.should.match(/El cuerpo de la solicitud supera el límite permitido/);
+    block.should.match(/#\/components\/schemas\/Error/);
+    block.should.match(/768 KiB/);
+    block.should.match(/no llama al bus/);
+  });
+
+  it('S-088 · TS-13/TS-14 (CA-4): DELETE /docs/shares/{id} no declara 400', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const block = operation(spec, '/docs/shares/{id}', 'delete');
+    const codes = (block.match(/^\s+'(\d{3})':/gm) || []).map((l) => l.trim().slice(1, 4));
+    codes.should.deepEqual(['200', '401', '403', '404', '500', '503', '504']);
+    spec.split('\n').filter((l) => l.includes("'400': { $ref: '#/components/responses/ModuleBadRequest' }"))
+      .length.should.equal(18);
   });
 });
