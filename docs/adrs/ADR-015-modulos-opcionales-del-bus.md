@@ -499,6 +499,11 @@ para correrlos con el stack levantado.
 - **F-31 — Enlaces del importador de HedgeDoc.** El importador reescribe enlaces a
   `{JIKU_WEB_URL}/docs/documents/{id}` y la web sirve `/docs/{id}`. NOT DOCUMENTED - needs
   verification. Story de seguimiento.
+- **R-5 de REQ-017 — El 413 JSON vale para toda la api y solo lo declaran las nueve escrituras de
+  `/docs/*`.** `payloadTooLargeHandler` (al final de la cadena de `api/app.ts`) atiende el
+  `entity.too.large` de cualquier parser —el de `/api/docs` con 768 KiB y el global con 100 kb—, pero
+  el resto de las operaciones de `docs/apis/api.yaml` no declara `413`. Desfase previo del contrato;
+  story de seguimiento.
 
 ### Discrepancias reportadas
 
@@ -515,17 +520,27 @@ sea la fuente de verdad y que la discrepancia sea un bug a reportar).
   las 27. Bugs encontrados:
   - **B-1 (F-12).** El encabezado de `api.yaml` dice "los 88 endpoints" y el archivo declara **89**
     operaciones (72 internas, 15 de portal, 2 públicas). Desfase de uno previo a REQ-016.
+    **Resuelto por REQ-017 (S-088):** el encabezado dice "las 89 operaciones que sirve (72 internas,
+    15 del portal, 2 públicas)".
   - **B-2.** `DELETE /docs/shares/{id}` declara `400` (`ModuleBadRequest`) y el handler
     (`docs-shares-id-delete.ts`) no tiene validación de entrada: un id mal formado responde 404
     `share_not_found` sin llamar al bus y no hay otro input. El `400` solo podría llegar si
     jiku-docs respondiera `invalid_fields`.
+    **Resuelto por REQ-017 (S-088):** se corrigió el contrato, no el handler: la operación ya no
+    declara `400`. Riesgo aceptado R-4 de REQ-017 (si jiku-docs respondiera `invalid_fields`, el mapa
+    produciría un 400 no declarado).
   - **B-3.** Ninguna de las operaciones de escritura de `/api/docs` declara `413`, aunque el cuerpo
     supera 768kb en `POST`/`PUT` (`DOCS_WRITE_BODY_LIMIT`) y body-parser responde 413 antes de
     llegar a la ruta (solo `POST /docs/documents` lo menciona en la descripción). Ese 413 no
     es JSON `{code, message}`: la api no tiene un manejador de errores propio para él.
+    **Resuelto por REQ-017 (S-088):** `payloadTooLargeHandler`, al final de la cadena de `api/app.ts`,
+    responde `413 { "code": "payload_too_large", … }`, y las nueve escrituras de `/docs/*` declaran
+    `413` (`PayloadTooLarge`). El resto de las rutas: pendiente R-5.
   - **B-4 (documentos relacionados, fuera de `docs/apis/`).** `docs/prd/architecture.md` decía "los
     61 endpoints"; el conteo real es 89 (se corrige en esta story). `documentation/api-reference.md` y
     `README.md` dicen 62 (F-33): se actualizan en la release.
+    **Resuelto por REQ-017 (S-088):** los tres documentos dicen 89, y `api-reference.md` lista las 89
+    filas, verificables con su receta de `grep`.
   - `docs/stories/S-080…md` tiene `status: Ready` en el frontmatter y `**Status:** Completed` en el
     cuerpo (F-32).
 

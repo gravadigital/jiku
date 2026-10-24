@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The 62 endpoints the API serves, generated from the route definitions. For the bus contract
+The 89 endpoints the API serves, generated from the route definitions. For the bus contract
 behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
@@ -10,15 +10,16 @@ behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 built as a negative-lookahead regex. It is deny-by-default, which is the right shape, but it
 means a route file can look unprotected while being covered.
 
-**That exemption list is empty**, so `validateToken` currently covers every path: **every
-endpoint below requires a bearer token**, with no exception. The mechanism stays in place
+**That exemption list has a single entry**, `GET /p/docs/` (the shared documentation links,
+see [Public endpoints](#public-endpoints)), so `validateToken` covers every other path:
+**every endpoint outside that section requires a bearer token**. The mechanism stays in place
 because declaring something public has to remain a one-line change in a file whose only
 purpose is to enumerate what is public — a change that shows up in review. Adding an entry
 there makes an endpoint reachable without credentials, so only something with its own
 documented access control belongs on it.
 
-The exemption interface covers `GET`, `PATCH`, `POST` and `DELETE`. A new `PUT` is **not**
-covered by the global installation and has to declare `validateToken` in its own chain.
+The exemption interface covers `GET`, `PATCH`, `POST`, `PUT` and `DELETE`. A new method has to
+be added both in `api/config/public.ts` and in `api/app.ts`.
 
 The token must be a JWT from the configured identity provider, sent as
 `Authorization: Bearer <token>`. There is no query-parameter fallback.
@@ -125,7 +126,7 @@ Called `objectives` here; the bus protocol calls them `task`. Same entity — se
 | GET    | `/api/week-assigned-times`                    | admin, user |     |
 | PUT    | `/api/week-assigned-times`                    | admin       |     |
 
-> `/api/week-assigned-times` holds the only `PUT` in the API, and its future is undecided —
+> `/api/week-assigned-times` is the only `PUT` outside documentation, and its future is undecided —
 > see [known-limitations.md](known-limitations.md).
 
 ### Attachments
@@ -165,9 +166,45 @@ entity is saved.
 > register a user on first login and is the one write that never became a command. See
 > [known-limitations.md](known-limitations.md).
 
+### Documentation
+
+Only available when the optional documentation module (jiku-docs) is installed. Every route here
+runs `requireModule('docs')`, so it answers `404 module_not_installed` when the module is not
+installed, `503 module_unavailable` when it does not answer its registration and
+`504 gateway_timeout` when a query or command does not come back in time. The api does not
+authorise the domain: the role only lets the request through, and jiku-docs applies the
+per-folder permissions (`permission_denied`). **In this table `Bus` means the request queries or
+sends a command to jiku-docs, not to `core`.** `/api/modules` reports the optional modules held
+in memory and makes no bus call per request. `POST` and `PUT` accept bodies up to 768 KiB; above
+that the response is `413 payload_too_large`.
+
+| Method | Path                                | Roles                      | Bus |
+| ------ | ----------------------------------- | -------------------------- | --- |
+| GET    | `/api/docs/documents`               | user, admin                | ●   |
+| POST   | `/api/docs/documents`               | user, admin                | ●   |
+| GET    | `/api/docs/documents/:id`           | user, admin                | ●   |
+| PUT    | `/api/docs/documents/:id`           | user, admin                | ●   |
+| DELETE | `/api/docs/documents/:id`           | user, admin                | ●   |
+| GET    | `/api/docs/documents/:id/versions`  | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/move`      | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/restore`   | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/lock`      | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/unlock`    | user, admin                | ●   |
+| GET    | `/api/docs/documents/:id/shares`    | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/shares`    | user, admin                | ●   |
+| DELETE | `/api/docs/shares/:id`              | user, admin                | ●   |
+| GET    | `/api/docs/search`                  | user, admin                | ●   |
+| GET    | `/api/docs/topics`                  | user, admin                | ●   |
+| GET    | `/api/docs/folders`                 | user, admin                | ●   |
+| GET    | `/api/docs/folders/:id`             | user, admin                | ●   |
+| POST   | `/api/docs/attachments`             | user, admin                | ●   |
+| POST   | `/api/docs/attachments/:id/confirm` | user, admin                | ●   |
+| GET    | `/api/docs/attachments/:id`         | user, admin                | ●   |
+| GET    | `/api/modules`                      | admin, user, external-user |     |
+
 ## Client portal endpoints
 
-Served under `/api/opus/*` and consumed by `opus-web`. Two restrictions apply, and they are
+Served under `/api/opus/*` and consumed by `opus-web`. Three restrictions apply, and they are
 independent:
 
 - **By project permission** — an `external-user` only sees the projects they were granted.
@@ -176,6 +213,12 @@ independent:
   to the surface, not the caller: the portal is the screen shared with the client. A requirement
   marked `internal` is absent from the listing and answers `404 requirement_not_found` on every
   other path — the same response as a non-existent id, so the 404 does not confirm it exists.
+
+- **By document visibility** — the portal serves only documents that are `public`, for every
+  role. A document that is not `public` (and its attachments) answers `404 document_not_found`,
+  and an attachment that does not belong to the requested document answers
+  `404 attachment_not_found`. The `/api/opus/docs/*` routes need the documentation module
+  (`module_not_installed`, `module_unavailable`, `gateway_timeout`, as above).
 
 The one exception is `DELETE .../subscriptors/:userId`, which only ever removes the caller's own
 subscription: it stays reachable so nobody is left subscribed to a requirement that turned
@@ -194,6 +237,25 @@ internal with no way to unsubscribe.
 | DELETE  | `/api/opus/requirements/:reqid/subscriptors/:userId` | external-user              | ●   |
 | POST    | `/api/opus/attachments`                              | user, external-user        | ●   |
 | GET     | `/api/opus/attachments/:id/preview`                  | user, external-user        | ●   |
+| GET     | `/api/opus/docs/documents`                           | external-user, admin, user | ●   |
+| GET     | `/api/opus/docs/documents/:id`                       | external-user, admin, user | ●   |
+| GET     | `/api/opus/docs/documents/:documentId/attachments/:id` | external-user, admin, user | ●   |
+| GET     | `/api/opus/modules`                                  | admin, user, external-user |     |
+
+## Public endpoints
+
+The shared documentation links. They are mounted at the root, not under `/api`, and need no
+token: they are the only entry in the exemption list of `api/config/public.ts`, and they carry
+their own controls. They answer only on the exclusive public host (`JIKU_PUBLIC_URL`; any other
+host gets `404`), are rate limited to 60 requests per minute per IP, and the 256-bit token is
+validated by jiku-docs against its hash. Any invalid link answers an indistinguishable `404`,
+and the responses are read-only (CSP, `noindex`, `no-store`). They answer HTML, not JSON. See
+[known-limitations.md](known-limitations.md).
+
+| Method | Path                             | Roles | Bus |
+| ------ | -------------------------------- | - | --- |
+| GET    | `/p/docs/:token`                 | — | ●   |
+| GET    | `/p/docs/:token/attachments/:id` | — | ●   |
 
 ## Errors
 
@@ -205,6 +267,7 @@ Responses carry a `code` and a `message`. Common codes:
 | `access_denied`          | authenticated, but the entity or project permission does not allow it   |
 | `caller_not_authorized`  | authenticated, but the role does not authorise this command             |
 | `not_found`              | no such route or entity                                                 |
+| `payload_too_large`      | status `413`: the JSON body exceeds the route's limit (768 KiB on `/api/docs` writes, 100 kb elsewhere); answered before the route runs |
 
 **There is no closed catalogue of error codes**, and no documented mapping from the bus's
 `errorCode` to HTTP statuses. Messages are currently in Spanish, because the frontends display
@@ -216,8 +279,9 @@ them directly to the user. Both are tracked in
 The tables above are derived from the route definitions. To check them against the code:
 
 ```sh
-grep -rhoE "\.(get|post|patch|put|delete)\(\s*'[^']+'" api/lib/routes/*.ts | sort
+grep -rhoE "\.(get|post|patch|put|delete)\(\s*'[^']+'" api/lib/routes/*.ts api/lib/public-routes/*.ts | sort
 ```
 
-Note that three routes put the path on the following line, so a single-line regex undercounts
-by three.
+Note that four routes put the path on the following line, so a single-line regex undercounts
+by four (85 lines plus those four make the 89). The routes in `public-routes` are mounted at the
+root; the rest are mounted under `/api`.

@@ -75,7 +75,7 @@ graph TB
     end
 
     subgraph BE["Backend"]
-        Api["api<br/>Express 5 · 61 endpoints<br/>SOLO LECTURA de la base"]
+        Api["api<br/>Express 5 · 89 endpoints<br/>SOLO LECTURA de la base"]
         Core["core<br/>sin HTTP · 17 comandos NATS<br/>ÚNICO que escribe"]
     end
 
@@ -138,7 +138,7 @@ graph TB
 |---|---|---|---|---|---|
 | **web** | Next.js 16 (App Router) + React 19 + TS 5.9 + TanStack Query 5 + Sass/CSS Modules + NextAuth v5 | Interfaz del equipo interno: 25 rutas, 7 route handlers BFF, 8 dominios feature-first | — (no persiste) | — | `api`, Zitadel, Google Fonts |
 | **opus-web** | Next.js 16 (App Router) + React 19 + TS + TanStack Query 5 + Sass/CSS Modules + NextAuth v5 | Portal de clientes: 5 páginas, proxy catch-all a `/api/opus/*`, 6 dominios | — (no persiste) | — | `api`, Zitadel |
-| **api** | Express 5 + TS 5.9 (Node 24) + Sequelize 6 (**RO**) + Joi 18 + Winston | Única puerta HTTP: 61 endpoints. Autenticación, autorización por rol y por entidad, **lectura** de la base, publicación de comandos, y dueña del esquema (corre las migraciones) | Adjunto (excepción), AsignacionSemanal (excepción) | PostgreSQL `jiku` (solo lectura) | Zitadel (JWKS, userinfo, service user), Storage S3 |
+| **api** | Express 5 + TS 5.9 (Node 24) + Sequelize 6 (**RO**) + Joi 18 + Winston | Única puerta HTTP: 89 endpoints. Autenticación, autorización por rol y por entidad, **lectura** de la base, publicación de comandos, y dueña del esquema (corre las migraciones) | Adjunto (excepción), AsignacionSemanal (excepción) | PostgreSQL `jiku` (solo lectura) | Zitadel (JWKS, userinfo, service user), Storage S3 |
 | **core** | TS 5.9 `strict` (Node 24) + NATS 2.29 + Sequelize 6 (**RW**) + Joi 18 + Winston. **Sin framework HTTP** | Único escritor: 17 comandos en 5 módulos. Valida reglas de negocio independientes del rol y persiste en una transacción por comando | Actor, Proyecto, Requisito, Tarea, HoraTrabajada, Ausencia, Actividad, Suscriptor | PostgreSQL `jiku` (usuario dueño) | Zitadel (solo su token de bus) |
 
 ### Componentes de infraestructura desplegados
@@ -459,7 +459,7 @@ pantalla espera a la más lenta.
 |---|---|
 | [`docs/adrs/`](../adrs/) | Las decisiones arquitectónicas con su contexto y sus consecuencias |
 | [`docs/architectures/{servicio}/`](../architectures/) | Manifest, overview y convenciones custom de cada servicio |
-| [`docs/apis/api.yaml`](../apis/api.yaml) | OpenAPI 3.0 — las 89 operaciones HTTP (el encabezado del archivo todavía dice 88: desfase reportado en la auditoría de S-085) |
+| [`docs/apis/api.yaml`](../apis/api.yaml) | OpenAPI 3.0 — las 89 operaciones HTTP |
 | [`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml) | AsyncAPI 3.0 — contrato del registro de módulos opcionales `JIKU_MODULES`, compartido con jiku-docs |
 | [`docs/adrs/ADR-015-modulos-opcionales-del-bus.md`](../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus: registro, lectura por el bus y la ruta pública `/p/docs/*` |
 | [`docs/apis/core.yaml`](../apis/core.yaml) | AsyncAPI 2.6 — los 17 comandos del bus |
