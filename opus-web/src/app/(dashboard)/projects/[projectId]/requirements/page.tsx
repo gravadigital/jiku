@@ -16,6 +16,7 @@ import type { ColumnData } from '@/features/requirements/components/KanbanBoard/
 import type { StateData } from '@/features/requirements/components/MobileRequirementsBoard/MobileRequirementsBoard';
 import { useIsMobile } from '@/shared/hooks';
 import { useProjects } from '@/features/projects';
+import { DocsSection } from '@/features/docs';
 import { Spinner } from '@/shared/components/ui';
 import styles from './page.module.scss';
 
@@ -168,6 +169,8 @@ export default function RequirementsPage() {
         projectId={projectId}
         onNewRequirement={handleOpenNewRequirementModal}
       />
+      {/* Octava query, independiente: no entra en `queries` ni demora el tablero. */}
+      <DocsSection projectId={projectId} />
       {isMobile ? (
         <MobileRequirementsBoard states={statesData} projectId={projectId} />
       ) : view === 'list' ? (

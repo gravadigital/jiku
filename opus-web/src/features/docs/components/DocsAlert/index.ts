@@ -1,0 +1,1 @@
+export { DocsAlert } from './DocsAlert';

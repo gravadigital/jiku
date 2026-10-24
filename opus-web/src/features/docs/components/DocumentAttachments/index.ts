@@ -1,0 +1,1 @@
+export { DocumentAttachments } from './DocumentAttachments';

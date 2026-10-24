@@ -1,0 +1,114 @@
+@use '@/styles/mixins' as *;
+
+.section {
+  flex-shrink: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-background);
+
+  @include mobile {
+    margin: var(--spacing-md);
+  }
+}
+
+.header,
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  min-height: var(--size-touch-target);
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.header {
+  @include button-reset;
+  @include focus-ring;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+}
+
+.title {
+  flex: 1;
+}
+
+.chevron {
+  // Sin transición: respeta `prefers-reduced-motion` sin media query cruda (ADR-010).
+  color: var(--color-text-secondary);
+
+  &[data-expanded='false'] {
+    transform: rotate(-90deg);
+  }
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-height: var(--size-touch-target);
+  padding: 0 var(--spacing-xs);
+  border-top: 1px solid var(--color-border);
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  @include mobile {
+    flex-wrap: wrap;
+    align-content: center;
+    padding-top: var(--spacing-xs);
+    padding-bottom: var(--spacing-xs);
+  }
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.link {
+  @include truncate;
+  @include focus-ring;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  @include mobile {
+    flex-basis: calc(100% - var(--spacing-lg));
+  }
+}
+
+.date {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+
+  @include mobile {
+    flex-basis: 100%;
+    padding-left: var(--spacing-lg);
+  }
+}
+
+.more {
+  padding: var(--spacing-sm) 0;
+}

@@ -1,6 +1,15 @@
 import { render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 import { RequirementInfoPanel } from './RequirementInfoPanel';
 import type { RequirementDetail, RequirementState } from '../../../../types/requirement.types';
+
+const mockDocsSection = vi.fn();
+vi.mock('@/features/docs', () => ({
+  DocsSection: (props: { projectId: number; requirementId?: number }) => {
+    mockDocsSection(props);
+    return <section data-testid="docs-section" />;
+  },
+}));
 
 function buildRequirement(overrides: Partial<RequirementDetail> = {}): RequirementDetail {
   return {
@@ -167,5 +176,13 @@ describe('RequirementInfoPanel', () => {
       expect(screen.getByText('—')).toBeInTheDocument();
       expect(screen.queryByText('Automático')).not.toBeInTheDocument();
     });
+  });
+
+  it('TS-46: la sección de documentos va debajo del pie de autoría', () => {
+    render(<RequirementInfoPanel requirement={buildRequirement({ id: 345, projectId: 12 })} />);
+    const footer = screen.getByText(/Elemento creado por/);
+    const section = screen.getByTestId('docs-section');
+    expect(footer.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mockDocsSection).toHaveBeenCalledWith({ projectId: 12, requirementId: 345 });
   });
 });

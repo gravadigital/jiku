@@ -1,14 +1,34 @@
 import React from 'react';
 
+type HeadingComponent = (props: { children?: React.ReactNode }) => React.JSX.Element;
+
 interface MarkdownProps {
   children?: string;
+  /** Descarta el HTML crudo (como `skipHtml` de react-markdown). Sin esto, queda como texto. */
+  skipHtml?: boolean;
+  /** Se aplica a `href` y `src`, como en react-markdown. */
+  urlTransform?: (url: string, key?: string) => string | null | undefined;
   components?: {
     a?: (props: { href?: string; children?: React.ReactNode }) => React.JSX.Element;
+    img?: (props: { src?: string; alt?: string }) => React.JSX.Element;
+    h1?: HeadingComponent;
+    h2?: HeadingComponent;
+    h3?: HeadingComponent;
+    h4?: HeadingComponent;
+    h5?: HeadingComponent;
+    h6?: HeadingComponent;
   };
 }
 
-function parseMarkdown(content: string, components?: MarkdownProps['components']): React.ReactNode {
-  if (!content) return null;
+function parseMarkdown(
+  rawContent: string,
+  components?: MarkdownProps['components'],
+  options: Pick<MarkdownProps, 'skipHtml' | 'urlTransform'> = {}
+): React.ReactNode {
+  if (!rawContent) return null;
+  const content = options.skipHtml ? rawContent.replace(/<[^>]*>/g, '') : rawContent;
+  const transform = (url: string, key: string): string =>
+    options.urlTransform ? (options.urlTransform(url, key) ?? '') : url;
 
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
@@ -82,18 +102,42 @@ function parseMarkdown(content: string, components?: MarkdownProps['components']
         continue;
       }
 
+      // Images (antes que los links: `![alt](src)` también matchea como link)
+      const imageMatch = remaining.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+      const linkCandidate = remaining.match(/(?<!!)\[([^\]]+)\]\(([^)]+)\)/);
+      if (
+        imageMatch &&
+        imageMatch.index !== undefined &&
+        (!linkCandidate || (linkCandidate.index ?? 0) > imageMatch.index)
+      ) {
+        if (imageMatch.index > 0) {
+          parts.push(remaining.slice(0, imageMatch.index));
+        }
+        const src = transform(imageMatch[2], 'src');
+        const imgProps = { src, alt: imageMatch[1] };
+        if (components?.img) {
+          parts.push(<React.Fragment key={key++}>{components.img(imgProps)}</React.Fragment>);
+        } else {
+          // eslint-disable-next-line @next/next/no-img-element
+          parts.push(<img key={key++} src={src || undefined} alt={imageMatch[1]} />);
+        }
+        remaining = remaining.slice(imageMatch.index + imageMatch[0].length);
+        continue;
+      }
+
       // Links
-      const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      const linkMatch = linkCandidate;
       if (linkMatch && linkMatch.index !== undefined) {
         if (linkMatch.index > 0) {
           parts.push(remaining.slice(0, linkMatch.index));
         }
-        const linkProps = { href: linkMatch[2], children: linkMatch[1] };
+        const href = transform(linkMatch[2], 'href');
+        const linkProps = { href, children: linkMatch[1] };
         if (components?.a) {
           parts.push(<React.Fragment key={key++}>{components.a(linkProps)}</React.Fragment>);
         } else {
           parts.push(
-            <a key={key++} href={linkMatch[2]}>
+            <a key={key++} href={href}>
               {linkMatch[1]}
             </a>
           );
@@ -132,6 +176,15 @@ function parseMarkdown(content: string, components?: MarkdownProps['components']
     if (headerMatch) {
       flushList();
       const level = headerMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6;
+      const headingOverride = components?.[`h${level}` as 'h1'];
+      if (headingOverride) {
+        elements.push(
+          <React.Fragment key={elements.length}>
+            {headingOverride({ children: parseInline(headerMatch[2]) })}
+          </React.Fragment>
+        );
+        continue;
+      }
       const HeadingTag = `h${level}` as keyof React.JSX.IntrinsicElements;
       elements.push(<HeadingTag key={elements.length}>{parseInline(headerMatch[2])}</HeadingTag>);
       continue;
@@ -172,8 +225,8 @@ function parseMarkdown(content: string, components?: MarkdownProps['components']
   return elements;
 }
 
-function Markdown({ children, components }: MarkdownProps) {
-  return <>{parseMarkdown(children ?? '', components)}</>;
+function Markdown({ children, components, skipHtml, urlTransform }: MarkdownProps) {
+  return <>{parseMarkdown(children ?? '', components, { skipHtml, urlTransform })}</>;
 }
 
 export default Markdown;
