@@ -4,8 +4,8 @@ title: Consulta por el bus — el recorrido completo de una lectura de jiku-quer
 type: feature
 status: Active
 created: 2026-08-24
-last_updated: 2026-08-25
-stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
+last_updated: 2026-10-24
+stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085]
 ---
 
 # Consulta por el Bus
@@ -13,8 +13,8 @@ stories: [S-022, S-023, S-024, S-025, S-026, S-027, S-028]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-24
-**Última actualización:** 2026-08-25
-**Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028
+**Última actualización:** 2026-10-24
+**Stories:** S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-085
 
 ## Descripción
 
@@ -41,6 +41,18 @@ razones que no se reconstruyen leyendo el código:
 > api desde S-014 y **sigue deliberadamente sin caller**: ninguna de las 28 rutas `GET` migra. Lo
 > ejercitan los tests y la verificación manual con `nats req`. Es una decisión de alcance, no un
 > descuido.
+
+> **REQ-016 (S-077, S-085) — un segundo servicio con la misma gramática.** El bus admite un segundo
+> servicio de consultas, `jiku-docs-queries`, con la misma gramática de subject
+> (`{instance}.{user-id}.jiku-docs-queries.v1.{método}`) y el mismo sobre `Reply` que `jiku-queries`.
+> Lo atiende **jiku-docs**, no `core`: nada de lo que sigue en este documento (identidad desde el
+> subject, clase del caller, recorte del modo externo, SQL sobre `readDb`) aplica a esas consultas.
+> Con él, la **api es por primera vez lectora por el bus** (`GET /api/docs/*`: `documents.list`,
+> `documents.get`, `folders.get`, `shares.list`…), y lo hace con `actor: { id }` (solo el `id`), no
+> con el sobre de core (`roles`, `name`…), que para jiku-docs sería `invalid_fields`. Es la segunda
+> excepción a ADR-001. Recorrido completo:
+> [`documentos-desde-la-web`](documentos-desde-la-web.md) · decisión:
+> [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md).
 
 ### Estado de implementación — CERRADO
 

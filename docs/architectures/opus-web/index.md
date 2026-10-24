@@ -35,7 +35,7 @@ reemplazos.
 |---|---|---|
 | [data-fetching](./conventions/data-fetching.md) | Obtención de datos (`apiClient` de navegador + TanStack Query) | Las dos capas, los dos clientes axios, query keys, paginación infinita |
 | [mutations](./conventions/mutations.md) | Mutaciones (`useMutation` + invalidación explícita) | Las cinco mutaciones, qué invalidar, los tres enfoques de feedback |
-| [api-routes](./conventions/api-routes.md) | Route Handlers (proxy catch-all) | El catch-all y sus cinco decisiones, los handlers de adjuntos, el público |
+| [api-routes](./conventions/api-routes.md) | Route Handlers (proxy catch-all) | El catch-all y sus cinco decisiones, los handlers aparte (adjuntos, files, `api/docs/attachments/[id]`), la discrepancia del 401 con ADR-009 |
 | [auth](./conventions/auth.md) | Autenticación (NextAuth v5 + Zitadel OIDC) | Provider, el guard en el middleware, roles, contrato de sesión |
 | [state-management](./conventions/state-management.md) | Estado client-side | Árbol de decisión: URL, servidor, contexto, local. `useIsMobile` |
 | [styling](./conventions/styling.md) | Estilado (Sass + CSS Modules + custom properties) | Tokens, variantes con `data-*`, breakpoints y su uso real |
@@ -57,6 +57,7 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | `comments` | dentro del detalle de requisito | Solo `useCreateComment` + su api |
 | `subscriptions` | detalle de requisito y modal de creación | Sin ruta propia |
 | `attachments` | transversal | Sin componentes: solo servicio y tipos |
+| `docs` | `/projects/[projectId]/docs/[documentId]`; `DocsSection` en el tablero y en el detalle de requisito | Módulo **opcional** ([ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)), solo lectura de documentos `public` |
 
 ## Rutas
 
@@ -71,7 +72,9 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | `/api/opus/[...path]` | route handler | sí | proxy catch-all |
 | `/api/auth/[...nextauth]` | route handler | — | NextAuth |
 | `/api/attachments/[id]/preview` | route handler | sí | preview de adjunto |
-| `/attachments/[id]/[fileName]` | route handler | **no** | descarga pública |
+| `/api/files/[id]/preview` | route handler | sí | preview de archivo sin vínculo |
+| `/api/docs/attachments/[id]` | route handler | sí | adjunto de documento (302 propagado) |
+| `/projects/[projectId]/docs/[documentId]` | página | sí | `app/(dashboard)/projects/[projectId]/docs/[documentId]/page.tsx` |
 
 ## Documentación relacionada
 
@@ -81,3 +84,5 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | [../../analysis/ux/opus-web/index.md](../../analysis/ux/opus-web/index.md) | Relevamiento UX de la interfaz actual |
 | [../web/index.md](../web/index.md) | El otro frontend: mismo stack, decisiones opuestas en datos y guard |
 | [../../apis/core.yaml](../../apis/core.yaml) | Contrato de `core` |
+| [../../apis/api.yaml](../../apis/api.yaml) | Contrato HTTP de `api` (`/opus/modules`, `/opus/docs/*`) |
+| [../../adrs/ADR-015-modulos-opcionales-del-bus.md](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus |

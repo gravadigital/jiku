@@ -39,6 +39,15 @@ La capa 1 está en [`auth-jwt`](./auth-jwt.md). Acá van la 2 y la 3.
 | `user` | equipo interno: proyectos, requisitos, tareas, sus propias horas |
 | `external-user` | solo `/api/opus/*`, y solo los proyectos concedidos en `user_project_permissions` |
 
+**Roles por superficie de documentación (REQ-016):**
+
+| Superficie | Roles | Nota |
+|---|---|---|
+| `/api/docs/*` (20 rutas) | `admin`, `user` | detrás de `requireModule('docs')` |
+| `/api/opus/docs/*` (3 rutas, solo lectura) | `external-user`, `admin`, `user` | ver abajo |
+| `GET /api/modules`, `GET /api/opus/modules` | `admin`, `user`, `external-user` | cualquier autenticado, **no** cualquier token: deny-by-default. Sin permiso de proyecto: el estado de un módulo no pertenece a ningún proyecto |
+| `/p/docs/*` | ninguno (público) | control propio: host, rate limit, token; ver abajo |
+
 Salen del claim `urn:zitadel:iam:org:project:roles` y quedan en `req.decodedTokenRoles`.
 
 ## Capa 2: `hasAnyRole`
@@ -125,6 +134,32 @@ Dos funciones porque las reglas difieren:
 Caso especial: `entityId === null` es un draft anclado al usuario. Devuelve `true`, porque la
 titularidad ya se valida por `uploaded_by` al recuperar el adjunto en cada endpoint.
 
+## La documentación: la api no autoriza el dominio (REQ-016)
+
+**DD-2: la api no decide quién ve o edita un documento.** Las rutas de `/api/docs/*` solo exigen el rol
+(`admin`/`user`); jiku-docs autoriza el dominio (carpetas, ACL, `permission_denied`,
+`sharing_blocked`) en nombre de la persona que viaja en `actor: { id }`. Ver
+[`bus-modules`](./bus-modules.md).
+
+**DD-3: el portal fuerza `filter.visibility: 'public'`.** `GET /api/opus/docs/documents` pasa por
+`loadDocsScope` → `validateProjectPermissions` → (`validateRequirementIsPublic` si filtra por
+requisito) y manda siempre `visibility: 'public'`; `GET /api/opus/docs/documents/{id}` responde 404 si
+el documento no es `public`. Es una regla de **superficie**, como el recorte de requisitos: no mira el
+rol.
+
+**DD-4: el detalle por id del portal no lleva permiso de proyecto** (`GET /opus/docs/documents/{id}`,
+`GET /opus/docs/attachments/{id}`): excepción anotada a la regla *"un endpoint accesible a
+`external-user` debe verificar permiso de proyecto"* (ADR-006/ADR-008). Para `external-user` lo cubre la
+regla de externos de jiku-docs. **Límite conocido:** el adjunto del portal no puede recortarse por
+visibilidad (el reply de `request-download` no la trae), así que un usuario **interno** que use esa
+ruta recibe el adjunto de un documento `internal` si conoce el id (ADR-015, `known-limitations.md`).
+
+**`/p/docs/*` (pública, `get: ['p/docs/']` en `config/public.ts`)** es la única exención de
+`validateToken`. Su control propio: `publicHostOnly` (primer middleware: en el host de
+`JIKU_PUBLIC_URL` solo pasan `GET`/`HEAD` de `/p/docs/<algo>`), rate limit de 60/min/IP por réplica,
+token `^jds_[A-Za-z0-9_-]{43}$` validado por jiku-docs (la api responde el **mismo** 404 ante token mal
+formado, módulo ausente o cualquier error del módulo), y cabeceras de solo lectura en toda respuesta.
+
 ## Autorización dentro del handler
 
 Cuando la regla necesita datos que ningún middleware genérico tiene, va como middleware local del
@@ -209,6 +244,10 @@ quien se suscribió antes de que el requisito pasara a interno. Está comentada 
 
 ## Reglas
 
+- Una ruta de módulo opcional lleva `requireModule` antes de `hasAnyRole`, y **no** reimplementa la
+  autorización del dominio del módulo (DD-2).
+- Una ruta **pública** nueva solo se admite con control propio documentado (ADR-008): host exclusivo,
+  rate limit y token, como `/p/docs/*`. Cualquier cambio de `config/public.ts` es un cambio de seguridad.
 - Declará el rol explícitamente en todo endpoint nuevo con `hasAnyRole([...])`. La ausencia no es
   una convención.
 - `validateProjectPermissions` va **después** del middleware que carga `req.project`.
@@ -236,4 +275,5 @@ quien se suscribió antes de que el requisito pasara a interno. Está comentada 
 - **http-server**: define el orden de la cadena donde encajan estas capas.
 - **orm**: `user_project_permissions` es la tabla que sostiene la capa 3.
 - **error-handling**: el 403 `access_denied`.
+- **bus-modules**: `requireModule`, `actor: { id }` y por qué la api no autoriza el dominio de documentación.
 - **storage**: los adjuntos son el caso que motiva `canUserAccessEntity` / `canUserViewEntity`.

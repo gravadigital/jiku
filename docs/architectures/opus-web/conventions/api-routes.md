@@ -120,12 +120,22 @@ Los tres handlers autenticados repiten el mismo arranque: `await auth()`, y 401 
 |---|---|
 | `api/opus/[...path]` | `{"code":"unauthorized","message":"Unauthorized"}` |
 | `api/attachments/[id]/preview` | `{"error":"Unauthorized"}` |
+| `api/files/[id]/preview` | `{"code":"unauthorized","message":"Unauthorized"}` |
+| `api/docs/attachments/[id]` | `{"code":"unauthorized","message":"Unauthorized"}` |
 
 El primero coincide con la forma de `ApiError` que espera el interceptor de axios
 (`lib/axios.ts:5-9`); el segundo no. En la práctica no importa porque el preview se consume desde
 un `src`, no por axios — pero es una inconsistencia real.
 
 **Regla:** un handler nuevo usa el formato `{code, message}` del catch-all.
+
+> **Discrepancia con ADR-009 (REQ-016 / S-084, F-20; sin resolver aquí).** ADR-009 fija que un
+> route handler responde `401 {"error":"Unauthorized"}`. En `opus-web` tres handlers
+> (el catch-all, `api/files/[id]/preview` y `api/docs/attachments/[id]`) usan `{code, message}`, que
+> es la forma de `ApiError` que espera el interceptor de axios; solo `api/attachments/[id]/preview`
+> conserva `{"error":...}`. `web` usa `{error}` en todos sus handlers. El status 401 —lo que el
+> ADR protege— se cumple igual. Unificar es una definición técnica (`/product-change-technical-definition`);
+> ver [ADR-015](../../../adrs/ADR-015-modulos-opcionales-del-bus.md).
 
 ### Lo que el catch-all no filtra
 
@@ -140,7 +150,16 @@ Tampoco reenvía los headers de respuesta más allá del `Content-Type` (`route.
 `Content-Disposition` o un `Cache-Control` que mande la api se pierden. Es por qué los adjuntos
 necesitan handlers propios.
 
-## Los tres handlers aparte
+## Handlers aparte
+
+> **REQ-016 (S-084)** — se suma `GET /api/docs/attachments/[id]` (H-4): adjuntos de documentos con
+> `redirect: 'manual'`, porque el catch-all sigue redirecciones y convertiría el 302 de la api en
+> un proxy del binario. Valida el ULID antes de llamar (P-10), solo responde `GET` (P-11) y su
+> 401 es `{code, message}`. `api/files/[id]/preview` (previo, `GET`/`HEAD`) existe porque la ruta
+> de la api no está bajo `/api/opus/*`. La descarga pública `/attachments/[id]/[fileName]` que
+> describe lo que sigue **ya no existe** (REQ-002, S-009).
+
+Lo siguiente se conserva como estaba escrito:
 
 ### `GET /api/attachments/[id]/preview` — autenticado
 
@@ -217,6 +236,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 | Consumir un endpoint de `/api/opus/*` | **no** | El catch-all lo cubre |
 | La URL va en un `src`/`href`/`download` | **sí** | El navegador no puede mandar el token |
 | Necesitás un header de respuesta que el catch-all descarta | **sí** | Solo reenvía `Content-Type` |
+| La api responde una redirección (302) que no debe seguirse | **sí** | El catch-all la sigue; usar `redirect: 'manual'` (`api/docs/attachments/[id]`) |
 | El recurso debe ser accesible sin sesión | **sí** | Y hay que excluirlo del matcher del middleware |
 | Un webhook entrante | **sí** | No hay ninguno hoy |
 

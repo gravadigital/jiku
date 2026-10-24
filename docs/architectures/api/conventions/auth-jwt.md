@@ -29,15 +29,21 @@ crypto (node:crypto)   # createPublicKey desde el JWK
 
 ## Se instala globalmente, por método HTTP
 
-`app.ts:32-35` monta `validateToken` para **todo path excepto** las exenciones de
-`config/public.ts`, armadas como regex de lookahead negativo:
+`app.ts` monta `validateToken` para **todo path excepto** las exenciones de
+`config/public.ts`, armadas como regex de lookahead negativo, para los **cinco** métodos:
 
 ```ts
 app.get(publicPaths('get'), validateToken);
 app.patch(publicPaths('patch'), validateToken);
 app.post(publicPaths('post'), validateToken);
+app.put(publicPaths('put'), validateToken);
 app.delete(publicPaths('delete'), validateToken);
 ```
+
+> **REQ-016 (S-079, H-3)** — esta sección listaba cuatro métodos: `put` no estaba cubierto y el único
+> `PUT` (`week-assigned-times-put.ts`) declaraba `validateToken` en su propia cadena, lo que ADR-008
+> prohíbe. Ahora `put` es global y ese archivo ya no lo declara. Con las rutas de escritura de
+> `/api/docs` (varias son `PUT`) dejar un método sin cubrir habría sido un agujero.
 
 **Deny-by-default.** Una ruta nueva queda protegida sin hacer nada.
 
@@ -49,17 +55,24 @@ app.delete(publicPaths('delete'), validateToken);
 
 ### La única exención
 
-`GET /api/opus/attachments/:id/public`, declarada en `config/public.ts:20`. Está exenta porque
-**tiene su propio control de acceso**: valida `visibilityLevel === 'public'` por cada
-`entityType` y responde 403 en cualquier otro caso.
+`GET /p/docs/` (los links compartidos de documentación), declarada en `config/public.ts`: `get:
+['p/docs/']`; las otras cuatro listas están vacías. Está exenta porque **tiene su propio control de
+acceso**: host público exclusivo (`JIKU_PUBLIC_URL`), rate limit de 60/min/IP, token de 256 bits
+que valida jiku-docs, un 404 indistinguible para cualquier link inválido y cabeceras de solo
+lectura. Ver [`http-server`](./http-server.md) y [`authorization`](./authorization.md).
 
 > Agregar algo a esa lista deja el endpoint accesible sin credencial. Solo va ahí lo que tenga
 > control de acceso propio, y el comentario del archivo lo dice explícitamente.
->
-> El método `PUT` **no** está en `PublicPath` (`config/public.ts:2-7`), así que
-> `publicPaths('put')` nunca se llama. `PUT /api/week-assigned-times` queda cubierto porque
-> declara `validateToken` en su propia cadena (`week-assigned-times-put.ts:121`). Si agregás otro
-> `PUT`, declaralo explícitamente o agregá el método a la config.
+
+> **REQ-016 (S-079, H-3; S-080)** — esta sección decía otra cosa y estaba desactualizada en dos
+> puntos. (1) Nombraba como única exención `GET /api/opus/attachments/:id/public`, que **ya no
+> existe**: se eliminó con REQ-002 (S-009) junto con su handler; era deuda previa a REQ-016, y el
+> archivo real no tenía ninguna exención hasta S-080. (2) Decía: *"El método `PUT` **no** está en
+> `PublicPath`, así que `publicPaths('put')` nunca se llama. `PUT /api/week-assigned-times` queda
+> cubierto porque declara `validateToken` en su propia cadena. Si agregás otro `PUT`, declaralo
+> explícitamente o agregá el método a la config."* **Derogada:** `PublicPath` declara `put` y
+> `app.put(publicPaths('put'), validateToken)` cubre todo `PUT`; ningún archivo de ruta declara
+> `validateToken` por su cuenta para eso.
 
 ## El flujo de `validateToken`
 
@@ -84,7 +97,7 @@ Cualquier fallo responde `401 { code: 'unauthorized' }`.
 ## El JWKS se sincroniza con reintentos
 
 `synchronizeIdentityKeys()` trae `{IDENTITY_URL}/oauth/v2/keys` al arrancar
-(`app.ts:59`, dentro de `afterInitialize`). Si llega un token con un `kid` desconocido,
+(en `afterInitialize`, `app.ts`). Si llega un token con un `kid` desconocido,
 `verifyingKeys` **resincroniza y reintenta** hasta `KEY_SYNC_ATTEMPS` veces
 (`lib/utils/auth-helper.ts:33-57`).
 
@@ -119,7 +132,7 @@ candados:
 2. **Prohibido en producción**: con `NODE_ENV=production` el arranque falla.
 3. **Exige `DEV_USER_ID`**: sin el usuario que cargar, falla.
 
-Y `assertAuthConfig()` corre **antes de escuchar** (`bin/index.ts:13`): si falta `IDENTITY_URL`
+Y `assertAuthConfig()` corre **antes de escuchar** (`bin/index.ts`): si falta `IDENTITY_URL`
 y no hay bypass declarado, el proceso no arranca.
 
 > **La razón está en el código** (`lib/utils/middlewares/validate-token.ts:12-24`): antes el
@@ -165,7 +178,10 @@ coincidir con el `sub` que el callout lee. Ver [`bus-commands`](./bus-commands.m
 - No agregues `validateToken` a la cadena de una ruta: ya está global. Es redundante.
 - Toda ruta nueva es privada por default. No la agregues a `config/public.ts` salvo que implemente
   su propio control de acceso, y documentá cuál.
-- Un `PUT` nuevo necesita `validateToken` explícito, o agregar `put` a `PublicPath`.
+- Los cinco métodos (`get`, `patch`, `post`, `put`, `delete`) están cubiertos globalmente. Un método
+  HTTP **nuevo** se agrega a `PublicPath` y a `app.ts`, o sus rutas quedarían sin autenticación.
+  *(REQ-016 / H-3: la regla anterior, "un `PUT` nuevo necesita `validateToken` explícito", quedó
+  derogada.)*
 - El token va **solo** por header `Authorization: Bearer`. No reintroduzcas el fallback por query
   param.
 - No relajes los candados del bypass, y no lo infieras de configuración ausente.

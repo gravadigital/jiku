@@ -28,9 +28,9 @@ stack es anterior al catálogo.
 
 | id | Display name | Qué cubre |
 |---|---|---|
-| [data-fetching](./conventions/data-fetching.md) | Obtención de datos (Server Actions + axios + TanStack Query) | Las tres capas, query keys, configuración del cache, Suspense |
-| [mutations](./conventions/mutations.md) | Mutaciones (Server Action o BFF + invalidación) | Cómo elegir la vía, qué invalidar, feedback, update optimista |
-| [api-routes](./conventions/api-routes.md) | Route Handlers (BFF selectivo) | El criterio, el preámbulo de auth, streaming binario, params dinámicos |
+| [data-fetching](./conventions/data-fetching.md) | Obtención de datos (Server Actions + axios + TanStack Query) | Las tres capas, query keys, configuración del cache, Suspense, `DocsResult` (solo `features/docs/`) |
+| [mutations](./conventions/mutations.md) | Mutaciones (Server Action o BFF + invalidación) | Cómo elegir la vía, qué invalidar, feedback, update optimista, `DocsResult` en docs |
+| [api-routes](./conventions/api-routes.md) | Route Handlers (BFF selectivo) | El criterio, el preámbulo de auth, streaming binario, params dinámicos, los handlers de documentación (`docs/attachments/[id]`, `unlock`) |
 | [auth](./conventions/auth.md) | Autenticación (Auth.js v5 + Zitadel OIDC) | Provider, scopes, sesión, el guard en el layout, roles, login/logout |
 | [state-management](./conventions/state-management.md) | Estado client-side (TanStack Query + searchParams + useState) | Árbol de decisión, filtros en la URL, debounce, los contexts muertos |
 | [forms](./conventions/forms.md) | Formularios (yup + estado controlado) | Los tres enfoques que conviven, cuál usar, mensajes, `react-select` |
@@ -54,6 +54,7 @@ cuando hace falta, `utils/`. El barrel `index.ts` es su superficie pública.
 | `time-allocation` | `/time-allocation` | Solo `admin` edita |
 | `worked-times` | `/worked-times`, `/worked-times/report` | Oculto para `external-user` |
 | `attachments` | transversal | Sin ruta propia |
+| `docs` | `/docs`, `/docs/[id]`; el panel `DocsPanel` se monta en `/projects/[id]`, `/objectives/[id]` y el detalle de requisito | Módulo **opcional** (jiku-docs, [ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)): ítem de sidebar y panel solo si `GET /modules` no lo da por `not_installed` |
 | `auth` | `/login/enter`, y `usePersons` desde varios módulos | — |
 
 ## Documentación relacionada
@@ -63,3 +64,5 @@ cuando hace falta, `utils/`. El barrel `index.ts` es su superficie pública.
 | [../../analysis/services/web.md](../../analysis/services/web.md) | Análisis de importación |
 | [../../analysis/ux/web/index.md](../../analysis/ux/web/index.md) | Relevamiento UX de la interfaz actual |
 | [../../apis/core.yaml](../../apis/core.yaml) | Contrato de `core` |
+| [../../apis/api.yaml](../../apis/api.yaml) | Contrato HTTP de `api` (rutas `/modules` y `/docs/*` con `x-jiku-module: docs`) |
+| [../../adrs/ADR-015-modulos-opcionales-del-bus.md](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus (estado del módulo, excepción de lectura de la api) |

@@ -11,6 +11,7 @@ will spend the time.
 | **Node.js 24** | see [`.nvmrc`](../.nvmrc) |
 | **Docker** | for the stack, and for the `api` and `core` test suites, which start an ephemeral PostgreSQL |
 | **An OIDC identity provider** | Jiku does not manage users. Zitadel is what it is built against. |
+| **`nsc`** | the NATS CLI. Needed for the NATS identity and also by `./local.sh up`, which creates the module registry |
 | **A database dump** | the migrations cannot build the schema from empty — see below |
 
 That last one is the sharpest edge in adopting Jiku today, and it is worth knowing before you
@@ -72,3 +73,32 @@ runtime. See [configuration.md](configuration.md).
 Two differences from local: two external Docker networks are required, and the read-only
 database role has to be created by hand — `local.sh` does it for you, the production compose
 does not.
+
+## The documentation module (optional)
+
+Jiku works without it. The module is a separate service, jiku-docs, that lives in its own
+repository; when it is absent the api reports it as `not_installed` and the frontends show
+nothing. If the registry bucket does not exist the api logs an error and **retries every 30
+seconds** — it starts regardless.
+
+To install it:
+
+1. **Create the registry.** `deploy/nats/create-modules-kv.sh` creates the `JIKU_MODULES` bucket;
+   it needs JetStream enabled on the account (`enable-jetstream.sh`) and is safe to repeat.
+   `./local.sh up` runs it for you, which is why it needs `nsc`, and `./local.sh down -v` deletes
+   it along with the volume.
+2. **Create the role and the machine user** at the identity provider: a role `docs` in the
+   `GESTION_ZITADEL_PROJECT_ID` project, and a machine user for jiku-docs with **Access Token Type
+   = JWT** and **both** roles, `internal-app` and `docs`.
+3. **Restart the auth-callout** if you edited its templates; it reads them at startup. The rule
+   and template for `docs` are already versioned — nothing to change there. Details in the
+   [auth-callout README](../deploy/nats/auth-callout/README.md#habilitar-el-módulo-de-documentación).
+4. **Update `core` before jiku-docs connects.** Core has to know the `docs` role or it rejects
+   the module's calls.
+5. **Configure jiku-docs.** It needs from Jiku the `userId` of the api's machine user
+   (`JIKU_API_USER_ID`), the frontend URL (`JIKU_WEB_URL`) and, for shared links,
+   `JIKU_PUBLIC_URL`. The exact names are in jiku-docs' own repository.
+
+Shared links need one more thing: see
+[configuration.md](configuration.md#shared-documentation-links-optional). Every step with its
+commands is in [deploy/README.md](../deploy/README.md).

@@ -25,7 +25,7 @@ language: nextjs
 conventions:
   - data-fetching       # apiClient de navegador + TanStack Query, con paginación infinita
   - mutations           # useMutation + invalidación explícita por query key
-  - api-routes          # El proxy catch-all /api/opus/[...path] y los handlers de adjuntos
+  - api-routes          # El proxy catch-all /api/opus/[...path] y los handlers de adjuntos, files y docs
   - auth                # NextAuth v5 + Zitadel OIDC, guard en middleware.ts
   - state-management    # TanStack Query (servidor) + ProjectContext + useState (local)
   - styling             # Sass + CSS Modules + custom properties, sin librería de componentes
@@ -41,3 +41,4 @@ modules:
   - comments
   - subscriptions
   - attachments
+  - docs                # features/docs/: panel y visor de documentos PUBLICOS (solo lectura), módulo opcional (ADR-015)

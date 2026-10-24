@@ -58,6 +58,25 @@ level — that is what lets an internal comment carry a file the portal will not
 > State, type and priority values are stored in Spanish because they are baked into the database
 > schema. They are opaque identifiers — see [known-limitations.md](known-limitations.md).
 
+## Documentation (optional module)
+
+If jiku-docs is installed — a separate service, optional — documentation lives next to the work.
+Without it nothing of this appears; with it down, the screens show a notice and disable the
+actions that need it.
+
+On the internal frontend:
+
+- A **documentation panel** on every project, requirement and task, plus a `/docs` page that
+  browses folders level by level and searches.
+- A viewer, and a **markdown editor** with a preview. Editing takes a **reservation** on the
+  document, so two people cannot overwrite each other; it is renewed while the editor is open and
+  expires on its own.
+- **Attachments** on documents.
+- **Shared links**, read-only, for sharing a document with someone who has no account. The link is shown
+  **once**, expires after at most 180 days and can be revoked.
+
+The portal shows only documents marked `public` and linked to the client's projects, read-only.
+
 ## Three rules that surprise people
 
 `core` enforces these, and they produce errors that look like bugs:
@@ -78,6 +97,7 @@ choice is remembered per browser. The portal does not have one.
 | `external-user` | the portal, restricted to the projects they were explicitly granted |
 
 Roles come from the identity provider as a claim on the token; they are not managed inside Jiku.
+Who may see or edit a document is decided by jiku-docs, not by Jiku.
 
 A client user reaches only the projects granted to them, can create requirements — the main
 point of the portal — comment, subscribe, and download attachments whose visibility allows it.
@@ -92,8 +112,12 @@ screen the team shares with the client — it stays fully visible on the interna
 
 Stated plainly, because some of it used to exist and was removed before publishing:
 
-- **No reminders or recurring reports.** The only scheduled work is the notification delivery
-  process; nothing else runs on a timer.
+- **No reminders or recurring reports.** Apart from the notification delivery process, the only
+  timers are health checks: the api checks the documentation module every 30 seconds and the
+  frontends every 60.
+- **The documentation screens are not an administration tool.** Folders and their permissions are
+  managed outside Jiku, and the interface does not show version history, move, delete or restore
+  a document (the api supports them), nor update in real time.
 - **No user administration.** Users come from the identity provider. Whoever connects to the bus
   is created automatically from the authentication event; someone who only uses the web and is
   not yet in the database gets a 401 — see [known-limitations.md](known-limitations.md).

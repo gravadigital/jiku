@@ -80,7 +80,8 @@ modules:
   - events                 # ← `src/events/domain/`, NO `src/commands/events/`: los constructores
                             #   puros de eventos de dominio (REQ-014), que el despachador emite.
                             #   `src/events/auth/` es OTRA dirección (entrante: el consumidor del
-                            #   evento de autenticación) y no es este módulo
+                            #   evento de autenticación) y no es este módulo. Ahí vive
+                            #   `identity-type.ts`: `SERVICE_ROLES = [internal-app, core, docs]` (REQ-016)
   - notifications          # ← `src/notifications/`, NO `src/commands/notifications/`: un plano
                             #   de ejecución completo (registro de tipos + reglas de destinatarios
                             #   + plantillas + proceso periódico, REQ-015) que además ESCRIBE

@@ -4,8 +4,8 @@ title: Lectura de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-25
-stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027]
+last_updated: 2026-10-24
+stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027, S-076, S-085]
 ---
 
 # Lectura de Archivos
@@ -13,8 +13,8 @@ stories: [S-002, S-005, S-006, S-007, S-009, S-014, S-027]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-25
-**Stories:** S-002, S-005, S-006, S-007, S-009
+**Última actualización:** 2026-10-24
+**Stories:** S-002, S-005, S-006, S-007, S-009, S-076, S-085
 
 > **Estado de implementación (2026-08-19).** El lado de `core` (S-002), el de la **`api` (S-005)**,
 > el de **`web` (S-006)** y el de **`opus-web` (S-007)** están implementados: los caminos de lectura autorizan, publican
@@ -390,6 +390,20 @@ guardar.
 **Un servicio externo usa el mismo comando, sin `api` de por medio** (RF-11): publica
 `files.{fileId}.request-download` directo y recibe la URL. Con `fileId` no necesita conocer el modelo
 de vínculos para descargar lo que subió.
+
+> **REQ-016 (S-076, S-085) — el servicio externo ya no es hipotético: es jiku-docs.** jiku-docs
+> sube los adjuntos de los documentos (ver [`subida-de-archivos`](subida-de-archivos.md), Paso 4) y
+> **nunca los vincula** a ninguna entidad: son archivos **permanentemente sin vínculo**, y los lee
+> por este mismo camino (`files.{fileId}.request-download`, con `fileId`). La api sirve el link
+> estable de los adjuntos por `GET /api/docs/attachments/{id}`, que pide la descarga a jiku-docs y
+> responde 302 (ver [`documentos-desde-la-web`](documentos-desde-la-web.md)).
+>
+> **Gate de retención:** hoy ningún `.ts` de `core/src/` escribe
+> `RetentionStatus.ScheduledForDeletion` ni `RetentionStatus.Deleted`, y `core` no barre archivos
+> sin vínculo; el test `core/tests/commands/files-retention-gate.test.ts` (S-076) falla nombrando
+> el archivo si alguien lo agrega. Un barrido de archivos sin vínculo borraría los adjuntos de la
+> documentación: tiene que ser una decisión explícita, no un efecto colateral. Mientras tanto, un
+> archivo sin vínculo sigue `active` y descargable.
 
 ## Manejo de Errores
 

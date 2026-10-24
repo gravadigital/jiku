@@ -4,8 +4,8 @@ title: Autenticación y entrada al sistema
 type: feature
 status: Active
 created: 2026-08-18
-last_updated: 2026-08-25
-stories: [S-023, S-029, S-034]
+last_updated: 2026-10-24
+stories: [S-023, S-029, S-034, S-075, S-085]
 ---
 
 # Autenticación y Entrada al Sistema
@@ -13,8 +13,8 @@ stories: [S-023, S-029, S-034]
 **Tipo:** Feature
 **Status:** Active (implementado en el código existente)
 **Creado:** 2026-08-18
-**Última actualización:** 2026-08-25
-**Stories:** S-023, S-029, S-034
+**Última actualización:** 2026-10-24
+**Stories:** S-023, S-029, S-034, S-075, S-085
 
 > ## REQ-007 — el problema que este flujo documenta DEJA DE EXISTIR
 >
@@ -184,7 +184,7 @@ La api valida el token en tres pasos:
 
 ### Paso 5 (paralelo): Autenticación de los servicios en el bus
 
-**Origen:** `api`, `core`
+**Origen:** `api`, `core`, jiku-docs
 **Destino:** Zitadel → NATS
 **Tipo:** Interno
 
@@ -197,6 +197,16 @@ Camino distinto, mismo proveedor:
    - permiso de publicación sobre `{instance}.{user-id}.jiku-queries.v1.>` (consultas)
    - permiso de inbox sobre `_INBOX.<hash(user-id)>.>`
 3. El cliente **debe** fijar `inboxPrefix` con el mismo hash, o las respuestas nunca llegan
+
+**Un tercer servicio en el bus: jiku-docs (REQ-016, S-075).** Su machine user lleva **dos** roles,
+`internal-app` y `docs`, y el callout aplica la **primera** regla de `rules.yaml` que coincide:
+`docs` → `templates/docs.yaml`. Esa plantilla es un superconjunto de la de conector (más los
+permisos de servidor: atender `{instance}.*.jiku-docs-commands.v1.>` y `...-queries.v1.>`, y
+escribir la clave `$KV.JIKU_MODULES.docs`). **La regla `docs` tiene que ir antes de `internal-app`**:
+si quedara debajo, el machine user cae en la plantilla de conector y **reinicia en loop** al
+suscribirse a sus subjects de servicio (violación asíncrona de permisos). Un test estructural fija
+el orden. Qué hace la api con ese servicio:
+[`descubrimiento-de-modulos`](descubrimiento-de-modulos.md).
 
 **El `userId` con el que la api publica sale de la key, no de una variable de entorno**: tiene que
 coincidir exactamente con el `sub` que el callout lee del token.

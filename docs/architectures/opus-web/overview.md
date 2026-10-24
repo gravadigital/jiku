@@ -70,15 +70,21 @@ Eso está bien **siempre que `api` autorice por rol en cada endpoint**, que es d
 autoridad. Pero conviene tenerlo explícito: acá no hay una segunda barrera. Si un endpoint de
 `/api/opus/*` no chequea el rol, este proxy lo expone a cualquier usuario logueado.
 
-### Los dos handlers que no pasan por el catch-all
+### Los tres handlers que no pasan por el catch-all
 
 | Handler | Por qué existe aparte |
 |---|---|
 | `GET /api/attachments/[id]/preview` | El navegador pone la URL en un `src`/`href` y no puede mandar el `Authorization`. Chequea sesión y reenvía `Content-Type`, `Content-Disposition` y `Content-Length` |
-| `GET /attachments/[id]/[fileName]` | **Sin autenticación.** Llama a `/api/opus/attachments/{id}/public` de la api. El `fileName` de la URL se ignora: sirve para que el archivo baje con nombre legible |
+| `GET`/`HEAD` `/api/files/[id]/preview` | Archivo sin vínculo, por `files.id`: la ruta de la api **no vive bajo `/api/opus/*`**, así que el catch-all no puede alcanzarla, y la URL va en un `src` |
+| `GET /api/docs/attachments/[id]` | REQ-016 (H-4): adjuntos de documentos. La URL va en un `src`/`href` y **el catch-all sigue las redirecciones**: el 302 de la api hacia el storage se convertiría en un proxy del binario a través de Next. Este handler usa `redirect: 'manual'` y propaga el 302 con `Location` y `X-Content-Type-Options: nosniff`. Valida el ULID del id antes de llamar (P-10) y solo responde `GET` (P-11). El 401 es `{ code: 'unauthorized', message: 'Unauthorized' }` |
 
-El segundo está fuera del matcher del middleware (`middleware.ts:46`), a propósito. **La
-autorización de ese archivo la decide `api` en el endpoint `/public`, no este frontend.**
+Los tres validan sesión por su cuenta: `/api/*` está fuera del matcher del middleware.
+
+> **Derogado por REQ-002 (S-009).** Esta sección listaba como segundo handler
+> `GET /attachments/[id]/[fileName]` (descarga **sin** autenticación contra
+> `/api/opus/attachments/{id}/public`). La ruta se eliminó y el matcher del middleware se cerró:
+> en el árbol ya no existe `src/app/attachments/`. La tabla anterior de `files/[id]/preview` no
+> estaba documentada.
 
 ## Responsabilidades
 
@@ -91,6 +97,7 @@ Lo que `opus-web` **sí** hace:
 3. **Composición de las pantallas del cliente.** Tres vistas del mismo tablero de requisitos
    (lista agrupada, kanban, acordeón mobile), detalle en modal y en página.
 4. **Proxy autenticado** hacia `/api/opus/*` y para adjuntos.
+5. **Documentos públicos de solo lectura** (módulo opcional `docs`, REQ-016).
 
 Lo que **no** hace: reglas de negocio autoritativas. Lo que parece una regla acá —qué estados
 existen, quién puede cambiar el estado— es presentación; la autoridad está en `api` y `core`. Ver
@@ -107,16 +114,16 @@ opus-web/
 ├── __tests__/                  la mayoría de los tests
 ├── tests/setup.ts
 └── src/
-    ├── app/                    App Router — 5 páginas, 4 route handlers, 3 layouts
+    ├── app/                    App Router — 6 páginas, 5 route handlers, 3 layouts
     │   ├── layout.tsx          root: fuente Geist Mono, <Providers>, lang="en"
     │   ├── providers.tsx       SessionProvider + QueryClient + ProjectProvider + ToastContainer
     │   ├── page.tsx            redirige a /projects o /login
     │   ├── globals.scss        @use de styles/
     │   ├── (auth)/             login y callback de entrada
     │   ├── (dashboard)/        shell con Sidebar + <main>
-    │   ├── api/                proxy catch-all, NextAuth, preview de adjuntos
-    │   └── attachments/        descarga pública por nombre
-    ├── features/               6 dominios; ver "Módulos de dominio"
+    │   ├── api/                proxy catch-all, NextAuth, preview de adjuntos y de archivos, adjuntos de documentos (api/docs/attachments/[id])
+    │   └── attachments/        (ya no existe: la descarga pública se eliminó en REQ-002; ver "Los tres handlers")
+    ├── features/               7 dominios; ver "Módulos de dominio"
     ├── shared/
     │   ├── components/ui/      12 componentes de interfaz
     │   ├── components/layout/  Header, MobileMenu, PageContainer — los tres sin uso
@@ -142,6 +149,33 @@ y, cuando hace falta, `constants/`. El barrel `index.ts` es la superficie públi
 | `comments` | dentro del detalle de requisito | Solo `useCreateComment` + su api |
 | `subscriptions` | detalle de requisito y modal de creación | Sin ruta propia |
 | `attachments` | transversal | Sin ruta propia, sin componentes: solo servicio y tipos |
+| `docs` | `/projects/[projectId]/docs/[documentId]`; `DocsSection` se monta en `/projects/[projectId]/requirements` (tablero) y en el detalle de requisito | **Opcional** (REQ-016, [ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)), solo lectura |
+
+#### Módulo `docs` (documentos públicos del portal)
+
+Verificado contra `src/features/docs/`:
+
+- **Componentes:** `DocsSection` (sección colapsable "Documentación (n)"), `DocumentView`,
+  `DocumentHeader`, `DocumentAttachments`, `DocumentMarkdown`, `DocsAlert`.
+- **Hooks:** `useModules` (`refetchInterval: 60_000`) y `useModule`, `useDocuments`, `useDocument`.
+- **Utils:** `frontmatter` (`stripFrontmatter`), `classifyDocumentError`, `docsUrlTransform`,
+  `moduleInvalidation`, `dates`.
+- **Montaje:** `DocsSection` en `projects/[projectId]/requirements/page.tsx` (por proyecto) y
+  en `RequirementInfoPanel` (por requisito). La página `/projects/[projectId]/docs/[documentId]`
+  renderiza `DocumentView`.
+- **Estado del módulo.** `useModule` trata carga y falla como `not_installed` (`isKnown: false`).
+  Con `not_installed`, con estado desconocido o con 0 documentos **la sección no renderiza
+  nada**; con el módulo `unavailable` aparece con el aviso (`MSG_DOCS_UNAVAILABLE`). En la
+  página del documento, el error se clasifica (`classifyDocumentError`) y se ofrece "Reintentar".
+- **Solo lectura y solo `public`.** Consume `GET /opus/docs/documents` y
+  `GET /opus/docs/documents/{id}` por el catch-all; la api fuerza `visibility: 'public'`. No hay
+  edición, búsqueda ni compartir en el portal.
+- **`DocumentMarkdown`** es un componente nuevo (no extiende `MarkdownRenderer`) que **quita el
+  frontmatter** antes de renderizar (P-9) y **no usa `remark-gfm`** (P-13): tablas, tachado y
+  listas de tareas GFM salen como texto plano.
+- **Documentos > 256 KiB:** se baja `contentUrl` **desde el navegador** (P-8). Requiere CORS `GET`
+  en el bucket de jiku-docs: NOT DOCUMENTED - needs verification. Si falla, se muestra una alerta
+  de sistema.
 
 > **`Sidebar` está en `features/projects/`, no en `shared/components/layout/`.** Es el shell de
 > navegación de toda la aplicación, pero vive en el módulo de proyectos porque lista proyectos.
@@ -363,7 +397,7 @@ explícito de la sesión— sí aplican y están recogidas en cada convención.
 |---|---|
 | [data-fetching](./conventions/data-fetching.md) | `apiClient` de navegador + TanStack Query, query keys, paginación infinita |
 | [mutations](./conventions/mutations.md) | `useMutation`, qué invalidar, feedback, las dos APIs duplicadas |
-| [api-routes](./conventions/api-routes.md) | El proxy catch-all, sus dos excepciones y el handler público |
+| [api-routes](./conventions/api-routes.md) | El proxy catch-all, los handlers aparte (adjuntos, files, docs) y la discrepancia del cuerpo 401 |
 | [auth](./conventions/auth.md) | NextAuth v5 + Zitadel, guard en el middleware, roles, contrato de sesión |
 | [state-management](./conventions/state-management.md) | Árbol de decisión: URL, servidor, contexto, local |
 | [styling](./conventions/styling.md) | Sass + CSS Modules, tokens, breakpoints y su uso real |
@@ -501,6 +535,7 @@ El detalle por pantalla está en el relevamiento UX. Lo transversal:
 
 ### Contrato con la api
 
+- **Los tipos de `features/docs/types/` también se escriben a mano** (R-8 del REQ).
 - **Los tipos están escritos a mano** y no derivan de `@jiku/models`.
 - **`Attachment` declara nueve campos** (`attachment.types.ts`) y el código solo usa `id`,
   `fileName`, `mimeType` y `fileSize`.

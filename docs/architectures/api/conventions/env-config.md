@@ -102,6 +102,18 @@ Más las que consume `@jiku/zitadel-auth` para el service user.
 > `NATS_INSTANCE` tiene que coincidir con la instancia de core: forma parte del subject, así que
 > un valor distinto hace que core no reciba el comando (y la api vea un timeout → 503).
 
+### Documentación y links públicos (REQ-016)
+
+Ambas son **opcionales**: vacías es un estado válido. Están en `.env.dist` y `.env.defaults` (vacías).
+
+| Variable | Qué hace | Qué rompe si está mal |
+|---|---|---|
+| `JIKU_PUBLIC_URL` | Origen público de los links compartidos: `{JIKU_PUBLIC_URL}/p/docs/{token}`. Vacía → los links quedan apagados (`features.sharing: false`, `POST …/shares` responde 404 `sharing_not_configured`, `/p/docs/*` responde 404). La api compara el `Host` **crudo** contra su host, y en ese host solo sirve `/p/docs/*` | **Valor inválido corta el arranque** (`assertPublicUrlConfig`). Tiene que coincidir con la `JIKU_PUBLIC_URL` de jiku-docs, o los links que él entrega apuntan a otro lado |
+| `API_TRUST_PROXY` | Salto(s) de proxy de confianza (`app.set('trust proxy', …)`), para que el rate limit de `/p/docs/*` cuente la IP del visitante y no la del ingress. `parseTrustProxy`: vacía → no se setea; `1`, `2`… → número de saltos; `true`/`false` → booleano; otro → string (IP/subredes, `loopback`, …) | Sin ella detrás de un ingress, todas las IP son la del proxy y **un visitante agota el cupo de todos**. Un valor que Express rechaza hace que la api **no arranque**, a propósito. `express-rate-limit` avisa si ve `X-Forwarded-For` sin `trust proxy` |
+
+> En el compose, `JIKU_PUBLIC_URL` sale de `DOCS_PUBLIC_DOMAIN` (`https://${DOCS_PUBLIC_DOMAIN}`) y
+> `API_TRUST_PROXY` vale `1` por default. Ver `deploy/README.md`.
+
 ### Storage
 
 | Variable | Notas |
@@ -112,12 +124,12 @@ Más las que consume `@jiku/zitadel-auth` para el service user.
 
 ## Validación: solo lo crítico, y antes de escuchar
 
-No hay validación centralizada. Hay dos asserts, en los dos puntos donde una variable mal puesta
+No hay validación centralizada. Hay tres asserts, en los puntos donde una variable mal puesta
 tiene consecuencias graves:
 
 ### 1. `assertAuthConfig()` — corta el arranque
 
-Corre en `bin/index.ts:13`, **antes** de conectar a la base y antes de escuchar:
+Corre en `bin/index.ts`, **antes** de conectar a la base y antes de escuchar:
 
 ```ts
 // lib/utils/middlewares/validate-token.ts:31-52
@@ -130,7 +142,17 @@ if (!IDENTITY_URL || IDENTITY_URL.trim() === '') throw ...
 > comentario del archivo: antes, una variable sin completar dejaba la api abierta y con rol
 > `admin`, en silencio.
 
-### 2. El constructor de `StorageService` — lanza al construirse
+### 2. `assertPublicUrlConfig()` — corta el arranque (REQ-016, S-080)
+
+Corre en `bin/index.ts` justo después de `assertAuthConfig()` (`lib/modules/docs/public-url.ts`). Ausente
+o en blanco es válido (links apagados). Lanza si `JIKU_PUBLIC_URL` no es una URL, si no usa `http:`/`https:`
+o si trae path, query o fragmento: una URL con path haría que jiku-docs entregue links
+`…/docs/p/docs/{token}` que la api nunca sirve, con `features.sharing: true` — links rotos en silencio.
+
+> `API_TRUST_PROXY` no tiene assert propio: `parseTrustProxy` (`lib/utils/trust-proxy.ts`) lo normaliza
+> y Express lanza en `app.set` si no lo acepta.
+
+### 3. El constructor de `StorageService` — lanza al construirse
 
 Las cinco variables de S3 se validan al instanciar (`lib/utils/storage-service.ts:60-67`), no al
 subir el primer archivo.
@@ -156,6 +178,8 @@ Los booleanos se comparan contra el string `'true'`, nunca por truthiness:
 - Leé `process.env` en el punto de uso, con default explícito: `Number(...) || n`,
   `process.env.X || 'y'`.
 - Los booleanos se comparan contra `'true'`. Nunca `if (process.env.FLAG)`.
+- Una variable de un módulo opcional **no puede ser obligatoria**: la api tiene que arrancar sin él.
+  Si su valor mal puesto rompe algo en silencio (links rotos), validala al arrancar (`assertPublicUrlConfig`).
 - Si una variable ausente compromete la seguridad o deja el servicio inservible, **validala al
   arrancar y cortá el proceso**. No la descubras en la primera request.
 - Nunca infieras un modo permisivo de configuración ausente. El bypass es opt-in explícito.
@@ -169,6 +193,7 @@ Los booleanos se comparan contra el string `'true'`, nunca por truthiness:
 - **auth-jwt**: `assertAuthConfig()` y las cuatro variables de autenticación.
 - **storage**: las siete `STORAGE_S3_*` y por qué cinco no tienen default.
 - **bus-commands**: las variables `NATS_*` y por qué `NATS_USER_ID` es solo fallback.
+- **bus-modules**: `JIKU_PUBLIC_URL` y `API_TRUST_PROXY`, y por qué el módulo es opcional.
 - **orm**: las de PostgreSQL, incluidas las de migración.
 - **logging**: las cinco `LOGGER_*`.
 - **dockerfile**: la imagen copia `.env.defaults` como `.env`.

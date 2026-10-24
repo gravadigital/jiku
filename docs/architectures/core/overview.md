@@ -253,6 +253,35 @@ Declararlo en la ficha ES aplicarlo: el motor lo antepone al `WHERE` de los tres
 `get`— y no existe ningún interruptor. Para los recursos que declaran "sin acceso", el corte ocurre
 **antes de consultar**: cero SQL, cero filas, y `items: []` en vez de un error.
 
+### La identidad de servicio: `SERVICE_ROLES` (REQ-016, S-076)
+
+El evento de autenticación (v2) no trae `identity_type`: core lo **deriva del `matched_role`**, el
+rol que ganó la regla del callout (`identityTypeFromMatchedRole`,
+`core/src/events/auth/identity-type.ts`). Los roles que identifican un servicio y no una persona
+son:
+
+```ts
+export const SERVICE_ROLES = ['internal-app', 'core', 'docs'] as const;
+```
+
+Un `matched_role` dentro de la lista da `identity_type = service` y **vuelve opcional el `email`**
+(un machine user no lo tiene); cualquier otro da `person`, el default de la v1.
+
+**Por qué `docs` tuvo que entrar (hallazgo H-1 de REQ-016).** El machine user de jiku-docs tiene
+dos roles, `internal-app` y `docs`, y en `rules.yaml` la regla `docs` va **antes** que la de
+`internal-app`: el evento llega con `matched_role: "docs"` y sin `email`. Con `docs` fuera de la
+lista el esquema del despachador exigía `email` y **descartaba el evento**: la identidad nunca se
+creaba en `users` y core le respondía `caller_not_authorized`/`unknown_caller` a todo.
+
+**Regla:** si se agrega un rol de servicio a `rules.yaml`, **va también a `SERVICE_ROLES`**; un test
+cuenta la lista para recordarlo. Un rol nuevo olvidado se espeja como `person`.
+
+**Para la autorización no cambia nada:** `docs` no está en `ROLE_METHODS` ni en `CLASS_BY_ROLE`, es
+un rol desconocido que se saltea (`caller-class.ts`, `authorize-caller.ts`), y el caller se autoriza
+por `internal-app` (clase `connector`). Ver
+[sincronización de identidades](../../flows/sincronizacion-de-identidades.md) y
+[ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md).
+
 ### Reglas que viven acá
 
 | Regla | Dónde |
@@ -287,6 +316,15 @@ dominio.
 | **Zitadel** | Su propio token de bus | Service user con key JSON. El token caduca en ~1h y se renueva solo; por eso no se pasa por variable de entorno |
 | **PostgreSQL** | Escribir **y leer** | **Dos conexiones**: el usuario dueño para los comandos —reintenta 5 veces con 1s de espera antes de abortar— y un rol de **solo lectura** con pool propio y `statement_timeout` de 8000 ms para las consultas. Ese timeout es MENOR que el del caller (10000 ms), y esa desigualdad es lo que hace que la base corte primero y el motor pueda responder `query_timeout` en vez de dejar un timeout mudo del bus |
 | **SMTP** | Enviar los mails de notificación (REQ-015) | **Es la primera y única integración de red saliente hacia un tercero** — NATS, PostgreSQL y Zitadel son infraestructura del propio producto, un servidor SMTP no. Cliente `nodemailer`, construido **perezosamente al primer ciclo que tenga una fila para enviar** (nunca al importar ni al arrancar). **Sin assert de arranque, a propósito**: su modo de fallo es ruidoso y recuperable (la fila queda `pending` con `last_error`), no silencioso — ver [`scheduled-worker`](./conventions/scheduled-worker.md) |
+
+### jiku-docs: un cliente más de `jiku-queries`/`jiku-commands`
+
+jiku-docs (servicio externo, otro repositorio) usa el mismo bus con su machine user de clase
+`connector` para **leer personas y requisitos** y para **subir y leer archivos**. Core no sabe que
+es un módulo opcional: lo trata como cualquier `internal-app`. La particularidad es de `files`:
+los archivos que sube jiku-docs **nunca se vinculan** a una entidad (sin vínculo
+permanente). Ningún código de `core/src/` escribe `RetentionStatus.ScheduledForDeletion`/`Deleted`
+sobre ellos; lo protege el gate `core/tests/commands/files-retention-gate.test.ts` (S-076, TS-19).
 
 ### El inbox va hasheado, el subject crudo
 
