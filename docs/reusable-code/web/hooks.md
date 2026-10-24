@@ -153,3 +153,38 @@ import { useTheme } from '@/features/theme';
 const { theme, setTheme } = useTheme();
 setTheme(theme === 'dark' ? 'light' : 'dark');
 ```
+
+## useModules / useModule
+
+**Location:** `web/src/features/docs/hooks/useModules.ts`
+
+**Description:** Polls `GET /modules` every 60 s. `useModule(name)` returns `{ status, sharing, isKnown }`; while loading or on error it reports `not_installed` with `isKnown: false`.
+
+**Signature:**
+
+```ts
+function useModules(options?: { enabled?: boolean }): UseQueryResult<ModuleState[]>;
+function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKnown: boolean };
+```
+
+**Usage:** `const { status } = useModule('docs');`
+
+## useDocuments
+
+**Location:** `web/src/features/docs/hooks/useDocuments.ts`
+
+**Description:** Cursor-paginated list (10 per page) filtered by project, requirement or task; `module_unavailable` invalidates `['modules']`.
+
+**Signature:** `useDocuments({ filters, enabled? })` → `useInfiniteQuery` result
+
+**Usage:** `useDocuments({ filters: { projectId: 12 }, enabled: status === 'available' })`
+
+## useDocument
+
+**Location:** `web/src/features/docs/hooks/useDocument.ts`
+
+**Description:** Document detail by ULID; no retry on 404 or `module_unavailable`.
+
+**Signature:** `useDocument({ id, enabled? })` → `useQuery` result of `DocsDocumentDetail`
+
+**Usage:** `const { data } = useDocument({ id });`

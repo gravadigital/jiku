@@ -139,3 +139,33 @@ async function updateRequirementComment(
 ```ts
 await updateRequirementComment(12, 7, { comment: 'texto corregido', fileIds: [3, 9] });
 ```
+
+## getModules
+
+**Location:** `web/src/features/docs/services/modulesApi.ts`
+
+**Description:** Server Action for `GET /modules`.
+
+**Signature:** `getModules(): Promise<ModuleState[]>`
+
+**Usage:** `const modules = await getModules();`
+
+## listDocuments
+
+**Location:** `web/src/features/docs/services/docsApi.ts`
+
+**Description:** Server Action for `GET /docs/documents`; only defined filter keys are sent.
+
+**Signature:** `listDocuments(filters: DocumentsFilters): Promise<DocsDocumentPage>`
+
+**Usage:** `await listDocuments({ projectId: 12, limit: 10 });`
+
+## getDocument
+
+**Location:** `web/src/features/docs/services/docsApi.ts`
+
+**Description:** Server Action for `GET /docs/documents/{id}`; downloads `contentUrl` server-side and returns it as `content`. Rejects with `{ code: 'content_unavailable', status: 502 }` if the download fails.
+
+**Signature:** `getDocument(id: string): Promise<DocsDocumentDetail>`
+
+**Usage:** `const doc = await getDocument(id);`

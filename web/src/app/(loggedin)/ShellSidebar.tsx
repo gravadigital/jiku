@@ -2,9 +2,11 @@
 
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { useModule } from '@/features/docs';
 import { ThemeToggle, useTheme } from '@/features/theme';
 import { SidebarNav, type SidebarNavItem } from '@/shared/components/ui/SidebarNav';
 import actoresLogo from '@root/assets/actoresLogo.svg';
+import documentacionLogo from '@root/assets/documentacionLogo.svg';
 import externalLogoHoras from '@root/assets/ExternalLogos/horas.svg';
 import objectivesLogo from '@root/assets/objetivosLogo.svg';
 import projectsLogo from '@root/assets/proyectosLogo.svg';
@@ -56,12 +58,23 @@ const NAV_ITEMS: SidebarNavItem[] = [
   },
 ];
 
+// Ítem condicional (REQ-016): solo existe con el módulo de documentación instalado
+// (`available` o `unavailable`; con el módulo caído la pantalla muestra el aviso).
+const DOCS_NAV_ITEM: SidebarNavItem = {
+  key: 'docs',
+  label: 'Documentación',
+  icon: documentacionLogo,
+  href: '/docs',
+};
+
 // Ítems fuera del alcance de `external-user`: reproduce el getVisibleNavItems() que tenía
 // el Navbar dado de baja en S-060. Rama prácticamente inalcanzable (el layout ya redirige
 // a /unauthorized), pero no se elimina.
 function getVisibleNavItems(isExternalUser: boolean): SidebarNavItem[] {
   if (isExternalUser) {
-    return NAV_ITEMS.filter((item) => item.key !== 'time-allocation' && item.key !== 'worked-times');
+    return NAV_ITEMS.filter(
+      (item) => item.key !== 'time-allocation' && item.key !== 'worked-times'
+    );
   }
   return NAV_ITEMS;
 }
@@ -84,6 +97,7 @@ function resolveActiveKey(pathname: string): string {
   if (pathname.startsWith('/time-allocation')) return 'time-allocation';
   if (pathname.startsWith('/clients')) return 'clients';
   if (pathname.startsWith('/projects')) return 'projects';
+  if (pathname.startsWith('/docs')) return 'docs';
 
   return '';
 }
@@ -95,7 +109,12 @@ interface ShellSidebarProps {
 
 export function ShellSidebar({ isExternalUser, userName }: ShellSidebarProps) {
   const pathname = usePathname();
-  const items = getVisibleNavItems(isExternalUser);
+  // Montarlo acá, en el shell de toda pantalla autenticada, es lo que dispara la consulta de
+  // `GET /modules` al iniciar y cada 60 s. Ocultar el ítem no es autorización: el corte real
+  // está en la página.
+  const docsModule = useModule('docs');
+  const baseItems = getVisibleNavItems(isExternalUser);
+  const items = docsModule.status === 'not_installed' ? baseItems : [...baseItems, DOCS_NAV_ITEM];
   const activeKey = resolveActiveKey(pathname);
   // El shell es el consumidor correcto de useTheme(): SidebarNav no detecta el tema por sí
   // mismo (igual que no consulta la ruta para activeKey), así que `mode` se deriva acá,

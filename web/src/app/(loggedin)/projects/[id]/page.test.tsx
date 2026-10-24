@@ -13,6 +13,13 @@ vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null }),
 }));
 
+// La card de documentación tiene sus propios tests (features/docs); acá solo importa dónde se monta.
+vi.mock('@/features/docs', () => ({
+  DocsPanel: ({ scope }: { scope: object }) => (
+    <section aria-label="docs-panel" data-scope={JSON.stringify(scope)} />
+  ),
+}));
+
 vi.mock('@/features/projects', () => ({
   useProject: vi.fn(),
 }));
@@ -165,5 +172,21 @@ describe('ProjectDetail page — layout y header', () => {
     expect(screen.getByTestId('project-general-info')).toBeInTheDocument();
     expect(screen.getByTestId('project-properties')).toBeInTheDocument();
     expect(screen.getByTestId('project-attachments')).toBeInTheDocument();
+  });
+
+  it('TS-30: la card de documentación va entre Propiedades y Archivos adjuntos', async () => {
+    vi.mocked(useProject).mockReturnValue({
+      data: makeProject(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useProject>);
+
+    await renderPage({ id: 12 });
+    const properties = screen.getByTestId('project-properties');
+    const docs = screen.getByLabelText('docs-panel');
+    const attachments = screen.getByTestId('project-attachments');
+
+    expect(docs).toHaveAttribute('data-scope', JSON.stringify({ projectId: 12 }));
+    expect(properties.compareDocumentPosition(docs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(docs.compareDocumentPosition(attachments) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

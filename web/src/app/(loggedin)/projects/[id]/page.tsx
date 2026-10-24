@@ -1,6 +1,7 @@
 'use client';
 import React, { use } from 'react';
 import { useRouter } from 'next/navigation';
+import { DocsPanel } from '@/features/docs';
 import { useProject } from '@/features/projects';
 import { ProjectAttachmentsSection } from '@/features/projects/components/ProjectAttachmentsSection';
 import { ProjectDescription } from '@/features/projects/components/ProjectDescription';
@@ -60,6 +61,8 @@ export default function ProjectDetail({ params }: { readonly params: Promise<{ i
           <Card variant="panel" title="Propiedades" headingLevel="h2">
             <ProjectProperties project={project} />
           </Card>
+
+          <DocsPanel scope={{ projectId: Number(id) }} />
 
           <ProjectAttachmentsSection projectId={id} />
         </div>

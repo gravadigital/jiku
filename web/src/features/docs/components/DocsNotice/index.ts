@@ -1,0 +1,1 @@
+export { DocsNotice } from './DocsNotice';

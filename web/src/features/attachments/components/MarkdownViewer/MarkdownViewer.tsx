@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
+import { docsUrlTransform } from '@/features/docs/utils/docsUrlTransform';
 import { parseMarkdownWithPlaceholders } from '../../utils/markdownParser';
 import { AttachmentImagePreview } from './AttachmentImagePreview';
 import { AttachmentPlaceholder } from './AttachmentPlaceholder';
@@ -10,6 +11,63 @@ import styles from './MarkdownViewer.module.scss';
 
 interface MarkdownViewerProps {
   readonly content: string;
+  /**
+   * `comment` (default): comentarios de Jiku, con saltos simples, líneas en blanco y
+   * placeholders `[attach:N]`/`[file:N]`. `document`: markdown estándar de un documento de
+   * jiku-docs (solo GFM), enlaces restringidos, adjuntos reescritos y títulos desplazados un
+   * nivel para no competir con el h1 de la pantalla (P-1).
+   */
+  readonly mode?: 'comment' | 'document';
+}
+
+const SHIFTED_HEADINGS = {
+  h1: 'h2',
+  h2: 'h3',
+  h3: 'h4',
+  h4: 'h5',
+  h5: 'h6',
+  h6: 'h6',
+} as const;
+
+function shiftedHeading(tag: keyof typeof SHIFTED_HEADINGS) {
+  const Tag = SHIFTED_HEADINGS[tag];
+  const Heading = ({ children }: { children?: React.ReactNode }) => <Tag>{children}</Tag>;
+  Heading.displayName = `DocumentHeading(${tag})`;
+  return Heading;
+}
+
+const DOCUMENT_COMPONENTS = {
+  h1: shiftedHeading('h1'),
+  h2: shiftedHeading('h2'),
+  h3: shiftedHeading('h3'),
+  h4: shiftedHeading('h4'),
+  h5: shiftedHeading('h5'),
+  h6: shiftedHeading('h6'),
+  img: ({ src, alt }: { src?: string | Blob; alt?: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} />
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  html: () => null,
+};
+
+function DocumentMarkdown({ content }: { readonly content: string }) {
+  return (
+    <div className={styles.viewer}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        urlTransform={docsUrlTransform}
+        skipHtml
+        components={DOCUMENT_COMPONENTS}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function urlTransform(url: string): string {
@@ -70,7 +128,7 @@ function isBlankLineMarker(children: React.ReactNode): boolean {
   return text === NON_BREAKING_SPACE;
 }
 
-export function MarkdownViewer({ content }: MarkdownViewerProps) {
+function CommentMarkdown({ content }: { readonly content: string }) {
   const { processedContent } = useMemo(
     () => parseMarkdownWithPlaceholders(preserveBlankLines(content)),
     [content]
@@ -145,4 +203,11 @@ export function MarkdownViewer({ content }: MarkdownViewerProps) {
       </ReactMarkdown>
     </div>
   );
+}
+
+export function MarkdownViewer({ content, mode = 'comment' }: MarkdownViewerProps) {
+  if (mode === 'document') {
+    return <DocumentMarkdown content={content} />;
+  }
+  return <CommentMarkdown content={content} />;
 }

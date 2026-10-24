@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { MarkdownViewer } from '@/features/attachments/components/MarkdownViewer';
+import { DocsPanel } from '@/features/docs';
 import { Badge, Button, Card, EmptyState, Pagination, Table, Tabs } from '@/shared/components/ui';
 import { AutomatedIdentityBadge } from '@/shared/components/ui/AutomatedIdentityBadge';
 import { useUpdateRequirement } from '../../hooks/useUpdateRequirement';
@@ -346,6 +347,9 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
               ))}
             </div>
           </Card>
+
+          {/* Card: Documentación (REQ-016, solo con el módulo instalado) */}
+          <DocsPanel scope={{ requirementId: requirement.id }} />
 
           {/* Card: Resolución */}
           <RequirementResolutionCard

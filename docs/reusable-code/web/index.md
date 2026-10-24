@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-09-04 (ajustes visuales del handoff de identidad)
+**Last updated:** 2026-10-24 (S-081: módulo `features/docs`)
 
 ## Components
 
-Total: 23
+Total: 26
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -32,10 +32,13 @@ Total: 23
 - **ToggleGroup** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - Migrated by S-055 to the Design System spec: real `role="radiogroup"`/`role="radio"` (not `aria-pressed` buttons), arrow-key roving selection with wraparound, four variants (`segmented`/`range-pill`/`stepper-value`/`day-chip`), `options` as `{ value, label }[]` (renamed from `{ key, label }`). `stepper-value` supports `allowOther` to escape to a free-text `Input`. **`status`/`statusLabel`** drive the `day-chip` load semaphore: a 6px colour dot under the label plus the state in an `sr-only` — it replaces the earlier approach of folding the state into the visible label text ("Vie 4 ○ sin carga"), which turned every chip into a sentence.
 - **ThemeToggle** (`web/src/features/theme/components/ThemeToggle/ThemeToggle.tsx`) - The theme selector in the sidebar footer (S-059): a `ToggleGroup variant="segmented"` with `label="Tema"` and options `Claro`/`Oscuro`. No component-level DS spec of its own — reuses `ToggleGroup`'s (DS Gaps resolution: same role, no new component). Reads/writes the theme via `useTheme()`.
 - **ErrorPageContent** (`web/src/app/(loggedin)/ErrorPageContent.tsx`) - Shared body for the four `error.tsx` boundaries under `app/(loggedin)` that were the same component copied (`projects`, `objectives`, `objectives/by-project`, `objectives/by-responsible`): renders the `<h1>` and message with a component-scoped class over semantic tokens instead of the retired global `h1`/`p` rules (S-060). Takes an optional `message?: string`, matching `CustomError['message']`.
+- **DocsPanel** (`web/src/features/docs/components/DocsPanel/DocsPanel.tsx`) - The "Documentación" card embedded in project, requirement and task detail: lists the documents linked to a `scope` (`projectId | requirementId | taskId`), 10 per page with cursor "Ver más". Renders nothing when the optional docs module is `not_installed`; shows the unavailable notice when `unavailable` or on query error.
+- **DocsNotice** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - Local inline alert (`role="alert"`, `warning`/`error` intent over the `review`/`urgent` state tokens) covering the accepted DS gap `alert`; not in `shared/components/ui` on purpose.
+- **DocumentView** (`web/src/features/docs/components/DocumentView/DocumentView.tsx`) - Client container of `/docs/[id]` (read mode): header, breadcrumb, version meta, safe markdown content, links, topics and attachments, with loading / not found / module-unavailable states. Calls `notFound()` if the module becomes `not_installed`.
 
 ## Services
 
-Total: 7
+Total: 10
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -44,10 +47,13 @@ Total: 7
 - **getFilePreviewUrl** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Resolves the preview URL of a file that has **no link yet**, by `fileId`.
 - **getRequirementWorkedHours** (`web/src/features/requirements/services/requirementsApi.ts`) - Server Action that returns the total minutes and per-person breakdown for a single requirement (`GET /requirements/{reqid}/worked-hours`); no filters, the id goes in the path.
 - **updateRequirementComment** (`web/src/features/requirements/services/requirementsApi.ts`) - Server Action that edits an already-published requirement comment (`PATCH /requirements/{reqid}/comments/{cid}`, note plural `/comments/`); `fileIds`, when sent, is the complete set to keep linked, never a delta.
+- **getModules** (`web/src/features/docs/services/modulesApi.ts`) - Server Action for `GET /modules`: state of the optional bus modules.
+- **listDocuments** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents`; drops `undefined`/empty filter keys (the api answers 400 to undeclared keys).
+- **getDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents/{id}`; when the api returns `contentUrl` it downloads the content server-side and returns it as `content`.
 
 ## Hooks
 
-Total: 6
+Total: 11
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -55,10 +61,13 @@ Total: 6
 - **useRequirementWorkedHours** (`web/src/features/requirements/hooks/useRequirementWorkedHours.ts`) - Wraps `getRequirementWorkedHours` in `useQuery` with key `['requirement-worked-hours', reqid]`; a query of its own, independent of the requirement's detail query, so it degrades on its own without blocking the rest of the screen.
 - **useUpdateRequirementComment** (`web/src/features/requirements/hooks/useUpdateRequirementComment.ts`) - Wraps `updateRequirementComment` in `useMutation`; invalidates both `['requirement', reqid]` and `['attachments', 'requirement_comment', cid]` on success.
 - **useTheme** / **useThemeOptional** (`web/src/features/theme/context/ThemeProvider.tsx`) - Reads/writes the current theme (`useTheme` throws outside the provider; `useThemeOptional` returns `null`). `setTheme` stamps `document.documentElement.dataset.theme`, persists to `localStorage` + a reflected cookie, and never touches TanStack Query or `fetch` (S-059).
+- **useModules / useModule** (`web/src/features/docs/hooks/useModules.ts`) - `GET /modules` polled every 60 s (`['modules']`); `useModule(name)` resolves `{ status, sharing, isKnown }` and behaves as `not_installed` while loading or on error.
+- **useDocuments** (`web/src/features/docs/hooks/useDocuments.ts`) - Cursor-paginated `useInfiniteQuery` (10 per page) of the documents linked to a project, requirement or task.
+- **useDocument** (`web/src/features/docs/hooks/useDocument.ts`) - Document detail by ULID; does not retry 404 or `module_unavailable`.
 
 ## Utils
 
-Total: 10
+Total: 16
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
@@ -70,10 +79,16 @@ Total: 10
 - **readStoredTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Reads `localStorage['jiku.theme']`, falling back to `'light'` if absent, invalid, or if `localStorage` throws (private mode, quota). Never throws.
 - **persistTheme** (`web/src/features/theme/utils/themeStorage.ts`) - Writes the theme to `localStorage` and to a one-year, `Path=/`, `SameSite=Lax`, non-`HttpOnly` reflected cookie (`jiku.theme`) so the server can read it on the next render. Each write is independently guarded: a `localStorage` failure never blocks the cookie write.
 - **parseExternalLinks** (`web/src/shared/utils/parse-external-links.ts`) - Parses the `EXTERNAL_LINKS` JSON env-driven config (`[{"tool":"github","href":"...","label":"..."}]`) into the array `ExternalLinksBlock` renders in the sidebar footer; a malformed value logs and degrades to an empty list instead of crashing the shell. Extracted from `Navbar` (dead code, removed in S-060) into its own module with no `next-auth`/`next/image`/`usePathname` baggage.
+- **withModuleInvalidation / isModuleUnavailable** (`web/src/features/docs/utils/moduleInvalidation.ts`) - Wraps a docs query: on `module_unavailable` it invalidates `['modules']` and rethrows.
+- **docsUrlTransform / ULID_PATTERN** (`web/src/features/docs/utils/docsUrlTransform.ts`) - `urlTransform` of the safe document viewer: rewrites any `/docs/attachments/{ULID}` (any host) to the own origin, allows only `http(s)`/`mailto`, blanks everything else.
+- **folderPathOf / displayTitle** (`web/src/features/docs/utils/paths.ts`) - Folder of a document path; title or file name without `.md`.
+- **personName** (`web/src/features/docs/utils/persons.ts`) - Resolves a Zitadel `sub` against `Person.userId`, falling back to `"otra persona"`.
+- **formatDateTime** (`web/src/features/docs/utils/dates.ts`) - ISO string to `DD/MM/AAAA HH:mm` (local getters).
+- **MarkdownViewer `mode="document"`** (`web/src/features/attachments/components/MarkdownViewer/MarkdownViewer.tsx`) - Standard-markdown mode (GFM only, no Jiku placeholders or `remark-breaks`), shifted headings, links restricted by `docsUrlTransform`, no raw HTML.
 
 ## Types
 
-Total: 10
+Total: 12
 
 - **UploadTicket** (`web/src/features/attachments/types/attachment.types.ts`) - Upload permission for a single object: `fileId`, `uploadUrl`, `expiresIn`.
 - **UploadTicketRequest** (`web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
@@ -85,3 +100,5 @@ Total: 10
 - **ToggleGroupStatus** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - `'empty' | 'partial' | 'completed'`. The three states of the `day-chip` load semaphore, rendered as a colour dot plus `sr-only` text.
 - **Theme** (`web/src/features/theme/types/theme.types.ts`) - `'light' | 'dark'`. The only two valid values anywhere in the theme module.
 - **THEME_STORAGE_KEY** (`web/src/features/theme/types/theme.types.ts`) - The single constant (`'jiku.theme'`) for both the `localStorage` key and the cookie name — declared once so client and server never desync on a duplicated literal.
+- **ModuleState / ModuleStatus** (`web/src/features/docs/types/module.types.ts`) - Response of `GET /modules`.
+- **DocsDocument, DocsDocumentDetail, DocsDocumentPage, DocumentsFilters…** (`web/src/features/docs/types/docs.types.ts`) - Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates as ISO strings.
