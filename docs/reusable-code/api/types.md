@@ -84,3 +84,31 @@ if (!data) return;
 
 return res.status(201).json(toUploadTicket(data));
 ```
+
+## ModuleTarget / ModuleKv
+
+**Location:** `api/lib/utils/bus/index.ts`
+
+**Interface:**
+
+```ts
+interface ModuleTarget { serviceName: string; protocol: string; }
+interface ModuleKvEntry { operation: 'PUT' | 'DEL' | 'PURGE'; value: string; }
+interface ModuleKvWatch { stop(): void; closed: Promise<void>; }
+interface ModuleKv {
+  get(key: string): Promise<ModuleKvEntry | null>;
+  watch(key: string, onEntry: (entry: ModuleKvEntry) => Promise<void> | void): Promise<ModuleKvWatch>;
+}
+```
+
+## ModuleStatus / ModuleStatusEntry
+
+**Location:** `api/lib/modules/registry.ts`
+
+**Interface:**
+
+```ts
+type ModuleStatus = 'not_installed' | 'incompatible' | 'unavailable' | 'available';
+type PublicModuleStatus = 'not_installed' | 'unavailable' | 'available';
+interface ModuleStatusEntry { module: ModuleName; status: PublicModuleStatus; features?: Record<string, unknown>; }
+```

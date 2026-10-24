@@ -5,7 +5,7 @@
  * discrepancia, manda el documento. Este paquete es la única definición de subjects y
  * formatos, compartida por la api (que publica) y core (que atiende).
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 /**
  * Gramática de subjects: `{instance}.{user-id}.{svc}.{version}.{método}`
@@ -183,6 +183,86 @@ export function eventsStreamSubject(): string {
 }
 
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
+/**
+ * Nombre del bucket KV de JetStream donde cada módulo opcional se registra (REQ-016 / S-077). El
+ * stream subyacente es `KV_JIKU_MODULES`. Fuente de verdad: `docs/apis/jiku-modules.yaml`.
+ *
+ * El bucket lo crea el despliegue base, NO este paquete ni la api: la api lo abre con `bindOnly`.
+ * Existe para que nadie escriba el literal `'JIKU_MODULES'`.
+ */
+export const MODULES_BUCKET = 'JIKU_MODULES';
+
+/**
+ * Valor de una clave del bucket `JIKU_MODULES` (contrato: `docs/apis/jiku-modules.yaml`).
+ *
+ * Es el cable: `registeredAt` es un string ISO 8601 (no `Date`), igual que `occurredAt` en
+ * `DomainEvent`. Los lectores DEBEN tolerar campos nuevos dentro de v1, por eso la interfaz no se
+ * cierra. ACÁ NO HAY VALIDACIÓN del registro: validarlo es de quien lo lee (la api).
+ */
+export interface ModuleRecord {
+  /** Igual a la clave del KV. */
+  module: string;
+  /** Prefijo de los servicios micro `{serviceName}-commands` y `{serviceName}-queries`. */
+  serviceName: string;
+  /** Versión de los contratos del módulo (`^v[0-9]+$`). */
+  protocol: string;
+  /** Informativo (ISO 8601). */
+  registeredAt: string;
+}
+
+const MODULE_SERVICE_NAME_PATTERN = /^[a-z][a-z0-9-]{1,40}$/;
+
+/**
+ * Un `serviceName` inválido (`.`, `*`, `>`, espacios, vacío...) inyectaría tokens NATS en el
+ * subject. Se LANZA: sanear iría a otro servicio y devolver '' falla lejos del origen. Es la
+ * segunda línea de defensa; la primera es la validación del `ModuleRecord` en la api.
+ */
+function assertModuleServiceName(serviceName: string): void {
+  if (!MODULE_SERVICE_NAME_PATTERN.test(serviceName)) {
+    throw new Error(
+      `[nats-protocol] serviceName de módulo inválido: ${JSON.stringify(serviceName)}`
+    );
+  }
+}
+
+/**
+ * Subjects de un módulo: misma gramática `{instance}.{user-id}.{svc}.{version}.{método}` con
+ * `{svc}` = `${serviceName}-commands` | `${serviceName}-queries` y `{version}` = el `protocol` del
+ * módulo, NO `PROTOCOL_VERSION` (contratos independientes, mismo argumento que `EVENTS_VERSION`).
+ *
+ * El orden de parámetros lo fija la story y difiere de `commandSubject`: no "alinearlo". Armar el
+ * subject para `otro-docs` no implica que el bus lo autorice (ADR-008): la política es literal.
+ */
+export function moduleCommandSubject(
+  serviceName: string,
+  protocol: string,
+  method: string,
+  userId: string
+): string {
+  assertModuleServiceName(serviceName);
+  return `${INSTANCE}.${userId}.${serviceName}-commands.${protocol}.${method}`;
+}
+
+/** Consulta a un módulo. Ver `moduleCommandSubject`. */
+export function moduleQuerySubject(
+  serviceName: string,
+  protocol: string,
+  method: string,
+  userId: string
+): string {
+  assertModuleServiceName(serviceName);
+  return `${INSTANCE}.${userId}.${serviceName}-queries.${protocol}.${method}`;
+}
+
+/**
+ * Descubrimiento del framework micro de NATS: NO lleva instancia (no conoce la gramática de
+ * Jiku). Es literalmente `pub $SRV.PING.{serviceName}-queries` de `jiku-modules.yaml`.
+ */
+export function modulePingSubject(serviceName: string): string {
+  assertModuleServiceName(serviceName);
+  return `$SRV.PING.${serviceName}-queries`;
+}
+
 function isParam(segment: string): boolean {
   return segment.startsWith('{') && segment.endsWith('}');
 }
@@ -958,7 +1038,7 @@ export interface EventComment {
  * diciendo qué contrato cumple sin depender del subject con el que llegó.
  */
 export interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
-  /** ULID, obligatorio para la deduplicación del conector. Lo genera `core` en el emisor (S-063) — este paquete no genera ULIDs. */
+  /** ULID, obligatorio para la deduplicación del conector. Lo genera `core` en el emisor (S-063) con `generateUlid()` de este paquete (movido desde core en S-077). */
   eventId: string;
   /** = los segmentos finales del subject (`eventSubject(type)` los concatena, no pueden divergir). */
   type: EventType;
@@ -998,4 +1078,68 @@ export interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
    * rompe por no conocerlo.
    */
   visibilityLevel?: string;
+}
+
+/**
+ * Generador de ULID, implementación propia y SIN dependencia (D-2 de REQ-014, conservada por
+ * REQ-016). Movido desde `core/src/ulid.ts` en REQ-016 / S-077, sin cambiar la implementación.
+ * Lo usan `core` (`eventId` de cada `DomainEvent`, `correlationId` de `dispatch()`) y la api (altas
+ * de docs, DD-8 de REQ-016).
+ *
+ * EL ALFABETO ES CROCKFORD, NO `BASE32_ALPHABET` (el de `hashUserId()`, RFC 4648 `A-Z2-7`): copiar
+ * esa tabla daría valores que no matchean `/^[0-9A-HJKMNP-TV-Z]{26}$/` (Crockford EXCLUYE `I`, `L`,
+ * `O` y `U`). Los dos conviven en este archivo: no confundirlos.
+ *
+ * FORMA: 26 caracteres, 10 del timestamp en ms (48 bits) + 16 aleatorios (80 bits). El orden
+ * lexicográfico de los primeros 10 es monótono no decreciente en el tiempo.
+ */
+const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+const TIME_CHARS = 10;
+const RANDOM_CHARS = 16;
+/** 16 caracteres base32 de 5 bits = 80 bits, la parte aleatoria del ULID. */
+const RANDOM_BYTES = 10;
+
+/** Codifica `value` (hasta 48 bits) en `length` caracteres Crockford base32, con ceros a la izquierda. */
+function encodeTime(value: number, length: number): string {
+  let output = '';
+  let remaining = value;
+  for (let i = 0; i < length; i++) {
+    output = CROCKFORD_ALPHABET[remaining % 32] + output;
+    remaining = Math.floor(remaining / 32);
+  }
+  return output;
+}
+
+/** Codifica los bytes aleatorios en Crockford base32, a `length` caracteres. */
+function encodeRandom(bytes: Buffer, length: number): string {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5 && output.length < length) {
+      output += CROCKFORD_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  // Si sobran bits sin alcanzar `length` (no debería pasar con 10 bytes -> 16 chars, pero la
+  // guarda es barata): completa con el resto desplazado, igual que el encoder de `hashUserId()`.
+  if (output.length < length && bits > 0) {
+    output += CROCKFORD_ALPHABET[(value << (5 - bits)) & 31];
+  }
+  return output.slice(0, length);
+}
+
+/**
+ * Genera un ULID: 26 caracteres, alfabeto Crockford, ordenable por tiempo.
+ *
+ * Usado para `DomainEvent.eventId` (uno por evento) y para `correlationId` (uno por `dispatch()`,
+ * compartido por todos los eventos de ese comando — CA-9). Es la MISMA función para los dos: no
+ * hay una variante "de evento" y otra "de correlación", porque un ULID no lleva semántica propia
+ * más allá de ser único y ordenable.
+ */
+export function generateUlid(now: number = Date.now()): string {
+  return encodeTime(now, TIME_CHARS) + encodeRandom(randomBytes(RANDOM_BYTES), RANDOM_CHARS);
 }

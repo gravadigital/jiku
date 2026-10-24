@@ -19,6 +19,7 @@ import path from 'path';
 import * as dotenv from 'dotenv';
 import { setBus } from '../lib/utils/bus';
 import { fakeBus } from './mocks/bus';
+import { docsModule } from '../lib/modules/registry';
 
 process.env.TZ = 'UTC';
 process.env.NODE_ENV = 'testing';
@@ -36,6 +37,9 @@ setBus(fakeBus);
 // particular lo declara en el suyo.
 export const mochaHooks = {
   beforeEach() {
+    // El registro de módulos es un singleton con temporizador y watch: sin detenerlo, un test
+    // le filtra estado al siguiente.
+    docsModule.stop();
     fakeBus.reset();
   },
 };

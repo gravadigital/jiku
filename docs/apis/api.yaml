@@ -1,6 +1,12 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — los 61 endpoints que sirve.
+# Contrato HTTP de `api` — los 63 endpoints que sirve.
+#
+# REQ-016 / S-077 — `x-jiku-module`
+#   Una operación marcada `x-jiku-module: docs` depende del módulo opcional `docs` (jiku-docs):
+#   su disponibilidad la dicta el registro `JIKU_MODULES` del bus. Las dos rutas `/modules` solo
+#   REPORTAN ese estado; las rutas de documentación (S-078 en adelante) responden además
+#   `ModuleNotInstalled` (404) / `ModuleUnavailable` (503) según `requireModule`.
 #
 # EXTRAÍDO DEL CÓDIGO
 #   Los paths salen de `api/lib/routes/*.ts`; los request bodies y query params, de los esquemas
@@ -2522,9 +2528,70 @@ paths:
         '503': { $ref: '#/components/responses/BusUnavailable' }
         '504': { $ref: '#/components/responses/GatewayTimeout' }
 
+  /opus/modules:
+    get:
+      tags: [opus]
+      summary: Estado de los módulos opcionales (portal)
+      x-jiku-module: docs
+      x-roles: [admin, user, external-user]
+      description: |
+        Estado de los módulos opcionales (hoy solo `docs`). `incompatible` (protocolo no
+        soportado o registro inválido) se informa como `not_installed`; `features` se omite con
+        `not_installed`. `features.sharing` es `true` solo si `JIKU_PUBLIC_URL` está definida y no
+        vacía. El estado vive en memoria por réplica: dos réplicas pueden discrepar hasta 30 s.
+        No pertenece a ningún proyecto, así que no verifica permiso de proyecto.
+        Existe porque el catch-all de `opus-web` (`/api/opus/[...path]`) solo reenvía `/api/opus/*`:
+        es el mismo cuerpo que `GET /api/modules`.
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModulesResponse' }
+              examples:
+                notInstalled:
+                  value: [{ module: docs, status: not_installed }]
+                unavailable:
+                  value: [{ module: docs, status: unavailable, features: { sharing: false } }]
+                available:
+                  value: [{ module: docs, status: available, features: { sharing: true } }]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ==========================================================================
   # other
   # ==========================================================================
+
+  /modules:
+    get:
+      tags: [other]
+      summary: Estado de los módulos opcionales
+      x-jiku-module: docs
+      x-roles: [admin, user, external-user]
+      description: |
+        Estado de los módulos opcionales (hoy solo `docs`). `incompatible` (protocolo no
+        soportado o registro inválido) se informa como `not_installed`; `features` se omite con
+        `not_installed`. `features.sharing` es `true` solo si `JIKU_PUBLIC_URL` está definida y no
+        vacía. El estado vive en memoria por réplica: dos réplicas pueden discrepar hasta 30 s.
+        No pertenece a ningún proyecto, así que no verifica permiso de proyecto.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModulesResponse' }
+              examples:
+                notInstalled:
+                  value: [{ module: docs, status: not_installed }]
+                unavailable:
+                  value: [{ module: docs, status: unavailable, features: { sharing: false } }]
+                available:
+                  value: [{ module: docs, status: available, features: { sharing: true } }]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccessDenied' }
+        '500': { $ref: '#/components/responses/InternalError' }
 
   /persons:
     get:
@@ -2753,6 +2820,21 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: requirement_not_found, message: Requirement not found }
+    ModuleNotInstalled:
+      description: |
+        El módulo opcional no está instalado (`requireModule`). También es lo que ve el cliente con
+        un módulo `incompatible`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          example: { code: module_not_installed, message: El módulo docs no está instalado }
+    ModuleUnavailable:
+      description: |
+        El módulo está instalado pero no responde (`requireModule`, o `no responders` en un llamado).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          example: { code: module_unavailable, message: El módulo docs no está disponible en este momento }
     InternalError:
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:
@@ -2794,6 +2876,36 @@ components:
   schemas:
 
     # ---- errores y acuses ----
+
+    ModulesResponse:
+      type: array
+      description: |
+        Estado de los módulos opcionales. Es el `ModulesHttpResponse` de `jiku-modules.yaml` más
+        `features`, aditivo (el contrato tolera campos nuevos).
+      items:
+        type: object
+        required: [module, status]
+        properties:
+          module: { type: string }
+          status: { type: string, enum: [not_installed, unavailable, available] }
+          features:
+            type: object
+            description: Se omite con `not_installed`
+            properties:
+              sharing: { type: boolean, description: "`true` si `JIKU_PUBLIC_URL` está definida y no vacía" }
+
+    ModuleError:
+      type: object
+      required: [code, message]
+      description: |
+        Cuerpo de error de las rutas respaldadas por un módulo. `code` es el `errorCode` del módulo
+        SIN traducir y `details` su `errorDetails` verbatim (DD-7); la clave `details` no existe si
+        el módulo no lo envió.
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
 
     Error:
       type: object

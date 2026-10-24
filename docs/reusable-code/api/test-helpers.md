@@ -191,3 +191,29 @@ await request(application)
 ```
 
 **Used by:** `actor-envelope.test.ts` (TS-8).
+
+## FakeBus — modules
+
+**Location:** `api/tests/mocks/bus.ts`
+
+**Description:** Drives the module registry deterministically. `kvPut` / `kvDelete` / `kvPurge` update
+the simulated `JIKU_MODULES` bucket and wait for the watchers, so `await` leaves the registry settled.
+`pingResponds(serviceName, bool, delayMs?)` configures the ping; `moduleReply` / `moduleReplyDefault` /
+`moduleFailWith` / `moduleFailWithNoResponders` / `moduleFailWithTimeout` configure module calls;
+`moduleSent` / `lastModule` record the subject (built with the same helper as the real bus) and payload.
+`kvFailWith` / `kvHeal` and `kvCloseWatchers` cover the unreadable-registry and dead-watch cases.
+
+**Usage example:**
+
+```ts
+await fakeBus.kvPut('docs', { module: 'docs', serviceName: 'jiku-docs', protocol: 'v1', registeredAt: '...' });
+fakeBus.pingResponds('jiku-docs', true);
+await docsModule.start();
+```
+
+## token_08_no_roles
+
+**Location:** `api/tests/mocks/jsonwebtoken-mock.ts`
+
+**Description:** A valid token (`sub: zitadel-sub-08`) with an empty roles claim. Authentication passes
+and `hasAnyRole` answers 403 `access_denied`.

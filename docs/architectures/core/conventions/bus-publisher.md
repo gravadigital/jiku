@@ -110,7 +110,7 @@ El constructor puro de cada evento (`core/src/events/domain/`) no llena cuatro d
 
 | Campo | Lo llena |
 |---|---|
-| `eventId` | `generateUlid()` — ver [`_base`](./_base.md) o el módulo `events` del manifest |
+| `eventId` | `generateUlid()` de `@jiku/nats-protocol` |
 | `occurredAt` | `new Date().toISOString()` |
 | `version` | `EVENTS_VERSION` de `@jiku/nats-protocol` — **nunca** un literal `'v1'` |
 | `correlationId` | el mismo para todos los eventos de un `dispatch()`, generado una vez por invocación |

@@ -216,9 +216,9 @@ Generic over `snapshot` (`DomainEvent<S = RequirementSnapshot | TaskSnapshot>`, 
 emitter can write `DomainEvent<RequirementSnapshot>` and get the snapshot narrowed, while a generic
 consumer that does not specialize still receives the union.
 
-`eventId` is a ULID string that **this package never generates** — zero runtime dependencies is a
-hard rule here (ADR-005), and adding a ULID library would turn a contract package into something
-more. `core`'s emitter (S-063) generates it.
+`eventId` is a ULID string that `core`'s emitter (S-063) generates with `generateUlid()` from this
+package (moved from core in S-077). Zero runtime dependencies is a hard rule here (ADR-005): the
+generator uses `node:crypto`, not a ULID library.
 
 **Signature:**
 ```ts
@@ -268,3 +268,25 @@ interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
   rather than diffing.
 
 **Not runtime symbols.** All four are erased at compile time, same as `DomainEvent`.
+
+## ModuleRecord
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** Value stored under a key of the `JIKU_MODULES` bucket (`docs/apis/jiku-modules.yaml`).
+Type only; the package does not validate it. Readers must validate it and tolerate new fields within v1.
+
+**Signature:**
+```ts
+interface ModuleRecord {
+  module: string;       // equals the KV key
+  serviceName: string;  // prefix of {serviceName}-commands / -queries
+  protocol: string;     // ^v[0-9]+$
+  registeredAt: string; // ISO 8601, informative
+}
+```
+
+**Usage:**
+```ts
+const record = JSON.parse(entry.string()) as ModuleRecord;
+```

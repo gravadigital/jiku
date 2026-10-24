@@ -662,9 +662,9 @@ return Promise.resolve(success({ resources }));
 
 ## generateUlid
 
-**Location:** `core/src/ulid.ts`
+**Location:** `@jiku/nats-protocol` (`packages/nats-protocol/src/index.ts`)
 
-**Description:** `core`'s own ULID generator (S-063 / REQ-014, decision D-2). Produces 26
+**Description:** Own ULID generator (S-063 / REQ-014, decision D-2), moved out of core's own `src/ulid.ts` into the package in S-077 / REQ-016 because both `core` and the api use it. Produces 26
 characters of Crockford base32 — 10 derived from the millisecond timestamp, 16 random via
 `crypto.randomBytes` — never the RFC 4648 alphabet `hashUserId()` uses elsewhere in the monorepo:
 copying that table would produce values that do not match `/^[0-9A-HJKMNP-TV-Z]{26}$/`, because
@@ -687,6 +687,8 @@ function generateUlid(now?: number): string; // now defaults to Date.now()
 
 **Usage:**
 ```ts
+import { generateUlid } from '@jiku/nats-protocol';
+
 const eventId = generateUlid();
 const correlationId = generateUlid(); // once per dispatch(), not once per event
 ```

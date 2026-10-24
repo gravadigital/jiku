@@ -9,6 +9,7 @@ import publicPaths from './config/public';
 import validateToken from './lib/utils/middlewares/validate-token';
 import {synchronizeIdentityKeys} from './lib/utils/auth-helper';
 import { connectBus } from './lib/utils/bus';
+import { docsModule } from './lib/modules/registry';
 
 export function initialize(): Application {
   const app: Application = express();
@@ -58,5 +59,8 @@ export function afterInitialize(): Promise<void> {
     .catch((error: Error) => {
       logger.error(`[bus] no se pudo conectar: ${error.message}`);
     })
+    // DD-6: `start()` nunca rechaza; un registro ilegible no tumba la api. Se espera (acotado por
+    // los timeouts del bus) para que los primeros requests vean el estado real.
+    .then(() => docsModule.start())
     .then(() => synchronizeIdentityKeys());
 }

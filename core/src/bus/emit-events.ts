@@ -1,6 +1,5 @@
-import { DomainEvent, EVENTS_VERSION, eventSubject } from '@jiku/nats-protocol';
+import { DomainEvent, EVENTS_VERSION, eventSubject, generateUlid } from '@jiku/nats-protocol';
 import logger from '../logger';
-import { generateUlid } from '../ulid';
 import { EventPublisher } from './event-publisher';
 
 /**

@@ -40,6 +40,14 @@ describe('bus: el cliente de consultas (S-014)', () => {
     (typeof bus().query).should.equal('function');
   });
 
+  // S-077 TS-59: la interfaz suma los cuatro métodos de módulo, y el doble los implementa.
+  it('S-077 · TS-59: expone los métodos de módulo en el bus activo', () => {
+    (typeof bus().queryModule).should.equal('function');
+    (typeof bus().commandModule).should.equal('function');
+    (typeof bus().pingModule).should.equal('function');
+    (typeof bus().openModuleKv).should.equal('function');
+  });
+
   // TS-12: el subject de una consulta se arma con la función del paquete, nunca a mano
   // (RF-18). El token `{svc}` de las consultas es `jiku-queries`, distinto del de comandos.
   it('arma el subject de una consulta con querySubject (TS-12, CA-6)', () => {

@@ -300,3 +300,45 @@ eventsStreamSubject(); // 'dev.events.v1.>' — used to configure the JIKU_EVENT
 **No stream configured yet.** As of S-062 this helper exists so S-061 (`deploy/`) and S-063
 (`core`'s emitter) can both read the same wildcard from one place; it does not itself create any
 JetStream stream or open any connection.
+
+## moduleCommandSubject / moduleQuerySubject / modulePingSubject
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** Subjects of an optional module, built from the `serviceName` of its registry record
+(REQ-016). Same grammar as the core bus, with `{svc}` = `{serviceName}-commands | -queries` and
+`{version}` = the module's `protocol` (never `PROTOCOL_VERSION`). The ping is the NATS micro
+discovery subject and carries no instance. All three validate `serviceName` against
+`^[a-z][a-z0-9-]{1,40}$` first and **throw** if it does not match, so a corrupt record cannot inject
+NATS tokens (`.`, `*`, `>`). Building a subject does not mean the bus authorizes it (ADR-008).
+
+**Signature:**
+```ts
+function moduleCommandSubject(serviceName: string, protocol: string, method: string, userId: string): string;
+function moduleQuerySubject(serviceName: string, protocol: string, method: string, userId: string): string;
+function modulePingSubject(serviceName: string): string;
+```
+
+**Usage:**
+```ts
+moduleQuerySubject('jiku-docs', 'v1', 'documents.list', '323332022539911171');
+// -> 'dev.323332022539911171.jiku-docs-queries.v1.documents.list'
+modulePingSubject('jiku-docs'); // -> '$SRV.PING.jiku-docs-queries'
+```
+
+## generateUlid
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** ULID generator with no dependency, moved from `core/src/ulid.ts` (REQ-016 / S-077).
+10 chars of timestamp + 16 random, Crockford alphabet (not the RFC 4648 one of `hashUserId()`).
+
+**Signature:**
+```ts
+function generateUlid(now?: number): string;
+```
+
+**Usage:**
+```ts
+const id = generateUlid(); // e.g. '01HF7YAT00...' (26 chars, /^[0-9A-HJKMNP-TV-Z]{26}$/)
+```
