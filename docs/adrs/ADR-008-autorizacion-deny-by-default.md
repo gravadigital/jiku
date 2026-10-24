@@ -156,3 +156,15 @@ sola exención (`get: ['p/docs/']`) y su control propio queda documentado en
 IP y por réplica, token validado por jiku-docs, un 404 indistinguible y cabeceras de solo lectura.
 Además, `put` pasó al mecanismo global de `validateToken` (H-3), de modo que son cinco los métodos
 cubiertos.
+
+## Revisión: "no declarado para tu clase" también es "no existe" (REQ-017 / S-086, 2026-10-24)
+
+El plano de consultas de core aplica el mismo principio a sus listas blancas: lo que una ficha no
+declara responde `invalid_fields`. Desde S-086 una ficha puede declarar incluibles **para una clase**
+(`includableByClass`); para las demás clases ese nombre **no existe**: es la misma respuesta que un
+nombre inexistente, sin un 403 que confirme que existe.
+
+La restricción es un **dato de la ficha**, nunca una rama en el handler, y sin clase resuelta no se
+suma nada (falla cerrado). Referencias: `core/src/queries/engine/spec.ts` (`resolveForClass`),
+`core/src/queries/users/users-spec.ts`, [`docs/apis/core-queries.yaml`](../apis/core-queries.yaml),
+[REQ-017](../requests/REQ-017.roles-de-usuarios-para-conectores-y-cierre-de-brechas-de-docs.md).

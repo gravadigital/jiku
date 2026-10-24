@@ -190,6 +190,15 @@ filtrables, ordenables y el recorte del modo externo— y el motor sabe cómo se
 conoce ningún recurso**, y hay un test estructural que lo verifica: ninguna línea de
 `src/queries/engine/` puede nombrar uno.
 
+**La ficha también puede declarar incluibles por clase** (`includableByClass`, S-086): nombres que
+solo existen para una clase de caller. Son **solo incluibles**: filtros y orden por clase no son
+representables por tipo. `resolveForClass` (`src/queries/engine/spec.ts`) arma la ficha efectiva
+**antes que la variante** —en `validateList`/`validateGet`, en `runList`/`runGet` y en
+`describeResource`—, fusionando el mapa y re-derivando `includableNames` y `fieldNames`; si la ficha
+no tiene entrada para la clase devuelve **la misma referencia**, y sin clase no suma nada (falla
+cerrado). **Ningún archivo de consulta decide por clase**: la restricción es un dato de la ficha, y
+un test estructural lo verifica (`tests/queries/contract-closure.test.ts`).
+
 Agregar una consulta son tres pasos: la ficha y el archivo bajo `src/queries/<recurso>/`, el registro
 en `src/queries/index.ts`, y los tests en `tests/queries/`. **No hay que tocar `bus/`**:
 `registerService` crea un endpoint por patrón desde `queryRegistry.patterns()`, así que sumar una
@@ -202,7 +211,9 @@ consulta. Es el contraste deliberado con el de comandos.
 
 **`meta.describe` devuelve el contrato como dato**, derivado de las mismas fichas que validan: todo
 lo que declara ordenable se puede ordenar, y lo que no declara responde `invalid_fields`. No hay una
-segunda copia que mantener, así que la descripción no puede desactualizarse.
+segunda copia que mantener, así que la descripción no puede desactualizarse. Es **idéntico para todas
+las personas**; el conector ve además lo que la ficha declara para su clase, porque describe lo que
+el validador de esa clase acepta.
 
 **`models/read.ts` no registra los modelos a propósito**: dos instancias de Sequelize en el mismo
 proceso se pelean las clases de `@jiku/models` y la segunda las reasigna. Por eso el plano de
@@ -247,6 +258,12 @@ lista vacía — una lista vacía se leería como "no hay datos".
 **Las tres clases** (gana la más restrictiva): `connector` —el service user de la api, que autoriza
 por su cuenta—, `internal` —`admin` y `user`, sin recorte de filas por decisión explícita de la v1— y
 `external` —`external-user`, que recibe lo que declare el recorte de cada ficha—.
+
+La clase decide además **qué incluibles existen**: llega a `Query.validate(payload, callerClass)`
+desde el despachador. Hoy hay un solo caso: `users` declara `roles` e `identityType` para
+`connector` (jiku-docs, `[internal-app, docs]`, y cualquier `internal-app`). Para las personas no
+existen (`invalid_fields`, CA-7 de S-023 se mantiene). **Riesgo conocido (R-2):** todo `internal-app`
+ve los roles de todos; ver [known-limitations](../../../documentation/known-limitations.md).
 
 **El recorte del modo externo se inyecta en el SQL y no hay forma de desactivarlo por payload.**
 Declararlo en la ficha ES aplicarlo: el motor lo antepone al `WHERE` de los tres SQL —filas, COUNT y
@@ -320,7 +337,8 @@ dominio.
 ### jiku-docs: un cliente más de `jiku-queries`/`jiku-commands`
 
 jiku-docs (servicio externo, otro repositorio) usa el mismo bus con su machine user de clase
-`connector` para **leer personas y requisitos** y para **subir y leer archivos**. Core no sabe que
+`connector` para **leer personas y requisitos** (y los roles de quien lo llama: `users.list` con
+`include: ["roles","identityType"]`) y para **subir y leer archivos**. Core no sabe que
 es un módulo opcional: lo trata como cualquier `internal-app`. La particularidad es de `files`:
 los archivos que sube jiku-docs **nunca se vinculan** a una entidad (sin vínculo
 permanente). Ningún código de `core/src/` escribe `RetentionStatus.ScheduledForDeletion`/`Deleted`

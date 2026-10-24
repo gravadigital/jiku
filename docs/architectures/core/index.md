@@ -78,7 +78,7 @@ Preocupaciones del catálogo que este servicio no tiene:
 |---|---|
 | `http-server` | **No expone HTTP.** Sin puerto, sin endpoints, sin verbos, sin framework web. Es la diferencia estructural con `api` |
 | `auth-jwt` | No valida tokens de usuario. Solo obtiene el suyo para el bus, y eso vive en `bus-consumer` |
-| `authorization` | No hay un framework de autorización que configurar. **Matiz desde REQ-005/006:** los dos despachadores autorizan al *caller del subject* contra `users.roles`, y el de consultas resuelve además una *clase de caller* que decide el recorte de filas. Eso vive en `authorize-caller.ts` y en las fichas, no en una preocupación transversal; la autorización del usuario final sigue siendo de `api` |
+| `authorization` | No hay un framework de autorización que configurar. **Matiz desde REQ-005/006:** los dos despachadores autorizan al *caller del subject* contra `users.roles`, y el de consultas resuelve además una *clase de caller* que decide el recorte de filas y los incluibles que solo ve una clase (`includableByClass`). Eso vive en `authorize-caller.ts` y en las fichas, no en una preocupación transversal; la autorización del usuario final sigue siendo de `api` |
 | `cache` | No hay Redis ni cache de aplicación |
 | `queue` | No hay cola de trabajos. El bus es request/reply sincrónico, cubierto por `bus-consumer` |
 | `observability` | No hay OpenTelemetry ni tracing. La observabilidad es el log de Winston |

@@ -118,6 +118,13 @@ info:
     That is also the structural mitigation against injection: a name that is not in the sheet never
     reaches the SQL, and values always travel as `replacements`.
 
+    A sheet may **refine the includables list by caller class** (`includableByClass`): names that
+    exist **only for one class**. For every other class such a name is not declared, so it does not
+    exist — `invalid_fields`, indistinguishable from a name that was never invented. By type, a sheet
+    cannot declare filters or sorting per class: a per-class name is **never** filterable, sortable
+    or searchable through `q`. Today only `users` uses it (`roles` and `identityType`, for the
+    `connector` class). Not a sixth list: it is part of the includables.
+
     ## `meta.describe` is this document, as data
 
     `meta.describe` projects **the same structures the validator reads** to reject names. The
@@ -125,8 +132,10 @@ info:
     `filterable` / `includable` works, and one it does not declare answers `invalid_fields`**. There
     is no second copy to keep in sync — which is why the description cannot go stale.
 
-    It describes the **contract**, not the data, so it is **identical for every caller**, external
-    ones included. Knowing that an includable `email` exists grants access to no email: row trimming
+    It describes the **contract**, not the data, so it is **identical for every person caller**
+    (internal and external). A `connector` also sees what a sheet declares for its class
+    (`includableByClass`): what it describes is exactly what the validator accepts for that class.
+    Knowing that an includable `email` exists grants access to no email: row trimming
     and the field whitelist still operate on every query.
 
     ## Not in scope of REQ-006, and it is declared
@@ -482,8 +491,23 @@ channels:
       Paginated collection of users. Whitelists: `#/x-resources/users`.
 
       **`email` is INCLUDABLE, not base**: it is personal data and does not travel unless asked for.
-      `roles` is **not exposed at all** — it is the input of the authorisation gate, and publishing
-      it would hand a caller the map of what everyone can do.
+      **`roles` and `identityType` are includables ONLY for the `connector` class**
+      (`includableByClass`). They are what a connector uses to classify whoever calls it:
+
+      ```jsonc
+      { "filter": { "id": ["<sub>"] }, "include": ["roles", "identityType"] }
+      // -> each item adds:
+      //   "roles": ["admin"]         // list of strings exactly as stored, unknown roles included (e.g. "docs")
+      //   "identityType": "person"   // "person" | "service"
+      ```
+
+      For `internal` and `external` callers, naming them in `include` or `fields` is
+      `invalid_fields`, **indistinguishable from a name that does not exist**
+      (`errorDetails.allowed` = `["email","person"]`; a `connector` sees
+      `["email","person","roles","identityType"]`). **For every class**, they are neither filterable
+      nor sortable and do not enter `q`: any of those is `invalid_fields`. The reason is kept:
+      publishing `roles` to a person would hand them the map of who is an admin. **Known risk (R-2):**
+      every `internal-app` identity reads everyone's roles.
 
       **`email` CAN COME BACK `null`, and only for a service identity.** A Zitadel machine user has
       no e-mail address —`userinfo` returns no such claim— so the mirrored `users` row leaves the
@@ -709,7 +733,10 @@ channels:
       **It does not touch the database.** The cheapest query in the contract and the only one that
       does not depend on PostgreSQL.
 
-      **It is identical for every caller** — it describes the CONTRACT, not the data.
+      **It is identical for every person caller** (internal and external) — it describes the
+      CONTRACT, not the data. A `connector` also sees what a sheet declares for its class
+      (`includableByClass`); no new key appears in the response. What it describes is exactly what
+      the validator accepts **for that class**, which is why it stays *derived, not maintained*.
 
       **Payload — one lever only: `resources`, optional.**
 
@@ -729,7 +756,7 @@ channels:
       | Key | Content |
       |---|---|
       | `base` | the default returned set, each entry with its `kind` |
-      | `includable` | the includables, each with `kind` (`field` / `computed` / `relation`), and for a collection with a cap, its `cap` and `truncatedFlag` |
+      | `includable` | the includables, each with `kind` (`field` / `computed` / `relation`), and for a collection with a cap, its `cap` and `truncatedFlag`. For a `connector`, also the includables its class adds |
       | `filterable` | each filter with its `kind`, the name of its `enum`, and whether it does `search` / `searchNumeric` / `contains` |
       | `sortable` | the list of names, IN THE ORDER that travels in `errorDetails.allowed` |
       | `defaults` | `{ sort, limit: 50, maxLimit: 200 }` |
@@ -1183,6 +1210,8 @@ components:
 #
 #   base            lo que devuelve un `list` o un `get` SIN pedir nada
 #   includable      lo que `include` puede sumar
+#   includableByClass  (opcional) incluibles que SOLO ve una clase de caller; hoy solo `users`.
+#                   Es parte de `includable`, no una sexta lista
 #   filterable      lo que `filter` puede nombrar
 #   sortable        lo que `sort` puede nombrar, MAS su orden por defecto
 #   externalScope   que ve un caller de clase `external`
