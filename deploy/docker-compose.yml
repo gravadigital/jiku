@@ -128,9 +128,12 @@ services:
     container_name: jiku-${STAGE}-api
     restart: always
     environment:
-      - VIRTUAL_HOST=api.${DOMAIN}
+      # El host público de los links compartidos (REQ-016 / S-080) se suma a los de la api SOLO
+      # si está configurado: vacío, la api queda exactamente como antes. Interpolación anidada,
+      # verificada con Compose v5 (S-080). Con dos hosts el certificado es uno solo (SAN).
+      - VIRTUAL_HOST=api.${DOMAIN}${DOCS_PUBLIC_DOMAIN:+,${DOCS_PUBLIC_DOMAIN}}
       - VIRTUAL_PORT=3000
-      - LETSENCRYPT_HOST=api.${DOMAIN}
+      - LETSENCRYPT_HOST=api.${DOMAIN}${DOCS_PUBLIC_DOMAIN:+,${DOCS_PUBLIC_DOMAIN}}
       # Credenciales de SOLO LECTURA: la api no escribe.
       - POSTGRESQL_DB=${DATABASE_NAME}
       - POSTGRESQL_USER=${DATABASE_READONLY_USER}
@@ -157,6 +160,13 @@ services:
       # por encima del statement_timeout de la conexión de lectura de core, para que la base
       # corte primero y el error sea explicable en vez de un timeout mudo del bus.
       - NATS_QUERY_TIMEOUT_MS=${NATS_QUERY_TIMEOUT_MS}
+      # Base de los links compartidos: la api sirve /p/docs/* solo en este host, y en este host
+      # nada más (DD-10). CON GUARDA, a diferencia de OPUS_URL: con DOCS_PUBLIC_DOMAIN vacío tiene
+      # que quedar vacía (links apagados); `https://` pelado no es una URL y la api no arrancaría.
+      - JIKU_PUBLIC_URL=${DOCS_PUBLIC_DOMAIN:+https://${DOCS_PUBLIC_DOMAIN}}
+      # Un salto: el nginx-proxy del ingress. Sin esto el rate limit de /p/docs/* ve a todos los
+      # visitantes con la IP del proxy (DD-11). Se sobreescribe desde el .env si hay más saltos.
+      - API_TRUST_PROXY=${API_TRUST_PROXY:-1}
     volumes:
       - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
     depends_on:

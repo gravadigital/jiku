@@ -63,6 +63,8 @@ Fill in, in `.env`:
 | `CORE_TRUSTED_PUBLISHER_ID`                   | the `userId` from the api's service user JSON key — **core will not start without it** |
 | `STORAGE_S3_*`                                | **Locally: leave them as they come.** `.env.dist` already points them at the MinIO the stack brings up. They only get filled in to use a real provider. **core** signs both uploads and downloads, so the credentials need read **and** write permission. **Only `core` receives them** — the api has no access to the bucket, so it cannot touch an object core did not sign for it. |
 | `DUMP_FILE`                                   | optional: a `.sql` to preload the database                             |
+| `DOCS_PUBLIC_DOMAIN`                          | optional: the public host for shared documentation links, no scheme, no trailing slash. Empty = sharing off. Must be a host of its own (not `api.<DOMAIN>`, `DOMAIN` or `OPUS_DOMAIN`): on it the api serves nothing but `/p/docs/*`. Only read by `docker-compose.yml` |
+| `API_TRUST_PROXY`                             | leave empty: production defaults to `1` (the ingress), local/dev to no proxy. Set it only with more than one hop in front of the api |
 
 ### 2. Zitadel service users
 
@@ -150,9 +152,14 @@ restarting.
 | web               | http://localhost:3000 |
 | opus-web          | http://localhost:3001 |
 | api               | http://localhost:3100 |
+| api (shared links) | http://127.0.0.1:3100/p/docs/\<token\> |
 | NATS (monitoring) | http://localhost:8222 |
 | storage (S3 API)  | http://localhost:9000 |
 | storage (console) | http://localhost:9001 |
+
+The shared links are served by the same api port under a different `Host`: `127.0.0.1:3100`
+is the public host (`JIKU_PUBLIC_URL`), `localhost:3100` stays the application. The public page
+does not show MinIO images locally: its CSP requires `https:` for images.
 
 `up` also brings up the S3 storage and creates the bucket in it, so **uploading a file works
 without configuring anything else**. The console on 9001 takes the same credentials as the
@@ -480,6 +487,12 @@ docker compose up -d
 
 Differences from the local environment:
 
+- Shared documentation links are off until `DOCS_PUBLIC_DOMAIN` is set. To turn them on:
+  (a) point that host's DNS at the server **first** — the api's certificate becomes a single one
+  for both hosts, so an unresolvable name breaks issuing and renewing it; (b) set the variable and
+  run `docker compose up -d api` to recreate the api; (c) set jiku-docs' `JIKU_PUBLIC_URL` to
+  `https://<DOCS_PUBLIC_DOMAIN>` (it has to match); (d) `API_TRUST_PROXY` already defaults to `1`
+  in the compose, which is right behind the ingress.
 - Requires two external networks: the ingress one (`INGRESS_NETWORK`) and the database one
   (`DATABASE_NETWORK`).
 - Versions are pinned per service (`API_VERSION`, `CORE_VERSION`, …), so core can be deployed
