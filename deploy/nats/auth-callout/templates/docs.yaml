@@ -1,0 +1,59 @@
+# `docs`: el machine user de jiku-docs (roles `internal-app` y `docs`). Ver README.md.
+#
+# INCLUYE TODO `connector.yaml`: llama a core, consume JIKU_EVENTS y su indexer consume su propio
+# stream JIKU_DOCS_EVENTS (H-P2). El callout no tiene includes, así que las líneas se repiten; el
+# test core/tests/bus/bus-policy-structure.test.ts exige `docs ⊇ connector` y evita que diverjan.
+
+pub:
+  allow:
+    - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-commands.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-queries.v1.>"
+    - "$SRV.PING.>"
+    # JetStream ACOTADO A JIKU_EVENTS. Nunca `$JS.API.>`: es administración completa de
+    # JetStream sobre la cuenta (borrar, vaciar y reconfigurar cualquier stream).
+    - "$JS.API.INFO"
+    - "$JS.API.STREAM.INFO.JIKU_EVENTS"
+    - "$JS.API.CONSUMER.CREATE.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.INFO.JIKU_EVENTS.>"
+    - "$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>"
+    # JIKU_DOCS_EVENTS: las mismas cinco formas, solo lectura. Nunca `$JS.API.>`.
+    - "$JS.API.STREAM.INFO.JIKU_DOCS_EVENTS"
+    - "$JS.API.CONSUMER.CREATE.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.INFO.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.MSG.NEXT.JIKU_DOCS_EVENTS.>"
+    # KV_READ_WATCH: leer y observar el registro de módulos (KV_JIKU_MODULES). Solo lectura:
+    # sin `$KV.` y sin mutación del stream. La línea SIN sufijo (`CONSUMER.CREATE.KV_JIKU_MODULES`)
+    # es la que nats.js usa al recrear el consumidor ordenado tras un reset; sin ella el watch
+    # muere en silencio (jsclient.js:590). Hay un test que fija esta lista.
+    - "$JS.API.STREAM.INFO.KV_JIKU_MODULES"
+    - "$JS.API.DIRECT.GET.KV_JIKU_MODULES.>"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES.>"
+    - "$JS.FC.KV_JIKU_MODULES.>"
+    # --- de servidor ---
+    - "{{instance}}.docs-events.v1.>"
+    - "{{instance}}.*.docs-notify.v1.>"
+    # Administra SU stream (crear, actualizar, borrar, vaciar). Nada de `$JS.API.>`.
+    - "$JS.API.STREAM.*.JIKU_DOCS_EVENTS"
+    # Escribe SOLO su clave del registro. Nunca `$KV.JIKU_MODULES.>` (CA-10). No hace falta
+    # `DIRECT.GET ...docs`: lo subsume el `DIRECT.GET.KV_JIKU_MODULES.>` de KV_READ_WATCH (H-P3).
+    - "$KV.JIKU_MODULES.docs"
+
+sub:
+  allow:
+    - "{{instance}}.events.v1.>"
+    - "_INBOX.{{user_id_hash}}.>"
+    # Atiende comandos y consultas de docs (queue group).
+    - "{{instance}}.*.jiku-docs-commands.v1.>"
+    - "{{instance}}.*.jiku-docs-queries.v1.>"
+    # Sin `$SRV.>` el servicio es invisible para `nats micro ls`.
+    - "$SRV.>"
+
+response:
+  # Como core.yaml: responde una vez por request.
+  max: 1
+  ttl: 45s

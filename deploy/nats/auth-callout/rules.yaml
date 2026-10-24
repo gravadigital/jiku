@@ -8,6 +8,13 @@
 version: 1
 
 rules:
+  # `docs` TIENE que ir arriba de `internal-app`: el machine user de jiku-docs lleva los dos
+  # roles y gana la primera regla que coincide. Debajo, caería en connector.yaml y reiniciaría
+  # en loop al suscribirse a `jiku-docs-*`. Los nombres de subject de docs son LITERALES: registrar
+  # un módulo con otro `serviceName` es un cambio de seguridad deliberado (ADR-008).
+  - match: docs
+    template: templates/docs.yaml
+
   - match: internal-app
     template: templates/connector.yaml
 

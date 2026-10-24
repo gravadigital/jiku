@@ -13,6 +13,9 @@
 #   2. ./service-user-key.sh api <key.json>   (and the same for core)
 #   3. generate the NATS identity in nats/creds/   (see nats/creds/README.md)
 #
+# `up` also needs `nsc` installed: it creates the JIKU_MODULES registry with a throwaway
+# administrative user (nats/create-modules-kv.sh).
+#
 # The S3 storage is local and needs nothing prepared: `up` brings MinIO up and creates
 # the bucket. STORAGE_S3_ENDPOINT already comes pointed at it in .env.dist.
 #
@@ -112,6 +115,13 @@ SQL
     until docker exec jiku-local-nats wget -qO- http://127.0.0.1:8222/healthz >/dev/null 2>&1; do
       sleep 1
     done
+    # Unlike JIKU_EVENTS below (which only warns), the module registry is CREATED here: the
+    # bucket has no permissions to keep in sync, `down -v` deletes it with the JetStream
+    # volume, and a missing bucket breaks module discovery silently. No `|| true`: a failure
+    # stops local.sh (set -e). Idempotent: a second `up` prints "Nothing to do".
+    echo "==> module registry"
+    ./nats/create-modules-kv.sh
+
     if ! curl -s http://localhost:8222/jsz?streams=1 2>/dev/null | grep -q '"name": *"JIKU_EVENTS"'; then
       echo "" >&2
       echo "warning: JIKU_EVENTS is missing. Domain events have nowhere to be persisted." >&2

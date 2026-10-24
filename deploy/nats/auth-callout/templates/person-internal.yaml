@@ -8,8 +8,24 @@ pub:
     # El comodín va al final del prefijo de servicio, NUNCA en `{{instance}}.{{user_id}}.>`.
     - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
     - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-queries.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-commands.v1.>"
+    # R-4: es la primera vez que una persona recibe JetStream. Acotado al registro de módulos,
+    # sin mutación y sin `$KV.`; hay un test que lo exige.
+    # KV_READ_WATCH: leer y observar el registro de módulos (KV_JIKU_MODULES). Solo lectura:
+    # sin `$KV.` y sin mutación del stream. La línea SIN sufijo (`CONSUMER.CREATE.KV_JIKU_MODULES`)
+    # es la que nats.js usa al recrear el consumidor ordenado tras un reset; sin ella el watch
+    # muere en silencio (jsclient.js:590). Hay un test que fija esta lista.
+    - "$JS.API.INFO"
+    - "$JS.API.STREAM.INFO.KV_JIKU_MODULES"
+    - "$JS.API.DIRECT.GET.KV_JIKU_MODULES.>"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES.>"
+    - "$JS.FC.KV_JIKU_MODULES.>"
 
 sub:
   allow:
     # El cliente DEBE fijar `inboxPrefix`, o las respuestas nunca llegan (síntoma: timeout).
     - "_INBOX.{{user_id_hash}}.>"
+    # Notificaciones de docs, SOLO bajo su id (nunca `{{instance}}.*.docs-notify.v1.>`).
+    - "{{instance}}.{{user_id}}.docs-notify.v1.>"
