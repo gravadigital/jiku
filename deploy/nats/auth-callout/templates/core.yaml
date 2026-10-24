@@ -1,6 +1,8 @@
 # El servicio `core`: atiende los dos planos y publica eventos de dominio. Ver README.md.
 #
-# Es el ÚNICO que recibe requests por el bus (el único con `sub.allow` de servicio).
+# Junto con `docs` (docs.yaml, sobre `jiku-docs-*`) es uno de los dos con `sub.allow` de
+# servicio, o sea de los que reciben requests por el bus. Core atiende `jiku-commands` y
+# `jiku-queries`.
 
 pub:
   allow:

@@ -20,6 +20,7 @@ deploy/
     ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
     ├── create-modules-kv.sh      creates the JIKU_MODULES module registry (KV)
     ├── events-test-consumer.sh   verification tool: consumes JIKU_EVENTS and validates it (S-067)
+    ├── bus-policy-probe.sh       verification tool: checks a role's bus permissions on the real bus (S-075)
     ├── auth-callout/         rules.yaml + templates/ (access policy — see its README.md)
     └── creds/                NATS identity — NOT versioned
 ```
@@ -479,14 +480,20 @@ cp .env.dist .env      # fill in, including each service's version
 cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
 cd nats && ./add-events-user.sh && cd ..   # only if that creds/ predates the events credential
 cd nats && ./enable-jetstream.sh && cd ..  # only if that creds/ predates the JetStream limits
-cd nats && ./create-events-stream.sh && cd ..
-cd nats && ./create-modules-kv.sh && cd ..
 docker compose pull
 docker compose up -d
+cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-events-stream.sh && cd ..
+cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-modules-kv.sh && cd ..
 ```
 
 Differences from the local environment:
 
+- The two `create-*` scripts talk to NATS through a throwaway `nats-box` container on the bus
+  network, so they need the stack **up** and the network's name. `NATS_DOCKER_NETWORK` defaults to
+  `jiku-local_jiku` (the local compose); the production compose (`name: jiku`) creates
+  `jiku_jiku-bus` — check with `docker network ls | grep jiku-bus` if you renamed the project. Both
+  are safe to repeat. The api picks the registry up on its own once it exists (it retries every
+  30 s), so running them after `up` loses nothing.
 - Shared documentation links are off until `DOCS_PUBLIC_DOMAIN` is set. To turn them on:
   (a) point that host's DNS at the server **first** — the api's certificate becomes a single one
   for both hosts, so an unresolvable name breaks issuing and renewing it; (b) set the variable and
@@ -575,6 +582,13 @@ That is a real widening over what `external-publisher` granted (nine write subje
 queries), and it is deliberate. **If you need a narrower connector, it is a new role**, with its
 own template here and its own entry in `core/src/authorize-caller.ts` — not a variant of this one.
 
+**It also gets the documentation plane.** `internal-app` additionally publishes docs commands and
+queries under its id (`{instance}.{user-id}.jiku-docs-commands.v1.>`,
+`{instance}.{user-id}.jiku-docs-queries.v1.>`), can ping services (`$SRV.PING.>`), consumes the
+`JIKU_DOCS_EVENTS` stream and reads and watches the `JIKU_MODULES` registry. **jiku-docs treats every
+`internal-app` as the `service` class, which reads all the documentation** (R-3, accepted in D-2).
+Widening `connector.yaml` widens every `internal-app`.
+
 **The client must set `inboxPrefix` when it connects.** Replies come back on
 `_INBOX.<hash-of-user-id>.>`, and that is the only inbox the template authorises. A client that
 lets the library pick a random `_INBOX.<random>` gets **no replies at all**, and the symptom is a
@@ -609,14 +623,19 @@ to the product"*), and the widening applies to exactly two roles, not three.
 
 - [nats/auth-callout/templates/person-internal.yaml](nats/auth-callout/templates/person-internal.yaml)
   (`admin`, `user`) authorises publishing under **both**
-  `{instance}.{user-id}.jiku-queries.v1.>` and `{instance}.{user-id}.jiku-commands.v1.>`, plus
-  listening on `_INBOX.<hash-of-user-id>.>`.
+  `{instance}.{user-id}.jiku-queries.v1.>` and `{instance}.{user-id}.jiku-commands.v1.>`, the same
+  two for docs (`jiku-docs-queries.v1.>`, `jiku-docs-commands.v1.>`), plus listening on
+  `_INBOX.<hash-of-user-id>.>` and on `{instance}.{user-id}.docs-notify.v1.>` (only under its own
+  id), and reading and watching the module registry (read-only JetStream on `KV_JIKU_MODULES` —
+  the first JetStream a person gets, R-4).
 - [nats/auth-callout/templates/person-external.yaml](nats/auth-callout/templates/person-external.yaml)
-  (`external-user`) authorises **only** `{instance}.{user-id}.jiku-queries.v1.>` plus the same
-  inbox — the exact permission the old shared template granted, unchanged.
+  (`external-user`) authorises `{instance}.{user-id}.jiku-queries.v1.>` and
+  `{instance}.{user-id}.jiku-docs-queries.v1.>`, the same inbox, and reading and watching the module
+  registry. No commands prefix at all (docs included) and no `docs-notify`.
 
-Neither template declares `$SRV.>` discovery or a service subscription: a person never attends any
-endpoint, whether or not they can write.
+Neither template declares `$SRV.>` discovery or a service subscription: nor `$SRV.PING` — a
+person never attends any endpoint, whether or not they can write, and learns a module's state from
+the registry, not by ping.
 
 **Publishing under the commands prefix is the transport permission, not the authorisation.** The
 template opens the whole `jiku-commands.v1` prefix for `admin`/`user`; which of those commands each
@@ -641,12 +660,27 @@ enough on its own:
    violation, on the spot**, at the NATS server.
 3. Confirm core's role → method map still rejects `external-user` even if the template's permission
    existed by mistake (read `commands: []` for `external-user` in `authorize-caller.ts`).
+4. Connect with an `external-user` token and publish a docs command (`jiku-docs-commands`) →
+   **permissions violation**.
+5. Connect with an `external-user` token and subscribe to `docs-notify` → **permissions violation**.
+
+To run the allow/deny matrix of a whole profile against the local bus, use
+`nats/bus-policy-probe.sh --profile <profile> --key <service-user.json>`.
 
 | Caller                                | Commands                                       | Queries                            | Domain events |
 | -------------------------------------- | ----------------------------------------------- | ----------------------------------- | ------------- |
 | the api and any external service (`internal-app`, `connector`) | the whole `jiku-commands.v1` prefix | the whole `jiku-queries.v1` prefix | consumes `<instance>.events.v1.>` |
 | **`admin` / `user`** (`person-internal`) | **the whole `jiku-commands.v1` prefix, trimmed by core's role → method map** | the whole `jiku-queries.v1` prefix | none |
 | **`external-user`** (`person-external`) | **none**                                        | the whole `jiku-queries.v1` prefix  | none |
+
+And the documentation plane, which adds to the table above:
+
+| Caller | Docs commands | Docs queries | Notifications | Module registry |
+| --- | --- | --- | --- | --- |
+| `docs` (`docs.yaml`) | everything `internal-app` has, and it attends `jiku-docs-*` | same | publishes `{instance}.*.docs-notify.v1.>` | reads, watches, writes only `$KV.JIKU_MODULES.docs` |
+| `internal-app` (`connector.yaml`) | `{instance}.{user-id}.jiku-docs-commands.v1.>` | `{instance}.{user-id}.jiku-docs-queries.v1.>` | none | reads and watches |
+| **`admin` / `user`** | `{instance}.{user-id}.jiku-docs-commands.v1.>` | `{instance}.{user-id}.jiku-docs-queries.v1.>` | listens on `{instance}.{user-id}.docs-notify.v1.>` | reads and watches |
+| **`external-user`** | **none** | `{instance}.{user-id}.jiku-docs-queries.v1.>` | none | reads and watches |
 
 Of the three, `external-user` is the only one that cannot write at all — `admin` and `user`
 moved from that same restriction to full command access, trimmed only by what their role is allowed
@@ -780,10 +814,12 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   Hub (`gravadigital/nats-zitadel-auth-callout`), and it ships **only the callout** — the NATS
   server is a compose service of its own. What is here is its configuration
   (`nats/auth-callout/`), mounted by path and read at startup.
-- **JetStream is enabled, but scoped to domain events only.** Commands and queries are still
-  direct request/reply with no JetStream. JetStream backs only the `JIKU_EVENTS` stream, on
-  `<instance>.events.v1.>` — see `nats/creds/README.md` for how it is enabled and
-  `nats/create-events-stream.sh` for the stream itself. **Since S-063, `core` actually publishes
+- **JetStream is enabled, but scoped to three things.** Commands and queries are still direct
+  request/reply with no JetStream. JetStream backs `JIKU_EVENTS` (domain events, on
+  `<instance>.events.v1.>`, created by `nats/create-events-stream.sh`), `KV_JIKU_MODULES` (the
+  optional-modules registry, created by `nats/create-modules-kv.sh`) and `JIKU_DOCS_EVENTS`
+  (created and administered by jiku-docs itself, only when the module is installed — `docs.yaml`
+  grants `$JS.API.STREAM.*.JIKU_DOCS_EVENTS` and nothing broader). See `nats/creds/README.md` for how JetStream is enabled. **Since S-063, `core` actually publishes
   into that stream** (post-commit domain events, starting with `requirement.created`): its
   `pub.allow` (`nats/auth-callout/templates/core.yaml`) carries `<instance>.events.v1.>` for that
   reason. It carries **no `$JS.API` permission at all**, and does not need one: `js.publish()` is
