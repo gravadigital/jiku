@@ -217,3 +217,21 @@ await docsModule.start();
 
 **Description:** A valid token (`sub: zitadel-sub-08`) with an empty roles claim. Authentication passes
 and `hasAnyRole` answers 403 `access_denied`.
+
+## docs-module helper
+
+**Location:** `api/tests/helpers/docs-module.ts`
+
+**Description:** Shared by the route tests of the documentation module. `docsAvailable()`,
+`docsUnavailable()` and `docsNotInstalled()` leave the registry settled; `success(data)` and
+`failure(code, message, details?)` build a `Reply`; `DOC_ID`, `FOLDER_ID`, `ATT_ID`,
+`QUERY_SUBJECT_PREFIX`, `COMMAND_SUBJECT_PREFIX` are the example ids and subjects;
+`itRespectsModuleState(getApp, url, token)` registers the "404 not installed / 503 unavailable, no module
+call" test.
+
+**Usage example:**
+
+```ts
+await docsAvailable();
+fakeBus.moduleReply('documents.list', success({ items: [], page: { limit: 50, returned: 0 } }));
+```

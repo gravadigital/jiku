@@ -61,3 +61,14 @@ export { default as OpusRequirementsIdSubscriptorsUseridDelete } from './opus-re
 export { default as ProjectIdPersonsGet } from './projects-id-persons-get';
 export { default as ModulesGet } from './modules-get';
 export { default as OpusModulesGet } from './opus-modules-get';
+export { default as DocsDocumentsGet } from './docs-documents-get';
+export { default as DocsDocumentsIdGet } from './docs-documents-id-get';
+export { default as DocsDocumentsIdVersionsGet } from './docs-documents-id-versions-get';
+export { default as DocsSearchGet } from './docs-search-get';
+export { default as DocsTopicsGet } from './docs-topics-get';
+export { default as DocsFoldersGet } from './docs-folders-get';
+export { default as DocsFoldersIdGet } from './docs-folders-id-get';
+export { default as DocsAttachmentsIdGet } from './docs-attachments-id-get';
+export { default as OpusDocsDocumentsGet } from './opus-docs-documents-get';
+export { default as OpusDocsDocumentsIdGet } from './opus-docs-documents-id-get';
+export { default as OpusDocsAttachmentsIdGet } from './opus-docs-attachments-id-get';

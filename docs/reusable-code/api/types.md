@@ -112,3 +112,13 @@ type ModuleStatus = 'not_installed' | 'incompatible' | 'unavailable' | 'availabl
 type PublicModuleStatus = 'not_installed' | 'unavailable' | 'available';
 interface ModuleStatusEntry { module: ModuleName; status: PublicModuleStatus; features?: Record<string, unknown>; }
 ```
+
+## ModuleDownloadTicket
+
+**Location:** `api/lib/modules/docs/download.ts`
+
+**Interface:**
+
+```ts
+interface ModuleDownloadTicket { id: string; downloadUrl: string; expiresIn: number; }
+```

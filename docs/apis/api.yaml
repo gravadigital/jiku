@@ -1,11 +1,11 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — los 63 endpoints que sirve.
+# Contrato HTTP de `api` — los 74 endpoints que sirve.
 #
 # REQ-016 / S-077 — `x-jiku-module`
 #   Una operación marcada `x-jiku-module: docs` depende del módulo opcional `docs` (jiku-docs):
 #   su disponibilidad la dicta el registro `JIKU_MODULES` del bus. Las dos rutas `/modules` solo
-#   REPORTAN ese estado; las rutas de documentación (S-078 en adelante) responden además
+#   REPORTAN ese estado; las rutas de documentación (S-078 en adelante, `x-jiku-module: docs`) responden además
 #   `ModuleNotInstalled` (404) / `ModuleUnavailable` (503) según `requireModule`.
 #
 # EXTRAÍDO DEL CÓDIGO
@@ -131,6 +131,8 @@ tags:
     description: Asignación semanal de tiempo
   - name: attachments
     description: Adjuntos. Autorizan por entidad, no por rol
+  - name: docs
+    description: "Documentación: rutas respaldadas por el módulo opcional jiku-docs"
   - name: opus
     description: Portal de clientes. Superficie de `opus-web`, acotada por permiso de proyecto
   - name: other
@@ -2112,6 +2114,243 @@ paths:
         '504': { $ref: '#/components/responses/GatewayTimeout' }
 
   # ==========================================================================
+  # docs — módulo de documentación (jiku-docs, REQ-016 / S-078)
+  # ==========================================================================
+
+  /docs/documents:
+    get:
+      tags: [docs]
+      summary: Lista documentos
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `documents.list` de jiku-docs. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+
+        Payload: `{ filter, sort: [sort], page: { limit, cursor? }, include: ['lock'] }`. Las claves de
+        `filter` que no vinieron no se mandan. Un parámetro no declarado es 400 `invalid_fields`.
+      parameters:
+        - { name: projectId, in: query, description: "Filtro por proyecto", schema: { type: integer, minimum: 1 } }
+        - { name: requirementId, in: query, description: "Filtro por requisito", schema: { type: integer, minimum: 1 } }
+        - { name: taskId, in: query, description: "Filtro por tarea", schema: { type: integer, minimum: 1 } }
+        - { name: clientId, in: query, description: "Filtro por actor", schema: { type: integer, minimum: 1 } }
+        - { name: folderId, in: query, description: "Filtro por carpeta", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: pathPrefix, in: query, description: "Prefijo de path", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: topic, in: query, description: "Tema", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: sort, in: query, description: "Orden", schema: { type: string, enum: [updatedAt, -updatedAt, createdAt, -createdAt, title, -title, path, -path], default: -updatedAt } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsDocumentPage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}:
+    get:
+      tags: [docs]
+      summary: Detalle de un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `documents.get` y, con su `folderId`, a `folders.get` (dos consultas en serie). Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+
+        **Única composición de la api:** `{ ...document, folder: { id, path, effectivePermission, sharingBlocked } }`,
+        para que la web sepa en un pedido si puede editar (`write`) o compartir (`manage`). Si falla
+        cualquiera de las dos, responde ese error y no un documento sin `folder`. Un documento de más de
+        256 KiB trae `contentUrl` en lugar de `content`. Un `id` mal formado responde 404 `document_not_found`
+        sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: version, in: query, description: "Versión pedida; sin ella, la vigente", schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsDocumentDetail' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/versions:
+    get:
+      tags: [docs]
+      summary: Versiones de un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `documents.versions.list` con `filter: { documentId }` y `sort: ['-version']`. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsVersionPage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/search:
+    get:
+      tags: [docs]
+      summary: Busca en los documentos
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `documents.search` con `mode: 'text'` (no se expone `mode`: en la v1 `semantic` y `hybrid`
+        responden `semantic_search_not_configured`). `q` se manda como `query`; `limit` va en la raíz, no en
+        `page`. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+      parameters:
+        - { name: q, in: query, required: true, description: "Texto a buscar", schema: { type: string, minLength: 2, maxLength: 1000 } }
+        - { name: projectId, in: query, description: "Filtro por proyecto", schema: { type: integer, minimum: 1 } }
+        - { name: requirementId, in: query, description: "Filtro por requisito", schema: { type: integer, minimum: 1 } }
+        - { name: taskId, in: query, description: "Filtro por tarea", schema: { type: integer, minimum: 1 } }
+        - { name: pathPrefix, in: query, description: "Prefijo de path", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: topic, in: query, description: "Tema", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: limit, in: query, description: "Cantidad de resultados", schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsSearchResponse' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/topics:
+    get:
+      tags: [docs]
+      summary: Lista temas
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `topics.list`. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+      parameters:
+        - { name: prefix, in: query, description: "Prefijo del tema", schema: { type: string, minLength: 1, maxLength: 200 } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsTopicPage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/folders:
+    get:
+      tags: [docs]
+      summary: Lista carpetas
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `folders.list` con `sort: ['name']` e `include: ['effectivePermission']`. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+      parameters:
+        - { name: parentId, in: query, description: "Carpeta padre", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+        - { name: pathPrefix, in: query, description: "Prefijo de path", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsFolderPage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/folders/{id}:
+    get:
+      tags: [docs]
+      summary: Detalle de una carpeta
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `folders.get` con `include: ['effectivePermission']` (sin `acl`: la administración de permisos está fuera de alcance). Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol. Un `id` mal formado responde 404 `folder_not_found` sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id de la carpeta (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsFolder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/attachments/{id}:
+    get:
+      tags: [docs]
+      summary: Descarga un adjunto de un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica el comando `attachments.{id}.request-download` y **responde 302**, no el binario (CA-19).
+        Si la persona no puede leer el documento, 404 `attachment_not_found`. El `id` entra al subject de
+        NATS, así que se valida contra el patrón ULID antes del bus: un `id` mal formado responde 404
+        `attachment_not_found` sin publicar (impide inyectar tokens `.`, `*`, `>`).
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del adjunto (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '302':
+          description: |
+            Redirección a la `downloadUrl` de jiku-docs, sin cuerpo y sin `Content-Type` ni
+            `Content-Disposition` (el reply de jiku-docs no trae metadatos de archivo). La URL
+            nunca se loguea. `HEAD` responde igual.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`downloadUrl` prefirmada'
+            X-Content-Type-Options:
+              schema: { type: string, enum: [nosniff] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  # ==========================================================================
   # opus — portal de clientes
   # ==========================================================================
 
@@ -2528,6 +2767,99 @@ paths:
         '503': { $ref: '#/components/responses/BusUnavailable' }
         '504': { $ref: '#/components/responses/GatewayTimeout' }
 
+  /opus/docs/documents:
+    get:
+      tags: [opus]
+      summary: Lista documentos públicos (portal)
+      x-jiku-module: docs
+      x-roles: [external-user, admin, user]
+      description: |
+        Superficie de solo lectura del portal. Llama a `documents.list` con `filter: { projectId | requirementId,
+        visibility: 'public' }`: **`visibility: public` lo fuerza la api** y la query no lo acepta (400). Exige
+        exactamente uno de `projectId` o `requirementId`. Orden `-updatedAt`, sin `include`.
+
+        Orden de las verificaciones: rol, forma, carga del proyecto o requisito (404 `project_not_found` /
+        `requirement_not_found`), permiso de proyecto para `external-user` (403 `access_denied`) y, si filtra
+        por requisito, que sea público (404 `requirement_not_found`). jiku-docs aplica además su regla de
+        externos (`public`, proyecto permitido, carpeta sin `externalBlocked`).
+      parameters:
+        - { name: projectId, in: query, description: "Proyecto (excluyente con requirementId)", schema: { type: integer, minimum: 1 } }
+        - { name: requirementId, in: query, description: "Requisito (excluyente con projectId)", schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsDocumentPage' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /opus/docs/documents/{id}:
+    get:
+      tags: [opus]
+      summary: Detalle de un documento público (portal)
+      x-jiku-module: docs
+      x-roles: [external-user, admin, user]
+      description: |
+        Llama a `documents.get` con `include: ['content', 'attachments']`. Si `visibility` no es `public`
+        (o falta), responde 404 `document_not_found`, idéntico al de un id inexistente (DD-3). No compone
+        `folder`: los externos no ven carpetas. **Excepción anotada a ADR-006** (DD-4): no verifica permiso de
+        proyecto porque el proyecto no se conoce antes de pedir el documento; lo cubre la regla de externos de
+        jiku-docs.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /opus/docs/attachments/{id}:
+    get:
+      tags: [opus]
+      summary: Descarga un adjunto (portal)
+      x-jiku-module: docs
+      x-roles: [external-user, admin, user]
+      description: |
+        Igual que `GET /docs/attachments/{id}`: `attachments.{id}.request-download` y **302** a la `downloadUrl`.
+        **Limitación conocida:** el reply no trae la visibilidad del documento, así que para un usuario interno
+        que use el portal la api no puede recortar el adjunto de un documento `internal`; el recorte es el de
+        jiku-docs para `person-external`.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del adjunto (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '302':
+          description: |
+            Redirección a la `downloadUrl` de jiku-docs, sin cuerpo y sin `Content-Type` ni
+            `Content-Disposition` (el reply de jiku-docs no trae metadatos de archivo). La URL
+            nunca se loguea. `HEAD` responde igual.
+          headers:
+            Location:
+              schema: { type: string }
+              description: '`downloadUrl` prefirmada'
+            X-Content-Type-Options:
+              schema: { type: string, enum: [nosniff] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
   /opus/modules:
     get:
       tags: [opus]
@@ -2831,10 +3163,74 @@ components:
     ModuleUnavailable:
       description: |
         El módulo está instalado pero no responde (`requireModule`, o `no responders` en un llamado).
+        También es el `upstream_unavailable` de jiku-docs (su core no responde) y
+        `attachments_not_configured`, con su `code` SIN traducir y el mensaje del módulo.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ModuleError' }
-          example: { code: module_unavailable, message: El módulo docs no está disponible en este momento }
+          examples:
+            moduleUnavailable:
+              value: { code: module_unavailable, message: El módulo docs no está disponible en este momento }
+            upstreamUnavailable:
+              value: { code: upstream_unavailable, message: core no responde }
+            attachmentsNotConfigured:
+              value: { code: attachments_not_configured, message: Los adjuntos no están configurados }
+    ModuleGatewayTimeout:
+      description: |
+        Una consulta o comando a jiku-docs no respondió a tiempo: `gateway_timeout` si no hubo reply
+        dentro de `NATS_QUERY_TIMEOUT_MS` (10 s para consultas; 5 s para el comando de descarga), o
+        `query_timeout` si jiku-docs lo informó. Las rutas de este módulo son de **lectura**, así que
+        reintentar es seguro.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          examples:
+            gatewayTimeout:
+              value: { code: gateway_timeout, message: La operación tardó demasiado }
+            queryTimeout:
+              value: { code: query_timeout, message: La consulta tardó demasiado }
+    ModuleBadRequest:
+      description: |
+        Validación de Joi (`invalid_fields`, primer error, incluye un parámetro no declarado) o
+        entrada rechazada por jiku-docs (`invalid_cursor`, `semantic_search_not_configured`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          examples:
+            invalidFields:
+              value: { code: invalid_fields, message: 'Invalid field - "limit" must be less than or equal to 200' }
+            invalidCursor:
+              value: { code: invalid_cursor, message: Cursor inválido, details: { cursor: abc } }
+    ModuleForbidden:
+      description: Rol insuficiente (`access_denied`) o permiso que niega jiku-docs (`permission_denied`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          examples:
+            accessDenied:
+              value: { code: access_denied, message: Access denied }
+            permissionDenied:
+              value: { code: permission_denied, message: Sin permiso }
+    ModuleNotFound:
+      description: |
+        Módulo no instalado, o recurso inexistente / no visible para la persona. jiku-docs no distingue
+        "no existe" de "no podés verlo", y un id mal formado responde igual que uno inexistente.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ModuleError' }
+          examples:
+            moduleNotInstalled:
+              value: { code: module_not_installed, message: El módulo docs no está instalado }
+            documentNotFound:
+              value: { code: document_not_found, message: Documento no encontrado }
+            folderNotFound:
+              value: { code: folder_not_found, message: Carpeta no encontrada }
+            attachmentNotFound:
+              value: { code: attachment_not_found, message: Adjunto no encontrado }
+            projectNotFound:
+              value: { code: project_not_found, message: Project not found }
+            requirementNotFound:
+              value: { code: requirement_not_found, message: Requirement not found }
     InternalError:
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:
@@ -2906,6 +3302,162 @@ components:
         message: { type: string }
         details: { type: object, additionalProperties: true }
 
+
+    # ---- documentación (jiku-docs 1.1.0, S-078) ----
+
+    DocsPageInfo:
+      type: object
+      required: [limit, returned]
+      properties:
+        limit: { type: integer }
+        returned: { type: integer }
+        cursor: { type: string, description: Su ausencia es la única señal de fin }
+        total: { type: integer, description: Solo con `count` }
+
+    DocsAttachment:
+      type: object
+      properties:
+        id: { type: string }
+        documentId: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer }
+        link: { type: string, description: "`{JIKU_WEB_URL}/docs/attachments/{id}`" }
+        uploadedBy: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    DocsDocument:
+      type: object
+      description: Campos base más los que pidan `include` y el tamaño (`content` hasta 256 KiB; `contentUrl` por encima, vence a los 300 s)
+      properties:
+        id: { type: string }
+        title: { type: string }
+        path: { type: string }
+        folderId: { type: string }
+        fileName: { type: string }
+        version: { type: integer }
+        checksum: { type: string }
+        sizeBytes: { type: integer }
+        visibility: { type: string, enum: [internal, public] }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        content: { type: string }
+        contentUrl: { type: string }
+        relations:
+          type: object
+          properties:
+            clients: { type: array, items: { type: integer } }
+            projects: { type: array, items: { type: integer } }
+            requirements: { type: array, items: { type: integer } }
+            tasks: { type: array, items: { type: integer } }
+        topics: { type: array, items: { type: string } }
+        lock:
+          type: object
+          nullable: true
+          properties:
+            sessionId: { type: string }
+            holder: { type: string }
+            via: { type: string, enum: [human, agent] }
+            expiresAt: { type: string, format: date-time }
+        attachments: { type: array, items: { $ref: '#/components/schemas/DocsAttachment' } }
+
+    DocsDocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/DocsDocument'
+        - type: object
+          required: [folder]
+          properties:
+            folder:
+              type: object
+              required: [id, path, effectivePermission, sharingBlocked]
+              properties:
+                id: { type: string }
+                path: { type: string }
+                effectivePermission: { type: string, enum: [read, write, manage], nullable: true }
+                sharingBlocked: { type: boolean }
+
+    DocsFolder:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        path: { type: string, description: '"/" la raíz; "/clientes/acme/"' }
+        parentId: { type: string, nullable: true }
+        inheritAcl: { type: boolean }
+        externalBlocked: { type: boolean }
+        sharingBlocked: { type: boolean, description: Efectivo }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        effectivePermission: { type: string, enum: [read, write, manage], nullable: true }
+
+    DocsVersion:
+      type: object
+      properties:
+        version: { type: integer }
+        checksum: { type: string }
+        sizeBytes: { type: integer }
+        author: { type: string }
+        via: { type: string, enum: [human, agent, service] }
+        sessionId: { type: string, nullable: true }
+        message: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    DocsSearchHit:
+      type: object
+      properties:
+        documentId: { type: string }
+        version: { type: integer }
+        title: { type: string }
+        path: { type: string }
+        headingPath: { type: array, items: { type: string } }
+        snippet: { type: string, maxLength: 500 }
+        score: { type: number }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+
+    DocsTopic:
+      type: object
+      properties:
+        topic: { type: string }
+        documents: { type: integer }
+
+    DocsDocumentPage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsDocument' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+
+    DocsVersionPage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsVersion' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+
+    DocsFolderPage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsFolder' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+
+    DocsTopicPage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsTopic' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+
+    DocsSearchResponse:
+      type: object
+      required: [items]
+      description: Sin `page`
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsSearchHit' } }
 
     Error:
       type: object
