@@ -134,6 +134,7 @@ SQL
     echo "  web       http://localhost:3000"
     echo "  opus-web  http://localhost:3001"
     echo "  api       http://localhost:3100"
+    echo "  shared    http://127.0.0.1:3100/p/docs/<token>"
     echo "  nats      http://localhost:8222  (monitoring)"
     ;;
 

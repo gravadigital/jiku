@@ -11,7 +11,11 @@ import { ModuleName, registryFor } from './registry';
 export type { ModuleName };
 
 export interface ModuleCallOptions {
-  /** Sin `actor`: SOLO para `shares.resolve` / `shares.attachment` (S-080). Quita cualquier `actor` del payload. */
+  /**
+   * Sin `actor`: quita cualquier `actor` del payload. S-080 terminó usando `sendToModule` para
+   * `shares.resolve` / `shares.attachment` (necesita páginas HTML, no JSON), así que esta opción se
+   * conserva por compatibilidad (TS-26 de S-077) y no tiene llamadores en producción.
+   */
   anonymous?: boolean;
 }
 
@@ -66,10 +70,46 @@ async function call<T>(
     body = { ...payload, actor: { id } };
   }
 
-  const target = registry.record();
-  if (!target) {
+  const outcome = await sendToModule<T>(kind, module, method, body);
+  switch (outcome.kind) {
+  case 'timeout':
+    res.status(504).json({ code: 'gateway_timeout', message: 'La operación tardó demasiado' });
+    return null;
+  case 'unreachable':
     res.status(503).json(moduleUnavailableBody(module));
     return null;
+  case 'failure': {
+    const errors = ERRORS_BY_MODULE[module];
+    res.status(errors.statusFor(outcome.reply.errorCode)).json(errors.body(outcome.reply));
+    return null;
+  }
+  default:
+    return outcome.data;
+  }
+}
+
+export type ModuleOutcome<T> =
+  | { kind: 'data'; data: T | null }
+  | { kind: 'failure'; reply: Reply } // reply.status !== 'success'
+  | { kind: 'timeout' } // NatsError Timeout
+  | { kind: 'unreachable' }; // sin record, no responders (+ markUnavailable), bus no conectado, otro error
+
+/**
+ * Publica `body` TAL CUAL (no agrega ni quita `actor`) y clasifica el resultado, en vez de responder
+ * HTTP. No mira el estado del módulo: eso queda para quien llama. La usan `call()` (respuestas JSON)
+ * y las rutas públicas de links compartidos (S-080, páginas HTML). Loguea
+ * `[modules] {module} {method}: {error.message}` en los errores del bus; `body` nunca se loguea.
+ */
+export async function sendToModule<T>(
+  kind: 'query' | 'command',
+  module: ModuleName,
+  method: string,
+  body: Record<string, unknown>
+): Promise<ModuleOutcome<T>> {
+  const registry = registryFor(module);
+  const target = registry.record();
+  if (!target) {
+    return { kind: 'unreachable' };
   }
 
   let reply: Reply<T>;
@@ -84,23 +124,19 @@ async function call<T>(
     // ErrorCode.NoResponders es '503' (colisiona con JetStreamNotEnabled); en un request plano
     // es no-responders.
     if (error instanceof NatsError && error.code === ErrorCode.Timeout) {
-      res.status(504).json({ code: 'gateway_timeout', message: 'La operación tardó demasiado' });
-      return null;
+      return { kind: 'timeout' };
     }
     if (error instanceof NatsError && error.code === ErrorCode.NoResponders) {
       void registry.markUnavailable();
     }
-    res.status(503).json(moduleUnavailableBody(module));
-    return null;
+    return { kind: 'unreachable' };
   }
 
   if (reply.status !== 'success') {
-    const errors = ERRORS_BY_MODULE[module];
-    res.status(errors.statusFor(reply.errorCode)).json(errors.body(reply));
-    return null;
+    return { kind: 'failure', reply };
   }
 
-  return (reply.data ?? null) as T | null;
+  return { kind: 'data', data: (reply.data ?? null) as T | null };
 }
 
 export function moduleQuery<T = any>(

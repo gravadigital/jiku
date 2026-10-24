@@ -241,6 +241,14 @@ services:
       # por encima del statement_timeout de la conexión de lectura de core, para que la base
       # corte primero y el error sea explicable en vez de un timeout mudo del bus.
       - NATS_QUERY_TIMEOUT_MS=${NATS_QUERY_TIMEOUT_MS}
+      # Base de los links compartidos (REQ-016 / S-080). Acá NO sale de DOCS_PUBLIC_DOMAIN (no hay
+      # ingress): es el puerto publicado de esta api con OTRO host —127.0.0.1 en vez de localhost—,
+      # porque en el host público la api no sirve nada más (DD-10). Tiene que coincidir con la
+      # JIKU_PUBLIC_URL de jiku-docs (su .env.dist ya trae
+      # http://127.0.0.1:3100).
+      - JIKU_PUBLIC_URL=http://127.0.0.1:3100
+      # Sin proxy delante: vacía. Confiar en X-Forwarded-For acá dejaría esquivar el rate limit.
+      - API_TRUST_PROXY=${API_TRUST_PROXY:-}
       # Los recordatorios se eliminan del alcance; apagados.
       - LAST_WEEK_MISSING_HOURS_ENABLED=false
       - CURRENT_WEEK_MISSING_HOURS_ENABLED=false

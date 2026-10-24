@@ -315,3 +315,93 @@ return redirectToModuleDownload(res, data);
 ```ts
 { filter: pickDefined(query, ['projectId', 'topic']), page: buildPage(query) }
 ```
+
+## sendToModule
+
+**Location:** `api/lib/modules/client.ts`
+
+**Description:** Publishes `body` to a module as is and classifies the result as `ModuleOutcome<T>`
+(`{ kind: 'data', data }`, `{ kind: 'failure', reply }`, `{ kind: 'timeout' }`, `{ kind: 'unreachable' }`)
+instead of answering HTTP. It does not add or remove `actor`, does not check the module state and never logs
+`body`. A `no responders` marks the module `unavailable`.
+
+**Usage example:**
+
+```ts
+const outcome = await sendToModule<SharedDocument>('query', 'docs', 'shares.resolve', { token });
+if (outcome.kind === 'data') { /* outcome.data */ }
+```
+
+## Public host: publicDocsHost / isPublicHostRequest / assertPublicUrlConfig / maskPublicDocsUrl
+
+**Location:** `api/lib/modules/docs/public-url.ts`
+
+**Description:** `publicDocsHost()` is the host of `JIKU_PUBLIC_URL` (lowercase, `null` when blank);
+`isPublicHostRequest(req)` compares it with the raw `Host` header (never `X-Forwarded-Host`);
+`assertPublicUrlConfig()` throws at startup when the URL is set but unusable; `maskPublicDocsUrl(url)` replaces
+the token and drops the query so the URL can be logged; `PUBLIC_DOCS_PATH` matches `/p/docs/<something>`.
+
+**Usage example:**
+
+```ts
+if (!isPublicHostRequest(req)) return sendPublicNotice(res, 404);
+```
+
+## Public page: sendPublicNotice / sendSharedDocument / renderSharedDocument / escapeHtml
+
+**Location:** `api/lib/modules/docs/public-page.ts`
+
+**Description:** The HTML template of the public share page (escaped title + the already sanitized `html`,
+as is) and the exception pages `PUBLIC_NOTICES` (404 / 429 / 503). Both senders set `PUBLIC_DOCS_HEADERS` (CSP,
+`X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`, nosniff). The pages
+carry no request data and no product branding, so every 404 is identical.
+
+**Usage example:**
+
+```ts
+return sendSharedDocument(res, title, html);
+return sendPublicNotice(res, 404);
+```
+
+## fetchSharedHtml
+
+**Location:** `api/lib/modules/docs/public-html.ts`
+
+**Description:** Downloads the presigned `htmlUrl` (documents over 256 KiB) as text: at most 5 MiB, 10 s, no
+redirects, only status 200. Throws on any failure. The URL is a credential and is never logged.
+
+**Usage example:**
+
+```ts
+const html = await fetchSharedHtml(htmlUrl);
+```
+
+## queryShare / clientInfo
+
+**Location:** `api/lib/modules/docs/public-share.ts`
+
+**Description:** `queryShare(method, req, payload)` checks the module state and calls `shares.resolve` or
+`shares.attachment` without `actor`, adding the optional `client` (`clientInfo(req)`: `ip` <= 100,
+`userAgent` <= 2000). Returns `{ ok: true, data }` or `{ ok: false, status: 404 | 503 }`; any jiku-docs error
+becomes the same 404 and only its code is logged. `SHARE_TOKEN_PATTERN` is `^jds_[A-Za-z0-9_-]{43}$`.
+
+**Usage example:**
+
+```ts
+const result = await queryShare<SharedDocument>('shares.resolve', req, { token });
+if (!result.ok) return sendPublicNotice(res, result.status);
+```
+
+## parseTrustProxy
+
+**Location:** `api/lib/utils/trust-proxy.ts`
+
+**Description:** Value for `app.set('trust proxy', ...)` from `API_TRUST_PROXY`: blank -> `undefined` (not set),
+digits -> number of hops, `true` / `false` -> boolean, anything else -> the string as is.
+
+**Usage example:**
+
+```ts
+const trustProxy = parseTrustProxy(process.env.API_TRUST_PROXY);
+if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
+```

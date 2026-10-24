@@ -130,7 +130,9 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
       const trimmed = line.trim();
       if (trimmed.startsWith("'503':")) {
         return !trimmed.includes("#/components/responses/BusUnavailable")
-          && !trimmed.includes("#/components/responses/ModuleUnavailable");
+          && !trimmed.includes("#/components/responses/ModuleUnavailable")
+          // S-080: la ruta pública no responde JSON, sino una página HTML genérica.
+          && !trimmed.includes("#/components/responses/PublicDocsUnavailable");
       }
       if (trimmed.startsWith("'504':")) {
         return !trimmed.includes("#/components/responses/GatewayTimeout")
@@ -367,7 +369,64 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     block.should.match(/holder: /);
     block.should.match(/via: human/);
     block.should.match(/expiresAt: /);
-    spec.should.match(/los 86 endpoints/);
+    // S-080 suma dos operaciones (las rutas públicas): 86 -> 88.
+    spec.should.match(/los 88 endpoints/);
     spec.should.match(/cinco métodos/);
+  });
+
+  /** El bloque de una operación (`get`) dentro de un path. */
+  function operation(spec: string, name: string, verb: string): string {
+    const whole = '\n' + pathBlock(spec, name);
+    const start = whole.indexOf(`\n    ${verb}:`);
+    start.should.be.above(-1, `${name} no declara ${verb}`);
+    const rest = whole.slice(start + 1);
+    const next = rest.slice(1).search(/\n {4}\S/);
+    return next === -1 ? rest : rest.slice(0, next + 1);
+  }
+
+  it('S-080 · TS-30: las dos operaciones públicas', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    ['/p/docs/{token}', '/p/docs/{token}/attachments/{id}'].forEach((name) => {
+      const whole = pathBlock(spec, name);
+      whole.should.match(/servers:\n\s+- url: '\{publicUrl\}'/, name);
+      whole.should.match(/publicUrl: \{ default: 'http:\/\/127\.0\.0\.1:3100'/, name);
+      const block = operation(spec, name, 'get');
+      block.should.match(/x-jiku-module: docs/, name);
+      block.should.match(/security: \[\]/, name);
+      block.should.match(/pattern: '\^jds_\[A-Za-z0-9_-\]\{43\}\$'/, name);
+      block.should.match(/'404': \{ \$ref: '#\/components\/responses\/PublicDocsNotFound' \}/, name);
+      block.should.match(/'429': \{ \$ref: '#\/components\/responses\/PublicDocsTooManyRequests' \}/, name);
+      block.should.match(/'503': \{ \$ref: '#\/components\/responses\/PublicDocsUnavailable' \}/, name);
+      block.should.not.match(/x-roles/, name);
+      block.should.not.match(/'401'/, name);
+    });
+    operation(spec, '/p/docs/{token}', 'get').should.match(/'200':[\s\S]*text\/html/);
+    const attachment = operation(spec, '/p/docs/{token}/attachments/{id}', 'get');
+    attachment.should.match(/'302':/);
+    attachment.should.match(/Location:/);
+    // Son las únicas con `security: []`.
+    (spec.match(/^\s+security: \[\]$/gm) || []).length.should.equal(2);
+  });
+
+  it('S-080 · TS-31: componentes, encabezado e invariantes', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    ['PublicDocsNotFound', 'PublicDocsTooManyRequests', 'PublicDocsUnavailable'].forEach((name) => {
+      const start = spec.indexOf(`\n    ${name}:`);
+      start.should.be.above(-1, `components no declara ${name}`);
+      const rest = spec.slice(start + 1);
+      const block = rest.slice(0, rest.slice(1).search(/\n {4}\S/) + 1);
+      block.should.match(/text\/html/, name);
+      block.should.match(/Content-Security-Policy/, name);
+      block.should.match(/X-Robots-Tag: noindex/, name);
+    });
+    spec.should.match(/idéntica para cualquier causa/);
+    spec.should.match(/los 88 endpoints/);
+    spec.should.not.match(/no queda una sola operación con `security: \[\]`/);
+    // Los 503 de las rutas públicas no cuentan en los pares de core ni de módulo.
+    const count = (needle: string) => spec.split('\n').filter((l) => l.includes(needle)).length;
+    count("'503': { $ref: '#/components/responses/ModuleUnavailable' }").should.equal(23);
+    count("'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }").should.equal(23);
+    count("'503': { $ref: '#/components/responses/BusUnavailable' }").should.equal(28);
+    count("'504': { $ref: '#/components/responses/GatewayTimeout' }").should.equal(28);
   });
 });

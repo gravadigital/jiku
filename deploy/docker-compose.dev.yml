@@ -141,6 +141,13 @@ services:
       # por encima del statement_timeout de la conexión de lectura de core, para que la base
       # corte primero y el error sea explicable en vez de un timeout mudo del bus.
       - NATS_QUERY_TIMEOUT_MS=${NATS_QUERY_TIMEOUT_MS}
+      # Base de los links compartidos (REQ-016 / S-080). Acá NO sale de DOCS_PUBLIC_DOMAIN (no hay
+      # ingress): es el puerto publicado de esta api (3000) con OTRO host —127.0.0.1 en vez de
+      # localhost—, porque en el host público la api no sirve nada más (DD-10). En dev normalmente
+      # no corre jiku-docs: el módulo queda not_installed y /p/docs/* da 404, lo esperado.
+      - JIKU_PUBLIC_URL=http://127.0.0.1:3000
+      # Sin proxy delante: vacía. Confiar en X-Forwarded-For acá dejaría esquivar el rate limit.
+      - API_TRUST_PROXY=${API_TRUST_PROXY:-}
     volumes:
       - ./nats/creds/sentinel-client.creds:/run/secrets/nats.creds:ro
     depends_on:

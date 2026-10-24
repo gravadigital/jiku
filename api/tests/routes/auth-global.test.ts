@@ -11,8 +11,9 @@ import { fakeBus } from '../mocks/bus';
  * test, porque es el invariante que la story deja como única puerta.
  *
  * La protección NO está en el archivo de cada ruta: `app.ts:29-32` instala `validateToken`
- * globalmente con el regex de `publicPaths(method)`, y desde REQ-002 ese regex no exime ningún
- * path (ver `tests/utils/public-paths.test.ts`, que prueba el mecanismo sin base de datos).
+ * globalmente con el regex de `publicPaths(method)`, y desde REQ-002 ese regex no eximía ningún
+ * path; desde REQ-016 / S-080 exime exactamente uno, `GET /p/docs/` (DD-10), que tiene su propio
+ * control de acceso (ver `tests/utils/public-paths.test.ts`, que prueba el mecanismo sin base de datos).
  * ADR-008: leer un archivo de ruta y no ver el middleware NO significa que esté desprotegido.
  *
  * SIN FIXTURES, Y ES PARTE DE LO QUE SE AFIRMA: el 401 ocurre antes de que la petición toque
@@ -106,5 +107,19 @@ describe('Cobertura global de validateToken — ninguna ruta queda exenta', () =
         res.body.should.deepEqual({ code: 'unauthorized', message: 'Unauthorized' });
         fakeBus.moduleSent.length.should.equal(0);
       });
+  });
+
+  // S-080 · TS-21: la única exención es GET /p/docs/. Sin JIKU_PUBLIC_URL responde el 404 genérico
+  // de la ruta pública (no un 401), y el resto de los métodos sobre el mismo path siguen exigiendo token.
+  it('S-080: GET /p/docs/<token> sin token no responde 401', async () => {
+    const res = await request(application).get('/p/docs/jds_' + 'A'.repeat(43));
+    res.status.should.not.equal(401);
+    res.status.should.equal(404);
+  });
+
+  it('S-080: POST /p/docs/<token> sin token responde 401', async () => {
+    const res = await request(application).post('/p/docs/jds_' + 'A'.repeat(43));
+    res.status.should.equal(401);
+    res.body.code.should.equal('unauthorized');
   });
 });

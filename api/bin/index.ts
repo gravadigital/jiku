@@ -4,12 +4,16 @@ import {afterInitialize, initialize} from '../app';
 import initializeDb from '../lib/models/index';
 import logger from '../lib/logger';
 import {assertAuthConfig} from '../lib/utils/middlewares/validate-token';
+import {assertPublicUrlConfig} from '../lib/modules/docs/public-url';
 import {Application} from 'express';
 let application: Application;
 
 // Antes de escuchar: si la configuración de autenticación no es utilizable, no arrancamos.
 // Es preferible fallar acá que levantar la api sin validar tokens.
 assertAuthConfig();
+// Una JIKU_PUBLIC_URL con path o de otro protocolo haría que jiku-docs entregue links que la api
+// nunca sirve, con `features.sharing: true`: links rotos en silencio. Mejor no arrancar.
+assertPublicUrlConfig();
 
 initializeDb()
   .then(() => {
