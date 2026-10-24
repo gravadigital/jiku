@@ -20,6 +20,7 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
   before(async () => {
     application = start();
     await User.create({ id: 'zitadel-sub-01', name: 'User Uno', username: 'user01opusdocs', email: 'user01opusdocs@mail.com' });
+    await User.create({ id: 'zitadel-sub-03', name: 'Admin Tres', username: 'adm03opusdocs', email: 'adm03opusdocs@mail.com' });
     await User.create({ id: 'zitadel-sub-04', name: 'External User', username: 'ext04opusdocs', email: 'ext04opusdocs@mail.com' });
     await Project.create({
       id: projectId, code: 'OD1', name: 'Opus Docs Project', type: 'comercial',
@@ -125,6 +126,18 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { projectId, visibility: 'public' }, sort: ['-updatedAt'], page: { limit: 50 },
       actor: { id: 'zitadel-sub-01' },
+    });
+  });
+
+  it('S-087 · TS-18: usuario admin también fuerza public', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.list', success(EMPTY));
+    const res = await get(`${BASE}?projectId=${projectId}`, 'token_03_admin');
+    res.status.should.equal(200);
+    res.body.should.deepEqual(EMPTY);
+    (fakeBus.lastModule!.payload as any).should.deepEqual({
+      filter: { projectId, visibility: 'public' }, sort: ['-updatedAt'], page: { limit: 50 },
+      actor: { id: 'zitadel-sub-03' },
     });
   });
 

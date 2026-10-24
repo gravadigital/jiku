@@ -302,7 +302,10 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     const spec = readFileSync(SPEC_PATH, 'utf8');
     const internal = ['/docs/documents', '/docs/documents/{id}', '/docs/documents/{id}/versions', '/docs/search',
       '/docs/topics', '/docs/folders', '/docs/folders/{id}', '/docs/attachments/{id}'];
-    const portal = ['/opus/docs/documents', '/opus/docs/documents/{id}', '/opus/docs/attachments/{id}'];
+    const portal = ['/opus/docs/documents', '/opus/docs/documents/{id}',
+      '/opus/docs/documents/{documentId}/attachments/{id}'];
+    // S-087: la ruta vieja del adjunto del portal ya no se declara.
+    spec.should.not.match(/^  \/opus\/docs\/attachments\/\{id\}:$/m);
     internal.concat(portal).forEach((name) => {
       const block = pathBlock(spec, name);
       block.should.match(/x-jiku-module: docs/, name);

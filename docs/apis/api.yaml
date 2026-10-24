@@ -3295,18 +3295,21 @@ paths:
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
 
-  /opus/docs/attachments/{id}:
+  /opus/docs/documents/{documentId}/attachments/{id}:
     get:
       tags: [opus]
-      summary: Descarga un adjunto (portal)
+      summary: Descarga un adjunto de un documento público (portal)
       x-jiku-module: docs
       x-roles: [external-user, admin, user]
       description: |
-        Igual que `GET /docs/attachments/{id}`: `attachments.{id}.request-download` y **302** a la `downloadUrl`.
-        **Limitación conocida:** el reply no trae la visibilidad del documento, así que para un usuario interno
-        que use el portal la api no puede recortar el adjunto de un documento `internal`; el recorte es el de
-        jiku-docs para `person-external`.
+        Lee el documento con `documents.get { id: documentId, include: ['attachments'] }`. Si `visibility` no es
+        `public` (o falta) responde **404** `document_not_found` para todo rol; si el adjunto no está en
+        `attachments` del documento, **404** `attachment_not_found`. Recién entonces
+        `attachments.{id}.request-download` y **302** a la `downloadUrl`. Nunca 403 por visibilidad: el portal
+        no revela que existe un documento interno. Mantiene la excepción DD-4 a ADR-006. Un id con forma
+        inválida es 404 sin llamar al módulo.
       parameters:
+        - { name: documentId, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
         - { name: id, in: path, required: true, description: "Id del adjunto (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
       responses:
         '302':
