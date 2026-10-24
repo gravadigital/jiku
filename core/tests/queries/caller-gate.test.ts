@@ -1,12 +1,13 @@
 import 'mocha';
 import 'should';
 import * as sinon from 'sinon';
-import { User } from '@jiku/models';
+import { Client, User } from '@jiku/models';
 import { ErrorCode } from '@jiku/nats-protocol';
 import { getTrustedPublisherId } from '../../src/config';
 import logger from '../../src/logger';
 import { sequelize } from '../../src/models';
-import { dispatchQuery } from '../helpers/dispatch';
+import { dispatch, dispatchQuery } from '../helpers/dispatch';
+import { queryRegistry } from '../../src/queries';
 import {
   PROJECT_MAIN,
   Q_CONNECTOR,
@@ -21,6 +22,9 @@ import {
   destroyWorld,
   grantProjects,
 } from './task-fixtures';
+
+/** El machine user de jiku-docs, sembrado con la forma real de la fila tras el alta (S-076). */
+const DOCS_CALLER = 'sub-q-docs';
 
 /**
  * Cuántos `SELECT` a `users` llegaron a la base desde que se llamó. Es lo que CA-5 y CA-17 cuidan
@@ -53,6 +57,14 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
     TRUSTED = getTrustedPublisherId();
     await createWorld([PROJECT_MAIN]);
     await createQueryCallers();
+    await User.create({
+      id: DOCS_CALLER,
+      name: 'jiku-docs',
+      username: 'q-docs',
+      email: null,
+      roles: ['internal-app', 'docs'],
+      identityType: 'service',
+    } as any);
     await grantProjects(Q_EXTERNAL, [PROJECT_MAIN]);
     await createTasks([
       { id: 9101, title: 'Visible', visibilityLevel: 'public', projectId: PROJECT_MAIN },
@@ -61,6 +73,7 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
   });
 
   after(async () => {
+    await User.destroy({ where: { id: DOCS_CALLER } });
     await destroyQueryCallers();
     await destroyWorld();
   });
@@ -286,5 +299,43 @@ describe('queries · las dos compuertas y el único lookup (S-023)', () => {
     // autoriza a publicar bajo el id propio (ADR-007), así que ese token es infalsificable.
     list.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
     get.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+  });
+
+  describe('S-076 · `[internal-app, docs]` se comporta como el conector (CA-14)', () => {
+    it('TS-13 · consulta por `jiku-queries` sin recorte de filas, igual que `[internal-app]`', async () => {
+      const docs = await dispatchQuery<{ items: { id: number }[] }>('tasks.list', {}, DOCS_CALLER);
+      const connector = await dispatchQuery<{ items: { id: number }[] }>('tasks.list', {}, Q_CONNECTOR);
+
+      docs.status.should.equal('success');
+      connector.status.should.equal('success');
+      const docsIds = docs.data!.items.map((item) => item.id).sort();
+      docsIds.should.containEql(9101);
+      docsIds.should.containEql(9102);
+      docsIds.should.deepEqual(connector.data!.items.map((item) => item.id).sort());
+    });
+
+    it('TS-14 · publica un comando por el canal directo', async () => {
+      const before = await Client.count();
+
+      const reply = await dispatch<{ id: number }>('clients.new', { name: 'Cliente docs' }, DOCS_CALLER);
+
+      try {
+        reply.status.should.equal('success');
+        (typeof reply.data!.id).should.equal('number');
+        (await Client.count()).should.equal(before + 1);
+      } finally {
+        await Client.destroy({ where: { name: 'Cliente docs' } });
+      }
+    });
+
+    it('TS-15 · ninguna consulta registrada lo rechaza por compuerta', async () => {
+      for (const query of queryRegistry.patterns()) {
+        const reply = await dispatchQuery(query.replace(/\{[^}]+\}/g, '7'), {}, DOCS_CALLER);
+
+        // Puede ser `invalid_fields` por el payload vacío: lo que no puede ser es una compuerta.
+        String(reply.errorCode).should.not.equal(ErrorCode.CALLER_NOT_AUTHORIZED, query);
+        String(reply.errorCode).should.not.equal(ErrorCode.UNKNOWN_CALLER, query);
+      }
+    });
   });
 });

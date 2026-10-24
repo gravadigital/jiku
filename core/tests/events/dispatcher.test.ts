@@ -451,4 +451,29 @@ describe('events/dispatcher', () => {
       warn.restore();
     }
   });
+
+  it('S-076 TS-4 · el evento de `docs` SIN email NO se descarta y el handler recibe `email: null`', async () => {
+    const warn = sinon.spy(logger, 'warn');
+    const received: AuthEvent[] = [];
+    const dispatcher = new EventDispatcher(async (event) => {
+      received.push(event);
+      return 'applied';
+    });
+    // El machine user de jiku-docs: `matched_role: 'docs'` y el callout omite la clave `email`.
+    const event: Record<string, unknown> = {
+      ...validEvent(),
+      id: '281234567890777777',
+      name: 'jiku-docs',
+      username: 'jiku-docs',
+      roles: ['internal-app', 'docs'],
+      matched_role: 'docs',
+    };
+    delete event.email;
+
+    await dispatcher.dispatch(event);
+
+    received.length.should.equal(1);
+    (received[0].email === null).should.be.true();
+    warn.callCount.should.equal(0);
+  });
 });

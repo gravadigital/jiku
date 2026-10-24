@@ -363,6 +363,29 @@ describe('ROLE_METHODS / rolesAuthorize — el mapa, puro y sin base', () => {
     }
   });
 
+  it('S-076 TS-9 · `docs` SOLO no autoriza nada, por ningún canal (deny-by-default intacto)', () => {
+    rolesAuthorize(['docs'], 'clients.new', 'commands').should.be.false();
+    rolesAuthorize(['docs'], 'tasks.list', 'queries').should.be.false();
+    rolesAuthorize(['docs'], 'clients.new', 'commands', 'envelope').should.be.false();
+    rolesAuthorize(['docs'], 'tasks.list', 'queries', 'envelope').should.be.false();
+  });
+
+  it('S-076 TS-11 · `[internal-app, docs]` autoriza TODOS los comandos y TODAS las consultas', () => {
+    for (const pattern of COMMANDS) {
+      rolesAuthorize(['internal-app', 'docs'], asMethod(pattern), 'commands').should.be.true(pattern);
+    }
+    for (const query of QUERIES) {
+      rolesAuthorize(['internal-app', 'docs'], asMethod(query), 'queries').should.be.true(query);
+    }
+  });
+
+  it('S-076 TS-12 · (gate) los mapas cerrados NO ganan `docs`', () => {
+    Object.keys(ROLE_METHODS).should.not.containEql('docs');
+    Object.keys(ROLE_METHODS).length.should.equal(6);
+    Object.keys(CLASS_BY_ROLE).should.not.containEql('docs');
+    Object.keys(CLASS_BY_ROLE).length.should.equal(4);
+  });
+
   it('TS-20b · (gate) el mapa NO tiene cache ni estado', () => {
     const source = fs.readFileSync(path.join(__dirname, '../../src/authorize-caller.ts'), 'utf8');
     // Cachear reintroduciría los roles obsoletos con una ventana no medible (CA-17). La prosa
