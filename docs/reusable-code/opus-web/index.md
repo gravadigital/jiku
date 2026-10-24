@@ -7,12 +7,13 @@
 
 ## Components
 
-Total: 5
+Total: 6
 
 - **AutomatedIdentityBadge** (`opus-web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - Renders the `"Automático"` mark next to an author's name when that author is a service identity, and nothing at all otherwise. Owns the visibility condition and both approved strings.
 - **Badge** (`opus-web/src/shared/components/ui/Badge/Badge.tsx`) - Neutral or semantic pill built entirely from tokens. Since S-019 it also forwards `role` and `aria-label`, so a caller can give it a real accessible name.
 - **DocsAlert** (`opus-web/src/features/docs/components/DocsAlert/DocsAlert.tsx`) - Inline warning/error notice of the docs module (`role="status"` / `role="alert"`, icon + text, never color alone).
-- **DocumentMarkdown** (`opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`) - Read-only, safe markdown viewer: no raw HTML, frontmatter stripped, headings shifted one level, attachment links rewritten to the own proxy.
+- **DocumentMarkdown** (`opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`) - Read-only, safe markdown viewer: no raw HTML, frontmatter stripped, headings shifted one level, attachment links rewritten to the own proxy under the open document.
+- **DocumentAttachments** (`opus-web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`) - Attachment list; each link points to `/api/docs/documents/{documentId}/attachments/{id}`, new tab.
 - **DocsSection** (`opus-web/src/features/docs/components/DocsSection/DocsSection.tsx`) - Collapsible "Documentación (n)" section for a project or a requirement; renders nothing when the module is not installed or there are no public documents.
 
 ## Services
@@ -39,7 +40,7 @@ Total: 4
 
 Total: 5
 
-- **docsUrlTransform** (`opus-web/src/features/docs/utils/docsUrlTransform.ts`) - `urlTransform` for markdown viewers: rewrites `/docs/attachments/{ULID}` (any host) to `/api/docs/attachments/{ULID}`, keeps http(s)/mailto, blanks everything else.
+- **createDocsUrlTransform** (`opus-web/src/features/docs/utils/docsUrlTransform.ts`) - Factory of the `urlTransform` for markdown viewers: rewrites `/docs/attachments/{ULID}` (any host) to `/api/docs/documents/{documentId}/attachments/{ULID}`, keeps http(s)/mailto, blanks everything else.
 - **stripFrontmatter** (`opus-web/src/features/docs/utils/frontmatter.ts`) - Removes a leading YAML frontmatter block.
 - **formatDocDate** (`opus-web/src/features/docs/utils/dates.ts`) - `DD/MM/AAAA`, or `—` for an invalid date.
 - **withModuleInvalidation** (`opus-web/src/features/docs/utils/moduleInvalidation.ts`) - Wraps a query function: invalidates `['modules']` on `module_unavailable` and rethrows.
@@ -62,4 +63,4 @@ Total: 7
 Total: 2
 
 - **GET/HEAD `/api/files/[id]/preview`** (`opus-web/src/app/api/files/[id]/preview/route.ts`) - Own handler for the preview of a file with **no link**, by `fileId`; forwards the Bearer and returns the api's 302 without following it.
-- **GET `/api/docs/attachments/[id]`** (`opus-web/src/app/api/docs/attachments/[id]/route.ts`) - Own handler for docs attachments: validates session and ULID, calls `/api/opus/docs/attachments/{id}` with `redirect: 'manual'` and propagates the 302 with `nosniff`.
+- **GET `/api/docs/documents/[documentId]/attachments/[id]`** (`opus-web/src/app/api/docs/documents/[documentId]/attachments/[id]/route.ts`) - Own handler for docs attachments: validates session and both ULIDs, calls `/api/opus/docs/documents/{documentId}/attachments/{id}` with `redirect: 'manual'` and propagates the 302 with `nosniff`.

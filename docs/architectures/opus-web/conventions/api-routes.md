@@ -121,7 +121,7 @@ Los tres handlers autenticados repiten el mismo arranque: `await auth()`, y 401 
 | `api/opus/[...path]` | `{"code":"unauthorized","message":"Unauthorized"}` |
 | `api/attachments/[id]/preview` | `{"error":"Unauthorized"}` |
 | `api/files/[id]/preview` | `{"code":"unauthorized","message":"Unauthorized"}` |
-| `api/docs/attachments/[id]` | `{"code":"unauthorized","message":"Unauthorized"}` |
+| `api/docs/documents/[documentId]/attachments/[id]` | `{"code":"unauthorized","message":"Unauthorized"}` |
 
 El primero coincide con la forma de `ApiError` que espera el interceptor de axios
 (`lib/axios.ts:5-9`); el segundo no. En la práctica no importa porque el preview se consume desde
@@ -131,7 +131,7 @@ un `src`, no por axios — pero es una inconsistencia real.
 
 > **Discrepancia con ADR-009 (REQ-016 / S-084, F-20; sin resolver aquí).** ADR-009 fija que un
 > route handler responde `401 {"error":"Unauthorized"}`. En `opus-web` tres handlers
-> (el catch-all, `api/files/[id]/preview` y `api/docs/attachments/[id]`) usan `{code, message}`, que
+> (el catch-all, `api/files/[id]/preview` y `api/docs/documents/[documentId]/attachments/[id]`) usan `{code, message}`, que
 > es la forma de `ApiError` que espera el interceptor de axios; solo `api/attachments/[id]/preview`
 > conserva `{"error":...}`. `web` usa `{error}` en todos sus handlers. El status 401 —lo que el
 > ADR protege— se cumple igual. Unificar es una definición técnica (`/product-change-technical-definition`);
@@ -158,6 +158,11 @@ necesitan handlers propios.
 > 401 es `{code, message}`. `api/files/[id]/preview` (previo, `GET`/`HEAD`) existe porque la ruta
 > de la api no está bajo `/api/opus/*`. La descarga pública `/attachments/[id]/[fileName]` que
 > describe lo que sigue **ya no existe** (REQ-002, S-009).
+
+> **REQ-017 (S-087)** — el handler de adjuntos pasa a
+> `GET /api/docs/documents/[documentId]/attachments/[id]`: la api autoriza por el documento (`public`
+> y pertenencia), así que el path lo lleva. Valida los dos ULID en el orden del path; el resto
+> (redirect manual, solo `GET`, 401 `{code, message}`) no cambia.
 
 Lo siguiente se conserva como estaba escrito:
 
@@ -236,7 +241,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 | Consumir un endpoint de `/api/opus/*` | **no** | El catch-all lo cubre |
 | La URL va en un `src`/`href`/`download` | **sí** | El navegador no puede mandar el token |
 | Necesitás un header de respuesta que el catch-all descarta | **sí** | Solo reenvía `Content-Type` |
-| La api responde una redirección (302) que no debe seguirse | **sí** | El catch-all la sigue; usar `redirect: 'manual'` (`api/docs/attachments/[id]`) |
+| La api responde una redirección (302) que no debe seguirse | **sí** | El catch-all la sigue; usar `redirect: 'manual'` (`api/docs/documents/[documentId]/attachments/[id]`) |
 | El recurso debe ser accesible sin sesión | **sí** | Y hay que excluirlo del matcher del middleware |
 | Un webhook entrante | **sí** | No hay ninguno hoy |
 

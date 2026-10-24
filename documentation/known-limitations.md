@@ -170,9 +170,10 @@ design: Jiku reads and writes documentation over the bus and keeps none of it.
   text.
 - **Documents over 256 KiB are fetched by the browser**, which needs a CORS `GET` rule on
   jiku-docs' bucket; if it is missing the document shows an error.
-- **An attachment id is enough to download it.** The portal's attachment route cannot apply the
-  public-only filter to **internal** users: one who knows the id of an attachment of an `internal`
-  document receives it. For `external-user` jiku-docs enforces the rule.
+- **A document cannot show another document's attachment in the portal.** Attachments are served
+  under the document that links them, and only if they belong to it: a `public` document that
+  embeds or links an attachment of a different document — even a `public` one — shows it broken
+  (404). Its own attachments work as before. The internal web is not affected.
 
 **Operation**
 

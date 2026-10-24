@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import Markdown from 'react-markdown';
-import { docsUrlTransform } from '../../utils/docsUrlTransform';
+import { createDocsUrlTransform } from '../../utils/docsUrlTransform';
 import { stripFrontmatter } from '../../utils/frontmatter';
 import styles from './DocumentMarkdown.module.scss';
 
 interface DocumentMarkdownProps {
   content: string;
+  documentId: string;
 }
 
 type Children = { children?: ReactNode };
@@ -15,12 +16,12 @@ type Children = { children?: ReactNode };
  * (`skipHtml`) y `urlTransform` deja pasar solo http(s), mailto y adjuntos. Los títulos se
  * desplazan un nivel para no competir con el h1 de la pantalla.
  */
-export function DocumentMarkdown({ content }: DocumentMarkdownProps) {
+export function DocumentMarkdown({ content, documentId }: DocumentMarkdownProps) {
   return (
     <div className={styles.markdown} data-testid="document-content">
       <Markdown
         skipHtml
-        urlTransform={docsUrlTransform}
+        urlTransform={createDocsUrlTransform(documentId)}
         components={{
           h1: ({ children }: Children) => <h2>{children}</h2>,
           h2: ({ children }: Children) => <h3>{children}</h3>,

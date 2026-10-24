@@ -153,18 +153,40 @@ interface DocsAlertProps { variant: 'warning' | 'error'; children: ReactNode }
 
 **Location:** `opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`
 
-**Description:** Read-only markdown viewer. `skipHtml`, no rehype plugins, `docsUrlTransform` on every
+**Description:** Read-only markdown viewer. `skipHtml`, no rehype plugins, `createDocsUrlTransform(documentId)` on every
 URL, frontmatter stripped, headings shifted one level (`#` renders as `h2`), links in a new tab, images
 at column width. Independent of the shared `MarkdownRenderer` on purpose.
 
 **Interface:**
 
 ```ts
-interface DocumentMarkdownProps { content: string }
+interface DocumentMarkdownProps { content: string; documentId: string }
 ```
 
 **Usage:**
 
 ```tsx
-<DocumentMarkdown content={doc.content ?? ''} />
+<DocumentMarkdown documentId={doc.id} content={doc.content ?? ''} />
+```
+
+---
+
+## DocumentAttachments
+
+**Location:** `opus-web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`
+
+**Description:** Attachment list of a document. One link per attachment to
+`/api/docs/documents/{documentId}/attachments/{id}` (the attachment's own `documentId`, or the open
+document's if missing), in a new tab. Never uses `link`. Renders nothing without attachments.
+
+**Interface:**
+
+```ts
+interface DocumentAttachmentsProps { attachments?: DocsAttachment[]; documentId: string }
+```
+
+**Usage:**
+
+```tsx
+<DocumentAttachments documentId={doc.id} attachments={doc.attachments} />
 ```

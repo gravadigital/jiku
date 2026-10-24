@@ -35,7 +35,7 @@ reemplazos.
 |---|---|---|
 | [data-fetching](./conventions/data-fetching.md) | Obtención de datos (`apiClient` de navegador + TanStack Query) | Las dos capas, los dos clientes axios, query keys, paginación infinita |
 | [mutations](./conventions/mutations.md) | Mutaciones (`useMutation` + invalidación explícita) | Las cinco mutaciones, qué invalidar, los tres enfoques de feedback |
-| [api-routes](./conventions/api-routes.md) | Route Handlers (proxy catch-all) | El catch-all y sus cinco decisiones, los handlers aparte (adjuntos, files, `api/docs/attachments/[id]`), la discrepancia del 401 con ADR-009 |
+| [api-routes](./conventions/api-routes.md) | Route Handlers (proxy catch-all) | El catch-all y sus cinco decisiones, los handlers aparte (adjuntos, files, `api/docs/documents/[documentId]/attachments/[id]`), la discrepancia del 401 con ADR-009 |
 | [auth](./conventions/auth.md) | Autenticación (NextAuth v5 + Zitadel OIDC) | Provider, el guard en el middleware, roles, contrato de sesión |
 | [state-management](./conventions/state-management.md) | Estado client-side | Árbol de decisión: URL, servidor, contexto, local. `useIsMobile` |
 | [styling](./conventions/styling.md) | Estilado (Sass + CSS Modules + custom properties) | Tokens, variantes con `data-*`, breakpoints y su uso real |
@@ -73,7 +73,7 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | `/api/auth/[...nextauth]` | route handler | — | NextAuth |
 | `/api/attachments/[id]/preview` | route handler | sí | preview de adjunto |
 | `/api/files/[id]/preview` | route handler | sí | preview de archivo sin vínculo |
-| `/api/docs/attachments/[id]` | route handler | sí | adjunto de documento (302 propagado) |
+| `/api/docs/documents/[documentId]/attachments/[id]` | route handler | sí | adjunto de documento público (302 propagado) |
 | `/projects/[projectId]/docs/[documentId]` | página | sí | `app/(dashboard)/projects/[projectId]/docs/[documentId]/page.tsx` |
 
 ## Documentación relacionada

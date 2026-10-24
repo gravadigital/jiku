@@ -39,6 +39,15 @@ describe('GET /api/opus/docs/documents/:id (S-078)', () => {
     res.text.should.not.containEql('Secreto');
   });
 
+  it('S-087 · TS-19: documento interno con usuario admin', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.get', success({ id: DOC_ID, visibility: 'internal', content: '# Secreto' }));
+    const res = await get(URL, 'token_03_admin');
+    res.status.should.equal(404);
+    res.body.should.deepEqual(NOT_FOUND);
+    res.text.should.not.containEql('Secreto');
+  });
+
   it('S-078 · TS-40: documento sin visibility falla cerrado', async () => {
     await docsAvailable();
     fakeBus.moduleReply('documents.get', success({ id: DOC_ID, content: '# x' }));

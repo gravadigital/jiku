@@ -71,7 +71,7 @@ export { default as DocsFoldersIdGet } from './docs-folders-id-get';
 export { default as DocsAttachmentsIdGet } from './docs-attachments-id-get';
 export { default as OpusDocsDocumentsGet } from './opus-docs-documents-get';
 export { default as OpusDocsDocumentsIdGet } from './opus-docs-documents-id-get';
-export { default as OpusDocsAttachmentsIdGet } from './opus-docs-attachments-id-get';
+export { default as OpusDocsDocumentsIdAttachmentsIdGet } from './opus-docs-documents-id-attachments-id-get';
 export { default as DocsDocumentsPost } from './docs-documents-post';
 export { default as DocsDocumentsIdPut } from './docs-documents-id-put';
 export { default as DocsDocumentsIdMovePost } from './docs-documents-id-move-post';

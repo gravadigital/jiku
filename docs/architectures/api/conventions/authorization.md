@@ -145,14 +145,15 @@ titularidad ya se valida por `uploaded_by` al recuperar el adjunto en cada endpo
 `loadDocsScope` → `validateProjectPermissions` → (`validateRequirementIsPublic` si filtra por
 requisito) y manda siempre `visibility: 'public'`; `GET /api/opus/docs/documents/{id}` responde 404 si
 el documento no es `public`. Es una regla de **superficie**, como el recorte de requisitos: no mira el
-rol.
+rol. Vale también para el adjunto del portal (DD-4).
 
 **DD-4: el detalle por id del portal no lleva permiso de proyecto** (`GET /opus/docs/documents/{id}`,
-`GET /opus/docs/attachments/{id}`): excepción anotada a la regla *"un endpoint accesible a
-`external-user` debe verificar permiso de proyecto"* (ADR-006/ADR-008). Para `external-user` lo cubre la
-regla de externos de jiku-docs. **Límite conocido:** el adjunto del portal no puede recortarse por
-visibilidad (el reply de `request-download` no la trae), así que un usuario **interno** que use esa
-ruta recibe el adjunto de un documento `internal` si conoce el id (ADR-015, `known-limitations.md`).
+`GET /opus/docs/documents/{documentId}/attachments/{id}`): excepción anotada a la regla *"un endpoint
+accesible a `external-user` debe verificar permiso de proyecto"* (ADR-006/ADR-008). Para `external-user`
+lo cubre la regla de externos de jiku-docs. **La ruta del adjunto aplica DD-3 para todo rol:** lee el
+documento (`documents.get { id: documentId, include: ['attachments'] }`), responde 404
+`document_not_found` si no es `public` (nunca 403) y 404 `attachment_not_found` si el adjunto no le
+pertenece; recién entonces pide la descarga (REQ-017, S-087; ADR-015).
 
 **`/p/docs/*` (pública, `get: ['p/docs/']` en `config/public.ts`)** es la única exención de
 `validateToken`. Su control propio: `publicHostOnly` (primer middleware: en el host de
