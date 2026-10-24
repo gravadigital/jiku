@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-10-24 (S-082: escritura del módulo `features/docs`)
+**Last updated:** 2026-10-24 (S-083)
 
 ## Components
 
-Total: 33
+Total: 36
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -42,10 +42,13 @@ Total: 33
 - **DocumentEditor** (`web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`) - Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
 - **DocumentAttachZone** (`web/src/features/docs/components/DocumentAttachZone/DocumentAttachZone.tsx`) - Single-file `Dropzone` wired to `useUploadDocAttachment`; shows `Subiendo {name}…` in an `aria-live` line and maps module errors to messages.
 - **DocsNotice `info` / `role`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-082 adds the neutral `info` intent and `role?: 'alert' | 'none'` (default `alert`) so initial/silent states are not announced.
+- **ShareDocumentDialog** (`web/src/features/docs/components/ShareDocumentDialog/ShareDocumentDialog.tsx`) - O-12 modal (640 px `<dialog>`): expiry / note / attachments form, state machine default → created · confirm possible secret · sharing blocked, shows the public URL once with "Copiar" and discards it on close (never stored beyond local `useState`).
+- **ShareLinksTable** (`web/src/features/docs/components/ShareLinksTable/ShareLinksTable.tsx`) - Share list of a document (status, expiry, note, accesses, last access; never the URL or token) with O-02 revocation rendered in a portal outside the O-12 `<dialog>`.
+- **DocsNotice `success` / `role="status"`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-083 adds the `success` intent (`resolved` state family, check icon) and `role: 'status'` for polite announcements.
 
 ## Services
 
-Total: 16
+Total: 17
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -63,10 +66,11 @@ Total: 16
 - **listFolders / listAllFolders / getFolderTrail** (`web/src/features/docs/services/foldersApi.ts`) - Server Actions over `GET /docs/folders[/{id}]`: one page, all pages (cap 10 x 200) and the ancestor trail (cap 20 levels, unreadable ancestors as text).
 - **requestAttachmentUpload / confirmAttachment** (`web/src/features/docs/services/docsAttachmentsApi.ts`) - Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
 - **releaseLockKeepalive / uploadDocAttachment** (`web/src/features/docs/services/docsClientApi.ts`) - Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
+- **listShares / createShare / revokeShare** (`web/src/features/docs/services/sharesApi.ts`) - Server Actions for shared links (`GET`/`POST /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`); `createShare` computes `expiresAt` server-side from `expiresInDays` and never logs the URL or token; all return `DocsResult`.
 
 ## Hooks
 
-Total: 19
+Total: 22
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -85,10 +89,13 @@ Total: 19
 - **useSaveDocument** (`web/src/features/docs/hooks/useSaveDocument.ts`) - Save mutation (`retry: 0`); invalidates the document, listings and `['docs-folder-contents']` by prefix.
 - **useUploadDocAttachment** (`web/src/features/docs/hooks/useUploadDocAttachment.ts`) - Attachment upload mutation; invalidates the document.
 - **useEditSession** (`web/src/features/docs/hooks/useEditSession.ts`) - Lifecycle of the edit lock: acquire with a new `sessionId`, renew every 60 s, `lost`/blocked detection, `release()` and keepalive release on `pagehide`/unmount.
+- **useDocumentShares** (`web/src/features/docs/hooks/useDocumentShares.ts`) - Shared links of a document (`['docs-shares', documentId]`, one page of 200); never contains URL or token.
+- **useCreateShare** (`web/src/features/docs/hooks/useCreateShare.ts`) - Create-link mutation: `retry: 0`, `gcTime: 0` so the URL is not retained, invalidates the list on settle, invalidates `['modules']` on `sharing_not_configured`.
+- **useRevokeShare** (`web/src/features/docs/hooks/useRevokeShare.ts`) - Revoke mutation: marks the row `revoked` after the 200 (no optimistic update) and invalidates the list.
 
 ## Utils
 
-Total: 27
+Total: 29
 
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
@@ -117,10 +124,12 @@ Total: 27
 - **shouldRetryDocsQuery** (`web/src/features/docs/utils/moduleInvalidation.ts`) - Retry policy of docs queries: never 404, 403 or `module_unavailable`.
 - **toResult / unwrap** (`web/src/features/docs/utils/docsResult.ts`) - P-2: Server Actions return `DocsResult` instead of throwing; `unwrap` re-throws the `DocsError` on the client.
 - **docsErrors** (`web/src/features/docs/utils/docsErrors.ts`) - `code` → UI message mapping for create, save and attachment errors.
+- **SHARE_EXPIRY_OPTIONS / expiresAtFrom / shareStatusBadge / shareDescription** (`web/src/features/docs/utils/shares.ts`) - Expiry choices (7/15/30/90/180 days, default 30), `expiresAt` from days, status → `Badge` label/family, and the hidden description that tells the "Revocar" buttons apart.
+- **describeCreateShareError / revokeShareErrorMessage / SHARES_LOAD_FAILED_MESSAGE** (`web/src/features/docs/utils/shareErrors.ts`) - `code` → O-12 state, field error or notice for link creation; revoke error message (`null` for `share_not_found`).
 
 ## Types
 
-Total: 14
+Total: 15
 
 - **UploadTicket** (`web/src/features/attachments/types/attachment.types.ts`) - Upload permission for a single object: `fileId`, `uploadUrl`, `expiresIn`.
 - **UploadTicketRequest** (`web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
@@ -133,6 +142,7 @@ Total: 14
 - **Theme** (`web/src/features/theme/types/theme.types.ts`) - `'light' | 'dark'`. The only two valid values anywhere in the theme module.
 - **THEME_STORAGE_KEY** (`web/src/features/theme/types/theme.types.ts`) - The single constant (`'jiku.theme'`) for both the `localStorage` key and the cookie name — declared once so client and server never desync on a duplicated literal.
 - **ModuleState / ModuleStatus** (`web/src/features/docs/types/module.types.ts`) - Response of `GET /modules`.
+- **DocsShare / DocsSharePage / DocsShareCreated / DocsShareRevoked / ShareExpiryDays / CreateShareInput** (`web/src/features/docs/types/docs.types.ts`) - Shared-link contract verbatim from `api.yaml` plus the input of `createShare` (days instead of a date).
 - **DocsDocument, DocsDocumentDetail, DocsDocumentPage, DocumentsFilters…** (`web/src/features/docs/types/docs.types.ts`) - Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates as ISO strings.
 - **DocsResult, DocsError, DocsFolder, DocsSearchHit, DocsWriteResult, DocsLockGrant, FolderTrail, RootFolders…** (`web/src/features/docs/types/docs.types.ts`) - Write/folder/search contract types of S-082, verbatim from `docs/apis/api.yaml`; `ApiError.details?` added in `lib/axios.ts`.
 - **ApiError.details** (`web/src/lib/axios.ts`) - Optional `details` copied by the interceptor only when the api sends it (`holder`, `expiresAt`, `currentVersion`).

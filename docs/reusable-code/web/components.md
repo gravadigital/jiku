@@ -1095,3 +1095,33 @@ import { DocsPanel } from '@/features/docs';
 **Signature:** `DocsNotice({ intent: 'warning' | 'error' | 'info', role?, children })`
 
 **Usage:** `<DocsNotice intent="info" role="none">Ana Gómez lo está editando…</DocsNotice>`
+
+## ShareDocumentDialog
+
+**Location:** `web/src/features/docs/components/ShareDocumentDialog/ShareDocumentDialog.tsx`
+
+**Description:** O-12 modal (640 px `<dialog>` + `showModal()`): expiry / note / attachments form, states default → created · confirm possible secret · sharing blocked, error notices from `describeCreateShareError`. The public URL lives only in local `useState` and is discarded (with `reset()` of the mutation) on any close or unmount. Escape inside O-02 does not close it.
+
+**Signature:** `ShareDocumentDialog({ open, doc: DocsDocumentDetail, onClose })`
+
+**Usage:** `<ShareDocumentDialog open={shareOpen} doc={doc} onClose={() => setShareOpen(false)} />`
+
+## ShareLinksTable
+
+**Location:** `web/src/features/docs/components/ShareLinksTable/ShareLinksTable.tsx`
+
+**Description:** Shared links of a document: loading / error / empty / table, never the URL or token; "Revocar" only on active rows (described by expiry and note), O-02 confirm rendered in a portal on `document.body`, focus to the row status cell after revoking.
+
+**Signature:** `ShareLinksTable({ documentId, enabled? })`
+
+**Usage:** `<ShareLinksTable documentId={doc.id} enabled={open} />`
+
+## DocsNotice (S-083 update)
+
+**Location:** `web/src/features/docs/components/DocsNotice/DocsNotice.tsx`
+
+**Description:** Adds `intent: 'success'` (`resolved` family, check icon) and `role: 'status'`.
+
+**Signature:** `DocsNotice({ intent: 'warning' | 'error' | 'info' | 'success', role?: 'alert' | 'status' | 'none', children })`
+
+**Usage:** `<DocsNotice intent="success" role="status">Copiá el link ahora…</DocsNotice>`

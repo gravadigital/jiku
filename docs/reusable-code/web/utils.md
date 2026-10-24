@@ -390,3 +390,19 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 **Description:** `code` → UI message mapping for create, save and attachment errors.
 
 **Usage:** see the unit test next to the file.
+
+## shares
+
+**Location:** `web/src/features/docs/utils/shares.ts`
+
+**Description:** `SHARE_EXPIRY_OPTIONS` (7/15/30/90/180 days), `DEFAULT_SHARE_EXPIRY`, `expiresAtFrom(days, now)`, `shareStatusBadge(status)` (label + family) and `shareDescription(share)` (`"Link que vence el … · nota"`).
+
+**Usage:** see the unit test next to the file.
+
+## shareErrors
+
+**Location:** `web/src/features/docs/utils/shareErrors.ts`
+
+**Description:** `describeCreateShareError(error)` → `{ state?: 'secret' | 'blocked', field?, notice? }`; `revokeShareErrorMessage(error)` (`null` for `share_not_found`); `SHARES_LOAD_FAILED_MESSAGE`.
+
+**Usage:** see the unit test next to the file.

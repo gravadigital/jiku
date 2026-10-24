@@ -1,0 +1,32 @@
+@use '@/styles' as *;
+
+.section {
+  @include flex-column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-family: var(--text-card-title-family);
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.statusCell {
+  display: inline-block;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.note {
+  display: block;
+  max-width: 200px;
+  @include truncate;
+}
+
+.hidden {
+  @include visually-hidden;
+}

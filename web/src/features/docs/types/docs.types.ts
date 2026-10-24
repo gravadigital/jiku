@@ -230,3 +230,50 @@ export interface UploadedDocAttachment {
   mimeType: string;
   link: string;
 }
+
+// Links compartidos (S-083). Verbatim de `docs/apis/api.yaml` (DocsShare, DocsSharePage,
+// DocsShareCreated, DocsShareRevoked). Las fechas son `string` ISO.
+export interface DocsShare {
+  id: string;
+  documentId: string;
+  mode: 'latest' | 'pinned';
+  version?: number | null;
+  includeAttachments?: boolean;
+  note?: string | null;
+  status: 'active' | 'revoked' | 'expired';
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  revokedBy?: string | null;
+  revokeReason?: 'manual' | 'document_deleted' | null;
+  accessCount?: number;
+  lastAccessAt?: string | null;
+}
+
+export interface DocsSharePage {
+  items: DocsShare[];
+  page: DocsPageInfo;
+}
+
+/** El único lugar donde aparecen `token` y `url`: la web solo usa `url` y no la guarda. */
+export interface DocsShareCreated {
+  id: string;
+  token: string;
+  url: string;
+  expiresAt: string;
+}
+
+export interface DocsShareRevoked {
+  id: string;
+  revokedAt: string;
+}
+
+export type ShareExpiryDays = 7 | 15 | 30 | 90 | 180;
+
+export interface CreateShareInput {
+  expiresInDays: ShareExpiryDays;
+  includeAttachments: boolean;
+  note?: string;
+  acknowledgeSecretWarning?: boolean;
+}

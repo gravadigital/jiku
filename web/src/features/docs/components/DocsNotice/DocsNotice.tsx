@@ -3,12 +3,13 @@ import { cn } from '@/shared/utils/cn';
 import styles from './DocsNotice.module.scss';
 
 interface DocsNoticeProps {
-  readonly intent: 'warning' | 'error' | 'info';
+  readonly intent: 'warning' | 'error' | 'info' | 'success';
   /**
    * `alert` (default) se anuncia al aparecer. `none` para lo que ya estaba en pantalla al
-   * abrir el documento y para renovaciones silenciosas (P-13).
+   * abrir el documento y para renovaciones silenciosas (P-13). `status` anuncia sin interrumpir
+   * (confirmaciones, como el link recién creado).
    */
-  readonly role?: 'alert' | 'none';
+  readonly role?: 'alert' | 'status' | 'none';
   readonly children: React.ReactNode;
 }
 
@@ -26,7 +27,16 @@ export function DocsNotice({ intent, role = 'alert', children }: DocsNoticeProps
         aria-hidden="true"
         focusable="false"
       >
-        {intent === 'info' ? (
+        {intent === 'success' ? (
+          <path
+            d="M9 16A7 7 0 1 0 9 2a7 7 0 0 0 0 14Zm-3-7 2.2 2.2L12 7"
+            data-icon="check"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : intent === 'info' ? (
           <path
             d="M9 16A7 7 0 1 0 9 2a7 7 0 0 0 0 14Zm0-7.5V12.5m0-4v-.5"
             stroke="currentColor"

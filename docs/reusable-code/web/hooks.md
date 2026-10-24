@@ -268,3 +268,33 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 **Signature:** `useEditSession({ documentId }) → { phase, sessionId, blockedBy, start, release, markBlocked, clearBlocked }`
 
 **Usage:** `useEditSession({ documentId }) → { phase, sessionId, blockedBy, start, release, markBlocked, clearBlocked }`
+
+## useDocumentShares
+
+**Location:** `web/src/features/docs/hooks/useDocumentShares.ts`
+
+**Description:** Shared links of a document, one page of 200; key `['docs-shares', documentId]`; never contains URL or token.
+
+**Signature:** `useDocumentShares({ documentId, enabled? })`
+
+**Usage:** `useDocumentShares({ documentId: doc.id, enabled: open })`
+
+## useCreateShare
+
+**Location:** `web/src/features/docs/hooks/useCreateShare.ts`
+
+**Description:** Create-link mutation: no retry, `gcTime: 0` (the URL is not retained by the mutation cache), invalidates the list on settle (a 504 may have created the link), invalidates `['modules']` on `sharing_not_configured`.
+
+**Signature:** `useCreateShare(documentId)` → mutation of `CreateShareInput`
+
+**Usage:** `create.mutate({ expiresInDays: 15, includeAttachments: true }, { onSuccess, onError })`
+
+## useRevokeShare
+
+**Location:** `web/src/features/docs/hooks/useRevokeShare.ts`
+
+**Description:** Revoke mutation: after the 200 the row is marked `revoked` with the response `revokedAt` (no optimistic update) and the list is invalidated; `share_not_found` also invalidates.
+
+**Signature:** `useRevokeShare(documentId)` → mutation of `shareId`
+
+**Usage:** `revoke.mutate(share.id, { onSuccess, onError })`

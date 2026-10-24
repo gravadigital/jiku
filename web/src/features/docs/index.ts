@@ -12,6 +12,9 @@ export {
   useSaveDocument,
   useUploadDocAttachment,
   useEditSession,
+  useDocumentShares,
+  useCreateShare,
+  useRevokeShare,
 } from './hooks';
 export { DocsPanel } from './components/DocsPanel';
 export { DocumentView } from './components/DocumentView';
