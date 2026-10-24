@@ -87,6 +87,8 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
   const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
   const BUS_UNAVAILABLE_REF = "'503': { $ref: '#/components/responses/BusUnavailable' }";
   const GATEWAY_TIMEOUT_REF = "'504': { $ref: '#/components/responses/GatewayTimeout' }";
+  const MODULE_UNAVAILABLE_REF = "'503': { $ref: '#/components/responses/ModuleUnavailable' }";
+  const MODULE_GATEWAY_TIMEOUT_REF = "'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }";
 
   function specLines(): string[] {
     return readFileSync(SPEC_PATH, 'utf8').split('\n');
@@ -111,6 +113,15 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
     busUnavailable.should.equal(28);
   });
 
+  // S-078 · TS-47: el par propio de las rutas de módulo (su texto no describe a core).
+  it('S-078 · TS-47: las rutas de módulo declaran el par 503/504 de módulo (11/11)', () => {
+    const unavailable = countLinesWith(MODULE_UNAVAILABLE_REF);
+    const timeout = countLinesWith(MODULE_GATEWAY_TIMEOUT_REF);
+
+    unavailable.should.equal(timeout);
+    unavailable.should.equal(11);
+  });
+
   // TS-22: ninguna clave '503' o '504' apunta a otro componente. Es lo que impide que una
   // operación "declare el 504" con una respuesta inline que diga otra cosa: el texto se escribe
   // UNA vez, en el componente compartido, y las operaciones solo lo referencian.
@@ -118,10 +129,12 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
     const huerfanas = specLines().filter((line) => {
       const trimmed = line.trim();
       if (trimmed.startsWith("'503':")) {
-        return !trimmed.includes("#/components/responses/BusUnavailable");
+        return !trimmed.includes("#/components/responses/BusUnavailable")
+          && !trimmed.includes("#/components/responses/ModuleUnavailable");
       }
       if (trimmed.startsWith("'504':")) {
-        return !trimmed.includes("#/components/responses/GatewayTimeout");
+        return !trimmed.includes("#/components/responses/GatewayTimeout")
+          && !trimmed.includes("#/components/responses/ModuleGatewayTimeout");
       }
       return false;
     });
@@ -280,6 +293,23 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
       const block = pathBlock(spec, name);
       block.should.match(/x-jiku-module: docs/);
       block.should.match(/x-roles: \[admin, user, external-user\]/);
+    });
+  });
+
+  it('S-078 · TS-46: las once rutas de documentación declaran x-jiku-module y roles', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const internal = ['/docs/documents', '/docs/documents/{id}', '/docs/documents/{id}/versions', '/docs/search',
+      '/docs/topics', '/docs/folders', '/docs/folders/{id}', '/docs/attachments/{id}'];
+    const portal = ['/opus/docs/documents', '/opus/docs/documents/{id}', '/opus/docs/attachments/{id}'];
+    internal.concat(portal).forEach((name) => {
+      const block = pathBlock(spec, name);
+      block.should.match(/x-jiku-module: docs/, name);
+      block.should.match(
+        internal.includes(name) ? /x-roles: \[admin, user\]/ : /x-roles: \[external-user, admin, user\]/,
+        name
+      );
+      block.should.match(/'503': \{ \$ref: '#\/components\/responses\/ModuleUnavailable' \}/, name);
+      block.should.match(/'504': \{ \$ref: '#\/components\/responses\/ModuleGatewayTimeout' \}/, name);
     });
   });
 

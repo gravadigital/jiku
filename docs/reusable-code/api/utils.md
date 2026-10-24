@@ -245,3 +245,53 @@ user. `openModuleKv()` uses `bindOnly` plus `allow_direct: true`: `allow_direct`
 with `bindOnly` nats.js does not query the stream and would use `STREAM.MSG.GET`, which the
 auth-callout does not authorise. `pingModule` is `true` on any reply and `false` on no-responders or
 timeout.
+
+## isUlid / joiUlid / respondDocsNotFound
+
+**Location:** `api/lib/modules/docs/ids.ts`
+
+**Description:** Format of the jiku-docs ids (`ULID_PATTERN`, `^[0-9A-HJKMNP-TV-Z]{26}$`). A path id is
+validated with `isUlid` before the bus because it enters the NATS subject of
+`attachments.{id}.request-download`. A malformed id answers the same 404 as a missing one, without a bus call.
+
+**Signature:**
+
+```ts
+isUlid(value: unknown): boolean;
+joiUlid(): joi.StringSchema;
+respondDocsNotFound(res: Response, code: 'document_not_found' | 'folder_not_found' | 'attachment_not_found'): Response;
+```
+
+**Usage example:**
+
+```ts
+if (!isUlid(req.params.id)) return respondDocsNotFound(res, 'document_not_found');
+```
+
+## redirectToModuleDownload
+
+**Location:** `api/lib/modules/docs/download.ts`
+
+**Description:** 302 to the jiku-docs `downloadUrl`, `X-Content-Type-Options: nosniff`, empty body. Sets no
+`Content-Type`, `Content-Disposition` or `Content-Length`. Never logs the URL.
+
+**Usage example:**
+
+```ts
+const data = await moduleCommand<ModuleDownloadTicket>(res, 'docs', `attachments.${id}.request-download`, {});
+if (!data) return;
+return redirectToModuleDownload(res, data);
+```
+
+## pickDefined / buildPage
+
+**Location:** `api/lib/modules/docs/query.ts`
+
+**Description:** `pickDefined(query, keys, rename?)` builds a `filter` with only the keys that came;
+`buildPage({ limit, cursor? })` builds `page` with `cursor` only when present. `PAGE_LIMIT_MAX` is 200.
+
+**Usage example:**
+
+```ts
+{ filter: pickDefined(query, ['projectId', 'topic']), page: buildPage(query) }
+```
