@@ -7,6 +7,7 @@ import {
   callerFromSubject,
   commandFromSubject,
   failure,
+  generateUlid,
 } from '@jiku/nats-protocol';
 import { sequelize } from '../models';
 import { Channel, authorizeWithRoles, readCallerIdentity } from '../authorize-caller';
@@ -20,7 +21,6 @@ import { writeNotifications } from '../notifications/write-notifications';
 import { extractActor } from './actor';
 import { EventPublisher } from './event-publisher';
 import { emitEvents } from './emit-events';
-import { generateUlid } from '../ulid';
 
 /**
  * Traduce un mensaje del bus a la ejecución de un comando.
