@@ -1,23 +1,25 @@
 import { render, screen } from '@testing-library/react';
 import { DocumentMarkdown } from './DocumentMarkdown';
 
+const DOC_ID = '01JC7Z4X9QH2M5N8R3T6V0W1YA';
 const ID = '01JC7Z5B2K8D4F6G0H1J3K5M7N';
 const CONTENT = `---\nprojects: [12]\nvisibility: public\n---\n# Instalación\n\nPaso uno.\n\n![Diagrama](/docs/attachments/${ID})\n`;
 
 describe('DocumentMarkdown', () => {
   it('TS-20: renderiza seguro, sin frontmatter, con h2 y adjunto por el proxy', () => {
-    render(<DocumentMarkdown content={CONTENT} />);
+    render(<DocumentMarkdown documentId={DOC_ID} content={CONTENT} />);
     expect(screen.queryByText(/projects: \[12\]/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Diagrama' })).toHaveAttribute(
       'src',
-      `/api/docs/attachments/${ID}`
+      `/api/docs/documents/${DOC_ID}/attachments/${ID}`
     );
   });
 
   it('TS-21: enlaces en pestaña nueva, sin javascript: y con adjuntos reescritos', () => {
     render(
       <DocumentMarkdown
+        documentId={DOC_ID}
         content={`[Guía](https://example.com/g) [mal](javascript:alert(1)) [Adjunto](/docs/attachments/${ID})`}
       />
     );
@@ -29,13 +31,16 @@ describe('DocumentMarkdown', () => {
     expect(screen.getByText('mal')).not.toHaveAttribute('href');
     expect(screen.getByRole('link', { name: 'Adjunto' })).toHaveAttribute(
       'href',
-      `/api/docs/attachments/${ID}`
+      `/api/docs/documents/${DOC_ID}/attachments/${ID}`
     );
   });
 
   it('TS-22: el HTML crudo no se ejecuta', () => {
     const { container } = render(
-      <DocumentMarkdown content="Hola <script>window.__x=1</script><img src=x onerror=alert(1)>" />
+      <DocumentMarkdown
+        documentId={DOC_ID}
+        content="Hola <script>window.__x=1</script><img src=x onerror=alert(1)>"
+      />
     );
     expect(container.querySelector('script')).toBeNull();
     expect(container.querySelector('img')).toBeNull();

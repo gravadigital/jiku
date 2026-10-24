@@ -1,23 +1,24 @@
 # Utils — `opus-web`
 
-## docsUrlTransform
+## createDocsUrlTransform
 
 **Location:** `opus-web/src/features/docs/utils/docsUrlTransform.ts`
 
-**Description:** `urlTransform` for markdown viewers. `/docs/attachments/{ULID}` (relative or absolute,
-any host) becomes `/api/docs/attachments/{ULID}`; `http:`, `https:` and `mailto:` pass; everything else
-becomes `''`.
+**Description:** Factory of the `urlTransform` for markdown viewers. `/docs/attachments/{ULID}` (relative or
+absolute, any host) becomes `/api/docs/documents/{documentId}/attachments/{ULID}`, always under the open
+document; an invalid `documentId` blanks attachment links (fails closed). `http:`, `https:` and `mailto:`
+pass; everything else becomes `''`.
 
 **Signature:**
 
 ```ts
-function docsUrlTransform(url: string): string;
+function createDocsUrlTransform(documentId: string): (url: string) => string;
 ```
 
 **Usage:**
 
 ```tsx
-<Markdown skipHtml urlTransform={docsUrlTransform}>{text}</Markdown>
+<Markdown skipHtml urlTransform={createDocsUrlTransform(documentId)}>{text}</Markdown>
 ```
 
 ---

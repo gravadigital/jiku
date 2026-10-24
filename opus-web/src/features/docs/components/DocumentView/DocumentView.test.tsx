@@ -75,7 +75,7 @@ describe('DocumentView', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Diagrama' })).toHaveAttribute(
       'src',
-      `/api/docs/attachments/${ATT_ID}`
+      `/api/docs/documents/${DOC_ID}/attachments/${ATT_ID}`
     );
   });
 
@@ -88,7 +88,21 @@ describe('DocumentView', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Adjuntos' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'diagrama.png' })).toHaveAttribute(
       'href',
-      `/api/docs/attachments/${ATT_ID}`
+      `/api/docs/documents/${DOC_ID}/attachments/${ATT_ID}`
+    );
+  });
+
+  it('TS-28: usa doc.id y no solo la prop de ruta', () => {
+    const OTHER = '01JC7Z6C3M9E5G7H1J2K4N6P8Q';
+    setDocument({ data: { ...DOC_DETAIL, id: OTHER } });
+    renderView();
+    expect(screen.getByRole('img', { name: 'Diagrama' })).toHaveAttribute(
+      'src',
+      `/api/docs/documents/${OTHER}/attachments/${ATT_ID}`
+    );
+    expect(screen.getByRole('link', { name: 'diagrama.png' })).toHaveAttribute(
+      'href',
+      `/api/docs/documents/${OTHER}/attachments/${ATT_ID}`
     );
   });
 

@@ -98,9 +98,9 @@ export function DocumentView({ projectId, documentId }: DocumentViewProps) {
           <article className={styles.article}>
             <h1 className={styles.title}>{doc.title}</h1>
             <p className={styles.date}>Actualizado el {formatDocDate(doc.updatedAt)}</p>
-            <DocumentMarkdown content={doc.content ?? ''} />
+            <DocumentMarkdown documentId={doc.id} content={doc.content ?? ''} />
           </article>
-          <DocumentAttachments attachments={doc.attachments} />
+          <DocumentAttachments documentId={doc.id} attachments={doc.attachments} />
         </div>
       </div>
     </div>
