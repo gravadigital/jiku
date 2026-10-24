@@ -10,6 +10,10 @@ import validateToken from './lib/utils/middlewares/validate-token';
 import {synchronizeIdentityKeys} from './lib/utils/auth-helper';
 import { connectBus } from './lib/utils/bus';
 import { docsModule } from './lib/modules/registry';
+import publicRoutes from './lib/public-routes';
+import { publicHostOnly } from './lib/utils/middlewares/public-docs';
+import { PUBLIC_DOCS_PATH } from './lib/modules/docs/public-url';
+import { parseTrustProxy } from './lib/utils/trust-proxy';
 
 /**
  * Límite de body de las rutas de escritura de `/api/docs` (POST y PUT). 768 KiB = 256 KiB de
@@ -26,6 +30,14 @@ function docsWriteJson(req: Request, res: Response, next: NextFunction) {
 export function initialize(): Application {
   const app: Application = express();
   app.set('query parser', 'extended');
+  // DD-11: detrás del ingress todas las IP serían la del proxy y un visitante agotaría el cupo del
+  // rate limit de /p/docs/* de todos. Vacía = default de Express (sin proxy). Un valor inválido
+  // hace lanzar a Express y la api no arranca, a propósito.
+  const trustProxy = parseTrustProxy(process.env.API_TRUST_PROXY);
+  if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
+  // DD-10: PRIMER middleware. En el host público la api no sirve nada que no sea /p/docs/*; va antes
+  // de validateToken y del logger para que esos 404 no revelen la api ni ensucien el log.
+  app.use(publicHostOnly);
   app.use(cors());
   // Las escrituras de /docs llevan `content` inline de hasta 256 KiB (contrato de jiku-docs): el
   // límite por defecto de body-parser (100 kb) las rechazaría con 413 antes de llegar a la ruta.
@@ -41,7 +53,10 @@ export function initialize(): Application {
     expressFormat: true,
     colorize: false,
     meta: false,
-    statusLevels: true
+    statusLevels: true,
+    // La URL de /p/docs/* lleva el token del link: no puede estar en ningún log. Esas rutas
+    // registran su propia línea con el token enmascarado (publicDocsAccessLog).
+    ignoreRoute: (req) => PUBLIC_DOCS_PATH.test(req.path)
   }));
 
   app.get(publicPaths('get'), validateToken);
@@ -50,6 +65,11 @@ export function initialize(): Application {
   app.put(publicPaths('put'), validateToken);
   app.delete(publicPaths('delete'), validateToken);
 
+  // DD-10: las rutas públicas de links compartidos se montan UNA vez en la RAÍZ, fuera de /api (el
+  // link es {JIKU_PUBLIC_URL}/p/docs/{token}). Por eso no van en el barrel de lib/routes, que el
+  // bucle de abajo monta entero bajo /api. Quedan después de validateToken: sin la exención de
+  // config/public.ts responderían 401.
+  app.use(publicRoutes);
 
   for (const key of Object.keys(routes)) {
     app.use('/api', routes[key as keyof typeof routes]);

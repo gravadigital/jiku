@@ -4,7 +4,7 @@ import express, { Response } from 'express';
 import request from 'supertest';
 import sinon from 'sinon';
 import logger from '../../lib/logger';
-import { moduleCommand, moduleQuery, runModuleCommand } from '../../lib/modules/client';
+import { moduleCommand, moduleQuery, runModuleCommand, sendToModule } from '../../lib/modules/client';
 import { docsModule } from '../../lib/modules/registry';
 import { fakeBus } from '../mocks/bus';
 
@@ -234,5 +234,43 @@ describe('S-077 · cliente de módulo', () => {
     await request(app((r) => moduleQuery(r, 'docs', 'documents.list', { content: 'secreto' }))).get('/probe');
     errorStub.calledWith('[modules] docs documents.list: TIMEOUT').should.be.true();
     errorStub.args.some((a) => JSON.stringify(a).includes('secreto')).should.be.false();
+  });
+});
+
+describe('S-080 · sendToModule', () => {
+  beforeEach(() => {
+    sinon.stub(logger, 'error');
+    sinon.stub(logger, 'info');
+  });
+  afterEach(() => {
+    docsModule.stop();
+    sinon.restore();
+  });
+
+  it('S-080 · TS-28: clasifica el resultado sin responder HTTP ni tocar el payload', async () => {
+    await makeAvailable();
+
+    fakeBus.moduleReply('x.y', { status: 'success', data: { a: 1 } });
+    (await sendToModule('query', 'docs', 'x.y', { token: 'jds_x' })).should.deepEqual({ kind: 'data', data: { a: 1 } });
+    // No agrega `actor`.
+    fakeBus.lastModule!.payload.should.deepEqual({ token: 'jds_x' });
+
+    fakeBus.moduleReply('x.y', { status: 'failure', errorCode: 'x', errorMessage: 'm' } as any);
+    const failed: any = await sendToModule('query', 'docs', 'x.y', {});
+    failed.kind.should.equal('failure');
+    failed.reply.errorCode.should.equal('x');
+
+    fakeBus.moduleFailWithTimeout();
+    (await sendToModule('query', 'docs', 'x.y', {})).should.deepEqual({ kind: 'timeout' });
+
+    fakeBus.pingResponds('jiku-docs', false);
+    fakeBus.moduleFailWithNoResponders();
+    (await sendToModule('query', 'docs', 'x.y', {})).should.deepEqual({ kind: 'unreachable' });
+    docsModule.status().should.equal('unavailable');
+
+    docsModule.stop();
+    const sent = fakeBus.moduleSent.length;
+    (await sendToModule('query', 'docs', 'x.y', {})).should.deepEqual({ kind: 'unreachable' });
+    fakeBus.moduleSent.length.should.equal(sent);
   });
 });

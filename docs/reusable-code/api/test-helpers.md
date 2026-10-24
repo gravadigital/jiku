@@ -235,3 +235,19 @@ call" test.
 await docsAvailable();
 fakeBus.moduleReply('documents.list', success({ items: [], page: { limit: 50, returned: 0 } }));
 ```
+
+## public-docs helper
+
+**Location:** `api/tests/helpers/public-docs.ts`
+
+**Description:** Shared by the public share route tests. `PUBLIC_URL`, `PUBLIC_HOST`, `TOKEN`, `UA`, `CSP` and
+`RESOLVED` are the example values; `publicGet(app, url)` requests with the public `Host`, no session and no
+redirects followed; `shouldHavePublicHeaders(res)` asserts the five read-only headers with their exact values
+and no `set-cookie`; `resetPublicRateLimit()` empties the in-memory limiter (call it in `beforeEach`).
+
+**Usage example:**
+
+```ts
+const res = await publicGet(application, '/p/docs/' + TOKEN);
+shouldHavePublicHeaders(res);
+```

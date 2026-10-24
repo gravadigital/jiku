@@ -1,12 +1,14 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — los 86 endpoints que sirve.
+# Contrato HTTP de `api` — los 88 endpoints que sirve.
 #
 # REQ-016 / S-077 — `x-jiku-module`
 #   Una operación marcada `x-jiku-module: docs` depende del módulo opcional `docs` (jiku-docs):
 #   su disponibilidad la dicta el registro `JIKU_MODULES` del bus. Las dos rutas `/modules` solo
 #   REPORTAN ese estado; las rutas de documentación (S-078 en adelante, `x-jiku-module: docs`; las escrituras, S-079) responden además
-#   `ModuleNotInstalled` (404) / `ModuleUnavailable` (503) según `requireModule`.
+#   `ModuleNotInstalled` (404) / `ModuleUnavailable` (503) según `requireModule`. Las dos rutas públicas de
+#   links compartidos (S-080) son la excepción: responden páginas HTML genéricas (404 / 429 / 503) en lugar de
+#   `ModuleNotInstalled` / `ModuleUnavailable`, para no revelar si un link existió.
 #
 # EXTRAÍDO DEL CÓDIGO
 #   Los paths salen de `api/lib/routes/*.ts`; los request bodies y query params, de los esquemas
@@ -22,10 +24,15 @@ openapi: 3.0.3
 # AUTENTICACIÓN: SE APLICA GLOBAL, NO POR RUTA
 #   `api/app.ts` instala `validateToken` para TODO path excepto las exenciones de
 #   `api/config/public.ts`, armadas como regex de lookahead negativo. Es deny-by-default. Por eso
-#   `security` se declara a nivel raíz y **no se sobreescribe en ninguna operación**: desde REQ-002
-#   la lista de exenciones está vacía en los cinco métodos (`put` se suma en REQ-016 / H-3: antes el único `PUT` declaraba `validateToken` en su cadena). El mecanismo se conserva —agregar una
-#   ruta pública sigue siendo un cambio de una línea en `api/config/public.ts`— pero ninguna ruta lo
-#   usa, así que no queda una sola operación con `security: []`.
+#   `security` se declara a nivel raíz y **no se sobreescribe en ninguna operación**, salvo en las
+#   dos únicas que no llevan credencial: `GET /p/docs/{token}` y
+#   `GET /p/docs/{token}/attachments/{id}` (REQ-016 / S-080), que declaran `security: []`. Desde
+#   REQ-002 la lista de exenciones estaba vacía en los cinco métodos (`put` se suma en REQ-016 / H-3:
+#   antes el único `PUT` declaraba `validateToken` en su cadena); S-080 agrega la primera exención
+#   desde entonces, `GET /p/docs/` (DD-10). Esas dos rutas se montan en la RAÍZ de la api, fuera de
+#   `/api`, y llevan `servers` propio (`JIKU_PUBLIC_URL`). Su control de acceso es: host público
+#   exclusivo, rate limit de 60/min/IP por réplica, token de 256 bits validado por jiku-docs, un 404
+#   único para cualquier link inválido y cabeceras de solo lectura. Responden páginas HTML, no JSON.
 #
 # REQ-007 — LA API DEJA DE AUTORIZAR, Y `x-roles` CAMBIA DE SIGNIFICADO
 #   La api conserva exactamente TRES responsabilidades sobre la escritura: autenticar el token
@@ -2752,6 +2759,65 @@ paths:
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
 
   # ==========================================================================
+  # docs — links compartidos, ruta pública (REQ-016 / S-080)
+  # Montadas en la RAÍZ de la api (fuera de `/api`), sin credencial (DD-10).
+  # ==========================================================================
+
+  /p/docs/{token}:
+    servers:
+      - url: '{publicUrl}'
+        description: Host público de links compartidos (`JIKU_PUBLIC_URL`). Montado en la raíz de la api, fuera de `/api` (DD-10)
+        variables:
+          publicUrl: { default: 'http://127.0.0.1:3100', description: Valor de JIKU_PUBLIC_URL }
+    get:
+      tags: [docs]
+      summary: Página pública de un link compartido
+      security: []
+      x-jiku-module: docs
+      description: |
+        Sirve, sin sesión, una página HTML de solo lectura con el documento que resuelve jiku-docs (`shares.resolve`, payload `{ token, client? }` **sin `actor`**; REQ-016, ruta 24). Cadena, en orden: (1) `JIKU_PUBLIC_URL` sin configurar o `Host` distinto -> 404 genérico sin llamar a nada (la ruta no existe sin `JIKU_PUBLIC_URL`); (2) rate limit de 60 pedidos/min/IP sobre `/p/docs/*` (en memoria, por réplica) -> 429; (3) token que no cumple `^jds_[A-Za-z0-9_-]{43}$` -> 404 genérico sin llamar al bus; (4) módulo `not_installed`/`incompatible` -> 404 genérico, `unavailable` o timeout del bus -> 503; (5) `share_not_found` o cualquier otro error -> el mismo 404.
+        **Host público exclusivo (DD-10):** en el host de `JIKU_PUBLIC_URL` la api no sirve nada más que `GET`/`HEAD` `/p/docs/*`; todo lo demás responde el mismo 404.
+        Toda respuesta lleva `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`, y nunca cookies. Si el documento supera 256 KiB la api descarga el `htmlUrl` (texto, hasta 5 MiB) y lo incrusta; si la descarga falla responde 503. El token no se loguea.
+      parameters:
+        - { name: token, in: path, required: true, description: "Token del link (`jds_` + 43 caracteres base64url)", schema: { type: string, pattern: '^jds_[A-Za-z0-9_-]{43}$' } }
+      responses:
+        '200':
+          description: Página HTML con el título escapado y el documento ya renderizado y sanitizado por jiku-docs
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/PublicDocsNotFound' }
+        '429': { $ref: '#/components/responses/PublicDocsTooManyRequests' }
+        '503': { $ref: '#/components/responses/PublicDocsUnavailable' }
+
+  /p/docs/{token}/attachments/{id}:
+    servers:
+      - url: '{publicUrl}'
+        description: Host público de links compartidos (`JIKU_PUBLIC_URL`). Montado en la raíz de la api, fuera de `/api` (DD-10)
+        variables:
+          publicUrl: { default: 'http://127.0.0.1:3100', description: Valor de JIKU_PUBLIC_URL }
+    get:
+      tags: [docs]
+      summary: Adjunto de un link compartido
+      security: []
+      x-jiku-module: docs
+      description: |
+        Redirige (302) a una URL prefirmada de corta duración del adjunto (`shares.attachment`, payload `{ token, attachmentId, client? }` **sin `actor`**; REQ-016, ruta 25). Las imágenes de la página apuntan acá. Misma cadena de cinco pasos, mismo host público exclusivo (DD-10), mismo límite de 60 pedidos/min/IP por réplica (compartido con la página) y mismas cinco cabeceras que `/p/docs/{token}`; el `Referrer-Policy: no-referrer` del 302 evita que el token viaje como `Referer` al storage. Un `id` mal formado responde el mismo 404 sin llamar al bus. La URL de descarga no se loguea.
+      parameters:
+        - { name: token, in: path, required: true, description: "Token del link (`jds_` + 43 caracteres base64url)", schema: { type: string, pattern: '^jds_[A-Za-z0-9_-]{43}$' } }
+        - { name: id, in: path, required: true, description: "Id del adjunto (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '302':
+          description: Redirección a la URL prefirmada del adjunto, sin cuerpo
+          headers:
+            Location:
+              description: URL prefirmada de corta duración
+              schema: { type: string, format: uri }
+        '404': { $ref: '#/components/responses/PublicDocsNotFound' }
+        '429': { $ref: '#/components/responses/PublicDocsTooManyRequests' }
+        '503': { $ref: '#/components/responses/PublicDocsUnavailable' }
+
+  # ==========================================================================
   # opus — portal de clientes
   # ==========================================================================
 
@@ -3669,6 +3735,24 @@ components:
               value: { code: lock_not_held, message: La sesión no tiene el lock }
             alreadyExists:
               value: { code: already_exists, message: Ya existe }
+    PublicDocsNotFound:
+      description: |
+        Página "Este link no está disponible" ("Puede que haya vencido o que lo hayan revocado. Pedile un link nuevo a quien te lo compartió."), **idéntica para cualquier causa** (mismo status, mismas cabeceras y mismo cuerpo): token inexistente, vencido o revocado, token mal formado, `JIKU_PUBLIC_URL` sin configurar, host distinto, módulo no instalado, cualquier error de jiku-docs, y cualquier otro path en el host público. No revela si el link existió. Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+      content:
+        text/html:
+          schema: { type: string }
+    PublicDocsTooManyRequests:
+      description: |
+        Página "Demasiados intentos" ("Esperá un minuto y volvé a intentar."): más de 60 pedidos por minuto desde la misma IP sobre `/p/docs/*` (límite en memoria, por réplica). Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+      content:
+        text/html:
+          schema: { type: string }
+    PublicDocsUnavailable:
+      description: |
+        Página "El documento no está disponible en este momento" ("Probá de nuevo en unos minutos."): el módulo no responde, el bus no contestó a tiempo o falló la descarga del `htmlUrl`. A diferencia de `ModuleUnavailable`, no es JSON. Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+      content:
+        text/html:
+          schema: { type: string }
     InternalError:
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:

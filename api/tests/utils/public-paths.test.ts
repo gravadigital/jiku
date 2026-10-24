@@ -19,34 +19,38 @@ import publicPaths from '../../config/public';
  * Vive en `tests/utils/` porque no necesita base de datos: corre con `npm run test:unit`.
  */
 describe('config/public.ts — el mecanismo de exenciones de validateToken', () => {
-  // Los cinco métodos que `app.ts` instala globalmente (`put` desde REQ-016 / H-3).
-  const METHODS = ['get', 'patch', 'post', 'put', 'delete'];
-
-  describe('con la lista de exenciones vacía, el regex no exime ningún path', () => {
-    METHODS.forEach((method) => {
+  describe('los métodos sin exención no eximen ningún path', () => {
+    ['patch', 'post', 'put', 'delete'].forEach((method) => {
       it(`matchea un path arbitrario para '${method}', así que validateToken se instala para todo`, () => {
         publicPaths(method).test('/api/cualquier/cosa').should.be.true();
+        publicPaths(method).test('/p/docs/jds_x').should.be.true();
       });
     });
 
     // El path que ESTABA exento hasta S-009. Que ahora matchee es lo que produce el 401 antes
-    // del router: `validateToken` corre arriba del montaje de rutas (`app.ts:29-32` vs 35-37).
+    // del router: `validateToken` corre arriba del montaje de rutas.
     it("matchea el path que estaba exento: '/api/opus/attachments/123/public'", () => {
       publicPaths('get').test('/api/opus/attachments/123/public').should.be.true();
     });
   });
 
-  describe('ninguna exención declarada', () => {
-    METHODS.forEach((method) => {
-      // `test()` prueba que ESTE path no está exento; `source` prueba que NINGUNO lo está.
-      // Esta es la aserción que falla si alguien repone una exención para otro path.
-      it(`el source del regex de '${method}' no contiene ningún lookahead negativo`, () => {
+  describe('exactamente una exención: GET /p/docs/ (REQ-016 / S-080, DD-10)', () => {
+    ['patch', 'post', 'put', 'delete'].forEach((method) => {
+      it(`el source del regex de '${method}' es exactamente '^\\/.*', sin lookahead negativo`, () => {
+        publicPaths(method).source.should.equal('^\\/.*');
         publicPaths(method).source.should.not.containEql('(?!');
       });
+    });
 
-      it(`el source del regex de '${method}' es exactamente '^\\/.*'`, () => {
-        publicPaths(method).source.should.equal('^\\/.*');
-      });
+    it("S-080 · TS-20: 'get' exime /p/docs/ y nada más", () => {
+      const re = publicPaths('get');
+      re.source.should.equal('^\\/(?!p\\/docs\\/).*');
+      re.test('/p/docs/jds_' + 'A'.repeat(43)).should.be.false();
+      re.test('/P/DOCS/x').should.be.false();
+      re.test('/api/p/docs/x').should.be.true();
+      re.test('/p/docsx').should.be.true();
+      re.test('/api/docs/documents').should.be.true();
+      re.test('/api/opus/attachments/123/public').should.be.true();
     });
   });
 });

@@ -15,7 +15,7 @@ export interface ModuleDownloadTicket {
  * jiku-docs no los trae. Tampoco usa `res.redirect()`: ese agrega un cuerpo HTML de cortesía y
  * la respuesta debe ir sin cuerpo. La `downloadUrl` nunca se loguea.
  */
-export function redirectToModuleDownload(res: Response, data: ModuleDownloadTicket) {
+export function redirectToModuleDownload(res: Response, data: Pick<ModuleDownloadTicket, 'downloadUrl'> & Partial<ModuleDownloadTicket>) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Location', data.downloadUrl);
   return res.status(302).end();
