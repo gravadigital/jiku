@@ -257,3 +257,44 @@ describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
     spec.should.match(/ABRIRÍA LA LECTURA/);
   });
 });
+
+describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+
+  /** El bloque de un path de 2 espacios hasta el siguiente path (o divisor de sección). */
+  function pathBlock(spec: string, name: string): string {
+    const lines = spec.split('\n');
+    const start = lines.findIndex((line) => line === `  ${name}:`);
+    start.should.be.above(-1, `api.yaml no declara ${name}`);
+    const out: string[] = [];
+    for (let i = start + 1; i < lines.length; i += 1) {
+      if (/^  \S/.test(lines[i]) || /^  # =/.test(lines[i]) || /^\S/.test(lines[i])) break;
+      out.push(lines[i]);
+    }
+    return out.join('\n');
+  }
+
+  it('S-077 · TS-58: /modules y /opus/modules declaran x-jiku-module y roles', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    ['/modules', '/opus/modules'].forEach((name) => {
+      const block = pathBlock(spec, name);
+      block.should.match(/x-jiku-module: docs/);
+      block.should.match(/x-roles: \[admin, user, external-user\]/);
+    });
+  });
+
+  it('S-077 · TS-58: components de módulo', () => {
+    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const componentBlock = (name: string): string => {
+      const start = spec.indexOf(`\n    ${name}:`);
+      start.should.be.above(-1, `components no declara ${name}`);
+      const rest = spec.slice(start + 1);
+      const next = rest.slice(1).search(/\n {4}\S/);
+      return next === -1 ? rest : rest.slice(0, next + 1);
+    };
+    componentBlock('ModuleNotInstalled').should.match(/code: module_not_installed/);
+    componentBlock('ModuleUnavailable').should.match(/code: module_unavailable/);
+    spec.should.match(/\n {4}ModuleError:/);
+    spec.should.match(/\n {4}ModulesResponse:/);
+  });
+});

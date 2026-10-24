@@ -148,6 +148,21 @@ const internalTokens: Record<string, DecodedToken> = {
       }
     }
   },
+  // S-077 (TS-54, TS-57): token válido y SIN ningún rol, para probar que `hasAnyRole` rechaza
+  // con 403 aunque la autenticación pase (deny-by-default, ADR-008).
+  token_08_no_roles: {
+    aud: [
+      IDENTITY_CLIENT_ID,
+      '275672248377933829'
+    ],
+    exp: 1720959138,
+    iat: 1720887138,
+    iss: IDENTITY_ISSUER,
+    jti: '275802564547575008',
+    nbf: 1720887138,
+    sub: 'zitadel-sub-08',
+    'urn:zitadel:iam:org:project:roles': {}
+  },
 };
 
 function verify(token: string, _secret: jwt.Secret | jwt.GetPublicKeyOrSecret, callback: (error: boolean, decoded?: any) => void) {

@@ -186,3 +186,62 @@ function withActor(res: Response, command: string, payload: unknown): unknown {
 **Used by:** `sendCommand` (`api/lib/utils/bus/send-command.ts`), and through it every command the
 api publishes — `runCommand` included. `bus().query()` deliberately does **not** use it: the query
 plane resolves identity from the subject and only from there.
+
+## moduleQuery / moduleCommand / runModuleCommand
+
+**Location:** `api/lib/modules/client.ts`
+
+**Description:** The funnel for talking to an optional module (jiku-docs). Checks the registry state
+(404/503 without publishing), injects `actor: { id }` after the payload spread (the token wins; 401
+without a verified identity, failing closed because a call without `actor` is treated by jiku-docs as
+the `service` class), builds the subject from the registry's `serviceName` and translates errors with
+the docs map. Never logs the payload.
+
+**Signature:**
+
+```ts
+function moduleQuery<T = any>(res: Response, module: ModuleName, method: string, payload: Record<string, unknown>, options?: { anonymous?: boolean }): Promise<T | null>
+function moduleCommand<T = any>(/* same */): Promise<T | null>
+function runModuleCommand(/* same */): Promise<boolean>
+```
+
+**Usage example:**
+
+```ts
+const data = await moduleQuery(res, 'docs', 'documents.list', { filter: { projectId } });
+if (!data) return;
+res.status(200).json(data);
+```
+
+## docsModule / listModules
+
+**Location:** `api/lib/modules/registry.ts`
+
+**Description:** In-memory state of the `docs` module per replica (replicas may disagree for up to
+30 s). Reads `JIKU_MODULES` at startup, watches the key and pings every 30 s; `no responders` on a call
+marks it `unavailable` at once. `start()` is idempotent and never rejects.
+
+**Usage example:**
+
+```ts
+docsModule.status();   // 'available'
+listModules();         // [{ module: 'docs', status: 'available', features: { sharing: false } }]
+```
+
+## DOCS_STATUS_BY_ERROR_CODE / docsErrorBody
+
+**Location:** `api/lib/modules/docs/errors.ts`
+
+**Description:** Own map of the 30 jiku-docs error codes to HTTP; unknown codes are 500 keeping the
+original `code`. `docsErrorBody(reply)` returns `{ code, message, details? }`, `details` only when the
+reply carries `errorDetails`. Not merged with core's `STATUS_BY_ERROR_CODE` on purpose.
+
+## bus().queryModule / commandModule / pingModule / openModuleKv
+
+**Location:** `api/lib/utils/bus/index.ts`
+
+**Description:** Module-facing methods of the bus client, over the same connection, inbox and service
+user. `openModuleKv()` uses `bindOnly` plus `allow_direct: true`: `allow_direct` is mandatory because
+with `bindOnly` nats.js does not query the stream and would use `STREAM.MSG.GET`, which the
+auth-callout does not authorise. `pingModule` is `true` on any reply and `false` on no-responders or
+timeout.

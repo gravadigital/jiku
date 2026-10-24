@@ -59,3 +59,5 @@ export { default as OpusRequirementsIdCommentsPost } from './opus-requirements-i
 export { default as OpusRequirementsIdSubscriptorsPost } from './opus-requirements-id-subscriptors-post';
 export { default as OpusRequirementsIdSubscriptorsUseridDelete } from './opus-requirements-id-subscriptors-userid-delete';
 export { default as ProjectIdPersonsGet } from './projects-id-persons-get';
+export { default as ModulesGet } from './modules-get';
+export { default as OpusModulesGet } from './opus-modules-get';

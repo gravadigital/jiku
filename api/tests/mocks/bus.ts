@@ -1,10 +1,32 @@
 import { ErrorCode, NatsError } from 'nats';
-import { Bus } from '../../lib/utils/bus';
-import { Reply, commandSubject } from '../../lib/utils/bus/protocol';
+import { Bus, ModuleKv, ModuleKvEntry, ModuleKvWatch, ModuleTarget } from '../../lib/utils/bus';
+import {
+  Reply,
+  commandSubject,
+  moduleCommandSubject,
+  moduleQuerySubject,
+} from '../../lib/utils/bus/protocol';
 
 export interface SentCommand {
   command: string;
   payload: any;
+}
+
+export interface SentModuleCall {
+  kind: 'query' | 'command';
+  method: string;
+  subject: string;
+  payload: any;
+}
+
+interface FakeKvEntry extends ModuleKvEntry {
+  key: string;
+}
+
+interface FakeWatcher {
+  key: string;
+  onEntry: (entry: ModuleKvEntry) => Promise<void> | void;
+  resolveClosed: () => void;
 }
 
 /**
@@ -40,6 +62,18 @@ export class FakeBus implements Bus {
   private failure: Error | null = null;
   private dispatcher: ((subject: string, payload: unknown) => Promise<Reply>) | null = null;
   private dispatcherLoaded = false;
+
+  // --- Módulos (REQ-016) ---
+  readonly moduleSent: SentModuleCall[] = [];
+  /** serviceNames pingueados, en orden. */
+  readonly pings: string[] = [];
+  private moduleReplies = new Map<string, Reply>();
+  private moduleDefaultReply: Reply | null = null;
+  private moduleFailure: Error | null = null;
+  private pingConfig = new Map<string, { responds: boolean; delayMs?: number }>();
+  private kvStore = new Map<string, FakeKvEntry>();
+  private kvFailure: Error | null = null;
+  private watchers: FakeWatcher[] = [];
 
   /** Respuesta fija para un comando; evita ejecutarlo contra core. */
   reply(command: string, reply: Reply): this {
@@ -85,6 +119,15 @@ export class FakeBus implements Bus {
   }
 
   reset(): this {
+    this.moduleSent.length = 0;
+    this.pings.length = 0;
+    this.moduleReplies.clear();
+    this.moduleDefaultReply = null;
+    this.moduleFailure = null;
+    this.pingConfig.clear();
+    this.kvStore.clear();
+    this.kvFailure = null;
+    this.kvCloseWatchers();
     this.sent.length = 0;
     this.replies.clear();
     this.defaultReply = null;
@@ -134,6 +177,170 @@ export class FakeBus implements Bus {
     throw new Error(
       `FakeBus.query('${query}'): todavía no hay contrato de consultas, así que no hay nada que despachar`
     );
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Módulos. `await fakeBus.kvPut(...)` deja el registro asentado: espera a los watchers.
+  // ---------------------------------------------------------------------------------------
+
+  get lastModule(): SentModuleCall | undefined {
+    return this.moduleSent[this.moduleSent.length - 1];
+  }
+
+  get kvWatcherCount(): number {
+    return this.watchers.length;
+  }
+
+  /** Respuesta fija de un método de módulo. */
+  moduleReply(method: string, reply: Reply): this {
+    this.moduleReplies.set(method, reply);
+    return this;
+  }
+
+  moduleReplyDefault(reply: Reply): this {
+    this.moduleDefaultReply = reply;
+    return this;
+  }
+
+  moduleFailWith(error: Error): this {
+    this.moduleFailure = error;
+    return this;
+  }
+
+  moduleFailWithNoResponders(): this {
+    return this.moduleFailWith(NatsError.errorForCode(ErrorCode.NoResponders));
+  }
+
+  moduleFailWithTimeout(): this {
+    return this.moduleFailWith(NatsError.errorForCode(ErrorCode.Timeout));
+  }
+
+  /** Si el ping a `serviceName` responde; `delayMs` lo resuelve vía `setTimeout` (fake timers). */
+  pingResponds(serviceName: string, responds: boolean, delayMs?: number): this {
+    this.pingConfig.set(serviceName, { responds, delayMs });
+    return this;
+  }
+
+  /** Objeto → JSON.stringify; string → tal cual. */
+  async kvPut(key: string, value: unknown): Promise<void> {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    await this.kvWrite({ key, operation: 'PUT', value: text });
+  }
+
+  async kvDelete(key: string): Promise<void> {
+    await this.kvWrite({ key, operation: 'DEL', value: '' });
+  }
+
+  async kvPurge(key: string): Promise<void> {
+    await this.kvWrite({ key, operation: 'PURGE', value: '' });
+  }
+
+  /** `openModuleKv()` y `get()` rechazan con ese error. */
+  kvFailWith(error: Error): this {
+    this.kvFailure = error;
+    return this;
+  }
+
+  kvHeal(): this {
+    this.kvFailure = null;
+    return this;
+  }
+
+  /** Termina los watches: resuelve sus `closed`. */
+  kvCloseWatchers(): void {
+    const closing = this.watchers;
+    this.watchers = [];
+    closing.forEach((watcher) => watcher.resolveClosed());
+  }
+
+  private async kvWrite(entry: FakeKvEntry): Promise<void> {
+    this.kvStore.set(entry.key, entry);
+    const targets = this.watchers.filter((watcher) => watcher.key === entry.key);
+    await Promise.all(
+      targets.map((watcher) => watcher.onEntry({ operation: entry.operation, value: entry.value }))
+    );
+  }
+
+  async queryModule<T = any>(target: ModuleTarget, method: string, payload: unknown): Promise<Reply<T>> {
+    return this.moduleCall<T>('query', target, method, payload);
+  }
+
+  async commandModule<T = any>(target: ModuleTarget, method: string, payload: unknown): Promise<Reply<T>> {
+    return this.moduleCall<T>('command', target, method, payload);
+  }
+
+  private async moduleCall<T>(
+    kind: 'query' | 'command',
+    target: ModuleTarget,
+    method: string,
+    payload: unknown
+  ): Promise<Reply<T>> {
+    // El subject lo arma la MISMA función que usa el bus real: CA-8 se verifica sobre el
+    // formato del protocolo.
+    const subject = (kind === 'query' ? moduleQuerySubject : moduleCommandSubject)(
+      target.serviceName,
+      target.protocol,
+      method,
+      TEST_USER_ID
+    );
+    this.moduleSent.push({ kind, method, subject, payload });
+
+    if (this.moduleFailure) {
+      throw this.moduleFailure;
+    }
+
+    const fixed = this.moduleReplies.get(method) ?? this.moduleDefaultReply;
+    if (!fixed) {
+      throw new Error(`FakeBus.${kind}Module('${method}'): sin respuesta configurada`);
+    }
+    return fixed as Reply<T>;
+  }
+
+  async pingModule(serviceName: string, _timeoutMs: number): Promise<boolean> {
+    this.pings.push(serviceName);
+    const config = this.pingConfig.get(serviceName) ?? { responds: false };
+    if (config.delayMs) {
+      await new Promise<void>((resolve) => setTimeout(resolve, config.delayMs));
+    }
+    return config.responds;
+  }
+
+  async openModuleKv(): Promise<ModuleKv> {
+    if (this.kvFailure) {
+      throw this.kvFailure;
+    }
+
+    return {
+      get: async (key: string) => {
+        if (this.kvFailure) {
+          throw this.kvFailure;
+        }
+        const entry = this.kvStore.get(key);
+        return entry ? { operation: entry.operation, value: entry.value } : null;
+      },
+      watch: async (key, onEntry): Promise<ModuleKvWatch> => {
+        let resolveClosed!: () => void;
+        const closed = new Promise<void>((resolve) => {
+          resolveClosed = resolve;
+        });
+        const watcher: FakeWatcher = { key, onEntry, resolveClosed };
+        this.watchers.push(watcher);
+
+        // Como el `include` por default de nats.js: primero el valor vigente.
+        const current = this.kvStore.get(key);
+        if (current) {
+          await onEntry({ operation: current.operation, value: current.value });
+        }
+
+        return {
+          closed,
+          stop: () => {
+            this.watchers = this.watchers.filter((w) => w !== watcher);
+            resolveClosed();
+          },
+        };
+      },
+    };
   }
 
   private loadDispatcher() {
