@@ -141,3 +141,20 @@ duplicated string literal.
 type Theme = 'light' | 'dark';
 const THEME_STORAGE_KEY = 'jiku.theme';
 ```
+
+## ModuleState / ModuleStatus
+
+**Location:** `web/src/features/docs/types/module.types.ts`
+
+**Description:** Item of the `GET /modules` response.
+
+```ts
+type ModuleStatus = 'not_installed' | 'unavailable' | 'available';
+interface ModuleState { module: string; status: ModuleStatus; features?: { sharing?: boolean } }
+```
+
+## Docs types
+
+**Location:** `web/src/features/docs/types/docs.types.ts`
+
+**Description:** `DocsDocument`, `DocsDocumentDetail` (adds `folder`), `DocsDocumentPage`, `DocsAttachment`, `DocsLock`, `DocsRelations`, `DocsPageInfo`, `DocumentsFilters`. Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates are ISO strings.

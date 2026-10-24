@@ -32,6 +32,13 @@ vi.mock('@/features/attachments/components/MarkdownViewer', () => ({
   ),
 }));
 
+// La card de documentación tiene sus propios tests (features/docs); acá solo importa dónde se monta.
+vi.mock('@/features/docs', () => ({
+  DocsPanel: ({ scope }: { scope: object }) => (
+    <section aria-label="docs-panel" data-scope={JSON.stringify(scope)} />
+  ),
+}));
+
 vi.mock('../RequirementActivityFeed', () => ({
   RequirementActivityFeed: () => <div data-testid="activity-feed" />,
 }));
@@ -129,6 +136,18 @@ describe('RequirementDetail', () => {
       isLoading: false,
       isError: false,
     } as any);
+  });
+
+  it('TS-31: la card de documentación va entre Etiquetas y Resolución, filtrada por requisito', () => {
+    render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
+
+    const docs = screen.getByLabelText('docs-panel');
+    const tags = screen.getByRole('heading', { name: 'Etiquetas' });
+    const resolution = screen.getByRole('heading', { name: /Resolución/ });
+
+    expect(docs).toHaveAttribute('data-scope', JSON.stringify({ requirementId: 5 }));
+    expect(tags.compareDocumentPosition(docs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(docs.compareDocumentPosition(resolution) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // El handoff de identidad fija el layout de detalle en minmax(560px, 1fr) + aside de 380px

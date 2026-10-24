@@ -1,0 +1,74 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.stateActions {
+  display: flex;
+}
+
+// Viewport único (desktop 1440 px): grilla de 12 columnas, sin @media.
+.header,
+.reading {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-grid-gap);
+}
+
+.heading {
+  grid-column: 1 / 9;
+  grid-row: 1;
+}
+
+.actions {
+  grid-column: 9 / 13;
+  grid-row: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.meta {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.main {
+  grid-column: 1 / 9;
+  min-width: 0;
+}
+
+.side {
+  grid-column: 9 / 13;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-grid-gap);
+  min-width: 0;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachmentLink {
+  color: var(--text-link);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

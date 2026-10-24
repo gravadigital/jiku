@@ -11,6 +11,11 @@ import { auth } from '@/lib/auth';
 import Layout from './layout';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn() }));
+// El ítem de Documentación (S-081) tiene sus propios tests en ShellSidebar.test.tsx; acá el
+// módulo se comporta como no instalado para no depender de un QueryClient.
+vi.mock('@/features/docs', () => ({
+  useModule: () => ({ status: 'not_installed', sharing: false, isKnown: true }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   usePathname: vi.fn(() => '/worked-times'),

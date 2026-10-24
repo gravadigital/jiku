@@ -989,3 +989,39 @@ export default function ErrorPage({ error }: { readonly error: CustomError }) {
   return <ErrorPageContent message={error.message} />;
 }
 ```
+
+## DocsPanel
+
+**Location:** `web/src/features/docs/components/DocsPanel/DocsPanel.tsx`
+
+**Description:** "Documentación" card for the project, requirement and task detail screens. Lists linked documents (title link to `/docs/{id}`, folder path, `DD/MM/AAAA` date, "En edición" mark for a live lock) with cursor "Ver más". Renders `null` when the docs module is `not_installed`.
+
+**Signature:** `DocsPanel({ scope }: { scope: { projectId: number } | { requirementId: number } | { taskId: number } })`
+
+**Usage:**
+
+```tsx
+import { DocsPanel } from '@/features/docs';
+
+<DocsPanel scope={{ projectId: Number(id) }} />
+```
+
+## DocsNotice
+
+**Location:** `web/src/features/docs/components/DocsNotice/DocsNotice.tsx`
+
+**Description:** Inline alert for the docs module (`role="alert"`), `warning` or `error` intent.
+
+**Signature:** `DocsNotice({ intent, children }: { intent: 'warning' | 'error'; children: ReactNode })`
+
+**Usage:** `<DocsNotice intent="warning">La documentación no está disponible…</DocsNotice>`
+
+## DocumentView
+
+**Location:** `web/src/features/docs/components/DocumentView/DocumentView.tsx`
+
+**Description:** Read-only document page body used by `/docs/[id]`.
+
+**Signature:** `DocumentView({ id }: { id: string })`
+
+**Usage:** `<DocumentView id={id} />` (after validating the ULID and the module state server-side).

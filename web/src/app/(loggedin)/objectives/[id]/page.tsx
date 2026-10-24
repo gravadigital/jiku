@@ -1,4 +1,5 @@
 import React from 'react';
+import { DocsPanel } from '@/features/docs';
 import { ObjectiveDetails, ObjectiveHistoryList, getObjectiveById } from '@/features/objectives';
 import { CommentEditor, ViewHeader } from '@/shared/components/ui';
 
@@ -24,6 +25,7 @@ export default async function ObjectiveDetail({
         action={{ children: 'Editar', href: `/objectives/edit/${id}` }}
       />
       <ObjectiveDetails objective={objective} />
+      <DocsPanel scope={{ taskId: Number(id) }} />
       <ObjectiveHistoryList
         objectiveActivity={objective.ObjectiveActivity || []}
         objectiveId={id}

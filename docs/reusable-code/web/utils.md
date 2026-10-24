@@ -242,3 +242,63 @@ import { parseExternalLinks } from '@/shared/utils/parse-external-links';
 const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 // [{ href: 'https://github.com/...', label: 'Código', icon: <github svg> }, ...]
 ```
+
+## withModuleInvalidation
+
+**Location:** `web/src/features/docs/utils/moduleInvalidation.ts`
+
+**Description:** Runs an async function; on a `module_unavailable` error it invalidates `['modules']` and rethrows. `isModuleUnavailable(error)` is the predicate.
+
+**Signature:** `withModuleInvalidation<T>(queryClient: QueryClient, fn: () => Promise<T>): Promise<T>`
+
+**Usage:** `withModuleInvalidation(qc, () => listDocuments(filters))`
+
+## docsUrlTransform
+
+**Location:** `web/src/features/docs/utils/docsUrlTransform.ts`
+
+**Description:** `urlTransform` for the document markdown viewer: rewrites `/docs/attachments/{ULID}` (relative or any host) to the own origin; keeps `http(s)`/`mailto`; returns `''` for anything else. Also exports `ULID_PATTERN`.
+
+**Signature:** `docsUrlTransform(url: string): string`
+
+**Usage:** `<ReactMarkdown urlTransform={docsUrlTransform} />`
+
+## folderPathOf / displayTitle
+
+**Location:** `web/src/features/docs/utils/paths.ts`
+
+**Description:** Folder part of a document path; display title falling back to the file name without `.md`.
+
+**Signature:** `folderPathOf(path: string): string`, `displayTitle(doc: { title?: string | null; fileName: string }): string`
+
+**Usage:** `folderPathOf('/ops/runbook.md') // '/ops/'`
+
+## personName
+
+**Location:** `web/src/features/docs/utils/persons.ts`
+
+**Description:** Resolves a Zitadel `sub` to `"{firstName} {lastName}"`, or `"otra persona"`.
+
+**Signature:** `personName(persons: readonly Person[] | undefined, sub: string): string`
+
+**Usage:** `personName(persons, doc.updatedBy)`
+
+## formatDateTime
+
+**Location:** `web/src/features/docs/utils/dates.ts`
+
+**Description:** ISO date to `DD/MM/AAAA HH:mm`.
+
+**Signature:** `formatDateTime(iso: string): string`
+
+**Usage:** `formatDateTime(doc.updatedAt)`
+
+## MarkdownViewer `mode="document"`
+
+**Location:** `web/src/features/attachments/components/MarkdownViewer/MarkdownViewer.tsx`
+
+**Description:** Prop `mode?: 'comment' | 'document'`. `document` renders standard GFM markdown (no `remark-breaks`, no `[attach:N]`/`[file:N]` placeholders), shifts headings one level, applies `docsUrlTransform`, opens links in a new tab and never renders raw HTML.
+
+**Signature:** `MarkdownViewer({ content, mode? })`
+
+**Usage:** `<MarkdownViewer mode="document" content={doc.content} />`

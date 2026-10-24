@@ -1,0 +1,30 @@
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-field);
+  border: 1px solid transparent;
+}
+
+.warning {
+  background: var(--state-review-tint);
+  border-color: var(--state-review-border);
+  color: var(--state-review-text);
+}
+
+.error {
+  background: var(--state-urgent-tint);
+  border-color: var(--state-urgent-border);
+  color: var(--state-urgent-text);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-body-default-size);
+  line-height: var(--text-body-default-leading);
+}
