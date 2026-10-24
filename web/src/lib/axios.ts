@@ -4,12 +4,15 @@ import { auth } from './auth';
 export interface ApiErrorResponse {
   code?: string;
   message?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface ApiError {
   code: string;
   message: string;
   status: number;
+  /** Datos del error de dominio (`holder`, `expiresAt`, `currentVersion`…). Solo si la api los manda. */
+  details?: Record<string, unknown>;
 }
 
 // Este cliente es de SERVIDOR: el interceptor de abajo llama a `auth()`, que solo corre
@@ -42,6 +45,11 @@ apiClient.interceptors.response.use(
       message: error.response?.data?.message ?? 'Internal error',
       status: error.response?.status ?? 500,
     };
+
+    const details = error.response?.data?.details;
+    if (details && typeof details === 'object') {
+      apiError.details = details;
+    }
 
     if (error.response?.status === 401) {
       console.error('Unauthorized request detected - token may be expired');

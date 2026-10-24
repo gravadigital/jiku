@@ -20,8 +20,11 @@ describe('useDocuments', () => {
 
   it('TS-13: pagina por cursor', async () => {
     vi.mocked(listDocuments)
-      .mockResolvedValueOnce({ items: [], page: { limit: 10, returned: 10, cursor: 'c2' } })
-      .mockResolvedValueOnce({ items: [], page: { limit: 10, returned: 3 } });
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [], page: { limit: 10, returned: 10, cursor: 'c2' } },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { items: [], page: { limit: 10, returned: 3 } } });
     const { Wrapper } = setup();
     const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {
       wrapper: Wrapper,
@@ -38,19 +41,22 @@ describe('useDocuments', () => {
 
   it('TS-11: module_unavailable invalida [modules] y propaga el error', async () => {
     const err = { code: 'module_unavailable', message: 'x', status: 503 };
-    vi.mocked(listDocuments).mockRejectedValue(err);
+    vi.mocked(listDocuments).mockResolvedValue({ ok: false, error: err } as never);
     const { Wrapper, client } = setup();
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error).toBe(err);
+    expect(result.current.error).toEqual(err);
     expect(spy).toHaveBeenCalledWith({ queryKey: ['modules'] });
   });
 
   it('TS-12: otros códigos no invalidan [modules]', async () => {
-    vi.mocked(listDocuments).mockRejectedValue({ code: 'upstream_unavailable', status: 503 });
+    vi.mocked(listDocuments).mockResolvedValue({
+      ok: false,
+      error: { code: 'upstream_unavailable', status: 503 },
+    } as never);
     const { Wrapper, client } = setup();
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {

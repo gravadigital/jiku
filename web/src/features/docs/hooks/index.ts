@@ -1,3 +1,11 @@
 export { useModules, useModule } from './useModules';
 export { useDocuments } from './useDocuments';
 export { useDocument } from './useDocument';
+export { useFolderTrail } from './useFolderTrail';
+export { useRootFolders } from './useRootFolders';
+export { useFolderContents } from './useFolderContents';
+export { useDocsSearch } from './useDocsSearch';
+export { useCreateDocument } from './useCreateDocument';
+export { useSaveDocument } from './useSaveDocument';
+export { useUploadDocAttachment } from './useUploadDocAttachment';
+export { useEditSession } from './useEditSession';

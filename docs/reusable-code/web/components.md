@@ -1025,3 +1025,73 @@ import { DocsPanel } from '@/features/docs';
 **Signature:** `DocumentView({ id }: { id: string })`
 
 **Usage:** `<DocumentView id={id} />` (after validating the ULID and the module state server-side).
+
+## DocsBrowser
+
+**Location:** `web/src/features/docs/components/DocsBrowser/DocsBrowser.tsx`
+
+**Description:** Client container of `/docs`: folder-by-level table + global text search (debounced, kept in `?q=`), folder in `?folder=`, all loading / empty / error / not-found / module-unavailable states, and the O-11 trigger. `DocumentView`'s sibling.
+
+**Signature:** ``DocsBrowser()` (reads `useSearchParams`)`
+
+**Usage:** ``<Suspense><DocsBrowser /></Suspense>` in `app/(loggedin)/docs/page.tsx``
+
+## FolderBreadcrumb
+
+**Location:** `web/src/features/docs/components/FolderBreadcrumb/FolderBreadcrumb.tsx`
+
+**Description:** `<nav aria-label="Ruta de la carpeta">`: `Inicio` plus one level per folder, last level without link and `aria-current="page"`, unreadable ancestors (`id: null`) as text.
+
+**Signature:** ``FolderBreadcrumb({ trail }: { trail: FolderTrailItem[] })``
+
+**Usage:** ``<FolderBreadcrumb trail={folderTrail.trail} />``
+
+## SearchSnippet
+
+**Location:** `web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`
+
+**Description:** Renders a search `snippet` as text with `<mark>` on the match; never interprets HTML (P-8).
+
+**Signature:** ``SearchSnippet({ snippet, q })``
+
+**Usage:** ``<SearchSnippet snippet={hit.snippet} q={q} />``
+
+## NewDocumentDialog
+
+**Location:** `web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`
+
+**Description:** O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title suggests the file name until edited by hand, creates with a client-generated ULID and navigates to `/docs/{id}?editar=1`.
+
+**Signature:** ``NewDocumentDialog({ open, folder: { id, path }, onClose })``
+
+**Usage:** ``<NewDocumentDialog open={open} folder={folder} onClose={close} />``
+
+## DocumentEditor
+
+**Location:** `web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`
+
+**Description:** Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
+
+**Signature:** ``DocumentEditor({ doc, session, suppressNotices?, onDone })``
+
+**Usage:** ``<DocumentEditor doc={doc} session={session} onDone={backToReading} />``
+
+## DocumentAttachZone
+
+**Location:** `web/src/features/docs/components/DocumentAttachZone/DocumentAttachZone.tsx`
+
+**Description:** Single-file `Dropzone` wired to `useUploadDocAttachment`; shows `Subiendo {name}…` in an `aria-live` line and maps module errors to messages.
+
+**Signature:** ``DocumentAttachZone({ documentId, onUploaded(markdown) })``
+
+**Usage:** ``<DocumentAttachZone documentId={id} onUploaded={insert} />``
+
+## DocsNotice (S-082 update)
+
+**Location:** `web/src/features/docs/components/DocsNotice/DocsNotice.tsx`
+
+**Description:** Adds `intent: 'info'` (neutral state family, "i" icon) and `role?: 'alert' | 'none'` (default `alert`).
+
+**Signature:** `DocsNotice({ intent: 'warning' | 'error' | 'info', role?, children })`
+
+**Usage:** `<DocsNotice intent="info" role="none">Ana Gómez lo está editando…</DocsNotice>`

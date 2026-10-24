@@ -188,3 +188,83 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 **Signature:** `useDocument({ id, enabled? })` → `useQuery` result of `DocsDocumentDetail`
 
 **Usage:** `const { data } = useDocument({ id });`
+
+## useFolderTrail
+
+**Location:** `web/src/features/docs/hooks/useFolderTrail.ts`
+
+**Description:** Folder + ancestor trail (`['docs-folder-trail', id]`).
+
+**Signature:** `useFolderTrail({ folderId, enabled? })`
+
+**Usage:** `useFolderTrail({ folderId, enabled? })`
+
+## useRootFolders
+
+**Location:** `web/src/features/docs/hooks/useRootFolders.ts`
+
+**Description:** All visible folders resolved to the `/docs` root view with `resolveRoot` in `select`.
+
+**Signature:** `useRootFolders({ enabled? })`
+
+**Usage:** `useRootFolders({ enabled? })`
+
+## useFolderContents
+
+**Location:** `web/src/features/docs/hooks/useFolderContents.ts`
+
+**Description:** Infinite query that exhausts subfolders then documents (50 per page) — one table, one "Ver más".
+
+**Signature:** `useFolderContents({ folderId, enabled? })`
+
+**Usage:** `useFolderContents({ folderId, enabled? })`
+
+## useDocsSearch
+
+**Location:** `web/src/features/docs/hooks/useDocsSearch.ts`
+
+**Description:** Global text search; enabled only with a trimmed query of 2+ characters.
+
+**Signature:** `useDocsSearch({ q, enabled? })`
+
+**Usage:** `useDocsSearch({ q, enabled? })`
+
+## useCreateDocument
+
+**Location:** `web/src/features/docs/hooks/useCreateDocument.ts`
+
+**Description:** Create mutation; invalidates the folder contents and `['docs-documents']`.
+
+**Signature:** `useCreateDocument()`
+
+**Usage:** `useCreateDocument()`
+
+## useSaveDocument
+
+**Location:** `web/src/features/docs/hooks/useSaveDocument.ts`
+
+**Description:** Save mutation (`retry: 0`); invalidates the document, listings and `['docs-folder-contents']` by prefix.
+
+**Signature:** `useSaveDocument(id)`
+
+**Usage:** `useSaveDocument(id)`
+
+## useUploadDocAttachment
+
+**Location:** `web/src/features/docs/hooks/useUploadDocAttachment.ts`
+
+**Description:** Attachment upload mutation; invalidates the document.
+
+**Signature:** `useUploadDocAttachment(documentId)`
+
+**Usage:** `useUploadDocAttachment(documentId)`
+
+## useEditSession
+
+**Location:** `web/src/features/docs/hooks/useEditSession.ts`
+
+**Description:** Lifecycle of the edit lock: acquire with a new `sessionId`, renew every 60 s, `lost`/blocked detection, `release()` and keepalive release on `pagehide`/unmount.
+
+**Signature:** `useEditSession({ documentId }) → { phase, sessionId, blockedBy, start, release, markBlocked, clearBlocked }`
+
+**Usage:** `useEditSession({ documentId }) → { phase, sessionId, blockedBy, start, release, markBlocked, clearBlocked }`

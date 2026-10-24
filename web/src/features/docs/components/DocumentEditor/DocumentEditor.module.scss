@@ -1,0 +1,94 @@
+@use '@/styles' as *;
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+// Viewport único (desktop 1440 px): grilla de 12 columnas, sin @media.
+.editRow {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-grid-gap);
+}
+
+.left {
+  grid-column: span 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.right {
+  grid-column: span 6;
+  min-width: 0;
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+// El DS no tiene token de familia monoespaciada (gap nuevo): se usa el mismo stack que
+// `ObjectiveComment` y `ObjectiveDetails`.
+.textarea textarea {
+  font-family: var(
+    --fontStack-monospace,
+    ui-monospace,
+    SFMono-Regular,
+    'SF Mono',
+    Menlo,
+    Consolas,
+    'Liberation Mono',
+    monospace
+  );
+  min-height: 70vh;
+}
+
+.plain {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  color: var(--text-primary);
+  font-family: var(
+    --fontStack-monospace,
+    ui-monospace,
+    SFMono-Regular,
+    'SF Mono',
+    Menlo,
+    Consolas,
+    'Liberation Mono',
+    monospace
+  );
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.actionsRow {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-grid-gap);
+  align-items: end;
+}
+
+.message {
+  grid-column: 1 / 9;
+}
+
+.buttons {
+  grid-column: 9 / 13;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

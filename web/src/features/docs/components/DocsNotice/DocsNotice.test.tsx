@@ -12,4 +12,19 @@ describe('DocsNotice', () => {
     const { container } = render(<DocsNotice intent="warning">x</DocsNotice>);
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
+
+  it('P-13: info es neutral y role=alert por defecto', () => {
+    render(<DocsNotice intent="info">Aviso</DocsNotice>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Aviso');
+  });
+
+  it('P-13: role none no anuncia', () => {
+    render(
+      <DocsNotice intent="info" role="none">
+        Aviso
+      </DocsNotice>
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Aviso')).toBeInTheDocument();
+  });
 });

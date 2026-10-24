@@ -80,10 +80,153 @@ export interface DocsDocumentPage {
   page: DocsPageInfo;
 }
 
+export type DocsDocumentSort =
+  'updatedAt' | '-updatedAt' | 'createdAt' | '-createdAt' | 'title' | '-title' | 'path' | '-path';
+
 export interface DocumentsFilters {
   projectId?: number;
   requirementId?: number;
   taskId?: number;
+  folderId?: string;
+  sort?: DocsDocumentSort;
   limit?: number;
   cursor?: string;
+}
+
+// --- S-082: carpetas, búsqueda y escritura (verbatim de docs/apis/api.yaml, Docs*) ---
+
+export interface DocsFolder {
+  id: string;
+  name: string;
+  /** "/" la raíz; "/clientes/acme/" */
+  path: string;
+  parentId: string | null;
+  inheritAcl: boolean;
+  externalBlocked: boolean;
+  /** Efectivo */
+  sharingBlocked: boolean;
+  createdAt: string;
+  createdBy: string;
+  effectivePermission: 'read' | 'write' | 'manage' | null;
+}
+
+export interface DocsFolderPage {
+  items: DocsFolder[];
+  page: DocsPageInfo;
+}
+
+export interface DocsSearchHit {
+  documentId: string;
+  version: number;
+  title: string;
+  path: string;
+  headingPath: string[];
+  /** Máximo 500 caracteres; se trata siempre como texto. */
+  snippet: string;
+  score: number;
+  updatedAt: string;
+  /** sub de Zitadel */
+  updatedBy: string;
+}
+
+/** Sin `page`: devuelve los mejores `limit` resultados. */
+export interface DocsSearchResponse {
+  items: DocsSearchHit[];
+}
+
+export interface DocsWriteResult {
+  id: string;
+  version: number;
+  path?: string;
+  /** Por ejemplo `possible_secret_detected` (no bloquea). */
+  warnings?: string[];
+}
+
+export interface DocsIdResult {
+  id: string;
+}
+
+/** Respuesta de `POST …/lock` (schema `DocsLock` de la api; acá se renombra porque `DocsLock` es el `lock` del documento). */
+export interface DocsLockGrant {
+  id: string;
+  sessionId: string;
+  expiresAt: string;
+}
+
+export interface DocsAttachmentUpload {
+  id: string;
+  /** URL prefirmada para el PUT del binario. No se loguea. */
+  uploadUrl: string;
+  /** Segundos */
+  expiresIn: number;
+  /** `{JIKU_WEB_URL}/docs/attachments/{id}` */
+  link: string;
+}
+
+export interface DocsAttachmentConfirm {
+  id: string;
+  status: 'ready';
+}
+
+// --- Contrato de errores (DD-7) y resultado de las Server Actions (P-2) ---
+
+/** Cuerpo de error de las rutas de docs: `code` sin traducir y `details` verbatim. */
+export interface DocsError {
+  code: string;
+  message: string;
+  status: number;
+  details?: Record<string, unknown>;
+}
+
+/**
+ * Las Server Actions de docs no lanzan: en producción Next reemplaza el error lanzado por
+ * uno genérico y se perderían `code` y `details`. Devuelven un resultado como dato (P-2).
+ */
+export type DocsResult<T> = { ok: true; data: T } | { ok: false; error: DocsError };
+
+export interface CreateDocumentPayload {
+  id?: string;
+  folderId: string;
+  fileName: string;
+  content: string;
+  message?: string;
+}
+
+export interface UpdateDocumentPayload {
+  baseVersion: number;
+  content: string;
+  sessionId?: string;
+  message?: string;
+}
+
+export interface RequestAttachmentUploadPayload {
+  id?: string;
+  documentId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  checksum: string;
+}
+
+export interface FolderTrailItem {
+  /** `null` si el ancestro no es legible: se muestra como texto. */
+  id: string | null;
+  name: string;
+}
+
+export interface FolderTrail {
+  folder: DocsFolder;
+  trail: FolderTrailItem[];
+}
+
+export interface RootFolders {
+  root: DocsFolder | null;
+  tops: DocsFolder[];
+}
+
+export interface UploadedDocAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  link: string;
 }

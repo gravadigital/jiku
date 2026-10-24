@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { listDocuments } from '../services/docsApi';
+import { unwrap } from '../utils/docsResult';
 import { withModuleInvalidation } from '../utils/moduleInvalidation';
 import type { DocumentsFilters } from '../types/docs.types';
 
@@ -18,12 +19,14 @@ export const useDocuments = ({ filters, enabled = true }: UseDocumentsOptions) =
   return useInfiniteQuery({
     queryKey: ['docs-documents', filters],
     queryFn: ({ pageParam }) =>
-      withModuleInvalidation(queryClient, () =>
-        listDocuments({
-          ...filters,
-          limit: PANEL_PAGE_SIZE,
-          ...(pageParam ? { cursor: pageParam } : {}),
-        })
+      withModuleInvalidation(queryClient, async () =>
+        unwrap(
+          await listDocuments({
+            ...filters,
+            limit: PANEL_PAGE_SIZE,
+            ...(pageParam ? { cursor: pageParam } : {}),
+          })
+        )
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.page.cursor ?? undefined,

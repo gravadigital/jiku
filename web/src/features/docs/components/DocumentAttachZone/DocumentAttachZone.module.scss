@@ -1,0 +1,11 @@
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}

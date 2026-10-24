@@ -1,0 +1,1 @@
+export { DocsBrowser } from './DocsBrowser';
