@@ -1,12 +1,17 @@
 # `internal-app`: la api y cualquier servicio externo. Ver README.md.
 #
 # Es el permiso más ancho del producto: los dos planos completos, sin recorte de método ni
-# de fila en el mapa de core. Un conector acotado es un ROL NUEVO, no una variante de este.
+# de fila en el mapa de core. Ampliarla amplía a TODOS los `internal-app`: ahora también llaman
+# a jiku-docs, que los trata como clase `service` (lee toda la documentación). Aceptado (R-3, D-2).
+# Un conector acotado es un ROL NUEVO, no una variante de este.
 
 pub:
   allow:
     - "{{instance}}.{{user_id}}.jiku-commands.v1.>"
     - "{{instance}}.{{user_id}}.jiku-queries.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-commands.v1.>"
+    - "{{instance}}.{{user_id}}.jiku-docs-queries.v1.>"
+    - "$SRV.PING.>"
     # JetStream ACOTADO A JIKU_EVENTS. Nunca `$JS.API.>`: es administración completa de
     # JetStream sobre la cuenta (borrar, vaciar y reconfigurar cualquier stream).
     - "$JS.API.INFO"
@@ -15,6 +20,21 @@ pub:
     - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_EVENTS.>"
     - "$JS.API.CONSUMER.INFO.JIKU_EVENTS.>"
     - "$JS.API.CONSUMER.MSG.NEXT.JIKU_EVENTS.>"
+    # JIKU_DOCS_EVENTS: las mismas cinco formas, solo lectura. Nunca `$JS.API.>`.
+    - "$JS.API.STREAM.INFO.JIKU_DOCS_EVENTS"
+    - "$JS.API.CONSUMER.CREATE.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.DURABLE.CREATE.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.INFO.JIKU_DOCS_EVENTS.>"
+    - "$JS.API.CONSUMER.MSG.NEXT.JIKU_DOCS_EVENTS.>"
+    # KV_READ_WATCH: leer y observar el registro de módulos (KV_JIKU_MODULES). Solo lectura:
+    # sin `$KV.` y sin mutación del stream. La línea SIN sufijo (`CONSUMER.CREATE.KV_JIKU_MODULES`)
+    # es la que nats.js usa al recrear el consumidor ordenado tras un reset; sin ella el watch
+    # muere en silencio (jsclient.js:590). Hay un test que fija esta lista.
+    - "$JS.API.STREAM.INFO.KV_JIKU_MODULES"
+    - "$JS.API.DIRECT.GET.KV_JIKU_MODULES.>"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES"
+    - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES.>"
+    - "$JS.FC.KV_JIKU_MODULES.>"
 
 sub:
   allow:

@@ -18,6 +18,7 @@ deploy/
     ├── add-events-user.sh    adds the auth-callout's events publisher to an older install
     ├── enable-jetstream.sh   grants JetStream limits to an install that predates them
     ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
+    ├── create-modules-kv.sh      creates the JIKU_MODULES module registry (KV)
     ├── events-test-consumer.sh   verification tool: consumes JIKU_EVENTS and validates it (S-067)
     ├── auth-callout/         rules.yaml + templates/ (access policy — see its README.md)
     └── creds/                NATS identity — NOT versioned
@@ -31,6 +32,10 @@ in `deploy/nats/creds/`, neither of them versioned.
 ## Getting started
 
 Six steps, all one-time except bringing the stack up.
+
+**Prerequisite:** `nsc` has to be installed, not only for the NATS identity (step 3) but also for
+`./local.sh up`, which creates the `JIKU_MODULES` registry with a throwaway administrative user
+(`curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh`).
 
 **On a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
 a MinIO of its own, `local.sh` creates the bucket, and `.env.dist` already comes pointed at it with
@@ -99,6 +104,7 @@ cd nats
 ./add-events-user.sh            # only if bootstrap.sh predates the events credential
 ./enable-jetstream.sh           # only if bootstrap.sh predates the JetStream limits (see below)
 ./create-events-stream.sh       # creates JIKU_EVENTS, the domain events stream
+./create-modules-kv.sh          # creates JIKU_MODULES, the optional-modules registry (KV)
 ```
 
 Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
@@ -467,6 +473,7 @@ cd nats && ./bootstrap.sh && cd ..    # or copy an already-generated creds/
 cd nats && ./add-events-user.sh && cd ..   # only if that creds/ predates the events credential
 cd nats && ./enable-jetstream.sh && cd ..  # only if that creds/ predates the JetStream limits
 cd nats && ./create-events-stream.sh && cd ..
+cd nats && ./create-modules-kv.sh && cd ..
 docker compose pull
 docker compose up -d
 ```
