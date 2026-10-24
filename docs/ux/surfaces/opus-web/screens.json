@@ -821,12 +821,111 @@
             "empty"
           ],
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor —no lo reemplaza— en la celda \"AUTOR\" de fila-requisito y junto al autor de card-kanban · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10) · el valor por defecto \"—\" no cambia: sigue siendo el de un creador ausente, no el de un creador automático · no existe en mobile, porque card-requisito-mobile no muestra autor"
+        },
+        {
+          "name": "seccion-documentos",
+          "type": "section",
+          "category": "content",
+          "content": "Documentación (3)",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "state_overrides": {
+            "documentos no disponibles": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "colapsable, arranca expandida (el colapso no se recuerda) · nueva con REQ-016 · solo existe con el módulo instalado y al menos un documento público vinculado al proyecto: con 0 documentos o not_installed no se renderiza · la api fuerza visibility: public sin importar el rol [REQ-016 DD-3, CA-34, CA-35]"
+        },
+        {
+          "name": "alerta-documentos-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentos no disponibles"
+          ],
+          "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "lista-documentos",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Manual de usuario — módulo de reportes",
+              "subtitle": "Actualizado el 22/10/2026"
+            },
+            {
+              "title": "Guía de acceso al portal",
+              "subtitle": "Actualizado el 10/10/2026"
+            },
+            {
+              "title": "Resultado del análisis de integración con SAP",
+              "subtitle": "Actualizado el 01/10/2026"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "documentos no disponibles"
+          ],
+          "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "",
+          "hidden_in_states": [
+            "default",
+            "empty",
+            "loading",
+            "error de validación",
+            "error de sistema",
+            "success",
+            "not found",
+            "terminal",
+            "readonly",
+            "documentos no disponibles"
+          ],
+          "annotation": "Spinner sm en el lugar de la lista mientras carga la sección; no suma a la carga de la pantalla · sin frame propio: el spec no le asigna estado"
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "loading",
+            "documentos no disponibles"
+          ],
+          "annotation": "solo cuando hay más documentos · pagina por cursor"
         }
       ],
       "layouts": {
         "mobile": [
           "breadcrumb",
           "toggle-vista",
+          {
+            "row": "seccion-documentos",
+            "card": true,
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "seccion-documentos",
+                  "alerta-documentos-no-disponible",
+                  "lista-documentos",
+                  "cargando-documentos",
+                  "boton-ver-mas-documentos"
+                ]
+              }
+            ],
+            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+          },
           {
             "row": "acordeones",
             "annotation": "MobileRequirementsBoard: árbol de componentes propio, no un reflow del de desktop · acordeon-estado × 7 de ancho completo, apilados con gap var(--spacing-sm) — Análisis · 4, Planificación · 2, En cola · 3, Desarrollo · 12, Revisión · 1, Resuelto · 28, Cancelado · 5 · todos arrancan colapsados; acá el primero se dibuja expandido con sus cards y el \"Ver más\" · sin chrome: el sidebar no se renderiza",
@@ -878,6 +977,23 @@
                         ]
                       }
                     ]
+                  },
+                  {
+                    "row": "seccion-documentos",
+                    "card": true,
+                    "cols": [
+                      {
+                        "w": 12,
+                        "stack": [
+                          "seccion-documentos",
+                          "alerta-documentos-no-disponible",
+                          "lista-documentos",
+                          "cargando-documentos",
+                          "boton-ver-mas-documentos"
+                        ]
+                      }
+                    ],
+                    "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
                   },
                   "cabecera-columnas",
                   "fila-grupo",
@@ -956,6 +1072,11 @@
         {
           "name": "readonly",
           "applies": false
+        },
+        {
+          "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -1388,6 +1509,90 @@
             "success"
           ],
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al nombre del autor en los dos lugares donde esta pantalla lo muestra: pie-autoria y el autor de cada item-comentario / item-cambio del feed · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado · el caso llega a esta superficie por el canal del publicador externo de REQ-001: desde REQ-005 ese conector tiene fila en users y puede figurar como creador de un requisito y como autor de una actividad pública, que es lo que el cliente lee acá · badge sin spec en el DS de opus-web v0.1.0 (gap previo al delta)"
+        },
+        {
+          "name": "seccion-documentos",
+          "type": "section",
+          "category": "content",
+          "content": "Documentación (2)",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found"
+          ],
+          "state_overrides": {
+            "documentos no disponibles": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "colapsable, arranca expandida (el colapso no se recuerda) · nueva con REQ-016 · solo existe con el módulo instalado y al menos un documento público vinculado al requisito: con 0 documentos o not_installed no se renderiza · la api fuerza visibility: public sin importar el rol [REQ-016 DD-3, CA-34, CA-35]"
+        },
+        {
+          "name": "alerta-documentos-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentos no disponibles"
+          ],
+          "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "lista-documentos",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Exportación a Excel — cómo leer el archivo",
+              "subtitle": "Actualizado el 21/10/2026"
+            },
+            {
+              "title": "Casos de prueba acordados",
+              "subtitle": "Actualizado el 18/10/2026"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found",
+            "documentos no disponibles"
+          ],
+          "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "",
+          "hidden_in_states": [
+            "default",
+            "empty",
+            "loading",
+            "error de validación",
+            "error de sistema",
+            "success",
+            "not found",
+            "terminal",
+            "readonly",
+            "documentos no disponibles"
+          ],
+          "annotation": "Spinner sm en el lugar de la lista mientras carga la sección; no suma a la carga de la pantalla · sin frame propio: el spec no le asigna estado"
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema",
+            "not found",
+            "documentos no disponibles"
+          ],
+          "annotation": "solo cuando hay más documentos · pagina por cursor"
         }
       ],
       "layouts": {
@@ -1447,6 +1652,23 @@
           "bloque-resolucion",
           "pie-autoria",
           "marca-identidad-automatica",
+          {
+            "row": "seccion-documentos",
+            "card": true,
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "seccion-documentos",
+                  "alerta-documentos-no-disponible",
+                  "lista-documentos",
+                  "cargando-documentos",
+                  "boton-ver-mas-documentos"
+                ]
+              }
+            ],
+            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+          },
           "titulo-actividad",
           "feed-actividad",
           "item-comentario",
@@ -1562,7 +1784,24 @@
                           "descripcion",
                           "bloque-resolucion",
                           "pie-autoria",
-                          "marca-identidad-automatica"
+                          "marca-identidad-automatica",
+                          {
+                            "row": "seccion-documentos",
+                            "card": true,
+                            "cols": [
+                              {
+                                "w": 12,
+                                "stack": [
+                                  "seccion-documentos",
+                                  "alerta-documentos-no-disponible",
+                                  "lista-documentos",
+                                  "cargando-documentos",
+                                  "boton-ver-mas-documentos"
+                                ]
+                              }
+                            ],
+                            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+                          }
                         ]
                       },
                       {
@@ -1620,6 +1859,319 @@
         {
           "name": "terminal",
           "applies": false
+        },
+        {
+          "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
+        }
+      ]
+    },
+    {
+      "name": "documento",
+      "displayName": "Documento",
+      "audiences": [
+        "cliente"
+      ],
+      "blocks": [
+        {
+          "name": "encabezado-documento",
+          "type": "header",
+          "category": "layout",
+          "content": "Documento",
+          "annotation": "mismo alto (61 px) y estructura que el BoardHeader del resto de la superficie · contiene breadcrumb y Volver, dibujados como bloques propios"
+        },
+        {
+          "name": "sidebar-navegacion",
+          "type": "sidebar",
+          "category": "layout",
+          "content": "Opus",
+          "items": [
+            {
+              "title": "Proyecto Alfa",
+              "icon": "folder"
+            },
+            {
+              "title": "Proyecto Beta",
+              "icon": "folder"
+            },
+            {
+              "title": "Nuevo requisito",
+              "icon": "plus"
+            },
+            {
+              "title": "Cerrar sesión",
+              "icon": "lock"
+            }
+          ],
+          "active": 0,
+          "visible_only_in_viewports": [
+            "desktop"
+          ],
+          "annotation": "chrome de (dashboard), 263 px · el proyecto del documento queda activo · bajo 768 px no se renderiza"
+        },
+        {
+          "name": "breadcrumb",
+          "type": "breadcrumbs",
+          "category": "navigation",
+          "items": [
+            "Proyecto Alfa",
+            "Documentación",
+            "Manual de usuario — módulo de reportes"
+          ],
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "{proyecto} y \"Documentación\" llevan al tablero del proyecto, donde está la sección"
+        },
+        {
+          "name": "boton-volver",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "arrow-left",
+          "content": "Volver",
+          "annotation": "vuelve al tablero del proyecto"
+        },
+        {
+          "name": "titulo-documento",
+          "type": "heading",
+          "category": "content",
+          "level": "h1",
+          "content": "Manual de usuario — módulo de reportes",
+          "visible_only_in_states": [
+            "default",
+            "terminal",
+            "módulo no disponible"
+          ]
+        },
+        {
+          "name": "fecha-actualizacion",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Actualizado el 22/10/2026",
+          "visible_only_in_states": [
+            "default",
+            "terminal"
+          ],
+          "annotation": "sin autor ni versión: al cliente le sirve saber si es reciente"
+        },
+        {
+          "name": "contenido-documento",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "## Cómo generar un reporte\nEntrá a Reportes, elegí el período y exportá a Excel. ## Filtros disponibles\n…  ![captura-filtros.png]",
+          "visible_only_in_states": [
+            "default",
+            "terminal"
+          ],
+          "annotation": "nunca ejecuta HTML ni scripts; enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe a /api/docs/attachments/{id} de opus-web, con la sesión del cliente · los títulos del markdown bajan un nivel [REQ-016 Escenario F]"
+        },
+        {
+          "name": "titulo-adjuntos",
+          "type": "heading",
+          "category": "content",
+          "level": "h3",
+          "content": "Adjuntos",
+          "visible_only_in_states": [
+            "default",
+            "terminal"
+          ],
+          "annotation": "sin adjuntos no se renderiza"
+        },
+        {
+          "name": "lista-adjuntos",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "captura-filtros.png"
+            },
+            {
+              "title": "plantilla-reporte.xlsx"
+            }
+          ],
+          "visible_only_in_states": [
+            "default",
+            "terminal"
+          ],
+          "annotation": "un enlace por adjunto (icono download), abre en pestaña nueva vía /api/docs/attachments/{id} → 302"
+        },
+        {
+          "name": "indicador-carga",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documento...",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Spinner lg"
+        },
+        {
+          "name": "alerta-not-found",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "Este documento no existe o no está compartido con vos.",
+          "visible_only_in_states": [
+            "not found"
+          ],
+          "annotation": "mismo texto para inexistente, interno o de otro proyecto: el portal no revela que un documento interno existe [REQ-016 DD-3] · boton-volver como salida"
+        },
+        {
+          "name": "alerta-sistema",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "No se pudo cargar el documento.",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "role=\"alert\""
+        },
+        {
+          "name": "alerta-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "módulo no disponible"
+          ],
+          "annotation": "mismo texto en las tres vistas del portal que muestran documentos [REQ-016 RF-24]"
+        },
+        {
+          "name": "boton-reintentar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "icon": "refresh",
+          "content": "Reintentar",
+          "visible_only_in_states": [
+            "error de sistema",
+            "módulo no disponible"
+          ],
+          "annotation": "vuelve a pedir el documento y el estado del módulo"
+        }
+      ],
+      "layouts": {
+        "mobile": [
+          "breadcrumb",
+          "boton-volver",
+          "titulo-documento",
+          "fecha-actualizacion",
+          "contenido-documento",
+          "titulo-adjuntos",
+          "lista-adjuntos",
+          "indicador-carga",
+          "alerta-not-found",
+          "alerta-sistema",
+          "alerta-no-disponible",
+          "boton-reintentar"
+        ],
+        "desktop": [
+          {
+            "row": "shell",
+            "fixed_cols": "263px minmax(0,1fr)",
+            "annotation": "chrome de (dashboard): sidebar de 263 px",
+            "cols": [
+              {
+                "w": 3,
+                "stack": [
+                  "sidebar-navegacion"
+                ]
+              },
+              {
+                "w": 9,
+                "stack": [
+                  {
+                    "row": "header",
+                    "cols": [
+                      {
+                        "w": 8,
+                        "stack": [
+                          "breadcrumb"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "boton-volver"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "cuerpo",
+                    "cols": [
+                      {
+                        "w": 8,
+                        "stack": [
+                          "titulo-documento",
+                          "fecha-actualizacion",
+                          "contenido-documento"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "titulo-adjuntos",
+                          "lista-adjuntos"
+                        ]
+                      }
+                    ],
+                    "annotation": "texto a un ancho de lectura de ~760 px, adjuntos a la derecha"
+                  },
+                  "indicador-carga",
+                  "alerta-not-found",
+                  "alerta-sistema",
+                  "alerta-no-disponible",
+                  "boton-reintentar"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": true
+        },
+        {
+          "name": "terminal",
+          "applies": true
+        },
+        {
+          "name": "módulo no disponible",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -1745,6 +2297,71 @@
           "variant": "automatico",
           "content": "Automático",
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · el overlay compone los mismos tres paneles que la pantalla #5, así que hereda la marca: acompaña al nombre del autor de cada entrada de feed-actividad, y al comentario le corresponde además la variant identidad-automatica del avatar (REQ-005 RF-3, RF-10; Inventario de Overlays O-01) · presente o ausente según el dato, no según el estado: solo cuando identityType es service · el pie de autoría no está transcripto como bloque propio en el inventario de este overlay —el relevamiento lo agrupó en el panel de contenido—, así que acá la marca se dibuja una sola vez, junto al feed"
+        },
+        {
+          "name": "seccion-documentos",
+          "type": "section",
+          "category": "content",
+          "content": "Documentación (2)",
+          "icon": "file",
+          "state_overrides": {
+            "documentos no disponibles": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "heredada de detalle-requisito: el modal compone los mismos paneles · abrir un documento sale del modal hacia documento (#6) [REQ-016]"
+        },
+        {
+          "name": "alerta-documentos-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentos no disponibles"
+          ],
+          "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "lista-documentos",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Exportación a Excel — cómo leer el archivo",
+              "subtitle": "Actualizado el 21/10/2026"
+            },
+            {
+              "title": "Casos de prueba acordados",
+              "subtitle": "Actualizado el 18/10/2026"
+            }
+          ],
+          "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas",
+          "hidden_in_states": [
+            "documentos no disponibles"
+          ]
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "",
+          "annotation": "Spinner sm en el lugar de la lista mientras carga la sección; no suma a la carga de la pantalla · sin frame propio: el spec no le asigna estado",
+          "hidden_in_viewports": [
+            "mobile",
+            "desktop"
+          ]
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "annotation": "solo cuando hay más documentos · pagina por cursor",
+          "hidden_in_states": [
+            "documentos no disponibles"
+          ]
         }
       ],
       "layouts": {
@@ -1753,6 +2370,23 @@
           "panel-propiedades",
           "titulo-requisito",
           "descripcion",
+          {
+            "row": "seccion-documentos",
+            "card": true,
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "seccion-documentos",
+                  "alerta-documentos-no-disponible",
+                  "lista-documentos",
+                  "cargando-documentos",
+                  "boton-ver-mas-documentos"
+                ]
+              }
+            ],
+            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+          },
           "titulo-actividad",
           "feed-actividad",
           "marca-identidad-automatica",
@@ -1781,7 +2415,24 @@
                         "w": 9,
                         "stack": [
                           "titulo-requisito",
-                          "descripcion"
+                          "descripcion",
+                          {
+                            "row": "seccion-documentos",
+                            "card": true,
+                            "cols": [
+                              {
+                                "w": 12,
+                                "stack": [
+                                  "seccion-documentos",
+                                  "alerta-documentos-no-disponible",
+                                  "lista-documentos",
+                                  "cargando-documentos",
+                                  "boton-ver-mas-documentos"
+                                ]
+                              }
+                            ],
+                            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+                          }
                         ]
                       }
                     ]
@@ -1807,6 +2458,11 @@
         {
           "name": "default",
           "applies": true
+        },
+        {
+          "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -2551,6 +3207,49 @@
       "srcBlock": "boton-cerrar-sesion",
       "dst": "login",
       "trigger": "cerrar sesión → /login",
+      "automatic": false
+    },
+    {
+      "src": "tablero-requisitos",
+      "srcBlock": "lista-documentos",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "lista-documentos",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "overlay-detalle-requisito",
+      "srcBlock": "lista-documentos",
+      "dst": "documento",
+      "trigger": "sale del modal al documento",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "boton-volver",
+      "dst": "tablero-requisitos",
+      "trigger": "vuelve al tablero",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "breadcrumb",
+      "dst": "tablero-requisitos",
+      "trigger": "abre el proyecto",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcState": "error de sistema",
+      "srcBlock": "boton-reintentar",
+      "dst": "documento",
+      "trigger": "reintenta la carga",
       "automatic": false
     }
   ]

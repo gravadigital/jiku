@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.1"
-date: 2026-09-01
+version: "1.2"
+date: 2026-10-24
 ---
 
 # Pantalla: Tablero de requisitos
@@ -51,6 +51,7 @@ Envuelta por el chrome de `(dashboard)`.
 - A `/projects/{id}/requirements/{reqId}` · click en una card (mobile) · `MobileRequirementsBoard.tsx:71-75` (`<Link>`)
 - A `?view=list` / `?view=kanban` · toggle del header · `BoardHeader.tsx:68-70` (`router.replace`)
 - Abre el overlay de alta de requisito · click en "Nuevo requisito" del sidebar · `Sidebar.tsx:95-98`, montado por `(dashboard)/layout.tsx:13` — ver overlays de la superficie
+- A `/projects/{id}/docs/{documentId}` (`documento`) · click en una fila de `lista-documentos` [REQ-016]
 
 **Salidas automáticas:**
 - Ninguna.
@@ -78,6 +79,11 @@ Envuelta por el chrome de `(dashboard)`.
 | 15 | boton-nuevo-requisito | button | primary | input | solo desktop | hidden_in_states: loading | Abrir el alta de requisito. Vive en el sidebar del shell |
 | 16 | sidebar-navegacion | sidebar | — | layout | solo desktop | — | Chrome de `(dashboard)`: proyectos, alta y cerrar sesión. Bajo 768px no se renderiza |
 | 17 | marca-identidad-automatica | badge | automatico | content | solo desktop | hidden_in_states: loading, empty | Marca que el autor mostrado es una identidad de servicio y no una persona |
+| 18 | seccion-documentos | section | colapsable · expandida al entrar | content | ambos | **no se renderiza con el módulo `not_installed` ni con 0 documentos**; hidden_in_states: loading | Documentos públicos del proyecto [REQ-016 RF-24] |
+| 19 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles | Un documento por fila: título y fecha |
+| 20 | cargando-documentos | loader | sm | feedback | ambos | visible solo mientras carga la sección | Carga de la sección, independiente del resto |
+| 21 | alerta-documentos-no-disponible | alert | warning | feedback | ambos | visible_only_in_states: documentos no disponibles | El módulo está registrado pero no responde |
+| 22 | boton-ver-mas-documentos | button | secondary | input | ambos | visible solo cuando hay más documentos | Trae los siguientes |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/page.tsx`, `.../page.module.scss`, `BoardHeader/BoardHeader.tsx`, `ListView/ListView.tsx`, `ListView/components/RequirementGroupRow/RequirementGroupRow.tsx`, `ListRequirementRow/ListRequirementRow.tsx`, `KanbanBoard/KanbanBoard.tsx`, `KanbanColumn/KanbanColumn.tsx`, `KanbanBoard/components/KanbanCard/KanbanCard.tsx`, `MobileRequirementsBoard/MobileRequirementsBoard.tsx`, `StateAccordion/StateAccordion.tsx`, `RequirementCard/RequirementCard.tsx` [fuente: código-existente].
 
@@ -93,6 +99,7 @@ Notas de tipificación del relevamiento: `columna-kanban` y `acordeon-estado` se
 - encabezado-tablero
   - breadcrumb
   - toggle-vista *(visible pero sin efecto)*
+- seccion-documentos *(arriba de los acordeones, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
 - acordeon-estado × 7 *(ancho completo, apilados, `gap: var(--spacing-sm)`)*
   - al expandir: card-requisito-mobile × N + boton-ver-mas
 
@@ -109,6 +116,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
   - row `header`
     - col 6/12: breadcrumb
     - col 6/12: toggle-vista *(alineado a la derecha)*
+- seccion-documentos *(entre el encabezado y la tabla, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
 - cabecera-columnas *(sticky al tope del scroll)*
   - row `grid-7` — 7 columnas de ancho fijo: `64px 1fr 140px 140px 160px 120px 150px`
 - por cada uno de los 7 estados:
@@ -123,6 +131,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 
 - *(chrome: sidebar, con boton-nuevo-requisito dentro)*
 - encabezado-tablero
+- seccion-documentos *(entre el encabezado y el tablero, mismo bloque que en la vista lista)* [REQ-016]
 - row `tablero` *(scroll horizontal)*
   - columna-kanban × 7, cada una de **500px fijos**, con `gap: 20px`
     - card-kanban × N *(con marca-identidad-automatica junto al autor, cuando es una identidad de servicio)*
@@ -244,6 +253,37 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Icono: nada
 - Asset: nada
 - Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor —no lo reemplaza— en la celda "AUTOR" de `fila-requisito` y junto al autor de `card-kanban`. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. **No existe en mobile**, porque `card-requisito-mobile` no muestra autor
+
+### seccion-documentos
+- Texto/label: título `"Documentación ({n})"` con chevron para colapsar
+- Icono: file
+- Asset: nada
+- Annotation: **nueva con REQ-016.** Solo existe si el módulo de documentación está instalado **y** hay al menos un documento público vinculado al proyecto: la consulta va a `/api/opus/docs/documents` con `projectId`, y la api fuerza `visibility: public` sin importar el rol [REQ-016 DD-3, CA-34, CA-35]. Arranca expandida; el estado colapsado no se recuerda
+
+### lista-documentos
+- Texto/label: una fila por documento: título (enlace) y `"Actualizado el {DD/MM/AAAA}"`
+- Icono: file
+- Asset: nada
+- Annotation: cada fila navega a `/projects/{projectId}/docs/{documentId}`. Orden: última actualización primero; hasta 5 filas y el resto con boton-ver-mas-documentos
+
+### cargando-documentos
+- Texto/label: sin texto
+- Icono: nada
+- Asset: nada
+- Annotation: `Spinner` `sm` en el lugar de la lista. **No suma a la carga de la pantalla**: la sección carga sola, después
+
+### alerta-documentos-no-disponible
+- Texto/label: `"Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos."`
+- Icono: warning
+- Asset: nada
+- Annotation: con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador
+
+### boton-ver-mas-documentos
+- Texto/label: `"Ver más"`
+- Icono: nada
+- Asset: nada
+- Annotation: la consulta pagina por cursor
+
 ## Estados
 
 ### default
@@ -270,6 +310,14 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
   - Mensaje: "Cargando..." dentro del botón "Ver más"
   - Cambios: boton-ver-mas: variant=disabled + spinner + texto (state_override) · `KanbanColumn.tsx:87-93`, `StateAccordion.tsx:91-97`
   - Disparado por `isFetchingNextPage` de la query de ese estado
+
+### documentos no disponibles (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-016** [RF-24]
+- Mensaje: `"Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos."`
+- Cambios:
+  - seccion-documentos: visible, con título `"Documentación"` sin contador
+  - alerta-documentos-no-disponible: visible; lista-documentos: oculta
+- El resto de la pantalla no se ve afectado
 
 ### error de validación
 - Aplica: No — no implementado (ver gaps-as-is.md). La pantalla no tiene formulario propio. Los cambios de estado y prioridad **no validan transiciones en el cliente**: el dropdown ofrece los siete estados siempre, en cualquier orden
@@ -305,6 +353,10 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - boton-nuevo-requisito · on click → abre el overlay de alta de requisito · `Sidebar.tsx:95-98` → `(dashboard)/layout.tsx:13`
 
 **Diferencia de comportamiento por viewport:** en desktop el requisito abre en **overlay**; en mobile **navega** a otra ruta. No es solo layout: es un modelo de navegación distinto.
+
+- **REQ-016 ·** fila de lista-documentos · on click → navega a `/projects/{projectId}/docs/{documentId}`
+- **REQ-016 ·** título de seccion-documentos · on click → colapsa / expande
+- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
 
 **Validaciones:**
 - Ninguna en esta pantalla.
@@ -361,3 +413,12 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - **El toast genérico vuelve a ser deuda preexistente, no un gap con causa.** Sigue descartando el `message` del `ApiError`, pero ya no cubre una falla nombrable y evitable: vuelve a la categoría del resto del silencio de errores de esta pantalla, que es deuda relevada del código. La distinción que la entrada de REQ-007 se preocupó por mantener se resuelve sola.
 - **Queda una sola causa de rechazo alcanzable desde acá, y es menor.** Un rol interno puede llevar una `incidencia` a `resuelto` desde el dropdown sin tipo ni conclusión, y el servidor rechaza con `resolution_required` (RF-5, CA-14). El toast tampoco lo nombra. **No se diseña el mensaje:** REQ-012 declara `opus-web` sin cambios de UI, y el caso depende de la pregunta abierta 2 de la superficie —si un rol interno debería poder operar el estado desde el portal—, que es la misma raíz de siempre y sigue sin resolverse acá.
 - **Sin cambios en el Design System.** El delta no introduce ningún tipo de bloque en esta pantalla, ni bloque alguno.
+
+### REQ-016 — Módulo opcional de documentación (2026-10-24)
+
+- **El tablero es "la vista de proyecto" del pedido, y los documentos van arriba de los requisitos.** No hay otra pantalla de proyecto en el portal. Arriba, porque son pocos y de referencia; abajo de siete grupos de requisitos nadie los encontraría.
+- **Una sección colapsable y no una columna o un panel lateral.** El tablero ya tiene tres representaciones (lista, kanban, acordeones mobile) y una sola forma de sección sirve para las tres sin rehacerlas. Es el mismo patrón que los grupos por estado, así que el cliente ya sabe usarlo.
+- **Con 0 documentos públicos la sección no aparece.** El cliente entra poco y cada visita empieza casi de cero; una sección vacía en cada proyecto sería ruido permanente. Con el módulo caído **sí** aparece, con el aviso, para no confundir "no hay" con "no se pudo saber".
+- **La sección carga sola y no demora el tablero.** El loading de la pantalla ya espera a siete consultas; sumar una octava, de otro servicio, haría que el módulo caído demore los requisitos.
+- **No se agregó componente al Design System.** `section`, `list`, `alert` y `button` ya están en uso en la superficie, cuyo DS (`0.1.0`, tres specs) no los especifica: el gap es previo. Ver la `## Revisión UX` de REQ-016.
+

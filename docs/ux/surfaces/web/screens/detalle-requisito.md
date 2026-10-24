@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.4"
-date: 2026-09-02
+version: "1.5"
+date: 2026-10-24
 ---
 
 # Pantalla: Detalle de requisito
@@ -35,6 +35,7 @@ date: 2026-09-02
 - `/requirements/{id}/edit` · click en `boton-editar` · `RequirementHeader.tsx:210-212`
 - `/objectives/new?requirementId={id}` · botón `+` de la sección de tareas · `RequirementDetail.tsx:~155`
 - `/objectives/{id}` · click en una fila de `tabla-tareas` · `RequirementDetail.tsx:~206`
+- `/docs/{id}` (`documento`) · click en una fila de `tabla-documentos` [REQ-016]
 
 **Salidas automáticas:**
 - `notFound()` si el `reqid` de la URL no es numérico · `requirements/[reqid]/page.tsx:15`. Es una de las dos rutas del producto que validan el parámetro dinámico [fuente: código-existente]
@@ -92,6 +93,13 @@ date: 2026-09-02
 | 46 | boton-cancelar-edicion | button | — | input | desktop | visible_only_in_states: comentario en edición | Descarta la edición y vuelve a lectura |
 | 47 | boton-guardar-edicion | button | primary · disabled | input | desktop | visible_only_in_states: comentario en edición; state_overrides: editor vacío→disabled | Guarda el texto y los adjuntos editados |
 | 48 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | visible_only_in_states: default, success; **solo en comentarios con `editedAt`** | Indica que el comentario fue editado, y por quién si no fue su autor |
+| 50 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados al requisito [REQ-016 RF-18] |
+| 51 | tabla-documentos | table | light | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, ruta y fecha |
+| 52 | marca-documento-en-edicion | badge | — | content | desktop | solo en filas con lock vigente | Avisa que alguien lo está editando |
+| 53 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | No hay documentos vinculados |
+| 54 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
+| 55 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
+| 56 | boton-ver-mas-documentos | button | secondary-dismiss | input | desktop | visible solo cuando hay más documentos | Trae los siguientes |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
@@ -119,7 +127,10 @@ date: 2026-09-02
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-horas-trabajadas (desglose-horas-persona, total-horas-trabajadas, vacio-horas-trabajadas *(sin horas)*, cargando-horas-trabajadas *(mientras carga)*) [REQ-010 RF-8]
     - card-etiquetas (chip-etiqueta × N)
+    - card-documentacion (tabla-documentos con marca-documento-en-edicion, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*, boton-ver-mas-documentos) [REQ-016 RF-18]
     - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado, boton-reabrir-requisito *(solo en estado terminal, en la misma fila que badge-resultado)*) [REQ-012]
+
+**REQ-016:** `card-documentacion` va en la columna derecha entre Etiquetas y Resolución — ver Decisiones. Con el módulo `not_installed` la card no existe.
 
 **Origen:** `RequirementDetail.module.scss:3-7` — `.container { display: grid; grid-template-columns: 1fr 420px; gap: 1.25rem; align-items: start; }`.
 
@@ -442,6 +453,48 @@ date: 2026-09-02
 - Asset: nada
 - Annotation: aparece **solo** en `resuelto` y `cancelado`, al lado de badge-resultado, y devuelve el requisito a `desarrollo`. Es el par simétrico de boton-resolver-requisito y boton-cancelar-requisito: los tres son transiciones de la card de resolución, y desde REQ-012 las tres son reversibles. **`"Reabrir"` y no `"Volver a abrir"` ni `"Retomar"`**: es la palabra que el equipo ya usa para esto y la que no se confunde con `"Cancelar"`, que en esta card cancela el requisito y no la acción. **Al confirmarse limpia los tres campos de resolución** —tipo, conclusión y nota para cliente—, así que el aviso de esa pérdida es parte de la acción y no de un estado posterior [REQ-012 RF-2, RF-10, CA-3, CA-4, CA-12]
 
+### card-documentacion
+- Texto/label: título `"Documentación"`
+- Icono: file
+- Asset: nada
+- Annotation: `Card` `panel`. **Nuevo con REQ-016.** Solo existe si el módulo de documentación está instalado; la web consulta su estado al iniciar, cada 60 s y ante una respuesta `module_unavailable` [REQ-016 RF-17, CA-25]. Pide al módulo los documentos con `requirementId` del requisito, filtrados por lo que la persona puede leer
+
+### tabla-documentos
+- Texto/label: columnas `"Documento"` · `"Ruta"` · `"Actualizado"`. La ruta es la carpeta del documento; la fecha, `DD/MM/AAAA`
+- Icono: nada
+- Asset: nada
+- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 10 filas; el resto con boton-ver-mas-documentos
+
+### marca-documento-en-edicion
+- Texto/label: `"En edición"`
+- Icono: lock
+- Asset: nada
+- Annotation: `Badge` neutro junto al título; nombre accesible `"{persona} lo está editando"`
+
+### vacio-documentos
+- Texto/label: `"No hay documentos vinculados a este requisito."`
+- Icono: file
+- Asset: nada
+- Annotation: `EmptyState` `list`, **sin acción de alta**: los vínculos se escriben en el frontmatter del documento, no desde esta card
+
+### cargando-documentos
+- Texto/label: `"Cargando documentos…"`
+- Icono: nada
+- Asset: nada
+- Annotation: `Loader` `inline` dentro de la card; el resto de la pantalla no espera
+
+### aviso-documentacion-no-disponible
+- Texto/label: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
+- Icono: warning
+- Asset: nada
+- Annotation: mismo texto en las cinco pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca este requisito sin documentos [REQ-016 CA-27]
+
+### boton-ver-mas-documentos
+- Texto/label: `"Ver más"`
+- Icono: nada
+- Asset: nada
+- Annotation: la consulta pagina por cursor; no hay total que mostrar
+
 ## Estados
 
 ### default
@@ -515,6 +568,14 @@ date: 2026-09-02
   - total-horas-trabajadas, desglose-horas-persona, vacio-horas-trabajadas: ausentes
   - **El resto del detalle no se ve afectado.** Ninguna otra sección cambia y ninguna acción se bloquea
 - **Por qué existe como estado propio y no como toast:** es la contrapartida de que la card tenga su propia consulta. Sin este estado la falla se vería como `"Sin horas cargadas"` —un requisito con horas parecería no tenerlas—, que es el modo de falla peor: silencioso y con un dato falso en pantalla. Distinguir "no hay horas" de "no pude traerlas" es la razón de que el estado esté declarado [REQ-010 RF-8, AC-11]
+
+### documentación no disponible (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-016** [RF-23, CA-27]
+- Mensaje: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
+- Cambios:
+  - aviso-documentacion-no-disponible: visible dentro de card-documentacion
+  - tabla-documentos y boton-ver-mas-documentos: ocultos
+- El resto de la pantalla no se ve afectado. Cuando el módulo vuelve, la card se recarga sola
 
 ### error de validación
 - Aplica: No — no implementado (ver gaps-as-is.md). No hay validación en esta pantalla: los campos del acordeón y de resolución se guardan sin reglas, `"Guardar"` persiste lo que haya, y la transición no exige que el campo del paso esté completo. El `"!"` del acordeón es informativo, no bloqueante (`RequirementStatusCard.tsx:302-307`). La única regla es que el comentario no puede estar vacío, y se expresa deshabilitando el botón sin mensaje (`RequirementActivityForm.tsx:24`, `:131`) [fuente: código-existente]. **Con REQ-011** esa única regla se extiende a la edición: `boton-guardar-edicion` queda deshabilitado con el editor vacío, con el mismo criterio y la misma ausencia de explicación.
@@ -595,6 +656,9 @@ date: 2026-09-02
 - card-horas-trabajadas · **sin eventos de usuario**: es una card de lectura. Ni el total ni las filas del desglose son clickeables — no llevan a un reporte, a la persona ni a las horas de una tarea [REQ-010 RF-8]
 
 [fuente: código-existente]
+
+- **REQ-016 ·** fila de tabla-documentos · on click / `Enter` → navega a `/docs/{id}`
+- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
 
 **Validaciones:**
 - editor-comentario · no vacío tras `trim()` → boton-enviar-comentario queda `disabled`, sin mensaje · `RequirementActivityForm.tsx:24`, `:131`
@@ -703,3 +767,11 @@ date: 2026-09-02
 - **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].
 - **[REQ-013] El corte de 1023px se unifica con el 1024px de las dos pantallas de formulario.** Esta pantalla colapsa a una columna en `max-width: 1023px` mientras `alta-requisito` y `edicion-requisito` lo hacen en `max-width: 1024px`: es un píxel de diferencia entre pantallas hermanas del mismo dominio, y el CHANGELOG del DS lo marca como **error puntual**, no como avance parcial del mobile pendiente. Se unifican en un único valor. **El resto de la deuda de breakpoints no se toca** —el 1200px de `detalle-proyecto`, el 1680px de las vistas agregadas, el shell sin media queries— y sigue en FG-5: corregir un error de un píxel no es lo mismo que decidir cómo se ve Jiku en un teléfono [REQ-013 RF-9, CA-15].
 - **[REQ-013] Los tres controles de estado conservan su reparto.** El stepper informa los cinco pasos de trabajo, el badge editable del encabezado ofrece los siete estados y la card de resolución cierra y reabre. El DS especifica los tres por separado y declara explícitamente que **coincide con lo que el código ya hace** desde S-050: la migración cambia cómo se ven, no qué hacen. Es la preservación de comportamiento más sensible del REQ, porque tres controles sobre un mismo dato son fáciles de "simplificar" por error al rehacerlos [REQ-013 RF-10, CA-17].
+
+### REQ-016 — Módulo opcional de documentación (2026-10-24)
+
+- **La card de documentación va cuarta en la columna derecha, entre Etiquetas y Resolución.** Información general y horas se leen juntas como identificación del requisito (decisión de REQ-010, que se respeta); la resolución queda última porque es el cierre. Documentación es material de consulta, como las etiquetas, y va con ellas. Se descartó la columna izquierda: ahí está el trabajo —workflow, tareas, conversación— y una lista de documentos partiría la secuencia entre las tareas y el feed.
+- **Sin el módulo, la card no existe; con el módulo caído, aparece con el aviso.** Mismo criterio y mismo microcopy que en `detalle-proyecto` y `detalle-tarea` [REQ-016 CA-25, CA-27].
+- **La card lista y no crea.** El vínculo vive en el frontmatter del documento; el alta está en `documentacion`.
+- **No se agregó componente al Design System.** `card`, `table`, `badge`, `empty-state` y `loader` tienen spec en `web` v4.2.0; el `alert` del aviso queda anotado como gap en la `## Revisión UX` de REQ-016.
+

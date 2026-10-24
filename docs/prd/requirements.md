@@ -120,6 +120,15 @@ status: Draft - Importado desde código existente
     dentro de `recipients`, donde **es la dirección de notificación** y sin él el bloque no cumple
     su función. Una identidad con `identityType: 'service'` no tiene correo en Zitadel, y por eso
     `email` **puede ser `null`** en un destinatario.
+  - **Desde REQ-016 `roles` puede contener el rol de bus `docs`**, que lleva el machine user del
+    módulo opcional de documentación junto con `internal-app` (`[internal-app, docs]`). Para la
+    autorización y la clase de caller de `core` **`docs` es un rol desconocido y se ignora**: el
+    usuario autoriza y lee exactamente como `internal-app` (clase conector, sin recorte de filas).
+    **Para `identityType` no se ignora:** como la regla `docs` del auth-callout va antes que la de
+    `internal-app`, el rol que gana —`matched_role`— es `docs`, y `identityType` se deriva de él.
+    Por eso `docs` es **un rol de servicio** (`identityType: service`, `email` puede ser `null`); sin
+    esa clasificación el evento de autenticación de un machine user sin correo se descartaría y la
+    identidad quedaría sin fila.
 
 ### Proyecto (`projects`)
 - **Atributos clave:** `code` (string), `name` (string), `type` (enum: interno/comercial/
@@ -375,6 +384,13 @@ status: Draft - Importado desde código existente
   quien subió un archivo puede vincularlo, **sin excepción por rol**— se verifica en el mismo
   lugar que el resto; hasta REQ-007 era uniforme por construcción (core no conocía roles) y ahora
   pasa a serlo **por decisión explícita**, porque el despachador sí los conoce.
+  **Desde REQ-016 el archivo sin vínculo deja de ser solo un estado transitorio y pasa a ser un
+  caso de uso permanente:** el módulo de documentación (jiku-docs) sube los adjuntos de sus
+  documentos al servicio de archivos de `core` como servicio y **nunca los vincula a una entidad de
+  Jiku** (la relación archivo ↔ documento la guarda el módulo, no `attachments`). Se sostiene en dos
+  propiedades que ya existían: no hay barrido de archivos sin vínculo, y
+  `files.{fileId}.request-download` no exige vínculo ni titularidad. La política de tipos y tamaños
+  es la misma de `system_settings`: el módulo no la duplica.
 
 ### Adjunto (`attachments`)
 - **Atributos clave:** `entityType` (string, req), `entityId` (int, **req**), `fileId` (int, req)
@@ -447,6 +463,42 @@ status: Draft - Importado desde código existente
   **`status` y `type` no son ENUM nativos** a propósito: un tipo de notificación nuevo se agrega al
   registro del código, y obligar además a un `ALTER TYPE` contradiría que *"agregar un tipo es sumar
   una entrada y su plantilla"*.
+
+### Módulo (registro `JIKU_MODULES` del bus — no persistido por Jiku)
+- **Atributos clave (registro):** `module` (string, clave del registro, `^[a-z][a-z0-9-]{1,30}$`),
+  `serviceName` (string, `^[a-z][a-z0-9-]{1,40}$` — prefijo de los servicios del bus
+  `{serviceName}-commands` y `{serviceName}-queries`), `protocol` (string `v{n}` — versión de los
+  contratos del módulo), `registeredAt` (timestamp, informativo)
+- **Atributos calculados (por la api):** `status` (enum: `not_installed` / `incompatible` /
+  `unavailable` / `available`); hacia los frontends `incompatible` se informa como
+  `not_installed`. Datos opcionales aditivos, hoy `features.sharing` (boolean: si los links
+  públicos están configurados en esta instalación)
+- **Relaciones:** ninguna con entidades de la base.
+- **Notas:** **Una capacidad opcional instalada en el bus, y la primera entidad del producto que no
+  vive en PostgreSQL.** El registro es un bucket KV de JetStream que crea el despliegue base de
+  Jiku aunque no haya módulos; cada módulo escribe **solo su clave** al arrancar y la borra al
+  desinstalarse. El estado no se guarda: la api lo calcula leyendo y observando la clave y haciendo
+  ping al servicio del módulo. **Jiku no tiene compilado el nombre del servicio de ningún módulo**:
+  lo toma del registro. Lo que sí nombra es la **política de permisos del bus**
+  (`deploy/nats/auth-callout/`), que es declarativa y por subjects literales (ADR-008): registrar
+  un módulo con otro `serviceName` exige una línea de permiso nueva, que es un cambio de seguridad
+  deliberado. Primer módulo: `docs` (servicio `jiku-docs`, REQ-016).
+
+### Entidades del módulo de documentación (jiku-docs — no persistidas por Jiku)
+- **Documento** (ULID; título, ruta, carpeta, versión, visibilidad `internal`/`public`, contenido
+  markdown con frontmatter, relaciones con Actores, Proyectos, Requisitos y Tareas por id, temas,
+  lock de edición), **Carpeta** (ULID; árbol con permisos `read`/`write`/`manage` heredables),
+  **Versión**, **Adjunto de documento** (ULID; su byte vive en un Archivo de `core` sin vínculo) y
+  **Link compartido** (ULID; credencial al portador de solo lectura, con vencimiento y revocación;
+  el token se ve una sola vez).
+- **Relaciones con Jiku:** solo por id y solo en un sentido — el documento referencia
+  `clientId` / `projectId` / `requirementId` / `taskId`; ninguna entidad de Jiku referencia un
+  documento. La relación **no da acceso**: el acceso lo decide la carpeta.
+- **Notas:** **Jiku no las guarda, no las autoriza y no las valida**: las muestra y las opera a
+  través del módulo, en nombre de la persona de la sesión. La visibilidad `public` tiene el mismo
+  significado que `visibilityLevel` en Jiku, y es lo único que puede llegar a un cliente externo
+  (opus-web). Si el módulo no está instalado, no existen para el producto; desinstalarlo no deja
+  nada roto en Jiku.
 
 ---
 

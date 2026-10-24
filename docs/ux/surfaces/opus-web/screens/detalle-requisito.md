@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.0"
-date: 2026-08-18
+version: "1.1"
+date: 2026-10-24
 ---
 
 # Pantalla: Detalle de requisito
@@ -39,6 +39,7 @@ Envuelta por el chrome de `(dashboard)`.
 - Por URL directa
 
 **Salidas user-driven:**
+- A `/projects/{id}/docs/{documentId}` (`documento`) · click en una fila de `lista-documentos` [REQ-016]
 - A `/projects/{id}/requirements` · botón "Volver" · `BoardHeader.tsx:138`
 - A `/projects/{id}/requirements` · click en "Requisitos" del breadcrumb · `BoardHeader.tsx:81`
 - A `/projects/{id}/requirements` · botón "Volver al listado" en los estados de error y not found · `[requirementId]/page.tsx:38`, `:55`
@@ -80,6 +81,11 @@ Envuelta por el chrome de `(dashboard)`.
 | 28 | boton-reintentar | button | primary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Reintentar la carga. **No existe en not found** |
 | 29 | progreso-subida-adjunto | progress-bar | — | feedback | ambos | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 30 | marca-identidad-automatica | badge | automatico | content | ambos | visible_only_in_states: default | Marca que el autor mostrado es una identidad de servicio y no una persona |
+| 31 | seccion-documentos | section | colapsable · expandida al entrar | content | ambos | **no se renderiza con el módulo `not_installed` ni con 0 documentos**; hidden_in_states: loading | Documentos públicos del requisito [REQ-016 RF-24] |
+| 32 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles | Un documento por fila: título y fecha |
+| 33 | cargando-documentos | loader | sm | feedback | ambos | visible solo mientras carga la sección | Carga de la sección, independiente del resto |
+| 34 | alerta-documentos-no-disponible | alert | warning | feedback | ambos | visible_only_in_states: documentos no disponibles | El módulo está registrado pero no responde |
+| 35 | boton-ver-mas-documentos | button | secondary | input | ambos | visible solo cuando hay más documentos | Trae los siguientes |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]/page.tsx`, `RequirementDetailView/RequirementDetailView.tsx`, `RequirementDetailView/RequirementDetailView.module.scss`, `BoardHeader/BoardHeader.tsx`, `RequirementDetailModal/components/RequirementInfoPanel/RequirementInfoPanel.tsx`, `RequirementDetailModal/components/ActivityPanel/ActivityPanel.tsx`, `RequirementDetailModal/components/CommentInput/CommentInput.tsx`, `subscriptions/components/SubscribersList/SubscribersList.tsx` [fuente: código-existente].
 
@@ -96,6 +102,7 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
 - descripcion
 - bloque-resolucion
 - pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*
+- seccion-documentos — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
 - titulo-actividad
 - feed-actividad *(item-comentario e item-cambio, con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - editor-comentario — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
@@ -115,7 +122,7 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
   - col 7/12: panel izquierdo *(flexible)*
     - row `info`
       - col 3/12: panel-propiedades *(220px fijos)* — propiedad-estado, propiedad-tipo, propiedad-prioridad, lista-suscriptores, propiedad-fechas
-      - col 9/12: titulo-requisito, descripcion, bloque-resolucion, pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*
+      - col 9/12: titulo-requisito, descripcion, bloque-resolucion, pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*, seccion-documentos *(debajo del pie de autoría)* [REQ-016]
   - col 5/12: panel derecho *(559px fijos)*
     - titulo-actividad
     - feed-actividad *(scroll)* — item-comentario, item-cambio, marca-identidad-automatica *(junto al autor de cada entrada de una identidad de servicio)*
@@ -320,6 +327,37 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Icono: nada
 - Asset: nada
 - Annotation: **nuevo con REQ-005.** Acompaña al nombre del autor en los dos lugares donde esta pantalla lo muestra: `pie-autoria` y el autor de cada `item-comentario` / `item-cambio` del feed. Se renderiza **solo cuando ese usuario es de tipo servicio** (REQ-005 RF-3, RF-10); para una persona no hay bloque ni espacio reservado. El caso llega a esta superficie por el canal del publicador externo de REQ-001: desde REQ-005 ese conector tiene fila en `users` y puede figurar como creador de un requisito y como autor de una actividad pública, que es exactamente lo que el cliente lee acá
+
+### seccion-documentos
+- Texto/label: título `"Documentación ({n})"` con chevron para colapsar
+- Icono: file
+- Asset: nada
+- Annotation: **nueva con REQ-016.** Solo existe si el módulo de documentación está instalado **y** hay al menos un documento público vinculado al requisito: la consulta va a `/api/opus/docs/documents` con `requirementId` (la api verifica además que el requisito sea público y que el cliente tenga permiso sobre su proyecto), y la api fuerza `visibility: public` sin importar el rol [REQ-016 DD-3, CA-34, CA-35]. Arranca expandida; el estado colapsado no se recuerda
+
+### lista-documentos
+- Texto/label: una fila por documento: título (enlace) y `"Actualizado el {DD/MM/AAAA}"`
+- Icono: file
+- Asset: nada
+- Annotation: cada fila navega a `/projects/{projectId}/docs/{documentId}`. Orden: última actualización primero; hasta 5 filas y el resto con boton-ver-mas-documentos
+
+### cargando-documentos
+- Texto/label: sin texto
+- Icono: nada
+- Asset: nada
+- Annotation: `Spinner` `sm` en el lugar de la lista. **No suma a la carga de la pantalla**: la sección carga sola, después
+
+### alerta-documentos-no-disponible
+- Texto/label: `"Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos."`
+- Icono: warning
+- Asset: nada
+- Annotation: con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador
+
+### boton-ver-mas-documentos
+- Texto/label: `"Ver más"`
+- Icono: nada
+- Asset: nada
+- Annotation: la consulta pagina por cursor
+
 ## Estados
 
 ### default
@@ -361,6 +399,14 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Annotation: disparado por `error` de `useRequirement`. Hay además un error de sistema propio del comentario, dentro del default: "Sin permiso para comentar" (403), o el `message` del `ApiError`, o "Error al enviar el comentario", en el mismo `<p role="alert">` (`CommentInput.tsx:38-45`). **Con REQ-001 se suman dos mensajes ahí mismo:** "No podés adjuntar un archivo que subió otra persona" cuando el vínculo se rechaza por titularidad (RF-12, CA-11) y "El archivo no está disponible" al abrir un adjunto cuyo contenido nunca llegó al storage (RF-21, CA-15). El **error de la suscripción no está implementado como estado**: el botón muestra "Error" y el motivo va en un `title`, invisible en touch, sin toast ni mensaje persistente (`BoardHeader.tsx:114-131`)
 - **REQ-004: la falla del bus al comentar se parte en dos, y el portal no muestra la diferencia.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). El comentario es un comando del bus, así que los dos mensajes llegan como `message` del `ApiError` al mismo `<p role="alert">` del editor: **la pantalla no se modifica** y el texto sí cambia. Con el 503 el comentario **no** se agregó y reintentar es seguro; con el 504 **pudo** haberse agregado, y reintentar deja **dos comentarios iguales** en un feed que el equipo también lee. Como el envío exitoso **no tiene confirmación** —ver el estado `success`—, el cliente no tiene forma de verificar antes de repetir: tiene que releer el feed. La suscripción, en cambio, es idempotente y el desdoblamiento no le cambia nada [REQ-004]
 
+### documentos no disponibles (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-016** [RF-24]
+- Mensaje: `"Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos."`
+- Cambios:
+  - seccion-documentos: visible, con título `"Documentación"` sin contador
+  - alerta-documentos-no-disponible: visible; lista-documentos: oculta
+- El resto de la pantalla no se ve afectado
+
 ### success
 - Aplica: Sí — solo para el envío de comentario
 - Mensaje: ninguno — **sin toast ni confirmación explícita**
@@ -392,6 +438,10 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - editor-comentario · on change → actualiza el texto y **saca del comentario los adjuntos cuyo placeholder ya no está** · `:61-64`. **Con REQ-001 sacarlo no borra el archivo**: el archivo sigue existiendo sin vínculo, que es un estado válido (RF-1)
 - adjunto en el editor · on click en quitar → lo saca del texto y fusiona los segmentos vecinos · `RichTextEditor.tsx:101-119`
 - boton-enviar / submit · → crea el comentario con los archivos pendientes. **Con REQ-001 el vínculo se crea contra archivos que ya existen** (RF-4), y el comentario y sus vínculos se guardan juntos o no se guarda ninguno · `CommentInput.tsx:115-130`
+
+- **REQ-016 ·** fila de lista-documentos · on click → navega a `/projects/{projectId}/docs/{documentId}`
+- **REQ-016 ·** título de seccion-documentos · on click → colapsa / expande
+- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
 
 **Validaciones:**
 - Adjunto · tamaño dentro del máximo configurado → mensaje "El archivo supera el tamaño máximo permitido". **Con REQ-001 la regla es del servidor y configurable en caliente** (RF-6, RF-15); el chequeo del cliente en `CommentInput.tsx:74-77` deja de ser autoritativo
@@ -450,3 +500,11 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - **`pie-autoria` conserva su literal.** "Elemento creado por **{nombre}**" no se reescribe a "Creado automáticamente por": mantener una sola frase para los dos casos evita que la ausencia del badge tenga que significar algo.
 - **No se toca el selector de suscriptores (O-06), y se verificó en vez de asumirlo.** Es la pregunta 2 del REQ. El selector consume `GET /api/opus/projects/{projid}/users`, que ya está acotado por `user_project_permissions` —donde un service user no tiene fila— y que además suma el filtro `identityType: 'person'` **en la api** como defensa (REQ-005 story 1). No hay nada que filtrar en el front y no hay estado nuevo que representar.
 - **No se agregó componente al Design System.** `badge` no tiene spec en `opus-web` v0.1.0 —el catálogo sigue siendo el scaffold de tres componentes— pero es un tipo que esta pantalla ya usa en `propiedad-estado` y `propiedad-prioridad`: el gap es previo al delta. La variant del avatar tampoco se especifica acá: `item-comentario` es un `card` y `card` también está sin spec. Los dos anotados en la `## Revisión UX` de REQ-005.
+
+### REQ-016 — Módulo opcional de documentación (2026-10-24)
+
+- **La sección de documentos va en el panel del contenido, debajo del pie de autoría.** Es parte de lo que el requisito *es* —título, descripción, resolución, documentos— y no de la conversación, que vive en el panel de actividad. En mobile queda en el mismo lugar del stack, antes de la actividad.
+- **El overlay O-01 la hereda.** El modal compone los mismos paneles que esta pantalla, así que la sección aparece en los dos sin decisión aparte; divergir sería sumar una diferencia más a la duplicación ya registrada (pregunta abierta 3 del mapa).
+- **Mismas reglas que en el tablero:** sin módulo o sin documentos públicos, no aparece; con el módulo caído, aparece con el aviso.
+- **No se agregó componente al Design System.** Ver la `## Revisión UX` de REQ-016.
+

@@ -22,6 +22,8 @@ origin: relevamiento de código — brownfield
 | 2 | Avanzar un requisito por su workflow | Mover el pedido de un cliente hacia su cierre | equipo-interno |
 | 3 | Planificar la capacidad de la semana | Reservar quién trabaja en qué antes de que la semana pase | equipo-interno (`admin`) |
 | 4 | Descomponer un requisito en tareas | Convertir un pedido en trabajo asignable | equipo-interno |
+| 5 | Consultar y corregir la documentación de un proyecto | Tener a mano lo escrito sobre el trabajo y corregirlo sin pisar a otros | equipo-interno · **solo con el módulo de documentación** [REQ-016] |
+| 6 | Compartir un documento con alguien de afuera | Dar acceso de lectura temporal sin abrir una cuenta | equipo-interno (`manage`) · **solo con el módulo y la función de compartir** [REQ-016] |
 
 > **REQ-013 no modifica ninguno de los cuatro flujos, y es el resultado esperado.** El
 > requerimiento aplica la identidad del Manual de marca Jiku v1.0 y reemplaza cada elemento de UI
@@ -372,6 +374,111 @@ Las tareas existen, con responsables y líder asignados, y ya pueden recibir hor
 - Crear cinco tareas de un requisito debería costar **un submit**, no cinco
 - El usuario debería saber que el orden de responsables define el líder — hoy **no hay nada en la
   interfaz que lo diga**
+
+---
+
+## Flujo 5: Consultar y corregir la documentación de un proyecto
+
+**JTBD que resuelve:** "Cuando trabajo en un proyecto, quiero tener a mano lo que está escrito sobre
+él y poder corregirlo, sin pisar lo que otro esté escribiendo al mismo tiempo."
+**Audiencia:** equipo-interno
+([research-context](../../audiences/equipo-interno/research-context.md))
+**Trigger:** la persona abre la ficha de un proyecto, requisito o tarea y ve la card
+**"Documentación"**; o entra a **Documentación** desde la sidebar para buscar algo.
+
+**Existe solo con el módulo opcional de documentación instalado** [REQ-016 RF-14, RF-23]. Sin él,
+ninguno de estos pasos tiene interfaz.
+
+### Happy path
+
+1. **detalle-proyecto** (o detalle-requisito / detalle-tarea) → la card "Documentación" lista los
+   documentos vinculados, con título, ruta y fecha [REQ-016 CA-26]
+2. Abre uno → **documento** lo muestra renderizado, con sus vínculos y adjuntos
+3. Pulsa **"Editar"** → la web toma la reserva de edición y abre el editor con vista previa al lado;
+   la reserva se renueva sola mientras el editor está abierto [CA-29]
+4. Escribe; si necesita una imagen, la arrastra a la zona de adjuntos y el enlace queda insertado
+5. **"Guardar"** → versión nueva, reserva liberada, vuelta a la lectura con `"Guardaste la versión {n}."`
+
+### Caminos alternativos
+
+- **Buscar en vez de navegar** — En **documentacion**, la búsqueda recorre todo lo que la persona
+  puede leer; un resultado abre el documento.
+- **Recorrer carpetas** — En **documentacion**, breadcrumb + tabla por niveles; la carpeta queda en
+  la URL.
+- **Crear un documento** — En una carpeta con permiso de escritura, **"Nuevo documento"** (O-11)
+  pide título y nombre de archivo y abre el editor directamente.
+- **Documento grande** — Más de 256 KiB: se lee, no se edita desde la web [REQ-016 Supuestos].
+
+### Errores y recuperación
+
+- **Otra persona lo está editando** — `"{persona} lo está editando hasta las {HH:mm}. Podés leerlo
+  mientras tanto."`; "Editar" se habilita cuando la reserva vence [CA-18].
+- **Alguien guardó mientras editaba** — `version_conflict`: el texto propio se queda en el editor y
+  la versión ajena aparece al lado, en texto plano para copiar; guardar después es una decisión
+  explícita (`"Guardar sobre la versión {n}"`), nunca un reintento automático [CA-17, CA-30].
+- **Se perdió la reserva** — Por falta de conexión o porque la tomó otro: aviso, el texto se
+  conserva y guardar sigue disponible.
+- **Frontmatter inválido o vínculo inexistente** — El mensaje del módulo debajo del editor.
+- **Módulo caído** — Las cards y las pantallas muestran `"La documentación no está disponible en
+  este momento. Probá de nuevo en unos minutos."` y deshabilitan las acciones; vuelven solas cuando
+  el módulo responde [CA-27].
+- **Cerrar la pestaña editando** — La reserva se libera con un pedido `keepalive`; si no llega,
+  vence a los 120 s.
+
+### Estado final
+
+El documento tiene una versión nueva, sin haber pisado cambios ajenos, y la reserva está libre.
+
+### Criterios de éxito
+
+- Encontrar la documentación de un proyecto debería costar **cero navegación extra**: está en la ficha
+- **Nunca** se debería perder texto propio ni pisar texto ajeno en silencio
+- La reserva de edición debería ser **invisible mientras funciona**
+- Quien edita debería saber **antes de escribir** si el documento llega al portal del cliente
+  (badge de visibilidad)
+
+---
+
+## Flujo 6: Compartir un documento con alguien de afuera
+
+**JTBD que resuelve:** "Cuando alguien sin cuenta en Jiku necesita leer un documento, quiero
+mandarle un link que se corte solo, en vez de copiar el texto a un mail o abrir un acceso."
+**Audiencia:** equipo-interno — quien administra la carpeta del documento (`manage`)
+**Trigger:** en **documento**, botón **"Compartir"**.
+
+**Existe solo si la instalación tiene configurada la función de compartir** (`JIKU_PUBLIC_URL`);
+si no, el botón no aparece [REQ-016 CA-32].
+
+### Happy path
+
+1. **documento** → **"Compartir"** abre O-12, con los links que ya existen
+2. Elige vencimiento (default 30 días, máximo 180), una nota para reconocer el link y si incluye adjuntos
+3. **"Crear link"** → el link aparece **una sola vez**, con **"Copiar"** y el aviso de que no se
+   podrá volver a ver [CA-31]
+4. Cierra; la lista muestra el link nuevo con estado, vencimiento, nota y accesos, **sin la URL**
+5. Lo manda por el canal que quiera; quien lo recibe lo abre sin cuenta (ver
+   [`cross-surface-flows.md`](../../cross-surface-flows.md), Flujo 5)
+
+### Caminos alternativos
+
+- **Revocar** — Desde la misma lista, con confirmación (O-02); el link deja de funcionar al instante.
+- **Perdió el link** — No se puede recuperar: se revoca y se crea otro.
+
+### Errores y recuperación
+
+- **Posible secreto** — Si el documento parece contener una clave o un token, O-12 lo avisa y
+  pide **"Compartir igual"** como acción distinta.
+- **Carpeta que no permite compartir** — Aviso; la lista se sigue viendo y se puede revocar.
+
+### Estado final
+
+Existe un link activo, que vence solo y que el equipo puede cortar antes.
+
+### Criterios de éxito
+
+- El link **nunca** debería poder recuperarse desde la interfaz después de cerrado el diálogo
+- Quien comparte debería saber **qué ve el otro**: la última versión, sin sesión, hasta que venza
+- Revocar debería ser **un clic más una confirmación**, sin buscar el link en otro lado
 
 ---
 

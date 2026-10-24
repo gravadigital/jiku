@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.1"
-date: 2026-09-02
+version: "1.2"
+date: 2026-10-24
 ---
 
 # Pantalla: Detalle de proyecto
@@ -37,6 +37,7 @@ date: 2026-09-02
 - `/objectives/new?projectId={id}` · botón `+` de la sección de tareas · `ProjectObjectivesSection.tsx:81`
 - `/requirements/{id}` y `/objectives/{id}` · click en una fila de las tablas embebidas · `ProjectRequirementsSection.tsx:~145`, `ProjectObjectivesSection.tsx:~132`
 - URL externa · links de `card-propiedades` con `target="_blank"` · `ProjectProperties.tsx:32`
+- `/docs/{id}` (`documento`) · click en una fila de `tabla-documentos` [REQ-016 CA-26]
 
 **Salidas automáticas:**
 - Ninguna.
@@ -69,6 +70,13 @@ date: 2026-09-02
 | 22 | item-adjunto | card | disponible / no disponible | content | desktop | hidden_in_states: loading | Un adjunto con sus acciones |
 | 23 | boton-ver-mas-adjuntos | button | tertiary | input | desktop | hidden_in_states: loading | Suma un lote de adjuntos visibles |
 | 24 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading | Marca que el creador mostrado es una identidad de servicio y no una persona |
+| 25 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados al proyecto [REQ-016 RF-18] |
+| 26 | tabla-documentos | table | light | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, ruta y fecha |
+| 27 | marca-documento-en-edicion | badge | — | content | desktop | solo en filas con lock vigente | Avisa que alguien lo está editando |
+| 28 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | El proyecto no tiene documentos vinculados |
+| 29 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
+| 30 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
+| 31 | boton-ver-mas-documentos | button | secondary-dismiss | input | desktop | visible solo cuando hay más documentos | Trae los siguientes |
 
 **Origen:** `projects/[id]/page.tsx:26`, `projects/[id]/page.tsx:31`, `projects/[id]/page.tsx:32`, `projects/[id]/page.tsx:34-36`, `projects/[id]/page.tsx:37-39`, `projects/[id]/page.tsx:46-49`, `projects/[id]/page.tsx:51`, `projects/[id]/page.tsx:54`, `projects/[id]/page.tsx:58`, `projects/[id]/page.tsx:64-67`, `projects/[id]/page.tsx:69-72`, `projects/[id]/page.tsx:74`, `ProjectRequirementsSection.tsx:98-113`, `ProjectRequirementsSection.tsx:117-160`, `ProjectRequirementsSection.tsx:164-210`, `ProjectObjectivesSection.tsx:87-102`, `ProjectObjectivesSection.tsx:105-157`, `ProjectObjectivesSection.tsx:159-205`, `FileUploader.tsx:94-158`, `FileUploader.tsx:126-133`, `AttachmentsList.tsx:57`, `AttachmentsList.tsx:59`, `AttachmentsList.tsx:69`
 
@@ -89,7 +97,10 @@ date: 2026-09-02
   - col 5/12 (420px fijos): columna derecha
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-propiedades
+    - card-documentacion (tabla-documentos con marca-documento-en-edicion, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*, boton-ver-mas-documentos) [REQ-016 RF-18]
     - card-adjuntos (zona-subida-archivos, lista-adjuntos, boton-ver-mas-adjuntos)
+
+**REQ-016:** `card-documentacion` va en la columna derecha entre Propiedades y Archivos Adjuntos — ver Decisiones. Con el módulo `not_installed` la card no existe y la columna queda como estaba.
 
 **Origen:** `projects/[id]/styles.module.scss:80-83` — `.twoColumnLayout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 1.25rem; }`.
 
@@ -245,6 +256,48 @@ date: 2026-09-02
 - Asset: nada
 - Annotation: **nuevo con REQ-005.** Acompaña al valor de la fila `"Creado por"` de `card-informacion-general` cuando ese usuario es una identidad de servicio, y **solo ahí**: esta pantalla no muestra autoría en ningún otro bloque —`item-adjunto` lista el nombre del archivo y no quién lo subió, así que `uploaded_by` sigue siendo invisible acá pese a que desde REQ-005 puede ser un service user. Se renderiza solo cuando `identityType` es `service`; para una persona no hay bloque ni espacio reservado (REQ-005 RF-3, RF-10)
 
+### card-documentacion
+- Texto/label: título `"Documentación"`
+- Icono: file
+- Asset: nada
+- Annotation: `Card` `panel`. **Nuevo con REQ-016.** Solo existe si el módulo de documentación está instalado; la web consulta su estado al iniciar, cada 60 s y ante una respuesta `module_unavailable` [REQ-016 RF-17, CA-25]. Lista lo que el módulo devuelve para el proyecto —incluidos los documentos vinculados a sus requisitos o tareas— filtrado por lo que la persona puede leer
+
+### tabla-documentos
+- Texto/label: columnas `"Documento"` · `"Ruta"` · `"Actualizado"`. La ruta es la carpeta del documento; la fecha, `DD/MM/AAAA`
+- Icono: nada
+- Asset: nada
+- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 10 filas; el resto con boton-ver-mas-documentos [REQ-016 CA-26]
+
+### marca-documento-en-edicion
+- Texto/label: `"En edición"`
+- Icono: lock
+- Asset: nada
+- Annotation: `Badge` neutro junto al título; nombre accesible `"{persona} lo está editando"`
+
+### vacio-documentos
+- Texto/label: `"No hay documentos vinculados a este proyecto."`
+- Icono: file
+- Asset: nada
+- Annotation: `EmptyState` `list`, **sin acción de alta**: los vínculos se escriben en el frontmatter del documento, no desde esta card
+
+### cargando-documentos
+- Texto/label: `"Cargando documentos…"`
+- Icono: nada
+- Asset: nada
+- Annotation: `Loader` `inline` dentro de la card; el resto de la pantalla no espera
+
+### aviso-documentacion-no-disponible
+- Texto/label: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
+- Icono: warning
+- Asset: nada
+- Annotation: mismo texto en las cinco pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca un proyecto sin documentos [REQ-016 CA-27]
+
+### boton-ver-mas-documentos
+- Texto/label: `"Ver más"`
+- Icono: nada
+- Asset: nada
+- Annotation: la consulta pagina por cursor; no hay total que mostrar
+
 ## Estados
 
 ### default
@@ -289,6 +342,14 @@ date: 2026-09-02
 - **REQ-008 · el fallo de un contador queda aislado.** Los 7 conteos son consultas independientes: si uno falla, **ese tab muestra un placeholder neutro en lugar del número y nada más se ve afectado** — ni la tabla del tab activo, ni los otros seis contadores (CA-20). Es consecuencia directa de pedir cada total por separado: antes había un solo cálculo en memoria y cualquier fallo se llevaba puesta la sección entera.
 - **El error al cargar el proyecto no se maneja:** `useProject` se desestructura como `{ data: project, isLoading: isLoadingProject }` e ignora `isError`; ante un fallo, `project` queda `undefined` y la condición `isLoadingProject || !project` sigue siendo verdadera: **loader infinito** (`projects/[id]/page.tsx:19`, `:25-27`). Los errores de las tablas de requisitos y tareas tampoco se manejan: `useRequirements` y `useObjectives` sin `isError`, así que un fallo se ve como `"No se encontraron requisitos"` / `"No se encontraron tareas"` (`ProjectRequirementsSection.tsx:58`, `ProjectObjectivesSection.tsx:52`) [fuente: código-existente]
 
+### documentación no disponible (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-016** [RF-23, CA-27]
+- Mensaje: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
+- Cambios:
+  - aviso-documentacion-no-disponible: visible dentro de card-documentacion
+  - tabla-documentos y boton-ver-mas-documentos: ocultos
+- El resto de la pantalla no se ve afectado. Cuando el módulo vuelve, la card se recarga sola
+
 ### success
 - Aplica: Sí (solo para las acciones de adjunto)
 - Mensaje: toast disparado desde `AttachmentItem` tras el borrado
@@ -332,6 +393,8 @@ date: 2026-09-02
 - zona-subida-archivos · on drop / on click / `Enter` / `Space` → abre el selector o procesa los archivos · `FileUploader.tsx:60-65`, `:96-107`
 - item-adjunto · `"Preview"` → abre `PreviewModal`; `"Download"` → descarga; `"Eliminar"` → abre `ConfirmDialog` · `AttachmentItem.tsx:82-100`
 - link de propiedad · on click → abre la URL en pestaña nueva · `ProjectProperties.tsx:32`
+- **REQ-016 ·** fila de tabla-documentos · on click / `Enter` → navega a `/docs/{id}` [CA-26]
+- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
 
 [fuente: código-existente]
 
@@ -390,3 +453,12 @@ date: 2026-09-02
 - **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
 - **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
 - **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].
+
+### REQ-016 — Módulo opcional de documentación (2026-10-24)
+
+- **La card de documentación va en la columna derecha, entre Propiedades y Archivos Adjuntos.** Es material de consulta sobre el proyecto, como las propiedades y los adjuntos, y no trabajo en curso, como las dos tablas de la izquierda. Ponerla junto a los adjuntos agrupa "lo que hay escrito y subido sobre este proyecto". Se descartó la columna izquierda: ya carga dos tablas paginadas y una tercera empujaría las tareas fuera de la vista.
+- **Sin el módulo, la card no existe.** No hay espacio reservado ni aviso: una instalación sin documentación ve la pantalla exactamente como antes [REQ-016 CA-25]. **Con el módulo caído, la card sí aparece** con el aviso, porque un hueco silencioso se confundiría con "este proyecto no tiene documentos" [CA-27].
+- **La card lista y no crea.** El vínculo de un documento con el proyecto se escribe en su frontmatter; un "+" acá prometería un alta con el vínculo hecho que esta entrega no ofrece. El alta vive en `documentacion`.
+- **Tres columnas, no más.** Título, ruta y fecha alcanzan para reconocer un documento; el autor y la visibilidad se ven al abrirlo.
+- **No se agregó componente al Design System.** `card`, `table`, `badge`, `empty-state` y `loader` tienen spec en `web` v4.2.0. El `alert` del aviso no tiene: queda anotado como gap en la `## Revisión UX` de REQ-016.
+

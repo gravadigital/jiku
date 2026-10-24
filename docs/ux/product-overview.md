@@ -39,7 +39,7 @@ sino de **dos aplicaciones distintas** sobre la misma API.
     página: el texto y la jerarquía los carga el azul oscuro `#0B1934` sobre fondo niebla `#F6F6F9`.
     El magenta `#DA2C6A` que el relevamiento registró desde el código (`--color-button`) **queda
     descontinuado**; REQ-013 es el requerimiento que lo reemplaza en toda la superficie.
-  - 25 pantallas · 10 overlays
+  - 27 pantallas · 12 overlays — **REQ-016** suma `documentacion`, `documento` y dos overlays, condicionados al módulo opcional de documentación
 
 - **opus-web** — Portal de clientes (marca **Opus**): un cliente sigue el avance de sus proyectos,
   crea requisitos, comenta y se suscribe
@@ -48,7 +48,7 @@ sino de **dos aplicaciones distintas** sobre la misma API.
     layout: `useIsMobile()` decide **qué árbol de componentes montar**. Tablet se comporta como
     desktop (`$breakpoint-lg` no separa nada en la aplicación viva).
   - Accent: `#2563eb` — azul, tomado del código (`--color-primary`).
-  - 5 pantallas · 7 overlays
+  - 6 pantallas · 7 overlays — **REQ-016** suma `documento`, condicionada al módulo opcional de documentación
 
 > **Las dos superficies son dos marcas distintas, y es deliberado.** Decidido el **2026-09-02**:
 > **Jiku** firma el gestor interno y **Opus** el portal de clientes. No comparten identidad visual
@@ -133,6 +133,13 @@ llaman a las cosas distinto**, y las tres capas no coinciden.
   varios; el vínculo se crea cuando la entidad ya existe, en la misma operación que la crea o la
   edita. El concepto de **borrador de adjunto** se eliminó con REQ-001: subir ya no obliga a
   declarar a qué se va a colgar.
+- **Documento** — Texto en markdown que guarda el módulo opcional **jiku-docs**, no Jiku. Vive en
+  una carpeta con permisos, se versiona y se **vincula** por su frontmatter a clientes, proyectos,
+  requisitos y tareas. Es `public` (llega al portal) o `internal` [REQ-016].
+- **Módulo** — Capacidad opcional instalada en el bus. Para la interfaz tiene tres estados: no
+  instalado (no se muestra nada), no disponible (se muestra con un aviso) y disponible [REQ-016].
+- **Link compartido** — Link de solo lectura a un documento, para alguien sin cuenta. Vence solo,
+  se puede revocar y la URL se muestra una sola vez [REQ-016].
 - **Etapa** — Concepto **eliminado** del modelo de datos. Quedan restos en el código y en los
   tokens de color.
 

@@ -21,6 +21,7 @@ origin: relevamiento de código — brownfield
 | 1 | Consultar el avance de mis proyectos | Saber en qué está lo que pedí, sin preguntar | cliente |
 | 2 | Pedir algo nuevo | Registrar un pedido para que quede formalizado | cliente |
 | 3 | Conversar sobre un requisito | Aclarar o aportar contexto sobre un pedido | cliente |
+| 4 | Leer la documentación de mi proyecto | Consultar lo que el equipo documentó, sin pedirlo | cliente · **solo con el módulo de documentación** [REQ-016] |
 
 ---
 
@@ -257,6 +258,51 @@ proyecto.
 - Suscribirse debería producir **algo**. Hoy no produce nada (FG-2)
 - El cliente no debería creer que le escribió una persona cuando le escribió un servicio —
   **se cumple desde REQ-005** con la marca de autoría automática, en el badge y en el avatar
+
+---
+
+## Flujo 4: Leer la documentación de mi proyecto
+
+**JTBD que resuelve:** "Cuando el equipo me dice que algo está documentado, quiero leerlo yo mismo
+en el portal, sin pedir que me lo manden."
+**Audiencia:** cliente ([research-context](../../audiences/cliente/research-context.md))
+**Trigger:** el cliente entra al tablero de su proyecto, o a un requisito, y ve la sección
+**"Documentación (n)"**.
+
+**Existe solo con el módulo opcional de documentación instalado y con al menos un documento
+público vinculado** [REQ-016 RF-24, CA-34, CA-35].
+
+### Happy path
+
+1. **tablero-requisitos** → la sección "Documentación (n)", arriba de los requisitos, lista los
+   documentos públicos del proyecto
+2. Abre uno → **documento** lo muestra renderizado, con sus imágenes y adjuntos
+3. Vuelve al tablero con "Volver" o el breadcrumb
+
+### Caminos alternativos
+
+- **Desde un requisito** — **detalle-requisito** (o su modal O-01) muestra los documentos públicos
+  vinculados a ese requisito, debajo del pie de autoría.
+- **Mobile** — La sección queda arriba de los acordeones y el visor se lee a ancho completo.
+
+### Errores y recuperación
+
+- **Módulo caído** — La sección aparece con `"Los documentos no están disponibles en este momento.
+  Probá de nuevo en unos minutos."`; el visor ofrece "Reintentar".
+- **Documento interno o de otro proyecto por URL directa** — `"Este documento no existe o no está
+  compartido con vos."`: el portal no revela que existe.
+
+### Estado final
+
+El cliente leyó el documento sin pedirlo a nadie.
+
+### Criterios de éxito
+
+- El cliente debería ver **solo documentos públicos** de sus proyectos — lo garantiza la api por
+  superficie, no la interfaz
+- Un proyecto sin documentos públicos debería verse **igual que antes**: sin sección vacía
+- El cliente debería poder **enterarse** de que hay un documento nuevo — **no se cumple**: como el
+  resto del portal, depende de que entre a mirar (FG-2)
 
 ---
 

@@ -20,6 +20,8 @@ origin: relevamiento de código — brownfield
 | 1 | Del pedido del cliente al trabajo del equipo | opus-web → web | El cliente crea, el equipo descompone |
 | 2 | Del avance del equipo a la vista del cliente | web → opus-web | El equipo cambia estado, el cliente lo ve sin que nadie avise |
 | 3 | Conversación sobre un requisito | opus-web ↔ web | El mismo feed, filtrado distinto según quién mira |
+| 4 | De la documentación del equipo a la vista del cliente | web → opus-web | El equipo escribe, el cliente lee solo lo público **[REQ-016]** |
+| 5 | Un documento leído por alguien sin cuenta | web → página pública | El equipo comparte, un tercero lee sin sesión **[REQ-016]** |
 
 ---
 
@@ -288,6 +290,90 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
   desde REQ-011**: un comentario público puede editarse y el portal no lo señala. Que la marca no se
   muestre es una decisión tomada (RF-6); que no haya **ninguna** forma de enterarse es la
   consecuencia que queda abierta, y la resuelve el mismo canal que falta para todo lo demás (FG-2)
+
+---
+
+## Flujo 4: De la documentación del equipo a la vista del cliente
+
+**Superficies:** `web` (origen) → `opus-web` (destino)
+**Audiencias:** equipo-interno → cliente
+**Existe solo con el módulo opcional de documentación instalado** [REQ-016].
+
+### Recorrido
+
+| # | Superficie | Quién | Acción |
+|---|---|---|---|
+| 1 | web | equipo-interno | Escribe o edita un documento en **documento**; su frontmatter lo vincula al proyecto o a un requisito y lo marca `public` |
+| 2 | — | *(sistema)* | jiku-docs guarda la versión; la visibilidad la decide el documento y su carpeta, no la interfaz |
+| 3 | opus-web | cliente | La próxima vez que entra, ve el documento en la sección "Documentación" del tablero o del requisito, y lo lee en **documento** |
+
+### Qué cruza y qué no
+
+| En `web` | ¿Lo ve el cliente? |
+|---|---|
+| Documento `public` vinculado a su proyecto o a un requisito público | ✅ Sí — la última versión |
+| Documento `internal` | ❌ Nunca — la api recorta a `public` **por superficie**, para todo rol [DD-3] |
+| Autor, versiones, reservas de edición | ❌ No — el portal muestra título, fecha, contenido y adjuntos |
+| Adjuntos del documento | ✅ Sí, por el proxy de opus-web con la sesión del cliente |
+
+### La discontinuidad
+
+🔴 **La misma de siempre: nadie avisa.** El cliente ve el documento si entra a mirar. Y del lado del
+equipo hay una nueva: **la visibilidad se decide escribiendo el frontmatter**, así que el equipo
+puede publicar un documento al cliente sin un gesto explícito de "publicar". El badge
+`"Visible para el cliente"` de **documento** es la única señal, y está ahí por eso.
+
+### Criterios de éxito
+
+- Un documento interno **nunca** debería llegar al portal — **se cumple** por el recorte de la api
+- Quien escribe debería saber **que el cliente lo va a leer** antes de guardar — se cumple con el badge
+- El cliente debería **enterarse** de un documento nuevo — **no se cumple** (FG-2)
+
+---
+
+## Flujo 5: Un documento leído por alguien sin cuenta
+
+**Superficies:** `web` (origen) → **página pública** de la api (destino, no es una superficie)
+**Audiencias:** equipo-interno → un tercero sin cuenta
+**Existe solo con el módulo instalado y la función de compartir configurada** (`JIKU_PUBLIC_URL`) [REQ-016].
+
+### Recorrido
+
+| # | Superficie | Quién | Acción |
+|---|---|---|---|
+| 1 | web | equipo-interno (`manage`) | Crea un link en O-12 y lo copia (se muestra una sola vez) — ver `web` Flujo 6 |
+| 2 | — | equipo-interno | Lo manda por fuera del producto (mail, chat) |
+| 3 | página pública | tercero | Abre `{JIKU_PUBLIC_URL}/p/docs/{token}` sin iniciar sesión y lee el documento |
+| 4 | web | equipo-interno | Ve en la lista de O-12 cuántas veces se abrió y cuándo; lo revoca si hace falta |
+
+### La página pública no es una superficie
+
+La arma la api con una plantilla mínima: título y documento ya renderizado por jiku-docs, sin
+navegación, sin scripts, sin cookies, en un host propio y con `noindex` [REQ-016 DD-10, DD-12]. **No
+tiene wireframe ni screen.md** porque no hay nada que componer ni interacción que diseñar. Lo único
+que es contenido —y por eso se fija acá— son sus tres páginas de excepción, **idénticas para
+cualquier causa** para no revelar si un link existió:
+
+| Caso | Título | Texto |
+|---|---|---|
+| Link inexistente, vencido o revocado (404) | `"Este link no está disponible"` | `"Puede que haya vencido o que lo hayan revocado. Pedile un link nuevo a quien te lo compartió."` |
+| Módulo caído (503) | `"El documento no está disponible en este momento"` | `"Probá de nuevo en unos minutos."` |
+| Demasiados pedidos (429) | `"Demasiados intentos"` | `"Esperá un minuto y volvé a intentar."` |
+
+En las tres, sin marca de Jiku ni de Grava: la página no debe sugerir que detrás hay un producto al
+que se puede entrar.
+
+### La discontinuidad
+
+🟡 **El equipo no sabe cuándo lo leyeron hasta que mira.** Los accesos se cuentan, pero solo se ven
+abriendo O-12. Es suficiente para el caso de uso —un link puntual— y se registra para no confundirlo
+con un seguimiento.
+
+### Criterios de éxito
+
+- Un link vencido o revocado debería **dejar de funcionar al instante** y sin revelar por qué
+- El tercero no debería necesitar **nada** más que el link
+- El equipo debería poder **cortar el acceso** sin depender de que el link venza
 
 ---
 

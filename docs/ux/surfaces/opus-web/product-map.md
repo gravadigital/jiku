@@ -23,15 +23,16 @@ origin: relevamiento de código — brownfield
 
 ## Inventario de Pantallas
 
-**5 pantallas relevadas** (6 rutas, una sin UI propia). Es un producto deliberadamente chico.
+**5 pantallas relevadas** (6 rutas, una sin UI propia), **más una que suma REQ-016** (#6), que existe solo con el módulo de documentación instalado. Es un producto deliberadamente chico.
 
 | # | Pantalla | Propósito | Audiencia primaria | Viewports | Referencia PRD |
 |---|---|---|---|---|---|
 | 1 | login | Entrada al portal vía OIDC | cliente | ambos | C-67 |
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
 | 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético; sin proyectos, es donde el cliente nuevo entiende que su acceso todavía no está | cliente | ambos | C-59, REQ-007 |
-| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto | cliente | ambos | C-60, C-61, C-66, REQ-005 |
-| 5 | detalle-requisito | Ver un requisito, su actividad pública, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005 |
+| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto y su documentación pública | cliente | ambos | C-60, C-61, C-66, REQ-005, REQ-016 |
+| 5 | detalle-requisito | Ver un requisito, su actividad pública y sus documentos, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005, REQ-016 |
+| 6 | documento | Leer un documento público del proyecto, con sus adjuntos | cliente | ambos | REQ-016 RF-24 |
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
 
@@ -60,7 +61,7 @@ origin: relevamiento de código — brownfield
 
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
-| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas. **REQ-005:** compone los mismos tres paneles que la pantalla #5, así que hereda `marca-identidad-automatica` en `pie-autoria` y en el feed, y la variant `identidad-automatica` del comentario (RF-3, RF-10) |
+| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas. **REQ-005:** compone los mismos tres paneles que la pantalla #5, así que hereda `marca-identidad-automatica` en `pie-autoria` y en el feed, y la variant `identidad-automatica` del comentario (RF-3, RF-10). **REQ-016:** por la misma razón hereda `seccion-documentos` debajo de `pie-autoria`; abrir un documento sale del modal hacia `documento` (#6) |
 | O-02 | Nuevo requisito | modal | Sidebar · botón "Nuevo requisito"; tablero-requisitos | Crear un requisito. **REQ-001:** los adjuntos dejan de ser borrador y la subida muestra progreso real (RF-1, RF-8). **REQ-004:** un `504 gateway_timeout` deja el alta en duda —el requisito pudo haberse creado— y el modal **no muestra ningún error**, así que el reintento probable duplica el pedido y el duplicado aparece en `web` (RF-16, CA-9) |
 | O-03 | Dropdown de estado | dropdown en portal | fila de lista, card de kanban | Cambiar estado inline — **solo visible para rol interno** |
 | O-04 | Dropdown de prioridad | dropdown en portal | fila de lista, card de kanban | Cambiar prioridad inline — **solo rol interno** |
@@ -99,6 +100,19 @@ el gap bloqueante de navegación en mobile.
 > `incidencia` sin tipo ni conclusión, que el toast genérico tampoco nombra y que **no se diseña
 > acá**, por la misma razón de siempre —que un rol interno opere el estado desde el portal es la
 > pregunta abierta 2 de la superficie, sin resolver [REQ-012 RF-1, RF-3, RF-4, RF-5].
+
+> **REQ-016 agrega una pantalla y toca dos, más un overlay por herencia.** El portal gana la
+> **documentación pública** del módulo opcional jiku-docs, **solo lectura** [RF-24]. `documento` (#6,
+> `/projects/[projectId]/docs/[documentId]`) es el visor; `tablero-requisitos` y `detalle-requisito`
+> suman la sección colapsable **"Documentación (n)"**, y **O-01 la hereda** porque compone los mismos
+> paneles que la pantalla #5. Tres reglas que valen para las tres: **(1)** con el módulo
+> `not_installed` no aparece nada y la ruta del visor responde 404 [CA-35]; **(2)** con 0 documentos
+> públicos la sección tampoco aparece; **(3)** con el módulo caído la sección aparece con el aviso
+> `"Los documentos no están disponibles en este momento…"`. Lo que ve el cliente lo recorta la api a
+> `visibility: public` **por superficie**, igual que los requisitos desde 2026-09-06: un rol interno
+> ve en el portal exactamente los mismos documentos que el cliente [REQ-016 DD-3, CA-34]. **Una ruta
+> sin pantalla:** `/api/docs/attachments/[id]`, el proxy de adjuntos con la sesión del cliente.
+> **Fuera de esta superficie:** edición, búsqueda y compartir [REQ-016 §Fuera de Alcance].
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de
@@ -140,7 +154,7 @@ que conviene registrar.
 
 ### Agrupación: El proyecto como contexto único
 
-Pantallas: proyectos-redireccion (#3), tablero-requisitos (#4), detalle-requisito (#5)
+Pantallas: proyectos-redireccion (#3), tablero-requisitos (#4), detalle-requisito (#5), documento (#6)
 
 **Por qué se agrupan:** toda la superficie ocurre **dentro de un proyecto**. La ruta lo lleva
 siempre (`/projects/[projectId]/requirements`), el sidebar es el selector de proyecto, y no existe
@@ -183,6 +197,9 @@ Pantallas: login (#1), login-entrada (#2)
   asignaron ninguno" de "perdiste el permiso", y eso es deliberado (REQ-006 §22).
 - **Mobile (< 768 px)** — **Estado degradado, no soportado.** Sin navegación: no se puede cambiar
   de proyecto ni cerrar sesión.
+- **Módulo de documentación** — **REQ-016.** No instalado: nada de documentación en la superficie.
+  No disponible: las secciones aparecen con el aviso. Disponible: las secciones aparecen solo si hay
+  documentos públicos. El portal consulta el estado con `GET /api/opus/modules`.
 - **Sin conexión** — **No hay tratamiento.** Tampoco hay `error.tsx` ni `not-found.tsx` en ninguna
   ruta de la superficie.
 - **Ruta inexistente, con sesión** — Devuelve el 404 por defecto de Next, sin chrome del portal ni
@@ -216,6 +233,8 @@ flowchart TD
     TB --> V3["MobileRequirementsBoard<br/>&lt; 768px, forzado por JS"]
 
     TB --> DET["detalle-requisito<br/>(página)"]
+    TB -->|"sección Documentación<br/>(REQ-016, si hay)"| DOC["documento"]
+    DET --> DOC
     TB -.overlay.-> MOD["Detalle en modal<br/>= misma composición"]
     TB -.overlay.-> NEW["Nuevo requisito"]
 

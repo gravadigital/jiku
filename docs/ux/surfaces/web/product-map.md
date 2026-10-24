@@ -22,7 +22,7 @@ del grupo `(loggedin)` [fuente: código-existente].
 
 ## Inventario de Pantallas
 
-25 rutas relevadas: 21 protegidas bajo `(loggedin)`, 4 públicas.
+25 rutas relevadas: 21 protegidas bajo `(loggedin)`, 4 públicas. **REQ-016 suma dos rutas protegidas** (#26, #27), que existen solo con el módulo de documentación instalado: 27 en total.
 
 | # | Pantalla | Propósito | Audiencia primaria | Viewports | Referencia PRD |
 |---|---|---|---|---|---|
@@ -34,16 +34,16 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
 | 7 | edicion-actor | Editar un actor | equipo-interno | solo desktop | C-04 |
 | 8 | listado-proyectos | Ver y filtrar los proyectos | equipo-interno | solo desktop | C-06 |
-| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades y adjuntos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008 |
+| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades, adjuntos y documentos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008, REQ-016 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
-| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir y ver sus horas por persona | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012 |
+| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir, ver sus horas por persona y sus documentos | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012, REQ-016 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008 |
-| 18 | detalle-tarea | Ver una tarea, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011 |
+| 18 | detalle-tarea | Ver una tarea, sus documentos, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011, REQ-016 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
@@ -51,6 +51,8 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 23 | asignacion-tiempo | Planificar capacidad semanal en grilla proyecto × persona | equipo-interno (`admin`) | solo desktop | C-34..C-38, REQ-007 |
 | 24 | carga-horas | Cargar las horas y ausencias del día | equipo-interno | solo desktop | C-39..C-48 |
 | 25 | reporte-horas | Reportar horas con tabla jerárquica de 4 niveles | equipo-interno | solo desktop | C-49 |
+| 26 | documentacion | Recorrer las carpetas de documentación, buscar por texto y crear un documento en una carpeta con permiso de escritura | equipo-interno | solo desktop | REQ-016 RF-12, RF-21 |
+| 27 | documento | Leer un documento, editarlo con reserva y versión base, adjuntarle archivos y compartirlo por link | equipo-interno | solo desktop | REQ-016 RF-19, RF-20, RF-22 |
 
 **Origen:** `web/src/app/` — 25 rutas, 3 layouts, 4 `loading.tsx`, 5 `error.tsx`
 [fuente: código-existente].
@@ -177,6 +179,26 @@ del grupo `(loggedin)` [fuente: código-existente].
 > se verificó que ninguna otra vista dependa del 401 como señal. Ninguna pantalla gana ni pierde
 > bloques [REQ-007].
 
+> **REQ-016 agrega dos pantallas y dos overlays, y toca tres.** Integra el **módulo opcional de
+> documentación** (jiku-docs). Lo que lo hace distinto de todo lo anterior es que **es opcional**: la
+> web consulta el estado del módulo al iniciar, cada 60 s y ante un `module_unavailable`, y con el
+> módulo `not_installed` **no aparece nada** —ni ítem de navegación, ni card, ni ruta: `/docs` responde
+> 404— [RF-17, RF-23, CA-25]. Con el módulo caído (`unavailable`) todo aparece con el aviso
+> `"La documentación no está disponible en este momento…"` y las acciones deshabilitadas [CA-27].
+> **(1) Pantallas nuevas:** `documentacion` (#26, `/docs`) — carpetas por niveles con breadcrumb,
+> búsqueda global y alta de documento — y `documento` (#27, `/docs/[id]`) — visor markdown seguro,
+> editor con reserva y versión base, conflicto de versión, adjuntos y compartir. **(2) Overlays
+> nuevos:** O-11 *Nuevo documento* y O-12 *Compartir documento*. **(3) Fichas modificadas:**
+> `detalle-proyecto`, `detalle-requisito` y `detalle-tarea` suman la **card "Documentación"**, de
+> solo lectura, con los documentos vinculados (por `projectId`, `requirementId` y `taskId`
+> respectivamente) [RF-18]. **(4) Shell:** ítem **"Documentación"** en la sidebar.
+> **Una ruta sin pantalla:** `/docs/attachments/[id]` es el link estable de los adjuntos de
+> documentación; no renderiza nada, resuelve la sesión y redirige al archivo (302) [RF-16]. No va en el
+> inventario por la misma razón que no iban los route handlers de `opus-web`.
+> **Fuera de esta superficie:** administrar carpetas y permisos, mover, borrar, restaurar y ver el
+> historial de versiones (se hace con jiku-go), y el tiempo real (la web no escucha el bus)
+> [REQ-016 §Fuera de Alcance, Supuestos].
+
 > **REQ-005 no agrega ni quita pantallas, y toca tres.** El evento de autenticación del bus no
 > tiene interfaz; lo que sí es user-visible es su consecuencia: desde REQ-005 una **identidad de
 > servicio** tiene fila en `users` y puede figurar como autor. Las tres pantallas que exponen un
@@ -193,7 +215,7 @@ Ninguno es ruta. **Origen:** `docs/analysis/ux/web/screens/_overlays.md` [fuente
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
 | O-01 | Vista previa de adjunto | modal (`role="dialog"`, `aria-modal`) | detalle-proyecto · botón "Preview" de un adjunto | Ver imagen o PDF sin salir de la pantalla. **REQ-001:** suma el caso "el archivo no está disponible" (RF-21, CA-15) |
-| O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) | Confirmar una acción destructiva |
+| O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) · **REQ-016:** documento (descartar cambios) · O-12 (revocar link) | Confirmar una acción destructiva |
 | O-03 | Dropdown de estado de tarea | dropdown | listado-tareas · tag de estado; cards de tarea | Cambiar estado inline sin abrir el detalle |
 | O-04 | Pills-dropdown de estado/tipo/prioridad | dropdown (`role="listbox"`) | detalle-requisito · header | Editar los tres campos de clasificación inline. **REQ-012:** el de estado ofrece los siete estados siempre —sin recorte por secuencia y sin la excepción que escondía `"En cola"` para las incidencias— y deja de deshabilitarse en `resuelto` y `cancelado` (RF-1, RF-12) |
 | O-05 | Dropdown de tipo de proyecto | dropdown (checkboxes) | reporte-horas | Filtrar el reporte por tipo de proyecto |
@@ -202,6 +224,8 @@ Ninguno es ruta. **Origen:** `docs/analysis/ux/web/screens/_overlays.md` [fuente
 | O-08 | Tooltip | tooltip | transversal (10 usos) | Aclaración contextual |
 | O-09 | Acordeón de campos de estado | in-place (no overlay) | detalle-requisito | Abrir los campos que corresponden al estado actual |
 | O-10 | Cajón de actores | modal lateral | **ninguno — código muerto** | *(no alcanzable)* |
+| O-11 | Nuevo documento | modal | documentacion · `boton-nuevo-documento` | Crear un documento en la carpeta actual y entrar directo a editarlo **[REQ-016]**. Ver [`screens/nuevo-documento.md`](screens/nuevo-documento.md) |
+| O-12 | Compartir documento | modal | documento · `boton-compartir` | Crear un link de solo lectura con vencimiento (mostrado una sola vez), listar los existentes y revocarlos **[REQ-016]**. Ver [`screens/compartir-documento.md`](screens/compartir-documento.md) |
 
 ## Estructura de Navegación
 
@@ -219,6 +243,7 @@ La sidebar (`<Navbar>`) es persistente en las 21 pantallas autenticadas, con 6 �
 - **Asignación de Tiempo** → asignacion-tiempo (#23)
 - **Horas Trabajadas** → carga-horas (#24)
   - *subítem:* Reporte → reporte-horas (#25)
+- **Documentación** → documentacion (#26) — **REQ-016, condicional:** solo existe con el módulo de documentación instalado; con el módulo caído se ve igual y la pantalla muestra el aviso
 
 Más un **bloque de enlaces externos configurable** (variable `EXTERNAL_LINKS`; vacío = bloque
 oculto) y **Cerrar sesión**.
@@ -267,6 +292,15 @@ Pantallas: asignacion-tiempo (#23), carga-horas (#24), reporte-horas (#25)
 **Por qué se agrupan:** son las tres caras del tiempo — lo planeado (#23), lo ocurrido (#24) y la
 comparación (#25). Tienen audiencias parcialmente distintas: #23 es solo de `admin`.
 
+### Agrupación: Documentación
+
+Pantallas: documentacion (#26), documento (#27)
+
+**Por qué se agrupan:** son la única parte de la superficie que **no es de Jiku**: los datos los
+guarda y autoriza el módulo jiku-docs, y la agrupación existe o no según esté instalado. Se entra
+por la sidebar o desde la card "Documentación" de las tres fichas, que es el puente con el resto
+del mapa [REQ-016].
+
 ### Agrupación: Entrada y corte de acceso
 
 Pantallas: home-vacia (#1), login (#2), login-entrada (#3), sin-permisos (#4)
@@ -289,6 +323,10 @@ Pantallas: home-vacia (#1), login (#2), login-entrada (#3), sin-permisos (#4)
   sesión estaba perfecta, produciendo un bucle sin explicación. El `user_not_found` ya no existe en
   ninguna ruta (CA-12), así que un redirect a `/login` ahora quiere decir exactamente *"tu sesión
   venció"*.
+- **Módulo de documentación** — **REQ-016.** Tres estados vistos desde la interfaz: *no
+  instalado* (no existe nada de documentación en la superficie), *no disponible* (todo aparece con
+  el aviso y las acciones deshabilitadas) y *disponible*. La web lo consulta al iniciar, cada 60 s
+  y ante un `module_unavailable`, así que el cambio llega sin recargar [RF-17, RF-23].
 - **Sin conexión** — **No hay tratamiento.** No hay banner, ni modo offline, ni reintento visible.
 
 ## Mapa Visual
@@ -329,6 +367,13 @@ flowchart TD
     T --> T4["tareas-por-proyecto"]
     T --> T5["tareas-por-responsable"]
 
+    Shell --> G4["Documentación<br/>(si el módulo está instalado)"]
+    G4 --> D1["documentacion"]
+    D1 --> D2["documento"]
+    PR1 -.card Documentación.-> D2
+    R1 -.card Documentación.-> D2
+    T1 -.card Documentación.-> D2
+
     G3 --> H1["asignacion-tiempo<br/>solo admin"]
     G3 --> H2["carga-horas"]
     H2 --> H3["reporte-horas"]
@@ -339,7 +384,7 @@ flowchart TD
     classDef pub fill:#f1f5f9,stroke:#64748b,color:#334155
     classDef grp fill:#fef3c7,stroke:#d97706,color:#78350f
     class P1,P2,P3,P4 pub
-    class G1,G2,G3 grp
+    class G1,G2,G3,G4 grp
 ```
 
 ## Preguntas Abiertas

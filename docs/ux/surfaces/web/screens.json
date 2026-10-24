@@ -2017,6 +2017,121 @@
             "loading"
           ],
           "annotation": "nuevo con REQ-005 · nombre accesible \"Identidad automática: no es una persona\" · acompaña al valor de la fila \"Creado por\" de card-informacion-general, y solo ahí: esta pantalla no muestra autoría en ningún otro bloque —item-adjunto lista el nombre del archivo y no quién lo subió, así que uploaded_by sigue invisible acá pese a que desde REQ-005 puede ser un service user · presente o ausente según el dato, no según el estado: solo cuando identityType es service (REQ-005 RF-3, RF-10)"
+        },
+        {
+          "name": "card-documentacion",
+          "type": "card",
+          "category": "content",
+          "content": "Documentación",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con projectId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+        },
+        {
+          "name": "aviso-documentacion-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentación no disponible"
+          ],
+          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
+        },
+        {
+          "name": "tabla-documentos",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Documento",
+              "width": 50
+            },
+            {
+              "label": "Ruta",
+              "width": 30
+            },
+            {
+              "label": "Actualizado",
+              "width": 20
+            }
+          ],
+          "rows": [
+            [
+              "Guía de despliegue del portal",
+              "Opus / Portal / Operación",
+              "22/10/2026"
+            ],
+            [
+              "Análisis de integración con SAP",
+              "Opus / Portal / Análisis",
+              "15/10/2026"
+            ],
+            [
+              "Manual de usuario — módulo de reportes",
+              "Opus / Portal / Manuales",
+              "02/10/2026"
+            ]
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
+        },
+        {
+          "name": "marca-documento-en-edicion",
+          "type": "badge",
+          "category": "content",
+          "content": "En edición",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a este proyecto.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera",
+          "hidden_in_states": [
+            "default",
+            "empty",
+            "loading",
+            "error de validación",
+            "error de sistema",
+            "success",
+            "documentación no disponible"
+          ]
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
         }
       ],
       "layouts": {
@@ -2094,6 +2209,25 @@
                   "marca-identidad-automatica",
                   "card-propiedades",
                   {
+                    "row": "bloque-documentacion",
+                    "cols": [
+                      {
+                        "w": 12,
+                        "card": true,
+                        "stack": [
+                          "card-documentacion",
+                          "aviso-documentacion-no-disponible",
+                          "tabla-documentos",
+                          "marca-documento-en-edicion",
+                          "vacio-documentos",
+                          "cargando-documentos",
+                          "boton-ver-mas-documentos"
+                        ]
+                      }
+                    ],
+                    "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
+                  },
+                  {
                     "row": "bloque-adjuntos",
                     "cols": [
                       {
@@ -2148,6 +2282,11 @@
         {
           "name": "terminal",
           "applies": false
+        },
+        {
+          "name": "documentación no disponible",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -4217,6 +4356,107 @@
             "not found"
           ],
           "annotation": "sub-estado \"horas cargando\" (parent_state: default), como progreso-subida-adjunto: no es el loading de la pantalla, que es solo de mutación · ocupa el cuerpo de la card mientras la consulta está en vuelo, y el resto de la pantalla se renderiza completo y es operable: header, workflow, tareas y feed no esperan a las horas · es el primer loading de esta pantalla que no viene de una mutación, porque la card tiene su propia consulta · el sub-estado \"horas no disponibles\" muestra en su lugar \"No se pudieron cargar las horas\" en el cuerpo de la card: existe como estado propio y no como toast porque sin él la falla se vería como \"Sin horas cargadas\", un requisito con horas pareciendo no tenerlas · ni la carga ni el resultado se anuncian: no hay región aria-live [REQ-010 Escenario B, AC-11]"
+        },
+        {
+          "name": "card-documentacion",
+          "type": "card",
+          "category": "content",
+          "content": "Documentación",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con requirementId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+        },
+        {
+          "name": "aviso-documentacion-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentación no disponible"
+          ],
+          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
+        },
+        {
+          "name": "tabla-documentos",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Documento",
+              "width": 50
+            },
+            {
+              "label": "Ruta",
+              "width": 30
+            },
+            {
+              "label": "Actualizado",
+              "width": 20
+            }
+          ],
+          "rows": [
+            [
+              "Exportación a Excel — decisiones de formato",
+              "Opus / Portal / Análisis",
+              "21/10/2026"
+            ],
+            [
+              "Casos de prueba del reporte",
+              "Opus / Portal / QA",
+              "18/10/2026"
+            ]
+          ],
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
+        },
+        {
+          "name": "marca-documento-en-edicion",
+          "type": "badge",
+          "category": "content",
+          "content": "En edición",
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a este requisito.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera"
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
         }
       ],
       "layouts": {
@@ -4455,6 +4695,25 @@
                       }
                     ]
                   },
+                  {
+                    "row": "bloque-documentacion",
+                    "cols": [
+                      {
+                        "w": 12,
+                        "card": true,
+                        "stack": [
+                          "card-documentacion",
+                          "aviso-documentacion-no-disponible",
+                          "tabla-documentos",
+                          "marca-documento-en-edicion",
+                          "vacio-documentos",
+                          "cargando-documentos",
+                          "boton-ver-mas-documentos"
+                        ]
+                      }
+                    ],
+                    "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
+                  },
                   "card-resolucion",
                   "campo-tipo-resolucion",
                   "campo-conclusion",
@@ -4531,6 +4790,11 @@
         {
           "name": "terminal",
           "applies": true
+        },
+        {
+          "name": "documentación no disponible",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -6415,6 +6679,102 @@
             }
           ],
           "annotation": "sub-estado \"comentario en edición\" (parent_state: default) · nueva con REQ-011 · hasta acá los adjuntos de un comentario se elegían solo al escribirlo y después quedaban fijos: lista-adjuntos-pendientes cubre el alta y desaparece al guardar. En edición se muestran los adjuntos que el comentario ya tiene, se pueden quitar y se pueden sumar archivos propios con boton-adjuntar-comentario (RF-2, CA-3) · lo que se guarda es el conjunto completo que debe quedar, no un delta: si la escritura falla no se aplica ningún cambio, ni de texto ni de vínculos (CA-14) · quitar un adjunto no borra el archivo —queda subido y se puede volver a usar—, igual que en el alta (REQ-001 RF-8), y el cambio recién se aplica al guardar: \"Cancelar\" lo revierte · cruz por ítem, con aria-label que nombra el archivo: el aria-label genérico de boton-quitar-adjunto ya está registrado como defecto y no hay que repetirlo acá"
+        },
+        {
+          "name": "card-documentacion",
+          "type": "card",
+          "category": "content",
+          "content": "Documentación",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con taskId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+        },
+        {
+          "name": "aviso-documentacion-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "documentación no disponible"
+          ],
+          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
+        },
+        {
+          "name": "tabla-documentos",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Documento",
+              "width": 50
+            },
+            {
+              "label": "Ruta",
+              "width": 30
+            },
+            {
+              "label": "Actualizado",
+              "width": 20
+            }
+          ],
+          "rows": [
+            [
+              "Endpoint de exportación — contrato",
+              "Opus / Portal / Técnica",
+              "20/10/2026"
+            ]
+          ],
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
+        },
+        {
+          "name": "marca-documento-en-edicion",
+          "type": "badge",
+          "category": "content",
+          "content": "En edición",
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a esta tarea.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera"
+        },
+        {
+          "name": "boton-ver-mas-documentos",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "hidden_in_states": [
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
         }
       ],
       "layouts": {
@@ -6484,6 +6844,25 @@
                 ]
               }
             ]
+          },
+          {
+            "row": "bloque-documentacion",
+            "cols": [
+              {
+                "w": 12,
+                "card": true,
+                "stack": [
+                  "card-documentacion",
+                  "aviso-documentacion-no-disponible",
+                  "tabla-documentos",
+                  "marca-documento-en-edicion",
+                  "vacio-documentos",
+                  "cargando-documentos",
+                  "boton-ver-mas-documentos"
+                ]
+              }
+            ],
+            "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
           },
           "titulo-historial",
           "lista-historial",
@@ -6616,6 +6995,11 @@
         {
           "name": "terminal",
           "applies": false
+        },
+        {
+          "name": "documentación no disponible",
+          "applies": true,
+          "parent_state": "default"
         }
       ]
     },
@@ -9506,6 +9890,1035 @@
       ]
     },
     {
+      "name": "documentacion",
+      "displayName": "Documentación",
+      "audiences": [
+        "equipo-interno"
+      ],
+      "blocks": [
+        {
+          "name": "titulo-documentacion",
+          "type": "heading",
+          "category": "content",
+          "level": "h1",
+          "content": "Documentación",
+          "annotation": "ViewHeader sin breadcrumb propio: el de esta vista es el de carpetas, debajo · la ruta existe solo con el módulo instalado; con not_installed /docs es el 404 de la superficie [REQ-016 RF-23, CA-25]"
+        },
+        {
+          "name": "breadcrumb-carpeta",
+          "type": "breadcrumbs",
+          "category": "navigation",
+          "items": [
+            "Inicio",
+            "Opus",
+            "Portal",
+            "Operación"
+          ],
+          "hidden_in_states": [
+            "resultados de búsqueda",
+            "sin resultados",
+            "módulo no disponible"
+          ],
+          "state_overrides": {
+            "not found": {
+              "items": [
+                "Inicio"
+              ]
+            }
+          },
+          "annotation": "la carpeta actual viaja en la URL (?folder={id}): sobrevive a recargar y se puede compartir · el último nivel sin enlace · <nav aria-label=\"Ruta de la carpeta\">"
+        },
+        {
+          "name": "busqueda-documentos",
+          "type": "search-bar",
+          "category": "input",
+          "icon": "search",
+          "content": "Buscar en la documentación",
+          "state_overrides": {
+            "resultados de búsqueda": {
+              "content": "despliegue"
+            },
+            "sin resultados": {
+              "content": "rollback kubernetes"
+            },
+            "módulo no disponible": {
+              "state": "disabled"
+            }
+          },
+          "annotation": "busca en todo lo que la persona puede leer, no solo en la carpeta actual · debounce 300 ms, mínimo 2 caracteres · el texto viaja en la URL (?q=) · vaciar el campo vuelve a la carpeta"
+        },
+        {
+          "name": "boton-nuevo-documento",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "icon": "plus",
+          "content": "Nuevo documento",
+          "hidden_in_states": [
+            "resultados de búsqueda",
+            "sin resultados",
+            "terminal",
+            "not found"
+          ],
+          "state_overrides": {
+            "módulo no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "no se renderiza si la carpeta no da write ni manage, ni en la raíz (Inicio): un documento siempre vive en una carpeta · abre O-11 con la carpeta fijada"
+        },
+        {
+          "name": "aviso-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "módulo no disponible"
+          ],
+          "annotation": "la web reconsulta el estado del módulo cada 60 s; al volver a available el aviso desaparece y la carpeta se carga sola [REQ-016 RF-17, CA-27]"
+        },
+        {
+          "name": "aviso-error",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "No se pudo cargar la carpeta. Actualizá la página.",
+          "visible_only_in_states": [
+            "error de sistema",
+            "not found"
+          ],
+          "state_overrides": {
+            "not found": {
+              "content": "Esta carpeta no existe o no tenés permiso para verla."
+            }
+          },
+          "annotation": "role=\"alert\" · en búsqueda: \"No se pudo buscar. Intentá de nuevo.\" · un 403 sobre una carpeta: \"No tenés permiso para ver esta carpeta.\""
+        },
+        {
+          "name": "tabla-carpeta",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Nombre",
+              "width": 56
+            },
+            {
+              "label": "Actualizado",
+              "width": 24
+            },
+            {
+              "label": "Por",
+              "width": 20
+            }
+          ],
+          "rows": [
+            [
+              "▰ Manuales",
+              "",
+              ""
+            ],
+            [
+              "▰ QA",
+              "",
+              ""
+            ],
+            [
+              "▤ Guía de despliegue del portal",
+              "22/10/2026 14:05",
+              "Ana García"
+            ],
+            [
+              "▤ Runbook de incidentes",
+              "19/10/2026 09:40",
+              "Beto Ruiz"
+            ],
+            [
+              "▤ Checklist de pase a producción",
+              "03/10/2026 17:12",
+              "Otra persona"
+            ]
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "resultados de búsqueda",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "una sola tabla: subcarpetas primero (icono folder, sin fecha), documentos después (icono file) por última actualización · fila entera clickeable y enfocable · \"Por\" resuelve updatedBy contra las personas de Jiku; si no, \"Otra persona\""
+        },
+        {
+          "name": "marca-en-edicion",
+          "type": "badge",
+          "category": "content",
+          "content": "En edición",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "resultados de búsqueda",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema",
+            "not found"
+          ],
+          "annotation": "Badge neutro en la celda del título, solo en documentos con lock vigente · nombre accesible \"{persona} lo está editando\" · informa, no bloquea"
+        },
+        {
+          "name": "resultados-busqueda",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Documento",
+              "width": 56
+            },
+            {
+              "label": "Carpeta",
+              "width": 26
+            },
+            {
+              "label": "Actualizado",
+              "width": 18
+            }
+          ],
+          "rows": [
+            [
+              "Guía de despliegue del portal — «…pasos de despliegue en el cluster…»",
+              "Opus / Portal / Operación",
+              "22/10/2026"
+            ],
+            [
+              "Checklist de pase a producción — «…antes del despliegue, validar…»",
+              "Opus / Portal / Operación",
+              "03/10/2026"
+            ]
+          ],
+          "visible_only_in_states": [
+            "resultados de búsqueda"
+          ],
+          "annotation": "reemplaza a la tabla mientras hay texto buscado · el fragmento viene recortado por el módulo; la web solo resalta la coincidencia y nunca lo interpreta como HTML · el cambio se anuncia en una región live (\"{n} resultados\")"
+        },
+        {
+          "name": "vacio-carpeta",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "Esta carpeta está vacía.",
+          "paragraph": "Creá el primer documento con «Nuevo documento».",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list · la segunda línea solo si la persona puede escribir en la carpeta"
+        },
+        {
+          "name": "vacio-busqueda",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos que coincidan con «rollback kubernetes».",
+          "paragraph": "Probá con otras palabras.",
+          "visible_only_in_states": [
+            "sin resultados"
+          ],
+          "annotation": "EmptyState filtered: invita a cambiar la búsqueda, no a crear"
+        },
+        {
+          "name": "cargando-carpeta",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentación…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader block dentro del panel; encabezado y búsqueda quedan visibles y operables"
+        },
+        {
+          "name": "boton-ver-mas",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver más",
+          "visible_only_in_states": [
+            "default",
+            "resultados de búsqueda",
+            "terminal"
+          ],
+          "annotation": "variant DS secondary-dismiss · solo cuando hay más filas · pagina por cursor, por eso no hay Pagination: no hay total que mostrar"
+        }
+      ],
+      "layouts": {
+        "desktop": [
+          {
+            "row": "encabezado",
+            "cols": [
+              {
+                "w": 8,
+                "stack": [
+                  "titulo-documentacion",
+                  "breadcrumb-carpeta"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  "boton-nuevo-documento"
+                ]
+              }
+            ]
+          },
+          "busqueda-documentos",
+          "aviso-no-disponible",
+          "aviso-error",
+          {
+            "row": "contenido",
+            "card": true,
+            "cols": [
+              {
+                "w": 12,
+                "stack": [
+                  "tabla-carpeta",
+                  "marca-en-edicion",
+                  "resultados-busqueda",
+                  "vacio-carpeta",
+                  "vacio-busqueda",
+                  "cargando-carpeta",
+                  "boton-ver-mas"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": true
+        },
+        {
+          "name": "terminal",
+          "applies": true
+        },
+        {
+          "name": "resultados de búsqueda",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "sin resultados",
+          "applies": true,
+          "parent_state": "resultados de búsqueda"
+        },
+        {
+          "name": "módulo no disponible",
+          "applies": true,
+          "parent_state": "default"
+        }
+      ]
+    },
+    {
+      "name": "documento",
+      "displayName": "Documento",
+      "audiences": [
+        "equipo-interno"
+      ],
+      "blocks": [
+        {
+          "name": "breadcrumb-documento",
+          "type": "breadcrumbs",
+          "category": "navigation",
+          "items": [
+            "Documentación",
+            "Opus",
+            "Portal",
+            "Operación"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "cada nivel navega a /docs?folder={id}: es la forma de llegar a los documentos vecinos"
+        },
+        {
+          "name": "titulo-documento",
+          "type": "heading",
+          "category": "content",
+          "level": "h1",
+          "content": "Guía de despliegue del portal",
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "ViewHeader · sin título en el frontmatter, el nombre de archivo sin .md"
+        },
+        {
+          "name": "badge-visibilidad",
+          "type": "badge",
+          "category": "content",
+          "content": "Visible para el cliente",
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "public → \"Visible para el cliente\" (eye) · internal → \"Interno\" (lock) · lo decide el frontmatter y la carpeta: es la única señal, antes de compartir o escribir algo sensible, de que el texto llega al portal"
+        },
+        {
+          "name": "meta-version",
+          "type": "label",
+          "category": "content",
+          "content": "Versión 7 · actualizado el 22/10/2026 14:05 por Ana García",
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "{persona} se resuelve contra las personas de Jiku; si no, \"otra persona\""
+        },
+        {
+          "name": "boton-volver",
+          "type": "button",
+          "category": "navigation",
+          "variant": "secondary",
+          "icon": "arrow-left",
+          "content": "Volver",
+          "annotation": "variant DS secondary-nav · vuelve a la carpeta del documento en documentacion · única salida en loading y not found"
+        },
+        {
+          "name": "boton-compartir",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "share",
+          "content": "Compartir",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "módulo no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "variant DS secondary-nav · no se renderiza sin la función de compartir configurada (features.sharing: false) ni sin permiso manage [REQ-016 CA-32] · si la carpeta bloquea el compartir se renderiza y O-12 lo explica"
+        },
+        {
+          "name": "boton-editar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "icon": "edit",
+          "content": "Editar",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "terminal"
+          ],
+          "state_overrides": {
+            "bloqueado por otra persona": {
+              "variant": "disabled"
+            },
+            "módulo no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "pide la reserva de edición; mientras responde queda deshabilitado con Loader inline · no se renderiza para quien solo lee ni para un documento > 256 KiB"
+        },
+        {
+          "name": "aviso-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "módulo no disponible"
+          ],
+          "annotation": "mismo texto en las cinco pantallas que muestran documentación [REQ-016 CA-27]"
+        },
+        {
+          "name": "aviso-bloqueado",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "info",
+          "content": "Ana García lo está editando hasta las 14:32. Podés leerlo mientras tanto.",
+          "visible_only_in_states": [
+            "bloqueado por otra persona"
+          ],
+          "annotation": "al abrir con una reserva vigente, o al pulsar \"Editar\" si otro la tomó antes · reserva de un agente (via: agent): \"Un agente lo está editando hasta las {HH:mm}…\" · se revisa al volver a la pestaña y cada 60 s [REQ-016 CA-18]"
+        },
+        {
+          "name": "aviso-documento-grande",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "info",
+          "content": "Este documento es demasiado grande para editarlo desde acá. Podés leerlo y editarlo con jiku-go.",
+          "visible_only_in_states": [
+            "terminal"
+          ],
+          "annotation": "documentos de más de 256 KiB llegan por contentUrl y se muestran en solo lectura · sin permiso de escritura el readonly no muestra aviso, solo falta \"Editar\""
+        },
+        {
+          "name": "aviso-conflicto",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Beto Ruiz guardó la versión 8 mientras editabas. Tu texto sigue acá: compará con la versión actual y guardá cuando estés listo.",
+          "visible_only_in_states": [
+            "conflicto de versión"
+          ],
+          "annotation": "role=\"alert\" [REQ-016 CA-17, CA-30]"
+        },
+        {
+          "name": "aviso-reserva-perdida",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Se perdió la reserva de edición. Tu texto sigue acá; si nadie más lo tomó, vas a poder guardar igual.",
+          "visible_only_in_states": [
+            "reserva perdida"
+          ],
+          "annotation": "una renovación falló (sin conexión o la tomó otra persona) · si al guardar otro tiene la reserva, pasa a bloqueado conservando el texto"
+        },
+        {
+          "name": "contenido-documento",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "## Requisitos previos\nAcceso al cluster de staging y credenciales del registry. ## Pasos\n1. Crear la rama de release… 2. Ejecutar el pipeline de despliegue… ![diagrama-de-red.png](/docs/attachments/…)",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "módulo no disponible": {
+              "annotation": "se muestra si ya estaba cargado; si no, oculto"
+            }
+          },
+          "annotation": "markdown renderizado sin el frontmatter · nunca ejecuta HTML ni scripts: el HTML crudo se muestra como texto y los enlaces solo pueden ser http(s), mailto o adjuntos · todo path /docs/attachments/{id} se reescribe al de la web · los # del documento bajan un nivel (h2) [REQ-016 CA-28, CA-33]"
+        },
+        {
+          "name": "card-vinculos",
+          "type": "card",
+          "category": "content",
+          "content": "Vinculado a",
+          "icon": "link",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "Card panel · vacío: \"Este documento no está vinculado a ningún proyecto, requisito ni tarea.\""
+        },
+        {
+          "name": "lista-vinculos",
+          "type": "list",
+          "category": "navigation",
+          "items": [
+            {
+              "title": "Portal Opus",
+              "subtitle": "Proyecto"
+            },
+            {
+              "title": "#1042 Exportar reporte a Excel",
+              "subtitle": "Requisito"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "un enlace por vínculo con su tipo (Cliente · Proyecto · Requisito · Tarea) · los muestra, no los edita: se escriben en el frontmatter"
+        },
+        {
+          "name": "lista-temas",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "despliegue",
+            "operación",
+            "kubernetes"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "título \"Temas\", un Badge por tema · sin temas no se renderiza"
+        },
+        {
+          "name": "card-adjuntos-documento",
+          "type": "card",
+          "category": "content",
+          "content": "Adjuntos",
+          "icon": "file",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "Card panel · vacío: \"Sin adjuntos.\""
+        },
+        {
+          "name": "lista-adjuntos-documento",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "diagrama-de-red.png"
+            },
+            {
+              "title": "variables-de-entorno.pdf"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "cada enlace apunta a /docs/attachments/{id}, el link estable de la web (sesión → api → 302), y abre en pestaña nueva [REQ-016 RF-16]"
+        },
+        {
+          "name": "indicador-reserva",
+          "type": "label",
+          "category": "feedback",
+          "content": "Lo estás editando. Nadie más puede guardar hasta que termines.",
+          "visible_only_in_states": [
+            "editando",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "la reserva dura 120 s y se renueva sola cada 60 s; la persona no hace nada [REQ-016 CA-29]"
+        },
+        {
+          "name": "editor-markdown",
+          "type": "textarea",
+          "category": "input",
+          "label": "Contenido (markdown)",
+          "content": "---\ntitle: Guía de despliegue del portal\nvisibility: public\nprojectId: 12\n---\n# Guía de despliegue del portal\n## Requisitos previos\n…",
+          "h": 320,
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "error de validación": {
+              "type": "text-input",
+              "state": "error",
+              "content": "---\ntitle: Guía de despliegue del portal\nvisibility: publik …",
+              "error_msg": "El frontmatter no es válido: visibility debe ser public o internal. Corregilo y volvé a guardar."
+            }
+          },
+          "annotation": "Input textarea, monoespaciada, incluye el frontmatter (vínculos, temas y visibilidad) · en conflicto conserva el texto propio sin tocarlo · otros errores del módulo: \"Uno de los vínculos no existe: {detalle}.\" · \"El documento supera los 256 KiB que se pueden guardar desde acá.\""
+        },
+        {
+          "name": "zona-adjuntar",
+          "type": "section",
+          "category": "input",
+          "icon": "upload",
+          "content": "Arrastrá un archivo acá o hacé click para adjuntarlo",
+          "visible_only_in_states": [
+            "editando"
+          ],
+          "annotation": "Dropzone · subiendo: \"Subiendo {archivo}…\" · rechazos del módulo: \"Ese tipo de archivo no está permitido.\" / \"El archivo supera el tamaño máximo permitido.\" · al terminar inserta ![nombre](/docs/attachments/{id}) o [nombre](…) en el cursor"
+        },
+        {
+          "name": "vista-previa",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Vista previa — Guía de despliegue del portal · Requisitos previos · Acceso al cluster de staging…",
+          "visible_only_in_states": [
+            "editando",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "mismo render y mismas reglas de seguridad que el visor · se actualiza mientras se escribe (debounce 300 ms)"
+        },
+        {
+          "name": "version-actual",
+          "type": "paragraph",
+          "category": "content",
+          "level": "body",
+          "content": "Versión 8, guardada por Beto Ruiz — # Guía de despliegue del portal ## Requisitos previos Acceso al cluster de staging, credenciales del registry y VPN…",
+          "visible_only_in_states": [
+            "conflicto de versión"
+          ],
+          "annotation": "texto plano y no renderizado, seleccionable, para copiar fragmentos exactos al editor · se descartó un diff automático"
+        },
+        {
+          "name": "campo-mensaje",
+          "type": "text-input",
+          "category": "input",
+          "label": "Qué cambiaste (opcional)",
+          "content": "Ej.: agrego los pasos de despliegue",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "queda como mensaje de la versión nueva"
+        },
+        {
+          "name": "boton-cancelar",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Cancelar",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "variant DS secondary-dismiss · con cambios sin guardar pide confirmación con O-02 (\"Descartar cambios\" · \"Vas a perder lo que escribiste desde la última vez que guardaste.\" · \"Descartar\" / \"Seguir editando\") · libera la reserva"
+        },
+        {
+          "name": "boton-guardar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "icon": "check",
+          "content": "Guardar",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "conflicto de versión": {
+              "content": "Guardar sobre la versión 8"
+            }
+          },
+          "annotation": "guarda con la versión base · en conflicto la base pasa a ser la actual: guardar es una decisión explícita, nunca un reintento automático · disabled mientras guarda [REQ-016 CA-30]"
+        },
+        {
+          "name": "cargando-documento",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documento…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader block"
+        },
+        {
+          "name": "aviso-not-found",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "Este documento no existe o no tenés permiso para verlo.",
+          "visible_only_in_states": [
+            "not found"
+          ],
+          "annotation": "mismo texto para inexistente y sin permiso: la diferencia solo le sirve a quien prueba ids · boton-volver queda como salida"
+        },
+        {
+          "name": "toast-resultado",
+          "type": "toast",
+          "category": "feedback",
+          "kind": "success",
+          "content": "Guardaste la versión 8.",
+          "visible_only_in_states": [
+            "success",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "error de sistema": {
+              "kind": "error",
+              "content": "No se pudo guardar. Tu texto sigue en el editor; intentá de nuevo."
+            }
+          },
+          "annotation": "con posible secreto: \"Guardaste la versión {n}. Revisalo: parece contener una clave o un token.\" (aviso, no bloquea)"
+        }
+      ],
+      "layouts": {
+        "desktop": [
+          {
+            "row": "encabezado",
+            "cols": [
+              {
+                "w": 8,
+                "stack": [
+                  "breadcrumb-documento",
+                  "titulo-documento",
+                  {
+                    "row": "meta",
+                    "cols": [
+                      {
+                        "w": 3,
+                        "stack": [
+                          "badge-visibilidad"
+                        ]
+                      },
+                      {
+                        "w": 9,
+                        "stack": [
+                          "meta-version"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  {
+                    "row": "acciones",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "stack": [
+                          "boton-volver"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "boton-compartir"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "boton-editar"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "aviso-no-disponible",
+          "aviso-bloqueado",
+          "aviso-documento-grande",
+          "aviso-conflicto",
+          "aviso-reserva-perdida",
+          "cargando-documento",
+          "aviso-not-found",
+          {
+            "row": "lectura",
+            "cols": [
+              {
+                "w": 8,
+                "card": true,
+                "stack": [
+                  "contenido-documento"
+                ]
+              },
+              {
+                "w": 4,
+                "stack": [
+                  {
+                    "row": "bloque-vinculos",
+                    "cols": [
+                      {
+                        "w": 12,
+                        "card": true,
+                        "stack": [
+                          "card-vinculos",
+                          "lista-vinculos",
+                          "lista-temas"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "bloque-adjuntos",
+                    "cols": [
+                      {
+                        "w": 12,
+                        "card": true,
+                        "stack": [
+                          "card-adjuntos-documento",
+                          "lista-adjuntos-documento"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "annotation": "lectura: default, bloqueado, módulo no disponible, readonly"
+          },
+          {
+            "row": "edicion",
+            "cols": [
+              {
+                "w": 6,
+                "stack": [
+                  "indicador-reserva",
+                  "editor-markdown",
+                  "zona-adjuntar"
+                ]
+              },
+              {
+                "w": 6,
+                "card": true,
+                "stack": [
+                  "vista-previa",
+                  "version-actual"
+                ]
+              }
+            ],
+            "annotation": "edición: la vista previa al lado y no en una pestaña · en conflicto de versión la columna derecha muestra la versión ajena en texto plano"
+          },
+          {
+            "row": "acciones-edicion",
+            "cols": [
+              {
+                "w": 8,
+                "stack": [
+                  "campo-mensaje"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": [
+                  "boton-cancelar"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": [
+                  "boton-guardar"
+                ]
+              }
+            ]
+          },
+          "toast-resultado"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": true
+        },
+        {
+          "name": "not found",
+          "applies": true
+        },
+        {
+          "name": "terminal",
+          "applies": true
+        },
+        {
+          "name": "bloqueado por otra persona",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "editando",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "conflicto de versión",
+          "applies": true,
+          "parent_state": "editando"
+        },
+        {
+          "name": "reserva perdida",
+          "applies": true,
+          "parent_state": "editando"
+        },
+        {
+          "name": "módulo no disponible",
+          "applies": true,
+          "parent_state": "default"
+        }
+      ]
+    },
+    {
       "name": "preview-adjunto",
       "displayName": "Vista previa de adjunto",
       "overlay": true,
@@ -10029,6 +11442,617 @@
           "applies": true
         }
       ]
+    },
+    {
+      "name": "nuevo-documento",
+      "displayName": "Nuevo documento",
+      "overlay": true,
+      "overlay_type": "modal",
+      "triggered_by": "documentacion",
+      "audiences": [
+        "equipo-interno"
+      ],
+      "blocks": [
+        {
+          "name": "titulo-modal",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "content": "Nuevo documento",
+          "annotation": "role=\"dialog\" + aria-modal, aria-labelledby hacia este h2"
+        },
+        {
+          "name": "carpeta-destino",
+          "type": "label",
+          "category": "content",
+          "content": "Se crea en Opus / Portal / Operación",
+          "annotation": "fija: para crear en otra carpeta se navega hasta ella"
+        },
+        {
+          "name": "campo-titulo",
+          "type": "text-input",
+          "category": "input",
+          "label": "Título",
+          "content": "Guía de despliegue",
+          "annotation": "foco inicial · el contenido inicial es # {Título}; opcional"
+        },
+        {
+          "name": "campo-nombre-archivo",
+          "type": "text-input",
+          "category": "input",
+          "icon": "file",
+          "label": "Nombre del archivo",
+          "content": "guia-de-despliegue.md",
+          "state_overrides": {
+            "error de validación": {
+              "state": "error",
+              "error_msg": "Ya hay un documento con ese nombre en esta carpeta."
+            }
+          },
+          "annotation": "ayuda: \"Minúsculas, números y guiones. Si no termina en .md, se lo agregamos.\" · se completa solo desde el título mientras no se toque · otro error: \"Ese nombre no es válido. Usá minúsculas, números y guiones.\""
+        },
+        {
+          "name": "aviso-error-alta",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "No se pudo crear el documento. Intentá de nuevo.",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "role=\"alert\" debajo de los campos · con el módulo caído: \"La documentación no está disponible en este momento. Probá de nuevo en unos minutos.\""
+        },
+        {
+          "name": "boton-cancelar-alta",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Cancelar",
+          "annotation": "variant DS secondary-dismiss · también Escape o click fuera"
+        },
+        {
+          "name": "boton-crear",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Crear y editar",
+          "state_overrides": {
+            "loading": {
+              "variant": "disabled",
+              "content": "Creando…"
+            }
+          },
+          "annotation": "deshabilitado con el nombre vacío · crea, cierra y abre /docs/{id} ya en edición con la reserva tomada"
+        }
+      ],
+      "layouts": {
+        "desktop": [
+          {
+            "row": "modal-nuevo-documento",
+            "fixed_cols": "minmax(0,1fr) 480px minmax(0,1fr)",
+            "annotation": "modal-nuevo-documento: 480 px centrado; reutiliza la superficie, el overlay y el foco de ConfirmDialog con un cuerpo de formulario",
+            "cols": [
+              {
+                "w": 3,
+                "stack": []
+              },
+              {
+                "w": 6,
+                "card": true,
+                "stack": [
+                  "titulo-modal",
+                  "carpeta-destino",
+                  "campo-nombre-archivo",
+                  "campo-titulo",
+                  "aviso-error-alta",
+                  {
+                    "row": "acciones",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-cancelar-alta"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-crear"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "w": 3,
+                "stack": []
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": false
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": false
+        }
+      ]
+    },
+    {
+      "name": "compartir-documento",
+      "displayName": "Compartir documento",
+      "overlay": true,
+      "overlay_type": "modal",
+      "triggered_by": "documento",
+      "audiences": [
+        "equipo-interno"
+      ],
+      "blocks": [
+        {
+          "name": "titulo-compartir",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "icon": "share",
+          "content": "Compartir «Guía de despliegue del portal»"
+        },
+        {
+          "name": "explicacion-compartir",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Cualquiera que tenga el link va a poder leer la última versión del documento, sin iniciar sesión, hasta que venza o lo revoques.",
+          "hidden_in_states": [
+            "link creado",
+            "success"
+          ],
+          "annotation": "\"la última versión\" es literal: el link sigue al documento (mode: latest)"
+        },
+        {
+          "name": "aviso-bloqueado",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "info",
+          "content": "La carpeta de este documento no permite compartirlo fuera de Jiku.",
+          "visible_only_in_states": [
+            "compartir bloqueado",
+            "terminal"
+          ],
+          "annotation": "sharing_blocked · la lista se sigue mostrando y se puede revocar"
+        },
+        {
+          "name": "aviso-secreto",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "Este documento parece contener una clave o un token. Si lo compartís, cualquiera con el link lo va a poder leer.",
+          "visible_only_in_states": [
+            "confirmar posible secreto"
+          ],
+          "annotation": "secret_warning_not_acknowledged · la salida segura es cerrar y corregir el documento"
+        },
+        {
+          "name": "aviso-error-compartir",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "No se pudo crear el link. Intentá de nuevo.",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "role=\"alert\" sobre el formulario · lista: \"No se pudieron cargar los links.\" · sharing_not_configured: \"Compartir no está habilitado en esta instalación.\""
+        },
+        {
+          "name": "aviso-link-creado",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "success",
+          "content": "Copiá el link ahora: por seguridad, no lo vas a poder volver a ver.",
+          "visible_only_in_states": [
+            "link creado",
+            "success"
+          ],
+          "annotation": "role=\"status\" · si se pierde, se revoca y se crea otro [REQ-016 CA-31]"
+        },
+        {
+          "name": "campo-link",
+          "type": "text-input",
+          "category": "input",
+          "icon": "link",
+          "label": "Link",
+          "content": "https://jiku.acme.com/s/Qm9xY2hhcmxpZS1zaGFyZS10b2tlbg",
+          "visible_only_in_states": [
+            "link creado",
+            "success"
+          ],
+          "annotation": "Input locked, de solo lectura, seleccionado entero al recibir foco"
+        },
+        {
+          "name": "boton-copiar",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Copiar",
+          "visible_only_in_states": [
+            "link creado",
+            "success"
+          ],
+          "annotation": "tras copiar, \"Copiado\" (icono check) durante 2 s, anunciado"
+        },
+        {
+          "name": "selector-vencimiento",
+          "type": "dropdown",
+          "category": "input",
+          "label": "Vence en",
+          "content": "30 días",
+          "hidden_in_states": [
+            "link creado",
+            "compartir bloqueado",
+            "success",
+            "terminal"
+          ],
+          "state_overrides": {
+            "error de validación": {
+              "annotation": "share_expiry_invalid: \"El vencimiento no es válido. Elegí entre 7 y 180 días.\""
+            }
+          },
+          "annotation": "Select · 7 · 15 · 30 · 90 · 180 días (180 es el máximo del módulo)"
+        },
+        {
+          "name": "campo-nota",
+          "type": "text-input",
+          "category": "input",
+          "label": "Nota (opcional)",
+          "content": "Ej.: para el equipo de soporte de ACME",
+          "hidden_in_states": [
+            "link creado",
+            "compartir bloqueado",
+            "success",
+            "terminal"
+          ],
+          "annotation": "la única forma de reconocer después cada link: la URL no se vuelve a mostrar"
+        },
+        {
+          "name": "selector-adjuntos",
+          "type": "toggle",
+          "category": "input",
+          "content": "Adjuntos: Incluir adjuntos · Solo el texto",
+          "on": true,
+          "hidden_in_states": [
+            "link creado",
+            "compartir bloqueado",
+            "success",
+            "terminal"
+          ],
+          "annotation": "ToggleGroup segmentado (el DS no tiene checkbox) · sin adjuntos, las imágenes no cargan en la página pública"
+        },
+        {
+          "name": "boton-compartir-igual",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Compartir igual",
+          "visible_only_in_states": [
+            "confirmar posible secreto"
+          ],
+          "annotation": "reenvía el alta reconociendo el aviso; es un botón distinto para que confirmar sea una decisión y no el mismo click repetido"
+        },
+        {
+          "name": "boton-crear-link",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "icon": "link",
+          "content": "Crear link",
+          "hidden_in_states": [
+            "link creado",
+            "compartir bloqueado",
+            "confirmar posible secreto",
+            "success",
+            "terminal"
+          ],
+          "state_overrides": {
+            "loading": {
+              "variant": "disabled",
+              "content": "Creando…"
+            }
+          }
+        },
+        {
+          "name": "titulo-links",
+          "type": "heading",
+          "category": "content",
+          "level": "h3",
+          "content": "Links de este documento"
+        },
+        {
+          "name": "tabla-links",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Estado",
+              "width": 14
+            },
+            {
+              "label": "Vence",
+              "width": 14
+            },
+            {
+              "label": "Nota",
+              "width": 30
+            },
+            {
+              "label": "Accesos",
+              "width": 10
+            },
+            {
+              "label": "Último acceso",
+              "width": 18
+            },
+            {
+              "label": "",
+              "width": 14
+            }
+          ],
+          "rows": [
+            [
+              "badge:Activo",
+              "21/11/2026",
+              "Para el equipo de soporte de ACME",
+              "4",
+              "23/10/2026",
+              "Revocar"
+            ],
+            [
+              "badge:Vencido",
+              "12/10/2026",
+              "—",
+              "0",
+              "Nunca",
+              ""
+            ],
+            [
+              "badge:Revocado",
+              "30/09/2026",
+              "Auditoría externa",
+              "2",
+              "05/09/2026",
+              ""
+            ]
+          ],
+          "hidden_in_states": [
+            "empty",
+            "sin links"
+          ],
+          "state_overrides": {
+            "loading": {
+              "rows": 2
+            }
+          },
+          "annotation": "la URL y el token no aparecen nunca en la lista [REQ-016 CA-31] · más nuevo primero"
+        },
+        {
+          "name": "boton-revocar",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Revocar",
+          "hidden_in_states": [
+            "empty",
+            "sin links"
+          ],
+          "annotation": "variant DS secondary-dismiss · solo en filas activas · abre O-02: \"Revocar link\" · \"Quien tenga este link va a dejar de poder abrir el documento. No se puede deshacer.\" · \"Revocar\" / \"Cancelar\""
+        },
+        {
+          "name": "vacio-links",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "Este documento todavía no tiene links.",
+          "visible_only_in_states": [
+            "empty",
+            "sin links"
+          ],
+          "annotation": "EmptyState list"
+        },
+        {
+          "name": "boton-cerrar-compartir",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Cerrar",
+          "annotation": "variant DS secondary-dismiss · con un link recién creado, cerrar lo hace desaparecer para siempre; no se pide confirmación"
+        }
+      ],
+      "layouts": {
+        "desktop": [
+          {
+            "row": "modal-compartir",
+            "fixed_cols": "minmax(0,1fr) 640px minmax(0,1fr)",
+            "annotation": "modal-compartir: 640 px centrado; reutiliza la superficie, el overlay y el foco de ConfirmDialog con un cuerpo de formulario",
+            "cols": [
+              {
+                "w": 2,
+                "stack": []
+              },
+              {
+                "w": 8,
+                "card": true,
+                "stack": [
+                  "titulo-compartir",
+                  "explicacion-compartir",
+                  "aviso-bloqueado",
+                  "aviso-secreto",
+                  "aviso-error-compartir",
+                  "aviso-link-creado",
+                  {
+                    "row": "link",
+                    "cols": [
+                      {
+                        "w": 9,
+                        "stack": [
+                          "campo-link"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-copiar"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "formulario",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "stack": [
+                          "selector-vencimiento"
+                        ]
+                      },
+                      {
+                        "w": 8,
+                        "stack": [
+                          "campo-nota"
+                        ]
+                      }
+                    ]
+                  },
+                  "selector-adjuntos",
+                  {
+                    "row": "crear",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": []
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-compartir-igual"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-crear-link"
+                        ]
+                      }
+                    ]
+                  },
+                  "titulo-links",
+                  "tabla-links",
+                  "boton-revocar",
+                  "vacio-links",
+                  {
+                    "row": "pie",
+                    "cols": [
+                      {
+                        "w": 9,
+                        "stack": []
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-cerrar-compartir"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "w": 2,
+                "stack": []
+              }
+            ]
+          }
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": true
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": true
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": true
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": true
+        },
+        {
+          "name": "link creado",
+          "applies": true,
+          "parent_state": "success"
+        },
+        {
+          "name": "confirmar posible secreto",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "compartir bloqueado",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "sin links",
+          "applies": true,
+          "parent_state": "default"
+        }
+      ]
     }
   ],
   "transitions": [
@@ -10429,6 +12453,120 @@
       "srcBlock": "filtro-tipo-proyecto",
       "dst": "dropdown-tipo-proyecto",
       "trigger": "filtra por tipo",
+      "automatic": false
+    },
+    {
+      "src": "detalle-proyecto",
+      "srcBlock": "tabla-documentos",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "tabla-documentos",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "detalle-tarea",
+      "srcBlock": "tabla-documentos",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcBlock": "tabla-carpeta",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcState": "resultados de búsqueda",
+      "srcBlock": "resultados-busqueda",
+      "dst": "documento",
+      "trigger": "abre un resultado",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcBlock": "breadcrumb-carpeta",
+      "dst": "documentacion",
+      "trigger": "sube a esa carpeta",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcBlock": "boton-nuevo-documento",
+      "dst": "nuevo-documento",
+      "trigger": "nuevo documento (O-11)",
+      "automatic": false
+    },
+    {
+      "src": "nuevo-documento",
+      "srcBlock": "boton-crear",
+      "dst": "documento",
+      "trigger": "crea y abre en edición",
+      "automatic": false
+    },
+    {
+      "src": "nuevo-documento",
+      "srcBlock": "boton-cancelar-alta",
+      "dst": "documentacion",
+      "trigger": "cierra sin crear",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "boton-volver",
+      "dst": "documentacion",
+      "trigger": "vuelve a la carpeta",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "breadcrumb-documento",
+      "dst": "documentacion",
+      "trigger": "abre esa carpeta",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "boton-compartir",
+      "dst": "compartir-documento",
+      "trigger": "compartir (O-12)",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "lista-vinculos",
+      "dst": "detalle-proyecto",
+      "trigger": "abre la ficha vinculada",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcState": "editando",
+      "srcBlock": "boton-cancelar",
+      "dst": "confirmar-borrado",
+      "trigger": "descartar cambios (O-02)",
+      "automatic": false
+    },
+    {
+      "src": "compartir-documento",
+      "srcBlock": "boton-revocar",
+      "dst": "confirmar-borrado",
+      "trigger": "revocar link (O-02)",
+      "automatic": false
+    },
+    {
+      "src": "compartir-documento",
+      "srcBlock": "boton-cerrar-compartir",
+      "dst": "documento",
+      "trigger": "cierra el diálogo",
       "automatic": false
     }
   ]
