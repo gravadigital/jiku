@@ -4,8 +4,8 @@ title: Sincronización de identidades desde el evento de autenticación
 type: event
 status: Draft
 created: 2026-08-24
-last_updated: 2026-09-08
-stories: [S-016, S-018, S-023, S-029, S-034, S-068]
+last_updated: 2026-10-24
+stories: [S-016, S-018, S-023, S-029, S-034, S-068, S-076, S-085]
 ---
 
 # Sincronización de Identidades desde el Evento de Autenticación
@@ -13,8 +13,8 @@ stories: [S-016, S-018, S-023, S-029, S-034, S-068]
 **Tipo:** Evento
 **Status:** Draft
 **Creado:** 2026-08-24
-**Última actualización:** 2026-09-08
-**Stories:** S-016, S-018, S-023, S-029, S-034, S-068
+**Última actualización:** 2026-10-24
+**Stories:** S-016, S-018, S-023, S-029, S-034, S-068, S-076, S-085
 
 > ## REQ-007 — el flujo gana un SEGUNDO DISPARADOR
 >
@@ -139,12 +139,22 @@ sequenceDiagram
 
   | # | `match` | `type` | Plantilla |
   |---|---|---|---|
+  | 0 | `docs` | `service` | `templates/docs.yaml` *(desde REQ-016, S-075)* |
   | 1 | `internal-app` | `service` | `templates/api.yaml` |
   | 2 | `core` | `service` | `templates/core.yaml` |
   | 3 | `bus-observer` | `service` | `templates/observer.yaml` |
   | 4 | `admin` | `person` | `templates/person.yaml` *(desde S-018)* |
   | 5 | `user` | `person` | `templates/person.yaml` *(desde S-018)* |
   | 6 | `external-user` | `person` | `templates/person.yaml` *(desde S-018)* |
+
+  > **REQ-016 (S-075, S-085)** — `rules.yaml` ganó la regla `docs`, evaluada **antes** de
+  > `internal-app`. El machine user de jiku-docs lleva **dos** roles (`internal-app` y `docs`) y
+  > gana la primera regla que coincide: con `docs` primero cae en `templates/docs.yaml`; si la regla
+  > quedara debajo de `internal-app`, caería en la plantilla de conector y reiniciaría en loop al
+  > suscribirse a sus subjects de servicio (ver [`autenticacion-y-entrada`](autenticacion-y-entrada.md)). La tabla de arriba es
+  > anterior a REQ-016 y no refleja otros cambios posteriores de `rules.yaml` (plantillas
+  > `connector`, `person-internal`, `person-external`): la fuente de verdad es
+  > `deploy/nats/auth-callout/rules.yaml`.
 
   **Eran siete.** La primera era `external-publisher`, con `templates/external-publisher.yaml`;
   el rol se eliminó del producto porque nunca existió en Zitadel, y un servicio externo lleva
@@ -217,6 +227,11 @@ infraestructura, no en el código de `core`.
 >
 > **Si se agrega un rol de servicio a `rules.yaml`, hay que agregarlo también a `SERVICE_ROLES`.**
 > Si no, esa identidad se espeja como `person` y nada falla; hay un test que cuenta la lista.
+>
+> **El caso real (REQ-016, S-076):** `SERVICE_ROLES = ['internal-app', 'core', 'docs']`. El machine
+> user de jiku-docs (`[internal-app, docs]`) llega con **`matched_role: "docs"`**, sin `email`. Sin
+> `docs` en la lista, el evento se trataba como de persona: se descartaba por la guarda de `email`
+> y jiku-docs no tenía fila, así que core le respondía `caller_not_authorized` o `unknown_caller`.
 
 ### Paso 4: `core` recibe el evento
 
@@ -253,7 +268,8 @@ comandos.
 | `instance` | `=== INSTANCE` del consumidor | descarta + `warn` **con los dos valores** |
 | obligatorios | `id`, `name`, `username` presentes, y `email` **solo si `matched_role` no es un rol de servicio** | descarta **sin crear fila parcial** |
 
-- **`email` es obligatorio para una PERSONA y opcional para un SERVICE USER**, y la condición es
+- **`email` es obligatorio para una PERSONA y opcional para un SERVICE USER** (`matched_role` en
+  `SERVICE_ROLES`: `internal-app`, `core` y, desde S-076, `docs`), y la condición es
   la guarda entera. Un machine user de Zitadel **no tiene dirección de correo**: `userinfo` no
   devuelve el claim ni con `CALLOUT_IDP_ENRICH=profile`, así que el callout **omite la clave**.
   Mientras `email` fue obligatorio para todos, **todo evento de servicio se descartaba** con
@@ -324,6 +340,7 @@ y la convención `logging` prohíbe datos de negocio fuera de `LOG_COMMANDS`.
 | `instance` ≠ la del consumidor | descarta sin escribir, **con los dos valores en el log** | `warn` con los dos valores |
 | Falta `id`, `name` o `username` | descarta **sin crear fila parcial** | `warn` en `core` |
 | Falta `email` **y es una persona** | descarta **sin crear fila parcial** | `warn` en `core` nombrando `email` |
+| Evento con `matched_role: "docs"` (u otro rol de servicio) **que no está en `SERVICE_ROLES`** | Se trata como persona: **se descarta por la guarda de `email`** y la identidad queda sin fila | `warn` en `core` nombrando `email`; después, `caller_not_authorized` / `unknown_caller` en las llamadas de esa identidad |
 | Falta `email` **y es un service user** | **No es un descarte.** Fila creada/actualizada con `email` en `NULL` | fila con `email = NULL` |
 | `roles` ausente o `[]` | **No es un descarte.** Fila creada/actualizada con `roles: []` | fila con `roles = '[]'` |
 | Campo desconocido en el payload | se ignora, el evento se procesa | ninguno |
@@ -350,6 +367,7 @@ de esa autenticación**.
 | Conector externo | `["internal-app"]` | `service` | **`NULL`** (salvo que Zitadel declare una) |
 | Service user de la `api` | `["internal-app"]` | `service` | **`NULL`** |
 | Service user de `core` | `["core"]` | `service` | **`NULL`** |
+| Service user de jiku-docs | `["internal-app", "docs"]` | `service` | **`NULL`** |
 
 **Y lo que ese estado habilita:**
 

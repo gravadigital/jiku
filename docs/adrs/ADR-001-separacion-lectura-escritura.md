@@ -206,3 +206,11 @@ coordinación superaba ampliamente el beneficio.
 - Servicios: [`docs/architectures/api/`](../architectures/api/), [`docs/architectures/core/`](../architectures/core/)
 - Esquema: [`docs/db-schemas/jiku.md`](../db-schemas/jiku.md)
 - ADRs relacionados: [ADR-002](ADR-002-comandos-nats-sin-jetstream.md), [ADR-003](ADR-003-transaccion-del-despachador.md), [ADR-005](ADR-005-modelos-compartidos.md)
+
+## Revisión: la lectura de documentación por el bus (REQ-016 / S-085, 2026-10-24)
+
+La Implementation Rule *"un endpoint que lee **NO DEBE** pasar por el bus"* tiene una **segunda
+excepción**, esta de **dominio**: las rutas `/docs/*` y `/opus/docs/*` leen por el bus
+(`jiku-docs-queries`), porque la documentación vive en jiku-docs, un servicio opcional con su propia
+base y que no es `core`. La excepción está confinada a `api/lib/modules/client.ts` y llama siempre
+con `actor: { id }`, fallando cerrado. Ver [ADR-015](ADR-015-modulos-opcionales-del-bus.md).

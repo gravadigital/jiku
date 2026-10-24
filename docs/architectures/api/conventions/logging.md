@@ -53,7 +53,7 @@ Formato: `{timestamp} {level}: {message}`. Un `message` que sea objeto se serial
 
 ## Log de requests
 
-`express-winston` loguea cada request automáticamente (`app.ts:21-28`), con
+`express-winston` loguea cada request automáticamente (`app.ts`), con
 `statusLevels: true` — el nivel sale del status HTTP — y `meta: false`.
 
 ```ts
@@ -63,8 +63,15 @@ app.use(expressWinston.logger({
   colorize: false,
   meta: false,
   statusLevels: true,
+  ignoreRoute: (req) => PUBLIC_DOCS_PATH.test(req.path),
 }));
 ```
+
+> **REQ-016 (S-080)** — `ignoreRoute` excluye `/p/docs/*`: la URL lleva el **token del link** y no
+> puede estar en ningún log. Esas rutas escriben **su propia línea** (`publicDocsAccessLog`):
+> `{MÉTODO} /p/docs/jds_…/attachments/{id} {status} {ms}ms`, con el token enmascarado y sin query. Nunca
+> se loguea IP, User-Agent, título ni contenido. Tampoco se loguean `payload` ni `options` de las
+> llamadas a módulos (`[modules] {module} {method}: {error.message}` es lo único que sale).
 
 > **`meta: false` es lo que evita que los query params entren al log.** Es la contraparte de
 > haber eliminado el fallback `?jwt=` en la autenticación: los query params quedan en logs,
@@ -91,7 +98,7 @@ logger.error(`[middleware] validateProject error: ${error.message}`);
 logger.error(`[bus] ${command}: ${error.message}`);
 ```
 
-Los prefijos en uso: `[middleware]`, `[bus]`, `[DB]`, `[tests]`, o `{MÉTODO} {path} {función}`.
+Los prefijos en uso: `[middleware]`, `[bus]`, `[modules]`, `[DB]`, `[tests]`, o `{MÉTODO} {path} {función}`.
 
 > Se loguea `error.message`, no el `error` completo. El stack solo se loguea en el arranque
 > (`bin/index.ts:25`), donde sí hace falta para diagnosticar por qué no levantó.
@@ -126,7 +133,8 @@ un adjunto que no aparece.
   `[bus]`, `[DB]` en el resto.
 - Logueá `error.message`, no el error completo. El stack, solo en el arranque.
 - **Nunca logs de:** tokens, el header `Authorization`, contraseñas, credenciales de S3, el
-  contenido de un archivo subido.
+  contenido de un archivo subido, **el token de un link compartido** (`/p/docs/*` va enmascarado)
+  ni el `payload` de una llamada a un módulo.
 - No pongas `meta: true` en `express-winston`: metería los query params al log.
 - Un error que se responde al cliente se loguea **antes** de responder.
 - El mensaje del log puede estar en inglés o español, pero no metas datos del usuario en él más
@@ -138,5 +146,6 @@ un adjunto que no aparece.
 - **error-handling**: todo error inesperado se loguea con contexto antes de responder 500.
 - **auth-jwt**: el bypass loguea un `warn` por request.
 - **bus-commands**: los fallos del bus se loguean con el nombre del comando.
+- **bus-modules**: prefijo `[modules]`, transiciones de estado del módulo y nunca payloads ni tokens.
 - **storage**: cada operación de S3 se loguea con la clave.
 - **env-config**: las cinco variables `LOGGER_*`.

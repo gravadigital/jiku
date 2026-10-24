@@ -40,10 +40,12 @@ tests/
 ├── register-jwt-mock.ts     instala el mock de jsonwebtoken
 ├── mocks/
 │   ├── app.ts               inicializa el Application con .env.test
-│   ├── bus.ts               el FakeBus
+│   ├── bus.ts               el FakeBus (comandos de core y dobles de módulo)
+├── helpers/
+│   └── docs-module.ts       docsAvailable / docsUnavailable / docsNotInstalled, success / failure, itRespectsModuleState
 │   └── jsonwebtoken-mock.ts
 ├── 00-configurations/       tests de modelos y conexión (corren primero por el nombre)
-├── routes/                  61 archivos, uno por archivo de ruta
+├── routes/                  95 archivos, uno por archivo de ruta
 └── utils/                   unitarios, sin base de datos
 ```
 
@@ -132,6 +134,32 @@ Core se carga de forma **perezosa** desde `../../../core/src/`. Si no está inst
 sigue funcionando con respuestas fijas, y los tests que dependan de la escritura real fallan con
 un mensaje claro en vez de pasar en falso.
 
+### Dobles de módulo (REQ-016)
+
+El `FakeBus` también simula lo que usa [`bus-modules`](./bus-modules.md) (`tests/mocks/bus.ts`):
+
+| Qué | API del doble |
+|---|---|
+| Registro `JIKU_MODULES` | `await fakeBus.kvPut('docs', record)` (objeto → JSON), `kvDelete`, `kvPurge`; **espera a los watchers**, así que deja el registro asentado. `kvFailWith(error)` / `kvHeal()` hacen fallar el `openModuleKv()` y el `get()`. `kvCloseWatchers()` termina los watch; `kvWatcherCount` los cuenta |
+| Ping `$SRV.PING` | `pingResponds(serviceName, responds, delayMs?)` (con `delayMs`, vía `setTimeout`: usar fake timers) |
+| Respuesta de un método | `moduleReply(method, reply)` y `moduleReplyDefault(reply)`; sin respuesta configurada el doble lanza |
+| Fallos | `moduleFailWith(error)`, `moduleFailWithNoResponders()`, `moduleFailWithTimeout()` |
+| Lo publicado | `fakeBus.moduleSent` (`{ kind, method, subject, payload }`) y `fakeBus.lastModule`; el subject lo arma la misma función que el bus real |
+
+El registro es un singleton con temporizador y watch: el root hook llama `docsModule.stop()` antes
+de cada test y `fakeBus.reset()` limpia KV, pings y respuestas. Para dejar el módulo en un estado,
+usá `tests/helpers/docs-module.ts`:
+
+```ts
+await docsAvailable();        // kvPut + ping que responde + docsModule.start()
+fakeBus.moduleReply('documents.list', success({ items: [] }));
+// ... request ...
+fakeBus.lastModule!.payload.actor.should.deepEqual({ id: userId });   // el sub del token; solo id
+```
+
+`itRespectsModuleState(getApp, url, token)` agrega el test estándar de toda ruta de módulo: 404
+`module_not_installed` y 503 `module_unavailable`, ambos **sin publicar** (`moduleSent.length === 0`).
+
 ## Autenticación en los tests
 
 `tests/register-jwt-mock.ts` instala un mock de `jsonwebtoken` **antes** de que se cargue
@@ -153,7 +181,7 @@ res.body.should.have.property('code', 'access_denied');
 
 ## Qué cubrir en un test de ruta
 
-El patrón de los 61 archivos existentes:
+El patrón de los archivos de ruta existentes:
 
 - **Camino feliz** con el status y la forma del cuerpo.
 - **Validación**: cada campo requerido ausente, cada enum con valor inválido → 400.
@@ -180,6 +208,8 @@ Fechas: `mockdate` para congelar el día cuando la regla depende del calendario.
 - Usá `reply()` / `failWith()` para los caminos de error, no para el camino feliz: ahí dejá que
   ejecute core.
 - Todo endpoint con `hasAnyRole` lleva un test por rol rechazado.
+- Toda ruta de un módulo opcional usa `itRespectsModuleState` y verifica que el `actor` publicado sea
+  `{ id }` y nada más.
 - Toda regla de negocio se testea **en su límite**, no en el centro del rango válido.
 - Congelá la fecha con `mockdate` cuando la regla dependa del calendario.
 - Aserciones con `should`. No mezcles `assert` ni `expect`.
@@ -188,6 +218,7 @@ Fechas: `mockdate` para congelar el día cuando la regla depende del calendario.
 ## Integración con otras convenciones
 
 - **bus-commands**: el `FakeBus` es el doble de `bus()`, intercambiable vía `setBus`.
+- **bus-modules**: los dobles de módulo (KV, ping, respuestas) y `tests/helpers/docs-module.ts`.
 - **orm**: los tests usan el mismo Sequelize; el esquema se crea con `sync()`.
 - **auth-jwt**: el mock de `jsonwebtoken` evita llamar a Zitadel.
 - **authorization**: los tests por rol y el archivo dedicado de permisos de adjuntos.

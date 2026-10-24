@@ -30,6 +30,13 @@ Un objeto de dos claves, siempre:
 
 `daily_limit_exceeded` es la única con una tercera clave, `remainingMinutes`.
 
+> **REQ-016 (S-077/S-078)** — *"un objeto de dos claves, siempre"* tiene ahora una segunda excepción:
+> las rutas que hablan con un **módulo opcional** (`/api/docs/*`, `/api/opus/docs/*`) responden
+> `{ code, message, details? }`, donde `code` es el `errorCode` del módulo sin traducir y `details`
+> es su `errorDetails` verbatim (la clave no existe si no viene), con un mapa de status propio del
+> módulo. Ver [`bus-modules`](./bus-modules.md#el-cuerpo-de-error-de-módulo). El resto de la api
+> sigue con `{ code, message }`.
+
 > **`message` es texto de interfaz.** Los frontends lo muestran tal cual al usuario, así que no
 > es un apoyo de debugging. Hoy están mezclados: algunos en inglés y otros en español. Para
 > mensajes nuevos que el usuario va a leer, escribilos en **español**, como los más recientes
@@ -72,6 +79,7 @@ El log lleva el endpoint y la función; la respuesta **no** lleva el detalle del
 | 404 | `id_not_found`, `not_found` | falta el id en el path, o no hay ruta |
 | 500 | `internal_error` | cualquier error inesperado |
 | 503 | `service_unavailable` | el bus no responde |
+| 404 / 503 / 504 | `module_not_installed` / `module_unavailable` / `gateway_timeout` | módulos opcionales; ver [`bus-modules`](./bus-modules.md) |
 
 `{entidad}_not_found` sigue el nombre de la entidad: `project_not_found`,
 `requirement_not_found`, `objective_not_found`, `client_not_found`.
@@ -98,7 +106,7 @@ La traducción `errorCode` → status vive en `httpStatusFor`, y el cuerpo lo ar
 ## Los dos handlers finales de `app.ts`
 
 ```ts
-// app.ts:40-51
+// app.ts
 app.use(function (_req, _res, next) {
   const err = { message: 'Not Found', status: 404, stack: {} };
   next(err);
@@ -171,4 +179,5 @@ también lo loguea sin interrumpir.
 - **auth-jwt**: los 401 `unauthorized` y `user_not_found`.
 - **authorization**: los 403 `access_denied`.
 - **bus-commands**: `httpStatusFor` y `errorBody`, y el 503 del bus caído.
+- **bus-modules**: el cuerpo `{ code, message, details? }` y el mapa de status de cada módulo.
 - **logging**: todo error inesperado se loguea con contexto antes de responder.

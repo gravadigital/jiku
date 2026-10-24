@@ -5,10 +5,10 @@
 Consumidor NATS de Jiku: **el único servicio que escribe en la base de datos**. Atiende los comandos
 que publica la api, valida las reglas de negocio y escribe, y desde REQ-006 atiende además **el
 contrato de consultas del producto** por una conexión de solo lectura. No expone HTTP y **no valida
-tokens**; sí lee roles, y solo en el plano de consultas.
+tokens**; sí lee roles, y solo en el plano de consultas. Desde REQ-016 reconoce `docs` (el machine user de jiku-docs) como rol de servicio en `SERVICE_ROLES`.
 
 - **Tipo:** worker · **Lenguaje:** node (TypeScript, `strict`) · **Path:** `core/`
-- **Expone:** **20 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
+- **Expone:** **23 comandos** (`jiku-commands`) y **23 consultas sobre 16 recursos**
   (`jiku-queries`), request/reply sin JetStream, dos micro servicios sobre una sola conexión
 - **Consume:** PostgreSQL `jiku` por **dos conexiones** (usuario dueño para escribir, rol de solo
   lectura para consultar), NATS, Zitadel (solo su propio token), S3 (las dos firmas de `files`)
@@ -19,14 +19,16 @@ tokens**; sí lee roles, y solo en el plano de consultas.
 |---|---|
 | [overview.md](./overview.md) | La decisión de ser el único escritor, la transacción del despachador, estructura, módulos, reglas que viven acá, limitaciones |
 | [manifest.yaml](./manifest.yaml) | Declaración de convenciones y módulos |
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **20 comandos**. **Es la fuente de verdad**: ante discrepancia con el código, manda el documento |
+| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante discrepancia con el código, manda el documento |
 | [`docs/apis/core-queries.yaml`](../../apis/core-queries.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida con `api` |
 | [`docs/flows/consulta-por-el-bus.md`](../../flows/consulta-por-el-bus.md) | El recorrido completo de una consulta, de la publicación al cursor |
+| [`docs/flows/sincronizacion-de-identidades.md`](../../flows/sincronizacion-de-identidades.md) | De dónde sale `identity_type`: `matched_role` y `SERVICE_ROLES` (`internal-app`, `core`, `docs`) |
+| [`ADR-015`](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus: jiku-docs como cliente de core con el rol `docs` |
 
 ## Convenciones
 
-Las 13 son **custom**: el stack del servicio (Joi, Sequelize, Winston, Mocha, dotenv, GitHub
+Las 14 son **custom**: el stack del servicio (Joi, Sequelize, Winston, Mocha, dotenv, GitHub
 Actions) difiere del que recomienda el catálogo de Node (Zod, Prisma, Pino, Vitest +
 Testcontainers, `@t3-oss/env-core`, GitLab CI). `core` es un servicio existente que se importó al
 workflow y su stack es anterior al catálogo.
@@ -34,13 +36,16 @@ workflow y su stack es anterior al catálogo.
 Es el mismo caso que [`api`](../api/), con una diferencia: core **no declara `http-server`**. No
 expone HTTP en absoluto, y esa ausencia es estructural, no una omisión.
 
-Cuatro no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
+Cinco no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
 
 - **`bus-consumer`** — la conexión al bus. El catálogo solo cubre colas (`queue`/BullMQ), que es otra
   cosa: esto es request/reply sincrónico, sin persistencia ni reintento.
 - **`bus-publisher`** — la publicación de eventos de dominio (REQ-014), fire-and-forget con
   JetStream. Es la salida del servicio; `bus-consumer` es la entrada. El catálogo no tiene nada
   parecido.
+- **`scheduled-worker`** — el plano periódico de envío de notificaciones (REQ-015): `setTimeout`
+  encadenado, `FOR UPDATE SKIP LOCKED`, sin `setInterval`. Es el único plano que no arranca en un
+  mensaje del bus.
 - **`commands`** — la unidad de trabajo del servicio. Recoge la decisión más importante del
   codebase: la transacción es del despachador y el comando no puede tocarla.
 - **`contract-translation`** — las traducciones entre el vocabulario del bus y el de la base: cuatro
@@ -63,6 +68,7 @@ Cuatro no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
 | [env-config](./conventions/env-config.md) | Configuración (dotenv, sin validación) | Las variables y qué rompe si faltan, dónde se lee cada una, los modos de falla silenciosos |
 | [dockerfile](./conventions/dockerfile.md) | Dockerfile (workspace de monorepo) | Contexto en la raíz, las dos etapas, por qué `--ignore-scripts`, por qué `NODE_ENV=production` importa |
 | [ci-github](./conventions/ci-github.md) | CI/CD (GitHub Actions) | Los tres workflows, la base que necesitan los tests, tags y caché por servicio |
+| [scheduled-worker](./conventions/scheduled-worker.md) | Plano de ejecución periódico (`setTimeout` encadenado, `SKIP LOCKED`) | El ciclo de envío, la configuración releída por ciclo, el reclamo de lotes seguro con varias réplicas |
 
 ### No aplican
 
@@ -81,7 +87,7 @@ Preocupaciones del catálogo que este servicio no tiene:
 
 ## Módulos
 
-**La lista ya no describe solo `src/commands/`.** Los siete primeros son carpetas de comandos, una por
+**La lista ya no describe solo `src/commands/`.** Los siete primeros son carpetas de comandos (`files` incluida), una por
 entidad, con un archivo por comando. El octavo —`queries`— es la **superficie de lectura completa** y
 vive en `src/queries/`.
 
@@ -89,10 +95,11 @@ vive en `src/queries/`.
 |---|---|---|---|
 | `clients` | 2 | `commands/clients/` | "Actores" en la UI, `clients` en la base y en el bus |
 | `projects` | 2 | `commands/projects/` | Traduce `properties` ↔ `key_value_pairs` |
-| `tasks` | 3 | `commands/tasks/` | Tabla `objectives`. El historial se calcula a mano, antes de escribir |
-| `requirements` | 6 | `commands/requirements/` | El historial lo calcula el hook `@BeforeUpdate` del modelo |
-| `times` | 4 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias |
+| `tasks` | 4 | `commands/tasks/` | Tabla `objectives`. El historial se calcula a mano, antes de escribir |
+| `requirements` | 7 | `commands/requirements/` | El historial lo calcula el hook `@BeforeUpdate` del modelo |
+| `times` | 5 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias |
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. La api **no** tiene credenciales de S3 |
 | **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico que no conoce ningún recurso, más una ficha por recurso: las cinco listas blancas como DATO. Contrato: `docs/apis/core-queries.yaml` |
-| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), que el despachador emite post-commit. No confundir con `src/events/auth/`, el plano **entrante** (el consumidor del evento de autenticación). Contrato: `docs/apis/core-events.yaml` |
+| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), que el despachador emite post-commit. No confundir con `src/events/auth/`, el plano **entrante** (el consumidor del evento de autenticación). Contrato: `docs/apis/core-events.yaml`. `src/events/auth/identity-type.ts` fija `SERVICE_ROLES = ['internal-app', 'core', 'docs']` (REQ-016) |
+| **`notifications`** | — | **`src/notifications/`** | Plano de ejecución completo (REQ-015): registro de tipos, reglas de destinatarios, plantillas y proceso periódico de envío. Escribe desde fuera del despachador; ver `scheduled-worker` |

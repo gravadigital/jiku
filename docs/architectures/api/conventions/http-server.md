@@ -24,7 +24,7 @@ o acepte una mutación pasa por acá.
 
 ```
 express                # 5.2
-cors                   # CORS abierto (app.ts:15)
+cors                   # CORS abierto (app.ts)
 express-winston        # logging de request (ver logging)
 multer                 # multipart, solo en las rutas de adjuntos (ver storage)
 ```
@@ -39,7 +39,8 @@ api/
     ├── index.ts           barrel: un export por archivo
     ├── clients-get.ts
     ├── requirements-id-patch.ts
-    └── ...                61 archivos
+    └── ...                86 archivos de ruta
+api/lib/public-routes/     EXCEPCIÓN (REQ-016): rutas públicas montadas en la raíz, ver abajo
 ```
 
 ## El montaje es automático
@@ -47,7 +48,7 @@ api/
 `app.ts` itera los exports del barrel y monta cada router bajo `/api`:
 
 ```ts
-// app.ts:35-37
+// app.ts
 for (const key of Object.keys(routes)) {
   app.use('/api', routes[key as keyof typeof routes]);
 }
@@ -58,6 +59,28 @@ Agregar un endpoint son **dos pasos**: crear el archivo y exportarlo en
 
 > El prefijo `/api` lo pone el montaje. En el archivo de ruta el path va **sin** él:
 > `router.get('/requirements', ...)` responde en `GET /api/requirements`.
+
+## Excepción: `lib/public-routes/`, montado en la raíz
+
+> **REQ-016 (S-080, DD-10)** — la regla *"No agregues un router de Express con su propio prefijo. El
+> montaje bajo `/api` es uniforme"* tiene **una** excepción documentada: `lib/public-routes/`.
+
+Los links compartidos de documentación son `{JIKU_PUBLIC_URL}/p/docs/{token}`, **sin `/api`**. Por eso
+`lib/public-routes/index.ts` es un barrel propio que `app.ts` monta **una vez, en la raíz**
+(`app.use(publicRoutes)`), después de `validateToken` y antes del bucle que monta `lib/routes/` bajo
+`/api`. Sin la exención `get: ['p/docs/']` de `config/public.ts` esas rutas responderían 401.
+
+La cadena es común a todo `/p/docs` y vive en el barrel, no en cada ruta (el límite es uno solo):
+
+```
+publicDocsHeaders → publicDocsAccessLog → requirePublicHost → publicDocsRateLimit → handler → publicDocsNotFound
+```
+
+Y en `app.ts` el orden relevante es: `publicHostOnly` (**primer** middleware, antes de `cors()` y
+de `validateToken`) → `cors()` → `docsWriteJson` (parser de 768kb solo para `POST`/`PUT` bajo
+`/api/docs`) → `express.json()` → logger de requests (con `ignoreRoute` para `/p/docs/*`) →
+`validateToken` global → `publicRoutes` → `lib/routes` bajo `/api`. Detalle en
+[`bus-modules`](./bus-modules.md).
 
 ## Cómo se escribe un archivo de ruta
 
@@ -108,6 +131,8 @@ export { default as RequirementsPost } from './requirements-post';
 
 El orden importa y es siempre el mismo:
 
+0. **Módulo** — `requireModule('docs')`, solo en las rutas de un módulo opcional (REQ-016): va
+   **antes** del rol, porque un módulo no instalado es 404 para cualquiera
 1. **Rol** — `hasAnyRole([...])`, si el endpoint lo acota
 2. **Forma del input** — `validateBodyFields(schema)` o `validateQueryParams(schema)`
 3. **Existencia de la entidad del path** — `validateProject`, `validateRequirement`, `validateObjective`
@@ -151,6 +176,7 @@ presentación: el handler arma el objeto que sale.
 | Rol o permiso insuficiente | 403 `access_denied` |
 | Entidad del path que no existe | 404 |
 | Bus caído o timeout | 503 `service_unavailable` |
+| Módulo opcional no instalado / no disponible | 404 `module_not_installed` / 503 `module_unavailable` (ver [`bus-modules`](./bus-modules.md)) |
 
 Ver [`error-handling`](./error-handling.md) para la forma del cuerpo de error.
 
@@ -206,6 +232,9 @@ Dos mecanismos conviven:
 - Los datos que un middleware deja para el siguiente van en `req` (declarado en
   `lib/interfaces/index.ts`) o en `res.locals` para resultados intermedios del propio endpoint.
 - No agregues un router de Express con su propio prefijo. El montaje bajo `/api` es uniforme.
+  **Única excepción:** `lib/public-routes/` (REQ-016, DD-10), montado en la raíz porque el link
+  público no lleva `/api`. Una ruta pública nueva exige además su entrada en `config/public.ts`,
+  un control de acceso propio documentado y revisión de seguridad.
 - Toda mutación va por el bus, no por el modelo. Ver [`bus-commands`](./bus-commands.md).
 - Todo endpoint nuevo lleva su archivo de test en `tests/routes/{mismo-nombre}.test.ts`.
 
@@ -215,4 +244,5 @@ Dos mecanismos conviven:
 - **bus-commands**: cómo el handler publica una mutación en vez de escribir.
 - **authorization**: las tres capas que atraviesan la cadena de middlewares.
 - **error-handling**: la forma del cuerpo de error que devuelve cada `res.status()`.
+- **bus-modules**: la cadena `requireModule` → rol → Joi de las rutas de módulos, y la excepción de `lib/public-routes/`.
 - **testing**: un archivo de test por archivo de ruta.

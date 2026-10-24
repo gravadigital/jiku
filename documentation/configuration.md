@@ -4,8 +4,9 @@ Everything is configured at runtime, in one file: `deploy/.env`, copied from
 `deploy/.env.dist`. The published images carry no configuration, so the same image runs in any
 installation.
 
-`deploy/.env.dist` has 55 variables with working defaults for a local run. Sixteen are blank
-and must be filled in.
+`deploy/.env.dist` has 58 variables with working defaults for a local run. Eighteen are blank:
+sixteen must be filled in, and two (`DOCS_PUBLIC_DOMAIN` and `API_TRUST_PROXY`) are **optional and
+blank by design** — see [Shared documentation links](#shared-documentation-links-optional).
 
 ## The sixteen
 
@@ -68,6 +69,14 @@ that does not set it gets `v1`. That plane is the only one on JetStream: it need
 **installation steps, not configuration** (`deploy/nats/create-events-stream.sh` and
 `deploy/nats/enable-jetstream.sh`; a fresh `bootstrap.sh` does both).
 
+The optional documentation module (jiku-docs) adds a third registry to the bus: the `JIKU_MODULES`
+key-value bucket, where a module announces itself when it starts. Like `JIKU_EVENTS`, it is an
+**installation step, not configuration** — `deploy/nats/create-modules-kv.sh`; see
+[installation.md](installation.md#the-documentation-module-optional). The module's service name
+comes from that registry, but the auth-callout templates authorise `jiku-docs-commands` and
+`jiku-docs-queries` **literally**: a module registered under another name builds the right subject
+and the bus rejects it. Changing it is a deliberate edit of the templates.
+
 The auth-callout itself is configured by the `GESTION_IDP_*` and `AUTH_CALLOUT_*` variables, all
 with defaults, wired to the identity provider and the NATS credentials.
 
@@ -113,6 +122,33 @@ link inside every notification. A value that carries `https://` produces `https:
 every mail sent, and a broken link in an already-delivered email cannot be fixed afterwards.
 **`core` refuses to start if `OPUS_URL` does not reach it**; the composes derive it, so with the
 composes under `deploy/` there is nothing to set by hand.
+
+## Shared documentation links (optional)
+
+Only relevant when the documentation module is installed, and only if you want read-only links
+that work without logging in. Three variables, two of them yours to set:
+
+**`DOCS_PUBLIC_DOMAIN`** — the public host of those links, a **bare host with no scheme and no
+trailing slash** (`docs.example.com`). Empty, the links are off: `features.sharing` is `false`
+and `/p/docs/*` answers `404`. It has to be an **own host**, different from `api.<DOMAIN>`,
+`DOMAIN` and `OPUS_DOMAIN`: on that host the api serves nothing but `/p/docs/*`, so reusing one of
+the others would stop it serving its frontend. **Point the DNS first, then fill the variable** —
+the api's certificate becomes a single one for both hosts, and a name that does not resolve breaks
+issuing and renewing it, taking the api's certificate with it. Only `docker-compose.yml` reads it.
+
+**`JIKU_PUBLIC_URL`** — derived by the composes from `DOCS_PUBLIC_DOMAIN` (`https://<host>`), so
+**do not declare it by hand**. If it is not a URL, is not `http(s)`, or carries a path, query or
+fragment, **the api refuses to start**. jiku-docs has a `JIKU_PUBLIC_URL` of its own and the two
+have to match. Locally it is fixed at `http://127.0.0.1:3100`.
+
+**`API_TRUST_PROXY`** — how many proxy hops in front of the api to trust when reading the client
+IP for the rate limit of `/p/docs/*` (60 per minute per IP). Blank gives `1` in production, which
+is right behind the ingress; set `2` or a list of subnets if there is more than one hop. Without
+it every request would appear to come from the proxy and share one quota.
+
+The step-by-step is in [deploy/README.md](../deploy/README.md#on-a-server). The access policy that
+goes with the module is in the
+[auth-callout README](../deploy/nats/auth-callout/README.md#habilitar-el-módulo-de-documentación).
 
 ## Two that change behaviour
 

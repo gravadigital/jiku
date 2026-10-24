@@ -126,9 +126,66 @@ being copied or forwarded. The only control is its lifetime, `download-url-ttl-s
 
 Attachment ids are still sequential integers, but enumerating them no longer reveals
 anything: every endpoint requires a bearer token, so an unauthenticated caller gets `401`
-before any id reaches the database. The list of authentication exemptions in
-`api/config/public.ts` is empty — visibility level now only governs what an **authenticated**
-user can see, not whether a file can be fetched anonymously.
+before any id reaches the database. The only authentication
+exemption in `api/config/public.ts` is `GET /p/docs/`, the shared documentation links, and it
+carries its own controls: a host of its own, a rate limit, a 256-bit token and a `404` that does
+not reveal whether a link ever existed. Everything else needs a token — visibility level only
+governs what an **authenticated** user can see, not whether a file can be fetched anonymously.
+
+## The documentation module has limits of its own
+
+Only relevant if jiku-docs is installed. They are listed together because most come from the same
+design: Jiku reads and writes documentation over the bus and keeps none of it.
+
+**Shared links**
+
+- **The rate limit is per replica.** `/p/docs/*` allows 60 requests per minute per IP, counted in
+  memory, so with N api replicas the effective limit is `60 × N`.
+- **A page and its images share that quota.** A document with more than about 59 images uses the
+  whole minute on one load.
+- **`HEAD` counts as an access.** `HEAD /p/docs/{token}` resolves the link, so it adds one to the
+  audit trail.
+- **Anyone with the link reads the document.** It expires and can be revoked, but until then it
+  is a credential.
+
+**What the interface does not cover**
+
+- **Folders and their permissions are managed outside Jiku**, in jiku-go. The web only browses.
+- **No real time in the browser.** Changes by someone else show up when you reload or navigate.
+- **History, move, delete and restore are not in the web**, although the api exposes them. The
+  portal cannot edit, search or share.
+- **Documents over 256 KiB are read-only** and cannot be created or edited over HTTP. The api
+  also caps request bodies under `/api/docs` at 768 kb for `POST` and `PUT`; the rest of the api
+  keeps 100 kb.
+- **Creating a document without an `id` is not idempotent.** Retrying after a `504` creates a
+  second document.
+- **Lists have ceilings:** the root of `/docs` shows up to about 2000 folders, search returns at
+  most 50 results with no paging, and the list of links for a document shows one page of 200.
+- **Attachments are limited to 10 MB** by the upload widget; jiku-docs' own limit is not
+  verified.
+
+**Portal**
+
+- **Markdown is rendered without GFM**: tables, strikethrough and task lists appear as plain
+  text.
+- **Documents over 256 KiB are fetched by the browser**, which needs a CORS `GET` rule on
+  jiku-docs' bucket; if it is missing the document shows an error.
+- **An attachment id is enough to download it.** The portal's attachment route cannot apply the
+  public-only filter to **internal** users: one who knows the id of an attachment of an `internal`
+  document receives it. For `external-user` jiku-docs enforces the rule.
+
+**Operation**
+
+- **Module state is per replica.** Each api replica checks the module on its own, so two can
+  disagree for up to 30 seconds.
+- **People cannot ping the module.** A client using a person's token (jiku-go) cannot tell
+  `unavailable` from `available` by ping; it learns by calling.
+- **The module's service name is fixed by the access policy.** The templates authorise
+  `jiku-docs-commands` and `jiku-docs-queries` literally; registering another name is rejected
+  by the bus. Changing it is a security change, one line per template.
+- **Every connector can read all documentation.** The `internal-app` role gained access to
+  jiku-docs, which treats it as a trusted service. Granting that role to a new connector grants
+  this too.
 
 ## The `bus-observer` role reads everything
 
@@ -179,6 +236,8 @@ react-select's computed styles through a node jsdom does not accept. `web` decla
   `STORAGE_S3_KEY_PREFIX` on an installation that already has data makes existing files
   unreachable. Documented in full — with what to do about it — in
   [deploy/.env.dist](../deploy/.env.dist).
+- **Locally, the images of a shared page do not load.** The page's policy requires `https:` and
+  the redirect points at MinIO over `http`. The page works; test images against a real bucket.
 - **`week-assigned-times`** is still present but its future is undecided — it may be kept,
   reshaped or removed.
 - **Both frontends run NextAuth v5, which has no stable release yet.** They are pinned to the

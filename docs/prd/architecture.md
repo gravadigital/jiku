@@ -250,6 +250,12 @@ Si un archivo de un lote falla, la api **borra del bucket los ya subidos**.
     `core` sí publica **eventos de dominio**, en un plano distinto —fire-and-forget, con
     JetStream— hacia cualquier conector externo suscripto (ver `docs/apis/core-events.yaml`).
 
+- **`api` → módulo opcional `jiku-docs`** (NATS request/reply, **síncrono**, REQ-016)
+  - Un servicio que **no es core**, descubierto en runtime por el registro KV `JIKU_MODULES`
+    (estado en memoria por réplica, ping cada 30 s). La api **lee por el bus** (excepción a
+    ADR-001) con `actor: { id }`, y sirve la primera ruta pública HTML, `/p/docs/*`, en un host
+    propio. Ver [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md).
+
 - **`auth-callout` → `nats`** (NATS, **síncrono**)
   - Intercepta cada conexión al bus, valida el token contra Zitadel y mintea los permisos de
     publicación y de inbox según `rules.yaml`.
@@ -453,7 +459,9 @@ pantalla espera a la más lenta.
 |---|---|
 | [`docs/adrs/`](../adrs/) | Las decisiones arquitectónicas con su contexto y sus consecuencias |
 | [`docs/architectures/{servicio}/`](../architectures/) | Manifest, overview y convenciones custom de cada servicio |
-| [`docs/apis/api.yaml`](../apis/api.yaml) | OpenAPI 3.0 — los 61 endpoints HTTP |
+| [`docs/apis/api.yaml`](../apis/api.yaml) | OpenAPI 3.0 — las 89 operaciones HTTP (el encabezado del archivo todavía dice 88: desfase reportado en la auditoría de S-085) |
+| [`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml) | AsyncAPI 3.0 — contrato del registro de módulos opcionales `JIKU_MODULES`, compartido con jiku-docs |
+| [`docs/adrs/ADR-015-modulos-opcionales-del-bus.md`](../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus: registro, lectura por el bus y la ruta pública `/p/docs/*` |
 | [`docs/apis/core.yaml`](../apis/core.yaml) | AsyncAPI 2.6 — los 17 comandos del bus |
 | [`docs/db-schemas/jiku.md`](../db-schemas/jiku.md) | Las 28 entidades, diagrama ER y DBML |
 | [`docs/flows/`](../flows/) | Los flujos cross-service completos |

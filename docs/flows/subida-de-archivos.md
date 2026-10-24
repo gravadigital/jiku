@@ -4,8 +4,8 @@ title: Subida de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-08-25
-stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034]
+last_updated: 2026-10-24
+stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085]
 ---
 
 # Subida de Archivos
@@ -13,8 +13,8 @@ stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-08-25
-**Stories:** S-002, S-004, S-006, S-007, S-014, S-029, S-034
+**Última actualización:** 2026-10-24
+**Stories:** S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085
 
 > ## REQ-007 — cambio acotado
 >
@@ -237,6 +237,15 @@ Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
 > jamás se usó. El servicio externo **sigue funcionando igual en este flujo**, pero su permiso es
 > ahora mucho más ancho: todos los comandos, todas las consultas, y sin recorte de filas al leer.
 > Acotarlo otra vez es crear un rol nuevo.
+
+> **REQ-016 (S-076, S-085) — el canal lo usa jiku-docs.** El servicio externo que sube por este
+> canal es ahora jiku-docs (rol `docs`, además de `internal-app`): publica `files.request-upload`
+> con su machine user, así que **`uploadedBy` es ese machine user** (no la persona que adjuntó el
+> archivo) y el archivo **no se vincula después** a ninguna entidad: queda sin vínculo. **La
+> política de `system_settings` aplica igual** (tamaño y tipos permitidos). El **checksum del
+> binario lo calcula el navegador** (DD-8): solo quien tiene el archivo puede hacerlo, y el byte va
+> del navegador a S3. Ver [`documentos-desde-la-web`](documentos-desde-la-web.md) (Paso 7) y
+> [`lectura-de-archivos`](lectura-de-archivos.md) (Camino E).
 
 ---
 

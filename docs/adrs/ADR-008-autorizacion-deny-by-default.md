@@ -146,3 +146,13 @@ requieren lógica de dominio.
   `api/lib/utils/middlewares/validate-token.ts:12-24`, `api/lib/utils/attachments-access.ts`
 - Arquitectura de seguridad: [`docs/prd/architecture.md`](../prd/architecture.md)
 - ADRs relacionados: [ADR-006](ADR-006-dos-frontends-una-api.md), [ADR-007](ADR-007-identidad-zitadel-auth-callout.md)
+
+## Revisión: una nueva exención, `/p/docs/*` (REQ-016 / S-085, 2026-10-24)
+
+El caso vigente de endpoint público ya no es el link público de adjuntos (eliminado en REQ-002):
+es **`GET /p/docs/*`**, los links compartidos de documentación. `api/config/public.ts` declara una
+sola exención (`get: ['p/docs/']`) y su control propio queda documentado en
+[ADR-015](ADR-015-modulos-opcionales-del-bus.md): host público exclusivo, rate limit de 60/min por
+IP y por réplica, token validado por jiku-docs, un 404 indistinguible y cabeceras de solo lectura.
+Además, `put` pasó al mecanismo global de `validateToken` (H-3), de modo que son cinco los métodos
+cubiertos.

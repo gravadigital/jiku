@@ -7,8 +7,8 @@ La única puerta HTTP de Jiku. Autentica contra Zitadel, autoriza por rol y por 
 NATS que atiende `core`.
 
 - **Tipo:** api (servicio HTTP) · **Lenguaje:** node (TypeScript) · **Path:** `api/`
-- **Expone:** 61 endpoints REST bajo `/api` — 49 internos y 12 en `/api/opus/*`
-- **Consume:** PostgreSQL (solo lectura), NATS (→ core), Zitadel, storage S3-compatible
+- **Expone:** 89 operaciones según `docs/apis/api.yaml` — 72 internas, 15 del portal (`/api/opus/*`) y 2 públicas (`/p/docs/*`, en la raíz)
+- **Consume:** PostgreSQL (solo lectura), NATS (→ core, y → jiku-docs si está instalado), Zitadel, storage S3-compatible
 
 ## La decisión estructural: lee la base, escribe por el bus
 
@@ -34,6 +34,19 @@ infraestructura, no de estilo.
 **relee la base** para armar la respuesta: core solo devuelve el `id`, pero el contrato con los
 fronts es el recurso completo con sus relaciones.
 
+### Excepción de lectura: la documentación (REQ-016)
+
+> **REQ-016 (S-077 a S-080)** — *"la api lee la base directamente"* tiene ahora dos excepciones de
+> lectura, no una. La primera es la lectura de archivos (ADR-001, REQ-001). **La segunda es la
+> documentación**: no está en la base de la api sino en un **módulo opcional del bus**
+> (jiku-docs), así que las rutas `/api/docs/*` **leen por el bus** (`moduleQuery`) y escriben por
+> el bus (`moduleCommand`), siempre en nombre de la persona con `actor: { id }`. El módulo se
+> descubre por registro (clave `docs` del KV `JIKU_MODULES`): si no está instalado, esas rutas
+> responden 404 y el resto de la api funciona igual. Es también la **primera ruta pública que
+> sirve HTML** (`/p/docs/*`). Decisión completa en
+> [ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md); reglas en
+> [`conventions/bus-modules.md`](./conventions/bus-modules.md).
+
 ## Estructura
 
 No es MVC ni Clean Architecture: es **un archivo por endpoint**, con la validación, los
@@ -43,24 +56,31 @@ permisos y el handler colocados juntos.
 api/
 ├── app.ts                    Express, middleware global, montaje de rutas
 ├── bin/index.ts              entry point; valida la config de auth ANTES de escuchar
-├── config/public.ts          exenciones de autenticación (regex de lookahead negativo)
+├── config/public.ts          exenciones de autenticación (regex de lookahead negativo); hoy solo `p/docs/`
 ├── lib/
-│   ├── routes/               61 archivos, uno por endpoint, + index.ts (barrel)
+│   ├── routes/               86 archivos de ruta, uno por endpoint (algunos con dos verbos), + index.ts (barrel)
+│   ├── public-routes/        /p/docs/*: barrel propio, montado en la RAÍZ (no bajo /api)
+│   ├── modules/              módulos opcionales del bus: registry, client, errores; docs/ (jiku-docs)
 │   ├── models/index.ts       Sequelize de solo lectura; registra los modelos compartidos
 │   ├── interfaces/           augmentación de Express.Request (user, project, transaction…)
 │   ├── logger.ts             Winston
 │   └── utils/
 │       ├── bus/              cliente NATS, sendCommand/runCommand, protocolo, traductores
-│       ├── middlewares/      7 compartidos: auth, roles, entidades del path, fechas
+│       ├── middlewares/      10: auth, roles, entidades del path, fechas, requireModule, public-docs
+│       ├── trust-proxy.ts    parseTrustProxy(API_TRUST_PROXY)
 │       └── *.ts              validación, storage, permisos de adjuntos, helpers
 ├── db-upgrade/migrations/   108 migraciones, corren al arrancar
-├── tests/                    61 archivos de rutas + utils + configuraciones
+├── tests/                    95 archivos de rutas + utils + configuraciones
 └── types/
 ```
 
-El montaje es automático: `app.ts:35-37` itera `Object.keys(routes)` y hace
+El montaje es automático: `app.ts` itera `Object.keys(routes)` y hace
 `app.use('/api', router)` sobre cada export del barrel. Agregar un endpoint es crear un archivo
 y una línea en `lib/routes/index.ts`; nada más se toca.
+
+> **Excepción (REQ-016, DD-10):** las rutas públicas de `lib/public-routes/` **no** pasan por ese
+> bucle: `app.use(publicRoutes)` las monta una vez en la **raíz**, porque el link compartido es
+> `{JIKU_PUBLIC_URL}/p/docs/{token}`, sin `/api`. Ver [`http-server`](./conventions/http-server.md).
 
 ## Módulos de dominio
 
@@ -75,9 +95,11 @@ particularidad de este servicio respecto de la estructura `domain/{module}/` del
 | `objectives` | `objectives-*` | 6 | "Tareas" en la UI, `task` en el bus |
 | `worked-times` | `worked-times-*` | 8 | Carga de horas + 3 reportes |
 | `unworked-times` | `unworked-times-*` | 5 | Ausencias y motivos |
-| `week-assigned-times` | `week-assigned-times-*` | 2 | El único `PUT`; solo `admin` |
+| `week-assigned-times` | `week-assigned-times-*` | 2 | Escribe con el ORM (`PUT` de la asignación semanal); solo `admin` |
 | `attachments` | `attachments-*` | 6 | S3, rollback, checksum |
-| `opus` | `opus-*` | 12 | Portal de clientes, acotado por permiso de proyecto **y por visibilidad del requisito** |
+| `opus` | `opus-*` (salvo `opus-docs-*` y `opus-modules-get`) | 11 | Portal de clientes, acotado por permiso de proyecto **y por visibilidad del requisito** |
+| `modules` | `modules-get`, `opus-modules-get` | 2 | Estado de los módulos opcionales (`GET /modules`, `GET /opus/modules`); cualquier rol autenticado |
+| `docs` | `docs-*` (20), `opus-docs-*` (3), `lib/public-routes/public-docs-*` (2) | 25 | jiku-docs por el bus: 20 internas (`admin`, `user`), 3 de portal de solo lectura (`visibility: 'public'` forzado) y 2 públicas `/p/docs/*`. Detrás de `requireModule('docs')` |
 | `auth` | `auth-present-post`, `settings-get`, `persons-get` | 3 | `present` es hoy un no-op |
 
 ## Autenticación y autorización
@@ -85,17 +107,30 @@ particularidad de este servicio respecto de la estructura `domain/{module}/` del
 Tres capas, detalladas en [`conventions/auth-jwt.md`](./conventions/auth-jwt.md) y
 [`conventions/authorization.md`](./conventions/authorization.md).
 
-1. **Global por método HTTP, no por ruta.** `app.ts:32-35` instala `validateToken` para todo
+1. **Global por método HTTP, no por ruta.** `app.ts` instala `validateToken` para todo
    path *excepto* las exenciones de `config/public.ts`, armadas como regex de lookahead
-   negativo. Deny-by-default.
+   negativo, para los **cinco** métodos (`get`, `patch`, `post`, `put`, `delete`; `put` global
+   desde REQ-016 / H-3: antes `week-assigned-times-put.ts` declaraba su propio `validateToken`).
+   Deny-by-default.
 
    > **Consecuencia para quien lee el código:** un archivo de ruta puede *parecer*
    > desprotegido y estar cubierto. No agregues `validateToken` "por si acaso" al ver una ruta
    > sin él, y no asumas que una ruta nueva es pública.
 
-   Una sola exención hoy: `GET /api/opus/attachments/:id/public`, que tiene su propio control
-   (valida `visibilityLevel === 'public'` por cada `entityType` y responde 403 en cualquier
-   otro caso).
+   Una sola exención hoy: **`GET /p/docs/`** (los links compartidos de documentación, REQ-016 /
+   S-080). La exención anterior, `GET /api/opus/attachments/:id/public`, se eliminó con REQ-002.
+   El control propio de `/p/docs/*` es: **host público exclusivo** (`publicHostOnly` es el
+   **primer middleware** de `app.ts`: en el host de `JIKU_PUBLIC_URL` solo pasan `GET`/`HEAD` de
+   `/p/docs/<algo>`, el resto es un 404 genérico antes de `validateToken`), **rate limit de 60
+   pedidos por minuto por IP** (`express-rate-limit`, en memoria **por réplica**), token de 256 bits
+   que valida jiku-docs contra su hash, un 404 indistinguible para cualquier link inválido y
+   cabeceras de solo lectura (CSP, `noindex`, `no-store`) en toda respuesta. Detrás de un ingress
+   hace falta `API_TRUST_PROXY` (si no, todas las IP serían la del proxy y un visitante agotaría
+   el cupo de todos). Ver [`authorization`](./conventions/authorization.md).
+
+   **Límite de cuerpo:** las escrituras de `/api/docs` (`POST`/`PUT`) aceptan hasta **768kb**
+   (`DOCS_WRITE_BODY_LIMIT`: 256 KiB de contenido con holgura por el escapado de JSON); el resto
+   de la api conserva los 100 kb de body-parser.
 
 2. **Por rol:** `hasAnyRole([...])` sobre el claim `urn:zitadel:iam:org:project:roles`.
    Roles: `admin`, `user`, `external-user`.
@@ -195,6 +230,7 @@ requisitos deja de poder devolverlo.
 |---|---|
 | **Zitadel** | JWKS en `{IDENTITY_URL}/oauth/v2/keys`, resincronizado con reintentos cuando aparece un `kid` desconocido. Service user con JSON key para autenticarse en el bus, con auto-refresh del token (caduca en ~1h) |
 | **NATS → core** | 13 formas de comando. Subject `{instance}.{user-id}.gestion.v1.{comando}`. El `user-id` va crudo; el inbox usa un hash del mismo id, y hay que fijar `inboxPrefix` explícitamente o las respuestas no llegan |
+| **NATS → jiku-docs** (opcional) | Módulo descubierto por el KV `JIKU_MODULES` (clave `docs`, con watch) y verificado con ping `$SRV.PING` cada 30 s. Subjects `{instance}.{user-id}.jiku-docs-queries.v1.{método}` y `...jiku-docs-commands...`. Sin él la api arranca igual y `/docs/*` responde 404. Ver [`bus-modules`](./conventions/bus-modules.md) y [ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md) |
 | **Storage S3-compatible** | Sirve AWS S3, MinIO, DigitalOcean Spaces o Cloudflare R2. Sin defaults para bucket y región a propósito |
 | **Paquetes del monorepo** | `@jiku/models` (26 modelos, compartidos con core), `@jiku/nats-protocol` (contrato del bus), `@jiku/zitadel-auth` (token del service user) |
 
@@ -231,9 +267,22 @@ Importan porque condicionan qué se puede planificar sobre este servicio.
      todavía lo manda y los fronts no se tocan
    - Adjuntos históricos con `entityType: 'stage'` quedan sin proyecto contra el que verificar
      permisos, y por eso **no se autorizan**
-   - `week-assigned-times` es el único `PUT` de la api, la única ruta que escribe con el ORM, y
+   - `week-assigned-times` es la única ruta de la api que escribe con el ORM mediante un `PUT`, y
      su futuro está sin decidir: puede mantenerse, rehacerse o eliminarse
    - Los tres modelos Sequelize de las tablas sin uso de las notificaciones por mail eliminadas
      (`objective_mail_threads`, `requirement_mail_threads`, `inbound_mail_threads`) se dieron de
      baja en S-069 (REQ-015), que las reemplaza por `notification_outbox`. Las tres tablas en sí
      ya las dropeó la migración `20260917_01_notification_outbox`, del mismo plan `S-069.api`
+
+7. **Del módulo de documentación (REQ-016):**
+   - **El estado del módulo vive en memoria por réplica**: dos réplicas pueden discrepar hasta 30 s
+     (el intervalo del ping).
+   - **El rate limit de `/p/docs/*` es por réplica** (`MemoryStore`): con N réplicas el tope
+     efectivo es 60·N por minuto.
+   - **El detalle por id del portal no recorta para usuarios internos**:
+     `GET /api/opus/docs/attachments/{id}` no puede aplicar el recorte por visibilidad (el reply de
+     `request-download` no la trae); para `external-user` lo cubre jiku-docs, pero un usuario
+     **interno** que use el portal recibe el adjunto de un documento `internal` si conoce el id
+     (F-13, ADR-015).
+   - **`Access-Control-Allow-Origin: *` llega también a `/p/docs/*`** (`cors()` corre antes del
+     router público). No amplía la exposición: la página ya es pública con el token (F-18).

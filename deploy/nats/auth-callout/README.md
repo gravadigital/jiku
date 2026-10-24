@@ -132,6 +132,24 @@ portal.
 2. Token `external-user` intentando publicar cualquier comando → **violación de permisos**, en el
    acto, en el servidor NATS.
 3. `commands: []` sigue estando para `external-user` en `authorize-caller.ts`.
+4. Token `external-user` intentando publicar un comando de docs (`jiku-docs-commands`) →
+   **violación de permisos**.
+5. Token `external-user` suscribiéndose a `docs-notify` → **violación de permisos**.
+
+Para recorrer la matriz allow/deny completa de un perfil contra el bus real existe
+[`../bus-policy-probe.sh`](../bus-policy-probe.sh): se conecta como la identidad de la key que se le
+pasa y verifica los permisos de publicación, suscripción y lectura del registro del perfil (`docs`,
+`connector`, `person-internal` o `person-external`). Usa el log del servidor NATS como oráculo: cuenta
+las líneas `Publish Violation` / `Subscription Violation` antes y después, y sale con código 0 solo si
+todo coincide.
+
+```sh
+./bus-policy-probe.sh --profile <docs|connector|person-internal|person-external> --key <service-user.json>
+```
+
+Precondiciones: stack local arriba, bucket `JIKU_MODULES` creado y el auth-callout reiniciado tras
+editar plantillas. Las keys de service user viven fuera del repo y entran solo por `--key`. Es una
+matriz de permisos pub/sub/KV por perfil; no ejercita el consumo ni el ack de `JIKU_DOCS_EVENTS`.
 
 ## El permiso de JetStream va acotado al stream
 
@@ -260,9 +278,13 @@ jiku-docs son clase `service`, o sea que **leen toda la documentación** (R-3, a
    **`internal-app` y `docs`** (los dos: el segundo solo agrega, no reemplaza).
 3. Darle una JSON key y entregársela al servicio.
 
-**Nada de este directorio hay que tocar**: la regla `docs`, su plantilla y el bucket del registro
-ya están versionados. Sí hace falta reiniciar el auth-callout si se editaron las plantillas: las lee
-al arrancar.
+**Nada de este directorio hay que tocar**: la regla `docs` y su plantilla ya están versionadas. Sí
+hace falta reiniciar el auth-callout si se editaron las plantillas: las lee al arrancar.
+
+**El bucket `JIKU_MODULES` no está versionado**: es estado de JetStream de cada instalación y lo
+crea [`../create-modules-kv.sh`](../create-modules-kv.sh). En local lo invoca `local.sh up`; en un
+servidor se corre a mano (ver [On a server](../../README.md#on-a-server)). Sin él el módulo queda
+`not_installed` para siempre, y la api solo lo deja en su log mientras reintenta cada 30 s.
 
 ## Roles que estuvieron acá y ya no
 
@@ -283,5 +305,7 @@ literalmente, y las de persona nunca declararon endpoint. Era configuración que
 sincronizada a mano sin que nada dependiera de ella.
 
 **`core` y `docs` son los únicos que reciben requests por el bus** — los únicos con `sub.allow` sobre
-un prefijo de servicio (`docs`, sobre `jiku-docs-*`). Todos los demás solo emiten y escuchan su
-propio inbox, y por eso sus plantillas llevan `response.max: 0`.
+un prefijo de servicio (`docs`, sobre `jiku-docs-*`). Los demás no atienden ningún
+endpoint: `connector.yaml` lo declara con `response.max: 0` y las plantillas de persona no declaran
+`response`. La persona interna escucha su inbox **y** `docs-notify` bajo su id; ninguna persona
+escucha un prefijo de servicio.

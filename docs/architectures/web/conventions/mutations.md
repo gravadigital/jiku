@@ -32,6 +32,11 @@ package: "@tanstack/react-query"
 **El default es Server Action.** El BFF se justifica por escrito; ver
 [`api-routes.md`](./api-routes.md) para los cuatro casos que existen y por qué.
 
+> **REQ-016 (S-082) — las mutaciones de `features/docs/` devuelven `DocsResult`** y el hook las
+> desenvuelve con `unwrap` antes de que `useMutation` vea el error (ver "Capa 2" de
+> [data-fetching](./data-fetching.md)). Un `module_unavailable` invalida `['modules']`
+> (`withModuleInvalidation`). Patrón del módulo, no generalizado.
+
 ## Server Action de escritura
 
 ```ts

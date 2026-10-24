@@ -41,16 +41,19 @@ Dos consecuencias que importan al operar:
 
 ### Cuándo se rompe la regla, y por qué
 
-Hay tres cosas que el navegador sí tiene que iniciar, y para eso existe el **BFF** en
-`src/app/api/`: son operaciones que el servidor no puede hacer *por* el cliente.
+Hay cosas que el navegador sí tiene que iniciar, y para eso existe el **BFF** en
+`src/app/api/` (más un handler de adjuntos de documentación fuera de `(loggedin)`): son
+operaciones que el servidor no puede hacer *por* el cliente.
 
 | Handler | Por qué no puede ser Server Action |
 |---|---|
 | `GET`/`HEAD` `/api/attachments/[id]/download` | El navegador tiene que recibir el archivo, y no puede mandar el `Authorization` |
 | `GET`/`HEAD` `/api/attachments/[id]/preview` | Igual que download: la URL va en un `src`/`href` |
 | `PATCH /api/requirements/[reqid]` | Update optimista de TanStack Query: necesita rollback en el cliente ante error |
+| `GET`/`HEAD` `/docs/attachments/[id]` (`src/app/docs/attachments/[id]/route.ts`) | Link estable de adjuntos de documentación (`{JIKU_WEB_URL}/docs/attachments/{id}`). Vive **fuera de `(loggedin)`**: no hay guard de layout, así que verifica la sesión por sí mismo. Propaga el 302 de la api (`redirect: 'manual'`); el ruteo frente a `/docs/[id]` es el R-6 del REQ |
+| `POST /api/docs/documents/[id]/unlock` | Liberar el lock de edición en `pagehide` con `fetch` + `keepalive: true`: **un Server Action no corre mientras la página se descarga**. Reenvía solo `{ sessionId }` (`force` nunca se expone); si la api no responde, `502 { message: 'Unlock failed' }` y el lock vence solo a los 120 s |
 
-Los tres repiten el mismo preámbulo: `decodedToken()`, y `401 {"error":"Unauthorized"}` si no
+Todos repiten el mismo preámbulo: `decodedToken()`, y `401 {"error":"Unauthorized"}` si no
 hay `accessToken`. Detalle en [`conventions/api-routes.md`](./conventions/api-routes.md).
 
 > **`POST /api/attachments` existía y se eliminó (REQ-001, S-006).** Su única justificación era el
@@ -58,6 +61,26 @@ hay `accessToken`. Detalle en [`conventions/api-routes.md`](./conventions/api-ro
 > directo a S3 el navegador tiene ese progreso sin que nada atraviese el BFF, y el handler perdió
 > su razón de ser. **Ningún binario atraviesa el proceso de Next**, ni subiendo ni bajando: los dos
 > handlers de lectura que quedan propagan el **302** de la api en vez de proxear el stream.
+
+### Módulo opcional: documentación (`features/docs/`)
+
+Desde REQ-016 `web` tiene un módulo cuya existencia depende de la instalación: la documentación
+la sirve **jiku-docs**, un servicio externo que se descubre por el registro del bus
+(ver [ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)). Todo lo de abajo se apaga
+cuando `GET /api/modules` no informa `docs` como `available`.
+
+- **Estado del módulo.** `useModules` (`features/docs/hooks/useModules.ts`) consulta `GET /modules`
+  con `refetchInterval: 60_000`; `useModule('docs')` devuelve `{ status, sharing, isKnown }`.
+  **Mientras la query carga o falla se comporta como `not_installed`** (P-3 de S-081): no se
+  muestra nada de documentación. Un `module_unavailable` de cualquier llamada invalida la query
+  `['modules']` (`utils/moduleInvalidation.ts`, `withModuleInvalidation`).
+- **Ítem de sidebar.** `ShellSidebar.tsx` agrega `Documentación` (`/docs`) solo si el módulo no está
+  `not_installed`.
+- **El panel de documentos de una ficha** (`DocsPanel`) se monta en `projects/[id]/page.tsx`,
+  `objectives/[id]/page.tsx` (tarea) y en `features/requirements/components/RequirementDetail/RequirementDetail.tsx`
+  (requisito).
+- **Compartir** (`ShareDocumentDialog`, `ShareLinksTable`) depende de `features.sharing` de
+  `GET /modules`, que la api informa si `JIKU_PUBLIC_URL` está definida.
 
 ## Responsabilidades
 
@@ -86,15 +109,16 @@ web/
 ├── Dockerfile                  multi-stage; contexto = raíz del monorepo
 ├── tests/setup.ts              jest-dom + polyfills (ResizeObserver, HTMLDialogElement)
 └── src/
-    ├── app/                    App Router — 25 rutas, 7 route handlers, 3 layouts
+    ├── app/                    App Router — 27 rutas, 9 route handlers, 3 layouts
     │   ├── layout.tsx          root: fuentes Sora + Gabarito, <Providers>
     │   ├── providers.tsx       QueryClient + Session + Project + Sidebar
     │   ├── globals.scss        reset + estilos de elemento residuales + overrides de terceros
     │   ├── (loggedin)/         grupo protegido: auth() + redirect + ShellSidebar + ToastContainer
+    │   ├── docs/attachments/[id]/  route handler FUERA de (loggedin): link estable de adjuntos de documentación
     │   ├── login/              login OIDC y callback de entrada
     │   ├── unauthorized/       corte para external-user
-    │   └── api/                BFF (7 handlers)
-    ├── features/               8 dominios; ver "Módulos de dominio"
+    │   └── api/                BFF (8 handlers, incluido api/docs/documents/[id]/unlock)
+    ├── features/               9 dominios; ver "Módulos de dominio"
     ├── shared/
     │   ├── components/ui/      33 componentes de interfaz (20 specs normativos del DS + soporte)
     │   ├── components/layout/  sin componentes vivos (S-060: PageLayout, Navbar, NavItem, NavSubItem y Header, todos dados de baja — sus 12 páginas migraron a ViewHeader; su navegación, a ShellSidebar/SidebarNav)
@@ -122,12 +146,37 @@ es la superficie pública; las rutas importan de ahí, no de rutas profundas.
 | `time-allocation` | `/time-allocation` | Solo `admin` edita |
 | `worked-times` | `/worked-times`, `/worked-times/report` | Oculto para `external-user` |
 | `attachments` | transversal: proyectos, requisitos, tareas, comentarios | Sin ruta propia |
+| `docs` | `/docs` (carpetas + búsqueda), `/docs/[id]` (visor/editor); el panel `DocsPanel` se monta en `/projects/[id]`, `/objectives/[id]` y en el detalle de requisito | **Opcional** (REQ-016): ítem de sidebar y panel solo si el módulo no está `not_installed`. Ver "Módulo opcional: documentación" |
 | `auth` | `/login/enter`, y `usePersons` desde varios módulos | — |
 
 > **`clients` vive en dos lugares.** Existe `features/clients/` (el módulo completo) y
 > `features/projects/services/clientsApi.ts` + `features/projects/hooks/useClients.ts` (una
 > versión reducida que los formularios de proyecto usan para poblar el select). Son dos
 > implementaciones del mismo recurso. A unificar; hoy hay que saber cuál se está importando.
+
+#### Qué contiene `features/docs/`
+
+Verificado contra el árbol (sin tests):
+
+- `components/`: `DocsPanel`, `DocsBrowser`, `DocumentView`, `DocumentContent`, `DocumentEditor`,
+  `DocumentAttachZone`, `DocumentBreadcrumb`, `FolderBreadcrumb`, `DocumentRelations`,
+  `NewDocumentDialog`, `ShareDocumentDialog`, `ShareLinksTable`, `SearchSnippet`, `DocsNotice`.
+- `hooks/`: `useModules` (y `useModule`), `useDocuments`, `useDocument`, `useDocsSearch`,
+  `useFolderContents`, `useFolderTrail`, `useRootFolders`, `useCreateDocument`, `useSaveDocument`,
+  `useUploadDocAttachment`, `useEditSession`, `useDocumentShares`, `useCreateShare`, `useRevokeShare`.
+- `services/` (todos Server Action salvo el cliente): `docsApi`, `docsAttachmentsApi`,
+  `docsClientApi`, `foldersApi`, `modulesApi`, `sharesApi`.
+- `utils/`: `docsResult`, `moduleInvalidation`, `docsUrlTransform`, `docsErrors`, `shareErrors`,
+  `lockState`, `checksum`, `ulid`, `snippet`, entre otros.
+- **Lock de edición.** `useEditSession` genera un `sessionId` ULID por entrada en edición y
+  renueva el lock cada `RENEW_INTERVAL_MS = 60_000`; el TTL en jiku-docs es de 120 s.
+- **Documentos grandes.** Si el documento trae `contentUrl` (> 256 KiB), `getDocument` lo
+  descarga **del lado del servidor** y se muestra en solo lectura (P-5 de S-081). Tampoco se
+  crean ni editan por HTTP.
+
+> **Alcance de la web (REQ-016).** Administrar carpetas y permisos queda fuera de la interfaz
+> (se hace desde jiku-go). El historial, mover, borrar y restaurar los expone la api pero la web
+> no los ofrece. No hay tiempo real en el navegador.
 
 ## Paquetes compartidos del monorepo
 
@@ -189,11 +238,22 @@ componente cliente
 ```
 
 Las Server Actions son el único lugar donde se habla con la api, y TanStack Query es el único
-cache. Las páginas de servidor pueden llamar a la Server Action directamente y saltear la capa
+cache (la excepción de transporte son los handlers de "Cuándo se rompe la regla"). Las páginas de servidor pueden llamar a la Server Action directamente y saltear la capa
 de hooks: `objectives/by-project` y `by-responsible` lo hacen.
 
 *Por qué así y no `fetch` nativo con `revalidateTag`:* no está explicado en el código. Lo que sí
 está es la consecuencia: la invalidación es explícita y por query key, no por tag de Next.
+
+#### Variante del módulo `docs`: `DocsResult`
+
+Los Server Actions de `features/docs/services/` **no lanzan**: devuelven
+`{ ok: true; data } | { ok: false; error }` (`utils/docsResult.ts`, `toResult`) y los hooks
+re-lanzan con `unwrap`. La razón es que **un error lanzado desde un Server Action llega al
+navegador sin `code` ni `details` en el build de producción**, y la interfaz de documentos
+decide por `code` (`version_conflict`, `document_locked`, `sharing_blocked`…). `ApiError` ganó
+`details?` para conservarlos. `getModules` es la excepción: lanza como el resto del servicio.
+El patrón es **propio del módulo**, no se generaliza (ver
+[`conventions/data-fetching.md`](./conventions/data-fetching.md)).
 
 ### El estado de los filtros vive en la URL
 
@@ -371,6 +431,8 @@ Restante, fuera del alcance de REQ-013:
 
 ### Contrato con la api
 
+- **Los tipos de `features/docs/types/` se copian a mano del contrato** (`docs/apis/api.yaml`,
+  R-8 del REQ), como el resto del servicio: si la api cambia, se descubre en runtime.
 - **Los tipos de dominio están escritos a mano** en `features/*/types/` y no derivan de
   `@jiku/models`. Pueden divergir del esquema real sin fallar en compilación.
 - **`POST /auth/present` se llama y sus errores se tragan** (`console.warn` y continúa). Del

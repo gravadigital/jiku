@@ -17,14 +17,16 @@ package: next
 ## El criterio
 
 Un route handler se justifica solo si el navegador tiene que iniciar la llamada **y** una Server
-Action no sirve. Hoy hay exactamente tres motivos válidos, y los seis handlers que existen
-caen en ellos o son infraestructura de Auth.js.
+Action no sirve. Hoy hay exactamente cuatro motivos válidos (los tres de abajo más el `keepalive` de `pagehide`), y
+los handlers que existen caen en ellos o son infraestructura de Auth.js.
 
 | Handler | Método | Motivo |
 |---|---|---|
 | `/api/attachments/[id]/download` | GET, HEAD | El navegador tiene que recibir el archivo y no puede mandar `Authorization` |
 | `/api/attachments/[id]/preview` | GET, HEAD | Igual: la URL va en el `src` de un `<img>` o el de un `<iframe>` |
 | `/api/requirements/[reqid]` | PATCH | Update optimista con rollback en el cliente |
+| `/docs/attachments/[id]` | GET, HEAD | REQ-016: link estable de adjuntos de documentación (`{JIKU_WEB_URL}/docs/attachments/{id}`). Propaga el 302 de la api con `redirect: 'manual'`. Vive **fuera de `(loggedin)`** (`src/app/docs/attachments/[id]/route.ts`), no en `src/app/api/` |
+| `/api/docs/documents/[id]/unlock` | POST | REQ-016: liberar el lock en `pagehide` con `fetch` + `keepalive: true`; un Server Action no corre mientras la página se descarga. Reenvía solo `{ sessionId }` (ULID validado); no expone `force` |
 | `/api/clients` | POST | Alta desde un componente cliente |
 | `/api/userinfo` | GET | Proxy al `userinfo` del proveedor de identidad |
 | `/api/auth/[...nextauth]` | GET, POST | Handlers de Auth.js. No se escribe a mano |
@@ -42,6 +44,14 @@ caen en ellos o son infraestructura de Auth.js.
 > `clientsClientApi.ts` llama al handler.
 > `/api/userinfo` **no tiene ningún consumidor** en el frontend.
 > Ambos quedan documentados como están; no son el patrón a copiar.
+
+> **Los dos handlers de documentación (REQ-016) siguen el preámbulo** y el cuerpo 401
+> `{ error: 'Unauthorized' }`. `docs/attachments/[id]` está fuera de `(loggedin)` y por eso **no
+> hereda el guard del layout**: su preámbulo es la única verificación de sesión. Con `redirect:
+> 'manual'` devuelve el `Location` de la api en un 302 propio con `X-Content-Type-Options:
+> nosniff`; sin `Location`, propaga el status y el cuerpo de la api. El de `unlock` responde
+> `502 { message: 'Unlock failed' }` si la api no contesta (el lock vence solo a los 120 s).
+> `/api/files/[id]/preview` existe en el árbol y esta tabla no lo lista: es previo a REQ-016.
 
 ## El preámbulo obligatorio
 

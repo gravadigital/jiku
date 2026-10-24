@@ -60,6 +60,13 @@ apiClient.interceptors.request.use(async (config) => {
 - La respuesta se normaliza a `ApiError` en el interceptor de respuesta; ver
   [`error-handling.md`](./error-handling.md).
 
+> **REQ-016 (S-082) — `features/docs/` usa `DocsResult`, solo en ese módulo.** Sus Server
+> Actions no lanzan: devuelven `{ ok: true; data } | { ok: false; error }` (`toResult` en
+> `utils/docsResult.ts`) y los hooks re-lanzan con `unwrap`. Motivo: un error lanzado desde un
+> Server Action llega al navegador sin `code`/`details` en producción y la interfaz de
+> documentos decide por `code`. `getModules` es la excepción. No es el patrón del resto del
+> servicio: lo que no es documentación sigue lanzando `ApiError`.
+
 ## Capa 2 — la Server Action
 
 Un archivo por recurso en `features/{módulo}/services/{recurso}Api.ts`, con `'use server'` en la

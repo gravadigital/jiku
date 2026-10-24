@@ -38,4 +38,5 @@ modules:
   - time-allocation
   - worked-times
   - attachments
+  - docs                # features/docs/: módulo OPCIONAL de documentación (jiku-docs), condicionado por GET /modules (ADR-015)
   - auth
