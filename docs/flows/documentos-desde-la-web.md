@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-24
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -14,7 +14,7 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085]
 **Status:** Draft
 **Creado:** 2026-10-24
 **Última actualización:** 2026-10-24
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087
 
 ## Descripción
 
@@ -93,6 +93,9 @@ sequenceDiagram
     OPUS->>API: GET /api/opus/docs/documents?projectId= o requirementId=
     API->>DOCS: query documents.list { filter: {..., visibility:'public'}, actor:{id} }
     API-->>OPUS: 200 { items, page }
+    OPUS->>API: GET /api/opus/docs/documents/{docId}/attachments/{attId}
+    API->>DOCS: query documents.get { id: docId, include:['attachments'] }
+    API-->>OPUS: 302 (solo si public y el adjunto le pertenece)
 ```
 
 ### Paso 1: panel de documentos en una ficha (web)
@@ -315,19 +318,25 @@ no busca, no comparte.
 |---|---|---|
 | Listar | `GET /api/opus/docs/documents` | Query `projectId` **o** `requirementId` (uno solo); `limit`, `cursor`. Cadena: `requireModule` → `hasAnyRole(['external-user','admin','user'])` → forma → `loadDocsScope` → `validateProjectPermissions` → `validateRequirementIsPublic` (solo si filtra por requisito) → handler. **`filter.visibility: 'public'` lo fuerza el handler**; la query no puede pisarlo |
 | Detalle | `GET /api/opus/docs/documents/{id}` | `documents.get { id, include: ['content','attachments'] }`; **404 `document_not_found` si `visibility !== 'public'`** (falla cerrado) |
-| Adjunto | `GET /api/opus/docs/attachments/{id}` | 302 a la URL prefirmada |
+| Adjunto | `GET /api/opus/docs/documents/{documentId}/attachments/{id}` | `documents.get { id: documentId, include: ['attachments'] }`; **404 `document_not_found` si `visibility !== 'public'`** (todo rol, también `admin`/`user`); **404 `attachment_not_found` si `id` no está en `attachments[].id`**; recién entonces `attachments.{id}.request-download` → 302 a la URL prefirmada |
 
-Los adjuntos se enlazan por el handler propio `opus-web/src/app/api/docs/attachments/[id]/route.ts`:
-el navegador no puede mandar el token en un `src`/`href` y el catch-all sigue las redirecciones
-(convertiría el 302 en un proxy del binario). El handler valida la sesión, valida el ULID, llama a
-`api/opus/docs/attachments/{id}` con **`redirect: 'manual'`** y propaga el 302 (solo `GET`). Un 401
-responde `{ "code": "unauthorized", "message": "Unauthorized" }`.
+Los adjuntos se enlazan por el handler propio
+`opus-web/src/app/api/docs/documents/[documentId]/attachments/[id]/route.ts`: el navegador no puede
+mandar el token en un `src`/`href` y el catch-all sigue las redirecciones (convertiría el 302 en un
+proxy del binario). El handler valida la sesión, valida **los dos** ULID (404 `document_not_found` /
+`attachment_not_found`, en el orden del path), llama a
+`api/opus/docs/documents/{documentId}/attachments/{id}` con **`redirect: 'manual'`** y propaga el 302
+(solo `GET`). Un 401 responde `{ "code": "unauthorized", "message": "Unauthorized" }`.
+
+El visor arma la URL con `createDocsUrlTransform(doc.id)` y la lista de adjuntos con el `documentId`
+del adjunto, así que un enlace al adjunto de **otro** documento queda bajo el documento abierto y
+responde 404 (R-3 de REQ-017, sin tratamiento visible).
 
 Un documento con `contentUrl` (más de 256 KiB) se descarga **desde el navegador** (a diferencia de
 web, que lo hace del lado del servidor): requiere CORS `GET` en el bucket de jiku-docs.
 
 **Ref:** `docs/apis/api.yaml` (`GET /opus/docs/documents`, `GET /opus/docs/documents/{id}`,
-`GET /opus/docs/attachments/{id}`)
+`GET /opus/docs/documents/{documentId}/attachments/{id}`)
 
 ## Manejo de Errores
 
@@ -353,7 +362,8 @@ traducir y `details` verbatim (la clave no existe si no viene). Mapa completo en
 | 7 | Tipo o tamaño de adjunto no permitido | 400 | `attachment_type_not_allowed` / `attachment_too_large` | Mensaje en la zona de adjuntos |
 | 7 | URL de subida prefirmada vencida | — (la rechaza S3) | — | La web pide volver a intentarlo (`expired_upload_url`, código propio de la web) |
 | 7 | Adjuntos no configurados en jiku-docs | 503 | `{ "code": "attachments_not_configured" }` | Error de sistema |
-| 9 | Documento no `public` | 404 | `{ "code": "document_not_found" }` | Idéntico a un id inexistente |
+| 9 | Documento no `public` (documento o adjunto; todo rol) | 404 | `{ "code": "document_not_found" }` | Idéntico a un id inexistente; vale también para el adjunto, incluso para `admin`/`user` |
+| 9 | Adjunto que no pertenece al documento pedido | 404 | `{ "code": "attachment_not_found" }` | Incluye el adjunto de otro documento `public`; el portal no lo trata visiblemente (R-3) |
 | 9 | Handler de adjunto sin sesión | 401 | `{ "code": "unauthorized", "message": "Unauthorized" }` | El navegador recibe el 401 del handler |
 
 ## Resultado
@@ -384,14 +394,14 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
   se ven al refrescar o al guardar (conflicto).
 - **Topes de la web:** la raíz de `/docs` lee hasta 10 páginas de 200 carpetas (~2000); la búsqueda
   no pagina (hasta 50 resultados); la lista de links de un documento trae una página de 200.
-- **Excepciones anotadas:** el detalle por id del portal no aplica `validateProjectPermissions`
-  (el proyecto no se conoce antes de pedir el documento; cubre la regla de externos de jiku-docs) y
-  el adjunto del portal no puede recortarse por visibilidad en la api: un usuario **interno** que
-  use el portal y conozca el id recibe el adjunto de un documento `internal`. Ver
+- **Excepciones anotadas:** el detalle por id del portal, y también la ruta del adjunto, no aplican
+  `validateProjectPermissions` (el proyecto no se conoce antes de pedir el documento; cubre la regla
+  de externos de jiku-docs). El adjunto del portal se pide bajo su documento y la api verifica
+  `public` y pertenencia antes de generar la descarga: REQ-017 (S-087) cerró la brecha F-13. Ver
   [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md).
 - **Lo que este flujo no documenta:** la resolución de permisos dentro de jiku-docs (consulta a
   `core`), documentada en el repositorio de jiku-docs.
 
 **Origen:** REQ-016 · stories S-077 (cliente de módulos), S-078 y S-079 (rutas de lectura y
 escritura de la api), S-081 (panel y visor de web), S-082 (editor con reserva, carpetas, búsqueda y
-adjuntos), S-084 (opus-web), S-085 (esta documentación).
+adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento).

@@ -186,7 +186,7 @@ Todas las rutas de módulo llevan `requireModule('docs')` **antes** de `hasAnyRo
 |---|---|---|
 | Estado | `GET /modules`, `GET /opus/modules` | `hasAnyRole(['admin','user','external-user'])` |
 | Interna | 20 operaciones `/docs/*` | `hasAnyRole(['admin','user'])` |
-| Portal (solo lectura) | `GET /opus/docs/documents`, `GET /opus/docs/documents/{id}`, `GET /opus/docs/attachments/{id}` | `hasAnyRole(['external-user','admin','user'])` (DD-3) |
+| Portal (solo lectura) | `GET /opus/docs/documents`, `GET /opus/docs/documents/{id}`, `GET /opus/docs/documents/{documentId}/attachments/{id}` | `hasAnyRole(['external-user','admin','user'])` (DD-3) |
 | Pública (raíz) | `GET /p/docs/{token}`, `GET /p/docs/{token}/attachments/{id}` | sin credencial (ver abajo) |
 
 - **DD-3**: el portal fuerza `filter.visibility: 'public'` en el listado (lo pone el handler, no sale
@@ -323,7 +323,7 @@ Fuente del diseño: sección "Decisiones de diseño" de
 |---|---|---|---|
 | DD-1 | `actor: { id }` siempre; sin `actor` en `shares.resolve`/`shares.attachment` | `api/lib/modules/client.ts` inyecta `{ id }` tras el spread y falla cerrado con 401; `public-share.ts` llama sin `actor` | Se agregó **falla cerrada** (401 sin publicar) y la opción `anonymous` quedó **sin llamadores** (las rutas públicas usan `sendToModule`, P-9 de S-080). Las rutas públicas **sí** mandan `client` (`ClientInfo`), que el diseño no preveía (P-1 de S-080) |
 | DD-2 | La api no autoriza el dominio | Ningún handler de `docs-*.ts` evalúa ACL; solo `requireModule` + `hasAnyRole` | Ninguna |
-| DD-3 | `/docs/*` internas; `/opus/docs/*` solo lectura, fuerza `visibility: public`, 404 si no es `public` | `opus-docs-documents-get.ts`, `opus-docs-documents-id-get.ts`, `opus-docs-attachments-id-get.ts` | El tercer endpoint del portal (`GET /opus/docs/attachments/{id}`) **no puede** aplicar DD-3 para usuarios internos (F-13; ver Riesgos) |
+| DD-3 | `/docs/*` internas; `/opus/docs/*` solo lectura, fuerza `visibility: public`, 404 si no es `public` | `opus-docs-documents-get.ts`, `opus-docs-documents-id-get.ts`, `opus-docs-documents-id-attachments-id-get.ts` | El tercer endpoint del portal (`GET /opus/docs/attachments/{id}`) **no puede** aplicar DD-3 para usuarios internos (F-13; ver Riesgos). **Resuelto por REQ-017 (S-087):** el adjunto se pide bajo su documento y aplica DD-3 para todo rol |
 | DD-4 | Listado del portal con permiso de proyecto y requisito público | `loadDocsScope` → `validateProjectPermissions` → `validateRequirementIsPublic` | Ninguna |
 | DD-5 | Estado en memoria por réplica; lectura, watch, ping 30 s y ante `no responders` | `api/lib/modules/registry.ts` | Se sumaron dedupe de entradas, watch armado antes del primer ping y descarte de pings por `generation` (S-077) |
 | DD-6 | Un fallo al arrancar no tumba la api | `registry.ts` (`open()` nunca rechaza) y `app.ts` (`afterInitialize`) | Ninguna |
@@ -438,7 +438,10 @@ Diferencias de infraestructura (no son DD pero cambiaron lo diseñado):
   puede aplicar DD-3, porque el reply de `request-download` no trae la visibilidad. Para
   `external-user` lo cubre jiku-docs; **un usuario interno que use el portal recibe el adjunto de un
   documento `internal` si conoce el id**. Aceptado: el usuario interno ya puede leerlo por
-  `/docs/attachments/{id}`.
+  `/docs/attachments/{id}`. **Resuelto por REQ-017 (S-087):**
+  `GET /opus/docs/documents/{documentId}/attachments/{id}` lee el documento con `documents.get`,
+  responde 404 si no es `public` o si el adjunto no le pertenece, y la ruta vieja se eliminó. Riesgo
+  aceptado R-3 en `documentation/known-limitations.md`.
 
 ## Divergencias con el contrato `jiku-modules.yaml`
 

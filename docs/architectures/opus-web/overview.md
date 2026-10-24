@@ -76,7 +76,7 @@ autoridad. Pero conviene tenerlo explícito: acá no hay una segunda barrera. Si
 |---|---|
 | `GET /api/attachments/[id]/preview` | El navegador pone la URL en un `src`/`href` y no puede mandar el `Authorization`. Chequea sesión y reenvía `Content-Type`, `Content-Disposition` y `Content-Length` |
 | `GET`/`HEAD` `/api/files/[id]/preview` | Archivo sin vínculo, por `files.id`: la ruta de la api **no vive bajo `/api/opus/*`**, así que el catch-all no puede alcanzarla, y la URL va en un `src` |
-| `GET /api/docs/attachments/[id]` | REQ-016 (H-4): adjuntos de documentos. La URL va en un `src`/`href` y **el catch-all sigue las redirecciones**: el 302 de la api hacia el storage se convertiría en un proxy del binario a través de Next. Este handler usa `redirect: 'manual'` y propaga el 302 con `Location` y `X-Content-Type-Options: nosniff`. Valida el ULID del id antes de llamar (P-10) y solo responde `GET` (P-11). El 401 es `{ code: 'unauthorized', message: 'Unauthorized' }` |
+| `GET /api/docs/documents/[documentId]/attachments/[id]` | REQ-016 (H-4): adjuntos de documentos. La URL va en un `src`/`href` y **el catch-all sigue las redirecciones**: el 302 de la api hacia el storage se convertiría en un proxy del binario a través de Next. Este handler usa `redirect: 'manual'` y propaga el 302 con `Location` y `X-Content-Type-Options: nosniff`. REQ-017 (DD-2): anidado bajo el documento porque la api autoriza por él (verifica `public` y pertenencia). Valida los dos ULID antes de llamar (404 `document_not_found` / `attachment_not_found`, en el orden del path) (P-10) y solo responde `GET` (P-11). El 401 es `{ code: 'unauthorized', message: 'Unauthorized' }` |
 
 Los tres validan sesión por su cuenta: `/api/*` está fuera del matcher del middleware.
 
@@ -121,7 +121,7 @@ opus-web/
     │   ├── globals.scss        @use de styles/
     │   ├── (auth)/             login y callback de entrada
     │   ├── (dashboard)/        shell con Sidebar + <main>
-    │   ├── api/                proxy catch-all, NextAuth, preview de adjuntos y de archivos, adjuntos de documentos (api/docs/attachments/[id])
+    │   ├── api/                proxy catch-all, NextAuth, preview de adjuntos y de archivos, adjuntos de documentos (api/docs/documents/[documentId]/attachments/[id])
     │   └── attachments/        (ya no existe: la descarga pública se eliminó en REQ-002; ver "Los tres handlers")
     ├── features/               7 dominios; ver "Módulos de dominio"
     ├── shared/
@@ -158,7 +158,7 @@ Verificado contra `src/features/docs/`:
 - **Componentes:** `DocsSection` (sección colapsable "Documentación (n)"), `DocumentView`,
   `DocumentHeader`, `DocumentAttachments`, `DocumentMarkdown`, `DocsAlert`.
 - **Hooks:** `useModules` (`refetchInterval: 60_000`) y `useModule`, `useDocuments`, `useDocument`.
-- **Utils:** `frontmatter` (`stripFrontmatter`), `classifyDocumentError`, `docsUrlTransform`,
+- **Utils:** `frontmatter` (`stripFrontmatter`), `classifyDocumentError`, `createDocsUrlTransform` (en `docsUrlTransform.ts`),
   `moduleInvalidation`, `dates`.
 - **Montaje:** `DocsSection` en `projects/[projectId]/requirements/page.tsx` (por proyecto) y
   en `RequirementInfoPanel` (por requisito). La página `/projects/[projectId]/docs/[documentId]`
@@ -168,8 +168,11 @@ Verificado contra `src/features/docs/`:
   nada**; con el módulo `unavailable` aparece con el aviso (`MSG_DOCS_UNAVAILABLE`). En la
   página del documento, el error se clasifica (`classifyDocumentError`) y se ofrece "Reintentar".
 - **Solo lectura y solo `public`.** Consume `GET /opus/docs/documents` y
-  `GET /opus/docs/documents/{id}` por el catch-all; la api fuerza `visibility: 'public'`. No hay
-  edición, búsqueda ni compartir en el portal.
+  `GET /opus/docs/documents/{id}` por el catch-all; la api fuerza `visibility: 'public'`. Los
+  adjuntos van por el handler propio, con la URL armada bajo el documento abierto
+  (`createDocsUrlTransform(doc.id)` en `DocumentMarkdown`, el `documentId` del adjunto en
+  `DocumentAttachments`): un enlace al adjunto de otro documento responde 404 y no recibe tratamiento
+  visible (R-3, `known-limitations.md`). No hay edición, búsqueda ni compartir en el portal.
 - **`DocumentMarkdown`** es un componente nuevo (no extiende `MarkdownRenderer`) que **quita el
   frontmatter** antes de renderizar (P-9) y **no usa `remark-gfm`** (P-13): tablas, tachado y
   listas de tareas GFM salen como texto plano.

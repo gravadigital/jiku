@@ -279,10 +279,5 @@ Importan porque condicionan qué se puede planificar sobre este servicio.
      (el intervalo del ping).
    - **El rate limit de `/p/docs/*` es por réplica** (`MemoryStore`): con N réplicas el tope
      efectivo es 60·N por minuto.
-   - **El detalle por id del portal no recorta para usuarios internos**:
-     `GET /api/opus/docs/attachments/{id}` no puede aplicar el recorte por visibilidad (el reply de
-     `request-download` no la trae); para `external-user` lo cubre jiku-docs, pero un usuario
-     **interno** que use el portal recibe el adjunto de un documento `internal` si conoce el id
-     (F-13, ADR-015).
    - **`Access-Control-Allow-Origin: *` llega también a `/p/docs/*`** (`cors()` corre antes del
      router público). No amplía la exposición: la página ya es pública con el token (F-18).
