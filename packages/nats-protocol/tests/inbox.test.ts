@@ -7,9 +7,9 @@ import { DomainEvent, ErrorCodeValue, Reply } from '../src/index';
 import { reload } from './helpers/reload';
 
 /**
- * Los 22 símbolos de runtime de la superficie pública, enumerados uno por uno.
+ * Los 27 símbolos de runtime (22 + 5 de REQ-016 / S-077) de la superficie pública, enumerados uno por uno.
  *
- * La lista es literal y no un conteo: `Object.keys(module).length === 22` pasaría igual si
+ * La lista es literal y no un conteo: `Object.keys(module).length === 27` pasaría igual si
  * alguien agregara un símbolo y borrara otro.
  *
  * `AuthEvent` NO está acá: es un tipo, se borra al compilar y `module.AuthEvent` es `undefined`.
@@ -39,6 +39,11 @@ const PUBLIC_SURFACE = [
   'eventSubject',
   'eventsStreamSubject',
   'EVENT_TYPES',
+  'MODULES_BUCKET',
+  'moduleCommandSubject',
+  'moduleQuerySubject',
+  'modulePingSubject',
+  'generateUlid',
 ];
 
 describe('nats-protocol · el inbox hasheado y el caller', () => {
@@ -91,7 +96,7 @@ describe('nats-protocol · el inbox hasheado y el caller', () => {
 });
 
 describe('nats-protocol · la superficie pública y el envelope', () => {
-  it('TS-48: los 22 símbolos de runtime están exportados', () => {
+  it('TS-48: los 27 símbolos de runtime están exportados', () => {
     const p = reload({});
     const exported = Object.keys(p);
     PUBLIC_SURFACE.forEach((name) => {
@@ -102,7 +107,7 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     // 18 previos + EVENTS_VERSION, eventSubject, eventsStreamSubject, EVENT_TYPES (REQ-014).
     // Los tipos (DomainEvent y las otras 4 interfaces + EventType) NO se cuentan: se borran al
     // compilar. Ver TS-137.
-    PUBLIC_SURFACE.length.should.equal(22);
+    PUBLIC_SURFACE.length.should.equal(27);
   });
 
   it('TS-49: ErrorCode tiene 35 miembros', () => {
@@ -190,9 +195,9 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     p.failure.length.should.equal(3);
   });
 
-  it('TS-149: la superficie pública pasa de 18 a 22 símbolos', () => {
+  it('TS-149: la superficie pública pasa de 18 a 22 símbolos (y a 27 con REQ-016 / S-077)', () => {
     // Los tipos NO se cuentan (se borran al compilar): pasa de 18 a 22 y no de 18 a 27.
-    PUBLIC_SURFACE.length.should.equal(22);
+    PUBLIC_SURFACE.length.should.equal(27);
   });
 
   it('TS-150: reload() resetea la quinta variable, NATS_EVENTS_VERSION', () => {

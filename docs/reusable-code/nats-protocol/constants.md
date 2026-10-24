@@ -218,3 +218,21 @@ eventSubject(EVENT_TYPES.TASK_ASSIGNED); // 'dev.events.v1.task.assigned'
 
 **No emitter yet.** As of S-062 this catalog exists and nobody publishes anything with it — the
 post-commit emitter is S-063, and the constructors of each event batch are S-064 to S-066.
+
+## MODULES_BUCKET
+
+**Location:** `packages/nats-protocol/src/index.ts`
+
+**Description:** Name of the JetStream KV bucket where optional modules register (REQ-016). The
+underlying stream is `KV_JIKU_MODULES`. Created by the base deployment; the api opens it with
+`bindOnly`. Source of truth: `docs/apis/jiku-modules.yaml`.
+
+**Signature:**
+```ts
+const MODULES_BUCKET = 'JIKU_MODULES';
+```
+
+**Usage:**
+```ts
+const kv = await js.views.kv(MODULES_BUCKET, { bindOnly: true });
+```
