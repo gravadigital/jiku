@@ -59,9 +59,19 @@ describe('events/auth/identity-type — derivar identity_type de matched_role (v
     identityTypeFromMatchedRole(' core').should.equal(IdentityType.Person);
   });
 
-  it('TS-7 · la lista de roles de servicio es la de `rules.yaml`, y son DOS', () => {
+  it('TS-7 · la lista de roles de servicio es la de `rules.yaml`, y son TRES', () => {
     // Si alguien agrega un rol de servicio a `rules.yaml`, este test es el que le recuerda que
     // esta lista también tiene que crecer. Es el gemelo del gate de paridad de `ROLE_METHODS`.
-    [...SERVICE_ROLES].sort().should.deepEqual(['core', 'internal-app']);
+    [...SERVICE_ROLES].sort().should.deepEqual(['core', 'docs', 'internal-app']);
+  });
+
+  it('S-076 TS-1 · `docs` (el machine user de jiku-docs) es rol de servicio', () => {
+    identityTypeFromMatchedRole('docs').should.equal(IdentityType.Service);
+  });
+
+  it('S-076 TS-3 · la comparación sigue siendo exacta para `docs`', () => {
+    identityTypeFromMatchedRole('Docs').should.equal(IdentityType.Person);
+    identityTypeFromMatchedRole('docs ').should.equal(IdentityType.Person);
+    identityTypeFromMatchedRole('jiku-docs').should.equal(IdentityType.Person);
   });
 });

@@ -2,13 +2,16 @@ import 'mocha';
 import 'should';
 import * as sinon from 'sinon';
 import { Op } from 'sequelize';
-import { IdentityType, Person, User, UserProjectPermission } from '@jiku/models';
+import { Client, IdentityType, Person, User, UserProjectPermission } from '@jiku/models';
 import logger from '../../src/logger';
 import { EventDispatcher } from '../../src/events/dispatcher';
 import { syncUser } from '../../src/events/auth/user-sync';
+import { dispatch, dispatchQuery } from '../helpers/dispatch';
 
 const PERSON_ID = '281234567890123456';
 const SERVICE_ID = '281234567890999999';
+/** El machine user de jiku-docs (S-076). */
+const DOCS_SUB = '281234567890777777';
 
 /** Evento válido mínimo, sobre el que cada test cambia UN campo. */
 const validEvent = (): Record<string, unknown> => ({
@@ -23,6 +26,20 @@ const validEvent = (): Record<string, unknown> => ({
   matched_role: 'admin',
 });
 
+/** El evento de jiku-docs tal como llega en producción: `matched_role: 'docs'` y SIN clave `email`. */
+function docsEvent(): Record<string, unknown> {
+  const event: Record<string, unknown> = {
+    ...validEvent(),
+    id: DOCS_SUB,
+    name: 'jiku-docs',
+    username: 'jiku-docs',
+    roles: ['internal-app', 'docs'],
+    matched_role: 'docs',
+  };
+  delete event.email;
+  return event;
+}
+
 /**
  * Se construye con el handler REAL. `syncUser()` NUNCA se llama directamente: los tests entran
  * por el despachador, que es lo único que verifica el comportamiento transaccional (ADR-013).
@@ -35,7 +52,7 @@ describe('events/auth/user-sync', () => {
   afterEach(async () => {
     // SOLO los dos ids de este archivo: otras suites siembran usuarios y el truncado es al
     // arrancar la corrida, no entre tests.
-    await User.destroy({ where: { id: { [Op.in]: [PERSON_ID, SERVICE_ID] } } });
+    await User.destroy({ where: { id: { [Op.in]: [PERSON_ID, SERVICE_ID, DOCS_SUB] } } });
     sinon.restore();
   });
 
@@ -249,8 +266,8 @@ describe('events/auth/user-sync', () => {
     user.identityType.should.equal(IdentityType.Person);
   });
 
-  it('TS-20b · los dos roles de servicio de `rules.yaml` se espejan como service', async () => {
-    for (const role of ['internal-app', 'core']) {
+  it('TS-20b · los tres roles de servicio de `rules.yaml` se espejan como service', async () => {
+    for (const role of ['internal-app', 'core', 'docs']) {
       await dispatcher().dispatch({
         ...validEvent(),
         id: SERVICE_ID,
@@ -261,6 +278,61 @@ describe('events/auth/user-sync', () => {
       (await User.findByPk(SERVICE_ID))!.identityType.should.equal(IdentityType.Service);
       await User.destroy({ where: { id: SERVICE_ID } });
     }
+  });
+
+  it('S-076 TS-5 · el alta de jiku-docs SIN fila previa crea la fila de servicio', async () => {
+    // R-2: el test parte de la AUSENCIA de la fila, no de una existente.
+    ((await User.findByPk(DOCS_SUB)) === null).should.be.true();
+    const info = sinon.spy(logger, 'info');
+
+    await dispatcher().dispatch(docsEvent());
+
+    const user = (await User.findByPk(DOCS_SUB))!;
+    user.id.should.equal(DOCS_SUB);
+    user.name.should.equal('jiku-docs');
+    user.username.should.equal('jiku-docs');
+    (user.email === null).should.be.true();
+    user.roles.should.deepEqual(['internal-app', 'docs']);
+    user.identityType.should.equal(IdentityType.Service);
+    info.callCount.should.equal(1);
+    String(info.firstCall.args[0]).should.equal(`[events] ${DOCS_SUB}: created`);
+  });
+
+  it('S-076 TS-6 · las tres formas de "no hay email" con `docs` dejan la misma fila', async () => {
+    const absent = docsEvent();
+    for (const event of [absent, { ...docsEvent(), email: null }, { ...docsEvent(), email: '' }]) {
+      await dispatcher().dispatch(event);
+
+      const user = (await User.findByPk(DOCS_SUB))!;
+      (user.email === null).should.be.true();
+      user.identityType.should.equal(IdentityType.Service);
+      await User.destroy({ where: { id: DOCS_SUB } });
+    }
+  });
+
+  it('S-076 TS-7 · tras el alta, jiku-docs deja de recibir caller_not_authorized / unknown_caller', async () => {
+    await dispatcher().dispatch(docsEvent());
+
+    const query = await dispatchQuery('users.list', {}, DOCS_SUB);
+    query.status.should.equal('success');
+
+    const command = await dispatch<{ id: number }>('clients.new', { name: 'Cliente S-076' }, DOCS_SUB);
+    try {
+      command.status.should.equal('success');
+      (typeof command.data!.id).should.equal('number');
+    } finally {
+      await Client.destroy({ where: { name: 'Cliente S-076' } });
+    }
+  });
+
+  it('S-076 TS-8 · contraprueba de H-1: un rol de servicio NO listado se descarta por `email`', async () => {
+    const warn = sinon.spy(logger, 'warn');
+
+    await dispatcher().dispatch({ ...docsEvent(), matched_role: 'rol-servicio-no-listado' });
+
+    warn.callCount.should.equal(1);
+    String(warn.firstCall.args[0]).should.containEql('email');
+    (await User.count({ where: { id: DOCS_SUB } })).should.equal(0);
   });
 
   it('TS-21 · el log distingue ALTA de ACTUALIZACIÓN', async () => {

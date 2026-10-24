@@ -22,18 +22,26 @@ import { IdentityType } from '@jiku/models';
 /**
  * Los roles de `rules.yaml` que identifican un SERVICIO y no una persona.
  *
- * SALE DE `deploy/nats/auth-callout/rules.yaml`, leyendo sus cinco reglas: `internal-app` (el
- * conector) y `core` son de servicio; `admin`, `user` y `external-user` son de producto. Es la
- * MISMA partición que `rules.yaml` expresaba con el `type:` que la v2 eliminó — no se inventa una
- * clasificación nueva, se lee la que ya estaba.
+ * SALE DE `deploy/nats/auth-callout/rules.yaml`, leyendo sus seis reglas: `docs` (el machine user
+ * de jiku-docs), `internal-app` (el conector) y `core` son de servicio; `admin`, `user` y
+ * `external-user` son de producto. Es la MISMA partición que `rules.yaml` expresaba con el `type:`
+ * que la v2 eliminó — no se inventa una clasificación nueva, se lee la que ya estaba.
+ *
+ * POR QUÉ `docs` ES DE SERVICIO: es un machine user, no tiene `email`, y su regla va POR ENCIMA de
+ * la de `internal-app` en `rules.yaml`, así que el `matched_role` que llega es `docs` y no
+ * `internal-app`. Sin `docs` acá el esquema del despachador exige `email` y DESCARTA el evento: la
+ * identidad nunca se crea en `users` y core le responde `caller_not_authorized` / `unknown_caller`
+ * a todo (hallazgo H-1 de REQ-016). Para la autorización NO cambia nada: `docs` no está en
+ * `ROLE_METHODS` ni en `CLASS_BY_ROLE`, es un rol desconocido que se saltea, y autoriza
+ * `internal-app` (D-1).
  *
  * EXPORTADO PARA EL TEST QUE LO CUENTA: si alguien agrega un rol de servicio a `rules.yaml` y se
  * olvida de esta lista, el rol nuevo se espejaría como `person`. El test es lo que lo recuerda,
  * igual que el gate de paridad de `ROLE_METHODS` contra `x-roles`.
  *
- * `as const` para que el tipo sea la unión de los dos literales y no `string[]`.
+ * `as const` para que el tipo sea la unión de los tres literales y no `string[]`.
  */
-export const SERVICE_ROLES = ['internal-app', 'core'] as const;
+export const SERVICE_ROLES = ['internal-app', 'core', 'docs'] as const;
 
 /** Lookup O(1) y, sobre todo, sin la trampa de `Array.includes` sobre un `as const`. */
 const SERVICE_ROLE_SET: ReadonlySet<string> = new Set(SERVICE_ROLES);

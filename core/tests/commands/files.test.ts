@@ -1,7 +1,7 @@
 import 'mocha';
 import 'should';
 import sinon from 'sinon';
-import { File, SystemSetting, User, ByteStatus, RetentionStatus } from '@jiku/models';
+import { Attachment, File, SystemSetting, User, ByteStatus, RetentionStatus } from '@jiku/models';
 import { ErrorCode } from '@jiku/nats-protocol';
 import logger from '../../src/logger';
 import { registry } from '../../src/commands';
@@ -24,6 +24,8 @@ const TRUSTED = 'api-service-user-sub';
 const EXTERNAL = 'servicio-externo-sub';
 
 const UPLOADER_A = 'zitadel-user-a';
+/** El machine user de jiku-docs, con la forma real de su fila tras el alta (S-076). */
+const DOCS_CALLER = 'sub-q-docs';
 
 interface UploadTicket {
   id: number;
@@ -100,7 +102,15 @@ describe('files', () => {
       // `TRUSTED` NO lleva roles: su fila existe solo porque `files.uploaded_by` es FK a
       // `users.id`, y la compuerta lo exime por `sub`. Para la autorización es dato, no compuerta.
       { id: TRUSTED, name: 'Api', username: 'api-su', email: 'api@test.local' },
-    ]);
+      {
+        id: DOCS_CALLER,
+        name: 'jiku-docs',
+        username: 'q-docs',
+        email: null,
+        roles: ['internal-app', 'docs'],
+        identityType: 'service',
+      },
+    ] as any);
   });
 
   after(async () => {
@@ -992,6 +1002,63 @@ describe('files', () => {
       s3.calls.every((call) =>
         call.operation === 'PutObject' || call.operation === 'GetObject'
       ).should.be.true();
+    });
+  });
+
+  describe('S-076 · archivo sin vínculo subido por jiku-docs (CA-15)', () => {
+    let fileId: number;
+
+    beforeEach(async () => {
+      // Rama externa de `resolveActor`: el uploader es el caller, y emite un `warn` esperado.
+      sinon.stub(logger, 'warn');
+      const upload = await dispatch<UploadTicket>(
+        'files.request-upload',
+        { fileName: 'manual.pdf', mimeType: 'application/pdf', fileSize: 2048 },
+        DOCS_CALLER
+      );
+      upload.status.should.equal('success');
+      fileId = upload.data!.id;
+      s3.reset();
+    });
+
+    it('S-076 TS-16 · la subida crea la fila del servicio, sin ningún vínculo', async () => {
+      const file = (await File.findByPk(fileId))!;
+
+      file.uploadedBy.should.equal(DOCS_CALLER);
+      file.byteStatus.should.equal(ByteStatus.Pending);
+      file.retentionStatus.should.equal(RetentionStatus.Active);
+      (await Attachment.count({ where: { fileId } })).should.equal(0);
+    });
+
+    it('S-076 TS-17 · el mismo servicio pide la descarga del archivo nunca vinculado', async () => {
+      const reply = await dispatch<DownloadTicket>(
+        `files.${fileId}.request-download`,
+        { disposition: 'inline' },
+        DOCS_CALLER
+      );
+
+      reply.status.should.equal('success');
+      Object.keys(reply.data!).sort().should.eql([
+        'downloadUrl', 'expiresIn', 'fileName', 'fileSize', 'mimeType',
+      ]);
+      reply.data!.expiresIn.should.equal(300);
+      reply.data!.fileName.should.equal('manual.pdf');
+      reply.data!.mimeType.should.equal('application/pdf');
+      reply.data!.fileSize.should.equal(2048);
+      const file = (await File.findByPk(fileId))!;
+      s3.callsOf('GetObject').should.have.length(1);
+      s3.callsOf('GetObject')[0].key.should.equal(file.storageKey);
+    });
+
+    it('S-076 TS-18 · la descarga no altera la retención: sigue `active` y firmable', async () => {
+      await dispatch(`files.${fileId}.request-download`, { disposition: 'inline' }, DOCS_CALLER);
+
+      const file = (await File.findByPk(fileId))!;
+      file.retentionStatus.should.equal(RetentionStatus.Active);
+      file.byteStatus.should.equal(ByteStatus.Pending);
+
+      const again = await dispatch(`files.${fileId}.request-download`, {}, DOCS_CALLER);
+      again.status.should.equal('success');
     });
   });
 });

@@ -61,6 +61,15 @@ describe('queries/caller-class — el mapa rol → clase, puro y sin base', () =
     resolveCallerClass(['wizard', 'user'])!.should.equal('internal');
   });
 
+  it('S-076 TS-9 · `docs` SOLO no produce clase: es un rol desconocido que se saltea', () => {
+    (resolveCallerClass(['docs']) === null).should.be.true();
+  });
+
+  it('S-076 TS-10 · `[internal-app, docs]` es clase conector, en cualquier orden', () => {
+    resolveCallerClass(['internal-app', 'docs'])!.should.equal('connector');
+    resolveCallerClass(['docs', 'internal-app'])!.should.equal('connector');
+  });
+
   it('(gate) el mapa es CERRADO: exactamente los cuatro roles que consultan', () => {
     Object.keys(CLASS_BY_ROLE)
       .sort()

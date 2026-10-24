@@ -34,7 +34,7 @@ import { identityTypeFromMatchedRole } from './identity-type';
  * EL CUIDADO QUE ESTE DOCBLOCK ANUNCIABA **YA OCURRIÓ**, y vale dejar registrado que la predicción
  * era correcta: decía *"si algún día `identity_type` deja de venir... degradaría TODAS las filas de
  * servicio a `person` en silencio"*. La v2 lo eliminó del payload (S-069). Lo que evita la
- * degradación es que el valor se DERIVA de `matched_role` en vez de caer a un default: los dos
+ * degradación es que el valor se DERIVA de `matched_role` en vez de caer a un default: los tres
  * roles de servicio de `rules.yaml` siguen produciendo `service`.
  *
  * SIGUE SIENDO EL CASO PELIGROSO DEL REEMPLAZO TOTAL, ahora desplazado un paso: si alguien agrega
