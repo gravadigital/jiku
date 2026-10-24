@@ -102,3 +102,69 @@ import { Badge } from '@/shared/components/ui';
   Automático
 </Badge>
 ```
+
+---
+
+## DocsSection
+
+**Location:** `opus-web/src/features/docs/components/DocsSection/DocsSection.tsx`
+
+**Description:** Collapsible "Documentación (n)" section. With `requirementId` it lists the public
+documents linked to the requirement, otherwise those of the project. Renders nothing while the module
+state is unknown, when it is `not_installed` or when there are no documents; with the module down (or
+a query error) it shows `DocsAlert`. Paginates 5 at a time ("n+" while more exist).
+
+**Interface:**
+
+```ts
+interface DocsSectionProps { projectId: number; requirementId?: number }
+```
+
+**Usage:**
+
+```tsx
+<DocsSection projectId={projectId} requirementId={requirement.id} />
+```
+
+---
+
+## DocsAlert
+
+**Location:** `opus-web/src/features/docs/components/DocsAlert/DocsAlert.tsx`
+
+**Description:** Inline notice for the docs module. `error` uses `role="alert"`, `warning` uses
+`role="status"`; the state is carried by icon and text, not color alone.
+
+**Interface:**
+
+```ts
+interface DocsAlertProps { variant: 'warning' | 'error'; children: ReactNode }
+```
+
+**Usage:**
+
+```tsx
+<DocsAlert variant="warning">{MSG_DOCS_UNAVAILABLE}</DocsAlert>
+```
+
+---
+
+## DocumentMarkdown
+
+**Location:** `opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`
+
+**Description:** Read-only markdown viewer. `skipHtml`, no rehype plugins, `docsUrlTransform` on every
+URL, frontmatter stripped, headings shifted one level (`#` renders as `h2`), links in a new tab, images
+at column width. Independent of the shared `MarkdownRenderer` on purpose.
+
+**Interface:**
+
+```ts
+interface DocumentMarkdownProps { content: string }
+```
+
+**Usage:**
+
+```tsx
+<DocumentMarkdown content={doc.content ?? ''} />
+```

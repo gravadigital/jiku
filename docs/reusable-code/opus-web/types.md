@@ -124,3 +124,28 @@ interface Requirement {
 }
 ```
 
+
+---
+
+## DocsDocument
+
+**Location:** `opus-web/src/features/docs/types/docs.types.ts`
+
+**Description:** Hand-written, verbatim copy of the `DocsDocument` contract (`api.yaml`,
+`jiku-docs-queries.yaml` 1.1.0), with `DocsDocumentPage`, `DocsPageInfo`, `DocsAttachment`,
+`ModuleEntry`, `ModuleStatus` and `DocsListScope` (exactly one of `projectId` / `requirementId`).
+The portal only shows `id`, `title`, `updatedAt`, `content` and `attachments`.
+
+**Interface:**
+
+```ts
+type DocsListScope =
+  | { projectId: number; requirementId?: never }
+  | { requirementId: number; projectId?: never };
+```
+
+**Usage:**
+
+```ts
+import type { DocsDocument } from '@/features/docs';
+```

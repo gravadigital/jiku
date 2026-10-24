@@ -117,3 +117,29 @@ depending on what exists under that number.
 function getFilePreviewUrl(fileId: number): string; // -> /api/files/{fileId}/preview
 function getPreviewUrl(id: number): string;         // -> /api/attachments/{id}/preview
 ```
+
+---
+
+## docsApi / modulesApi
+
+**Location:** `opus-web/src/features/docs/services/docsApi.ts`, `modulesApi.ts`
+
+**Description:** Same-origin clients of the optional docs module. `docsApi.list` sends only the scope
+key, `limit: 5` and `cursor` when present (the api answers 400 to any other parameter).
+`docsApi.getById` downloads `contentUrl` with a plain `fetch` when the document exceeds 256 KiB and
+throws `ApiError { code: 'content_unavailable', status: 502 }` if that fails.
+
+**Signature:**
+
+```ts
+modulesApi.getAll(): Promise<ModuleEntry[]>;
+docsApi.list(scope: DocsListScope, cursor?: string): Promise<DocsDocumentPage>;
+docsApi.getById(id: string): Promise<DocsDocument>;
+```
+
+**Usage:**
+
+```ts
+const page = await docsApi.list({ projectId: 12 });
+const next = await docsApi.list({ projectId: 12 }, page.page.cursor);
+```

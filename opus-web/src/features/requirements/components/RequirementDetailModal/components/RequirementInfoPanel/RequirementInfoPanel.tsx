@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AutomatedIdentityBadge, RichContentRenderer } from '@/shared/components/ui';
+import { DocsSection } from '@/features/docs';
 import { SubscribersList } from '@/features/subscriptions/components/SubscribersList';
 import type { RequirementDetail } from '@/features/requirements/types/requirement.types';
 import styles from './RequirementInfoPanel.module.scss';
@@ -168,6 +169,8 @@ export function RequirementInfoPanel({ requirement }: RequirementInfoPanelProps)
               className={styles.identityBadge}
             />
           </div>
+
+          <DocsSection projectId={requirement.projectId} requirementId={requirement.id} />
         </div>
       </div>
     </div>
