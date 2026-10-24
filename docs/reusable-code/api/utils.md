@@ -259,13 +259,33 @@ validated with `isUlid` before the bus because it enters the NATS subject of
 ```ts
 isUlid(value: unknown): boolean;
 joiUlid(): joi.StringSchema;
-respondDocsNotFound(res: Response, code: 'document_not_found' | 'folder_not_found' | 'attachment_not_found'): Response;
+respondDocsNotFound(res: Response, code: 'document_not_found' | 'folder_not_found' | 'attachment_not_found' | 'share_not_found'): Response;
 ```
 
 **Usage example:**
 
 ```ts
 if (!isUlid(req.params.id)) return respondDocsNotFound(res, 'document_not_found');
+```
+
+## contentChecksum
+
+**Location:** `api/lib/modules/docs/checksum.ts`
+
+**Description:** The jiku-docs `Checksum` (`^sha256:[0-9a-f]{64}$`) of the text the api sends as
+`content`: `"sha256:" + hex(sha256(utf8(content)))`, over the same string, without normalizing line endings
+(DD-8). It is NOT the checksum of the `storage` convention, which hashes an uploaded binary.
+
+**Signature:**
+
+```ts
+contentChecksum(content: string): string;
+```
+
+**Usage example:**
+
+```ts
+checksum: contentChecksum(req.body.content),
 ```
 
 ## redirectToModuleDownload

@@ -2,6 +2,7 @@ interface PublicPath {
   get: string[];
   patch: string[];
   post: string[];
+  put: string[];
   delete: string[];
 }
 
@@ -9,12 +10,12 @@ interface PublicPath {
  * Rutas exentas de `validateToken`. Todo lo que no esté acá exige token: la exención es
  * la excepción, no la regla (ver `publicPaths`, que arma un regex de exclusión).
  *
- * LAS CUATRO LISTAS ESTÁN VACÍAS A PROPÓSITO desde REQ-002 / S-009: no quedaron vacías por
+ * LAS CINCO LISTAS ESTÁN VACÍAS A PROPÓSITO desde REQ-002 / S-009: no quedaron vacías por
  * descuido. La única exención que hubo —`api/opus/attachments/:id/public`, el link público de
  * adjuntos— fue eliminada junto con su handler, porque era la última superficie del producto
  * que podía originar una descarga sin credencial. Con las listas vacías el regex que devuelve
  * `publicPaths(m)` queda en `^\/.*` (case-insensitive), que matchea todo path, así que
- * `validateToken` cubre los cuatro métodos que `app.ts` instala globalmente y no queda
+ * `validateToken` cubre los cinco métodos que `app.ts` instala globalmente y no queda
  * ninguna ruta exenta.
  *
  * EL MECANISMO SE CONSERVA POR DISEÑO, no por inercia: declarar algo público a futuro —un
@@ -27,14 +28,16 @@ interface PublicPath {
  * seguridad y se revisa como tal. Solo va lo que implemente su propio control de acceso, y
  * ese control tiene que quedar documentado.
  *
- * OJO CON EL `PUT`: la interfaz no lo declara, así que `publicPaths('put')` lanza `TypeError`
- * y `app.ts` no lo instala. Un `PUT` nuevo NO queda protegido por la cobertura global: tiene
- * que declarar `validateToken` en su propia cadena, o hay que agregar el método acá.
+ * `PUT` ESTÁ CUBIERTO DESDE REQ-016 (H-3): antes la interfaz no lo declaraba y el único `PUT`
+ * (`week-assigned-times-put.ts`) tenía que declarar `validateToken` en su propia cadena, lo que
+ * ADR-008 prohíbe. Son cinco los métodos cubiertos; un método HTTP nuevo que use la api tiene que
+ * agregarse acá y en `app.ts`, o sus rutas quedarían sin la autenticación global.
  */
 const publicPath: PublicPath = {
   get: [],
   patch: [],
   post: [],
+  put: [],
   delete: []
 };
 

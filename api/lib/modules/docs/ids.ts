@@ -10,12 +10,13 @@ export function isUlid(value: unknown): boolean {
 
 export const joiUlid = () => joi.string().pattern(ULID_PATTERN);
 
-export type DocsNotFoundCode = 'document_not_found' | 'folder_not_found' | 'attachment_not_found';
+export type DocsNotFoundCode = 'document_not_found' | 'folder_not_found' | 'attachment_not_found' | 'share_not_found';
 
 const NOT_FOUND_MESSAGES: Record<DocsNotFoundCode, string> = {
   document_not_found: 'Documento no encontrado',
   folder_not_found: 'Carpeta no encontrada',
   attachment_not_found: 'Adjunto no encontrado',
+  share_not_found: 'Link compartido no encontrado',
 };
 
 /**

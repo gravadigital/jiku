@@ -15,6 +15,9 @@ export const DOCS_RECORD = {
 export const DOC_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V2W';
 export const FOLDER_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V2X';
 export const ATT_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V2Y';
+export const SESSION_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V2Z';
+export const SHARE_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V30';
+export const FOLDER2_ID = '01JB2Z3K4M5N6P7Q8R9S0T1V31';
 
 export const QUERY_SUBJECT_PREFIX = 'dev.000000000000000001.jiku-docs-queries.v1.';
 export const COMMAND_SUBJECT_PREFIX = 'dev.000000000000000001.jiku-docs-commands.v1.';
@@ -56,10 +59,14 @@ export function itRespectsModuleState(
   getApp: () => Application,
   url: string,
   token: string,
-  title = 'S-078 · TS-45: respeta el estado del módulo'
+  title = 'S-078 · TS-45: respeta el estado del módulo',
+  options: { method?: 'get' | 'post' | 'put' | 'delete'; body?: object } = {}
 ) {
   it(title, async () => {
-    const hit = () => request(getApp()).get(url).set('Authorization', `Bearer ${token}`);
+    const hit = () => {
+      const call = request(getApp())[options.method ?? 'get'](url).set('Authorization', `Bearer ${token}`);
+      return options.body ? call.send(options.body) : call;
+    };
 
     await docsNotInstalled();
     const a = await hit();
