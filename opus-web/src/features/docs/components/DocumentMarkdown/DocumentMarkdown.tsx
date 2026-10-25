@@ -14,7 +14,8 @@ type Children = { children?: ReactNode };
 /**
  * Visor markdown de solo lectura. Sin `rehype-raw` ni plugins: el HTML crudo se descarta
  * (`skipHtml`) y `urlTransform` deja pasar solo http(s), mailto y adjuntos. Los títulos se
- * desplazan un nivel para no competir con el h1 de la pantalla.
+ * desplazan un nivel para no competir con el h1 de la pantalla. Un enlace sin destino (enlace a
+ * otro documento o URL vaciada por el filtro) se renderiza como texto, sin `<a>` (REQ-019 DD-7).
  */
 export function DocumentMarkdown({ content, documentId }: DocumentMarkdownProps) {
   return (
@@ -29,11 +30,14 @@ export function DocumentMarkdown({ content, documentId }: DocumentMarkdownProps)
           h4: ({ children }: Children) => <h5>{children}</h5>,
           h5: ({ children }: Children) => <h6>{children}</h6>,
           h6: ({ children }: Children) => <h6>{children}</h6>,
-          a: ({ href, children }: { href?: string; children?: ReactNode }) => (
-            <a href={href || undefined} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ href, children }: { href?: string; children?: ReactNode }) =>
+            href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            ) : (
+              <>{children}</>
+            ),
           img: ({ src, alt }: { src?: string | Blob; alt?: string }) =>
             typeof src === 'string' && src ? (
               // eslint-disable-next-line @next/next/no-img-element

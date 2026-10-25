@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronDown, FileText } from 'lucide-react';
 import { Button, Spinner } from '@/shared/components/ui';
 import type { ApiError } from '@/lib/axios';
-import { MSG_DOCS_UNAVAILABLE } from '../../constants/docs.constants';
+import { MSG_DOCS_FORBIDDEN, MSG_DOCS_UNAVAILABLE } from '../../constants/docs.constants';
 import { useDocuments } from '../../hooks/useDocuments';
 import { useModule } from '../../hooks/useModules';
 import { formatDocDate } from '../../utils/dates';
@@ -21,7 +21,9 @@ interface DocsSectionProps {
 /**
  * Sección colapsable "Documentación (n)" del portal (tablero y detalle de requisito).
  * Con el módulo no instalado, con 0 documentos o mientras se desconoce el estado no
- * renderiza nada; con el módulo caído aparece con el aviso.
+ * renderiza nada; con el módulo caído aparece con el aviso. Si la consulta responde 403 o
+ * `caller_not_authorized` muestra el aviso de "sin acceso", distinto del de "no disponible"
+ * (REQ-019 DD-8).
  */
 export function DocsSection({ projectId, requirementId }: DocsSectionProps) {
   const listId = useId();
@@ -74,7 +76,11 @@ export function DocsSection({ projectId, requirementId }: DocsSectionProps) {
   }
 
   if (query.isError) {
-    if ((query.error as unknown as ApiError | null)?.code === 'module_not_installed') return null;
+    const error = query.error as unknown as ApiError | null;
+    if (error?.code === 'module_not_installed') return null;
+    if (error?.status === 403 || error?.code === 'caller_not_authorized') {
+      return frame('Documentación', <DocsAlert variant="warning">{MSG_DOCS_FORBIDDEN}</DocsAlert>);
+    }
     return frame('Documentación', <DocsAlert variant="warning">{MSG_DOCS_UNAVAILABLE}</DocsAlert>);
   }
 
