@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.1"
-date: 2026-10-24
+version: "1.2"
+date: 2026-10-25
 ---
 
 # Pantalla: Detalle de requisito
@@ -82,10 +82,11 @@ Envuelta por el chrome de `(dashboard)`.
 | 29 | progreso-subida-adjunto | progress-bar | — | feedback | ambos | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 30 | marca-identidad-automatica | badge | automatico | content | ambos | visible_only_in_states: default | Marca que el autor mostrado es una identidad de servicio y no una persona |
 | 31 | seccion-documentos | section | colapsable · expandida al entrar | content | ambos | **no se renderiza con el módulo `not_installed` ni con 0 documentos**; hidden_in_states: loading | Documentos públicos del requisito [REQ-016 RF-24] |
-| 32 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles | Un documento por fila: título y fecha |
+| 32 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles, sin acceso a documentos | Un documento por fila: título y fecha |
 | 33 | cargando-documentos | loader | sm | feedback | ambos | visible solo mientras carga la sección | Carga de la sección, independiente del resto |
 | 34 | alerta-documentos-no-disponible | alert | warning | feedback | ambos | visible_only_in_states: documentos no disponibles | El módulo está registrado pero no responde |
 | 35 | boton-ver-mas-documentos | button | secondary | input | ambos | visible solo cuando hay más documentos | Trae los siguientes |
+| 36 | alerta-documentos-sin-acceso | alert | warning | feedback | ambos | visible_only_in_states: sin acceso a documentos | La persona no tiene acceso a la documentación del proyecto [REQ-019 RF-9] |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]/page.tsx`, `RequirementDetailView/RequirementDetailView.tsx`, `RequirementDetailView/RequirementDetailView.module.scss`, `BoardHeader/BoardHeader.tsx`, `RequirementDetailModal/components/RequirementInfoPanel/RequirementInfoPanel.tsx`, `RequirementDetailModal/components/ActivityPanel/ActivityPanel.tsx`, `RequirementDetailModal/components/CommentInput/CommentInput.tsx`, `subscriptions/components/SubscribersList/SubscribersList.tsx` [fuente: código-existente].
 
@@ -102,7 +103,7 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
 - descripcion
 - bloque-resolucion
 - pie-autoria *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*
-- seccion-documentos — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
+- seccion-documentos — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, alerta-documentos-sin-acceso, boton-ver-mas-documentos [REQ-016, REQ-019]
 - titulo-actividad
 - feed-actividad *(item-comentario e item-cambio, con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - editor-comentario — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
@@ -352,6 +353,12 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Asset: nada
 - Annotation: con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador
 
+### alerta-documentos-sin-acceso
+- Texto/label: `"No tenés acceso a la documentación de este proyecto."`
+- Icono: warning
+- Asset: nada
+- Annotation: **nueva con REQ-019.** Aparece cuando la consulta de documentos responde 403 o `caller_not_authorized` [REQ-019 RF-9, DD-8, CA-9]. Mismo aviso inline (`DocsAlert` `warning`, `role="status"`) que el de no disponible, con otro texto: **sin "Probá de nuevo"**, porque reintentar no lo arregla. Un 403 propio de la api (sin permiso sobre el proyecto) cae acá también. La sección aparece con el título sin contador, igual que con el módulo caído
+
 ### boton-ver-mas-documentos
 - Texto/label: `"Ver más"`
 - Icono: nada
@@ -405,6 +412,15 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Cambios:
   - seccion-documentos: visible, con título `"Documentación"` sin contador
   - alerta-documentos-no-disponible: visible; lista-documentos: oculta
+- El resto de la pantalla no se ve afectado
+
+### sin acceso a documentos (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-019** [RF-9, CA-9]
+- Mensaje: `"No tenés acceso a la documentación de este proyecto."`
+- Cambios:
+  - seccion-documentos: visible, con título `"Documentación"` sin contador
+  - alerta-documentos-sin-acceso: visible; lista-documentos y alerta-documentos-no-disponible: ocultas
+- Disparado por un 403 o el código `caller_not_authorized` de la consulta. `module_not_installed` sigue sin renderizar nada y cualquier otro error sigue en `documentos no disponibles` [CA-10, CA-11]
 - El resto de la pantalla no se ve afectado
 
 ### success
@@ -508,3 +524,9 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - **Mismas reglas que en el tablero:** sin módulo o sin documentos públicos, no aparece; con el módulo caído, aparece con el aviso.
 - **No se agregó componente al Design System.** Ver la `## Revisión UX` de REQ-016.
 
+### REQ-019 — Actor completo hacia jiku-docs y ajustes del portal (2026-10-25)
+
+- **Mismo estado "sin acceso" que en el tablero, con el mismo texto.** La sección es el mismo componente con `requirementId`; un 403 o `caller_not_authorized` muestra `"No tenés acceso a la documentación de este proyecto."` en vez del aviso de no disponible [REQ-019 RF-9, DD-8]. Dice "de este proyecto" también acá porque el permiso del cliente es por proyecto, no por requisito.
+- **O-01 lo hereda**, igual que heredó la sección en REQ-016.
+- **Sin cambios de layout en ningún viewport.** El aviso ocupa el lugar del de no disponible.
+- **No se agregó componente al Design System.** `alert` sigue sin spec en `opus-web` v0.1.0; gap previo. Ver la `## Revisión UX` de REQ-019.

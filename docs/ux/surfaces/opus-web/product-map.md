@@ -30,9 +30,9 @@ origin: relevamiento de código — brownfield
 | 1 | login | Entrada al portal vía OIDC | cliente | ambos | C-67 |
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
 | 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético; sin proyectos, es donde el cliente nuevo entiende que su acceso todavía no está | cliente | ambos | C-59, REQ-007 |
-| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto y su documentación pública | cliente | ambos | C-60, C-61, C-66, REQ-005, REQ-016 |
-| 5 | detalle-requisito | Ver un requisito, su actividad pública y sus documentos, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005, REQ-016 |
-| 6 | documento | Leer un documento público del proyecto, con sus adjuntos | cliente | ambos | REQ-016 RF-24 |
+| 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto y su documentación pública | cliente | ambos | C-60, C-61, C-66, REQ-005, REQ-016, REQ-019 |
+| 5 | detalle-requisito | Ver un requisito, su actividad pública y sus documentos, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005, REQ-016, REQ-019 |
+| 6 | documento | Leer un documento público del proyecto, con sus adjuntos | cliente | ambos | REQ-016 RF-24, REQ-019 |
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
 
@@ -121,6 +121,16 @@ el gap bloqueante de navegación en mobile.
 > cliente no cambia nada visible en `documento` (#6); el único efecto observable es que **un enlace al
 > adjunto de otro documento deja de abrir** (404 del proxy), y se acepta sin tratamiento visible
 > [REQ-017 RF-7, RF-8, DD-2, R-3].
+
+> **REQ-019 no agrega ni quita pantallas ni overlays; toca las tres de documentación.** **(1)** La
+> sección "Documentación" de `tablero-requisitos` (#4) y `detalle-requisito` (#5) —y O-01, por
+> herencia— gana el estado **"sin acceso"**: ante un 403 o `caller_not_authorized` muestra
+> `"No tenés acceso a la documentación de este proyecto."` en lugar del aviso de no disponible, que
+> queda para el módulo caído y los demás errores [RF-9, DD-8, CA-9 a CA-11]. **(2)** En `documento`
+> (#6), un enlace a otro documento (path `/docs/{id}`, relativo o con cualquier host) se ve **como
+> texto**: apunta a la web interna, que el cliente no puede abrir [RF-7, DD-6, DD-7]. El estado del
+> visor ante un 403 no cambia [DD-9]. El resto del REQ (el `actor` completo que la api manda a
+> jiku-docs) no se ve en la interfaz, pero es lo que deja entrar a un externo real a la documentación.
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de

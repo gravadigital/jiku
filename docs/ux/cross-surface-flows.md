@@ -316,6 +316,7 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
 | Autor, versiones, reservas de edición | ❌ No — el portal muestra título, fecha, contenido y adjuntos |
 | Adjuntos del documento | ✅ Sí, por el proxy de opus-web con la sesión del cliente, pedidos bajo su documento [REQ-017] |
 | Enlace al adjunto de **otro** documento | ❌ No — en la web abre; en el portal el proxy responde 404, aunque el otro documento también sea `public` [REQ-017 DD-2, R-3] |
+| Enlace a **otro documento** dentro del contenido | ➖ Solo el texto — en la web navega; en el portal se ve como texto, sin enlace, porque apunta a la web interna [REQ-019 RF-7, DD-6] |
 
 ### La discontinuidad
 

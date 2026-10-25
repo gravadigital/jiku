@@ -294,6 +294,13 @@ público vinculado** [REQ-016 RF-24, CA-34, CA-35].
 - **Adjunto ajeno al documento** — Si el contenido enlaza el adjunto de **otro** documento (o el de
   uno interno, conociendo su id), el enlace no abre: el proxy responde 404 y no se genera ninguna
   descarga. Los adjuntos del propio documento se abren como siempre [REQ-017 CA-8, CA-9, R-3].
+- **Sin acceso a la documentación del proyecto** — Si la consulta responde 403 o
+  `caller_not_authorized`, la sección aparece con `"No tenés acceso a la documentación de este
+  proyecto."` y sin lista; no ofrece reintentar, porque reintentar no lo arregla. El resto del
+  tablero o del requisito se usa igual [REQ-019 RF-9, CA-9].
+- **Enlace a otro documento** — Dentro de un documento, un enlace a otro documento (`/docs/{id}`)
+  se ve como texto y no navega: apunta a la web interna, que el cliente no puede abrir [REQ-019 RF-7,
+  CA-6, CA-7].
 
 ### Estado final
 
@@ -303,6 +310,8 @@ El cliente leyó el documento sin pedirlo a nadie.
 
 - El cliente debería ver **solo documentos públicos** de sus proyectos — lo garantiza la api por
   superficie, no la interfaz
+- El cliente debería poder distinguir **"no tengo acceso"** de **"no está disponible ahora"** —
+  se cumple desde REQ-019 con dos avisos distintos
 - Un proyecto sin documentos públicos debería verse **igual que antes**: sin sección vacía
 - El cliente debería poder **enterarse** de que hay un documento nuevo — **no se cumple**: como el
   resto del portal, depende de que entre a mirar (FG-2)

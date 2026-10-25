@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.2"
-date: 2026-10-24
+version: "1.3"
+date: 2026-10-25
 ---
 
 # Pantalla: Tablero de requisitos
@@ -80,10 +80,11 @@ Envuelta por el chrome de `(dashboard)`.
 | 16 | sidebar-navegacion | sidebar | — | layout | solo desktop | — | Chrome de `(dashboard)`: proyectos, alta y cerrar sesión. Bajo 768px no se renderiza |
 | 17 | marca-identidad-automatica | badge | automatico | content | solo desktop | hidden_in_states: loading, empty | Marca que el autor mostrado es una identidad de servicio y no una persona |
 | 18 | seccion-documentos | section | colapsable · expandida al entrar | content | ambos | **no se renderiza con el módulo `not_installed` ni con 0 documentos**; hidden_in_states: loading | Documentos públicos del proyecto [REQ-016 RF-24] |
-| 19 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles | Un documento por fila: título y fecha |
+| 19 | lista-documentos | list | — | content | ambos | hidden_in_states: documentos no disponibles, sin acceso a documentos | Un documento por fila: título y fecha |
 | 20 | cargando-documentos | loader | sm | feedback | ambos | visible solo mientras carga la sección | Carga de la sección, independiente del resto |
 | 21 | alerta-documentos-no-disponible | alert | warning | feedback | ambos | visible_only_in_states: documentos no disponibles | El módulo está registrado pero no responde |
 | 22 | boton-ver-mas-documentos | button | secondary | input | ambos | visible solo cuando hay más documentos | Trae los siguientes |
+| 23 | alerta-documentos-sin-acceso | alert | warning | feedback | ambos | visible_only_in_states: sin acceso a documentos | La persona no tiene acceso a la documentación del proyecto [REQ-019 RF-9] |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/page.tsx`, `.../page.module.scss`, `BoardHeader/BoardHeader.tsx`, `ListView/ListView.tsx`, `ListView/components/RequirementGroupRow/RequirementGroupRow.tsx`, `ListRequirementRow/ListRequirementRow.tsx`, `KanbanBoard/KanbanBoard.tsx`, `KanbanColumn/KanbanColumn.tsx`, `KanbanBoard/components/KanbanCard/KanbanCard.tsx`, `MobileRequirementsBoard/MobileRequirementsBoard.tsx`, `StateAccordion/StateAccordion.tsx`, `RequirementCard/RequirementCard.tsx` [fuente: código-existente].
 
@@ -99,7 +100,7 @@ Notas de tipificación del relevamiento: `columna-kanban` y `acordeon-estado` se
 - encabezado-tablero
   - breadcrumb
   - toggle-vista *(visible pero sin efecto)*
-- seccion-documentos *(arriba de los acordeones, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
+- seccion-documentos *(arriba de los acordeones, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, alerta-documentos-sin-acceso, boton-ver-mas-documentos [REQ-016, REQ-019]
 - acordeon-estado × 7 *(ancho completo, apilados, `gap: var(--spacing-sm)`)*
   - al expandir: card-requisito-mobile × N + boton-ver-mas
 
@@ -116,7 +117,7 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
   - row `header`
     - col 6/12: breadcrumb
     - col 6/12: toggle-vista *(alineado a la derecha)*
-- seccion-documentos *(entre el encabezado y la tabla, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, boton-ver-mas-documentos [REQ-016]
+- seccion-documentos *(entre el encabezado y la tabla, ancho completo)* — lista-documentos, cargando-documentos, alerta-documentos-no-disponible, alerta-documentos-sin-acceso, boton-ver-mas-documentos [REQ-016, REQ-019]
 - cabecera-columnas *(sticky al tope del scroll)*
   - row `grid-7` — 7 columnas de ancho fijo: `64px 1fr 140px 140px 160px 120px 150px`
 - por cada uno de los 7 estados:
@@ -278,6 +279,12 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Asset: nada
 - Annotation: con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador
 
+### alerta-documentos-sin-acceso
+- Texto/label: `"No tenés acceso a la documentación de este proyecto."`
+- Icono: warning
+- Asset: nada
+- Annotation: **nueva con REQ-019.** Aparece cuando la consulta de documentos responde 403 o `caller_not_authorized` [REQ-019 RF-9, DD-8, CA-9]. Mismo aviso inline (`DocsAlert` `warning`, `role="status"`) que el de no disponible, con otro texto: **sin "Probá de nuevo"**, porque reintentar no lo arregla. Un 403 propio de la api (sin permiso sobre el proyecto) cae acá también. La sección aparece con el título sin contador, igual que con el módulo caído
+
 ### boton-ver-mas-documentos
 - Texto/label: `"Ver más"`
 - Icono: nada
@@ -317,6 +324,15 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - Cambios:
   - seccion-documentos: visible, con título `"Documentación"` sin contador
   - alerta-documentos-no-disponible: visible; lista-documentos: oculta
+- El resto de la pantalla no se ve afectado
+
+### sin acceso a documentos (parent_state: default)
+- Aplica: Sí — **nuevo con REQ-019** [RF-9, CA-9]
+- Mensaje: `"No tenés acceso a la documentación de este proyecto."`
+- Cambios:
+  - seccion-documentos: visible, con título `"Documentación"` sin contador
+  - alerta-documentos-sin-acceso: visible; lista-documentos y alerta-documentos-no-disponible: ocultas
+- Disparado por un 403 o el código `caller_not_authorized` de la consulta. `module_not_installed` sigue sin renderizar nada y cualquier otro error sigue en `documentos no disponibles` [CA-10, CA-11]
 - El resto de la pantalla no se ve afectado
 
 ### error de validación
@@ -422,3 +438,10 @@ Stack vertical simple. **Todos los acordeones arrancan colapsados** (`MobileRequ
 - **La sección carga sola y no demora el tablero.** El loading de la pantalla ya espera a siete consultas; sumar una octava, de otro servicio, haría que el módulo caído demore los requisitos.
 - **No se agregó componente al Design System.** `section`, `list`, `alert` y `button` ya están en uso en la superficie, cuyo DS (`0.1.0`, tres specs) no los especifica: el gap es previo. Ver la `## Revisión UX` de REQ-016.
 
+### REQ-019 — Actor completo hacia jiku-docs y ajustes del portal (2026-10-25)
+
+- **"Sin acceso" deja de verse como "módulo caído".** Hasta ahora cualquier error de la consulta mostraba `"Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos."`; para un externo que no tiene acceso eso es falso, y el consejo de reintentar lo hace volver a algo que nunca va a funcionar. Un estado propio con un texto propio separa "no se pudo saber" de "no te corresponde" [REQ-019 RF-9, DD-8].
+- **La sección aparece, no se oculta.** Se descartó tratar el 403 como "0 documentos" (sin sección): el cliente que sabe que hay documentación y no la ve no tendría ninguna pista de por qué. Es la misma regla que ya se aplicó al módulo caído: no confundir "no hay" con "no se puede".
+- **Mismo aviso `warning`, no `error`.** No es una falla del sistema ni del cliente, y la sección carga sola después del tablero: un `role="alert"` interrumpiría la lectura de los requisitos para algo secundario. El texto no promete un reintento.
+- **Sin cambios de layout en ningún viewport.** El aviso ocupa el lugar del de no disponible, dentro de la sección, en las tres vistas.
+- **No se agregó componente al Design System.** `alert` sigue sin spec en `opus-web` v0.1.0; el gap es previo (REQ-016). Ver la `## Revisión UX` de REQ-019.

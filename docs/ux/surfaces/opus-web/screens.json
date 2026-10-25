@@ -834,6 +834,9 @@
           "state_overrides": {
             "documentos no disponibles": {
               "content": "Documentación"
+            },
+            "sin acceso a documentos": {
+              "content": "Documentación"
             }
           },
           "annotation": "colapsable, arranca expandida (el colapso no se recuerda) · nueva con REQ-016 · solo existe con el módulo instalado y al menos un documento público vinculado al proyecto: con 0 documentos o not_installed no se renderiza · la api fuerza visibility: public sin importar el rol [REQ-016 DD-3, CA-34, CA-35]"
@@ -848,6 +851,18 @@
             "documentos no disponibles"
           ],
           "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "alerta-documentos-sin-acceso",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "icon": "warning",
+          "content": "No tenés acceso a la documentación de este proyecto.",
+          "visible_only_in_states": [
+            "sin acceso a documentos"
+          ],
+          "annotation": "nueva con REQ-019 · ante un 403 o caller_not_authorized de la consulta (incluye un 403 propio de la api) · mismo aviso inline warning (role=\"status\") que el de no disponible, sin \"Probá de nuevo\": reintentar no lo arregla · module_not_installed sigue sin renderizar la sección; cualquier otro error sigue en documentos no disponibles [REQ-019 RF-9, DD-8, CA-9 a CA-11]"
         },
         {
           "name": "lista-documentos",
@@ -869,7 +884,8 @@
           ],
           "hidden_in_states": [
             "loading",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas"
         },
@@ -888,7 +904,8 @@
             "not found",
             "terminal",
             "readonly",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "Spinner sm en el lugar de la lista mientras carga la sección; no suma a la carga de la pantalla · sin frame propio: el spec no le asigna estado"
         },
@@ -900,7 +917,8 @@
           "content": "Ver más",
           "hidden_in_states": [
             "loading",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "solo cuando hay más documentos · pagina por cursor"
         }
@@ -918,13 +936,14 @@
                 "stack": [
                   "seccion-documentos",
                   "alerta-documentos-no-disponible",
+                  "alerta-documentos-sin-acceso",
                   "lista-documentos",
                   "cargando-documentos",
                   "boton-ver-mas-documentos"
                 ]
               }
             ],
-            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+            "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
           },
           {
             "row": "acordeones",
@@ -987,13 +1006,14 @@
                         "stack": [
                           "seccion-documentos",
                           "alerta-documentos-no-disponible",
+                          "alerta-documentos-sin-acceso",
                           "lista-documentos",
                           "cargando-documentos",
                           "boton-ver-mas-documentos"
                         ]
                       }
                     ],
-                    "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+                    "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
                   },
                   "cabecera-columnas",
                   "fila-grupo",
@@ -1075,6 +1095,11 @@
         },
         {
           "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "sin acceso a documentos",
           "applies": true,
           "parent_state": "default"
         }
@@ -1524,6 +1549,9 @@
           "state_overrides": {
             "documentos no disponibles": {
               "content": "Documentación"
+            },
+            "sin acceso a documentos": {
+              "content": "Documentación"
             }
           },
           "annotation": "colapsable, arranca expandida (el colapso no se recuerda) · nueva con REQ-016 · solo existe con el módulo instalado y al menos un documento público vinculado al requisito: con 0 documentos o not_installed no se renderiza · la api fuerza visibility: public sin importar el rol [REQ-016 DD-3, CA-34, CA-35]"
@@ -1538,6 +1566,18 @@
             "documentos no disponibles"
           ],
           "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "alerta-documentos-sin-acceso",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "icon": "warning",
+          "content": "No tenés acceso a la documentación de este proyecto.",
+          "visible_only_in_states": [
+            "sin acceso a documentos"
+          ],
+          "annotation": "nueva con REQ-019 · ante un 403 o caller_not_authorized de la consulta (incluye un 403 propio de la api) · mismo aviso inline warning (role=\"status\") que el de no disponible, sin \"Probá de nuevo\": reintentar no lo arregla · module_not_installed sigue sin renderizar la sección; cualquier otro error sigue en documentos no disponibles [REQ-019 RF-9, DD-8, CA-9 a CA-11]"
         },
         {
           "name": "lista-documentos",
@@ -1557,7 +1597,8 @@
             "loading",
             "error de sistema",
             "not found",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas"
         },
@@ -1576,7 +1617,8 @@
             "not found",
             "terminal",
             "readonly",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "Spinner sm en el lugar de la lista mientras carga la sección; no suma a la carga de la pantalla · sin frame propio: el spec no le asigna estado"
         },
@@ -1590,7 +1632,8 @@
             "loading",
             "error de sistema",
             "not found",
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ],
           "annotation": "solo cuando hay más documentos · pagina por cursor"
         }
@@ -1661,13 +1704,14 @@
                 "stack": [
                   "seccion-documentos",
                   "alerta-documentos-no-disponible",
+                  "alerta-documentos-sin-acceso",
                   "lista-documentos",
                   "cargando-documentos",
                   "boton-ver-mas-documentos"
                 ]
               }
             ],
-            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+            "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
           },
           "titulo-actividad",
           "feed-actividad",
@@ -1794,13 +1838,14 @@
                                 "stack": [
                                   "seccion-documentos",
                                   "alerta-documentos-no-disponible",
+                                  "alerta-documentos-sin-acceso",
                                   "lista-documentos",
                                   "cargando-documentos",
                                   "boton-ver-mas-documentos"
                                 ]
                               }
                             ],
-                            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+                            "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
                           }
                         ]
                       },
@@ -1862,6 +1907,11 @@
         },
         {
           "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "sin acceso a documentos",
           "applies": true,
           "parent_state": "default"
         }
@@ -1962,12 +2012,12 @@
           "type": "paragraph",
           "category": "content",
           "level": "body",
-          "content": "## Cómo generar un reporte\nEntrá a Reportes, elegí el período y exportá a Excel. ## Filtros disponibles\n…  ![captura-filtros.png]",
+          "content": "## Cómo generar un reporte\nEntrá a Reportes, elegí el período y exportá a Excel. Para los permisos, ver la Guía de acceso al portal. ## Filtros disponibles\n…  ![captura-filtros.png]",
           "visible_only_in_states": [
             "default",
             "terminal"
           ],
-          "annotation": "nunca ejecuta HTML ni scripts; enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe a /api/docs/documents/{documentId}/attachments/{id} de opus-web, con el id del documento abierto y la sesión del cliente · un enlace o imagen al adjunto de otro documento se renderiza pero no abre (404, imagen rota) · los títulos del markdown bajan un nivel [REQ-016 Escenario F, REQ-017 DD-2, CA-11, R-3]"
+          "annotation": "nunca ejecuta HTML ni scripts; enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe a /api/docs/documents/{documentId}/attachments/{id} de opus-web, con el id del documento abierto y la sesión del cliente · un enlace o imagen al adjunto de otro documento se renderiza pero no abre (404, imagen rota) · los títulos del markdown bajan un nivel [REQ-016 Escenario F, REQ-017 DD-2, CA-11, R-3] · REQ-019: un enlace a otro documento (/docs/{id}, relativo o con cualquier host) se ve como texto, sin <a> — como \"Guía de acceso al portal\" en el ejemplo —; lo mismo todo enlace que el filtro vacía (javascript:, data:, //host); adjuntos, http(s) y mailto siguen como enlaces [REQ-019 RF-7, RF-8, DD-6, DD-7, CA-6 a CA-8]"
         },
         {
           "name": "titulo-adjuntos",
@@ -2307,6 +2357,9 @@
           "state_overrides": {
             "documentos no disponibles": {
               "content": "Documentación"
+            },
+            "sin acceso a documentos": {
+              "content": "Documentación"
             }
           },
           "annotation": "heredada de detalle-requisito: el modal compone los mismos paneles · abrir un documento sale del modal hacia documento (#6) [REQ-016]"
@@ -2321,6 +2374,18 @@
             "documentos no disponibles"
           ],
           "annotation": "con el módulo caído la sección aparece aunque no se sepa cuántos documentos hay, con el título sin contador"
+        },
+        {
+          "name": "alerta-documentos-sin-acceso",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "icon": "warning",
+          "content": "No tenés acceso a la documentación de este proyecto.",
+          "visible_only_in_states": [
+            "sin acceso a documentos"
+          ],
+          "annotation": "heredada de detalle-requisito · nueva con REQ-019 · ante un 403 o caller_not_authorized de la consulta (incluye un 403 propio de la api) · mismo aviso inline warning (role=\"status\") que el de no disponible, sin \"Probá de nuevo\": reintentar no lo arregla · module_not_installed sigue sin renderizar la sección; cualquier otro error sigue en documentos no disponibles [REQ-019 RF-9, DD-8, CA-9 a CA-11]"
         },
         {
           "name": "lista-documentos",
@@ -2338,7 +2403,8 @@
           ],
           "annotation": "cada fila navega a /projects/{projectId}/docs/{documentId} · última actualización primero; hasta 5 filas",
           "hidden_in_states": [
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ]
         },
         {
@@ -2360,7 +2426,8 @@
           "content": "Ver más",
           "annotation": "solo cuando hay más documentos · pagina por cursor",
           "hidden_in_states": [
-            "documentos no disponibles"
+            "documentos no disponibles",
+            "sin acceso a documentos"
           ]
         }
       ],
@@ -2379,13 +2446,14 @@
                 "stack": [
                   "seccion-documentos",
                   "alerta-documentos-no-disponible",
+                  "alerta-documentos-sin-acceso",
                   "lista-documentos",
                   "cargando-documentos",
                   "boton-ver-mas-documentos"
                 ]
               }
             ],
-            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+            "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
           },
           "titulo-actividad",
           "feed-actividad",
@@ -2425,13 +2493,14 @@
                                 "stack": [
                                   "seccion-documentos",
                                   "alerta-documentos-no-disponible",
+                                  "alerta-documentos-sin-acceso",
                                   "lista-documentos",
                                   "cargando-documentos",
                                   "boton-ver-mas-documentos"
                                 ]
                               }
                             ],
-                            "annotation": "REQ-016 · no existe con el módulo not_installed ni con 0 documentos públicos"
+                            "annotation": "REQ-016 · REQ-019 · no existe con el módulo not_installed ni con 0 documentos públicos"
                           }
                         ]
                       }
@@ -2461,6 +2530,11 @@
         },
         {
           "name": "documentos no disponibles",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "sin acceso a documentos",
           "applies": true,
           "parent_state": "default"
         }

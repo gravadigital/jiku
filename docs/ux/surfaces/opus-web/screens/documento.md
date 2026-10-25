@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: diseñada
-version: "1.1"
-date: 2026-10-24
+version: "1.2"
+date: 2026-10-25
 ---
 
 # Pantalla: Documento
@@ -126,7 +126,7 @@ date: 2026-10-24
 - Texto/label: el markdown del documento, renderizado; el frontmatter no se muestra
 - Icono: nada
 - Asset: imágenes a ancho máximo de la columna
-- Annotation: **nunca ejecuta HTML ni scripts**; los enlaces solo pueden ser `http(s)`, `mailto` o adjuntos. Todo enlace o imagen cuyo path sea `/docs/attachments/{id}` se reescribe a `/api/docs/documents/{documentId}/attachments/{id}` de opus-web —con el id **del documento abierto**—, que lo resuelve con la sesión del cliente [REQ-016 Escenario F, REQ-017 DD-2, CA-11]. Un enlace o imagen que apunta al adjunto de **otro** documento se renderiza igual, pero no abre: el proxy responde 404 (enlace que no descarga, imagen rota) [REQ-017 R-3]. Los títulos del markdown se desplazan un nivel para no competir con el h1
+- Annotation: **nunca ejecuta HTML ni scripts**; los enlaces solo pueden ser `http(s)`, `mailto` o adjuntos. Todo enlace o imagen cuyo path sea `/docs/attachments/{id}` se reescribe a `/api/docs/documents/{documentId}/attachments/{id}` de opus-web —con el id **del documento abierto**—, que lo resuelve con la sesión del cliente [REQ-016 Escenario F, REQ-017 DD-2, CA-11]. Un enlace o imagen que apunta al adjunto de **otro** documento se renderiza igual, pero no abre: el proxy responde 404 (enlace que no descarga, imagen rota) [REQ-017 R-3]. Los títulos del markdown se desplazan un nivel para no competir con el h1. **REQ-019: un enlace a otro documento se ve como texto.** Todo enlace cuyo path sea `/docs/{id}` —relativo o con cualquier host, con o sin `?`/`#`— conserva su texto visible y **no se renderiza como `<a>`** (ni siquiera sin `href`): esos enlaces apuntan a la web interna, que el cliente no puede abrir. Mismo resultado que en el link compartido. La regla alcanza a todo enlace que el filtro vacía (`javascript:`, `data:`, `//host`). Los adjuntos, los demás `http(s)` y `mailto` siguen como enlaces [REQ-019 RF-7, RF-8, DD-6, DD-7, CA-6 a CA-8]
 
 ### titulo-adjuntos
 - Texto/label: `"Adjuntos"`
@@ -220,6 +220,8 @@ date: 2026-10-24
 - adjunto de lista-adjuntos o enlace de adjunto en el contenido · on click → abre `/api/docs/documents/{documentId}/attachments/{id}` en pestaña nueva (302 a la descarga; 404 si el adjunto no pertenece a este documento público) [REQ-017 DD-2, CA-8, CA-9]
 - boton-reintentar · on click → vuelve a pedir el documento (y el estado del módulo)
 
+- enlace a otro documento (`/docs/{id}`) en el contenido · sin evento: es texto, no navega [REQ-019 DD-7]
+
 **Validaciones:**
 - Ninguna.
 
@@ -259,6 +261,22 @@ date: 2026-10-24
 
 **Alternativas descartadas:**
 - Detectar en el visor los enlaces a adjuntos que no están en la lista del documento y mostrarlos como texto sin enlace (o con un aviso "Adjunto no disponible"): agrega lógica al renderizador de markdown para un caso marginal que el REQ acepta como límite conocido. Si aparece en la práctica, se diseña aparte.
+
+**Preguntas abiertas:**
+- Ninguna.
+
+### REQ-019 — Actor completo hacia jiku-docs y ajustes del portal (2026-10-25)
+
+**Decisiones tomadas:**
+- **El enlace a otro documento se muestra como texto, sin aviso.** El editor de la web enlaza documentos con la URL de la web interna (`{JIKU_WEB_URL}/docs/{id}` o `/docs/{id}`), y el portal la dejaba pasar: el externo veía un link a un host que no puede abrir (en la prueba e2e, `localhost:3000`). Mostrar el texto conserva la lectura de la frase y elimina el destino roto. Es lo mismo que hace el link compartido, así que un documento se lee igual por los dos caminos [REQ-019 RF-7, DD-6, DD-7].
+- **Se reconoce por el path, no por el host.** El portal no conoce el host de la web interna y no tiene por qué; el criterio es el mismo que ya se usa para adjuntos [REQ-019 DD-6].
+- **"Texto" quiere decir sin `<a>`, no un `<a>` sin `href`.** Un ancla sin destino sigue siendo foco de teclado y se anuncia como enlace; un fragmento de texto no. La regla se extiende a los otros enlaces que el filtro ya vaciaba [REQ-019 DD-7].
+- **Los estados del visor no cambian.** El 403 ya se trata como `not found` ("no existe o no está compartido con vos") a propósito [REQ-016 DD-3]; no es el tratamiento genérico que corrige el REQ en la sección de documentos [REQ-019 DD-9].
+- **Sin cambios de layout ni de bloques, en ningún viewport.** Es una regla de render del contenido.
+
+**Alternativas descartadas:**
+- Reescribir el enlace a la ruta del portal (`/projects/{projectId}/docs/{id}`): el documento enlazado puede ser `internal` o de otro proyecto, y el portal no sabe cuál sin consultarlo; un enlace que a veces abre y a veces dice "no existe" es peor que el texto. Si aparece la necesidad, se diseña aparte.
+- Un aviso del tipo "Enlace a un documento interno": agrega ruido a un caso que el cliente no necesita entender.
 
 **Preguntas abiertas:**
 - Ninguna.
