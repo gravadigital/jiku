@@ -57,7 +57,7 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | `comments` | dentro del detalle de requisito | Solo `useCreateComment` + su api |
 | `subscriptions` | detalle de requisito y modal de creación | Sin ruta propia |
 | `attachments` | transversal | Sin componentes: solo servicio y tipos |
-| `docs` | `/projects/[projectId]/docs/[documentId]`; `DocsSection` en el tablero y en el detalle de requisito | Módulo **opcional** ([ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)), solo lectura de documentos `public` |
+| `docs` | `/projects/[projectId]/docs/[documentId]`; `DocsSection` en el tablero y en el detalle de requisito | Módulo **opcional** ([ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)), solo lectura de documentos `public`; los enlaces entre documentos se ven como texto y `DocsSection` distingue "sin acceso" de "no disponible" (REQ-019) |
 
 ## Rutas
 

@@ -165,8 +165,13 @@ Verificado contra `src/features/docs/`:
   renderiza `DocumentView`.
 - **Estado del módulo.** `useModule` trata carga y falla como `not_installed` (`isKnown: false`).
   Con `not_installed`, con estado desconocido o con 0 documentos **la sección no renderiza
-  nada**; con el módulo `unavailable` aparece con el aviso (`MSG_DOCS_UNAVAILABLE`). En la
-  página del documento, el error se clasifica (`classifyDocumentError`) y se ofrece "Reintentar".
+  nada**; con el módulo `unavailable` aparece con el aviso (`MSG_DOCS_UNAVAILABLE`). Ante un
+  error de la consulta, `DocsSection` decide así (REQ-019): `module_not_installed` → no renderiza
+  nada; **403** o `caller_not_authorized` → aviso de **sin acceso** (`MSG_DOCS_FORBIDDEN`: "No
+  tenés acceso a la documentación de este proyecto."), sin lista ni reintento; cualquier otro (5xx,
+  503, 504, red) → `MSG_DOCS_UNAVAILABLE`. En la página del documento, el error se clasifica
+  (`classifyDocumentError`) y se ofrece "Reintentar"; ahí **no cambia**: sigue tratando 403 como
+  `not_found`, a propósito, para no revelar que el documento existe.
 - **Solo lectura y solo `public`.** Consume `GET /opus/docs/documents` y
   `GET /opus/docs/documents/{id}` por el catch-all; la api fuerza `visibility: 'public'`. Los
   adjuntos van por el handler propio, con la URL armada bajo el documento abierto
@@ -175,7 +180,11 @@ Verificado contra `src/features/docs/`:
   visible (R-3, `known-limitations.md`). No hay edición, búsqueda ni compartir en el portal.
 - **`DocumentMarkdown`** es un componente nuevo (no extiende `MarkdownRenderer`) que **quita el
   frontmatter** antes de renderizar (P-9) y **no usa `remark-gfm`** (P-13): tablas, tachado y
-  listas de tareas GFM salen como texto plano.
+  listas de tareas GFM salen como texto plano. Los enlaces a otro documento (path `/docs/{ULID}`,
+  relativo o con cualquier host, con `?`/`#`) apuntan a la web interna, que el externo no puede
+  abrir: `createDocsUrlTransform` los vacía (después de la regla de adjuntos, sin comparar el host)
+  y el override `a` renderiza **como texto, sin `<a>`** todo enlace sin destino, también
+  `javascript:`, `data:` y `//host` (REQ-019, DD-6, DD-7). `http(s)`, `mailto` y adjuntos no cambian.
 - **Documentos > 256 KiB:** se baja `contentUrl` **desde el navegador** (P-8). Requiere CORS `GET`
   en el bucket de jiku-docs: NOT DOCUMENTED - needs verification. Si falla, se muestra una alerta
   de sistema.

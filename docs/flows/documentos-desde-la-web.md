@@ -14,7 +14,7 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, 
 **Status:** Draft
 **Creado:** 2026-10-24
 **Última actualización:** 2026-10-25
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090
 
 ## Descripción
 
@@ -334,6 +334,18 @@ El visor arma la URL con `createDocsUrlTransform(doc.id)` y la lista de adjuntos
 del adjunto, así que un enlace al adjunto de **otro** documento queda bajo el documento abierto y
 responde 404 (R-3 de REQ-017, sin tratamiento visible).
 
+Un enlace cuyo path es `/docs/{ULID}` (relativo o con cualquier host, con `?`/`#` opcional) apunta a
+la web interna, que el externo no puede abrir: `createDocsUrlTransform` lo vacía (después de la regla
+de adjuntos y sin comparar el host con `JIKU_WEB_URL`) y `DocumentMarkdown` lo muestra **como texto,
+sin `<a>`**, igual que todo enlace que el filtro vacía. `http(s)`, `mailto` y adjuntos no cambian; en
+web el mismo enlace sí navega (REQ-019, DD-6, DD-7).
+
+Si `GET /api/opus/docs/documents` falla, `DocsSection` decide: `module_not_installed` → no muestra
+nada; **403** (p. ej. `access_denied` de `validateProjectPermissions`, `permission_denied` de
+jiku-docs) o `caller_not_authorized` → "No tenés acceso a la documentación de este proyecto."
+(`MSG_DOCS_FORBIDDEN`), sin lista ni reintento; cualquier otro → aviso de no disponible. El visor del
+documento no distingue: 403 sigue siendo "no existe o no compartido" (DD-9; DD-3 de REQ-016).
+
 Un documento con `contentUrl` (más de 256 KiB) se descarga **desde el navegador** (a diferencia de
 web, que lo hace del lado del servidor): requiere CORS `GET` en el bucket de jiku-docs.
 
@@ -367,6 +379,7 @@ traducir y `details` verbatim (la clave no existe si no viene). Mapa completo en
 | 9 | Documento no `public` (documento o adjunto; todo rol) | 404 | `{ "code": "document_not_found" }` | Idéntico a un id inexistente; vale también para el adjunto, incluso para `admin`/`user` |
 | 9 | Adjunto que no pertenece al documento pedido | 404 | `{ "code": "attachment_not_found" }` | Incluye el adjunto de otro documento `public`; el portal no lo trata visiblemente (R-3) |
 | 9 | Handler de adjunto sin sesión | 401 | `{ "code": "unauthorized", "message": "Unauthorized" }` | El navegador recibe el 401 del handler |
+| 9 | Sin acceso a la documentación del proyecto (lista del portal) | 403 | `{ "code": "access_denied" }`, `permission_denied` o `caller_not_authorized` | `DocsSection` muestra "No tenés acceso a la documentación de este proyecto." en vez del aviso de no disponible, sin reintento; `caller_not_authorized` cuenta aunque llegue con otro status |
 
 ## Resultado
 
@@ -406,4 +419,4 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
 
 **Origen:** REQ-016 · stories S-077 (cliente de módulos), S-078 y S-079 (rutas de lectura y
 escritura de la api), S-081 (panel y visor de web), S-082 (editor con reserva, carpetas, búsqueda y
-adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON) · REQ-019 · S-089 (`actor` completo hacia jiku-docs).
+adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON) · REQ-019 · S-089 (`actor` completo hacia jiku-docs) · S-090 (enlaces entre documentos como texto y aviso "sin acceso" en el portal).

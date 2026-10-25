@@ -6,8 +6,9 @@
 
 **Description:** Factory of the `urlTransform` for markdown viewers. `/docs/attachments/{ULID}` (relative or
 absolute, any host) becomes `/api/docs/documents/{documentId}/attachments/{ULID}`, always under the open
-document; an invalid `documentId` blanks attachment links (fails closed). `http:`, `https:` and `mailto:`
-pass; everything else becomes `''`.
+document; an invalid `documentId` blanks attachment links (fails closed). `/docs/{ULID}` (relative or any
+host, with optional `?`/`#`) becomes `''`, evaluated after attachments: it points to the internal web app.
+`http:`, `https:` and `mailto:` pass; everything else becomes `''`.
 
 **Signature:**
 

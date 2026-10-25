@@ -112,7 +112,8 @@ import { Badge } from '@/shared/components/ui';
 **Description:** Collapsible "Documentación (n)" section. With `requirementId` it lists the public
 documents linked to the requirement, otherwise those of the project. Renders nothing while the module
 state is unknown, when it is `not_installed` or when there are no documents; with the module down (or
-a query error) it shows `DocsAlert`. Paginates 5 at a time ("n+" while more exist).
+a query error) it shows `DocsAlert`: a 403 or `caller_not_authorized` shows `MSG_DOCS_FORBIDDEN`, any
+other error `MSG_DOCS_UNAVAILABLE`, and `module_not_installed` renders nothing. Paginates 5 at a time ("n+" while more exist).
 
 **Interface:**
 
@@ -145,6 +146,7 @@ interface DocsAlertProps { variant: 'warning' | 'error'; children: ReactNode }
 
 ```tsx
 <DocsAlert variant="warning">{MSG_DOCS_UNAVAILABLE}</DocsAlert>
+<DocsAlert variant="warning">{MSG_DOCS_FORBIDDEN}</DocsAlert>
 ```
 
 ---
@@ -154,7 +156,8 @@ interface DocsAlertProps { variant: 'warning' | 'error'; children: ReactNode }
 **Location:** `opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`
 
 **Description:** Read-only markdown viewer. `skipHtml`, no rehype plugins, `createDocsUrlTransform(documentId)` on every
-URL, frontmatter stripped, headings shifted one level (`#` renders as `h2`), links in a new tab, images
+URL, frontmatter stripped, headings shifted one level (`#` renders as `h2`), links in a new tab (a link without destination, such as a
+link to another document, renders as plain text with no `<a>`), images
 at column width. Independent of the shared `MarkdownRenderer` on purpose.
 
 **Interface:**
