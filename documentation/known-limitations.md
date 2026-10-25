@@ -174,6 +174,10 @@ design: Jiku reads and writes documentation over the bus and keeps none of it.
   under the document that links them, and only if they belong to it: a `public` document that
   embeds or links an attachment of a different document — even a `public` one — shows it broken
   (404). Its own attachments work as before. The internal web is not affected.
+- **Links to other documents appear as plain text in the portal.** A link whose path is
+  `/docs/{id}` points to the internal web, which a client cannot open, so the portal shows its text
+  without making it a link. Attachments, web links and `mailto:` links work as before; in the
+  internal web the same link still navigates.
 
 **Operation**
 
