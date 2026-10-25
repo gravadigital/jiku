@@ -7,12 +7,13 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   COMMAND_SUBJECT_PREFIX as C, DOC_ID, SHARE_ID, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 import logger from '../../lib/logger';
 import { ULID_PATTERN } from '../../lib/modules/docs/ids';
 
-const ACTOR = { actor: { id: 'zitadel-sub-01' } };
+const ACTOR = { actor: expectedActor('token_01_user') };
 
 const URL = `/api/docs/documents/${DOC_ID}/shares`;
 const EXPIRES = '2026-11-23T00:00:00.000Z';

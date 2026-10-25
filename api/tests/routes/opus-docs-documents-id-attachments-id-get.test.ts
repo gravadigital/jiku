@@ -6,6 +6,7 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   ATT_ID, DOC_ID, FOLDER_ID, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
@@ -41,14 +42,14 @@ describe('GET /api/opus/docs/documents/:documentId/attachments/:id (S-087)', () 
     res.text.should.equal('');
     fakeBus.moduleSent.map((c) => c.method).should.deepEqual(['documents.get', METHOD]);
     (fakeBus.moduleSent[0].payload as any).should.deepEqual({
-      id: DOC_ID, include: ['attachments'], actor: { id: 'zitadel-sub-04' },
+      id: DOC_ID, include: ['attachments'], actor: expectedActor('token_04_external_user'),
     });
-    (fakeBus.moduleSent[1].payload as any).should.deepEqual({ actor: { id: 'zitadel-sub-04' } });
+    (fakeBus.moduleSent[1].payload as any).should.deepEqual({ actor: expectedActor('token_04_external_user') });
   });
 
-  for (const [ts, token, sub] of [
-    ['TS-2', 'token_01_user', 'zitadel-sub-01'],
-    ['TS-3', 'token_03_admin', 'zitadel-sub-03'],
+  for (const [ts, token] of [
+    ['TS-2', 'token_01_user'],
+    ['TS-3', 'token_03_admin'],
   ] as const) {
     it(`S-087 · ${ts}: usuario interno, documento internal`, async () => {
       await docsAvailable();
@@ -58,7 +59,7 @@ describe('GET /api/opus/docs/documents/:documentId/attachments/:id (S-087)', () 
       res.status.should.equal(404);
       res.body.should.deepEqual(DOC_NOT_FOUND);
       fakeBus.moduleSent.length.should.equal(1);
-      (fakeBus.moduleSent[0].payload as any).actor.should.deepEqual({ id: sub });
+      (fakeBus.moduleSent[0].payload as any).actor.should.deepEqual(expectedActor(token));
       (res.headers.location === undefined).should.be.true();
       res.text.should.not.containEql('s3.example');
     });
@@ -91,7 +92,7 @@ describe('GET /api/opus/docs/documents/:documentId/attachments/:id (S-087)', () 
     const res = await get(URL, 'token_01_user');
     res.status.should.equal(302);
     res.headers.location.should.equal(TICKET.downloadUrl);
-    (fakeBus.moduleSent[1].payload as any).should.deepEqual({ actor: { id: 'zitadel-sub-01' } });
+    (fakeBus.moduleSent[1].payload as any).should.deepEqual({ actor: expectedActor('token_01_user') });
   });
 
   it('S-087 · TS-7: adjunto de otro documento', async () => {

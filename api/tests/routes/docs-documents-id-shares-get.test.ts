@@ -6,10 +6,11 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   QUERY_SUBJECT_PREFIX as Q, DOC_ID, SHARE_ID, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
-const ACTOR = { actor: { id: 'zitadel-sub-01' } };
+const ACTOR = { actor: expectedActor('token_01_user') };
 
 const URL = `/api/docs/documents/${DOC_ID}/shares`;
 const SHARE = {

@@ -6,6 +6,7 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   ATT_ID, COMMAND_SUBJECT_PREFIX as C, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
@@ -31,7 +32,7 @@ describe('GET /api/docs/attachments/:id (S-078)', () => {
     res.headers.should.not.have.property('content-disposition');
     res.text.should.equal('');
     fakeBus.lastModule!.should.deepEqual({
-      kind: 'command', method: METHOD, subject: C + METHOD, payload: { actor: { id: 'zitadel-sub-01' } },
+      kind: 'command', method: METHOD, subject: C + METHOD, payload: { actor: expectedActor('token_01_user') },
     });
   });
 

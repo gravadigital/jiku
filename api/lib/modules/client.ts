@@ -32,11 +32,13 @@ const ERRORS_BY_MODULE: Record<
  * EXCEPCIÓN A ADR-001: acá la api LEE por el bus, porque la documentación no está en su base
  * (se documenta como ADR-015 en S-085).
  *
- * DD-1: se llama SIEMPRE en nombre de la persona con `actor: { id }` (solo `id`). Un llamado
- * sin `actor` lo trata jiku-docs como el propio servicio (clase `service`, lee todo), así que
- * acá se FALLA CERRADO: sin identidad verificada y sin `anonymous` → 401 sin publicar. Es lo
- * opuesto a `withActor` de core, y por eso no se reusan `sendCommand` ni `withActor`: su sobre
- * (`roles`, `name`...) es `invalid_fields` para jiku-docs.
+ * DD-1 (revisado por REQ-019): se llama SIEMPRE en nombre de la persona con el `actor` de
+ * `buildActor(res.req)` sin transformar —`{ id, roles, name?, username?, email? }`, el mismo sobre que
+ * recibe core—, para que jiku-docs clasifique con los roles del token verificado (D-11) y no con la
+ * fila de `users`. Un llamado sin `actor` lo trata jiku-docs como el propio servicio (clase `service`,
+ * lee todo), así que acá se FALLA CERRADO: sin identidad verificada y sin `anonymous` → 401 sin
+ * publicar. Por eso no se reusa `withActor`, que sin identidad devuelve el payload sin `actor` (falla
+ * abierto, correcto para core).
  *
  * El `actor` lo inyecta el embudo después del spread: gana el del token.
  *
@@ -62,12 +64,12 @@ async function call<T>(
     body = { ...payload };
     delete body.actor;
   } else {
-    const id = buildActor(res.req)?.id;
-    if (!id) {
+    const actor = buildActor(res.req);
+    if (!actor) {
       res.status(401).json({ code: 'unauthorized', message: 'Unauthorized' });
       return null;
     }
-    body = { ...payload, actor: { id } };
+    body = { ...payload, actor };
   }
 
   const outcome = await sendToModule<T>(kind, module, method, body);

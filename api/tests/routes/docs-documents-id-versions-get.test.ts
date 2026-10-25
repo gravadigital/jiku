@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { DOC_ID, docsAvailable, failure, itRespectsModuleState, success } from '../helpers/docs-module';
+import { DOC_ID, docsAvailable, failure, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/docs/documents/:id/versions (S-078)', () => {
@@ -31,7 +31,7 @@ describe('GET /api/docs/documents/:id/versions (S-078)', () => {
     res.body.should.deepEqual(data);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { documentId: DOC_ID }, sort: ['-version'], page: { limit: 50, cursor: 'c1' },
-      actor: { id: 'zitadel-sub-01' },
+      actor: expectedActor('token_01_user'),
     });
   });
 

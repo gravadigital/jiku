@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { FOLDER_ID, docsAvailable, itRespectsModuleState, success } from '../helpers/docs-module';
+import { FOLDER_ID, docsAvailable, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/docs/folders (S-078)', () => {
@@ -27,7 +27,7 @@ describe('GET /api/docs/folders (S-078)', () => {
     res.body.should.deepEqual(data);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { parentId: FOLDER_ID, pathPrefix: '/clientes/' }, sort: ['name'], page: { limit: 50 },
-      include: ['effectivePermission'], actor: { id: 'zitadel-sub-01' },
+      include: ['effectivePermission'], actor: expectedActor('token_01_user'),
     });
 
     fakeBus.reset();

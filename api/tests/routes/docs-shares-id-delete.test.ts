@@ -6,10 +6,11 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   COMMAND_SUBJECT_PREFIX as C, SHARE_ID, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
-const ACTOR = { actor: { id: 'zitadel-sub-01' } };
+const ACTOR = { actor: expectedActor('token_01_user') };
 
 const METHOD = `shares.${SHARE_ID}.revoke`;
 const URL = `/api/docs/shares/${SHARE_ID}`;

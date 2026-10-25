@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import logger from '../../lib/logger';
 import { moduleCommand, moduleQuery, runModuleCommand, sendToModule } from '../../lib/modules/client';
 import { docsModule } from '../../lib/modules/registry';
+import buildActor from '../../lib/utils/bus/actor';
 import { fakeBus } from '../mocks/bus';
 
 const REC = { module: 'docs', serviceName: 'jiku-docs', protocol: 'v1', registeredAt: '2026-10-24T12:00:00.000Z' };
@@ -14,14 +15,24 @@ const UNAVAILABLE = { code: 'module_unavailable', message: 'El módulo docs no e
 
 type Handler = (res: Response) => Promise<unknown>;
 
-/** Mini-app con `GET /probe`; `withToken: false` omite la identidad verificada. */
-function app(handler: Handler, withToken = true) {
+interface Identity {
+  decodedToken: Record<string, unknown>;
+  decodedTokenRoles?: string[];
+}
+
+/**
+ * Mini-app con `GET /probe`. `identity` por defecto es `zitadel-sub-01` con rol `user`; `false` omite
+ * la identidad verificada; un objeto instala exactamente ese `decodedToken` y `decodedTokenRoles`.
+ */
+function app(handler: Handler, identity: Identity | boolean = true) {
   const a = express();
   a.use(express.json());
-  if (withToken) {
+  if (identity) {
+    const id: Identity =
+      identity === true ? { decodedToken: { sub: 'zitadel-sub-01' }, decodedTokenRoles: ['user'] } : identity;
     a.use((req, _res, next) => {
-      req.decodedToken = { sub: 'zitadel-sub-01' } as any;
-      req.decodedTokenRoles = ['user'];
+      req.decodedToken = id.decodedToken as any;
+      req.decodedTokenRoles = id.decodedTokenRoles as string[];
       next();
     });
   }
@@ -52,7 +63,7 @@ describe('S-077 · cliente de módulo', () => {
     sinon.restore();
   });
 
-  it('S-077 · TS-22: consulta feliz con subject, payload y actor', async () => {
+  it('S-077 · TS-22: consulta feliz con subject, payload y actor completo', async () => {
     await makeAvailable();
     fakeBus.moduleReply('documents.list', { status: 'success', data: { items: [] } });
     const res = await request(app(list)).get('/probe');
@@ -62,7 +73,7 @@ describe('S-077 · cliente de módulo', () => {
       kind: 'query',
       method: 'documents.list',
       subject: 'dev.000000000000000001.jiku-docs-queries.v1.documents.list',
-      payload: { filter: { projectId: 12 }, actor: { id: 'zitadel-sub-01' } },
+      payload: { filter: { projectId: 12 }, actor: { id: 'zitadel-sub-01', roles: ['user'] } },
     });
   });
 
@@ -84,15 +95,94 @@ describe('S-077 · cliente de módulo', () => {
     res.body.should.deepEqual({ id: '01JB0000000000000000000000' });
     fakeBus.lastModule!.kind.should.equal('command');
     fakeBus.lastModule!.subject.should.equal('dev.000000000000000001.jiku-docs-commands.v1.documents.new');
+    fakeBus.lastModule!.payload.should.deepEqual({
+      folderId: '01JB0000000000000000000001',
+      actor: { id: 'zitadel-sub-01', roles: ['user'] },
+    });
   });
 
-  it('S-077 · TS-25: actor solo id, y gana el del token', async () => {
+  it('S-077 · TS-25: actor del token entero, gana el del token', async () => {
     await makeAvailable();
     fakeBus.moduleReplyDefault({ status: 'success', data: {} });
     await request(
-      app((r) => moduleQuery(r, 'docs', 'documents.list', { actor: { id: 'otro', roles: ['admin'] }, filter: {} }))
+      app((r) =>
+        moduleQuery(r, 'docs', 'documents.list', {
+          actor: { id: 'otro', roles: ['admin'], name: 'Intruso', email: 'x@x.com' },
+          filter: {},
+        })
+      )
     ).get('/probe');
-    fakeBus.lastModule!.payload.actor.should.deepEqual({ id: 'zitadel-sub-01' });
+    fakeBus.lastModule!.payload.should.deepEqual({ filter: {}, actor: { id: 'zitadel-sub-01', roles: ['user'] } });
+  });
+
+  it('S-089 · TS-2: actor con perfil igual a buildActor del mismo request', async () => {
+    await makeAvailable();
+    fakeBus.moduleReplyDefault({ status: 'success', data: {} });
+    let expected: unknown;
+    await request(
+      app(
+        (r) => {
+          expected = buildActor(r.req);
+          return list(r);
+        },
+        {
+          decodedToken: {
+            sub: 'zitadel-sub-05',
+            name: 'Ana Pérez',
+            preferred_username: 'ana@grava.digital',
+            email: 'ana@grava.digital',
+          },
+          decodedTokenRoles: ['user'],
+        }
+      )
+    ).get('/probe');
+    const actor = fakeBus.lastModule!.payload.actor;
+    actor.should.deepEqual({
+      id: 'zitadel-sub-05',
+      roles: ['user'],
+      name: 'Ana Pérez',
+      username: 'ana@grava.digital',
+      email: 'ana@grava.digital',
+    });
+    actor.should.deepEqual(expected);
+    Object.keys(actor).should.not.containEql('preferred_username');
+  });
+
+  it('S-089 · TS-3: sin claim de roles el actor lleva roles vacío', async () => {
+    await makeAvailable();
+    fakeBus.moduleReplyDefault({ status: 'success', data: {} });
+    const res = await request(app(list, { decodedToken: { sub: 'zitadel-sub-01' } })).get('/probe');
+    res.status.should.equal(200);
+    fakeBus.lastModule!.payload.actor.should.deepEqual({ id: 'zitadel-sub-01', roles: [] });
+  });
+
+  it('S-089 · TS-7: sub vacío cuenta como sin identidad', async () => {
+    await makeAvailable();
+    const res = await request(app(list, { decodedToken: { sub: '' }, decodedTokenRoles: ['user'] })).get('/probe');
+    res.status.should.equal(401);
+    res.body.should.deepEqual({ code: 'unauthorized', message: 'Unauthorized' });
+    fakeBus.moduleSent.length.should.equal(0);
+  });
+
+  it('S-089 · TS-10: el log no filtra payload ni perfil', async () => {
+    await makeAvailable();
+    fakeBus.moduleFailWithTimeout();
+    const res = await request(
+      app((r) => moduleQuery(r, 'docs', 'documents.list', { content: 'secreto' }), {
+        decodedToken: {
+          sub: 'zitadel-sub-05',
+          name: 'Ana Pérez',
+          preferred_username: 'ana@grava.digital',
+          email: 'ana@grava.digital',
+        },
+        decodedTokenRoles: ['user'],
+      })
+    ).get('/probe');
+    res.status.should.equal(504);
+    res.body.should.deepEqual({ code: 'gateway_timeout', message: 'La operación tardó demasiado' });
+    errorStub.calledWith('[modules] docs documents.list: TIMEOUT').should.be.true();
+    const logged = JSON.stringify(errorStub.args);
+    ['secreto', 'ana@grava.digital', 'Ana Pérez'].forEach((v) => logged.includes(v).should.be.false());
   });
 
   it('S-077 · TS-26: llamado anónimo (opt-in) sin actor', async () => {
