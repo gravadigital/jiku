@@ -154,8 +154,10 @@ usá `tests/helpers/docs-module.ts`:
 await docsAvailable();        // kvPut + ping que responde + docsModule.start()
 fakeBus.moduleReply('documents.list', success({ items: [] }));
 // ... request ...
-fakeBus.lastModule!.payload.actor.should.deepEqual({ id: userId });   // el sub del token; solo id
+fakeBus.lastModule!.payload.actor.should.deepEqual(expectedActor('token_01_user'));   // buildActor del token, entero
 ```
+
+`expectedActor(token)` (`tests/helpers/docs-module.ts`) devuelve el `actor` esperado de cada token del mock, **escrito a mano** a propósito (no llama a `buildActor`). Un token nuevo en `tests/mocks/jsonwebtoken-mock.ts` se agrega también ahí.
 
 `itRespectsModuleState(getApp, url, token)` agrega el test estándar de toda ruta de módulo: 404
 `module_not_installed` y 503 `module_unavailable`, ambos **sin publicar** (`moduleSent.length === 0`).
@@ -209,7 +211,7 @@ Fechas: `mockdate` para congelar el día cuando la regla depende del calendario.
   ejecute core.
 - Todo endpoint con `hasAnyRole` lleva un test por rol rechazado.
 - Toda ruta de un módulo opcional usa `itRespectsModuleState` y verifica que el `actor` publicado sea
-  `{ id }` y nada más.
+  exactamente `expectedActor(<token>)` (el de `buildActor`, entero).
 - Toda regla de negocio se testea **en su límite**, no en el centro del rango válido.
 - Congelá la fecha con `mockdate` cuando la regla dependa del calendario.
 - Aserciones con `should`. No mezcles `assert` ni `expect`.

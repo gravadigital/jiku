@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { docsAvailable, itRespectsModuleState, success } from '../helpers/docs-module';
+import { docsAvailable, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/docs/topics (S-078)', () => {
@@ -23,11 +23,11 @@ describe('GET /api/docs/topics (S-078)', () => {
     a.status.should.equal(200);
     a.body.should.deepEqual(data);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      filter: { prefix: 'inf' }, page: { limit: 50 }, actor: { id: 'zitadel-sub-01' },
+      filter: { prefix: 'inf' }, page: { limit: 50 }, actor: expectedActor('token_01_user'),
     });
     await get('/api/docs/topics');
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      filter: {}, page: { limit: 50 }, actor: { id: 'zitadel-sub-01' },
+      filter: {}, page: { limit: 50 }, actor: expectedActor('token_01_user'),
     });
   });
 

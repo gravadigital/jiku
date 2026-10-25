@@ -2,7 +2,7 @@
 id: bus-modules
 display_name: Llamadas a módulos opcionales del bus
 language: node
-description: Calls from the api to optional bus modules (today jiku-docs) - registry-based discovery, per-replica status, caller identity as actor { id }, per-module error map
+description: Calls from the api to optional bus modules (today jiku-docs) - registry-based discovery, per-replica status, caller identity as the full actor from buildActor (fails closed), per-module error map
 applies_to: [api]
 required_by: []
 package: nats
@@ -12,7 +12,7 @@ package: nats
 
 > **Convención nueva**, sin equivalente en el catálogo. No es `bus-commands`: acá el destino no es
 > `core` sino un **módulo opcional** que se descubre por registro (`JIKU_MODULES`), el sobre de
-> identidad es otro (`actor: { id }`, no el sobre de roles de core), el mapa de errores es propio
+> identidad es **el mismo** que recibe core (`buildActor`) pero el embudo **falla cerrado** sin él, el mapa de errores es propio
 > del módulo y **también hay lecturas**. Es la segunda excepción a ADR-001 (la api lee por el bus
 > porque la documentación no está en su base): ver
 > [ADR-015](../../../adrs/ADR-015-modulos-opcionales-del-bus.md).
@@ -173,13 +173,20 @@ conservando el `code`: el catálogo del módulo puede crecer dentro de v1.
 
 ## Identidad
 
-**Se llama siempre en nombre de la persona con `actor: { id }`: solo el `id`**, tomado de
-`buildActor(res.req)` (el claim verificado) e inyectado **después** del spread (gana el del token).
+**Se llama siempre en nombre de la persona con el `actor` de `buildActor(res.req)` sin transformar**
+—`{ id, roles, name?, username?, email? }`, el mismo sobre que recibe core (REQ-019)—, inyectado
+**después** del spread (gana el del token, entero). jiku-docs clasifica a la persona con esos `roles`
+(D-11): `admin`/`user` → interna, `external-user` → externa, otro → sin acceso.
 **Falla cerrado**: sin identidad verificada, la ruta responde **401 sin publicar**, porque un
 llamado sin `actor` lo trata jiku-docs como el propio servicio (clase `service`) y **lee todo**.
 
-> **Por qué no se reusan `sendCommand` ni `withActor`:** su sobre (`roles`, `name`, …) es
-> `invalid_fields` para jiku-docs. Tampoco hay un actor "por defecto" aceptable.
+> **Por qué no se reusan `sendCommand` ni `withActor`:** el sobre es el mismo, pero `withActor` sin
+> identidad publica **sin `actor`** (falla abierto, correcto para core) y para jiku-docs eso es el
+> propio servicio. Tampoco hay un actor "por defecto" aceptable. Hasta REQ-019 el embudo mandaba solo
+> `{ id }`.
+
+**Requiere jiku-docs con D-11.** Un jiku-docs anterior declara `Actor` con solo `id` y responde
+`invalid_fields` (400) a toda llamada con `roles` (ADR-015, R-9).
 
 **La api no autoriza el dominio de documentación**: jiku-docs decide qué ve y qué edita la persona
 (`permission_denied`, `sharing_blocked`). La api solo decide si la ruta existe para el rol
@@ -195,7 +202,7 @@ auditoría de accesos de jiku-docs. El token del link es la credencial.
 - Una ruta que habla con un módulo declara `requireModule('<módulo>')` **antes** de `hasAnyRole`.
 - Usá `moduleQuery` / `moduleCommand` / `runModuleCommand`. Después de la llamada, `if (!data)
   return;` (o `if (!ok) return;`): la respuesta ya salió.
-- **Nunca** armes el `actor` a mano ni lo tomes del cuerpo: lo inyecta el embudo, solo con `id`.
+- **Nunca** armes el `actor` a mano, ni lo tomes del cuerpo, ni le agregues campos: lo inyecta el embudo con `buildActor(res.req)` entero.
 - **Nunca** llames a un módulo sin identidad verificada: el embudo responde 401 y no publica.
 - **Nunca** loguees `payload`, `options`, el token de un link ni el contenido de un documento.
   El error de bus se loguea como `[modules] {module} {method}: {error.message}`.

@@ -4,8 +4,8 @@ title: Escritura por el bus — el recorrido completo de un comando de jiku-comm
 type: feature
 status: Draft
 created: 2026-08-25
-last_updated: 2026-10-24
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085]
+last_updated: 2026-10-25
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089]
 ---
 
 # Escritura por el Bus
@@ -13,8 +13,8 @@ stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, 
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-25
-**Última actualización:** 2026-10-24
-**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085
+**Última actualización:** 2026-10-25
+**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089
 
 ## Descripción
 
@@ -38,9 +38,10 @@ una**. Es el documento que responde *"¿por qué me rechazaron?"* sin leer el c�
 > servicio de comandos, `jiku-docs-commands`, con la misma gramática de subject
 > (`{instance}.{user-id}.jiku-docs-commands.v1.{método}`) y el mismo sobre `Reply`. Lo atiende
 > **jiku-docs**, no `core`: **no le aplican** las compuertas ni los pasos de este documento. La api
-> escribe en jiku-docs con **`actor: { id }`** (solo el `id`) y `via: "human"`, nunca con el sobre
-> de core: para jiku-docs el sobre de core es `invalid_fields`, y un llamado sin `actor` lo trata
-> como el propio servicio (clase `service`), por eso la api falla cerrado con 401 sin publicar. Los
+> escribe en jiku-docs con **el mismo sobre `actor` que manda a core** (`buildActor`; desde REQ-019,
+> antes solo `{ id }`) y `via: "human"`; a diferencia de core, sin identidad **falla cerrado** con 401
+> sin publicar, porque un llamado sin `actor` lo trata jiku-docs como el propio servicio (clase
+> `service`). Los
 > pasos de `core` de este flujo no cambian. Recorrido:
 > [`documentos-desde-la-web`](documentos-desde-la-web.md) · decisión:
 > [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md).

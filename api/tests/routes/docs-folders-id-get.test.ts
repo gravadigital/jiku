@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { FOLDER_ID, docsAvailable, failure, itRespectsModuleState, success } from '../helpers/docs-module';
+import { FOLDER_ID, docsAvailable, failure, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/docs/folders/:id (S-078)', () => {
@@ -24,7 +24,7 @@ describe('GET /api/docs/folders/:id (S-078)', () => {
     res.status.should.equal(200);
     res.body.should.deepEqual(data);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      id: FOLDER_ID, include: ['effectivePermission'], actor: { id: 'zitadel-sub-01' },
+      id: FOLDER_ID, include: ['effectivePermission'], actor: expectedActor('token_01_user'),
     });
   });
 

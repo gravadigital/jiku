@@ -6,10 +6,11 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   ATT_ID, COMMAND_SUBJECT_PREFIX as C, DOC_ID, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
-const ACTOR = { actor: { id: 'zitadel-sub-01' } };
+const ACTOR = { actor: expectedActor('token_01_user') };
 import { ULID_PATTERN } from '../../lib/modules/docs/ids';
 
 const URL = '/api/docs/attachments';

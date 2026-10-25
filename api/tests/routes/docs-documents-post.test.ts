@@ -6,13 +6,14 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   COMMAND_SUBJECT_PREFIX as C, DOC_ID, FOLDER_ID, docsAvailable, docsNotInstalled, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 import { ULID_PATTERN } from '../../lib/modules/docs/ids';
 
 const CONTENT = '# Acta\n\nKickoff con Acme.\n';
 const CONTENT_SUM = 'sha256:56ef0169a0ce1c72ce999efd5044f748c00da07d58ec73958f2b9057ab7c87c5';
-const ACTOR = { actor: { id: 'zitadel-sub-01' } };
+const ACTOR = { actor: expectedActor('token_01_user') };
 const URL = '/api/docs/documents';
 const BODY = { folderId: FOLDER_ID, fileName: 'acta.md', content: CONTENT };
 const OK = { id: DOC_ID, version: 1, path: '/clientes/acme/acta.md' };

@@ -253,7 +253,7 @@ Si un archivo de un lote falla, la api **borra del bucket los ya subidos**.
 - **`api` → módulo opcional `jiku-docs`** (NATS request/reply, **síncrono**, REQ-016)
   - Un servicio que **no es core**, descubierto en runtime por el registro KV `JIKU_MODULES`
     (estado en memoria por réplica, ping cada 30 s). La api **lee por el bus** (excepción a
-    ADR-001) con `actor: { id }`, y sirve la primera ruta pública HTML, `/p/docs/*`, en un host
+    ADR-001) con el `actor` completo de `buildActor` (REQ-019), y sirve la primera ruta pública HTML, `/p/docs/*`, en un host
     propio. Ver [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md).
 
 - **`auth-callout` → `nats`** (NATS, **síncrono**)

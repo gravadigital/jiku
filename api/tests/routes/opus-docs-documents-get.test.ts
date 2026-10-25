@@ -7,7 +7,7 @@ import {
 } from '@jiku/models';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { docsAvailable, itRespectsModuleState, success } from '../helpers/docs-module';
+import { docsAvailable, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/opus/docs/documents (S-078)', () => {
@@ -59,7 +59,7 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
     res.body.should.deepEqual(EMPTY);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { projectId, visibility: 'public' }, sort: ['-updatedAt'], page: { limit: 50 },
-      actor: { id: 'zitadel-sub-04' },
+      actor: expectedActor('token_04_external_user'),
     });
   });
 
@@ -86,7 +86,7 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
     res.status.should.equal(200);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { requirementId: publicRequirementId, visibility: 'public' }, sort: ['-updatedAt'],
-      page: { limit: 50 }, actor: { id: 'zitadel-sub-04' },
+      page: { limit: 50 }, actor: expectedActor('token_04_external_user'),
     });
   });
 
@@ -125,7 +125,7 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
     res.status.should.equal(200);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { projectId, visibility: 'public' }, sort: ['-updatedAt'], page: { limit: 50 },
-      actor: { id: 'zitadel-sub-01' },
+      actor: expectedActor('token_01_user'),
     });
   });
 
@@ -137,7 +137,7 @@ describe('GET /api/opus/docs/documents (S-078)', () => {
     res.body.should.deepEqual(EMPTY);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
       filter: { projectId, visibility: 'public' }, sort: ['-updatedAt'], page: { limit: 50 },
-      actor: { id: 'zitadel-sub-03' },
+      actor: expectedActor('token_03_admin'),
     });
   });
 

@@ -85,3 +85,32 @@ export function itRespectsModuleState(
     fakeBus.moduleSent.length.should.equal(0);
   });
 }
+
+/**
+ * El `actor` que el embudo publica para cada token del mock (REQ-019, S-089): `buildActor` del
+ * claim, sin transformar. Escrito a mano A PROPÓSITO —no se computa con `buildActor`—: el test
+ * describe lo esperado, no reimplementa lo que prueba. Si agregás un token a
+ * `tests/mocks/jsonwebtoken-mock.ts`, agregalo acá.
+ */
+const ACTORS: Record<string, Record<string, unknown>> = {
+  token_01_user: { id: 'zitadel-sub-01', roles: ['user'] },
+  token_02_user: { id: 'zitadel-sub-02', roles: ['user'] },
+  token_03_admin: { id: 'zitadel-sub-03', roles: ['admin'] },
+  token_04_external_user: { id: 'zitadel-sub-04', roles: ['external-user'] },
+  token_05_user_profile: {
+    id: 'zitadel-sub-05',
+    roles: ['user'],
+    name: 'Ana Pérez',
+    username: 'ana@grava.digital',
+    email: 'ana@grava.digital',
+  },
+  token_06_external_user_no_permissions: { id: 'zitadel-sub-06', roles: ['external-user'] },
+  token_07_user_and_external_mixed: { id: 'zitadel-sub-07', roles: ['user', 'external-user'] },
+  token_08_no_roles: { id: 'zitadel-sub-08', roles: [] },
+};
+
+export function expectedActor(token: string): Record<string, unknown> {
+  const actor = ACTORS[token];
+  if (!actor) throw new Error(`expectedActor: token desconocido ${token}`);
+  return { ...actor }; // copia: un test no puede mutar el de otro
+}

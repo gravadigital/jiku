@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { DOC_ID, FOLDER_ID, docsAvailable, failure, itRespectsModuleState, success } from '../helpers/docs-module';
+import { DOC_ID, FOLDER_ID, docsAvailable, failure, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 const DOCUMENT = {
@@ -40,10 +40,10 @@ describe('GET /api/docs/documents/:id (S-078)', () => {
     Object.keys(res.body.folder).length.should.equal(4);
     fakeBus.moduleSent.map((c) => c.method).should.deepEqual(['documents.get', 'folders.get']);
     (fakeBus.moduleSent[0].payload as any).should.deepEqual({
-      id: DOC_ID, include: ['content', 'relations', 'topics', 'lock', 'attachments'], actor: { id: 'zitadel-sub-01' },
+      id: DOC_ID, include: ['content', 'relations', 'topics', 'lock', 'attachments'], actor: expectedActor('token_01_user'),
     });
     (fakeBus.moduleSent[1].payload as any).should.deepEqual({
-      id: FOLDER_ID, include: ['effectivePermission'], actor: { id: 'zitadel-sub-01' },
+      id: FOLDER_ID, include: ['effectivePermission'], actor: expectedActor('token_01_user'),
     });
   });
 

@@ -30,7 +30,7 @@ Tres no tienen equivalente en el catálogo y son **nuevas**, no reemplazos:
 - **`bus-commands`** — la escritura por NATS. Es la decisión estructural del servicio, y el
   catálogo solo cubre colas (`queue`/BullMQ), que es otra cosa: esto es request/reply sincrónico.
 - **`bus-modules`** — las llamadas, de lectura y de escritura, a módulos opcionales del bus (hoy
-  jiku-docs): descubrimiento por registro, estado por réplica, identidad `actor: { id }` y mapa de
+  jiku-docs): descubrimiento por registro, estado por réplica, identidad con el `actor` de `buildActor` (falla cerrado) y mapa de
   errores propio del módulo. Es la segunda excepción a la lectura directa de la base (ADR-015).
 - **`ci-github`** — el catálogo solo trae `ci-gitlab`.
 
@@ -45,7 +45,7 @@ Y dos separan lo que el catálogo trata junto:
 | [_base](./conventions/_base.md) | Convenciones generales (api) | Sin `src/`, dominio en el prefijo del archivo, imports relativos, `strict` apagado, comentarios del por qué |
 | [http-server](./conventions/http-server.md) | Servidor HTTP (Express 5, un archivo por endpoint) | Montaje automático por barrel, la excepción de `lib/public-routes/` en la raíz, forma del archivo de ruta, orden de la cadena de middlewares, paginación |
 | [bus-commands](./conventions/bus-commands.md) | Escritura por el bus (NATS request/reply) | `sendCommand`/`runCommand`, traducción de errores a HTTP, traductores de contrato, identidad en el bus |
-| [bus-modules](./conventions/bus-modules.md) | Llamadas a módulos opcionales del bus (NATS) | `requireModule`, `moduleQuery`/`moduleCommand`, estado `not_installed`/`unavailable`/`available`, `actor: { id }` que falla cerrado, cuerpo `{code, message, details?}` |
+| [bus-modules](./conventions/bus-modules.md) | Llamadas a módulos opcionales del bus (NATS) | `requireModule`, `moduleQuery`/`moduleCommand`, estado `not_installed`/`unavailable`/`available`, `actor` de `buildActor` que falla cerrado, cuerpo `{code, message, details?}` |
 | [orm](./conventions/orm.md) | Acceso a datos (Sequelize, solo lectura) | La conexión de solo lectura y sus dos excepciones, modelos compartidos, filtros, migraciones |
 | [validation](./conventions/validation.md) | Validación de inputs (Joi, inline en la ruta) | Los dos middlewares, enums derivados del modelo, qué no valida Joi |
 | [error-handling](./conventions/error-handling.md) | Manejo de errores (`{code, message}` inline) | Códigos por situación, errores del bus, el cuerpo con `details` de los módulos, los handlers finales rotos de `app.ts` |

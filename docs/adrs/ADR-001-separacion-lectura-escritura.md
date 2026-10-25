@@ -213,4 +213,4 @@ La Implementation Rule *"un endpoint que lee **NO DEBE** pasar por el bus"* tien
 excepción**, esta de **dominio**: las rutas `/docs/*` y `/opus/docs/*` leen por el bus
 (`jiku-docs-queries`), porque la documentación vive en jiku-docs, un servicio opcional con su propia
 base y que no es `core`. La excepción está confinada a `api/lib/modules/client.ts` y llama siempre
-con `actor: { id }`, fallando cerrado. Ver [ADR-015](ADR-015-modulos-opcionales-del-bus.md).
+con `actor: { id }`, fallando cerrado. Ver [ADR-015](ADR-015-modulos-opcionales-del-bus.md). Desde REQ-019 (S-089) el `actor` es el completo de `buildActor` (`{ id, roles, name?, username?, email? }`); ver la revisión de ADR-015.

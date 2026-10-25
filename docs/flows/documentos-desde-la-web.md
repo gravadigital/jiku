@@ -13,8 +13,8 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, 
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-10-24
-**Última actualización:** 2026-10-24
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088
+**Última actualización:** 2026-10-25
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089
 
 ## Descripción
 
@@ -24,9 +24,11 @@ bus** en vez de leer su base: la documentación no está en PostgreSQL, así que
 publica consultas a `jiku-docs-queries` y las escrituras publican comandos a `jiku-docs-commands`.
 Es la segunda excepción a ADR-001 (ver [ADR-015](../adrs/ADR-015-modulos-opcionales-del-bus.md)).
 
-Todas las llamadas se hacen **en nombre de la persona**, con `actor: { id }` (solo el `id`), por el
-embudo `api/lib/modules/client.ts`. La api **no autoriza el dominio**: el ACL de carpetas lo
-resuelve jiku-docs con ese `actor`. Que el módulo esté `available` es precondición de todo el
+Todas las llamadas se hacen **en nombre de la persona**, con el `actor` de `buildActor` (`{ id, roles,
+name?, username?, email? }`, el mismo sobre que recibe core), por el embudo
+`api/lib/modules/client.ts`. La api **no autoriza el dominio**: jiku-docs clasifica a la persona con
+los `roles` de ese `actor` (D-11) y resuelve el ACL de carpetas. Requiere jiku-docs con D-11 (ADR-015,
+R-9). Que el módulo esté `available` es precondición de todo el
 flujo: [`descubrimiento-de-modulos`](descubrimiento-de-modulos.md).
 
 Cubre: (A) panel en una ficha, (B) visor, (C) edición con reserva y conflicto de versión, (D)
@@ -39,7 +41,7 @@ adjuntos, (E) lectura desde el portal. La lectura anónima por link es otro fluj
 |---|---|---|
 | `web` (`features/docs/`) | Panel, visor, editor, zona de adjuntos; Server Actions que llaman a la api con el token de sesión | Iniciador |
 | `opus-web` (`features/docs/`) | Lista y detalle de documentos `public` del portal; solo lectura | Iniciador |
-| `api` (`lib/routes/docs-*.ts`, `opus-docs-*.ts`, `lib/modules/`) | Valida rol y forma, firma como la persona (`actor: { id }`), traduce el sobre `Reply` a HTTP | Procesador |
+| `api` (`lib/routes/docs-*.ts`, `opus-docs-*.ts`, `lib/modules/`) | Valida rol y forma, firma como la persona (`actor` de `buildActor`), traduce el sobre `Reply` a HTTP | Procesador |
 | NATS (`jiku-docs-queries`, `jiku-docs-commands`) | Transporte de consultas y comandos | Transporte |
 | jiku-docs (externo) | Dueño de documentos, carpetas, versiones, reservas y adjuntos; resuelve permisos | Procesador |
 | `core` | jiku-docs le pide el rol y permisos de la persona y el vínculo de archivos; no habla con la web | Procesador (indirecto) |
@@ -57,7 +59,7 @@ sequenceDiagram
 
     Note over WEB,API: A. Panel y visor
     WEB->>API: GET /api/docs/documents?projectId=
-    API->>DOCS: query documents.list { filter, sort, page, include:['lock'], actor:{id} }
+    API->>DOCS: query documents.list { filter, sort, page, include:['lock'], actor:{id, roles, …} }
     DOCS-->>API: Reply { data }
     API-->>WEB: 200 { items, page }
     WEB->>API: GET /api/docs/documents/{id}
@@ -91,7 +93,7 @@ sequenceDiagram
 
     Note over OPUS,DOCS: E. Portal (solo lectura)
     OPUS->>API: GET /api/opus/docs/documents?projectId= o requirementId=
-    API->>DOCS: query documents.list { filter: {..., visibility:'public'}, actor:{id} }
+    API->>DOCS: query documents.list { filter: {..., visibility:'public'}, actor:{id, roles, …} }
     API-->>OPUS: 200 { items, page }
     OPUS->>API: GET /api/opus/docs/documents/{docId}/attachments/{attId}
     API->>DOCS: query documents.get { id: docId, include:['attachments'] }
@@ -118,7 +120,7 @@ El panel solo se renderiza si `useModule('docs')` no es `not_installed`. Su Serv
 
 **Consulta al bus:**
 - **Subject:** `{instance}.{apiUserId}.jiku-docs-queries.v1.documents.list`
-- **Payload:** `{ filter, sort: [sort], page, include: ['lock'], actor: { id } }`
+- **Payload:** `{ filter, sort: [sort], page, include: ['lock'], actor: { id, roles, name?, username?, email? } }`
 
 **Response (éxito):** `200` con el `data` de jiku-docs **sin transformar** (`{ items, page }`;
 `page.cursor` pagina).
@@ -183,7 +185,7 @@ Al entrar en edición la web genera un `sessionId` (ULID) **nuevo** y toma la re
   }
   ```
 
-**Comando al bus:** `documents.{id}.lock { sessionId, ttlSeconds?, via: 'human', actor: { id } }`.
+**Comando al bus:** `documents.{id}.lock { sessionId, ttlSeconds?, via: 'human', actor }`.
 
 **Response (éxito):** `200` con el `data` de jiku-docs. La reserva dura **120 s** en jiku-docs.
 
@@ -224,7 +226,7 @@ error es `document_locked`, se muestra quién tiene la reserva (`details.holder`
   ```
 
 **Comando al bus:** `documents.{id}.update { baseVersion, content, sessionId?, message?, checksum,
-via: 'human', actor: { id } }`. El `checksum` lo **calcula la api** del texto (`contentChecksum`,
+via: 'human', actor }`. El `checksum` lo **calcula la api** del texto (`contentChecksum`,
 `sha256:` + hex); `via` lo fija la api (toda escritura por HTTP es una persona en la web).
 
 **Response (éxito):** `200 { id, version, path?, warnings? }`. Si `warnings` incluye
@@ -404,4 +406,4 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
 
 **Origen:** REQ-016 · stories S-077 (cliente de módulos), S-078 y S-079 (rutas de lectura y
 escritura de la api), S-081 (panel y visor de web), S-082 (editor con reserva, carpetas, búsqueda y
-adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON).
+adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON) · REQ-019 · S-089 (`actor` completo hacia jiku-docs).

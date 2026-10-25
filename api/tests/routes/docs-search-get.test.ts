@@ -4,7 +4,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
-import { DOC_ID, docsAvailable, itRespectsModuleState, success } from '../helpers/docs-module';
+import { DOC_ID, docsAvailable, itRespectsModuleState, success, expectedActor } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
 describe('GET /api/docs/search (S-078)', () => {
@@ -29,7 +29,7 @@ describe('GET /api/docs/search (S-078)', () => {
     res.status.should.equal(200);
     res.body.should.deepEqual(data);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      query: 'kickoff acme', mode: 'text', filter: { projectId: 12 }, limit: 20, actor: { id: 'zitadel-sub-01' },
+      query: 'kickoff acme', mode: 'text', filter: { projectId: 12 }, limit: 20, actor: expectedActor('token_01_user'),
     });
   });
 

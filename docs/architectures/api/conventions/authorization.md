@@ -138,7 +138,7 @@ titularidad ya se valida por `uploaded_by` al recuperar el adjunto en cada endpo
 
 **DD-2: la api no decide quién ve o edita un documento.** Las rutas de `/api/docs/*` solo exigen el rol
 (`admin`/`user`); jiku-docs autoriza el dominio (carpetas, ACL, `permission_denied`,
-`sharing_blocked`) en nombre de la persona que viaja en `actor: { id }`. Ver
+`sharing_blocked`) en nombre de la persona que viaja en el `actor` (el de `buildActor`, con sus `roles`; REQ-019). Ver
 [`bus-modules`](./bus-modules.md).
 
 **DD-3: el portal fuerza `filter.visibility: 'public'`.** `GET /api/opus/docs/documents` pasa por
@@ -276,5 +276,5 @@ quien se suscribió antes de que el requisito pasara a interno. Está comentada 
 - **http-server**: define el orden de la cadena donde encajan estas capas.
 - **orm**: `user_project_permissions` es la tabla que sostiene la capa 3.
 - **error-handling**: el 403 `access_denied`.
-- **bus-modules**: `requireModule`, `actor: { id }` y por qué la api no autoriza el dominio de documentación.
+- **bus-modules**: `requireModule`, el `actor` de `buildActor` que falla cerrado y por qué la api no autoriza el dominio de documentación.
 - **storage**: los adjuntos son el caso que motiva `canUserAccessEntity` / `canUserViewEntity`.

@@ -6,6 +6,7 @@ import { start } from '../mocks/app';
 import { fakeBus } from '../mocks/bus';
 import {
   DOC_ID, FOLDER_ID, QUERY_SUBJECT_PREFIX as Q, docsAvailable, failure, itRespectsModuleState, success,
+  expectedActor,
 } from '../helpers/docs-module';
 import { docsModule } from '../../lib/modules/registry';
 
@@ -38,7 +39,7 @@ describe('GET /api/docs/documents (S-078)', () => {
       subject: Q + 'documents.list',
       payload: {
         filter: { projectId: 12 }, sort: ['-updatedAt'], page: { limit: 50 }, include: ['lock'],
-        actor: { id: 'zitadel-sub-01' },
+        actor: expectedActor('token_01_user'),
       },
     });
   });
@@ -56,7 +57,7 @@ describe('GET /api/docs/documents (S-078)', () => {
         projectId: 12, requirementId: 34, taskId: 56, clientId: 7, folderId: FOLDER_ID,
         pathPrefix: '/clientes/', topic: 'kickoff',
       },
-      sort: ['title'], page: { limit: 20, cursor: 'abc' }, include: ['lock'], actor: { id: 'zitadel-sub-01' },
+      sort: ['title'], page: { limit: 20, cursor: 'abc' }, include: ['lock'], actor: expectedActor('token_01_user'),
     });
   });
 
@@ -66,7 +67,18 @@ describe('GET /api/docs/documents (S-078)', () => {
     const res = await get('/api/docs/documents', 'token_03_admin');
     res.status.should.equal(200);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      filter: {}, sort: ['-updatedAt'], page: { limit: 50 }, include: ['lock'], actor: { id: 'zitadel-sub-03' },
+      filter: {}, sort: ['-updatedAt'], page: { limit: 50 }, include: ['lock'], actor: expectedActor('token_03_admin'),
+    });
+  });
+
+  it('S-089 · TS-13: actor con perfil de punta a punta', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.list', success(DOC_PAGE));
+    const res = await get('/api/docs/documents?projectId=12', 'token_05_user_profile');
+    res.status.should.equal(200);
+    (fakeBus.lastModule!.payload as any).actor.should.deepEqual(expectedActor('token_05_user_profile'));
+    (fakeBus.lastModule!.payload as any).actor.should.deepEqual({
+      id: 'zitadel-sub-05', roles: ['user'], name: 'Ana Pérez', username: 'ana@grava.digital', email: 'ana@grava.digital',
     });
   });
 

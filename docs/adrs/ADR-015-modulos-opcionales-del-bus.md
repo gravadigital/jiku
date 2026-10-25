@@ -120,6 +120,11 @@ a un módulo pasa por `api/lib/modules/client.ts`**.
 
 ### El embudo `actor: { id }` que falla cerrado (DD-1, DD-9)
 
+> **Revisado por REQ-019 (S-089, 2026-10-25):** el punto 2 describe el embudo hasta REQ-019. Hoy el
+> `actor` es el de `buildActor(res.req)` entero —`{ id, roles, name?, username?, email? }`, el mismo
+> sobre que recibe core—; la falla cerrada (punto 3) no cambia. Ver "Revisión: el `actor` completo
+> hacia jiku-docs" al final.
+
 `moduleQuery` / `moduleCommand` / `runModuleCommand` (`client.ts`, función interna `call`):
 
 1. **Estado del módulo primero**: `respondIfModuleNotReady` responde 404 `module_not_installed`
@@ -321,7 +326,7 @@ Fuente del diseño: sección "Decisiones de diseño" de
 
 | DD | Diseño (REQ-016) | Implementado (archivo) | Diferencia |
 |---|---|---|---|
-| DD-1 | `actor: { id }` siempre; sin `actor` en `shares.resolve`/`shares.attachment` | `api/lib/modules/client.ts` inyecta `{ id }` tras el spread y falla cerrado con 401; `public-share.ts` llama sin `actor` | Se agregó **falla cerrada** (401 sin publicar) y la opción `anonymous` quedó **sin llamadores** (las rutas públicas usan `sendToModule`, P-9 de S-080). Las rutas públicas **sí** mandan `client` (`ClientInfo`), que el diseño no preveía (P-1 de S-080) |
+| DD-1 | `actor: { id }` siempre; sin `actor` en `shares.resolve`/`shares.attachment` | `api/lib/modules/client.ts` inyecta `{ id }` tras el spread y falla cerrado con 401; `public-share.ts` llama sin `actor` | Se agregó **falla cerrada** (401 sin publicar) y la opción `anonymous` quedó **sin llamadores** (las rutas públicas usan `sendToModule`, P-9 de S-080). Las rutas públicas **sí** mandan `client` (`ClientInfo`), que el diseño no preveía (P-1 de S-080). **Revisado por REQ-019 (S-089):** el embudo inyecta el `actor` completo de `buildActor(res.req)` (`{ id, roles, name?, username?, email? }`), no `{ id }`; jiku-docs clasifica con esos `roles` (D-11). Requiere la versión de jiku-docs con D-11 |
 | DD-2 | La api no autoriza el dominio | Ningún handler de `docs-*.ts` evalúa ACL; solo `requireModule` + `hasAnyRole` | Ninguna |
 | DD-3 | `/docs/*` internas; `/opus/docs/*` solo lectura, fuerza `visibility: public`, 404 si no es `public` | `opus-docs-documents-get.ts`, `opus-docs-documents-id-get.ts`, `opus-docs-documents-id-attachments-id-get.ts` | El tercer endpoint del portal (`GET /opus/docs/attachments/{id}`) **no puede** aplicar DD-3 para usuarios internos (F-13; ver Riesgos). **Resuelto por REQ-017 (S-087):** el adjunto se pide bajo su documento y aplica DD-3 para todo rol |
 | DD-4 | Listado del portal con permiso de proyecto y requisito público | `loadDocsScope` → `validateProjectPermissions` → `validateRequirementIsPublic` | Ninguna |
@@ -354,10 +359,11 @@ Diferencias de infraestructura (no son DD pero cambiaron lo diseñado):
 - Toda llamada a un módulo **DEBE** pasar por `api/lib/modules/client.ts`
   (`moduleQuery`/`moduleCommand`/`runModuleCommand`, o `sendToModule` en las rutas que responden
   HTML). **NO SE DEBE** hablar con un módulo desde un handler con `bus()` directo.
-- **NO SE DEBE** usar `sendCommand` ni `withActor` con un módulo: su sobre (`roles`, `name`…) es
-  `invalid_fields` para jiku-docs.
-- El `actor` **DEBE** ser solo `{ id }` y **DEBE** inyectarlo el embudo, después del spread del
-  payload. Sin identidad verificada el embudo **DEBE** fallar cerrado (401 sin publicar). **NO SE
+- **NO SE DEBE** usar `sendCommand` ni `withActor` con un módulo: `withActor` sin identidad publica
+  sin `actor` (falla abierto), y para jiku-docs un llamado sin `actor` es el propio servicio (REQ-019).
+- El `actor` **DEBE** ser el de `buildActor(res.req)` sin transformar (`{ id, roles, name?, username?,
+  email? }`, el mismo que recibe core; REQ-019) y **DEBE** inyectarlo el embudo, después del spread
+  del payload. **NO SE DEBE** agregarle campos (ni `identityType`) ni armarlo a mano. Sin identidad verificada el embudo **DEBE** fallar cerrado (401 sin publicar). **NO SE
   DEBE** llamar a un módulo sin `actor` salvo en una ruta pública deliberada
   (`shares.resolve`/`shares.attachment`).
 - Toda ruta de módulo **DEBE** llevar `requireModule('<módulo>')` **antes** de `hasAnyRole`.
@@ -442,6 +448,12 @@ Diferencias de infraestructura (no son DD pero cambiaron lo diseñado):
   `GET /opus/docs/documents/{documentId}/attachments/{id}` lee el documento con `documents.get`,
   responde 404 si no es `public` o si el adjunto no le pertenece, y la ruta vieja se eliminó. Riesgo
   aceptado R-3 en `documentation/known-limitations.md`.
+- **R-9** — *Orden de despliegue con jiku-docs (REQ-019).* Desde S-089 la api manda el `actor`
+  completo (`roles` incluido). Un jiku-docs anterior a D-11 declara `Actor` con
+  `additionalProperties: false` y solo `id`, y responde `invalid_fields` (400) a **toda** llamada:
+  la documentación deja de funcionar en web y opus-web. **Mitigación:** actualizar jiku-docs (versión
+  con D-11) antes o junto con la api; se repite en *Notes for existing installations* de la release.
+  Sin compatibilidad hacia atrás.
 
 ## Divergencias con el contrato `jiku-modules.yaml`
 
@@ -621,7 +633,37 @@ una discrepancia de hasta 30 s (DD-5).
 - Flujos: [`descubrimiento-de-modulos`](../flows/descubrimiento-de-modulos.md),
   [`documentos-desde-la-web`](../flows/documentos-desde-la-web.md),
   [`lectura-por-link-compartido`](../flows/lectura-por-link-compartido.md)
+- Revisión: [REQ-019](../requests/REQ-019.actor-completo-hacia-jiku-docs-y-ajustes-del-portal-de-documentos.md)
+  (DD-1 a DD-5) y S-089; D-11 de jiku-docs en `decisiones-integracion.md`
 - Operación del callout: `deploy/nats/auth-callout/README.md`
 - Documentos de jiku-docs (otro repositorio, `conectores/jiku-docs/docs/`):
   `decisiones-integracion.md`, `especificacion-v1.md` y `apis/` (contratos `jiku-docs-queries.yaml`
   y `jiku-docs-commands.yaml`)
+
+## Revisión: el `actor` completo hacia jiku-docs (REQ-019 / S-089, 2026-10-25)
+
+**El embudo ya no manda `actor: { id }`.** `call()` de `api/lib/modules/client.ts` publica
+`{ ...payload, actor }` con `actor = buildActor(res.req)` sin transformar:
+`{ id, roles, name?, username?, email? }`, **el mismo sobre que recibe core** (`withActor`). Hay una
+sola fuente de identidad para los dos destinos: el claim ya verificado (ADR-007); `roles` sale de
+`req.decodedTokenRoles` y sin claim es `[]`, que no autoriza nada (ADR-008).
+
+**Por qué.** Core actualiza los roles de una persona en `users` solo cuando ejecuta un comando de core
+o se conecta directo a NATS. Una persona que solo lee documentación quedaba con roles viejos o sin
+fila, y jiku-docs —que la clasificaba consultando `users`— le respondía `caller_not_authorized`. Con
+D-11, jiku-docs clasifica con los `roles` del `actor` que manda la api (`admin`/`user` →
+`person-internal`, `external-user` → `person-external`, otro → sin acceso).
+
+**Lo que no cambia:** la falla cerrada (sin identidad, 401 sin publicar); gana el `actor` del token,
+entero; `shares.resolve` y `shares.attachment` siguen sin `actor`; la opción `anonymous`;
+`getRolesFromToken` (la api no acepta tokens de machine users ni lee claims de roles por proyecto); el
+contrato HTTP.
+
+**Sigue sin reusarse `withActor`**, pero la razón cambia: ya no es que su sobre sea `invalid_fields`
+para jiku-docs, sino que **sin identidad publica sin `actor`** (falla abierto, correcto para core), y
+para jiku-docs un llamado sin `actor` es el propio servicio, que lee todo.
+
+**Requisito de versión:** la api requiere la versión de jiku-docs que implementa D-11 (riesgo R-9).
+`name`, `username` y `email` viajan ahora también a jiku-docs; ya viajaban a core por el mismo bus,
+jiku-docs solo los acepta del publicador de confianza (`JIKU_API_USER_ID`) y el embudo sigue sin
+loguear el `payload`.
