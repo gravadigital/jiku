@@ -4,8 +4,8 @@ title: Documentos desde la web — panel, visor, edición con reserva, adjuntos 
 type: feature
 status: Draft
 created: 2026-10-24
-last_updated: 2026-10-24
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088]
+last_updated: 2026-10-25
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura

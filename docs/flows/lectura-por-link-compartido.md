@@ -4,8 +4,8 @@ title: Lectura por link compartido — creación del link en la web y lectura an
 type: feature
 status: Draft
 created: 2026-10-24
-last_updated: 2026-10-24
-stories: [S-075, S-079, S-080, S-083, S-085]
+last_updated: 2026-10-25
+stories: [S-075, S-079, S-080, S-083, S-085, S-089]
 ---
 
 # Lectura por Link Compartido — Creación del Link en la Web y Lectura Anónima por el Host Público
