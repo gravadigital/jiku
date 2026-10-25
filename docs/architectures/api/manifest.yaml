@@ -17,7 +17,7 @@ language: node
 # Tres convenciones no tienen equivalente en el catálogo y son nuevas, no reemplazos:
 #   - bus-commands: la escritura por NATS, que es LA decisión estructural del servicio
 #   - bus-modules: las llamadas (lectura y escritura) a módulos opcionales del bus, hoy jiku-docs
-#     (REQ-016, ADR-015): descubrimiento por registro, actor { id }, mapa de errores propio
+#     (REQ-016, ADR-015): descubrimiento por registro, actor de buildActor, mapa de errores propio
 #   - ci-github: el catálogo solo trae ci-gitlab
 #
 # No se declaran (el servicio no las tiene): cache, observability, security, queue.
@@ -26,7 +26,7 @@ conventions:
   - _base               # sin src/, ruta por archivo, imports relativos, comentarios en español
   - http-server         # Express 5, un archivo por endpoint, barrel automático
   - bus-commands        # escritura por NATS: comando + relectura, traducción de errores a HTTP
-  - bus-modules         # módulos opcionales del bus (jiku-docs): registro, estado por réplica, actor { id }, errores con details
+  - bus-modules         # módulos opcionales del bus (jiku-docs): registro, estado por réplica, actor de buildActor, errores con details
   - orm                 # Sequelize en SOLO LECTURA, modelos en paquete compartido
   - validation          # Joi inline en el archivo de ruta
   - error-handling      # res.status().json({code, message}) y el mapa de códigos del bus

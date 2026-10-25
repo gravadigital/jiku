@@ -40,7 +40,7 @@ fronts es el recurso completo con sus relaciones.
 > lectura, no una. La primera es la lectura de archivos (ADR-001, REQ-001). **La segunda es la
 > documentación**: no está en la base de la api sino en un **módulo opcional del bus**
 > (jiku-docs), así que las rutas `/api/docs/*` **leen por el bus** (`moduleQuery`) y escriben por
-> el bus (`moduleCommand`), siempre en nombre de la persona con `actor: { id }`. El módulo se
+> el bus (`moduleCommand`), siempre en nombre de la persona con el `actor` de `buildActor` (`{ id, roles, name?, username?, email? }`, desde REQ-019). El módulo se
 > descubre por registro (clave `docs` del KV `JIKU_MODULES`): si no está instalado, esas rutas
 > responden 404 y el resto de la api funciona igual. Es también la **primera ruta pública que
 > sirve HTML** (`/p/docs/*`). Decisión completa en

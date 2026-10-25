@@ -13,8 +13,8 @@ stories: [S-075, S-079, S-080, S-083, S-085, S-089]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-10-24
-**Última actualización:** 2026-10-24
-**Stories:** S-075, S-079, S-080, S-083, S-085
+**Última actualización:** 2026-10-25
+**Stories:** S-075, S-079, S-080, S-083, S-085, S-089
 
 ## Descripción
 
@@ -57,7 +57,7 @@ sequenceDiagram
     alt JIKU_PUBLIC_URL sin definir
         API-->>WEB: 404 sharing_not_configured
     else
-        API->>DOCS: command shares.new { id, documentId, ..., actor:{id} }
+        API->>DOCS: command shares.new { id, documentId, ..., actor:{id, roles, …} }
         alt secret_warning_not_acknowledged
             API-->>WEB: 400 (la web pide confirmar y reenvía con acknowledgeSecretWarning: true)
         else
@@ -123,7 +123,7 @@ definida) **y** `document.folder.effectivePermission === 'manage'`. `folder.shar
   opción elegida: **7, 15, 30, 90 o 180 días** (default 30).
 
 **Comando al bus:** `shares.new { id, documentId, mode, version?, expiresAt, includeAttachments?,
-note?, acknowledgeSecretWarning?, actor: { id } }`.
+note?, acknowledgeSecretWarning?, actor }`. `actor` es el de `buildActor` (`{ id, roles, name?, username?, email? }`), como en [`documentos-desde-la-web`](documentos-desde-la-web.md).
 
 **Response (éxito):**
 - **Status:** 201
@@ -313,4 +313,4 @@ documento si las incluye el link.
 
 **Origen:** REQ-016 · stories S-075 (contrato y permisos del bus), S-079 (creación, listado y
 revocación en la api), S-080 (la ruta pública), S-083 (compartir desde web), S-085 (esta
-documentación).
+documentación) · REQ-019 · S-089 (`actor` completo en `shares.new`).

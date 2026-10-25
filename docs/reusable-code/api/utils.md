@@ -184,7 +184,7 @@ function withActor(res: Response, command: string, payload: unknown): unknown {
 ```
 
 **Used by:** `sendCommand` (`api/lib/utils/bus/send-command.ts`), and through it every command the
-api publishes — `runCommand` included. `bus().query()` deliberately does **not** use it: the query
+api publishes — `runCommand` included — and `call()` in `api/lib/modules/client.ts`, which sends the same envelope, unchanged, to jiku-docs (REQ-019; fails closed with 401 when it returns `undefined`). `bus().query()` deliberately does **not** use it: the query
 plane resolves identity from the subject and only from there.
 
 ## moduleQuery / moduleCommand / runModuleCommand
@@ -192,7 +192,7 @@ plane resolves identity from the subject and only from there.
 **Location:** `api/lib/modules/client.ts`
 
 **Description:** The funnel for talking to an optional module (jiku-docs). Checks the registry state
-(404/503 without publishing), injects `actor: { id }` after the payload spread (the token wins; 401
+(404/503 without publishing), injects the full `actor` from `buildActor(res.req)` — `{ id, roles, name?, username?, email? }`, the same envelope core receives (REQ-019) — after the payload spread (the token wins, whole; 401
 without a verified identity, failing closed because a call without `actor` is treated by jiku-docs as
 the `service` class), builds the subject from the registry's `serviceName` and translates errors with
 the docs map. Never logs the payload.
