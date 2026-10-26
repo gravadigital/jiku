@@ -307,8 +307,10 @@ describe('attachments', () => {
       // El `warn` es lo que distingue este escenario de TS-1: si alguien cableara
       // `resolveActor` en el comando, la rama del publicador externo lo emitiría. Este comando
       // NO resuelve actor a propósito —la titularidad de la desvinculación es una regla de la
-      // api, sobre la ENTIDAD del vínculo—, así que el log tiene que quedar mudo.
+      // api, sobre la ENTIDAD del vínculo—, así que el log tiene que quedar mudo. Para un
+      // conector la rama externa emite `debug` (S-091), por eso también se vigila ese nivel.
       const warn = sinon.spy(logger, 'warn');
+      const debug = sinon.spy(logger, 'debug');
 
       const reply = await dispatch(`attachments.${a1.id}.delete`, {}, EXTERNAL);
 
@@ -316,6 +318,7 @@ describe('attachments', () => {
       (reply.data === undefined).should.be.true();
       ((await Attachment.findByPk(a1.id)) === null).should.be.true();
       warn.called.should.be.false();
+      debug.getCalls().filter((c) => String(c.args[0]).includes('caller externo')).length.should.equal(0);
     });
   });
 });

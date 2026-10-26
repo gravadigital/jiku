@@ -26,6 +26,11 @@ const EXTERNAL = 'servicio-externo-sub';
 const UPLOADER_A = 'zitadel-user-a';
 /** El machine user de jiku-docs, con la forma real de su fila tras el alta (S-076). */
 const DOCS_CALLER = 'sub-q-docs';
+/**
+ * Una persona publicando directo al bus, de clase `internal` (S-091 CA-5): es el vehículo de la
+ * rama externa de `resolveActor` con un caller que NO es conector, el único que sigue en `warn`.
+ */
+const INTERNO_DIRECTO = 'persona-directa-sub';
 
 interface UploadTicket {
   id: number;
@@ -109,6 +114,13 @@ describe('files', () => {
         email: null,
         roles: ['internal-app', 'docs'],
         identityType: 'service',
+      },
+      {
+        id: INTERNO_DIRECTO,
+        name: 'Persona directa',
+        username: 'persona-directa',
+        email: 'directa@test.local',
+        roles: ['user'],
       },
     ] as any);
   });
@@ -501,27 +513,98 @@ describe('files', () => {
       reply.status.should.equal('success');
     });
 
-    it('TS-26: la rama externa emite un log warn', async () => {
+    // El mensaje de la rama externa; filtrar por él evita depender de otros `debug` del camino.
+    const externos = (spy: sinon.SinonSpy) =>
+      spy.getCalls().filter((c) => String(c.args[0]).includes('caller externo'));
+    const SIN_UPLOADER = { fileName: 'informe.pdf', mimeType: 'application/pdf', fileSize: 1024 };
+
+    it('TS-26: la rama externa con un conector loguea en debug, no en warn', async () => {
+      const debug = sinon.spy(logger, 'debug');
       const warn = sinon.spy(logger, 'warn');
 
-      await dispatch(
+      const reply = await dispatch('files.request-upload', SIN_UPLOADER, EXTERNAL);
+
+      reply.status.should.equal('success');
+      externos(debug).length.should.equal(1);
+      const message = String(externos(debug)[0].args[0]);
+      message.should.containEql('[files.request-upload]');
+      message.should.containEql(EXTERNAL);
+      warn.called.should.be.false();
+    });
+
+    it('S-091 TS-2: jiku-docs pide subida y se loguea en debug', async () => {
+      const debug = sinon.spy(logger, 'debug');
+      const warn = sinon.spy(logger, 'warn');
+
+      const reply = await dispatch<UploadTicket>(
         'files.request-upload',
-        { fileName: 'informe.pdf', mimeType: 'application/pdf', fileSize: 1024 },
+        { fileName: 'manual.pdf', mimeType: 'application/pdf', fileSize: 2048 },
+        DOCS_CALLER
+      );
+
+      reply.status.should.equal('success');
+      externos(debug).length.should.equal(1);
+      const message = String(externos(debug)[0].args[0]);
+      message.should.containEql('[files.request-upload]');
+      message.should.containEql(DOCS_CALLER);
+      warn.called.should.be.false();
+      (await File.findByPk(reply.data!.id))!.uploadedBy.should.equal(DOCS_CALLER);
+    });
+
+    it('S-091 TS-3: un caller directo de clase internal sigue en warn', async () => {
+      const debug = sinon.spy(logger, 'debug');
+      const warn = sinon.spy(logger, 'warn');
+
+      const reply = await dispatch<UploadTicket>('files.request-upload', SIN_UPLOADER, INTERNO_DIRECTO);
+
+      reply.status.should.equal('success');
+      externos(warn).length.should.equal(1);
+      const message = String(externos(warn)[0].args[0]);
+      message.should.containEql('[files.request-upload]');
+      message.should.containEql(INTERNO_DIRECTO);
+      externos(debug).length.should.equal(0);
+      (await File.findByPk(reply.data!.id))!.uploadedBy.should.equal(INTERNO_DIRECTO);
+    });
+
+    it('S-091 TS-4: el mensaje no filtra el payload', async () => {
+      const debug = sinon.spy(logger, 'debug');
+
+      const reply = await dispatch<UploadTicket>(
+        'files.request-upload',
+        { fileName: 'secreto.pdf', mimeType: 'application/pdf', fileSize: 1024, uploader: UPLOADER_A },
         EXTERNAL
       );
 
-      warn.callCount.should.equal(1);
-      const message = String(warn.firstCall.args[0]);
-      message.should.containEql('[files.request-upload]');
-      message.should.containEql(EXTERNAL);
+      const message = String(externos(debug)[0].args[0]);
+      message.should.not.containEql('secreto.pdf');
+      message.should.not.containEql(UPLOADER_A);
+      (await File.findByPk(reply.data!.id))!.uploadedBy.should.equal(EXTERNAL);
     });
 
-    it('TS-27: la rama de la api no emite ese warn', async () => {
+    it('TS-27: la rama de la api no emite ese log', async () => {
+      const debug = sinon.spy(logger, 'debug');
       const warn = sinon.spy(logger, 'warn');
 
       await dispatch('files.request-upload', uploadPayload({ fileSize: 1024 }), TRUSTED);
 
       warn.called.should.be.false();
+      externos(debug).length.should.equal(0);
+    });
+
+    it('S-091 TS-6: con sobre no se loguea nada', async () => {
+      const debug = sinon.spy(logger, 'debug');
+      const warn = sinon.spy(logger, 'warn');
+
+      const reply = await dispatch<UploadTicket>('files.request-upload', {
+        actor: { id: UPLOADER_A, roles: ['user'] },
+        ...SIN_UPLOADER,
+      });
+      // Otros `warn` del camino (p. ej. el espejado del perfil del sobre) no son de la rama externa.
+
+      reply.status.should.equal('success');
+      (await File.findByPk(reply.data!.id))!.uploadedBy.should.equal(UPLOADER_A);
+      externos(warn).length.should.equal(0);
+      externos(debug).length.should.equal(0);
     });
 
     it('TS-28: el arranque falla sin CORE_TRUSTED_PUBLISHER_ID', () => {
@@ -1009,8 +1092,8 @@ describe('files', () => {
     let fileId: number;
 
     beforeEach(async () => {
-      // Rama externa de `resolveActor`: el uploader es el caller, y emite un `warn` esperado.
-      sinon.stub(logger, 'warn');
+      // Rama externa de `resolveActor`: el uploader es el caller; con un conector emite `debug`.
+      sinon.stub(logger, 'debug');
       const upload = await dispatch<UploadTicket>(
         'files.request-upload',
         { fileName: 'manual.pdf', mimeType: 'application/pdf', fileSize: 2048 },

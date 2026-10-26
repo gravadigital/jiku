@@ -1,5 +1,6 @@
 import { Transaction } from 'sequelize';
 import { Actor, Reply } from '@jiku/nats-protocol';
+import { CallerClass } from '../caller-class';
 
 /**
  * Contexto de un comando.
@@ -57,6 +58,21 @@ export interface CommandContext {
    * comando a un `?? []` y crearía un cuarto estado —"no vino"— que no existe.
    */
   roles: readonly string[];
+  /**
+   * La clase del caller (`connector` | `internal` | `external`), la MISMA que la compuerta del
+   * despachador ya calculó con `resolveCallerClass` (S-030), pasada sin ninguna consulta nueva.
+   *
+   * De dónde sale en cada canal:
+   *   - SOBRE: la clase de `actor.roles`.
+   *   - DIRECTO: la clase de `users.roles` del caller.
+   *   - EXENTO (`CORE_TRUSTED_PUBLISHER_ID` sin sobre): `'connector'`.
+   *
+   * EXISTE PARA QUE `resolveActor` ELIJA EL NIVEL DEL LOG de su rama externa (S-091), no para
+   * autorizar: la compuerta de entidad sigue siendo cosa del despachador.
+   *
+   * NO ES OPCIONAL, igual que `roles`: el despachador SIEMPRE la sabe.
+   */
+  callerClass: CallerClass;
   /**
    * El nombre HUMANO de quien actúa, resuelto por el despachador, o `undefined` si no hay ninguno
    * que valga.

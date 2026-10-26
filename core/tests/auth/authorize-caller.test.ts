@@ -623,6 +623,7 @@ describe('la compuerta de autorización · plano de comandos', () => {
     it('TS-32 · el camino AUTORIZADO no loguea nada', async () => {
       const warn = sinon.spy(logger, 'warn');
       const info = sinon.spy(logger, 'info');
+      const debug = sinon.spy(logger, 'debug');
 
       // `attachments.{id}.delete` está entre los 9 y no resuelve actor, así que un `warn` acá
       // solo puede venir de la compuerta. Es lo que mantiene verde TS-15 de attachments.test.ts.
@@ -631,6 +632,8 @@ describe('la compuerta de autorización · plano de comandos', () => {
       warn.called.should.be.false();
       // Sin `LOG_COMMANDS` el camino autorizado tampoco emite la traza de diagnóstico.
       info.called.should.be.false();
+      // Ni el `debug` que un conector provocaría si el comando resolviera actor (S-091).
+      debug.getCalls().filter((c) => String(c.args[0]).includes('caller externo')).length.should.equal(0);
     });
 
     it('TS-33 · CA-16: el camino EXENTO no loguea nada y no toca la base', async () => {
