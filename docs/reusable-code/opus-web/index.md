@@ -42,7 +42,7 @@ Total: 4
 Total: 6
 
 - **createDocsUrlTransform** (`opus-web/src/features/docs/utils/docsUrlTransform.ts`) - Factory of the `urlTransform` for markdown viewers: rewrites `/docs/attachments/{ULID}` (any host) to `/api/docs/documents/{documentId}/attachments/{ULID}`, blanks `/docs/{ULID}` links to other documents, keeps http(s)/mailto, blanks everything else.
-- **stripFrontmatter** (`opus-web/src/features/docs/utils/frontmatter.ts`) - Removes a leading YAML frontmatter block.
+- **stripFrontmatter** (`opus-web/src/features/docs/utils/frontmatter.ts`) - Removes a leading YAML frontmatter block (kept as a defense with jiku-docs 1.3.0).
 - **formatDocDate** (`opus-web/src/features/docs/utils/dates.ts`) - `DD/MM/AAAA`, or `—` for an invalid date.
 - **withModuleInvalidation** (`opus-web/src/features/docs/utils/moduleInvalidation.ts`) - Wraps a query function: invalidates `['modules']` on `module_unavailable` and rethrows.
 - **classifyDocumentError** (`opus-web/src/features/docs/utils/classifyDocumentError.ts`) - Maps an `ApiError` status to `not_found` / `unavailable` / `system`.

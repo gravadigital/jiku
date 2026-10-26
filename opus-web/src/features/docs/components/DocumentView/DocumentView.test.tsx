@@ -7,6 +7,7 @@ import { useProjects } from '@/features/projects';
 import { useDocument } from '../../hooks/useDocument';
 import { useModule, useModules } from '../../hooks/useModules';
 import { DocumentView } from './DocumentView';
+import type { DocsDocument } from '../../types/docs.types';
 
 vi.mock('../../hooks/useModules');
 vi.mock('../../hooks/useDocument');
@@ -22,15 +23,21 @@ const DOC_ID = '01JC7Z4X9QH2M5N8R3T6V0W1YA';
 const ATT_ID = '01JC7Z5B2K8D4F6G0H1J3K5M7N';
 const MSG = 'Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.';
 const NOT_FOUND = 'Este documento no existe o no está compartido con vos.';
+const BODY = `# Instalación\n\nPaso uno.\n\n![Diagrama](/docs/attachments/${ATT_ID})\n`;
+// Forma 1.3.0 del portal: sin ruta ni updatedBy.
 const DOC_DETAIL = {
   id: DOC_ID,
   title: 'Guía de despliegue',
   visibility: 'public',
   version: 3,
-  updatedBy: 'sub-123',
+  createdAt: '2026-10-01T10:00:00.000Z',
   updatedAt: '2026-10-20T14:30:00.000Z',
-  content: `---\nprojects: [12]\nvisibility: public\n---\n# Instalación\n\nPaso uno.\n\n![Diagrama](/docs/attachments/${ATT_ID})\n`,
-  attachments: [{ id: ATT_ID, fileName: 'diagrama.png' }],
+  content: BODY,
+  attachments: [{ id: ATT_ID, documentId: DOC_ID, fileName: 'diagrama.png' }],
+} satisfies DocsDocument;
+const DOC_WITH_FRONTMATTER = {
+  ...DOC_DETAIL,
+  content: `---\nprojects: [12]\nvisibility: public\n---\n${BODY}`,
 };
 
 const refetchModules = vi.fn();
@@ -63,6 +70,7 @@ describe('DocumentView', () => {
   });
 
   it('TS-47: documento público, sin autor ni versión ni frontmatter', () => {
+    setDocument({ data: DOC_WITH_FRONTMATTER });
     renderView();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(
@@ -77,6 +85,40 @@ describe('DocumentView', () => {
       'src',
       `/api/docs/documents/${DOC_ID}/attachments/${ATT_ID}`
     );
+  });
+
+  it('TS-12: documento 1.3.0 se ve como antes', () => {
+    renderView();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Guía de despliegue' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Actualizado el 20/10/2026')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Diagrama' })).toHaveAttribute(
+      'src',
+      `/api/docs/documents/${DOC_ID}/attachments/${ATT_ID}`
+    );
+    expect(screen.getByRole('link', { name: 'diagrama.png' })).toBeInTheDocument();
+  });
+
+  it('TS-13: no muestra ruta, versión ni visibilidad', () => {
+    renderView();
+    expect(screen.queryByText(/Versión/)).not.toBeInTheDocument();
+    expect(screen.queryByText('public')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\.md\b/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/clientes\//)).not.toBeInTheDocument();
+  });
+
+  it('TS-14: defensa, detalle con frontmatter (instalación vieja)', () => {
+    setDocument({
+      data: {
+        ...DOC_DETAIL,
+        content: `---\nprojects: [12]\nvisibility: public\n---\n# Instalación\n`,
+      },
+    });
+    renderView();
+    expect(screen.queryByText(/projects: \[12\]/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
   });
 
   it('TS-48/49: breadcrumb, Volver y adjuntos', async () => {
@@ -94,7 +136,13 @@ describe('DocumentView', () => {
 
   it('TS-28: usa doc.id y no solo la prop de ruta', () => {
     const OTHER = '01JC7Z6C3M9E5G7H1J2K4N6P8Q';
-    setDocument({ data: { ...DOC_DETAIL, id: OTHER } });
+    setDocument({
+      data: {
+        ...DOC_DETAIL,
+        id: OTHER,
+        attachments: [{ id: ATT_ID, documentId: OTHER, fileName: 'diagrama.png' }],
+      },
+    });
     renderView();
     expect(screen.getByRole('img', { name: 'Diagrama' })).toHaveAttribute(
       'src',
@@ -178,6 +226,23 @@ describe('DocumentView', () => {
     renderView();
     expect(screen.getByText(MSG)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  });
+
+  it('TS-15: módulo no disponible con documento 1.3.0 no muestra el documento', () => {
+    setModule('unavailable');
+    renderView();
+    expect(screen.getByText(MSG)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 1, name: 'Guía de despliegue' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('TS-16: módulo no instalado responde como no encontrado', () => {
+    setModule('not_installed');
+    renderView();
+    expect(screen.getByText(NOT_FOUND)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
   });
 
   it.each([

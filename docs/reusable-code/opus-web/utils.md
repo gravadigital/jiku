@@ -29,7 +29,8 @@ function createDocsUrlTransform(documentId: string): (url: string) => string;
 **Location:** `opus-web/src/features/docs/utils/frontmatter.ts`
 
 **Description:** Removes a YAML block that starts on the first line (`---` ... `---`/`...`); otherwise
-returns the content untouched.
+returns the content untouched. With jiku-docs 1.3.0 external content already arrives without
+frontmatter; the function stays as a defense and must not be removed.
 
 **Signature:**
 

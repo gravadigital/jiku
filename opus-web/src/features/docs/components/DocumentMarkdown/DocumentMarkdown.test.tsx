@@ -48,6 +48,26 @@ describe('DocumentMarkdown', () => {
   });
 });
 
+describe('S-099 — contenido 1.3.0', () => {
+  it('TS-10: contenido sin frontmatter se renderiza igual', () => {
+    render(<DocumentMarkdown documentId={DOC_ID} content={'# Instalación\n\nPaso uno.\n'} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
+    expect(screen.getByText('Paso uno.')).toBeInTheDocument();
+  });
+
+  it('TS-11: frontmatter que llegara no se muestra', () => {
+    render(
+      <DocumentMarkdown
+        documentId={DOC_ID}
+        content={'---\nvisibility: public\ntopics: [despliegue]\n---\n# Instalación\n'}
+      />
+    );
+    expect(screen.queryByText(/visibility: public/)).toBeNull();
+    expect(screen.queryByText(/topics/)).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Instalación' })).toBeInTheDocument();
+  });
+});
+
 describe('S-090 — enlaces como texto', () => {
   const OTHER = '01JC7Z6C3M9E5G7H1J2K4N6P8Q';
   const DEST = `/api/docs/documents/${DOC_ID}/attachments/${ID}`;

@@ -20,4 +20,26 @@ describe('stripFrontmatter', () => {
     const input = '---\na: 1\n# T\n';
     expect(stripFrontmatter(input)).toBe(input);
   });
+
+  it('TS-6: contenido 1.3.0 sin frontmatter queda intacto', () => {
+    const input = '# Instalación\n\nPaso uno.\n';
+    expect(stripFrontmatter(input)).toBe(input);
+  });
+
+  it('TS-7: frontmatter 1.3.0 con temas y relaciones, si llegara', () => {
+    expect(
+      stripFrontmatter(
+        '---\ntitle: Guía\nvisibility: public\ntopics: [despliegue]\nprojects: [12]\n---\n# Guía\n'
+      )
+    ).toBe('# Guía\n');
+  });
+
+  it('TS-8: cierre con ...', () => {
+    expect(stripFrontmatter('---\nvisibility: public\n...\nTexto\n')).toBe('Texto\n');
+  });
+
+  it('TS-9: un --- como separador horizontal en medio no se toca', () => {
+    const input = 'Intro\n\n---\n\nResto\n';
+    expect(stripFrontmatter(input)).toBe(input);
+  });
 });

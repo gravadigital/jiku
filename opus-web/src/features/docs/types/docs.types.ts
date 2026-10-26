@@ -1,6 +1,8 @@
-// Verbatim de docs/apis/api.yaml (DocsDocument, jiku-docs-queries.yaml 1.1.0) — R-8 de REQ-016.
-// Las fechas viajan como string ISO. La UI del portal usa solo id, title, updatedAt,
-// content/contentUrl y attachments[].id/fileName; el resto se declara opcional por fidelidad.
+// Proyección del portal de DocsDocument (docs/apis/api.yaml, jiku-docs 1.3.0) que devuelven
+// GET /api/opus/docs/documents y .../{id}: la api pide fields id, title, version, visibility,
+// createdAt, updatedAt; el detalle suma content/contentUrl y attachments. Sin ruta (path,
+// folderId, fileName): REQ-021 decisión 12. Las fechas viajan como string ISO. La UI usa solo
+// id, title, updatedAt, content/contentUrl y attachments[].id/fileName; el resto no se muestra.
 
 export type ModuleStatus = 'not_installed' | 'unavailable' | 'available';
 
@@ -24,33 +26,12 @@ export interface DocsAttachment {
 export interface DocsDocument {
   id: string;
   title: string;
-  path?: string;
-  folderId?: string;
-  fileName?: string;
   version?: number;
-  checksum?: string;
-  sizeBytes?: number;
-  visibility?: 'internal' | 'public';
+  visibility?: 'internal' | 'public' | 'restricted';
   createdAt?: string;
-  createdBy?: string;
   updatedAt: string;
-  updatedBy?: string;
-  deletedAt?: string | null;
   content?: string;
   contentUrl?: string;
-  relations?: {
-    clients?: number[];
-    projects?: number[];
-    requirements?: number[];
-    tasks?: number[];
-  };
-  topics?: string[];
-  lock?: {
-    sessionId: string;
-    holder: string;
-    via: 'human' | 'agent';
-    expiresAt: string;
-  } | null;
   attachments?: DocsAttachment[];
 }
 

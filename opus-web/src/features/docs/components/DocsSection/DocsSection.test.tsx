@@ -5,6 +5,7 @@ import { useModule } from '../../hooks/useModules';
 import { useDocuments } from '../../hooks/useDocuments';
 import { MSG_DOCS_FORBIDDEN } from '../../constants/docs.constants';
 import { DocsSection } from './DocsSection';
+import type { DocsDocument } from '../../types/docs.types';
 
 vi.mock('../../hooks/useModules');
 vi.mock('../../hooks/useDocuments');
@@ -14,11 +15,15 @@ const mockUseDocuments = useDocuments as Mock;
 
 const MSG = 'Los documentos no están disponibles en este momento. Probá de nuevo en unos minutos.';
 const DOC_ID = '01JC7Z4X9QH2M5N8R3T6V0W1YA';
+// Forma 1.3.0 del portal: sin ruta.
 const DOC_ITEM = {
   id: DOC_ID,
   title: 'Guía de despliegue',
+  version: 3,
+  visibility: 'public',
+  createdAt: '2026-10-01T10:00:00.000Z',
   updatedAt: '2026-10-20T14:30:00.000Z',
-};
+} satisfies DocsDocument;
 const DOC_2 = {
   ...DOC_ITEM,
   id: '01JC7Z6C3M9E5G7H1J2K4M6N8P',
@@ -67,7 +72,19 @@ describe('DocsSection', () => {
     expect(screen.queryByRole('button', { name: 'Ver más' })).not.toBeInTheDocument();
   });
 
-  it('TS-33: not_installed no renderiza y no consulta', () => {
+  it('TS-17/TS-18: lista 1.3.0 sin ruta, versión ni visibilidad', () => {
+    available();
+    render(<DocsSection projectId={12} />);
+    expect(screen.getByRole('link', { name: 'Guía de despliegue' })).toHaveAttribute(
+      'href',
+      `/projects/12/docs/${DOC_ID}`
+    );
+    expect(screen.queryByText(/\.md\b/)).toBeNull();
+    expect(screen.queryByText('public')).toBeNull();
+    expect(screen.queryByText(/Versión/)).toBeNull();
+  });
+
+  it('TS-33/TS-20: not_installed no renderiza y no consulta', () => {
     mockUseModule.mockReturnValue({ status: 'not_installed', isKnown: true });
     const { container } = render(<DocsSection projectId={12} />);
     expect(container).toBeEmptyDOMElement();
@@ -89,7 +106,7 @@ describe('DocsSection', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('TS-36: módulo unavailable muestra el aviso sin contador ni filas', () => {
+  it('TS-36/TS-19: módulo unavailable muestra el aviso sin contador ni filas', () => {
     mockUseModule.mockReturnValue({ status: 'unavailable', isKnown: true });
     render(<DocsSection projectId={12} />);
     expect(screen.getByText('Documentación')).toBeInTheDocument();
