@@ -95,8 +95,9 @@ Total: 22
 
 ## Utils
 
-Total: 29
+Total: 30
 
+- **parseFinishDate** (`web/src/shared/utils/parse-finish-date.ts`) - Parses the legacy `estimatedFinishDate` string into a local `Date`, or `null` when empty, invalid or not `YYYY-MM-DD`-prefixed.
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
 - **extractAttachmentIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[attach:N]` placeholders — ids of **links**, not of files — out of already-saved markdown.
 - **fileErrorMessage** (`web/src/features/attachments/utils/fileErrorMessages.ts`) - Maps the file domain error codes to the user-facing Spanish message, with a fallback.

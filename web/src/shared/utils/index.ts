@@ -1,5 +1,6 @@
 export { cn } from './cn';
 export { calculateDaysLeft } from './calculate-days-left';
+export { parseFinishDate } from './parse-finish-date';
 export { calculateTimeSince } from './calculate-time-since';
 export { formatDate } from './format-date';
 export { labelFromDate } from './dateFormatter';

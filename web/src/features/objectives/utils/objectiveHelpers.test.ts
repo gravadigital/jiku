@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { isOverdue } from './objectiveHelpers';
 
 describe('isOverdue', () => {
@@ -39,5 +39,23 @@ describe('isOverdue', () => {
     it('debe retornar false para estado activo con fecha nula', () => {
       expect(isOverdue('activo', null)).toBe(false);
     });
+  });
+});
+
+describe('S-092: isOverdue con fecha inválida', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 26, 10, 0, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('TS-13: fecha inválida no es vencida', () => {
+    expect(isOverdue('activo', 'abc')).toBe(false);
+    expect(isOverdue('activo', '')).toBe(false);
+    expect(isOverdue('activo', '31/12/2026')).toBe(false);
+  });
+
+  it('TS-14: fecha válida vencida es vencida', () => {
+    expect(isOverdue('activo', '2026-10-21')).toBe(true);
   });
 });

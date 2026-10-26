@@ -57,6 +57,23 @@ describe('Badge', () => {
     expect(button).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('S-092 TS-28: editable con attributeLabel nombra el atributo propio', () => {
+    render(
+      <Badge
+        variant="editable"
+        family="neutral"
+        attributeLabel="Tipo"
+        label="Mejora"
+        options={[{ value: 'mejora', label: 'Mejora' }]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Tipo: Mejora' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Estado:/ })).toBeNull();
+    expect(screen.getByText('Mejora')).toBeInTheDocument();
+  });
+
   it('editable ofrece los siete estados sin recorte (TS-43)', async () => {
     render(
       <Badge
