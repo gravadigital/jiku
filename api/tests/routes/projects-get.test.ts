@@ -3,7 +3,7 @@ import 'should';
 import {start} from '../mocks/app';
 import request from 'supertest';
 import {Application} from 'express';
-import { Project, User } from '@jiku/models';
+import { Client, Project, User } from '@jiku/models';
 
 describe('GET /api/projects', () => {
   let application : Application;
@@ -18,9 +18,14 @@ describe('GET /api/projects', () => {
       email: 'user01@mail.com'
     })
       .then(() => {
+        // `description` existe a propósito: TS-3 demuestra que el include recorta a id y name.
+        return Client.create({ id: 1, name: 'EXO', description: 'Cliente EXO' });
+      })
+      .then(() => {
         return Promise.all([
           Project.create({
             id: 1,
+            clientId: 1,
             code: 'code1',
             name: 'Project1',
             type: 'comercial',
@@ -34,6 +39,7 @@ describe('GET /api/projects', () => {
           }),
           Project.create({
             id: 2,
+            clientId: 1,
             code: 'code2',
             name: 'Project2',
             type: 'interno',
@@ -77,6 +83,9 @@ describe('GET /api/projects', () => {
 
   after(() => {
     return Project.destroy({where: {}})
+      .then(() => {
+        return Client.destroy({where: {}});
+      })
       .then(() => {
         return User.destroy({where: {}});
       });
@@ -127,6 +136,8 @@ describe('GET /api/projects', () => {
             status: 'activo',
             priority: 5,
             originId: 1,
+            clientId: 1,
+            client: {id: 1, name: 'EXO'},
             createdBy: 'zitadel-sub-01',
             creator: {name: 'User 01'}
           },
@@ -139,6 +150,8 @@ describe('GET /api/projects', () => {
             status: 'activo',
             priority: 2,
             originId: 1,
+            clientId: null,
+            client: null,
             createdBy: 'zitadel-sub-01',
             creator: {name: 'User 01'}
           },
@@ -151,6 +164,8 @@ describe('GET /api/projects', () => {
             status: 'inactivo',
             priority: 3,
             originId: 1,
+            clientId: 1,
+            client: {id: 1, name: 'EXO'},
             createdBy: 'zitadel-sub-01',
             creator: {name: 'User 01'}
           },
@@ -163,6 +178,8 @@ describe('GET /api/projects', () => {
             status: 'analisis',
             priority: 4,
             originId: 1,
+            clientId: null,
+            client: null,
             createdBy: 'zitadel-sub-01',
             creator: {name: 'User 01'}
           }
@@ -440,6 +457,103 @@ describe('GET /api/projects', () => {
           project.creator.should.have.property('name');
           project.creator.should.have.property('email');
         });
+      });
+  });
+
+  it('should fail without token on the list endpoint', () => {
+    return request(application)
+      .get('/api/projects')
+      .set('Accept', 'application/json')
+      .expect(401)
+      .then((response) => {
+        response.body.code.should.equal('unauthorized');
+        response.body.message.should.equal('Unauthorized');
+      });
+  });
+
+  const list = (query: Record<string, unknown> = {}) => request(application)
+    .get('/api/projects')
+    .query(query)
+    .set('Accept', 'application/json')
+    .set('Authorization', 'Bearer token_01_user')
+    .expect(200);
+
+  type Item = { id: number; clientId: number | null; client: Record<string, unknown> | null };
+
+  it('should include client for projects with client and keep clientId', () => {
+    return list().then((response) => {
+      [1, 2].forEach((id) => {
+        const p = response.body.find((x: Item) => x.id === id);
+        p.clientId.should.equal(1);
+        p.client.should.eql({ id: 1, name: 'EXO' });
+      });
+    });
+  });
+
+  it('should return client null (present) for projects without client', () => {
+    return list().then((response) => {
+      [3, 4].forEach((id) => {
+        const p = response.body.find((x: Item) => x.id === id);
+        (p.clientId === null).should.be.true();
+        p.should.have.property('client', null);
+      });
+    });
+  });
+
+  it('should limit client to exactly id and name', () => {
+    return list().then((response) => {
+      response.body.forEach((p: Item) => {
+        if (p.client !== null) {
+          Object.keys(p.client).sort().should.eql(['id', 'name']);
+        }
+      });
+    });
+  });
+
+  it('should paginate correctly with the client join', () => {
+    return list({ limit: 1, page: 3 }).then((response) => {
+      response.body.should.have.length(1);
+      response.body.should.containDeep([{ id: 2, name: 'Project2', client: { id: 1, name: 'EXO' } }]);
+    });
+  });
+
+  it('should sort and limit with the client join', () => {
+    return list({ sort: '-priority', limit: 2 }).then((response) => {
+      response.body.should.have.length(2);
+      response.body[0].id.should.equal(1);
+      response.body[0].client.should.eql({ id: 1, name: 'EXO' });
+      response.body[1].id.should.equal(3);
+      (response.body[1].client === null).should.be.true();
+    });
+  });
+
+  it('should search by project name with the client join', () => {
+    return list({ search: 'Project1' }).then((response) => {
+      response.body.should.have.length(1);
+      response.body.should.containDeep([{ id: 1, name: 'Project1', client: { id: 1, name: 'EXO' } }]);
+    });
+  });
+
+  it('should not match projects when searching by client name', () => {
+    return list({ search: 'EXO' }).then((response) => {
+      response.body.should.have.length(0);
+    });
+  });
+
+  it('should sort by name without ambiguous column errors', () => {
+    return list({ sort: 'name' }).then((response) => {
+      response.body.map((p: Item) => p.id).should.eql([1, 2, 3, 4]);
+    });
+  });
+
+  it('should keep combined filters working with client', () => {
+    return list({ type: 'comercial', state: 'activo', search: 'PROJECT', limit: 1, sort: '-priority' })
+      .then((response) => {
+        response.body.should.have.length(1);
+        response.body.should.containDeep([{
+          id: 1, code: 'code1', name: 'Project1', type: 'comercial', status: 'activo',
+          client: { id: 1, name: 'EXO' },
+        }]);
       });
   });
 });

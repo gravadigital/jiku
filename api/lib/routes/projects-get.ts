@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 const router: Router = Router();
-import { Project, User } from '@jiku/models';
+import { Client, Project, User } from '@jiku/models';
 import logger from '../logger';
 import validateQueryParams from '../utils/validate-query-params';
 import joi from 'joi';
@@ -28,7 +28,12 @@ function getAllProjects(req: Request, res: Response) {
     limit: limit,
     offset: offset,
     where: whereClause,
-    include: { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+    include: [
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+      // Solo id y name (S-100): es lo que la web usa para relacionar Cliente y Proyecto. El
+      // listado no debe traer la fila completa del cliente; el detalle (projects-id-get) sí.
+      { model: Client, as: 'client', attributes: ['id', 'name'] },
+    ],
   })
     .then((projects) => {
       const projectsWithEmptyStrings = projects.map((project) => {
@@ -56,7 +61,7 @@ function getAllProjects(req: Request, res: Response) {
 
 /**
  * @name Get projects
- * @description Get all projects
+ * @description Get all projects, including creator and client
  * @route {GET} /api/projects
  * @queryparam (optional) {string} [sort] Sorting criteria
  * @queryparam (optional) {number} [limit] Limit of projects to retrieve
@@ -72,6 +77,7 @@ function getAllProjects(req: Request, res: Response) {
  * @responsebody {string} [projects[].type] project type
  * @responsebody {string} [projects[].description] project description
  * @responsebody {object} [projects[].creator] Creator of the project details
+ * @responsebody {object|null} [projects[].client] Client of the project (id, name), null without client
  * @response {500} Error search projects
  * @responsebody {string} [code] internal_error
  * @responsebody {string} [message] Internal error
