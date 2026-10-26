@@ -17,17 +17,20 @@ export const expiresAtFrom = (days: number, now: Date): string =>
   new Date(now.getTime() + days * DAY_MS).toISOString();
 
 /** P-8: el estado lo informa la api; la web no lo recalcula. */
-export function shareStatusBadge(status: DocsShare['status']): {
+export function shareStatusBadge(share: Pick<DocsShare, 'status' | 'revokeReason'>): {
   label: string;
   family: 'resolved' | 'neutral';
 } {
-  switch (status) {
+  switch (share.status) {
     case 'active':
       return { label: 'Activo', family: 'resolved' };
     case 'expired':
       return { label: 'Vencido', family: 'neutral' };
     default:
-      return { label: 'Revocado', family: 'neutral' };
+      return {
+        label: share.revokeReason === 'restricted' ? 'Revocado (restringido)' : 'Revocado',
+        family: 'neutral',
+      };
   }
 }
 

@@ -200,15 +200,15 @@ await updateRequirementComment(12, 7, { comment: 'texto corregido', fileIds: [3,
 
 **Usage:** `unwrap(await lockDocument(...))` on the client (hooks do it).
 
-## listFolders / listAllFolders / getFolderTrail
+## listVersions / restoreVersion
 
-**Location:** `web/src/features/docs/services/foldersApi.ts`
+**Location:** `web/src/features/docs/services/docsApi.ts`
 
-**Description:** Server Actions over `GET /docs/folders[/{id}]`: one page, all pages (cap 10 x 200) and the ancestor trail (cap 20 levels, unreadable ancestors as text).
+**Description:** Server Actions for the version history (`GET /docs/documents/{id}/versions`, 50 per page, cursor) and for restoring one (`POST .../restore`); `getDocument(id, version?)` reads a past version and keeps the `404 version_pruned` details in the `DocsResult`.
 
-**Signature:** `getFolderTrail(id): Promise<DocsResult<FolderTrail>>`
+**Signature:** `listVersions(id, { limit?, cursor? }) / restoreVersion(id, { fromVersion, baseVersion })`
 
-**Usage:** `unwrap(await listFolders(...))` on the client (hooks do it).
+**Usage:** `unwrap(await listVersions(id, {}))` on the client (hooks do it).
 
 ## requestAttachmentUpload / confirmAttachment
 

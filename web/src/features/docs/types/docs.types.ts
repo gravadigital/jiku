@@ -57,6 +57,7 @@ export interface DocsProjectRef {
 export interface DocsTitleRef {
   id: number;
   title: string | null;
+  projectId: number | null;
 }
 
 export interface DocsDocument {
@@ -97,14 +98,12 @@ export interface DocsDocument {
   attachments?: DocsAttachment[];
 }
 
+/** Detalle 1.3.0: sin `folder`; los nombres de los vínculos llegan resueltos en `*Refs`. */
 export interface DocsDocumentDetail extends DocsDocument {
-  folder: {
-    id: string;
-    /** "/" la raíz; "/clientes/acme/" */
-    path: string;
-    effectivePermission: 'read' | 'write' | 'manage' | null;
-    sharingBlocked: boolean;
-  };
+  clientRefs: DocsClientRef[];
+  projectRefs: DocsProjectRef[];
+  requirementRefs: DocsTitleRef[];
+  taskRefs: DocsTitleRef[];
 }
 
 export interface DocsDocumentPage {
@@ -142,27 +141,7 @@ export type SearchDocumentsParams = Omit<
   limit?: number;
 };
 
-// --- S-082: carpetas, búsqueda y escritura (verbatim de docs/apis/api.yaml, Docs*) ---
-
-export interface DocsFolder {
-  id: string;
-  name: string;
-  /** "/" la raíz; "/clientes/acme/" */
-  path: string;
-  parentId: string | null;
-  inheritAcl: boolean;
-  externalBlocked: boolean;
-  /** Efectivo */
-  sharingBlocked: boolean;
-  createdAt: string;
-  createdBy: string;
-  effectivePermission: 'read' | 'write' | 'manage' | null;
-}
-
-export interface DocsFolderPage {
-  items: DocsFolder[];
-  page: DocsPageInfo;
-}
+// --- S-082: búsqueda y escritura (verbatim de docs/apis/api.yaml, Docs*) ---
 
 export interface DocsSearchHit {
   documentId: string;
@@ -267,22 +246,6 @@ export interface RequestAttachmentUploadPayload {
   checksum: string;
 }
 
-export interface FolderTrailItem {
-  /** `null` si el ancestro no es legible: se muestra como texto. */
-  id: string | null;
-  name: string;
-}
-
-export interface FolderTrail {
-  folder: DocsFolder;
-  trail: FolderTrailItem[];
-}
-
-export interface RootFolders {
-  root: DocsFolder | null;
-  tops: DocsFolder[];
-}
-
 export interface UploadedDocAttachment {
   id: string;
   fileName: string;
@@ -305,7 +268,7 @@ export interface DocsShare {
   expiresAt: string;
   revokedAt?: string | null;
   revokedBy?: string | null;
-  revokeReason?: 'manual' | 'document_deleted' | null;
+  revokeReason?: 'manual' | 'document_deleted' | 'restricted' | null;
   accessCount?: number;
   lastAccessAt?: string | null;
 }
@@ -409,4 +372,38 @@ export interface UpdateRelationsPayload {
   baseVersion: number;
   add?: DocsRelationSet;
   remove?: DocsRelationSet;
+}
+
+// --- S-096: historial de versiones y restauración (verbatim de docs/apis/api.yaml) ---
+
+export interface DocsVersion {
+  version: number;
+  checksum: string;
+  sizeBytes: number;
+  /** sub de Zitadel */
+  author: string;
+  authorName: string | null;
+  kind: 'create' | 'update' | 'restore';
+  protected: boolean;
+  via: 'human' | 'agent' | 'service';
+  sessionId: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface DocsVersionPage {
+  items: DocsVersion[];
+  page: DocsPageInfo;
+}
+
+export interface RestoreVersionPayload {
+  fromVersion: number;
+  baseVersion: number;
+}
+
+/** `details` de `404 version_pruned`. */
+export interface DocsVersionPrunedDetails {
+  requestedVersion: number;
+  previousAvailable?: number | null;
+  nextAvailable?: number | null;
 }

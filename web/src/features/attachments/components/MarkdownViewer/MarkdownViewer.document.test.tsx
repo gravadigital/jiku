@@ -65,4 +65,20 @@ describe('MarkdownViewer mode="document"', () => {
     renderDoc('| a | b |\n|---|---|\n| 1 | 2 |');
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
+
+  it('headingIds pone el id en el encabezado de esa línea; sin él no hay id', () => {
+    const { rerender } = render(
+      <MarkdownViewer
+        mode="document"
+        content="# Contexto"
+        headingIds={new Map([[1, 'contexto']])}
+      />
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'Contexto' })).toHaveAttribute(
+      'id',
+      'contexto'
+    );
+    rerender(<MarkdownViewer mode="document" content="# Contexto" />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Contexto' })).not.toHaveAttribute('id');
+  });
 });

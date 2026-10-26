@@ -1,0 +1,26 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+}
+
+.term {
+  min-width: 96px;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.value {
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--fontStack-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+}

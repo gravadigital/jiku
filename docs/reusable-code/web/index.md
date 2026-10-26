@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-10-24 (S-083)
+**Last updated:** 2026-10-26 (S-096)
 
 ## Components
 
-Total: 44
+Total: 50
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -47,16 +47,22 @@ Total: 44
 - **DocsResults** (`web/src/features/docs/components/DocsResults/DocsResults.tsx`) - Results table(s) with count, pagination, empty/error states and live region.
 - **DocumentRow** (`web/src/features/docs/components/DocumentRow/DocumentRow.tsx`) - Title cell plus `toDocumentRow()` normalizing list items and search hits to one row shape.
 - **ClientProjectLabel** (`web/src/features/docs/components/ClientProjectLabel/ClientProjectLabel.tsx`) - "Client · Project" label with `#id` fallback when the name is unknown.
-- **TopicPills** (`web/src/features/docs/components/TopicPills/TopicPills.tsx`) - Up to 3 outline badges plus "+n".
+- **TopicPills** (`web/src/features/docs/components/TopicPills/TopicPills.tsx`) - Up to `max` (default 3, `Infinity` allowed) outline badges plus "+n"; optional `hrefOf` makes each pill a link.
 - **VisibilityPill** (`web/src/features/docs/components/VisibilityPill/VisibilityPill.tsx`) - "Visible para el cliente" / "Restringido" pill.
 - **HighlightedText** (`web/src/features/docs/components/HighlightedText/HighlightedText.tsx`) - Renders text with `<mark>` on the match (reuses `highlightSnippet`).
 - **AssignProjectAction** (`web/src/features/docs/components/AssignProjectAction/AssignProjectAction.tsx`) - Row action of the "Sin proyecto" view: "Asignar sugerido" or manual "Asignar proyecto" with toasts per error code.
+- **DocumentToc** (`web/src/features/docs/components/DocumentToc/DocumentToc.tsx`) - "En este documento" card: one anchor link per level 1-2 heading with `IntersectionObserver` scroll-spy (`aria-current="location"`).
+- **DocumentLinkedTo** (`web/src/features/docs/components/DocumentLinkedTo/DocumentLinkedTo.tsx`) - "Vinculado a" card built from the api's `*Refs` (no per-id hooks); unknown names render `#id` without link.
+- **DocumentProperties** (`web/src/features/docs/components/DocumentProperties/DocumentProperties.tsx`) - "Propiedades" card: visibility and version, no storage path.
+- **DocumentAttachments** (`web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`) - "Adjuntos ({n})" card with one link per attachment.
+- **VersionHistoryPanel** (`web/src/features/docs/components/VersionHistoryPanel/VersionHistoryPanel.tsx`) - O-13 right-side `<dialog>` drawer: paginated versions, "Ver" (`?version=N`), "Restaurar" through O-02 in a portal, compacted-versions footer.
+- **ClientProjectLine** (`web/src/features/docs/components/DocumentView/ClientProjectLine.tsx`) - `{client} · {project} #{id}` header line with a project link and `+n` per list.
 - **ProjectPicker** (`web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`) - Single searchable `Select` of projects.
 - **DocsNotice `success` / `role="status"`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-083 adds the `success` intent (`resolved` state family, check icon) and `role: 'status'` for polite announcements.
 
 ## Services
 
-Total: 18
+Total: 19
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -67,11 +73,11 @@ Total: 18
 - **updateRequirementComment** (`web/src/features/requirements/services/requirementsApi.ts`) - Server Action that edits an already-published requirement comment (`PATCH /requirements/{reqid}/comments/{cid}`, note plural `/comments/`); `fileIds`, when sent, is the complete set to keep linked, never a delta.
 - **getModules** (`web/src/features/docs/services/modulesApi.ts`) - Server Action for `GET /modules`: state of the optional bus modules.
 - **listDocuments** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents`; drops `undefined`/empty filter keys (the api answers 400 to undeclared keys).
-- **getDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents/{id}`; when the api returns `contentUrl` it downloads the content server-side and returns it as `content`.
+- **getDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/documents/{id}` with an optional `version` (`getDocument(id, version?)`);; when the api returns `contentUrl` it downloads the content server-side and returns it as `content`.
 - **searchDocuments** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/search` (limit 50); returns `DocsResult`.
 - **createDocument / updateDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for `POST /docs/documents` and `PUT /docs/documents/{id}`; drop `undefined` keys and a blank `message`; never throw (`DocsResult`).
+- **listVersions / restoreVersion** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for `GET /docs/documents/{id}/versions` (50 per page, cursor) and `POST .../restore` `{ fromVersion, baseVersion }`; `DocsResult`, never throw.
 - **lockDocument / unlockDocument** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for the edit lock (`sessionId` only; no `ttlSeconds`, never `force`); `DocsResult` keeps `details` (`holder`, `via`, `expiresAt`).
-- **listFolders / listAllFolders / getFolderTrail** (`web/src/features/docs/services/foldersApi.ts`) - Server Actions over `GET /docs/folders[/{id}]`: one page, all pages (cap 10 x 200) and the ancestor trail (cap 20 levels, unreadable ancestors as text).
 - **requestAttachmentUpload / confirmAttachment** (`web/src/features/docs/services/docsAttachmentsApi.ts`) - Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
 - **releaseLockKeepalive / uploadDocAttachment** (`web/src/features/docs/services/docsClientApi.ts`) - Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
 - **listShares / createShare / revokeShare** (`web/src/features/docs/services/sharesApi.ts`) - Server Actions for shared links (`GET`/`POST /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`); `createShare` computes `expiresAt` server-side from `expiresInDays` and never logs the URL or token; all return `DocsResult`.
@@ -79,7 +85,7 @@ Total: 18
 
 ## Hooks
 
-Total: 25
+Total: 26
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -90,7 +96,8 @@ Total: 25
 - **useModules / useModule** (`web/src/features/docs/hooks/useModules.ts`) - `GET /modules` polled every 60 s (`['modules']`); `useModule(name)` resolves `{ status, sharing, isKnown }` and behaves as `not_installed` while loading or on error.
 - **useDocuments** (`web/src/features/docs/hooks/useDocuments.ts`) - Cursor-paginated `useInfiniteQuery` (10 per page) of the documents linked to a project, requirement or task.
 - **useDocument** (`web/src/features/docs/hooks/useDocument.ts`) - Document detail by ULID; does not retry 404 or `module_unavailable`.
-- **useFolderTrail** (`web/src/features/docs/hooks/useFolderTrail.ts`) - Folder + ancestor trail (`['docs-folder-trail', id]`).
+- **useDocumentVersions** (`web/src/features/docs/hooks/useDocumentVersions.ts`) - Infinite query over `GET /docs/documents/{id}/versions` (`['docs','versions',id]`, 50 per page, cursor).
+- **useRestoreVersion** (`web/src/features/docs/hooks/useRestoreVersion.ts`) - Restore mutation (`retry: 0`); invalidates the document, versions and lists in `onSettled`.
 - **useDocsList** (`web/src/features/docs/hooks/useDocsList.ts`) - Cursor-chained `useInfiniteQuery` of documents (20 per page, `count=true`), rebuilds page N from the URL; exposes `lastAvailablePage`.
 - **useDocsTextSearch** (`web/src/features/docs/hooks/useDocsTextSearch.ts`) - Text search (limit 50) with the same filters.
 - **useDocsHome** (`web/src/features/docs/hooks/useDocsHome.ts`) - "En mis proyectos activos" and "Editados recientemente" groups of the home state.
@@ -107,7 +114,7 @@ Total: 25
 
 ## Utils
 
-Total: 33
+Total: 35
 
 - **parseFinishDate** (`web/src/shared/utils/parse-finish-date.ts`) - Parses the legacy `estimatedFinishDate` string into a local `Date`, or `null` when empty, invalid or not `YYYY-MM-DD`-prefixed.
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
@@ -142,6 +149,8 @@ Total: 33
 - **assignErrors** (`web/src/features/docs/utils/assignErrors.ts`) - Maps an assign-project error `code` to a toast.
 - **editorLabel** (`web/src/features/docs/utils/editorLabel.ts`) - "vos" / name / "—" for the last editor.
 - **formatDay** (`web/src/features/docs/utils/dates.ts`) - `DD/MM/YYYY` day formatter.
+- **stripFrontmatter / extractHeadings** (`web/src/features/docs/utils/frontmatter.ts`, `documentHeadings.ts`) - Removes the leading YAML frontmatter; lists level 1-2 ATX headings with slug id and line for the document index and anchors.
+- **documentLabels / versionErrors / lockState helpers** (`web/src/features/docs/utils/documentLabels.ts`, `versionErrors.ts`, `lockState.ts`) - UI labels (`titleOf`, `visibilityLabel`, `metaVersionLabel`, `versionKindLabel`, `prunedLabel`), `?version` parsing, restore-error messages and the lock message with the service-provided holder name.
 
 ## Types
 

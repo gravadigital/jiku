@@ -5,6 +5,7 @@ import { useDocument } from '../../hooks/useDocument';
 import { useEditSession } from '../../hooks/useEditSession';
 import { useModule } from '../../hooks/useModules';
 import { DocumentView } from './DocumentView';
+import { DETAIL_A, ID_A as ID, LOCK_LUIS, UNAVAILABLE } from './fixtures';
 
 const replace = vi.fn();
 let params = new URLSearchParams();
@@ -21,7 +22,6 @@ vi.mock('react-toastify', () => ({
 vi.mock('../../hooks/useDocument', () => ({ useDocument: vi.fn() }));
 vi.mock('../../hooks/useModules', () => ({ useModule: vi.fn() }));
 vi.mock('../../hooks/useEditSession', () => ({ useEditSession: vi.fn() }));
-vi.mock('../../hooks/useFolderTrail', () => ({ useFolderTrail: () => ({ data: undefined }) }));
 vi.mock('../DocumentEditor', () => ({
   DocumentEditor: ({ onDone }: { onDone: () => void }) => (
     <div>
@@ -32,45 +32,19 @@ vi.mock('../DocumentEditor', () => ({
     </div>
   ),
 }));
-vi.mock('@/features/auth/hooks/usePersons', () => ({
-  usePersons: vi.fn(() => ({ data: [{ userId: 'sub-ana', firstName: 'Ana', lastName: 'Gómez' }] })),
+vi.mock('@/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+}));
+vi.mock('../VersionHistoryPanel', () => ({
+  VersionHistoryPanel: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Historial de versiones" /> : null,
 }));
 
-const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
-const FOLDER_ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6F0';
-const UNAVAILABLE =
-  'La documentación no está disponible en este momento. Probá de nuevo en unos minutos.';
 const LARGE =
   'Este documento es demasiado grande para editarlo desde acá. Podés leerlo y editarlo con jiku-go.';
 
-const DOC = {
-  id: ID,
-  title: 'Arquitectura',
-  path: '/clientes/acme/arquitectura.md',
-  folderId: FOLDER_ID,
-  fileName: 'arquitectura.md',
-  version: 6,
-  visibility: 'internal',
-  updatedAt: '2026-10-24T14:30:00.000Z',
-  updatedBy: 'sub-ana',
-  lock: null,
-  content: '# Arquitectura\n\nTexto',
-  relations: {},
-  topics: [],
-  attachments: [],
-  folder: {
-    id: FOLDER_ID,
-    path: '/clientes/acme/',
-    effectivePermission: 'write',
-    sharingBlocked: false,
-  },
-};
-const LOCK = {
-  sessionId: '01J9Z3K8M2Q4R6T8V0W2Y4A6E3',
-  holder: 'sub-ana',
-  via: 'human',
-  expiresAt: '2026-10-24T14:32:00.000Z',
-};
+const DOC = { ...DETAIL_A, title: 'Arquitectura', content: '# Arquitectura\n\nTexto' };
+const LOCK = LOCK_LUIS;
 
 const start = vi.fn();
 const session = (over: Record<string, unknown> = {}) =>
@@ -86,9 +60,6 @@ const session = (over: Record<string, unknown> = {}) =>
   } as never);
 const setDoc = (over: Record<string, unknown> = {}) =>
   vi.mocked(useDocument).mockReturnValue({ data: { ...DOC, ...over }, isError: false } as never);
-const folderWith = (effectivePermission: string | null) => ({
-  folder: { ...DOC.folder, effectivePermission },
-});
 
 describe('DocumentView — edición', () => {
   beforeEach(() => {
@@ -100,54 +71,58 @@ describe('DocumentView — edición', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it.each([
-    ['write', true],
-    ['manage', true],
-    ['read', false],
-    [null, false],
-  ])('TS-69: permiso %s → Editar %s', (permission, visible) => {
-    setDoc(folderWith(permission));
+  it('TS-31: Editar visible sin consultar carpeta ni rol', () => {
     render(<DocumentView id={ID} />);
-    expect(Boolean(screen.queryByRole('button', { name: /Editar/ }))).toBe(visible);
+    expect(screen.getByRole('button', { name: /Editar/ })).toBeEnabled();
   });
 
-  it.each(['write', 'read'])(
-    'TS-69/70: documento grande (%s) sin Editar y con aviso',
-    (permission) => {
-      setDoc({
-        ...folderWith(permission),
-        content: '# Grande',
-        contentUrl: 'https://s3.example.com/x',
-      });
-      render(<DocumentView id={ID} />);
-      expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
-      expect(screen.getByText(LARGE)).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Grande' })).toBeInTheDocument();
-    }
-  );
+  it('TS-31: documento grande sin Editar y con aviso', () => {
+    setDoc({ content: '# Grande', contentUrl: 'https://s3.example.com/x' });
+    render(<DocumentView id={ID} />);
+    expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
+    expect(screen.getByText(LARGE)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Grande' })).toBeInTheDocument();
+  });
 
   it('TS-71: bloqueado al abrir, sin role alert, Editar deshabilitado y sondeo', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-    vi.setSystemTime(new Date('2026-10-24T14:00:00Z'));
+    vi.setSystemTime(new Date('2026-10-26T15:40:00Z'));
     setDoc({ lock: LOCK });
     render(<DocumentView id={ID} />);
-    const text = 'Ana Gómez lo está editando hasta las 14:32. Podés leerlo mientras tanto.';
+    const text = 'Luis Gómez lo está editando hasta las 15:45. Podés leerlo mientras tanto.';
     expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByRole('button', { name: /Editar/ })).toBeDisabled();
     expect(screen.getByRole('heading', { name: 'Arquitectura', level: 2 })).toBeInTheDocument();
-    expect(vi.mocked(useDocument).mock.calls.at(-1)?.[0].refetchInterval).toBe(60_000);
+    // El sondeo aplica solo a la consulta del vigente.
+    const intervals = vi
+      .mocked(useDocument)
+      .mock.calls.map(([options]) => options.refetchInterval)
+      .filter((value) => value !== undefined);
+    expect(intervals.at(-1)).toBe(60_000);
+  });
+
+  it('TS-28: lock sin nombre → "Otra persona"', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(new Date('2026-10-26T15:40:00Z'));
+    setDoc({ lock: { ...LOCK, holderName: null } });
+    render(<DocumentView id={ID} />);
+    expect(
+      screen.getByText(
+        'Otra persona lo está editando hasta las 15:45. Podés leerlo mientras tanto.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('TS-72: el bloqueo vence solo', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-    vi.setSystemTime(new Date('2026-10-24T14:00:00Z'));
+    vi.setSystemTime(new Date('2026-10-26T15:40:00Z'));
     setDoc({ lock: LOCK });
     render(<DocumentView id={ID} />);
     expect(screen.getByRole('button', { name: /Editar/ })).toBeDisabled();
     act(() => {
-      vi.setSystemTime(new Date('2026-10-24T14:32:01Z'));
-      vi.advanceTimersByTime(32 * 60_000 + 1000);
+      vi.setSystemTime(new Date('2026-10-26T15:45:01Z'));
+      vi.advanceTimersByTime(5 * 60_000 + 1000);
     });
     expect(screen.queryByText(/lo está editando/)).toBeNull();
     expect(screen.getByRole('button', { name: /Editar/ })).toBeEnabled();
@@ -162,7 +137,13 @@ describe('DocumentView — edición', () => {
     rerender(<DocumentView id={ID} />);
     expect(screen.getByText('editor')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
-    expect(screen.queryByText('Adjuntos')).toBeNull();
+    expect(screen.queryByText(/^Adjuntos/)).toBeNull();
+  });
+
+  it('TS-33: en edición no está el botón Historial', () => {
+    session({ phase: 'editing', sessionId: 'S' });
+    render(<DocumentView id={ID} />);
+    expect(screen.queryByRole('button', { name: 'Historial de versiones' })).toBeNull();
   });
 
   it('mientras adquiere, Editar está en loading', () => {
@@ -173,11 +154,37 @@ describe('DocumentView — edición', () => {
 
   it('TS-74: otra sesión se adelantó → aviso con role alert y Editar deshabilitado', () => {
     session({
-      blockedBy: { holder: 'sub-ana', via: 'agent', expiresAt: '2099-10-24T14:32:00.000Z' },
+      blockedBy: {
+        holder: 'sub-ana',
+        holderName: null,
+        via: 'agent',
+        expiresAt: '2099-10-24T14:32:00.000Z',
+      },
     });
     render(<DocumentView id={ID} />);
     expect(screen.getByRole('alert')).toHaveTextContent(/^Un agente lo está editando hasta las /);
     expect(screen.getByRole('button', { name: /Editar/ })).toBeDisabled();
+  });
+
+  it('TS-29: bloqueo al pedir la reserva con el nombre del servicio', () => {
+    session({
+      blockedBy: {
+        holder: 'sub-luis',
+        holderName: 'Luis Gómez',
+        via: 'human',
+        expiresAt: '2099-10-24T15:45:00.000Z',
+      },
+    });
+    render(<DocumentView id={ID} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Luis Gómez lo está editando hasta las /);
+  });
+
+  it('el lock propio en otra pestaña se avisa como tal', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(new Date('2026-10-26T15:40:00Z'));
+    setDoc({ lock: { ...LOCK, holder: 'sub-yo' } });
+    render(<DocumentView id={ID} />);
+    expect(screen.getByText('Lo estás editando en otra pestaña o ventana.')).toBeInTheDocument();
   });
 
   it.each([
@@ -202,9 +209,9 @@ describe('DocumentView — edición', () => {
     expect(replace).toHaveBeenCalledWith(`/docs/${ID}`);
   });
 
-  it('TS-91: ?editar=1 con documento de solo lectura limpia el parámetro sin tomar la reserva', async () => {
+  it('TS-91: ?editar=1 con documento grande limpia el parámetro sin tomar la reserva', async () => {
     params = new URLSearchParams({ editar: '1' });
-    setDoc(folderWith('read'));
+    setDoc({ contentUrl: 'https://s3.example.com/x' });
     render(<DocumentView id={ID} />);
     await act(async () => {});
     expect(start).not.toHaveBeenCalled();

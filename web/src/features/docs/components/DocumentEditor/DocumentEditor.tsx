@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import { usePersons } from '@/features/auth/hooks/usePersons';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { Button, Card, ConfirmDialog, Input } from '@/shared/components/ui';
 import { useSaveDocument } from '../../hooks/useSaveDocument';
 import { getDocument } from '../../services/docsApi';
@@ -17,7 +17,6 @@ import {
 } from '../../utils/docsErrors';
 import { unwrap } from '../../utils/docsResult';
 import { lockedMessage } from '../../utils/lockState';
-import { personName } from '../../utils/persons';
 import { DocsNotice } from '../DocsNotice';
 import { DocumentAttachZone } from '../DocumentAttachZone';
 import { DocumentContent } from '../DocumentContent';
@@ -58,7 +57,7 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const queryClient = useQueryClient();
   const save = useSaveDocument(doc.id);
-  const { data: persons } = usePersons({ enabled: true });
+  const currentUser = useCurrentUser();
 
   // ADR-011: borrador y versión base son estado de interfaz. NO se derivan del query del
   // documento: ese query se refresca (foco, invalidaciones) y cambiaría la base en plena edición.
@@ -211,9 +210,8 @@ export function DocumentEditor({
     else void discard();
   };
 
-  const author = conflict?.current
-    ? personName(persons, conflict.current.updatedBy)
-    : 'otra persona';
+  // El nombre lo manda el servicio; "Otra persona" solo si no lo resuelve.
+  const author = conflict?.current?.updatedByName?.trim() || 'Otra persona';
 
   const renderNotice = () => {
     if (suppressNotices) return null;
@@ -225,7 +223,9 @@ export function DocumentEditor({
       );
     }
     if (session.blockedBy) {
-      return <DocsNotice intent="info">{lockedMessage(session.blockedBy, persons)}</DocsNotice>;
+      return (
+        <DocsNotice intent="info">{lockedMessage(session.blockedBy, currentUser?.id)}</DocsNotice>
+      );
     }
     if (session.phase === 'lost') {
       return (

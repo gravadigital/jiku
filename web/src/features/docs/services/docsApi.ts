@@ -12,8 +12,10 @@ import type {
   DocsResult,
   DocsSearchResponse,
   DocsSearchSuggestions,
+  DocsVersionPage,
   DocsWriteResult,
   DocumentsFilters,
+  RestoreVersionPayload,
   SearchDocumentsParams,
   UpdateDocumentPayload,
   UpdateRelationsPayload,
@@ -61,9 +63,16 @@ export const listDocuments = async (
     return response.data;
   });
 
-export const getDocument = async (id: string): Promise<DocsResult<DocsDocumentDetail>> =>
+export const getDocument = async (
+  id: string,
+  version?: number
+): Promise<DocsResult<DocsDocumentDetail>> =>
   toResult(async () => {
-    const response = await apiClient.get(`/docs/documents/${id}`);
+    const url = `/docs/documents/${id}`;
+    const response =
+      version === undefined
+        ? await apiClient.get(url)
+        : await apiClient.get(url, { params: { version } });
     const data: DocsDocumentDetail = response.data;
 
     if (data.contentUrl && data.content === undefined) {
@@ -161,5 +170,25 @@ export const unlockDocument = async (
 ): Promise<DocsResult<DocsIdResult>> =>
   toResult(async () => {
     const response = await apiClient.post(`/docs/documents/${id}/unlock`, { sessionId });
+    return response.data;
+  });
+
+export const listVersions = async (
+  id: string,
+  { limit = 50, cursor }: { limit?: number; cursor?: string }
+): Promise<DocsResult<DocsVersionPage>> =>
+  toResult(async () => {
+    const response = await apiClient.get(`/docs/documents/${id}/versions`, {
+      params: definedOnly({ limit, cursor }),
+    });
+    return response.data;
+  });
+
+export const restoreVersion = async (
+  id: string,
+  payload: RestoreVersionPayload
+): Promise<DocsResult<DocsWriteResult>> =>
+  toResult(async () => {
+    const response = await apiClient.post(`/docs/documents/${id}/restore`, bodyOf(payload));
     return response.data;
   });

@@ -196,3 +196,23 @@ describe('ShareLinksTable', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('ShareLinksTable revocado por restringir (TS-49)', () => {
+  it('muestra "Revocado (restringido)" y no ofrece revocar', () => {
+    vi.mocked(useDocumentShares).mockReturnValue({
+      data: {
+        items: [
+          { ...SHARE_REVOKED, id: 'A', revokeReason: 'restricted' },
+          { ...SHARE_REVOKED, id: 'B', revokeReason: 'manual' },
+        ],
+        page: { limit: 200, returned: 2 },
+      },
+      isLoading: false,
+      isError: false,
+    } as never);
+    render(<ShareLinksTable documentId="01J9Z3K8M2Q4R6T8V0W2Y4A6C8" enabled />);
+    expect(screen.getByText('Revocado (restringido)')).toBeInTheDocument();
+    expect(screen.getByText('Revocado')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revocar' })).toBeNull();
+  });
+});

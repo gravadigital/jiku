@@ -1,0 +1,1 @@
+export { DocumentLinkedTo } from './DocumentLinkedTo';

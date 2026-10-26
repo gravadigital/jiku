@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { usePersons } from '@/features/auth/hooks/usePersons';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { Button, Card, Loader, ViewHeader } from '@/shared/components/ui';
 import { useDocument } from '../../hooks/useDocument';
 import { useEditSession } from '../../hooks/useEditSession';
@@ -14,15 +15,21 @@ import {
   PERMISSION_DENIED_MESSAGE,
   START_EDIT_FAILED_MESSAGE,
 } from '../../utils/docsErrors';
+import { metaVersionLabel, titleOf, visibilityLabel } from '../../utils/documentLabels';
+import { editorLabel } from '../../utils/editorLabel';
 import { isLockActive, lockedMessage } from '../../utils/lockState';
-import { displayTitle } from '../../utils/paths';
-import { personName } from '../../utils/persons';
+import { parseVersionParam, prunedDetailsOf } from '../../utils/versionErrors';
 import { DocsNotice } from '../DocsNotice';
-import { DocumentBreadcrumb } from '../DocumentBreadcrumb';
-import { DocumentContent } from '../DocumentContent';
+import { DocumentAttachments } from '../DocumentAttachments';
+import { DocumentContent, useDocumentHeadings } from '../DocumentContent';
 import { DocumentEditor } from '../DocumentEditor';
-import { DocumentRelations } from '../DocumentRelations';
+import { DocumentLinkedTo } from '../DocumentLinkedTo';
+import { DocumentProperties } from '../DocumentProperties';
+import { DocumentToc } from '../DocumentToc';
 import { ShareDocumentDialog } from '../ShareDocumentDialog';
+import { TopicPills } from '../TopicPills';
+import { VersionHistoryPanel } from '../VersionHistoryPanel';
+import { ClientProjectLine } from './ClientProjectLine';
 import styles from './DocumentView.module.scss';
 
 interface DocumentViewProps {
@@ -51,10 +58,20 @@ const MAX_TIMER_MS = 2_147_483_647;
 const LARGE_MESSAGE =
   'Este documento es demasiado grande para editarlo desde acá. Podés leerlo y editarlo con jiku-go.';
 
-const BackButton = ({ href }: { href: string }) => (
-  <Button variant="secondary-nav" href={href}>
-    Volver
-  </Button>
+const SHARE_NOTE = 'Los documentos restringidos no se pueden compartir por link.';
+const HISTORY_LABEL = 'Historial de versiones';
+
+// Sin documento (cargando no lo muestra) el breadcrumb queda como única salida.
+const RouteNav = () => (
+  <nav aria-label="Ruta" className={styles.route}>
+    <ol className={styles.routeList}>
+      <li>
+        <Link href="/docs" className={styles.routeLink}>
+          Documentación
+        </Link>
+      </li>
+    </ol>
+  </nav>
 );
 
 export function DocumentView({ id }: DocumentViewProps) {
@@ -64,6 +81,7 @@ export function DocumentView({ id }: DocumentViewProps) {
   // Con un bloqueo vigente se revisa cada 60 s si venció (CA-S12); el flag es estado porque
   // se deriva del propio documento que esta consulta trae.
   const [polling, setPolling] = useState(false);
+  const currentUser = useCurrentUser();
   const {
     data: doc,
     isError,
@@ -73,12 +91,31 @@ export function DocumentView({ id }: DocumentViewProps) {
     enabled: status !== 'not_installed',
     refetchInterval: polling ? LOCK_POLL_MS : false,
   });
-  const { data: persons } = usePersons({ enabled: Boolean(doc) });
+  // La versión que se lee va en la URL. Siempre se pide además el vigente: de él salen la
+  // cabecera, los permisos y la base de la restauración.
+  const requested = parseVersionParam(searchParams.get('version'));
+  const wantVersioned =
+    requested !== null &&
+    doc !== undefined &&
+    requested !== doc.version &&
+    status !== 'not_installed';
+  const versioned = useDocument({
+    id,
+    version: requested ?? undefined,
+    enabled: wantVersioned,
+  });
+  const versionedDoc = wantVersioned ? versioned.data : undefined;
+  const versionedError = wantVersioned && versioned.isError ? versioned.error : null;
+  const prunedDetails = prunedDetailsOf(versionedError);
+  const shown = versionedDoc ?? doc;
+  const headings = useDocumentHeadings(prunedDetails ? '' : (shown?.content ?? ''));
   const session = useEditSession({ documentId: id });
   const [now, setNow] = useState(() => new Date());
   const editWrapRef = useRef<HTMLSpanElement>(null);
   const [focusEdit, setFocusEdit] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const shareNoteId = useId();
   const editParamHandled = useRef(false);
 
   const lockedByOther = isLockActive(doc?.lock, now, session.sessionId);
@@ -86,13 +123,11 @@ export function DocumentView({ id }: DocumentViewProps) {
     session.blockedBy && new Date(session.blockedBy.expiresAt) > now ? session.blockedBy : null;
   const blocked = lockedByOther || Boolean(blockedBy);
   const editing = session.phase === 'editing' || session.phase === 'lost';
-  const canEdit =
-    Boolean(doc) &&
-    (doc?.folder.effectivePermission === 'write' || doc?.folder.effectivePermission === 'manage') &&
-    !doc?.contentUrl;
-
-  // CA-32 / CA-S16: "Compartir" solo con la función configurada y permiso `manage`.
-  const canShare = sharing && doc?.folder.effectivePermission === 'manage';
+  // La interfaz es una ayuda: la autoridad es jiku-docs (`permission_denied`, `sharing_blocked`).
+  const canEdit = Boolean(doc) && !doc?.contentUrl && !wantVersioned;
+  // El botón se renderiza con la función de compartir configurada; se deshabilita en `restricted`.
+  const canShare = sharing;
+  const restricted = doc?.visibility === 'restricted';
 
   useEffect(() => {
     setPolling(lockedByOther);
@@ -150,6 +185,7 @@ export function DocumentView({ id }: DocumentViewProps) {
 
   if (!doc) {
     let body: React.ReactNode;
+    let loading = false;
     if (moduleDown) {
       body = <DocsNotice intent="warning">{UNAVAILABLE_MESSAGE}</DocsNotice>;
     } else if (err && isNotFoundError) {
@@ -159,34 +195,76 @@ export function DocumentView({ id }: DocumentViewProps) {
       body = <DocsNotice intent="warning">{UNAVAILABLE_MESSAGE}</DocsNotice>;
     } else {
       body = <Loader variant="block" label="Cargando documento…" />;
+      loading = true;
     }
 
     return (
       <div className={styles.page}>
-        <div className={styles.stateActions}>
-          <BackButton href="/docs" />
-        </div>
+        {!loading && <RouteNav />}
         {body}
       </div>
     );
   }
 
-  const folderHref = `/docs?folder=${doc.folder.id}`;
-  const visibilityLabel = doc.visibility === 'public' ? 'Visible para el cliente' : 'Interno';
-  const attachments = doc.attachments ?? [];
+  const isPruned = prunedDetails !== null;
+  const versionedFailed = versionedError !== null && !isPruned;
+  const versionedLoading = wantVersioned && !versionedDoc && !versionedError;
+  const title = titleOf(doc);
+  const shownDoc = shown ?? doc;
 
   // Un solo aviso a la vez. Prioridad (los de conflicto y reserva perdida viven en el editor):
-  // no disponible > bloqueado > documento grande.
+  // no disponible > compactada > versión anterior > bloqueado > documento grande.
   const renderNotice = () => {
-    if (moduleDown) return <DocsNotice intent="warning">{UNAVAILABLE_MESSAGE}</DocsNotice>;
+    if (moduleDown || versionedFailed) {
+      return <DocsNotice intent="warning">{UNAVAILABLE_MESSAGE}</DocsNotice>;
+    }
     if (editing) return null;
+    if (prunedDetails) {
+      const { requestedVersion, previousAvailable, nextAvailable } = prunedDetails;
+      const nearest = [previousAvailable, nextAvailable].filter(
+        (value): value is number => typeof value === 'number'
+      );
+      return (
+        <DocsNotice intent="warning">
+          {`La versión ${requestedVersion} ya no se conserva: se compactó al limpiar el historial.`}
+          {nearest.length > 0 && (
+            <>
+              {' Versiones más cercanas: '}
+              {nearest.map((version, index) => (
+                <React.Fragment key={version}>
+                  {index > 0 && ' · '}
+                  <Link href={`/docs/${id}?version=${version}`} className={styles.noticeLinks}>
+                    {`Versión ${version}`}
+                  </Link>
+                </React.Fragment>
+              ))}
+            </>
+          )}
+        </DocsNotice>
+      );
+    }
+    if (versionedDoc) {
+      const who = editorLabel({
+        name: versionedDoc.updatedByName,
+        sub: versionedDoc.updatedBy,
+        currentUserId: currentUser?.id,
+      });
+      return (
+        <DocsNotice intent="info" role="status">
+          {`Estás viendo la versión ${versionedDoc.version}, guardada el ${formatDateTime(versionedDoc.updatedAt)}${who === '—' ? '' : ` por ${who}`}. `}
+          <Link href={`/docs/${id}`} className={styles.noticeLinks}>
+            Ver la versión actual
+          </Link>
+        </DocsNotice>
+      );
+    }
     if (blockedBy) {
-      return <DocsNotice intent="info">{lockedMessage(blockedBy, persons)}</DocsNotice>;
+      return <DocsNotice intent="info">{lockedMessage(blockedBy, currentUser?.id)}</DocsNotice>;
     }
     if (lockedByOther && doc.lock) {
       return (
         <DocsNotice intent="info" role="none">
-          {lockedMessage(doc.lock, persons)}
+          {lockedMessage(doc.lock, currentUser?.id)}
         </DocsNotice>
       );
     }
@@ -197,43 +275,76 @@ export function DocumentView({ id }: DocumentViewProps) {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        {/* Va primero en el DOM para respetar el orden de foco de la UX (Volver → aviso → contenido). */}
-        <div className={styles.actions}>
-          <BackButton href={folderHref} />
-          {canShare && !editing && (
-            <Button
-              variant="secondary-nav"
-              icon="↗"
-              disabled={moduleDown}
-              onClick={() => setShareOpen(true)}
-            >
-              Compartir
-            </Button>
-          )}
-          {canEdit && !editing && (
-            <span ref={editWrapRef}>
-              <Button
-                variant="primary"
-                icon="✎"
-                disabled={moduleDown || blocked || session.phase === 'acquiring'}
-                loading={session.phase === 'acquiring'}
-                onClick={() => void startEditing()}
-              >
-                Editar
-              </Button>
-            </span>
-          )}
-        </div>
+        {/* Va primero en el DOM que los botones: el orden de foco de la UX es breadcrumb → línea
+            y temas → historial → compartir → editar. La grilla los posiciona. */}
         <div className={styles.heading}>
-          <DocumentBreadcrumb folder={doc.folder} />
           <ViewHeader
             variant="detail"
-            title={displayTitle(doc)}
-            badges={[{ variant: 'outline', family: 'neutral', label: visibilityLabel }]}
+            title={title}
+            parent={{ label: 'Documentación', href: '/docs' }}
+            badges={[
+              { variant: 'outline', family: 'neutral', label: visibilityLabel(doc.visibility) },
+            ]}
           />
-          <p className={styles.meta}>
-            {`Versión ${doc.version} · actualizado el ${formatDateTime(doc.updatedAt)} por ${personName(persons, doc.updatedBy)}`}
-          </p>
+          <div className={styles.identity}>
+            <ClientProjectLine
+              clientRefs={doc.clientRefs ?? []}
+              projectRefs={doc.projectRefs ?? []}
+            />
+            {!editing && (
+              <TopicPills
+                topics={doc.topics}
+                max={Infinity}
+                hrefOf={(topic) => `/docs?tema=${encodeURIComponent(topic)}`}
+              />
+            )}
+          </div>
+          <p className={styles.meta}>{metaVersionLabel(shownDoc, currentUser?.id)}</p>
+        </div>
+        <div className={styles.actionsColumn}>
+          <div className={styles.actions}>
+            {!editing && (
+              <span className={styles.iconButton}>
+                <Button
+                  variant="secondary-nav"
+                  icon="🕘"
+                  disabled={moduleDown}
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  <span className={styles.srOnly}>{HISTORY_LABEL}</span>
+                </Button>
+              </span>
+            )}
+            {canShare && !editing && (
+              <Button
+                variant="secondary-nav"
+                icon="↗"
+                disabled={moduleDown || restricted}
+                ariaDescribedBy={restricted ? shareNoteId : undefined}
+                onClick={() => setShareOpen(true)}
+              >
+                Compartir
+              </Button>
+            )}
+            {canEdit && !editing && (
+              <span ref={editWrapRef}>
+                <Button
+                  variant="primary"
+                  icon="✎"
+                  disabled={moduleDown || blocked || session.phase === 'acquiring'}
+                  loading={session.phase === 'acquiring'}
+                  onClick={() => void startEditing()}
+                >
+                  Editar
+                </Button>
+              </span>
+            )}
+          </div>
+          {canShare && !editing && restricted && (
+            <p id={shareNoteId} className={styles.shareNote}>
+              {SHARE_NOTE}
+            </p>
+          )}
         </div>
       </div>
 
@@ -241,6 +352,14 @@ export function DocumentView({ id }: DocumentViewProps) {
 
       {canShare && (
         <ShareDocumentDialog open={shareOpen} doc={doc} onClose={() => setShareOpen(false)} />
+      )}
+      {!editing && (
+        <VersionHistoryPanel
+          open={historyOpen}
+          doc={doc}
+          viewingVersion={wantVersioned ? requested : null}
+          onClose={() => setHistoryOpen(false)}
+        />
       )}
 
       {editing ? (
@@ -252,34 +371,28 @@ export function DocumentView({ id }: DocumentViewProps) {
         />
       ) : (
         <div className={styles.reading}>
-          <div className={styles.main}>
-            <Card variant="panel">
-              <DocumentContent content={doc.content ?? ''} />
-            </Card>
-          </div>
-          <div className={styles.side}>
-            <DocumentRelations relations={doc.relations} topics={doc.topics} />
-            <Card variant="panel" title="Adjuntos" headingLevel="h2">
-              {attachments.length === 0 ? (
-                <p className={styles.empty}>Sin adjuntos.</p>
+          {!isPruned && (
+            <div className={styles.main}>
+              {versionedLoading ? (
+                <Loader variant="block" label="Cargando documento…" />
               ) : (
-                <ul className={styles.attachments}>
-                  {attachments.map((attachment) => (
-                    <li key={attachment.id}>
-                      <a
-                        href={`/docs/attachments/${attachment.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.attachmentLink}
-                      >
-                        {attachment.fileName}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <Card variant="panel">
+                  <DocumentContent content={shownDoc.content ?? ''} />
+                </Card>
               )}
-            </Card>
-          </div>
+            </div>
+          )}
+          <aside className={styles.side}>
+            {!isPruned && <DocumentToc headings={headings} />}
+            <DocumentLinkedTo
+              clientRefs={doc.clientRefs ?? []}
+              projectRefs={doc.projectRefs ?? []}
+              requirementRefs={doc.requirementRefs ?? []}
+              taskRefs={doc.taskRefs ?? []}
+            />
+            <DocumentProperties visibility={doc.visibility} version={shownDoc.version} />
+            <DocumentAttachments attachments={doc.attachments ?? []} />
+          </aside>
         </div>
       )}
     </div>

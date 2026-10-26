@@ -3,9 +3,10 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Button, Input, Select, ToggleGroup } from '@/shared/components/ui';
 import { useCreateShare } from '../../hooks/useCreateShare';
-import { displayTitle } from '../../utils/paths';
+import { titleOf } from '../../utils/documentLabels';
 import { describeCreateShareError } from '../../utils/shareErrors';
 import { DEFAULT_SHARE_EXPIRY, SHARE_EXPIRY_OPTIONS } from '../../utils/shares';
+import { ClientProjectLabel } from '../ClientProjectLabel';
 import { DocsNotice } from '../DocsNotice';
 import { ShareLinksTable } from '../ShareLinksTable';
 import styles from './ShareDocumentDialog.module.scss';
@@ -25,7 +26,7 @@ const ATTACHMENT_OPTIONS = [
 ];
 const COPIED_MS = 2000;
 
-const BLOCKED_MESSAGE = 'La carpeta de este documento no permite compartirlo fuera de Jiku.';
+const BLOCKED_MESSAGE = 'Este documento es restringido: no se puede compartir fuera de Jiku.';
 const SECRET_MESSAGE =
   'Este documento parece contener una clave o un token. Si lo compartís, cualquiera con el link lo va a poder leer.';
 const CREATED_MESSAGE = 'Copiá el link ahora: por seguridad, no lo vas a poder volver a ver.';
@@ -50,7 +51,7 @@ export function ShareDocumentDialog({ open, doc, onClose }: ShareDocumentDialogP
 
   const create = useCreateShare(doc.id);
   const { reset } = create;
-  const sharingBlocked = doc.folder.sharingBlocked;
+  const sharingBlocked = doc.visibility === 'restricted';
 
   const clearCopiedTimer = useCallback(() => {
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
@@ -217,8 +218,17 @@ export function ShareDocumentDialog({ open, doc, onClose }: ShareDocumentDialogP
       <div className={styles.content}>
         <h2 id={titleId} className={styles.title}>
           <span aria-hidden="true">↗</span>
-          {`Compartir «${displayTitle(doc)}»`}
+          {`Compartir «${titleOf(doc)}»`}
         </h2>
+        <p className={styles.explanation}>
+          {`${titleOf(doc)} · `}
+          <ClientProjectLabel
+            clientRefs={doc.clientRefs}
+            projectRefs={doc.projectRefs}
+            clients={doc.clients}
+            projects={doc.projects}
+          />
+        </p>
         {!created && (
           <p className={styles.explanation}>
             Cualquiera que tenga el link va a poder leer la última versión del documento, sin

@@ -1221,3 +1221,63 @@ import { DocsPanel } from '@/features/docs';
 **Signature:** ``ProjectPicker({ ... })``
 
 **Usage:** used by `AssignProjectAction`
+
+## DocumentToc
+
+**Location:** `web/src/features/docs/components/DocumentToc/DocumentToc.tsx`
+
+**Description:** "En este documento" card with an anchor per level 1-2 heading and `IntersectionObserver` scroll-spy.
+
+**Signature:** `<DocumentToc headings={DocHeading[]} />`
+
+**Usage:** `<DocumentToc headings={useDocumentHeadings(content)} />`
+
+## DocumentLinkedTo
+
+**Location:** `web/src/features/docs/components/DocumentLinkedTo/DocumentLinkedTo.tsx`
+
+**Description:** "Vinculado a" card from the api's `*Refs`; unknown names show `#id` without link.
+
+**Signature:** `<DocumentLinkedTo clientRefs projectRefs requirementRefs taskRefs />`
+
+**Usage:** pass the arrays of `DocsDocumentDetail`.
+
+## DocumentProperties
+
+**Location:** `web/src/features/docs/components/DocumentProperties/DocumentProperties.tsx`
+
+**Description:** "Propiedades" card: visibility and version, no storage path.
+
+**Signature:** `<DocumentProperties visibility version />`
+
+**Usage:** `<DocumentProperties visibility={doc.visibility} version={doc.version} />`
+
+## DocumentAttachments
+
+**Location:** `web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`
+
+**Description:** "Adjuntos ({n})" card with one link per attachment.
+
+**Signature:** `<DocumentAttachments attachments />`
+
+**Usage:** `<DocumentAttachments attachments={doc.attachments ?? []} />`
+
+## VersionHistoryPanel
+
+**Location:** `web/src/features/docs/components/VersionHistoryPanel/VersionHistoryPanel.tsx`
+
+**Description:** O-13 right-side `<dialog>` drawer with the paginated history, "Ver" (`?version=N`), "Restaurar" through O-02 (in a portal) and the compacted-versions footer.
+
+**Signature:** `<VersionHistoryPanel open doc viewingVersion onClose />`
+
+**Usage:** mounted by `DocumentView` with the current document.
+
+## ClientProjectLine
+
+**Location:** `web/src/features/docs/components/DocumentView/ClientProjectLine.tsx`
+
+**Description:** `{client} · {project} #{id}` header line with a project link and `+n` per list.
+
+**Signature:** `<ClientProjectLine clientRefs projectRefs />`
+
+**Usage:** `<ClientProjectLine clientRefs={doc.clientRefs} projectRefs={doc.projectRefs} />`

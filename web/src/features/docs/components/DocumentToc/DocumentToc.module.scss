@@ -1,0 +1,28 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nested {
+  padding-left: var(--space-4);
+}
+
+.link {
+  color: var(--text-link);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  // Marca lateral (acento), nunca fondo.
+  &[aria-current='location'] {
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--color-brand-primary, currentColor);
+    font-weight: var(--text-card-title-weight);
+  }
+}

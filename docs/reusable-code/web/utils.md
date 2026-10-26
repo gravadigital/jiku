@@ -440,3 +440,23 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 **Description:** `DD/MM/YYYY` day formatter.
 
 **Usage:** ``formatDay(iso)``
+
+## stripFrontmatter / extractHeadings
+
+**Location:** `web/src/features/docs/utils/frontmatter.ts`, `web/src/features/docs/utils/documentHeadings.ts`
+
+**Description:** Removes the leading YAML frontmatter; lists level 1-2 ATX headings (outside fenced code) with a stable slug id and line number, used for the index and the anchors.
+
+**Signature:** `stripFrontmatter(content): string / extractHeadings(markdown): DocHeading[]`
+
+**Usage:** `extractHeadings(stripFrontmatter(doc.content))`
+
+## documentLabels / versionErrors / lockState helpers
+
+**Location:** `web/src/features/docs/utils/documentLabels.ts`, `versionErrors.ts`, `lockState.ts`
+
+**Description:** `titleOf`, `visibilityLabel`, `metaVersionLabel`, `versionKindLabel`, `prunedLabel`; `parseVersionParam`, `prunedDetailsOf`, `describeRestoreError`; `lockedMessage` / `lockHolderLabel` with the service-provided name.
+
+**Signature:** see each file.
+
+**Usage:** `metaVersionLabel(doc, currentUser?.id)`

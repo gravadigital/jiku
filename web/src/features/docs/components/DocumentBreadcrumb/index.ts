@@ -1,1 +1,0 @@
-export { DocumentBreadcrumb } from './DocumentBreadcrumb';

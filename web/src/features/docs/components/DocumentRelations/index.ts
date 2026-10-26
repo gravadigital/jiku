@@ -1,1 +1,0 @@
-export { DocumentRelations } from './DocumentRelations';
