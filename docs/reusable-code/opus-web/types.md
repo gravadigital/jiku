@@ -131,8 +131,10 @@ interface Requirement {
 
 **Location:** `opus-web/src/features/docs/types/docs.types.ts`
 
-**Description:** Hand-written, verbatim copy of the `DocsDocument` contract (`api.yaml`,
-`jiku-docs-queries.yaml` 1.1.0), with `DocsDocumentPage`, `DocsPageInfo`, `DocsAttachment`,
+**Description:** Hand-written portal projection of `DocsDocument` (`api.yaml`, jiku-docs 1.3.0):
+`id`, `title`, `version`, `visibility` (`internal | public | restricted`), `createdAt`, `updatedAt`,
+`content` / `contentUrl` and `attachments`. It has no path (`path`, `folderId`, `fileName` are not
+declared: the portal does not receive them). Comes with `DocsDocumentPage`, `DocsPageInfo`, `DocsAttachment`,
 `ModuleEntry`, `ModuleStatus` and `DocsListScope` (exactly one of `projectId` / `requirementId`).
 The portal only shows `id`, `title`, `updatedAt`, `content` and `attachments`.
 
