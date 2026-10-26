@@ -4,14 +4,15 @@ import { DOCS_STATUS_BY_ERROR_CODE, docsErrorBody, docsHttpStatusFor } from '../
 import { errorBody, httpStatusFor } from '../../lib/utils/bus/protocol';
 
 describe('S-077 · mapa de errores de docs', () => {
-  it('S-077 · TS-40: tabla completa de los 30 códigos', () => {
+  it('S-077 · TS-40: tabla completa de los 31 códigos', () => {
     const table: Record<number, string[]> = {
       400: ['invalid_fields', 'invalid_cursor', 'file_name_invalid', 'frontmatter_invalid', 'invalid_relation',
         'content_too_large', 'checksum_mismatch', 'upload_not_found', 'attachment_type_not_allowed',
         'attachment_too_large', 'share_expiry_invalid', 'secret_warning_not_acknowledged',
         'semantic_search_not_configured'],
       403: ['permission_denied', 'sharing_blocked', 'unknown_caller', 'caller_not_authorized'],
-      404: ['document_not_found', 'folder_not_found', 'attachment_not_found', 'share_not_found'],
+      404: ['document_not_found', 'folder_not_found', 'attachment_not_found', 'share_not_found',
+        'version_pruned'],
       409: ['version_conflict', 'document_locked', 'lock_not_held', 'already_exists', 'folder_not_empty'],
       503: ['upstream_unavailable', 'attachments_not_configured'],
       504: ['query_timeout'],
@@ -24,9 +25,16 @@ describe('S-077 · mapa de errores de docs', () => {
         count += 1;
       });
     });
-    count.should.equal(30);
+    count.should.equal(31);
     docsHttpStatusFor(undefined).should.equal(500);
-    Object.keys(DOCS_STATUS_BY_ERROR_CODE).length.should.equal(30);
+    Object.keys(DOCS_STATUS_BY_ERROR_CODE).length.should.equal(31);
+  });
+
+  it('S-094 · TS-28: version_pruned es 404 y conserva details', () => {
+    docsHttpStatusFor('version_pruned').should.equal(404);
+    const details = { requestedVersion: 7, previousAvailable: 5, nextAvailable: 9 };
+    docsErrorBody({ status: 'failure', errorCode: 'version_pruned', errorMessage: 'x', errorDetails: details } as any)
+      .should.deepEqual({ code: 'version_pruned', message: 'x', details });
   });
 
   it('S-077 · TS-41: no se mezcla con el mapa de core', () => {

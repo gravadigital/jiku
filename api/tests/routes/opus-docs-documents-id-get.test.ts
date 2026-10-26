@@ -26,8 +26,24 @@ describe('GET /api/opus/docs/documents/:id (S-078)', () => {
     res.body.should.deepEqual(data);
     fakeBus.moduleSent.length.should.equal(1);
     (fakeBus.lastModule!.payload as any).should.deepEqual({
-      id: DOC_ID, include: ['content', 'attachments'], actor: expectedActor('token_04_external_user'),
+      id: DOC_ID, include: ['content', 'attachments'],
+      fields: ['id', 'title', 'version', 'visibility', 'createdAt', 'updatedAt'],
+      actor: expectedActor('token_04_external_user'),
     });
+  });
+
+  it('S-094 · TS-54/55: fields sin ruta y DD-3 se mantiene', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.get', success({ id: DOC_ID, title: 'Acta', version: 3, visibility: 'public', content: '# Acta', attachments: [] }));
+    const res = await get(URL);
+    res.status.should.equal(200);
+    const fields = (fakeBus.lastModule!.payload as any).fields as string[];
+    ['path', 'folderId', 'fileName'].forEach((f) => fields.should.not.containEql(f));
+    fields.should.containEql('visibility');
+    for (const reply of [{ id: DOC_ID, visibility: 'internal' }, { id: DOC_ID }]) {
+      fakeBus.moduleReply('documents.get', success(reply));
+      (await get(URL)).status.should.equal(404);
+    }
   });
 
   it('S-078 · TS-39: documento interno', async () => {

@@ -17,8 +17,10 @@ const router: Router = Router();
 // `contentUploadId` no se aceptan (los fija la api o están fuera de alcance).
 const CREATE_SCHEMA = joi.object({
   id: joiUlid(),
-  folderId: joiUlid().required(),
-  fileName: joi.string().required(),
+  // Opcionales desde jiku-docs 1.3.0: sin `folderId` la carpeta sale de las relaciones del
+  // frontmatter y sin `fileName` del título (uno anterior respondería `invalid_fields`).
+  folderId: joiUlid(),
+  fileName: joi.string(),
   content: joi.string().allow('').required(),
   message: joi.string(),
 }).strict();
@@ -48,11 +50,11 @@ async function createDocument(req: Request, res: Response) {
  * @description Crea un documento en jiku-docs en nombre de la persona (REQ-016, ruta 8, CA-S7).
  * @route {POST} /api/docs/documents
  * @bodyparam {string} [id] - ULID de alta; si falta lo genera la api (hace idempotente el reintento)
- * @bodyparam {string} folderId - ULID de la carpeta
- * @bodyparam {string} fileName - Nombre del archivo (`.md`)
+ * @bodyparam {string} [folderId] - ULID de la carpeta (jiku-docs >= 1.3.0: si falta, la decide el servicio)
+ * @bodyparam {string} [fileName] - Nombre del archivo (`.md`); si falta sale del título
  * @bodyparam {string} content - Markdown (hasta 256 KiB)
  * @bodyparam {string} [message] - Mensaje de la versión
- * @response {201} Created - `{ id, version, path, warnings? }`
+ * @response {201} Created - `{ id, version, path, folderId, fileName, warnings? }`
  * @response {400} Invalid fields / regla de dominio de jiku-docs
  * @response {403} Access denied
  * @response {404} Folder not found / module not installed

@@ -20,7 +20,7 @@ package: nats
 ## Cuándo aplica
 
 Toda ruta que hable con un módulo registrado en el KV `JIKU_MODULES`. Hoy hay uno: **`docs`**
-(jiku-docs). Cubre las 20 rutas internas `/api/docs/*`, las 3 del portal `/api/opus/docs/*`, las 2
+(jiku-docs). Cubre las 23 rutas internas `/api/docs/*`, las 3 del portal `/api/opus/docs/*`, las 2
 de estado (`GET /api/modules`, `GET /api/opus/modules`) y las 2 públicas `/p/docs/*`.
 
 Las mutaciones y lecturas **de dominio de core** no pasan por acá: usan
@@ -44,7 +44,9 @@ api/lib/modules/
 └── docs/
     ├── errors.ts        DOCS_STATUS_BY_ERROR_CODE y docsErrorBody { code, message, details? }
     ├── features.ts      features.sharing (JIKU_PUBLIC_URL definida)
-    ├── ids.ts, query.ts validación de ULID de path y de query params, paginación
+    ├── ids.ts, query.ts validación de ULID de path y de query params, paginación, buildDocumentsFilter
+    ├── relation-refs.ts clientRefs/projectRefs/requirementRefs/taskRefs en lote (una consulta IN por tipo)
+    ├── active-projects.ts activeProjectIdsOf(sub): proyectos activos de la persona
     ├── checksum.ts      sha256 del contenido de texto
     ├── download.ts      302 a la URL prefirmada
     ├── public-url.ts    publicDocsHost, isPublicHostRequest, assertPublicUrlConfig, máscara del token
@@ -59,7 +61,7 @@ api/lib/utils/middlewares/require-module.ts   requireModule('docs')
 api/lib/utils/middlewares/public-docs.ts      publicHostOnly, cabeceras, log enmascarado, rate limit
 api/lib/utils/trust-proxy.ts                  parseTrustProxy(API_TRUST_PROXY)
 api/lib/routes/modules-get.ts, opus-modules-get.ts
-api/lib/routes/docs-*.ts (20), opus-docs-*.ts (3)
+api/lib/routes/docs-*.ts (23), opus-docs-*.ts (3)
 ```
 
 ## Cómo se usa
@@ -92,8 +94,9 @@ if (!document) return;
 
 El embudo (`call()` de `lib/modules/client.ts`): chequea el estado del módulo → arma `actor` →
 `sendToModule` → traduce el resultado a HTTP. Una ruta puede encadenar varias llamadas
-(`GET /api/docs/documents/:id` compone `documents.get` + `folders.get` con
-`include: ['effectivePermission']`).
+(`GET /api/docs/suggestions` combina la base y `topics.list`). Los nombres de clientes,
+proyectos, requisitos y tareas se resuelven desde la base en lote (`relation-refs.ts`); el detalle de
+un documento ya no compone `folders.get` (S-094, revisión de ADR-015).
 
 ### `sendToModule` — cuando la respuesta no es JSON
 
@@ -154,7 +157,7 @@ conservando el `code`: el catálogo del módulo puede crecer dentro de v1.
 |---|---|
 | 400 | `invalid_fields`, `invalid_cursor`, `file_name_invalid`, `frontmatter_invalid`, `invalid_relation`, `content_too_large`, `checksum_mismatch`, `upload_not_found`, `attachment_type_not_allowed`, `attachment_too_large`, `share_expiry_invalid`, `secret_warning_not_acknowledged`, `semantic_search_not_configured` |
 | 403 | `permission_denied`, `sharing_blocked`, `unknown_caller`, `caller_not_authorized` |
-| 404 | `document_not_found`, `folder_not_found`, `attachment_not_found`, `share_not_found` |
+| 404 | `document_not_found`, `folder_not_found`, `attachment_not_found`, `share_not_found`, `version_pruned` (S-094; `details` verbatim) |
 | 409 | `version_conflict`, `document_locked`, `lock_not_held`, `already_exists`, `folder_not_empty` |
 | 503 | `upstream_unavailable`, `attachments_not_configured` |
 | 504 | `query_timeout` |

@@ -255,3 +255,13 @@ react-select's computed styles through a node jsdom does not accept. `web` decla
   up a different beta — but the dependency is a prerelease, and its API has changed between
   betas before. Upgrading should be done deliberately, with a login test against a real
   identity provider.
+
+## Documentation search: what the filters and suggestions do not cover
+
+These apply to the documentation routes and need jiku-docs 1.3.0 or later; the API does not check
+the version at runtime, and an older jiku-docs answers `invalid_fields` to the new filters.
+
+- **Topic suggestions match by prefix only.** Typing `vid` finds `video`, not `pedido-video`.
+- **The person filter means "created by or last edited by".** The contract does not filter by the
+  author of any version of a document.
+- **Suggestions search text, not patterns.** `%`, `_` and `\` in the search are escaped.

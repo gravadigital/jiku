@@ -35,6 +35,9 @@ export const DOCS_STATUS_BY_ERROR_CODE: Record<string, number> = {
   folder_not_found: 404,
   attachment_not_found: 404,
   share_not_found: 404,
+  // `version_pruned` (jiku-docs 1.3.0, S-094): la versión pedida fue compactada. Trae `errorDetails`
+  // { requestedVersion, previousAvailable, nextAvailable } que pasa verbatim como `details`.
+  version_pruned: 404,
 
   // 409: conflicto con el estado actual del recurso.
   version_conflict: 409,
