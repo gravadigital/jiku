@@ -6,13 +6,9 @@ import { useProjects } from '@/features/projects/hooks/useProjects';
 import { Button, Input } from '@/shared/components/ui';
 import { useCanRestrictDocs } from '../../hooks/useCanRestrictDocs';
 import { useCreateDocument } from '../../hooks/useCreateDocument';
-import {
-  TITLE_REQUIRED_MESSAGE,
-  codeOf,
-  describeCreateError,
-} from '../../utils/docsErrors';
+import { TITLE_REQUIRED_MESSAGE, codeOf, describeCreateError } from '../../utils/docsErrors';
 import { buildNewDocumentContent } from '../../utils/frontmatterDocument';
-import { setPrincipal, type RelationValue } from '../../utils/relationFields';
+import { projectClientId, setPrincipal, type RelationValue } from '../../utils/relationFields';
 import { newUlid } from '../../utils/ulid';
 import { ClientProjectFields } from '../ClientProjectFields';
 import { DocsNotice } from '../DocsNotice';
@@ -100,9 +96,10 @@ export function NewDocumentDialog({ open, initial, onClose }: NewDocumentDialogP
     setRelations((current) => {
       const id = current.projects[0];
       const project = id === undefined ? undefined : projects.find((p) => p.id === id);
-      return project?.client?.id === undefined
+      const clientOfProject = project === undefined ? null : projectClientId(project);
+      return clientOfProject === null
         ? current
-        : { ...current, clients: setPrincipal(current.clients, project.client.id) };
+        : { ...current, clients: setPrincipal(current.clients, clientOfProject) };
     });
   }, [clientPending, projects]);
 
@@ -217,7 +214,18 @@ export function NewDocumentDialog({ open, initial, onClose }: NewDocumentDialogP
         />
         {linked && (
           <p className={styles.linked}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
               <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
             </svg>

@@ -41,3 +41,14 @@ export function chooseClient(
         : setPrincipal(value.projects, null),
   };
 }
+
+/**
+ * Cliente de un proyecto: `client.id` del listado o del detalle, con respaldo en `clientId`.
+ * Una lista sin `client` no debe romper la relación Cliente ↔ Proyecto.
+ */
+export function projectClientId(project: {
+  client?: { id?: number } | null;
+  clientId?: number | null;
+}): number | null {
+  return project.client?.id ?? project.clientId ?? null;
+}

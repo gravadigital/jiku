@@ -13,6 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: 
 vi.mock('react-toastify', () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/features/clients', () => ({ useClients: () => ({ data: [{ id: 1, name: 'EXO' }] }) }));
 vi.mock('../../services/docsApi', () => ({ updateRelations: vi.fn(), updateDocument: vi.fn() }));
 vi.mock('../../hooks/useSuggestedRelations', () => ({ useSuggestedRelations: vi.fn() }));
 vi.mock('@/features/projects/hooks/useProjects', () => ({

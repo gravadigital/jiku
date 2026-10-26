@@ -31,7 +31,10 @@ export interface Project {
   initDate: string;
   endDate: string;
   creator: AuthorUser;
-  client?: Client;
+  // El listado (`GET /api/projects`) trae `clientId` y `client` con solo `id`/`name`;
+  // el detalle trae el cliente completo. Ambos pueden venir nulos (proyecto sin cliente).
+  clientId?: number | null;
+  client?: Client | null;
   keyValuePairs?: Record<string, string>;
 }
 
