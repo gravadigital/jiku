@@ -22,9 +22,9 @@ interface MetaSource {
 }
 
 /** El nombre es el que manda el servicio; sin nombre se omite el `"por —"`. */
-export function metaVersionLabel(doc: MetaSource, currentUserId?: string | null): string {
+export function metaVersionLabel(doc: MetaSource, currentUserSub?: string | null): string {
   const base = `Versión ${doc.version} · actualizado ${formatDateTime(doc.updatedAt)}`;
-  const who = editorLabel({ name: doc.updatedByName, sub: doc.updatedBy, currentUserId });
+  const who = editorLabel({ name: doc.updatedByName, sub: doc.updatedBy, currentUserSub });
   return who === '—' ? base : `${base} por ${who}`;
 }
 

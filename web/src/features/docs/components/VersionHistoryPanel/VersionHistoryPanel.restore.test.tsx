@@ -12,7 +12,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace }) }));
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+  useCurrentUser: () => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' }),
 }));
 vi.mock('../../hooks/useDocumentVersions', () => ({ useDocumentVersions: vi.fn() }));
 vi.mock('../../hooks/useRestoreVersion', () => ({ useRestoreVersion: vi.fn() }));

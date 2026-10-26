@@ -191,7 +191,7 @@ export function VersionHistoryPanel({
                         {editorLabel({
                           name: item.authorName,
                           sub: item.author,
-                          currentUserId: currentUser?.id,
+                          currentUserSub: currentUser?.zitadelId ?? null,
                         })}
                         {' · '}
                         <span className={styles.mono}>{formatDateTime(item.createdAt)}</span>

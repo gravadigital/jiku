@@ -39,7 +39,7 @@ vi.mock('../../hooks/useUploadDocAttachment', () => ({
 }));
 vi.mock('../../services/docsApi', () => ({ getDocument: vi.fn() }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: vi.fn(() => ({ id: 'sub-yo', name: 'Yo' })),
+  useCurrentUser: vi.fn(() => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' })),
 }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';

@@ -267,7 +267,7 @@ export function DocumentView({ id }: DocumentViewProps) {
       const who = editorLabel({
         name: versionedDoc.updatedByName,
         sub: versionedDoc.updatedBy,
-        currentUserId: currentUser?.id,
+        currentUserSub: currentUser?.zitadelId ?? null,
       });
       return (
         <DocsNotice intent="info" role="status">
@@ -279,12 +279,12 @@ export function DocumentView({ id }: DocumentViewProps) {
       );
     }
     if (blockedBy) {
-      return <DocsNotice intent="info">{lockedMessage(blockedBy, currentUser?.id)}</DocsNotice>;
+      return <DocsNotice intent="info">{lockedMessage(blockedBy, currentUser?.zitadelId ?? null)}</DocsNotice>;
     }
     if (lockedByOther && doc.lock) {
       return (
         <DocsNotice intent="info" role="none">
-          {lockedMessage(doc.lock, currentUser?.id)}
+          {lockedMessage(doc.lock, currentUser?.zitadelId ?? null)}
         </DocsNotice>
       );
     }
@@ -320,7 +320,7 @@ export function DocumentView({ id }: DocumentViewProps) {
               />
             )}
           </div>
-          <p className={styles.meta}>{metaVersionLabel(shownDoc, currentUser?.id)}</p>
+          <p className={styles.meta}>{metaVersionLabel(shownDoc, currentUser?.zitadelId ?? null)}</p>
         </div>
         <div className={styles.actionsColumn}>
           <div className={styles.actions}>

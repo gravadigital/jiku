@@ -2,6 +2,7 @@ import 'mocha';
 import 'should';
 import { readFileSync } from 'fs';
 import path from 'path';
+import { PORTAL_DOC_FIELDS } from '../../lib/modules/docs/query';
 
 /**
  * Test de DOCUMENTACIÓN, no de código, y por eso vale la pena: CA-12 se enuncia sobre
@@ -479,5 +480,163 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     codes.should.deepEqual(['200', '401', '403', '404', '500', '503', '504']);
     spec.split('\n').filter((l) => l.includes("'400': { $ref: '#/components/responses/ModuleBadRequest' }"))
       .length.should.equal(21); // S-094: + relations, suggested-relations, suggestions
+  });
+});
+
+/**
+ * Test de DOCUMENTACIÓN (CA-4 y CA-5 de S-101 se enuncian sobre `docs/apis/api.yaml`): ata el
+ * contrato del portal a lo que las rutas piden de verdad (`PORTAL_DOC_FIELDS`) y fija que el
+ * contrato de la web diga que es pass-through de jiku-docs 1.3.0 y que las identidades son el
+ * `sub` de Zitadel, que fue lo que llevó a la web a comparar contra el uuid de Jiku.
+ * Sin parser de YAML, como el resto del archivo.
+ */
+describe('docs/apis/api.yaml — contrato de documentos 1.3.0 (S-101)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+  const SUB = 'El `sub` de Zitadel (no el uuid de Jiku)';
+
+  function pathBlock(spec: string, name: string): string {
+    const lines = spec.split('\n');
+    const start = lines.findIndex((line) => line === `  ${name}:`);
+    start.should.be.above(-1, `api.yaml no declara ${name}`);
+    const out: string[] = [];
+    for (let i = start + 1; i < lines.length; i += 1) {
+      if (/^  \S/.test(lines[i]) || /^  # =/.test(lines[i]) || /^\S/.test(lines[i])) break;
+      out.push(lines[i]);
+    }
+    return out.join('\n');
+  }
+
+  function operation(spec: string, name: string, verb: string): string {
+    const whole = '\n' + pathBlock(spec, name);
+    const start = whole.indexOf(`\n    ${verb}:`);
+    start.should.be.above(-1, `${name} no declara ${verb}`);
+    const rest = whole.slice(start + 1);
+    const next = rest.slice(1).search(/\n {4}\S/);
+    return next === -1 ? rest : rest.slice(0, next + 1);
+  }
+
+  function component(spec: string, name: string): string {
+    const start = spec.indexOf(`\n    ${name}:`);
+    start.should.be.above(-1, `components no declara ${name}`);
+    const rest = spec.slice(start + 1);
+    return rest.slice(0, rest.slice(1).search(/\n {4}\S/) + 1);
+  }
+
+  const line = (block: string, re: RegExp): string => {
+    const found = block.split('\n').find((l) => re.test(l));
+    (found !== undefined).should.equal(true, `no hay una línea que cumpla ${re}`);
+    return found as string;
+  };
+
+  const read = (): string => readFileSync(SPEC_PATH, 'utf8');
+
+  it('S-101 · TS-1 (CA-4): DocsPortalDocument declara los campos del portal como requeridos', () => {
+    const block = component(read(), 'DocsPortalDocument');
+    block.should.containEql('required: [id, title, version, visibility, createdAt, updatedAt]');
+    block.should.containEql('visibility: { type: string, enum: [public] }');
+  });
+
+  it('S-101 · TS-2 (CA-4): el required coincide con PORTAL_DOC_FIELDS', () => {
+    const block = component(read(), 'DocsPortalDocument');
+    const m = /required: \[([^\]]+)\]/.exec(block);
+    (m !== null).should.equal(true);
+    (m as RegExpExecArray)[1].split(',').map((x) => x.trim()).should.deepEqual([...PORTAL_DOC_FIELDS]);
+  });
+
+  it('S-101 · TS-3 (CA-4): DocsPortalDocument no declara path, folderId ni fileName', () => {
+    const block = component(read(), 'DocsPortalDocument');
+    block.should.not.match(/^ {8}(path|folderId|fileName):/m);
+    block.should.match(/^ {8}content:/m);
+    block.should.match(/^ {8}contentUrl:/m);
+    block.should.containEql("attachments: { type: array, items: { $ref: '#/components/schemas/DocsAttachment' }");
+  });
+
+  it('S-101 · TS-4 (CA-4): DocsPortalDocumentPage se apoya en el esquema del portal', () => {
+    const block = component(read(), 'DocsPortalDocumentPage');
+    block.should.containEql('required: [items, page]');
+    block.should.containEql("items: { type: array, items: { $ref: '#/components/schemas/DocsPortalDocument' } }");
+    block.should.containEql("page: { $ref: '#/components/schemas/DocsPageInfo' }");
+  });
+
+  it('S-101 · TS-5 (CA-4): el listado del portal responde DocsPortalDocumentPage', () => {
+    const block = operation(read(), '/opus/docs/documents', 'get');
+    block.should.containEql("schema: { $ref: '#/components/schemas/DocsPortalDocumentPage' }");
+    block.should.not.containEql("#/components/schemas/DocsDocumentPage'");
+  });
+
+  it('S-101 · TS-6 (CA-4): el detalle del portal responde DocsPortalDocument', () => {
+    const block = operation(read(), '/opus/docs/documents/{id}', 'get');
+    block.should.containEql("schema: { $ref: '#/components/schemas/DocsPortalDocument' }");
+    block.should.not.containEql("#/components/schemas/DocsDocument'");
+  });
+
+  it('S-101 · TS-7 (CA-5): DocsDocument se describe como pass-through de jiku-docs 1.3.0', () => {
+    const block = component(read(), 'DocsDocument');
+    const d = line(block, /^ {6}description:/);
+    d.should.containEql('jiku-docs 1.3.0');
+    d.should.containEql('clientRefs');
+    d.should.containEql('projectRefs');
+    d.should.containEql('Solo para la web');
+    block.should.containEql("id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }");
+  });
+
+  it('S-101 · TS-8 (CA-5): DocsDocument conserva path, folderId y fileName como pass-through', () => {
+    const block = component(read(), 'DocsDocument');
+    ['path', 'folderId', 'fileName'].forEach((f) => {
+      block.should.match(new RegExp(`^ {8}${f}: \\{ type: string, description: "Pass-through de jiku-docs \\(CLI y sync\\)[^"]*La web no los muestra ni los usa \\(REQ-021\\)" \\}$`, 'm'));
+    });
+    line(block, /^ {8}fileName:/).should.containEql('solo en el detalle');
+  });
+
+  it('S-101 · TS-9 (CA-5): createdBy, updatedBy y lock.holder son el sub de Zitadel', () => {
+    const block = component(read(), 'DocsDocument');
+    block.split('\n').filter((l) => /(createdBy|updatedBy|holder): \{ type: string, description: /.test(l) && l.includes(SUB))
+      .length.should.equal(3);
+  });
+
+  it('S-101 · TS-10 (CA-5): DocsVersion.author es el sub de Zitadel', () => {
+    const block = component(read(), 'DocsVersion');
+    line(block, /^ {8}author:/).trim().should.equal(`author: { type: string, description: "${SUB}" }`);
+    line(block, /^ {8}authorName:/).should.containEql('nullable: true');
+  });
+
+  it('S-101 · TS-11 (CA-5): DocsSearchHit.path y DocsWriteResult.path/folderId/fileName son pass-through', () => {
+    const spec = read();
+    line(component(spec, 'DocsSearchHit'), /^ {8}path:/).should.containEql('Pass-through de jiku-docs; la web no lo usa');
+    const w = component(spec, 'DocsWriteResult');
+    line(w, /^ {8}path:/).should.containEql('Pass-through de jiku-docs; la web no lo usa');
+    line(w, /^ {8}folderId:/).should.containEql('Pass-through de jiku-docs (>= 1.3.0); la web no lo usa');
+    line(w, /^ {8}folderId:/).should.containEql("pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'");
+    line(w, /^ {8}fileName:/).should.containEql('Pass-through de jiku-docs (>= 1.3.0); la web no lo usa');
+    w.should.containEql('required: [id, version]');
+  });
+
+  it('S-101 · TS-12 (CA-5): GET /docs/documents documenta los campos por defecto de 1.3.0', () => {
+    const block = operation(read(), '/docs/documents', 'get');
+    block.should.containEql('jiku-docs 1.3.0 verbatim');
+    block.should.containEql('id, title, path, folderId, version, visibility, updatedAt, updatedBy, updatedByName, clients, projects');
+    block.should.containEql("$ref: '#/components/schemas/DocsDocumentPage'");
+  });
+
+  it('S-101 · TS-13 (CA-5): detalle, búsqueda y alta de la web describen el pass-through', () => {
+    const spec = read();
+    const detail = operation(spec, '/docs/documents/{id}', 'get');
+    detail.should.containEql('pass-through');
+    detail.should.containEql('el `sub` de Zitadel');
+    detail.should.containEql('DocsDocumentDetail');
+    const search = operation(spec, '/docs/search', 'get');
+    search.should.containEql('pass-through');
+    search.should.containEql('DocsSearchResponse');
+    const create = operation(spec, '/docs/documents', 'post');
+    create.should.containEql('pass-through');
+    create.should.containEql('DocsWriteResult');
+  });
+
+  it('S-101 · TS-14 (CA-5): los esquemas que siguen en uso se conservan', () => {
+    const spec = read();
+    ['DocsFolder', 'DocsFolderPage', 'DocsDocumentPage', 'DocsDocumentDetail'].forEach((n) => {
+      spec.should.containEql(`\n    ${n}:`);
+    });
+    operation(spec, '/docs/folders', 'get').should.containEql("$ref: '#/components/schemas/DocsFolderPage'");
   });
 });

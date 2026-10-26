@@ -29,7 +29,7 @@ vi.mock('../../hooks/useRevokeShare', () => ({
 }));
 vi.mock('../DocumentEditor', () => ({ DocumentEditor: () => <div>editor</div> }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+  useCurrentUser: () => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' }),
 }));
 vi.mock('../VersionHistoryPanel', () => ({
   VersionHistoryPanel: ({ open }: { open: boolean }) =>

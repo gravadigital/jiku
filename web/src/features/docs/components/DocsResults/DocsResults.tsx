@@ -85,7 +85,7 @@ export function DocsResults({
   const currentUser = useCurrentUser();
   const ctx = {
     layout,
-    currentUserId: currentUser?.id ?? null,
+    currentUserSub: currentUser?.zitadelId ?? null,
     // Una sola vez por render: todas las filas se comparan con el mismo instante.
     now: new Date(),
     q: mode === 'texto' ? q : undefined,

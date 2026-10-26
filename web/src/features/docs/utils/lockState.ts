@@ -25,10 +25,28 @@ export function lockHolderLabel(lock: Pick<LockHolder, 'holderName' | 'via'>): s
   return lock.holderName?.trim() ? lock.holderName : 'Otra persona';
 }
 
+/**
+ * Reserva propia: humana y cuyo `holder` es el `sub` de la persona actual.
+ * `currentUserSub` es el `sub` de Zitadel (`session.user.zitadelId`), nunca el uuid de Jiku.
+ */
+function isOwnLock(lock: Pick<LockHolder, 'holder' | 'via'>, currentUserSub?: string | null): boolean {
+  return lock.via === 'human' && Boolean(currentUserSub) && lock.holder === currentUserSub;
+}
+
 /** Texto de `aviso-bloqueado` (P-17). */
-export function lockedMessage(lock: LockHolder, currentUserId?: string | null): string {
-  if (lock.via === 'human' && currentUserId && lock.holder === currentUserId) {
+export function lockedMessage(lock: LockHolder, currentUserSub?: string | null): string {
+  if (isOwnLock(lock, currentUserSub)) {
     return 'Lo estás editando en otra pestaña o ventana.';
   }
   return `${lockHolderLabel(lock)} lo está editando hasta las ${formatTime(lock.expiresAt)}. Podés leerlo mientras tanto.`;
+}
+
+/** Nombre accesible de `marca-en-edicion` en la fila del listado. */
+export function lockRowLabel(
+  lock: Pick<LockHolder, 'holder' | 'holderName' | 'via'>,
+  currentUserSub?: string | null
+): string {
+  if (isOwnLock(lock, currentUserSub)) return 'Lo estás editando';
+  const holder = lock.holderName?.trim();
+  return holder ? `${holder} lo está editando` : 'Otra persona lo está editando';
 }

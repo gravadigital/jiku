@@ -44,3 +44,20 @@ describe('etiquetas (TS-11)', () => {
     expect(titleOf({ title: ' Plan ' })).toBe('Plan');
   });
 });
+
+describe('metaVersionLabel por sub (S-101)', () => {
+  const D = {
+    version: 6,
+    updatedAt: '2026-10-24T14:30:00.000Z',
+    updatedBy: 'sub-yo',
+    updatedByName: 'Yo',
+  };
+  it('TS-12: "vos" por sub', () => {
+    expect(metaVersionLabel(D, 'sub-yo')).toBe('Versión 6 · actualizado 24/10/2026 14:30 por vos');
+  });
+  it('TS-13: sin sub o con id de Jiku muestra el nombre', () => {
+    const t = 'Versión 6 · actualizado 24/10/2026 14:30 por Yo';
+    expect(metaVersionLabel(D, null)).toBe(t);
+    expect(metaVersionLabel(D, '7f3c2a10-0000-4000-8000-000000000001')).toBe(t);
+  });
+});

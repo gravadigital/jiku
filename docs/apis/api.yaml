@@ -2155,6 +2155,8 @@ paths:
         Cada ítem gana `clientRefs` y `projectRefs` con los nombres, resueltos desde la base en lote (una consulta
         por tipo por respuesta); un id desconocido va con `name`/`code`/`clientId` en `null`. Los campos de
         jiku-docs (`clients`, `projects`, `projectMatch`, `topics`, `lock`, ...) pasan intactos.
+
+        La respuesta es el `data` de jiku-docs 1.3.0 verbatim (más los `*Refs` de la api). Sin `fields`, jiku-docs devuelve por defecto `id, title, path, folderId, version, visibility, updatedAt, updatedBy, updatedByName, clients, projects` (+ `lock`/`topics` por el `include`). `path` y `folderId` son pass-through: la web no los usa.
       parameters:
         - { name: projectId, in: query, description: "Proyecto; repetido = lista (O), hasta 20. Excluyente con `myActiveProjects`", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
         - { name: requirementId, in: query, description: "Filtro por requisito", schema: { type: integer, minimum: 1 } }
@@ -2197,6 +2199,8 @@ paths:
         Reenviar el mismo `id` tras un 504 es seguro (`already_exists`); **un alta sin `id` no es idempotente**: la api genera uno nuevo por pedido.
         **Requiere jiku-docs >= 1.3.0:** `folderId` y `fileName` son opcionales. Sin `folderId` la carpeta sale de las relaciones del frontmatter (`/clientes/<cliente>/<proyecto>/`, `/clientes/<cliente>/general/` o `/general/`); sin `fileName`, del título (kebab-case `.md`, único en la carpeta). La respuesta trae `folderId` y `fileName`. Un `user` con `visibility: restricted` en el frontmatter recibe 403 `permission_denied` (lo decide jiku-docs).
         `content` inline de hasta 256 KiB (el body de esta ruta admite hasta 768 KiB de JSON; más allá, 413). `contentUploadId`, `via` y `checksum` no se aceptan (400). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+
+        `path`, `folderId` y `fileName` de la respuesta son pass-through de jiku-docs: la web no los usa.
       requestBody:
         required: true
         content:
@@ -2243,6 +2247,8 @@ paths:
         de 256 KiB trae `contentUrl` en lugar de `content`. Un `id` mal formado responde 404 `document_not_found`
         sin llamar al bus. Una `version` compactada responde 404 `version_pruned` con
         `details: { requestedVersion, previousAvailable, nextAvailable }`.
+
+        La respuesta es el `data` de jiku-docs 1.3.0 verbatim (más los `*Refs` de la api); `path`, `folderId` y `fileName` son pass-through que la web no usa. `lock.holder`, `createdBy` y `updatedBy` son el `sub` de Zitadel.
       parameters:
         - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
         - { name: version, in: query, description: "Versión pedida; sin ella, la vigente", schema: { type: integer, minimum: 1 } }
@@ -2361,6 +2367,8 @@ paths:
         `page`. Sin `cursor`, `count` ni `myActiveProjects`. Los filtros se traducen igual que en
         `GET /docs/documents` (listas, `has*`, `person`, `visibility`; requiere jiku-docs >= 1.3.0) y cada hit gana
         `clientRefs` y `projectRefs` desde la base. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+
+        Cada hit es el de jiku-docs 1.3.0 verbatim (más los `*Refs`); `path` es pass-through que la web no usa.
       parameters:
         - { name: q, in: query, required: true, description: "Texto a buscar", schema: { type: string, minLength: 2, maxLength: 1000 } }
         - { name: projectId, in: query, description: "Proyecto; repetido = lista, hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
@@ -3417,7 +3425,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DocsDocumentPage' }
+              schema: { $ref: '#/components/schemas/DocsPortalDocumentPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ModuleForbidden' }
@@ -3446,7 +3454,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DocsDocument' }
+              schema: { $ref: '#/components/schemas/DocsPortalDocument' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ModuleForbidden' }
         '404': { $ref: '#/components/responses/ModuleNotFound' }
@@ -4044,22 +4052,22 @@ components:
 
     DocsDocument:
       type: object
-      description: Campos base más los que pidan `include` y el tamaño (`content` hasta 256 KiB; `contentUrl` por encima, vence a los 300 s). En listado y detalle la api agrega `clientRefs` y `projectRefs`
+      description: "Pass-through de `documents.list`/`documents.get` de jiku-docs 1.3.0 más `clientRefs`/`projectRefs` que agrega la api. Solo para la web. Campos base más los que pidan `include` y el tamaño (`content` hasta 256 KiB; `contentUrl` por encima, vence a los 300 s)"
       properties:
-        id: { type: string }
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
         title: { type: string }
-        path: { type: string }
-        folderId: { type: string }
-        fileName: { type: string }
+        path: { type: string, description: "Pass-through de jiku-docs (CLI y sync). La web no los muestra ni los usa (REQ-021)" }
+        folderId: { type: string, description: "Pass-through de jiku-docs (CLI y sync). La web no los muestra ni los usa (REQ-021)" }
+        fileName: { type: string, description: "Pass-through de jiku-docs (CLI y sync), solo en el detalle. La web no los muestra ni los usa (REQ-021)" }
         version: { type: integer }
         checksum: { type: string }
         sizeBytes: { type: integer }
         visibility: { type: string, enum: [internal, public, restricted] }
         createdAt: { type: string, format: date-time }
-        createdBy: { type: string }
+        createdBy: { type: string, description: "El `sub` de Zitadel (no el uuid de Jiku)" }
         createdByName: { type: string, nullable: true }
         updatedAt: { type: string, format: date-time }
-        updatedBy: { type: string }
+        updatedBy: { type: string, description: "El `sub` de Zitadel (no el uuid de Jiku)" }
         updatedByName: { type: string, nullable: true }
         deletedAt: { type: string, format: date-time, nullable: true }
         clients: { type: array, items: { type: integer } }
@@ -4083,7 +4091,7 @@ components:
           nullable: true
           properties:
             sessionId: { type: string }
-            holder: { type: string }
+            holder: { type: string, description: "El `sub` de Zitadel (no el uuid de Jiku)" }
             holderName: { type: string, nullable: true }
             via: { type: string, enum: [human, agent] }
             expiresAt: { type: string, format: date-time }
@@ -4194,7 +4202,7 @@ components:
         version: { type: integer }
         checksum: { type: string }
         sizeBytes: { type: integer }
-        author: { type: string }
+        author: { type: string, description: "El `sub` de Zitadel (no el uuid de Jiku)" }
         authorName: { type: string, nullable: true }
         kind: { type: string, enum: [create, update, restore] }
         protected: { type: boolean }
@@ -4209,7 +4217,7 @@ components:
         documentId: { type: string }
         version: { type: integer }
         title: { type: string }
-        path: { type: string }
+        path: { type: string, description: "Pass-through de jiku-docs; la web no lo usa" }
         headingPath: { type: array, items: { type: string } }
         snippet: { type: string, maxLength: 500 }
         score: { type: number }
@@ -4236,6 +4244,28 @@ components:
       required: [items, page]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/DocsDocument' } }
+        page: { $ref: '#/components/schemas/DocsPageInfo' }
+
+    DocsPortalDocument:
+      type: object
+      description: Documento `public` para el portal. Sin `path`, `folderId` ni `fileName` (REQ-021); los `fields` los fija la api
+      required: [id, title, version, visibility, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        title: { type: string }
+        version: { type: integer }
+        visibility: { type: string, enum: [public] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        content: { type: string, description: "Solo en el detalle, hasta 256 KiB" }
+        contentUrl: { type: string, description: "Solo en el detalle, en lugar de `content` por encima de 256 KiB; vence a los 300 s" }
+        attachments: { type: array, items: { $ref: '#/components/schemas/DocsAttachment' }, description: "Solo en el detalle" }
+
+    DocsPortalDocumentPage:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/DocsPortalDocument' } }
         page: { $ref: '#/components/schemas/DocsPageInfo' }
 
     DocsVersionPage:
@@ -4272,9 +4302,9 @@ components:
       properties:
         id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
         version: { type: integer }
-        path: { type: string }
-        folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', description: "jiku-docs >= 1.3.0" }
-        fileName: { type: string, description: "jiku-docs >= 1.3.0" }
+        path: { type: string, description: "Pass-through de jiku-docs; la web no lo usa" }
+        folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', description: "Pass-through de jiku-docs (>= 1.3.0); la web no lo usa" }
+        fileName: { type: string, description: "Pass-through de jiku-docs (>= 1.3.0); la web no lo usa" }
         warnings: { type: array, items: { type: string }, description: "Por ejemplo `possible_secret_detected` (no bloquea)" }
     DocsIdResult:
       type: object
