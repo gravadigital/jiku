@@ -11,7 +11,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: diseñada
-version: "2.0"
+version: "2.1"
 date: 2026-10-26
 ---
 
@@ -95,13 +95,13 @@ date: 2026-10-26
 - Texto/label: label `"Cliente"`; placeholder `"Sin cliente"`
 - Icono: nada
 - Asset: nada
-- Annotation: `Select` `single` `searchable`. Opcional. Cambiar el cliente vacía el proyecto si no es de ese cliente
+- Annotation: `Select` `single` `searchable`. Opcional. Elegir el cliente del proyecto ya elegido **conserva** el proyecto; elegir otro cliente lo vacía; `"Sin cliente"` lo vacía siempre [REQ-022 RF-3, CA-3]
 
 ### selector-proyecto
-- Texto/label: label `"Proyecto"`; placeholder `"Sin proyecto"`; ayuda con cliente elegido `"Solo los proyectos de {cliente}"`
+- Texto/label: label `"Proyecto"`; placeholder `"Sin proyecto"`; ayuda con cliente elegido `"Solo los proyectos de {cliente}"`; opción `"{proyecto} · {cliente}"` (solo `"{proyecto}"` si el proyecto no tiene cliente)
 - Icono: nada
 - Asset: nada
-- Annotation: `Select` `single` `searchable`; elegir un proyecto completa el cliente. Opcional: un documento sin proyecto aparece en "Sin proyecto" para clasificarlo después
+- Annotation: `Select` `single` `searchable`. Con un cliente elegido ofrece `"Sin proyecto"` más **los proyectos de ese cliente**; sin cliente, todos. Elegir un proyecto completa su cliente en selector-cliente [REQ-022 RF-1, RF-2, CA-1, CA-2]. Opcional: un documento sin proyecto aparece en "Sin proyecto" para clasificarlo después
 
 ### vinculo-precargado
 - Texto/label: `"También se vincula a: Requisito {título} #{id}"` · `"También se vincula a: Tarea {título} #{id}"`
@@ -144,7 +144,7 @@ date: 2026-10-26
 ### default
 - Aplica: Sí
 - Mensaje: —
-- Cambios: ninguno. Desde una ficha, cliente y proyecto llegan elegidos
+- Cambios: ninguno. Desde una ficha, cliente y proyecto llegan elegidos **y visibles en los selectores** (`"EXO"` / `"EXO - Videoconferencia · EXO"`), no solo en lo que se guarda. Si la ficha trae solo el proyecto, el cliente se completa con el del proyecto [REQ-022 RF-4, CA-4]
 
 ### empty
 - Aplica: No — es un formulario.
@@ -179,8 +179,8 @@ date: 2026-10-26
 ## Interacciones
 
 **Eventos:**
-- selector-proyecto · on change → completa selector-cliente
-- selector-cliente · on change → vacía selector-proyecto si no es de ese cliente
+- selector-proyecto · on change → completa selector-cliente con el cliente del proyecto
+- selector-cliente · on change → conserva selector-proyecto si es de ese cliente; si no, lo vacía; `"Sin cliente"` lo vacía siempre
 - campo-temas · on input → sugiere temas; Enter → agrega
 - boton-crear · on click → alta con el contenido inicial y las propiedades en el frontmatter → navega a `/docs/{id}?editar=1` → cierra
 - boton-cancelar-alta / `Escape` · → cierra sin crear
@@ -200,6 +200,19 @@ date: 2026-10-26
 - **Propio de esta composición:** la ayuda de cada opción de visibilidad se asocia con `aria-describedby`.
 
 ## Decisiones y descartes
+
+### REQ-022 — Arreglos e2e de la documentación sin carpetas (2026-10-26)
+
+**Decisiones tomadas:**
+- **Cliente y proyecto se relacionan de verdad.** La regla de REQ-021 no cambia; la e2e mostró que no se cumplía (con un cliente elegido solo aparecía "Sin proyecto", elegir un proyecto no completaba el cliente y el "+" mostraba "EXO / Sin proyecto"). Se escribe la regla completa, incluido que elegir el mismo cliente conserva el proyecto [REQ-022 JIKU-WEB-3, CA-1 a CA-4].
+- **Lo precargado se ve.** Desde una ficha, cliente y proyecto tienen que estar visibles en los selectores, no solo viajar al guardar: si la persona no los ve, no puede confirmar a qué queda vinculado el documento [REQ-022 RF-4].
+- **La opción del proyecto nombra su cliente.** `"{proyecto} · {cliente}"` permite elegir el proyecto sin haber elegido cliente y entender qué cliente se va a completar.
+
+**Alternativas descartadas:**
+- Inferir el cliente solo al guardar: el documento quedaría bien, pero el diálogo seguiría mostrando "Sin cliente".
+
+**Preguntas abiertas:**
+- Ninguna.
 
 ### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
 

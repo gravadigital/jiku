@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.3"
+version: "1.4"
 date: 2026-10-26
 ---
 
@@ -270,7 +270,7 @@ date: 2026-10-26
 - Texto/label: nombre accesible `"Nuevo documento en este proyecto"`
 - Icono: plus
 - Asset: nada
-- Annotation: botón solo icono en la cabecera de la card. Abre O-11 con el proyecto y su cliente ya elegidos [REQ-021 RF-16, CA-9]
+- Annotation: botón solo icono en la cabecera de la card. Abre O-11 con el proyecto y su cliente ya elegidos **y visibles en los selectores** (`"{cliente}"` / `"{proyecto} · {cliente}"`); al crear, guarda ambos [REQ-021 RF-16, CA-9; REQ-022 RF-4, CA-4]
 
 ### boton-ver-todos-documentos
 - Texto/label: `"Ver todos"`
@@ -491,6 +491,17 @@ date: 2026-10-26
 
 **Alternativas descartadas:**
 - Mantener la tabla con menos columnas: la card es angosta y la tabla desborda con títulos largos.
+
+**Preguntas abiertas:**
+- Ninguna.
+
+### REQ-022 — Arreglos e2e de la documentación sin carpetas (2026-10-26)
+
+**Decisiones tomadas:**
+- **El "+" de la card muestra lo que precarga.** La e2e mostraba "EXO / Sin proyecto" aunque al guardar viajaban ambos; el alta tiene que dejar ver el cliente y el proyecto elegidos [REQ-022 JIKU-WEB-3, CA-4].
+
+**Alternativas descartadas:**
+- Ninguna.
 
 **Preguntas abiertas:**
 - Ninguna.

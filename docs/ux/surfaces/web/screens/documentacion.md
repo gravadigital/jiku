@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: diseñada
-version: "2.0"
+version: "2.1"
 date: 2026-10-26
 ---
 
@@ -158,7 +158,7 @@ date: 2026-10-26
 - Texto/label: columnas `"Documento"` · `"Cliente · Proyecto"` · `"Actualizado"` · `"Editado por"`. En *inicio*, dos grupos con su fila de encabezado: `"En mis proyectos activos"` (hasta 5) y `"Editados recientemente"` (20). En *resultados*, el encabezado de la primera columna lleva el conteo: `"Documento · {n} de {total}"` (`"50+"` si la búsqueda de texto llegó al tope). En *filtrado desde un proyecto*, `"Cliente · Proyecto"` se reemplaza por `"Temas"` y los temas salen de la celda del título. En *sin proyecto*: `"Documento"` · `"Cliente"` · `"Actualizado"` · acción. Sin cliente ni proyecto: `"Sin cliente · Sin proyecto"`. Sin fecha: `"—"`. "Editado por" sin nombre: `"—"`
 - Icono: nada (icono `file` dentro de la celda del título)
 - Asset: nada
-- Annotation: `Table` `light`. Fila entera clickeable y enfocable (`<a>` en el título). "Cliente · Proyecto" muestra el primero de cada lista con `#id` de respaldo. Fecha `DD/MM/AAAA` en mono. "Editado por" usa el nombre que manda el servicio (`updatedByName`); si es la persona actual, `"vos"` [REQ-021 RF-5, RF-6, RF-15]. **No hay columna de ruta en ninguna vista** [RF-1]. Si "En mis proyectos activos" no tiene documentos, el grupo no se muestra
+- Annotation: `Table` `light`. Fila entera clickeable y enfocable (`<a>` en el título). "Cliente · Proyecto" muestra el primero de cada lista con `#id` de respaldo. Fecha `DD/MM/AAAA` en mono. "Editado por" usa el nombre que manda el servicio (`updatedByName`); si es la persona actual (reconocida por su identidad de acceso, no por su id de Jiku), `"vos"` [REQ-021 RF-5, RF-6, RF-15; REQ-022 RF-7, CA-9]. "Cliente · Proyecto" muestra el cliente propio del documento cuando lo tiene; no se infiere del proyecto [REQ-022 RF-6, CA-7]. **No hay columna de ruta en ninguna vista** [RF-1]. Si "En mis proyectos activos" no tiene documentos, el grupo no se muestra
 
 ### temas-documento
 - Texto/label: un pill por tema, con el texto del tema
@@ -176,7 +176,7 @@ date: 2026-10-26
 - Texto/label: `"En edición"`
 - Icono: lock
 - Asset: nada
-- Annotation: `Badge` neutro. Nombre accesible `"{lock.holderName} lo está editando"` (`"Otra persona lo está editando"` solo si el servicio no manda nombre). Informa, no bloquea
+- Annotation: `Badge` neutro. Nombre accesible `"{lock.holderName} lo está editando"` (`"Otra persona lo está editando"` solo si el servicio no manda nombre); si la reserva es de la persona actual, `"Lo estás editando"` [REQ-022 RF-7, CA-8]. Informa, no bloquea
 
 ### fragmento-coincidencia
 - Texto/label: el fragmento que devuelve el módulo, con la coincidencia resaltada
@@ -384,6 +384,18 @@ date: 2026-10-26
 - **Propio de esta composición:** el resaltado de la coincidencia no puede ser solo color: va en `<mark>`. Sumar o quitar un token se anuncia (`"Filtro {etiqueta} agregado"` / `"quitado"`).
 
 ## Decisiones y descartes
+
+### REQ-022 — Arreglos e2e de la documentación sin carpetas (2026-10-26)
+
+**Decisiones tomadas:**
+- **La fila reconoce la reserva propia.** `marca-en-edicion` dice `"Lo estás editando"` cuando la reserva es de la persona actual, con el mismo criterio de identidad que el documento [REQ-022 JIKU-WEB-4, CA-8].
+- **"Cliente · Proyecto" refleja las relaciones reales del documento.** El "Sin cliente · EXO - Videoconferencia" de la e2e era un documento guardado sin cliente por el defecto del alta, no un error de la etiqueta; la etiqueta no se cambia y no infiere el cliente del proyecto [REQ-022 Diagnóstico 2, CA-7].
+
+**Alternativas descartadas:**
+- Mostrar el cliente del proyecto cuando el documento no tiene cliente propio: escondería documentos mal clasificados.
+
+**Preguntas abiertas:**
+- Ninguna.
 
 ### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
 

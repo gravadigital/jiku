@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-26
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-095, S-096, S-097, S-098]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-095, S-096, S-097, S-098, S-100, S-101]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -189,6 +189,14 @@ inicial `# {título}`) y **no manda `folderId` ni `fileName`**: la ubicación y 
 jiku-docs. El `id` es un ULID generado al abrir el diálogo y se reusa en los reintentos: un
 `409 already_exists` con ese `id` significa que el intento anterior sí se aplicó y la web lo trata como
 éxito. Tras crear, la web navega a `/docs/{id}?editar=1` y **recién después** cierra el diálogo.
+
+**Selectores Cliente / Proyecto (REQ-022, S-100):** la web lee el cliente de cada proyecto de
+`GET /api/projects` (`client.id`, con respaldo en `clientId`): el selector de Proyecto ofrece los del
+cliente elegido y elegir un proyecto completa su cliente.
+
+**Identidad en la documentación (REQ-022, S-101):** la web reconoce la reserva y las versiones propias
+comparando `lock.holder`, `createdBy`, `updatedBy` y `author` con `session.user.zitadelId` (el `sub`),
+nunca con `session.user.id` (uuid de Jiku). Sin `zitadelId` no se reconoce nada como propio.
 
 ---
 

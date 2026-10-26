@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: diseñada
-version: "2.0"
+version: "2.1"
 date: 2026-10-26
 ---
 
@@ -158,7 +158,7 @@ Lectura (pantalla 06 de la propuesta B) y edición (pantalla 08) son **estados d
 - Texto/label: `"Versión {n} · actualizado {DD/MM/AAAA HH:mm} por {nombre}"` · si la guardó la persona actual, `"por vos"` · sin nombre, `"por —"` se omite y queda `"Versión {n} · actualizado {fecha}"`
 - Icono: nada
 - Asset: nada
-- Annotation: el nombre es el que manda el servicio (`updatedByName`), **nunca** `"otra persona"` [REQ-021 RF-15, CA-18]. Fecha en mono
+- Annotation: el nombre es el que manda el servicio (`updatedByName`), **nunca** `"otra persona"` [REQ-021 RF-15, CA-18]. "La persona actual" se reconoce por su identidad de acceso (la misma que el módulo guarda como autor), no por su id de Jiku; si la sesión no la trae, nunca se muestra `"vos"` [REQ-022 RF-7, CA-9, CA-10]. Fecha en mono
 
 ### boton-historial
 - Texto/label: nombre accesible `"Historial de versiones"` (botón solo icono)
@@ -200,7 +200,7 @@ Lectura (pantalla 06 de la propuesta B) y edición (pantalla 08) son **estados d
 - Texto/label: `"{nombre} lo está editando hasta las {HH:mm}. Podés leerlo mientras tanto."` · sin nombre: `"Otra persona lo está editando hasta las {HH:mm}…"` · agente: `"Un agente lo está editando hasta las {HH:mm}…"`
 - Icono: lock
 - Asset: nada
-- Annotation: el nombre sale de `lock.holderName` (o de `details.holderName` al chocar con la reserva). Si el holder es la persona actual en otra pestaña: `"Lo estás editando en otra pestaña o ventana."` [REQ-021 RF-15, CA-18]
+- Annotation: el nombre sale de `lock.holderName` (o de `details.holderName` al chocar con la reserva). Si el holder es la persona actual en otra pestaña: `"Lo estás editando en otra pestaña o ventana."` [REQ-021 RF-15, CA-18]. La persona se reconoce por su identidad de acceso, no por su id de Jiku; sin esa identidad en la sesión, el aviso es siempre el de otra persona, nunca `"Lo estás editando…"` por error [REQ-022 RF-7, CA-8, CA-10]
 
 ### aviso-documento-grande
 - Texto/label: `"Este documento es demasiado grande para editarlo desde acá. Podés leerlo y editarlo con jiku-go."`
@@ -296,13 +296,13 @@ Lectura (pantalla 06 de la propuesta B) y edición (pantalla 08) son **estados d
 - Texto/label: label `"Cliente"`; placeholder `"Sin cliente"`
 - Icono: nada
 - Asset: nada
-- Annotation: `Select` `single` `searchable`, con opción de dejarlo vacío. Cambiar el cliente vacía el proyecto si no pertenece a ese cliente
+- Annotation: `Select` `single` `searchable`, con opción de dejarlo vacío. Al entrar en edición muestra el cliente del documento. Elegir el cliente del proyecto ya elegido lo conserva; elegir otro cliente lo vacía; `"Sin cliente"` lo vacía siempre [REQ-022 RF-3, CA-3, CA-5]
 
 ### selector-proyecto
-- Texto/label: label `"Proyecto"`; placeholder `"Sin proyecto"`
+- Texto/label: label `"Proyecto"`; placeholder `"Sin proyecto"`; opción `"{proyecto} · {cliente}"` (solo `"{proyecto}"` si no tiene cliente)
 - Icono: nada
 - Asset: nada
-- Annotation: `Select` `single` `searchable`, limitado al cliente elegido; elegir un proyecto completa el cliente. Los requisitos y las tareas vinculados **no se editan acá**: se conservan tal cual y se siguen viendo en lista-vinculos al volver a lectura
+- Annotation: `Select` `single` `searchable`, limitado a los proyectos del cliente elegido (más `"Sin proyecto"`); al entrar en edición muestra el proyecto del documento; elegir un proyecto completa su cliente [REQ-022 RF-1, RF-2, CA-5]. Los requisitos y las tareas vinculados **no se editan acá**: se conservan tal cual y se siguen viendo en lista-vinculos al volver a lectura
 
 ### aviso-frontmatter-ilegible
 - Texto/label: `"No pudimos leer las propiedades de este documento. Editá el texto completo, propiedades incluidas, y al guardar el módulo te va a decir si algo no es válido."`
@@ -515,7 +515,7 @@ Lectura (pantalla 06 de la propuesta B) y edición (pantalla 08) son **estados d
 - boton-guardar · on click → guarda propiedades + cuerpo + mensaje en una versión; éxito → *default*; `version_conflict` → *conflicto de versión*; `document_locked` → *bloqueado por otra persona* conservando lo escrito; `permission_denied` al restringir → toast `"Solo la conducción puede restringir un documento."`
 - boton-cancelar · on click → (confirmación si hay cambios) libera la reserva y vuelve a *default*
 - cerrar la pestaña con el editor abierto → libera la reserva con un pedido `keepalive`; si no llega, vence a los 120 s
-- selector-proyecto · on change → completa selector-cliente
+- selector-proyecto · on change → completa selector-cliente con el cliente del proyecto
 - campo-temas · on input → sugiere temas existentes por prefijo; Enter → agrega el tema
 - zona-adjuntar · on drop / click → sube el archivo e inserta el enlace en el cursor
 - boton-historial · on click → abre O-13
@@ -541,6 +541,18 @@ Lectura (pantalla 06 de la propuesta B) y edición (pantalla 08) son **estados d
 - **Propio de esta composición:** boton-historial es solo icono y lleva nombre accesible. aviso-conflicto, aviso-reserva-perdida y aviso-version-compactada se anuncian con `role="alert"`.
 
 ## Decisiones y descartes
+
+### REQ-022 — Arreglos e2e de la documentación sin carpetas (2026-10-26)
+
+**Decisiones tomadas:**
+- **"Vos" y "Lo estás editando" dependen de la identidad de acceso.** El módulo guarda quién reserva y quién guarda con la identidad de acceso de la persona; compararla con el id de Jiku hacía que nadie se reconociera nunca (la e2e veía "Otra persona lo está editando…" con la reserva propia en otra pestaña). La regla falla cerrada: sin identidad, el texto es el de otra persona o el nombre, nunca "vos" [REQ-022 JIKU-WEB-4, CA-8 a CA-10].
+- **La edición muestra el cliente y el proyecto del documento en sus selectores**, con la misma relación Cliente ↔ Proyecto que el alta (O-11) [REQ-022 CA-5].
+
+**Alternativas descartadas:**
+- Ninguna: el comportamiento esperado ya estaba diseñado en REQ-021; esto lo hace explícito.
+
+**Preguntas abiertas:**
+- Ninguna.
 
 ### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
 

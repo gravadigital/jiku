@@ -11,7 +11,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: diseñada
-version: "1.0"
+version: "1.1"
 date: 2026-10-26
 ---
 
@@ -89,7 +89,7 @@ date: 2026-10-26
 - Texto/label: por entrada: `"Versión {n}"` · `"{autor}"` · `"{DD/MM/AAAA HH:mm}"` · tipo `"Creación"` / `"Edición"` / `"Restauración"` (`"Restauración de la versión {m}"` cuando se conoce el origen) · el mensaje entre comillas si lo tiene. Autor sin nombre: `"—"`; si es la persona actual, `"vos"`
 - Icono: nada
 - Asset: nada
-- Annotation: autor del servicio (`authorName`), nunca `"otra persona"` [REQ-021 RF-15, CA-18]. 50 por pedido, la más nueva primero
+- Annotation: autor del servicio (`authorName`), nunca `"otra persona"` [REQ-021 RF-15, CA-18]. `"vos"` cuando el autor es la persona actual, reconocida por su identidad de acceso; sin ella, nunca `"vos"` [REQ-022 RF-7, CA-9, CA-10]. 50 por pedido, la más nueva primero
 
 ### marca-version-actual
 - Texto/label: `"Actual"`
@@ -208,6 +208,17 @@ date: 2026-10-26
 - **Propio de esta composición:** "Protegida" y "Actual" llevan texto visible, no solo un icono.
 
 ## Decisiones y descartes
+
+### REQ-022 — Arreglos e2e de la documentación sin carpetas (2026-10-26)
+
+**Decisiones tomadas:**
+- **El autor propio se reconoce por la identidad de acceso**, la misma que el módulo guarda en cada versión; el id de Jiku no coincide nunca [REQ-022 JIKU-WEB-4, CA-9].
+
+**Alternativas descartadas:**
+- Ninguna.
+
+**Preguntas abiertas:**
+- Ninguna.
 
 ### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
 

@@ -2051,7 +2051,7 @@
               "variant": "disabled"
             }
           },
-          "annotation": "solo icono en la cabecera de la card; el texto es su nombre accesible · abre O-11 con el proyecto y su cliente ya elegidos [REQ-021 RF-16, CA-9]"
+          "annotation": "solo icono en la cabecera de la card; el texto es su nombre accesible · abre O-11 con el proyecto y su cliente ya elegidos y visibles en los selectores (\"{cliente}\" / \"{proyecto} · {cliente}\"); al crear guarda ambos [REQ-021 RF-16, CA-9; REQ-022 RF-4, CA-4]"
         },
         {
           "name": "boton-ver-todos-documentos",
@@ -10514,7 +10514,7 @@
               ]
             }
           },
-          "annotation": "Table light · fila entera clickeable y enfocable (<a> en el título) · inicio: grupos \"En mis proyectos activos\" (hasta 5, se omite si está vacío) y \"Editados recientemente\" (20) · resultados: conteo en el encabezado (\"50+\" en el tope de texto) · \"Editado por\" es el nombre del servicio, \"vos\" si es la persona actual · sin columna de ruta en ninguna vista [REQ-021 RF-1, RF-5, RF-6, RF-15]"
+          "annotation": "Table light · fila entera clickeable y enfocable (<a> en el título) · inicio: grupos \"En mis proyectos activos\" (hasta 5, se omite si está vacío) y \"Editados recientemente\" (20) · resultados: conteo en el encabezado (\"50+\" en el tope de texto) · \"Editado por\" es el nombre del servicio, \"vos\" si es la persona actual (por identidad de acceso, no id de Jiku) · \"Cliente · Proyecto\" muestra el cliente propio del documento, no se infiere del proyecto · sin columna de ruta en ninguna vista [REQ-021 RF-1, RF-5, RF-6, RF-15; REQ-022 RF-6, RF-7, CA-7, CA-9]"
         },
         {
           "name": "temas-documento",
@@ -10569,7 +10569,7 @@
             "asignando",
             "success"
           ],
-          "annotation": "Badge neutro, solo en filas con lock vigente · nombre accesible \"{lock.holderName} lo está editando\" · informa, no bloquea"
+          "annotation": "Badge neutro, solo en filas con lock vigente · nombre accesible \"{lock.holderName} lo está editando\"; si la reserva es propia, \"Lo estás editando\" · informa, no bloquea [REQ-022 RF-7, CA-8]"
         },
         {
           "name": "fragmento-coincidencia",
@@ -11079,7 +11079,7 @@
               "content": "Versión 8 · actualizado 26/10/2026 10:12 por vos"
             }
           },
-          "annotation": "nombre del servicio (updatedByName), nunca \"otra persona\" · \"por vos\" si es la persona actual · sin nombre se omite [REQ-021 RF-15, CA-18]"
+          "annotation": "nombre del servicio (updatedByName), nunca \"otra persona\" · \"por vos\" si es la persona actual, reconocida por su identidad de acceso (no id de Jiku); sin ella nunca \"vos\" · sin nombre se omite [REQ-021 RF-15, CA-18; REQ-022 RF-7, CA-9, CA-10]"
         },
         {
           "name": "boton-historial",
@@ -11206,7 +11206,7 @@
           "visible_only_in_states": [
             "bloqueado por otra persona"
           ],
-          "annotation": "lock.holderName (o details.holderName) · sin nombre: \"Otra persona lo está editando hasta las {HH:mm}…\" · agente: \"Un agente lo está editando…\" · la persona actual en otra pestaña: \"Lo estás editando en otra pestaña o ventana.\" [REQ-021 RF-15, CA-18]"
+          "annotation": "lock.holderName (o details.holderName) · sin nombre: \"Otra persona lo está editando hasta las {HH:mm}…\" · agente: \"Un agente lo está editando…\" · la persona actual en otra pestaña: \"Lo estás editando en otra pestaña o ventana.\" · persona reconocida por identidad de acceso; sin ella, siempre el aviso de otra persona [REQ-021 RF-15, CA-18; REQ-022 RF-7, CA-8, CA-10]"
         },
         {
           "name": "aviso-documento-grande",
@@ -11558,14 +11558,14 @@
             "error de validación",
             "error de sistema"
           ],
-          "annotation": "Select single searchable, puede quedar vacío (placeholder \"Sin cliente\") · cambiar el cliente vacía el proyecto si no es de ese cliente"
+          "annotation": "Select single searchable, puede quedar vacío (placeholder \"Sin cliente\") · al entrar en edición muestra el cliente del documento · elegir el cliente del proyecto ya elegido lo conserva; otro cliente lo vacía; \"Sin cliente\" lo vacía siempre [REQ-022 RF-3, CA-3, CA-5]"
         },
         {
           "name": "selector-proyecto",
           "type": "dropdown",
           "category": "input",
           "label": "Proyecto",
-          "value": "Portal Opus",
+          "value": "Portal Opus · ACME",
           "visible_only_in_states": [
             "editando",
             "conflicto de versión",
@@ -11573,7 +11573,7 @@
             "error de validación",
             "error de sistema"
           ],
-          "annotation": "Select single searchable, limitado al cliente (placeholder \"Sin proyecto\") · elegir completa el cliente · requisitos y tareas no se editan acá: se conservan"
+          "annotation": "Select single searchable, limitado a los proyectos del cliente elegido (más \"Sin proyecto\"; placeholder \"Sin proyecto\") · opción \"{proyecto} · {cliente}\" · al entrar en edición muestra el proyecto del documento · elegir completa su cliente · requisitos y tareas no se editan acá: se conservan [REQ-022 RF-1, RF-2, CA-5]"
         },
         {
           "name": "aviso-frontmatter-ilegible",
@@ -12581,15 +12581,15 @@
           "category": "input",
           "label": "Cliente",
           "value": "ACME",
-          "annotation": "Select single searchable, opcional (placeholder \"Sin cliente\") · cambiar el cliente vacía el proyecto si no es de ese cliente · desde una ficha llega elegido"
+          "annotation": "Select single searchable, opcional (placeholder \"Sin cliente\") · elegir el cliente del proyecto ya elegido conserva el proyecto; otro cliente lo vacía; \"Sin cliente\" lo vacía siempre · desde una ficha llega elegido y visible [REQ-022 RF-3, RF-4, CA-3, CA-4]"
         },
         {
           "name": "selector-proyecto",
           "type": "dropdown",
           "category": "input",
           "label": "Proyecto",
-          "value": "Portal Opus",
-          "annotation": "Select single searchable, opcional (placeholder \"Sin proyecto\") · ayuda \"Solo los proyectos de {cliente}\" · elegir completa el cliente · sin proyecto, el documento aparece en \"Sin proyecto\""
+          "value": "Portal Opus · ACME",
+          "annotation": "Select single searchable, opcional (placeholder \"Sin proyecto\") · ayuda \"Solo los proyectos de {cliente}\" · opción \"{proyecto} · {cliente}\" · con cliente: \"Sin proyecto\" + los proyectos de ese cliente; sin cliente, todos · elegir completa su cliente · sin proyecto, el documento aparece en \"Sin proyecto\" [REQ-022 RF-1, RF-2, CA-1, CA-2]"
         },
         {
           "name": "vinculo-precargado",
@@ -13282,7 +13282,7 @@
             "loading",
             "error de sistema"
           ],
-          "annotation": "<ol>, la más nueva primero, 50 por pedido · autor del servicio (authorName), \"vos\" si es la persona actual, \"—\" sin nombre · tipo: Creación / Edición / Restauración · el mensaje entre comillas [REQ-021 RF-15, CA-18]"
+          "annotation": "<ol>, la más nueva primero, 50 por pedido · autor del servicio (authorName), \"vos\" si es la persona actual (por identidad de acceso; sin ella nunca \"vos\"), \"—\" sin nombre · tipo: Creación / Edición / Restauración · el mensaje entre comillas [REQ-021 RF-15, CA-18; REQ-022 RF-7, CA-9, CA-10]"
         },
         {
           "name": "marca-version-actual",

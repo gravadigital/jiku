@@ -425,7 +425,9 @@ ninguno de estos pasos tiene interfaz.
 - **Crear un documento** — **"Nuevo documento"** (O-11) desde documentacion, o **"+"** desde la card
   de una ficha con el proyecto ya elegido: título, cliente, proyecto, temas y visibilidad;
   **"Crear y editar"** abre el editor con la reserva tomada, sin recargar [REQ-021 RF-9, RF-10,
-  CA-9, CA-14].
+  CA-9, CA-14]. Cliente y proyecto se relacionan: con un cliente elegido, Proyecto ofrece solo los
+  de ese cliente; elegir un proyecto completa su cliente; desde el "+" ambos se ven elegidos en los
+  selectores. Lo mismo al editar un documento existente [REQ-022 RF-1 a RF-4, CA-1 a CA-5].
 - **Ver o recuperar una versión anterior** — **Historial** (O-13) lista las versiones con autor,
   fecha, tipo y marca de protegida; "Ver" la abre en lectura y "Restaurar" crea una versión nueva
   con ese contenido, con confirmación [REQ-021 RF-14, CA-20].
@@ -436,6 +438,11 @@ ninguno de estos pasos tiene interfaz.
 - **Otra persona lo está editando** — `"{nombre} lo está editando hasta las {HH:mm}. Podés leerlo
   mientras tanto."`, con el nombre que manda el servicio; "Editar" se habilita cuando la reserva
   vence [CA-18; REQ-021 RF-15].
+- **Lo está editando la misma persona en otra pestaña** — `"Lo estás editando en otra pestaña o
+  ventana."` (en la fila del listado, `"Lo estás editando"`); la persona se reconoce por su
+  identidad de acceso, y si la sesión no la trae se muestra el aviso de otra persona, nunca uno
+  propio por error. El mismo criterio da `"vos"` en la cabecera, "Editado por" y el historial
+  [REQ-022 RF-7, CA-8 a CA-10].
 - **Alguien guardó mientras editaba** — `version_conflict`: el texto propio se queda en el editor y
   la versión ajena aparece al lado, en texto plano para copiar; guardar después es una decisión
   explícita (`"Guardar sobre la versión {n}"`), nunca un reintento automático [CA-17, CA-30].
