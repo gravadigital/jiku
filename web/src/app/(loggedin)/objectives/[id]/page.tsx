@@ -25,7 +25,10 @@ export default async function ObjectiveDetail({
         action={{ children: 'Editar', href: `/objectives/edit/${id}` }}
       />
       <ObjectiveDetails objective={objective} />
-      <DocsPanel scope={{ taskId: Number(id) }} />
+      <DocsPanel
+        scope={{ taskId: Number(id) }}
+        context={{ projectId: objective.projectId, title: objective.title }}
+      />
       <ObjectiveHistoryList
         objectiveActivity={objective.ObjectiveActivity || []}
         objectiveId={id}

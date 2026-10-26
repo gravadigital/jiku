@@ -1,0 +1,53 @@
+@use '@/styles' as *;
+
+// La columna del texto es `minmax(0, 1fr)` y lleva `min-width: 0`: así un título largo envuelve
+// en la card de 420px en vez de empujar la fecha fuera y desbordar.
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-2) 0;
+}
+
+.icon {
+  display: inline-flex;
+  padding-top: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+// Fila entera clickeable: el <a> es el único enfocable y su ::after cubre la fila.
+.link {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  &:hover {
+    color: var(--text-link);
+    text-decoration: underline;
+  }
+}
+
+.meta {
+  color: var(--text-secondary);
+}
+
+.date {
+  color: var(--text-secondary);
+  font-family: var(--fontStack-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  white-space: nowrap;
+}

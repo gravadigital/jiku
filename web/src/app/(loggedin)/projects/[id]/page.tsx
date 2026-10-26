@@ -62,7 +62,7 @@ export default function ProjectDetail({ params }: { readonly params: Promise<{ i
             <ProjectProperties project={project} />
           </Card>
 
-          <DocsPanel scope={{ projectId: Number(id) }} />
+          <DocsPanel scope={{ projectId: Number(id) }} context={{ clientId: project.client?.id }} />
 
           <ProjectAttachmentsSection projectId={id} />
         </div>

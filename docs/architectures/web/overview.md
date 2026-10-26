@@ -76,7 +76,8 @@ cuando `GET /api/modules` no informa `docs` como `available`.
   `['modules']` (`utils/moduleInvalidation.ts`, `withModuleInvalidation`).
 - **Ítem de sidebar.** `ShellSidebar.tsx` agrega `Documentación` (`/docs`) solo si el módulo no está
   `not_installed`.
-- **El panel de documentos de una ficha** (`DocsPanel`) se monta en `projects/[id]/page.tsx`,
+- **La card de documentos de una ficha** (`DocsPanel`: cantidad, "+" que abre el alta con las
+  relaciones de la ficha y "Ver todos ›" al buscador) se monta en `projects/[id]/page.tsx`,
   `objectives/[id]/page.tsx` (tarea) y en `features/requirements/components/RequirementDetail/RequirementDetail.tsx`
   (requisito).
 - **Compartir** (`ShareDocumentDialog`, `ShareLinksTable`) depende de `features.sharing` de
@@ -146,7 +147,7 @@ es la superficie pública; las rutas importan de ahí, no de rutas profundas.
 | `time-allocation` | `/time-allocation` | Solo `admin` edita |
 | `worked-times` | `/worked-times`, `/worked-times/report` | Oculto para `external-user` |
 | `attachments` | transversal: proyectos, requisitos, tareas, comentarios | Sin ruta propia |
-| `docs` | `/docs` (carpetas + búsqueda), `/docs/[id]` (visor/editor); el panel `DocsPanel` se monta en `/projects/[id]`, `/objectives/[id]` y en el detalle de requisito | **Opcional** (REQ-016): ítem de sidebar y panel solo si el módulo no está `not_installed`. Ver "Módulo opcional: documentación" |
+| `docs` | `/docs` (carpetas + búsqueda), `/docs/[id]` (visor/editor); la card `DocsPanel` se monta en `/projects/[id]`, `/objectives/[id]` y en el detalle de requisito | **Opcional** (REQ-016): ítem de sidebar y panel solo si el módulo no está `not_installed`. Ver "Módulo opcional: documentación" |
 | `auth` | `/login/enter`, y `usePersons` desde varios módulos | — |
 
 > **`clients` vive en dos lugares.** Existe `features/clients/` (el módulo completo) y
@@ -161,7 +162,7 @@ Verificado contra el árbol (sin tests):
 - `components/`: `DocsPanel`, `DocsBrowser`, `DocumentView`, `DocumentContent`, `DocumentEditor`,
   `DocumentAttachZone`, `DocumentBreadcrumb`, `FolderBreadcrumb`, `DocumentRelations`,
   `NewDocumentDialog`, `ShareDocumentDialog`, `ShareLinksTable`, `SearchSnippet`, `DocsNotice`.
-- `hooks/`: `useModules` (y `useModule`), `useDocuments`, `useDocument`, `useDocsSearch`,
+- `hooks/`: `useModules` (y `useModule`), `useDocsCard`, `useDocument`, `useDocsSearch`,
   `useFolderContents`, `useFolderTrail`, `useRootFolders`, `useCreateDocument`, `useSaveDocument`,
   `useUploadDocAttachment`, `useEditSession`, `useDocumentShares`, `useCreateShare`, `useRevokeShare`.
 - `services/` (todos Server Action salvo el cliente): `docsApi`, `docsAttachmentsApi`,

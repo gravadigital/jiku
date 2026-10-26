@@ -7,7 +7,7 @@
 
 ## Components
 
-Total: 53
+Total: 54
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -32,7 +32,8 @@ Total: 53
 - **ToggleGroup** (`web/src/shared/components/ui/ToggleGroup/ToggleGroup.tsx`) - Migrated by S-055 to the Design System spec: real `role="radiogroup"`/`role="radio"` (not `aria-pressed` buttons), arrow-key roving selection with wraparound, four variants (`segmented`/`range-pill`/`stepper-value`/`day-chip`), `options` as `{ value, label }[]` (renamed from `{ key, label }`). `stepper-value` supports `allowOther` to escape to a free-text `Input`. **`status`/`statusLabel`** drive the `day-chip` load semaphore: a 6px colour dot under the label plus the state in an `sr-only` — it replaces the earlier approach of folding the state into the visible label text ("Vie 4 ○ sin carga"), which turned every chip into a sentence.
 - **ThemeToggle** (`web/src/features/theme/components/ThemeToggle/ThemeToggle.tsx`) - The theme selector in the sidebar footer (S-059): a `ToggleGroup variant="segmented"` with `label="Tema"` and options `Claro`/`Oscuro`. No component-level DS spec of its own — reuses `ToggleGroup`'s (DS Gaps resolution: same role, no new component). Reads/writes the theme via `useTheme()`.
 - **ErrorPageContent** (`web/src/app/(loggedin)/ErrorPageContent.tsx`) - Shared body for the four `error.tsx` boundaries under `app/(loggedin)` that were the same component copied (`projects`, `objectives`, `objectives/by-project`, `objectives/by-responsible`): renders the `<h1>` and message with a component-scoped class over semantic tokens instead of the retired global `h1`/`p` rules (S-060). Takes an optional `message?: string`, matching `CustomError['message']`.
-- **DocsPanel** (`web/src/features/docs/components/DocsPanel/DocsPanel.tsx`) - The "Documentación" card embedded in project, requirement and task detail: lists the documents linked to a `scope` (`projectId | requirementId | taskId`), 10 per page with cursor "Ver más". Renders nothing when the optional docs module is `not_installed`; shows the unavailable notice when `unavailable` or on query error.
+- **DocsPanel** (`web/src/features/docs/components/DocsPanel/DocsPanel.tsx`) - The "Documentación" card embedded in project, requirement and task detail: `scope` (`projectId | requirementId | taskId`) plus `context`; header with the count, a "+" that opens the new-document dialog with the ficha's relations and a "Ver todos ›" link to `/docs`; up to 5 rows. Renders nothing when the optional docs module is `not_installed`; shows the unavailable notice when `unavailable` or on query error.
+- **DocumentRowCompact** (`web/src/features/docs/components/DocumentRowCompact/DocumentRowCompact.tsx`) - Compact card row: title link, date, topics or "Sin tema" and the optional "vinculado, sin proyecto propio" mark; no path.
 - **DocsNotice** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - Local inline alert (`role="alert"`, `warning`/`error` intent over the `review`/`urgent` state tokens) covering the accepted DS gap `alert`; not in `shared/components/ui` on purpose.
 - **DocumentView** (`web/src/features/docs/components/DocumentView/DocumentView.tsx`) - Client container of `/docs/[id]` (read mode): header, breadcrumb, version meta, safe markdown content, links, topics and attachments, with loading / not found / module-unavailable states. Calls `notFound()` if the module becomes `not_installed`.
 - **SearchSnippet** (`web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`) - Renders a search `snippet` as text with `<mark>` on the match; never interprets HTML (P-8).
@@ -98,7 +99,7 @@ Total: 28
 - **useUpdateRequirementComment** (`web/src/features/requirements/hooks/useUpdateRequirementComment.ts`) - Wraps `updateRequirementComment` in `useMutation`; invalidates both `['requirement', reqid]` and `['attachments', 'requirement_comment', cid]` on success.
 - **useTheme** / **useThemeOptional** (`web/src/features/theme/context/ThemeProvider.tsx`) - Reads/writes the current theme (`useTheme` throws outside the provider; `useThemeOptional` returns `null`). `setTheme` stamps `document.documentElement.dataset.theme`, persists to `localStorage` + a reflected cookie, and never touches TanStack Query or `fetch` (S-059).
 - **useModules / useModule** (`web/src/features/docs/hooks/useModules.ts`) - `GET /modules` polled every 60 s (`['modules']`); `useModule(name)` resolves `{ status, sharing, isKnown }` and behaves as `not_installed` while loading or on error.
-- **useDocuments** (`web/src/features/docs/hooks/useDocuments.ts`) - Cursor-paginated `useInfiniteQuery` (10 per page) of the documents linked to a project, requirement or task.
+- **useDocsCard** (`web/src/features/docs/hooks/useDocsCard.ts`) - Single-page `useQuery` (5 items + total) of the documents linked to a project, requirement or task.
 - **useDocument** (`web/src/features/docs/hooks/useDocument.ts`) - Document detail by ULID; does not retry 404 or `module_unavailable`.
 - **useDocumentVersions** (`web/src/features/docs/hooks/useDocumentVersions.ts`) - Infinite query over `GET /docs/documents/{id}/versions` (`['docs','versions',id]`, 50 per page, cursor).
 - **useRestoreVersion** (`web/src/features/docs/hooks/useRestoreVersion.ts`) - Restore mutation (`retry: 0`); invalidates the document, versions and lists in `onSettled`.
@@ -120,7 +121,7 @@ Total: 28
 
 ## Utils
 
-Total: 36
+Total: 35
 
 - **parseFinishDate** (`web/src/shared/utils/parse-finish-date.ts`) - Parses the legacy `estimatedFinishDate` string into a local `Date`, or `null` when empty, invalid or not `YYYY-MM-DD`-prefixed.
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
@@ -135,8 +136,7 @@ Total: 36
 - **parseExternalLinks** (`web/src/shared/utils/parse-external-links.ts`) - Parses the `EXTERNAL_LINKS` JSON env-driven config (`[{"tool":"github","href":"...","label":"..."}]`) into the array `ExternalLinksBlock` renders in the sidebar footer; a malformed value logs and degrades to an empty list instead of crashing the shell. Extracted from `Navbar` (dead code, removed in S-060) into its own module with no `next-auth`/`next/image`/`usePathname` baggage.
 - **withModuleInvalidation / isModuleUnavailable** (`web/src/features/docs/utils/moduleInvalidation.ts`) - Wraps a docs query: on `module_unavailable` it invalidates `['modules']` and rethrows.
 - **docsUrlTransform / ULID_PATTERN** (`web/src/features/docs/utils/docsUrlTransform.ts`) - `urlTransform` of the safe document viewer: rewrites any `/docs/attachments/{ULID}` (any host) to the own origin, allows only `http(s)`/`mailto`, blanks everything else.
-- **folderPathOf / displayTitle** (`web/src/features/docs/utils/paths.ts`) - Folder of a document path; title or file name without `.md`.
-- **personName** (`web/src/features/docs/utils/persons.ts`) - Resolves a Zitadel `sub` against `Person.userId`, falling back to `"otra persona"`.
+- **docsCard** (`web/src/features/docs/utils/docsCard.ts`) - Documentation card helpers: `cardFilters`, `seeAllHref`, `cardInitial`, `countLabel`.
 - **formatDateTime** (`web/src/features/docs/utils/dates.ts`) - ISO string to `DD/MM/AAAA HH:mm` (local getters).
 - **MarkdownViewer `mode="document"`** (`web/src/features/attachments/components/MarkdownViewer/MarkdownViewer.tsx`) - Standard-markdown mode (GFM only, no Jiku placeholders or `remark-breaks`), shifted headings, links restricted by `docsUrlTransform`, no raw HTML.
 - **newUlid** (`web/src/features/docs/utils/ulid.ts`) - ULID from `Date.now()` + `crypto.getRandomValues` (lock `sessionId`, document `id`).

@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-26
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-096, S-097]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-095, S-096, S-097, S-098]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -14,7 +14,7 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, 
 **Status:** Draft
 **Creado:** 2026-10-24
 **Última actualización:** 2026-10-26
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-095, S-096, S-097, S-098
 
 ## Descripción
 
@@ -101,15 +101,21 @@ sequenceDiagram
     API-->>OPUS: 302 (solo si public y el adjunto le pertenece)
 ```
 
-### Paso 1: panel de documentos en una ficha (web)
+### Paso 1: card de documentos en una ficha (web)
 
 **Origen:** web (`DocsPanel`, montado en `projects/[id]`, `objectives/[id]` y el detalle de
 requisito)
 **Destino:** api → jiku-docs
 **Tipo:** REST + Consulta por el bus
 
-El panel solo se renderiza si `useModule('docs')` no es `not_installed`. Su Server Action
-`listDocuments` (`features/docs/services/docsApi.ts`) llama a la api con el token de sesión.
+La card "Documentación" solo se renderiza si `useModule('docs')` no es `not_installed`. Su Server
+Action `listDocuments` (`features/docs/services/docsApi.ts`) llama a la api con el token de sesión.
+Pide una sola página (`limit=5`, `count=true`, `sort=-updatedAt`, sin cursor): la cabecera muestra la
+cantidad (`page.total`, o "N+" sin total exacto) y hasta 5 filas compactas (título, fecha y temas, sin
+ruta). La marca "vinculado, sin proyecto propio" (`projectMatch === 'indirect'`) solo aparece en la
+card de proyecto. El **"+"** abre el alta (Paso 2b) con las relaciones de la ficha precargadas y
+**"Ver todos ›"** lleva a `/docs?proyecto|requisito|tarea={id}&origen=…` (flujo
+`buscador-de-documentacion`).
 
 **Request:**
 - **Método:** GET
@@ -117,7 +123,7 @@ El panel solo se renderiza si `useModule('docs')` no es `not_installed`. Su Serv
 - **Query:** `projectId`, `clientId` y `topic` (valor o lista, hasta 20), `requirementId`, `taskId`,
   `folderId`, `pathPrefix`, `hasProject`, `hasClient`, `hasTopic`, `person` (hasta 10; creado por o
   último editor), `visibility`, `myActiveProjects` (excluyente con `projectId`), `count`, `sort`
-  (default `-updatedAt`), `limit` (1..`PAGE_LIMIT_MAX`, default 50; el panel pide 10), `cursor`. Las
+  (default `-updatedAt`), `limit` (1..`PAGE_LIMIT_MAX`, default 50; la card pide 5), `cursor`. Las
   claves no declaradas son 400 `invalid_fields`. Requiere jiku-docs >= 1.3.0.
 - **Cadena:** `requireModule('docs')` → `hasAnyRole(['admin','user'])` → Joi → handler.
 

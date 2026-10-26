@@ -169,15 +169,15 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 
 **Usage:** `const { status } = useModule('docs');`
 
-## useDocuments
+## useDocsCard
 
-**Location:** `web/src/features/docs/hooks/useDocuments.ts`
+**Location:** `web/src/features/docs/hooks/useDocsCard.ts`
 
-**Description:** Cursor-paginated list (10 per page) filtered by project, requirement or task; `module_unavailable` invalidates `['modules']`.
+**Description:** Single-page query (no cursor) behind the documentation card, key `['docs', 'documents', 'card', filters]` so document mutations refresh it; `module_unavailable` invalidates `['modules']`.
 
-**Signature:** `useDocuments({ filters, enabled? })` → `useInfiniteQuery` result
+**Signature:** `useDocsCard({ filters, enabled? })` → `useQuery` result
 
-**Usage:** `useDocuments({ filters: { projectId: 12 }, enabled: status === 'available' })`
+**Usage:** `useDocsCard({ filters: cardFilters({ projectId: 12 }), enabled: status === 'available' })`
 
 ## useDocument
 

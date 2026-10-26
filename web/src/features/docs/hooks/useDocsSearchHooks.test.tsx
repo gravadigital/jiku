@@ -143,7 +143,11 @@ describe('useAssignProject / useSuggestedRelations / useDocsSuggestions', () => 
       baseVersion: 3,
       add: { projects: [12] },
     });
-    for (const key of [['docs', 'documents'], ['docs', 'search'], ['docs-documents']]) {
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
+    for (const key of [
+      ['docs', 'documents'],
+      ['docs', 'search'],
+    ]) {
       expect(spy).toHaveBeenCalledWith({ queryKey: key });
     }
 

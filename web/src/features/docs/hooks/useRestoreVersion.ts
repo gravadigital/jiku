@@ -19,7 +19,6 @@ export const useRestoreVersion = (id: string) => {
       void queryClient.invalidateQueries({ queryKey: ['docs', 'versions', id] });
       void queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
       void queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });
-      void queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
     },
   });
 };

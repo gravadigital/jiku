@@ -15,7 +15,6 @@ export const useSaveDocument = (id: string) => {
       withModuleInvalidation(queryClient, async () => unwrap(await updateDocument(id, payload))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['docs-document', id] });
-      queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
       // Listados y búsqueda de `/docs`.
       queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
       queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });

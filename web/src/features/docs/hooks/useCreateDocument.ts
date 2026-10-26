@@ -14,7 +14,6 @@ export const useCreateDocument = () => {
     mutationFn: (payload: CreateDocumentPayload) =>
       withModuleInvalidation(queryClient, async () => unwrap(await createDocument(payload))),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
       // Listados y búsqueda de `/docs`.
       queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
       queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });

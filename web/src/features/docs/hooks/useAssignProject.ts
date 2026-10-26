@@ -24,8 +24,6 @@ export const useAssignProject = () => {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
       void queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });
-      // Key del panel de proyecto/requisito/tarea, hasta que S-098 lo migre.
-      void queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
     },
   });
 };
