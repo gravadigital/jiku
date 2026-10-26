@@ -33,4 +33,24 @@ describe('ClientProjectLabel', () => {
     );
     expect(text(<ClientProjectLabel show="client" />)).toBe('Sin cliente');
   });
+  it('TS-27: el cliente del documento sale de clientRefs (CA-7)', () => {
+    expect(
+      text(
+        <ClientProjectLabel
+          clientRefs={[{ id: 1, name: 'EXO' }]}
+          projectRefs={[{ id: 43, name: 'EXO - Videoconferencia', code: 'VID', clientId: 1 }]}
+        />
+      )
+    ).toBe('EXO · EXO - Videoconferencia');
+  });
+  it('TS-28: no infiere el cliente del proyecto', () => {
+    expect(
+      text(
+        <ClientProjectLabel
+          clientRefs={[]}
+          projectRefs={[{ id: 43, name: 'EXO - Videoconferencia', code: 'VID', clientId: 1 }]}
+        />
+      )
+    ).toBe('Sin cliente · EXO - Videoconferencia');
+  });
 });

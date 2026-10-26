@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useClients } from '@/features/clients';
 import { useProjects } from '@/features/projects/hooks/useProjects';
 import { Select } from '@/shared/components/ui';
+import { projectClientId } from '../../utils/relationFields';
 
 interface ProjectPickerProps {
   /** Id del proyecto elegido; `null` si todavía no hay. */
@@ -30,19 +32,35 @@ export function ProjectPicker({
   disabled,
 }: ProjectPickerProps) {
   const { data: projects } = useProjects();
+  const { data: clients } = useClients();
+
+  const clientNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const c of clients ?? []) if (c.id !== undefined) map.set(c.id, c.name);
+    return map;
+  }, [clients]);
 
   const options = useMemo(
     () =>
       (projects ?? [])
-        .filter((p) => p.id !== undefined && (clientId === undefined || p.client?.id === clientId))
-        .map((p) => ({
-          value: String(p.id),
-          name: p.name,
-          clientId: p.client?.id ?? null,
-          label: p.client ? `${p.name} · ${p.client.name}` : p.name,
-        }))
+        // El listado puede traer solo `clientId` (respaldo): no se lee `client.id` directo.
+        .filter(
+          (p) => p.id !== undefined && (clientId === undefined || projectClientId(p) === clientId)
+        )
+        .map((p) => {
+          const projectClient = projectClientId(p);
+          const clientName =
+            p.client?.name ??
+            (projectClient === null ? undefined : clientNameById.get(projectClient));
+          return {
+            value: String(p.id),
+            name: p.name,
+            clientId: projectClient,
+            label: clientName ? `${p.name} · ${clientName}` : p.name,
+          };
+        })
         .sort((a, b) => a.name.localeCompare(b.name, 'es')),
-    [projects, clientId]
+    [projects, clientNameById, clientId]
   );
 
   return (

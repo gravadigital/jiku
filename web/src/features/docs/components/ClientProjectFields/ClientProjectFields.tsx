@@ -4,7 +4,12 @@ import React, { useMemo } from 'react';
 import { useClients } from '@/features/clients';
 import { useProjects } from '@/features/projects/hooks/useProjects';
 import { Select } from '@/shared/components/ui';
-import { chooseClient, chooseProject, type RelationValue } from '../../utils/relationFields';
+import {
+  chooseClient,
+  chooseProject,
+  projectClientId,
+  type RelationValue,
+} from '../../utils/relationFields';
 import { ProjectPicker } from '../ProjectPicker';
 import styles from './ClientProjectFields.module.scss';
 
@@ -28,7 +33,7 @@ export function ClientProjectFields({
 
   const projectClientOf = useMemo(() => {
     const map = new Map<number, number | null>();
-    for (const p of projects ?? []) if (p.id !== undefined) map.set(p.id, p.client?.id ?? null);
+    for (const p of projects ?? []) if (p.id !== undefined) map.set(p.id, projectClientId(p));
     return (id: number) => map.get(id) ?? null;
   }, [projects]);
 
