@@ -4,8 +4,8 @@ title: Escritura por el bus — el recorrido completo de un comando de jiku-comm
 type: feature
 status: Draft
 created: 2026-08-25
-last_updated: 2026-10-25
-stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089]
+last_updated: 2026-10-26
+stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089, S-091]
 ---
 
 # Escritura por el Bus
@@ -13,8 +13,8 @@ stories: [S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, 
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-08-25
-**Última actualización:** 2026-10-25
-**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089
+**Última actualización:** 2026-10-26
+**Stories:** S-029, S-030, S-031, S-032, S-033, S-035, S-049, S-063, S-067, S-068, S-074, S-085, S-089, S-091
 
 ## Descripción
 
@@ -284,6 +284,13 @@ Misma precedencia que el plano de lectura — *gana el más restrictivo*: `exter
    ```
    Sobre **y** campo de dominio presentes **y distintos** → `invalid_fields` con
    `errorDetails: { field, value, expected }`. **No se elige el más probable.**
+
+   La rama externa (`else`) loguea el mismo mensaje —`[{componente}] comando publicado por un caller
+   externo: {caller}. El actor se resuelve del subject y se ignora lo declarado en el cuerpo.`— en
+   **`debug`** si `ctx.callerClass` es `connector` (jiku-docs y todo `internal-app`: es su camino
+   normal, D-3 de REQ-020) y en **`warn`** para cualquier otra clase (una persona publicando directo).
+   La rama del sobre y la del publicador de confianza no loguean. `ctx.callerClass` es la clase que la
+   compuerta ya calculó (S-091).
 3. **El chequeo de entidad, solo en modo externo:** resuelve el proyecto **desde el tipo de
    entidad** (los 9 que hoy resuelve `canUserAccessEntity`) y verifica
    `user_project_permissions` por el unique `(user_id, project_id)` → si no hay fila,

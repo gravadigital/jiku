@@ -24,7 +24,7 @@ o acepte una mutación pasa por acá.
 
 ```
 express                # 5.2
-cors                   # CORS abierto (app.ts)
+cors                   # CORS abierto, solo bajo /api (app.ts)
 express-winston        # logging de request (ver logging)
 multer                 # multipart, solo en las rutas de adjuntos (ver storage)
 ```
@@ -77,11 +77,14 @@ publicDocsHeaders → publicDocsAccessLog → requirePublicHost → publicDocsRa
 ```
 
 Y en `app.ts` el orden relevante es: `publicHostOnly` (**primer** middleware, antes de `cors()` y
-de `validateToken`) → `cors()` → `docsWriteJson` (parser de 768kb solo para `POST`/`PUT` bajo
+de `validateToken`) → `cors()` montado en `/api` → `docsWriteJson` (parser de 768kb solo para `POST`/`PUT` bajo
 `/api/docs`) → `express.json()` → logger de requests (con `ignoreRoute` para `/p/docs/*`) →
 `validateToken` global → `publicRoutes` → `lib/routes` bajo `/api` → fallback 404 → `payloadTooLargeHandler`
 (413 `payload_too_large`, ver [`error-handling`](./error-handling.md)). Detalle en
 [`bus-modules`](./bus-modules.md).
+
+Fuera de `/api` no hay CORS: `/p/docs/*` no emite cabeceras `Access-Control-*` (F-18, REQ-020).
+`cors()` va antes de `validateToken` para que el preflight de `/api` lo responda `cors()` con 204.
 
 ## Cómo se escribe un archivo de ruta
 

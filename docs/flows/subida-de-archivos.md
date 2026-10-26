@@ -4,8 +4,8 @@ title: Subida de archivos
 type: feature
 status: Active
 created: 2026-08-19
-last_updated: 2026-10-24
-stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085]
+last_updated: 2026-10-26
+stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085, S-091]
 ---
 
 # Subida de Archivos
@@ -13,8 +13,8 @@ stories: [S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085]
 **Tipo:** Feature
 **Status:** Active
 **Creado:** 2026-08-19
-**Última actualización:** 2026-10-24
-**Stories:** S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085
+**Última actualización:** 2026-10-26
+**Stories:** S-002, S-004, S-006, S-007, S-014, S-029, S-034, S-076, S-085, S-091
 
 > ## REQ-007 — cambio acotado
 >
@@ -452,8 +452,10 @@ usuario ve el preview de lo que subió, todavía sin vínculo.
   coincide con el `sub` real del service user de la `api`, todo comando de la `api` cae en la rama
   externa, `uploaded_by` pasa a ser el service user y **ningún usuario puede vincular lo que subió**
   — con `file_not_owned` como único síntoma, que parece un problema de permisos y no de
-  configuración. **Mitigación:** el arranque de `core` falla sin la variable, y la rama externa
-  loguea en `warn`.
+  configuración. **Mitigación:** el arranque de `core` falla sin la variable (o vacía). La rama
+  externa **no** sirve de alarma para la api: su service user es `internal-app` (clase `connector`) y
+  desde S-091 esa rama loguea en `debug` para esa clase; además, con sobre gana la rama del sobre
+  aunque la variable esté mal.
 - **La URL prefirmada llega al navegador, y es la excepción deliberada a
   [ADR-009](../adrs/ADR-009-token-confinado-al-servidor.md)** (D-23). Va **por respuesta de la
   `api`**, no por `NEXT_PUBLIC_*`: el access token sigue confinado al servidor y la topología del
