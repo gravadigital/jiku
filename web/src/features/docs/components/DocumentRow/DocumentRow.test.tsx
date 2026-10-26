@@ -30,7 +30,7 @@ const ROW: DocsRowModel = {
 
 const ctx = (patch: Partial<RowContext> = {}): RowContext => ({
   layout: 'default',
-  currentUserId: 'sub-yo',
+  currentUserSub: 'sub-yo',
   now: NOW,
   ...patch,
 });
@@ -68,6 +68,31 @@ describe('DocumentRow', () => {
     );
     expect(screen.getByText('Otra persona lo está editando')).toBeInTheDocument();
     expect(screen.getByText('Visible para el cliente')).toBeInTheDocument();
+  });
+
+  describe('identidad por sub (S-101)', () => {
+    const own = { ...ROW.lock!, holder: 'sub-yo', holderName: 'Yo' };
+    it('TS-14: lock propio', () => {
+      renderRow({ ...ROW, lock: own }, ctx());
+      expect(screen.getByText('En edición')).toBeInTheDocument();
+      expect(screen.getByText('Lo estás editando')).toBeInTheDocument();
+      expect(screen.queryByText('Yo lo está editando')).not.toBeInTheDocument();
+    });
+    it('TS-15: lock de otro', () => {
+      renderRow(ROW, ctx());
+      expect(screen.getByText('Luis Gómez lo está editando')).toBeInTheDocument();
+      expect(screen.queryByText('Lo estás editando')).not.toBeInTheDocument();
+    });
+    it('TS-16: sin sub no reconoce', () => {
+      renderRow({ ...ROW, lock: own }, ctx({ currentUserSub: null }));
+      expect(screen.getByText('Yo lo está editando')).toBeInTheDocument();
+      expect(screen.queryByText('Lo estás editando')).not.toBeInTheDocument();
+      expect(screen.getByTestId('by')).toHaveTextContent('Yo');
+    });
+    it('TS-17: "vos" en la celda by', () => {
+      renderRow(ROW, ctx());
+      expect(screen.getByTestId('by')).toHaveTextContent('vos');
+    });
   });
 
   it('lock vencido: sin marca', () => {

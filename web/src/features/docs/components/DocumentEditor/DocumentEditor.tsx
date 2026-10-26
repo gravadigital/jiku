@@ -295,7 +295,7 @@ export function DocumentEditor({
     }
     if (session.blockedBy) {
       return (
-        <DocsNotice intent="info">{lockedMessage(session.blockedBy, currentUser?.id)}</DocsNotice>
+        <DocsNotice intent="info">{lockedMessage(session.blockedBy, currentUser?.zitadelId ?? null)}</DocsNotice>
       );
     }
     if (session.phase === 'lost') {

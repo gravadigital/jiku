@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Badge } from '@/shared/components/ui';
 import { formatDay } from '../../utils/dates';
 import { editorLabel } from '../../utils/editorLabel';
-import { isLockActive } from '../../utils/lockState';
+import { isLockActive, lockRowLabel } from '../../utils/lockState';
 import { ClientProjectLabel } from '../ClientProjectLabel';
 import { SearchSnippet } from '../SearchSnippet';
 import { TopicPills } from '../TopicPills';
@@ -62,7 +62,7 @@ export type RowLayout = 'default' | 'temas' | 'sinProyecto';
 
 export interface RowContext {
   layout: RowLayout;
-  currentUserId: string | null;
+  currentUserSub: string | null;
   now: Date;
   /** Texto buscado: con él, el fragmento se muestra debajo del título. */
   q?: string;
@@ -92,7 +92,6 @@ interface DocumentTitleCellProps {
 
 export function DocumentTitleCell({ row, ctx }: DocumentTitleCellProps) {
   const locked = isLockActive(row.lock, ctx.now, null);
-  const holder = row.lock?.holderName?.trim();
   return (
     <span className={styles.cell}>
       <span className={styles.titleLine}>
@@ -102,13 +101,13 @@ export function DocumentTitleCell({ row, ctx }: DocumentTitleCellProps) {
         </Link>
         {ctx.layout !== 'temas' && <TopicPills topics={row.topics} />}
         <VisibilityPill visibility={row.visibility} />
-        {locked && (
+        {locked && row.lock && (
           <>
             <span aria-hidden="true">
               <Badge variant="outline" family="neutral" label="En edición" />
             </span>
             <span className={styles.srOnly}>
-              {holder ? `${holder} lo está editando` : 'Otra persona lo está editando'}
+              {lockRowLabel(row.lock, ctx.currentUserSub)}
             </span>
           </>
         )}
@@ -133,7 +132,7 @@ export function toDocumentRow(row: DocsRowModel, ctx: RowContext): TableRow {
   const by = editorLabel({
     name: row.updatedByName,
     sub: row.updatedBy,
-    currentUserId: ctx.currentUserId,
+    currentUserSub: ctx.currentUserSub,
   });
 
   switch (ctx.layout) {

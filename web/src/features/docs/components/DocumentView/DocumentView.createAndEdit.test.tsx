@@ -29,7 +29,7 @@ vi.mock('../DocumentEditor', () => ({
   DocumentEditor: () => <textarea aria-label="Markdown" defaultValue="" />,
 }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+  useCurrentUser: () => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' }),
 }));
 
 const SESSION = '01J9Z3K8M2Q4R6T8V0W2Y4A6S1';

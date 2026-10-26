@@ -10,9 +10,12 @@ const replace = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace }) }));
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
-}));
+let mockUser: { id: string; name: string; zitadelId: string | null } = {
+  id: '7f3c2a10-0000-4000-8000-000000000001',
+  name: 'Yo',
+  zitadelId: 'sub-yo',
+};
+vi.mock('@/hooks/use-current-user', () => ({ useCurrentUser: () => mockUser }));
 vi.mock('../../hooks/useDocumentVersions', () => ({ useDocumentVersions: vi.fn() }));
 vi.mock('../../hooks/useRestoreVersion', () => ({ useRestoreVersion: vi.fn() }));
 
@@ -21,11 +24,28 @@ const renderPanel = (doc = DOC, onClose = vi.fn(), viewingVersion: number | null
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUser = { id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' };
   vi.mocked(useDocumentVersions).mockReturnValue(versionsQuery() as never);
   vi.mocked(useRestoreVersion).mockReturnValue({ mutate: vi.fn(), isPending: false } as never);
 });
 
 describe('VersionHistoryPanel', () => {
+  it('TS-27: autor propio "vos" por sub, el de otra persona con su nombre', () => {
+    renderPanel();
+    const [v6, v5] = within(screen.getByRole('dialog')).getAllByRole('listitem');
+    expect(v5).toHaveTextContent('vos');
+    expect(v6).toHaveTextContent('Ana Pérez');
+    expect(v6).not.toHaveTextContent('vos');
+  });
+
+  it('TS-28: sin zitadelId nunca "vos", aunque el id coincida con el autor', () => {
+    mockUser = { id: 'sub-yo', name: 'Yo', zitadelId: null };
+    renderPanel();
+    const [, v5] = within(screen.getByRole('dialog')).getAllByRole('listitem');
+    expect(v5).toHaveTextContent('Yo Mismo');
+    expect(v5).not.toHaveTextContent('vos');
+  });
+
   it('TS-38: diálogo accesible, entradas con autor del servicio, marcas y pie', () => {
     renderPanel();
     const dialog = screen.getByRole('dialog', { name: 'Historial de versiones' });

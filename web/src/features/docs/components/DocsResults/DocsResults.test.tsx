@@ -10,9 +10,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
-}));
+let mockUser: { id: string; name: string; zitadelId: string | null } = {
+  id: '7f3c2a10-0000-4000-8000-000000000001',
+  name: 'Yo',
+  zitadelId: 'sub-yo',
+};
+vi.mock('@/hooks/use-current-user', () => ({ useCurrentUser: () => mockUser }));
 
 const row = (id: string, patch: Partial<DocsRowModel> = {}): DocsRowModel => ({
   id,
@@ -40,7 +43,39 @@ const base = {
 };
 
 describe('DocsResults', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser = { id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' };
+  });
+
+  const ownLock = {
+    sessionId: 's',
+    holder: 'sub-yo',
+    holderName: 'Yo',
+    via: 'human' as const,
+    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+  };
+  const mine = () =>
+    row('m1', {
+      title: 'Arquitectura de videoconferencia',
+      updatedBy: 'sub-yo',
+      updatedByName: 'Yo',
+      lock: ownLock,
+    });
+
+  it('TS-18: pasa el zitadelId: "vos" y "Lo estás editando"', () => {
+    render(<DocsResults {...base} mode="listado" items={[mine()]} total={1} />);
+    expect(screen.getByText('vos')).toBeInTheDocument();
+    expect(screen.getByText('Lo estás editando')).toBeInTheDocument();
+  });
+
+  it('TS-19: sin zitadelId no reconoce nada como propio', () => {
+    mockUser = { id: 'sub-yo', name: 'Yo', zitadelId: null };
+    render(<DocsResults {...base} mode="listado" items={[mine()]} total={1} />);
+    expect(screen.queryByText('vos')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lo estás editando')).not.toBeInTheDocument();
+    expect(screen.getByText('Yo')).toBeInTheDocument();
+  });
 
   it('TS-30: inicio con dos grupos y sin paginación', () => {
     render(

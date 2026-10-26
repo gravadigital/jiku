@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'react-toastify';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useCurrentUser } from '@/hooks/use-current-user';
 import { useSaveDocument } from '../../hooks/useSaveDocument';
 import { useUploadDocAttachment } from '../../hooks/useUploadDocAttachment';
 import { DocumentEditor } from './DocumentEditor';
@@ -37,7 +38,7 @@ vi.mock('../../hooks/useSaveDocument', () => ({ useSaveDocument: vi.fn() }));
 vi.mock('../../hooks/useUploadDocAttachment', () => ({ useUploadDocAttachment: vi.fn() }));
 vi.mock('../../services/docsApi', () => ({ getDocument: vi.fn() }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: vi.fn(() => ({ id: 'sub-yo', name: 'Yo' })),
+  useCurrentUser: vi.fn(() => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' })),
 }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
@@ -85,6 +86,11 @@ const textbox = () => screen.getByRole('textbox', { name: 'Markdown' });
 describe('DocumentEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useCurrentUser).mockReturnValue({
+      id: '7f3c2a10-0000-4000-8000-000000000001',
+      name: 'Yo',
+      zitadelId: 'sub-yo',
+    });
     vi.mocked(useSaveDocument).mockReturnValue({ mutate, isPending: false } as never);
     vi.mocked(useUploadDocAttachment).mockReturnValue({
       mutate: upload,
@@ -206,6 +212,29 @@ describe('DocumentEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: /Guardar/ }));
     expect(markBlocked).toHaveBeenCalledWith(details);
     expect(textbox()).toHaveValue('mi texto');
+  });
+
+  describe('reserva propia (S-101)', () => {
+    const blockedBy = {
+      holder: 'sub-yo',
+      holderName: 'Yo',
+      via: 'human' as const,
+      expiresAt: '2026-10-26T15:45:00.000Z',
+    };
+    it('TS-25: reconoce la reserva propia de otra pestaña por sub', () => {
+      renderEditor(makeSession({ phase: 'lost', blockedBy }));
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Lo estás editando en otra pestaña o ventana.'
+      );
+    });
+    it('TS-26: sin zitadelId no la reconoce', () => {
+      vi.mocked(useCurrentUser).mockReturnValue({ id: 'sub-yo', name: 'Yo', zitadelId: null });
+      renderEditor(makeSession({ phase: 'lost', blockedBy }));
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Yo lo está editando hasta las 15:45. Podés leerlo mientras tanto.'
+      );
+      expect(screen.queryByText(/Lo estás editando/)).toBeNull();
+    });
   });
 
   it('muestra el bloqueo cuando la sesión lo trae (P-14)', () => {

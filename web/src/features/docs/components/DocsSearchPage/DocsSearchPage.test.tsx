@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => params,
 }));
 vi.mock('@/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+  useCurrentUser: () => ({ id: '7f3c2a10-0000-4000-8000-000000000001', name: 'Yo', zitadelId: 'sub-yo' }),
 }));
 vi.mock('../../services/docsApi', () => ({
   listDocuments: vi.fn(),
