@@ -319,11 +319,23 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 
 **Usage:** see the unit test next to the file.
 
-## slugifyFileName / normalizeFileName
+## parseContent / composeContent / buildNewDocumentContent / normalizeTopic
 
-**Location:** `web/src/features/docs/utils/slug.ts`
+**Location:** `web/src/features/docs/utils/frontmatterDocument.ts`
 
-**Description:** Suggests `guia-de-despliegue.md` from a title; appends `.md` only when missing.
+**Description:** Frontmatter handling on top of the `yaml` library (`Document` API). `parseContent` separates frontmatter and body and returns `{ readable: false }` when the properties cannot be trusted; `composeContent` rewrites only the keys that changed, keeping unknown keys, comments and style (unchanged properties keep the original block byte for byte); `buildNewDocumentContent` builds the initial content of a new document; `normalizeTopic` normalizes like jiku-docs.
+
+**Signature:** ``parseContent(content)``, ``composeContent(parsed, initial, next, body)``, ``buildNewDocumentContent(props)``, ``normalizeTopic(text)``
+
+**Usage:** see the unit test next to the file.
+
+## setPrincipal / chooseProject / chooseClient
+
+**Location:** `web/src/features/docs/utils/relationFields.ts`
+
+**Description:** Pure rules to edit the principal (first) client and project of a document while keeping the rest of the ids in order.
+
+**Signature:** ``setPrincipal(list, id | null)``, ``chooseProject(value, { id, clientId })``, ``chooseClient(value, clientId | null, projectClientOf)``
 
 **Usage:** see the unit test next to the file.
 

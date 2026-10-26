@@ -9,8 +9,8 @@
   border: none;
   border-radius: var(--radius-surface);
   padding: 0;
-  max-width: 480px;
-  width: 90%;
+  width: 560px;
+  max-width: 90%;
   box-shadow: var(--elevation-raised);
   z-index: var(--z-modal);
 
@@ -34,17 +34,11 @@
   margin: 0;
 }
 
-.destination {
+.linked {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-body-default-size);
-}
-
-.hint {
-  margin: calc(-1 * var(--space-2)) 0 0;
   color: var(--text-secondary);
   font-size: var(--text-body-default-size);
 }

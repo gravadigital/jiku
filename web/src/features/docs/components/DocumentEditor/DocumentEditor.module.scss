@@ -6,6 +6,45 @@
   gap: var(--space-6);
 }
 
+// Fila de propiedades (grilla de 12, sin @media): título 4, visibilidad 3, temas 2, vínculos 3.
+.properties {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-grid-gap);
+}
+
+.propTitle {
+  grid-column: span 4;
+  min-width: 0;
+}
+
+.propVisibility {
+  grid-column: span 3;
+  min-width: 0;
+}
+
+.propTopics {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.propLinks {
+  grid-column: span 3;
+  min-width: 0;
+}
+
+.groupLabel {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-body-default-size);
+  color: var(--text-primary);
+}
+
+.messageHelp {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
 // Viewport único (desktop 1440 px): grilla de 12 columnas, sin @media.
 .editRow {
   display: grid;

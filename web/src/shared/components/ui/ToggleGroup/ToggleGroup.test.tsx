@@ -10,6 +10,15 @@ const OPTIONS = [
 ];
 
 describe('ToggleGroup', () => {
+  it('ariaDescribedBy va al radiogroup y sin la prop no hay atributo (TS-18)', () => {
+    const { rerender } = render(
+      <ToggleGroup label="Vista" options={OPTIONS} value="persona" onChange={vi.fn()} ariaDescribedBy="ayuda-1" />
+    );
+    expect(screen.getByRole('radiogroup')).toHaveAttribute('aria-describedby', 'ayuda-1');
+    rerender(<ToggleGroup label="Vista" options={OPTIONS} value="persona" onChange={vi.fn()} />);
+    expect(screen.getByRole('radiogroup')).not.toHaveAttribute('aria-describedby');
+  });
+
   it('es un radiogroup, no botones sueltos (TS-60)', () => {
     render(
       <ToggleGroup label="Vista" options={OPTIONS} value="persona" onChange={vi.fn()} />

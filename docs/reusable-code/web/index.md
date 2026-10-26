@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-006 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code web` to complete it.
 
-**Last updated:** 2026-10-26 (S-096)
+**Last updated:** 2026-10-26 (S-097)
 
 ## Components
 
-Total: 50
+Total: 53
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -36,7 +36,10 @@ Total: 50
 - **DocsNotice** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - Local inline alert (`role="alert"`, `warning`/`error` intent over the `review`/`urgent` state tokens) covering the accepted DS gap `alert`; not in `shared/components/ui` on purpose.
 - **DocumentView** (`web/src/features/docs/components/DocumentView/DocumentView.tsx`) - Client container of `/docs/[id]` (read mode): header, breadcrumb, version meta, safe markdown content, links, topics and attachments, with loading / not found / module-unavailable states. Calls `notFound()` if the module becomes `not_installed`.
 - **SearchSnippet** (`web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`) - Renders a search `snippet` as text with `<mark>` on the match; never interprets HTML (P-8).
-- **NewDocumentDialog** (`web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`) - O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title suggests the file name until edited by hand, creates with a client-generated ULID and navigates to `/docs/{id}?editar=1`.
+- **NewDocumentDialog** (`web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`) - O-11 modal (`<dialog>` + `showModal()`): title, client, project, free topics and visibility; builds the frontmatter, creates without folder or file name with a client-generated ULID (reused on retry), navigates to `/docs/{id}?editar=1` and only then closes. Optional `initial` prop (`NewDocumentInitial`) preloads relations.
+- **TopicsInput** (`web/src/features/docs/components/TopicsInput/TopicsInput.tsx`) - Free-topics combobox with chips: prefix suggestions from `GET /docs/topics` (200 ms debounce), Enter adds a new topic, Backspace removes the last one. Shared by the create dialog and the editor.
+- **VisibilityField** (`web/src/features/docs/components/VisibilityField/VisibilityField.tsx`) - Segmented visibility selector: "Restringido" only when `canRestrict` (or already restricted, then disabled for a `user`), per-option help and error tied with `aria-describedby`.
+- **ClientProjectFields** (`web/src/features/docs/components/ClientProjectFields/ClientProjectFields.tsx`) - Client + project selectors that edit the principal relation: the project list is limited to the client, choosing a project fills the client, changing the client clears a foreign project.
 - **DocumentEditor** (`web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`) - Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
 - **DocumentAttachZone** (`web/src/features/docs/components/DocumentAttachZone/DocumentAttachZone.tsx`) - Single-file `Dropzone` wired to `useUploadDocAttachment`; shows `Subiendo {name}…` in an `aria-live` line and maps module errors to messages.
 - **DocsNotice `info` / `role`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-082 adds the neutral `info` intent and `role?: 'alert' | 'none'` (default `alert`) so initial/silent states are not announced.
@@ -57,12 +60,12 @@ Total: 50
 - **DocumentAttachments** (`web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`) - "Adjuntos ({n})" card with one link per attachment.
 - **VersionHistoryPanel** (`web/src/features/docs/components/VersionHistoryPanel/VersionHistoryPanel.tsx`) - O-13 right-side `<dialog>` drawer: paginated versions, "Ver" (`?version=N`), "Restaurar" through O-02 in a portal, compacted-versions footer.
 - **ClientProjectLine** (`web/src/features/docs/components/DocumentView/ClientProjectLine.tsx`) - `{client} · {project} #{id}` header line with a project link and `+n` per list.
-- **ProjectPicker** (`web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`) - Single searchable `Select` of projects.
+- **ProjectPicker** (`web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`) - Single searchable `Select` of projects; optional `emptyLabel`/`onClear` add a "none" option and `onChange` also reports the project's client id.
 - **DocsNotice `success` / `role="status"`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-083 adds the `success` intent (`resolved` state family, check icon) and `role: 'status'` for polite announcements.
 
 ## Services
 
-Total: 19
+Total: 20
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -81,11 +84,12 @@ Total: 19
 - **requestAttachmentUpload / confirmAttachment** (`web/src/features/docs/services/docsAttachmentsApi.ts`) - Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
 - **releaseLockKeepalive / uploadDocAttachment** (`web/src/features/docs/services/docsClientApi.ts`) - Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
 - **listShares / createShare / revokeShare** (`web/src/features/docs/services/sharesApi.ts`) - Server Actions for shared links (`GET`/`POST /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`); `createShare` computes `expiresAt` server-side from `expiresInDays` and never logs the URL or token; all return `DocsResult`.
+- **listTopics** (`web/src/features/docs/services/docsApi.ts`) - Server Action for `GET /docs/topics` (prefix, default limit 10); `DocsResult`.
 - **getDocsSuggestions / getSuggestedRelations / updateRelations** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for `GET /docs/suggestions`, `GET /docs/documents/{id}/suggested-relations` and `POST /docs/documents/{id}/relations`; `DocsResult`.
 
 ## Hooks
 
-Total: 26
+Total: 28
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -105,7 +109,9 @@ Total: 26
 - **useSuggestedRelations** (`web/src/features/docs/hooks/useSuggestedRelations.ts`) - Project candidates for a document (5 min staleTime).
 - **useAssignProject** (`web/src/features/docs/hooks/useAssignProject.ts`) - Mutation that adds a project relation and invalidates the document lists.
 - **useCreateDocument** (`web/src/features/docs/hooks/useCreateDocument.ts`) - Create mutation; invalidates the folder contents and `['docs-documents']`.
-- **useSaveDocument** (`web/src/features/docs/hooks/useSaveDocument.ts`) - Save mutation (`retry: 0`); invalidates the document, listings and `['docs-folder-contents']` by prefix.
+- **useSaveDocument** (`web/src/features/docs/hooks/useSaveDocument.ts`) - Save mutation (`retry: 0`); invalidates the document, listings and topics.
+- **useTopicSuggestions** (`web/src/features/docs/hooks/useTopicSuggestions.ts`) - Topic suggestions by prefix (`['docs','topics',prefix]`); disabled with an empty prefix.
+- **useCanRestrictDocs** (`web/src/features/docs/hooks/useCanRestrictDocs.ts`) - `true` when the session user has the `admin` role (UI hint only; jiku-docs decides).
 - **useUploadDocAttachment** (`web/src/features/docs/hooks/useUploadDocAttachment.ts`) - Attachment upload mutation; invalidates the document.
 - **useEditSession** (`web/src/features/docs/hooks/useEditSession.ts`) - Lifecycle of the edit lock: acquire with a new `sessionId`, renew every 60 s, `lost`/blocked detection, `release()` and keepalive release on `pagehide`/unmount.
 - **useDocumentShares** (`web/src/features/docs/hooks/useDocumentShares.ts`) - Shared links of a document (`['docs-shares', documentId]`, one page of 200); never contains URL or token.
@@ -114,7 +120,7 @@ Total: 26
 
 ## Utils
 
-Total: 35
+Total: 36
 
 - **parseFinishDate** (`web/src/shared/utils/parse-finish-date.ts`) - Parses the legacy `estimatedFinishDate` string into a local `Date`, or `null` when empty, invalid or not `YYYY-MM-DD`-prefixed.
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
@@ -135,7 +141,8 @@ Total: 35
 - **MarkdownViewer `mode="document"`** (`web/src/features/attachments/components/MarkdownViewer/MarkdownViewer.tsx`) - Standard-markdown mode (GFM only, no Jiku placeholders or `remark-breaks`), shifted headings, links restricted by `docsUrlTransform`, no raw HTML.
 - **newUlid** (`web/src/features/docs/utils/ulid.ts`) - ULID from `Date.now()` + `crypto.getRandomValues` (lock `sessionId`, document `id`).
 - **sha256Checksum** (`web/src/features/docs/utils/checksum.ts`) - `sha256:` + hex of a `Blob` via `crypto.subtle`.
-- **slugifyFileName / normalizeFileName** (`web/src/features/docs/utils/slug.ts`) - Suggests `guia-de-despliegue.md` from a title; appends `.md` only when missing.
+- **parseContent / composeContent / buildNewDocumentContent / normalizeTopic** (`web/src/features/docs/utils/frontmatterDocument.ts`) - Frontmatter handling with the `yaml` library: readable/unreadable split, rewrite of only the changed keys (keeps unknown keys, comments and style), initial content of a new document, topic normalization like jiku-docs.
+- **setPrincipal / chooseProject / chooseClient** (`web/src/features/docs/utils/relationFields.ts`) - Pure rules for editing the principal client and project while keeping the other ids.
 - **highlightSnippet** (`web/src/features/docs/utils/snippet.ts`) - Splits a search snippet into `{ text, mark? }` segments from `<b>` marks or the query terms; never HTML.
 - **isLockActive / lockedMessage** (`web/src/features/docs/utils/lockState.ts`) - Is another session's lock still valid; `"{persona} lo está editando hasta las {HH:mm}…"`.
 - **attachmentMarkdown** (`web/src/features/docs/utils/attachmentMarkdown.ts`) - `![name](link)` for images, `[name](link)` otherwise; escapes `[`, `]` and `\`.

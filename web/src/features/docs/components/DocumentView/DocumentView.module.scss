@@ -15,6 +15,15 @@
   list-style: none;
 }
 
+.routeItem {
+  color: var(--text-secondary);
+
+  &::before {
+    content: '/';
+    margin: 0 var(--space-2);
+  }
+}
+
 .routeLink {
   color: var(--text-link);
   text-decoration: none;

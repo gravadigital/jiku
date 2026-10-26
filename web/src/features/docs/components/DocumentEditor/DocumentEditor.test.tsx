@@ -13,6 +13,26 @@ vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('react-toastify', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
+vi.mock('@/features/clients', () => ({
+  useClients: () => ({
+    data: [
+      { id: 4, name: 'EXO' },
+      { id: 2, name: 'ACME' },
+    ],
+  }),
+}));
+vi.mock('@/features/projects/hooks/useProjects', () => ({
+  useProjects: () => ({
+    data: [
+      { id: 12, name: 'Videoconferencia', client: { id: 4, name: 'EXO' } },
+      { id: 31, name: 'Portal', client: { id: 2, name: 'ACME' } },
+    ],
+  }),
+}));
+vi.mock('../../hooks/useTopicSuggestions', () => ({
+  useTopicSuggestions: () => ({ data: undefined, isFetching: false }),
+}));
+vi.mock('../../hooks/useCanRestrictDocs', () => ({ useCanRestrictDocs: vi.fn(() => false) }));
 vi.mock('../../hooks/useSaveDocument', () => ({ useSaveDocument: vi.fn() }));
 vi.mock('../../hooks/useUploadDocAttachment', () => ({ useUploadDocAttachment: vi.fn() }));
 vi.mock('../../services/docsApi', () => ({ getDocument: vi.fn() }));
@@ -60,7 +80,7 @@ const renderEditor = (session = makeSession()) => {
 
 const failWith = (error: unknown) =>
   mutate.mockImplementation((_payload, options) => options.onError(error));
-const textbox = () => screen.getByRole('textbox', { name: 'Contenido (markdown)' });
+const textbox = () => screen.getByRole('textbox', { name: 'Markdown' });
 
 describe('DocumentEditor', () => {
   beforeEach(() => {
@@ -79,18 +99,18 @@ describe('DocumentEditor', () => {
   it('TS-73: el editor, la vista previa, adjuntos, mensaje y acciones; foco en el editor', () => {
     renderEditor();
     expect(
-      screen.getByText('Lo estás editando. Nadie más puede guardar hasta que termines.')
+      screen.getByText('Estás editando. Nadie más puede guardar este documento hasta que guardes o canceles.')
     ).toBeInTheDocument();
     expect(textbox()).toHaveValue('# Arquitectura\n\nTexto');
     expect(textbox()).toHaveFocus();
     expect(screen.getByRole('heading', { level: 2, name: 'Vista previa' })).toBeInTheDocument();
     expect(screen.getByText(/Arrastrá archivos aquí/)).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Qué cambiaste (opcional)' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Mensaje de la versión (opcional)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Guardar/ })).toBeInTheDocument();
   });
 
-  it('TS-20: la vista previa no muestra el frontmatter y el textarea lo conserva', () => {
+  it('TS-20: el editor muestra el cuerpo y la vista previa no tiene frontmatter', () => {
     const content =
       '---\ntitle: Arquitectura\njiku:\n  projects: [12]\n---\n# Contexto\n\nTexto.\n';
     const client = new QueryClient();
@@ -104,12 +124,11 @@ describe('DocumentEditor', () => {
       </QueryClientProvider>
     );
     expect(screen.getByRole('heading', { name: 'Contexto' })).toBeInTheDocument();
-    // El textarea conserva el texto completo; la vista previa (un <h2> "Vista previa" + render) no.
     const preview = screen.getByRole('heading', { name: 'Vista previa' })
       .parentElement as HTMLElement;
     expect(preview).not.toHaveTextContent('jiku:');
     expect(preview).not.toHaveTextContent('title: Arquitectura');
-    expect(textbox()).toHaveValue(content);
+    expect(textbox()).toHaveValue('# Contexto\n\nTexto.\n');
   });
 
   it('TS-76: la vista previa se actualiza con debounce de 300 ms', () => {
@@ -130,7 +149,7 @@ describe('DocumentEditor', () => {
     mutate.mockImplementation((_payload, options) => options.onSuccess({ id: ID, version: 7 }));
     renderEditor();
     fireEvent.change(textbox(), { target: { value: '# Arquitectura v7' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Qué cambiaste (opcional)' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Mensaje de la versión (opcional)' }), {
       target: { value: 'agrego pasos' },
     });
     await userEvent.click(screen.getByRole('button', { name: /Guardar/ }));
@@ -141,7 +160,7 @@ describe('DocumentEditor', () => {
       message: 'agrego pasos',
     });
     expect(release).toHaveBeenCalled();
-    expect(toast.success).toHaveBeenCalledWith('Guardaste la versión 7.');
+    expect(toast.success).toHaveBeenCalledWith('Guardaste la versión 7. Quedó protegida.');
     expect(onDone).toHaveBeenCalled();
   });
 
@@ -212,7 +231,7 @@ describe('DocumentEditor', () => {
   it.each([
     [
       { code: 'frontmatter_invalid', message: 'falta cerrar ---' },
-      'El frontmatter no es válido: falta cerrar ---. Corregilo y volvé a guardar.',
+      'Las propiedades no son válidas: falta cerrar ---.',
     ],
     [
       { code: 'invalid_relation', message: 'projects: 999' },

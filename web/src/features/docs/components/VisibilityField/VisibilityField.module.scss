@@ -1,0 +1,25 @@
+@use '@/styles' as *;
+
+.root {
+  @include flex-column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+  color: var(--text-primary);
+}
+
+.help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.error {
+  margin: 0;
+  color: var(--text-error, var(--text-primary));
+  font-size: var(--text-body-default-size);
+}

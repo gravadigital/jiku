@@ -16,3 +16,5 @@ export { useDocsHome } from './useDocsHome';
 export { useDocsSuggestions } from './useDocsSuggestions';
 export { useSuggestedRelations } from './useSuggestedRelations';
 export { useAssignProject } from './useAssignProject';
+export { useTopicSuggestions } from './useTopicSuggestions';
+export { useCanRestrictDocs } from './useCanRestrictDocs';

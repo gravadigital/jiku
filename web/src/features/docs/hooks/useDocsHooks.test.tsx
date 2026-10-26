@@ -15,7 +15,6 @@ vi.mock('../services/docsApi', () => ({
 vi.mock('../services/docsClientApi', () => ({ uploadDocAttachment: vi.fn() }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
-const F0 = '01J9Z3K8M2Q4R6T8V0W2Y4A6F0';
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,11 +33,14 @@ describe('useCreateDocument (TS-37)', () => {
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useCreateDocument(), { wrapper: Wrapper });
     await act(async () => {
-      await result.current.mutateAsync({ folderId: F0, fileName: 'guia.md', content: '' });
+      await result.current.mutateAsync({ id: ID, content: 'x' });
     });
     await waitFor(() => expect(result.current.data).toEqual({ id: ID, version: 1 }));
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-folder-contents', F0] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'documents'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'search'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'topics'] });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-folder-contents', expect.anything()] });
   });
 
   it('re-lanza el DocsError de un resultado fallido', async () => {
@@ -47,7 +49,7 @@ describe('useCreateDocument (TS-37)', () => {
     const { Wrapper } = setup();
     const { result } = renderHook(() => useCreateDocument(), { wrapper: Wrapper });
     await act(async () => {
-      result.current.mutate({ folderId: F0, fileName: 'guia.md', content: '' });
+      result.current.mutate({ id: ID, content: 'x' });
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toEqual(error);
@@ -69,7 +71,8 @@ describe('useSaveDocument (TS-38)', () => {
     expect(updateDocument).toHaveBeenCalledWith(ID, payload);
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-document', ID] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-folder-contents'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'topics'] });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-folder-contents'] });
   });
 
   it('con error hay una sola llamada', async () => {

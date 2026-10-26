@@ -200,22 +200,79 @@ describe('DocumentView — edición', () => {
     expect(toast.error).toHaveBeenCalledWith(message);
   });
 
-  it('TS-91: ?editar=1 toma la reserva una vez y limpia el parámetro', async () => {
+  it('TS-35: ?editar=1 toma la reserva una vez y después limpia la URL sin navegar', async () => {
     params = new URLSearchParams({ editar: '1' });
+    const replaceState = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
     start.mockResolvedValue('ok');
     render(<DocumentView id={ID} />);
     await act(async () => {});
     expect(start).toHaveBeenCalledTimes(1);
-    expect(replace).toHaveBeenCalledWith(`/docs/${ID}`);
+    expect(replaceState).toHaveBeenCalledWith(null, '', `/docs/${ID}`);
+    expect(replace).not.toHaveBeenCalled();
+    replaceState.mockRestore();
   });
 
-  it('TS-91: ?editar=1 con documento grande limpia el parámetro sin tomar la reserva', async () => {
+  it('TS-35: ?editar=1 con documento grande limpia la URL sin tomar la reserva', async () => {
     params = new URLSearchParams({ editar: '1' });
+    const replaceState = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
     setDoc({ contentUrl: 'https://s3.example.com/x' });
     render(<DocumentView id={ID} />);
     await act(async () => {});
     expect(start).not.toHaveBeenCalled();
-    expect(replace).toHaveBeenCalledWith(`/docs/${ID}`);
+    expect(replaceState).toHaveBeenCalledWith(null, '', `/docs/${ID}`);
+    replaceState.mockRestore();
+  });
+
+  it('TS-35: ?editar=1 con bloqueo de otra persona limpia sin tomar la reserva', async () => {
+    params = new URLSearchParams({ editar: '1' });
+    const replaceState = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
+    setDoc({ lock: { ...LOCK, expiresAt: '2099-01-01T00:00:00.000Z' } });
+    render(<DocumentView id={ID} />);
+    await act(async () => {});
+    expect(start).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith(null, '', `/docs/${ID}`);
+    replaceState.mockRestore();
+  });
+
+  it('TS-35: si la reserva falla con document_locked, limpia la URL después y queda en lectura', async () => {
+    params = new URLSearchParams({ editar: '1' });
+    const calls: string[] = [];
+    const replaceState = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => void calls.push('replaceState'));
+    start.mockImplementation(async () => {
+      await Promise.resolve();
+      calls.push('lock:failed');
+      return 'locked';
+    });
+    session({
+      blockedBy: {
+        holder: 'sub-luis',
+        holderName: 'Luis Gómez',
+        via: 'human',
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+    });
+    render(<DocumentView id={ID} />);
+    await act(async () => {});
+    expect(calls).toEqual(['lock:failed', 'replaceState']);
+    expect(screen.getByRole('button', { name: /Editar/ })).toBeInTheDocument();
+    expect(screen.queryByText('editor')).toBeNull();
+    replaceState.mockRestore();
+  });
+
+  it('TS-36: en edición el breadcrumb tiene tres niveles y no hay acciones de lectura', () => {
+    session({ phase: 'editing', sessionId: 'S' });
+    render(<DocumentView id={ID} />);
+    const nav = screen.getByRole('navigation', { name: 'Ruta' });
+    expect(nav).toHaveTextContent('Documentación');
+    expect(screen.getByRole('link', { name: 'Documentación' })).toHaveAttribute('href', '/docs');
+    expect(nav).toHaveTextContent('Arquitectura');
+    expect(screen.getByText('Editando')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Historial de versiones' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Compartir/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Editar/ })).toBeNull();
   });
 
   it('TS-92: módulo caído deshabilita Editar y gana el aviso de no disponible', () => {

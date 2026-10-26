@@ -13,12 +13,13 @@ export const useCreateDocument = () => {
   return useMutation({
     mutationFn: (payload: CreateDocumentPayload) =>
       withModuleInvalidation(queryClient, async () => unwrap(await createDocument(payload))),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['docs-folder-contents', variables.folderId] });
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
       // Listados y búsqueda de `/docs`.
       queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
       queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });
+      // El alta puede usar temas nuevos.
+      queryClient.invalidateQueries({ queryKey: ['docs', 'topics'] });
     },
   });
 };

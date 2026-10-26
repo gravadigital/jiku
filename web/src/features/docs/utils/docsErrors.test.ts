@@ -6,16 +6,33 @@ import {
   savedMessage,
 } from './docsErrors';
 
-describe('describeCreateError', () => {
-  it('campo, aviso de módulo caído y error de sistema', () => {
-    expect(describeCreateError({ code: 'already_exists' }).field).toMatch(/Ya hay un documento/);
-    expect(describeCreateError({ code: 'file_name_invalid' }).field).toMatch(/no es válido/);
-    expect(describeCreateError({ code: 'module_unavailable' }).notice).toMatch(
-      /no está disponible/
-    );
-    expect(describeCreateError({ code: 'folder_not_found' }).notice).toBe(
-      'No se pudo crear el documento. Intentá de nuevo.'
-    );
+describe('describeCreateError (TS-16)', () => {
+  it('permission_denied va junto al selector de visibilidad', () => {
+    expect(describeCreateError({ code: 'permission_denied' })).toEqual({
+      notice: 'Solo la conducción puede crear un documento restringido.',
+      target: 'visibility',
+    });
+  });
+  it('el resto va al formulario', () => {
+    expect(describeCreateError({ code: 'invalid_relation' })).toEqual({
+      notice: 'El proyecto o el cliente elegido ya no existe. Elegí otro.',
+      target: 'form',
+    });
+    expect(describeCreateError({ code: 'frontmatter_invalid', message: 'topics' })).toEqual({
+      notice: 'Las propiedades no son válidas: topics.',
+      target: 'form',
+    });
+    expect(describeCreateError({ code: 'module_unavailable' })).toEqual({
+      notice: 'La documentación no está disponible en este momento. Probá de nuevo en unos minutos.',
+      target: 'form',
+    });
+    expect(describeCreateError({ code: 'gateway_timeout' })).toEqual({
+      notice: 'No se pudo crear el documento. Intentá de nuevo.',
+      target: 'form',
+    });
+  });
+  it('already_exists lo resuelve el diálogo como éxito', () => {
+    expect(describeCreateError({ code: 'already_exists' })).toBeNull();
   });
 });
 
@@ -23,7 +40,7 @@ describe('saveValidationMessage', () => {
   it('textos verbatim con el detalle del módulo', () => {
     expect(
       saveValidationMessage({ code: 'frontmatter_invalid', message: 'falta cerrar ---' })
-    ).toBe('El frontmatter no es válido: falta cerrar ---. Corregilo y volvé a guardar.');
+    ).toBe('Las propiedades no son válidas: falta cerrar ---.');
     expect(saveValidationMessage({ code: 'invalid_relation', message: 'projects: 999' })).toBe(
       'Uno de los vínculos no existe: projects: 999.'
     );
@@ -37,6 +54,10 @@ describe('saveValidationMessage', () => {
 describe('savedMessage / attachmentErrorMessage', () => {
   it('con y sin aviso de secreto', () => {
     expect(savedMessage(7)).toBe('Guardaste la versión 7.');
+    expect(savedMessage(7, [], true)).toBe('Guardaste la versión 7. Quedó protegida.');
+    expect(savedMessage(7, ['possible_secret_detected'], true)).toBe(
+      'Guardaste la versión 7. Revisalo: parece contener una clave o un token.'
+    );
     expect(savedMessage(7, ['possible_secret_detected'])).toBe(
       'Guardaste la versión 7. Revisalo: parece contener una clave o un token.'
     );

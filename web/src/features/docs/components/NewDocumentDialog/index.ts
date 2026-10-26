@@ -1,1 +1,1 @@
-export { NewDocumentDialog } from './NewDocumentDialog';
+export { NewDocumentDialog, type NewDocumentInitial } from './NewDocumentDialog';
