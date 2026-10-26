@@ -3,6 +3,19 @@
 Sigue el formato [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/)
 y el versionado [Semantic Versioning](https://semver.org/lang/es/).
 
+## [4.3.0] - 2026-10-26
+
+**MINOR**: `badge.md` gana la prop aditiva `attributeLabel` para la variant `editable`. Sin cambios
+visuales.
+
+### Agregado
+
+- **`Badge`: prop `attributeLabel`** (`string`, default `"Estado"`, sólo `editable`). Forma el nombre
+  accesible `${attributeLabel}: ${label}`. Las tres pills editables de la cabecera del detalle de
+  requisito se anunciaban todas como «Estado: …» porque el prefijo estaba fijo en el componente:
+  quien usa lector de pantalla no sabía cuál estaba por cambiar. Ahora dicen «Estado: …», «Tipo: …» y
+  «Prioridad: …» (REQ-020, S-092). Los usos de estado no pasan nada y no cambian.
+
 ## [4.2.0] - 2026-09-07
 
 **MINOR**: `select.md` gana un criterio accionable para `searchable`. Sin cambios de código en el

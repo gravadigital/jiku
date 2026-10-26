@@ -171,7 +171,7 @@ Notas de transcripción [fuente: código-existente]:
 - Texto/label: textos verbatim posibles: `"No definida"` cuando no hay fecha estimada (`ObjectivesTable.tsx:19`) · `"Vence hoy"` (`:36`) · el texto calculado por `getFinishDateText` para el resto de los casos (`:114`)
 - Icono: nada
 - Asset: nada
-- Annotation: la tarea finalizada usa una clase distinta (`styles.finished`, `:109`). **Desde REQ-020 una fecha nula, vacía o inválida muestra `"No definida"`** y nada más: ni `"Vencido hace"`, ni `"Falta"`, ni `"Vence hoy"`, ni la marca `closeToDeadline` [RF-5, CA-8]. "Inválida" es todo lo que no empiece con `YYYY-MM-DD`, la forma del contrato: la columna es `VARCHAR` y trae texto heredado que producía `"Vencido hace: 32666 día(s)"`. Una fecha válida se toma como **fecha local**, no UTC, para no correrse un día en UTC-3; el conteo sigue siendo en días hábiles — vencida hace 3 días hábiles y abierta → `"Vencido hace: 3 día(s)"` [CA-9, DD-6]
+- Annotation: la tarea finalizada usa una clase distinta (`styles.finished`, `:109`). **Desde REQ-020 una fecha nula, vacía o inválida muestra `"No definida"`** y nada más: ni `"Vencido hace"`, ni `"Falta"`, ni `"Vence hoy"`, ni la marca `closeToDeadline` [RF-5, CA-8]. "Inválida" es todo lo que no empiece con `YYYY-MM-DD`, la forma del contrato: la columna es `VARCHAR` y puede traer texto heredado. **Una fecha bien formada aunque absurda se sigue mostrando**: el `"Vencido hace: 32666 día(s)"` del relevamiento corresponde a `1901-08-09T04:16:48.000Z` (dump local), un `YYYY-MM-DD` válido, y se reporta como dato a limpiar, no se esconde [DD-6, S-092]. Una fecha válida se toma como **fecha local**, no UTC, para no correrse un día en UTC-3; el conteo sigue siendo en días hábiles — vencida hace 3 días hábiles y abierta → `"Vencido hace: 3 día(s)"` [CA-9, DD-6]
 
 ### paginacion
 - Texto/label: los números de página
@@ -297,6 +297,7 @@ Notas de transcripción [fuente: código-existente]:
 ### REQ-020 — Arreglos chicos de las pruebas e2e y del relevamiento de pantallas (2026-10-26)
 
 - **Una fecha que no se puede leer se trata como una fecha que no está.** `"Vencido hace: 32666 día(s)"` no es un vencimiento: es un dato heredado mal interpretado. Mostrar `"No definida"` dice la verdad —la tarea no tiene una fecha de cierre usable— y reutiliza un texto que la columna ya tenía, en vez de inventar uno nuevo como "Fecha inválida", que le hablaría al equipo de un problema de datos que no puede corregir desde acá [RF-5, CA-8].
+- **Precisión (S-092):** el `32666` concreto no lo producía un texto inválido sino una fecha válida de 1901 (`1901-08-09T04:16:48.000Z`, días hábiles hasta el 2026-10-26 = 32 666). Esa fila sigue mostrando el vencimiento: el criterio es la forma `YYYY-MM-DD`, no la verosimilitud, y limpiar el dato no es tarea de la pantalla.
 - **Se descartó mostrar el valor crudo.** Un texto heredado arbitrario en una columna de fechas confunde más que la ausencia, y el detalle de la tarea sigue mostrando lo que haya.
 - **La fecha válida se corre a local.** Es un cambio invisible salvo en el borde: una tarea que vence hoy dejaba de verse como "Vence hoy" un día antes en Argentina [DD-6].
 - **Sin cambios de bloques, layout ni Design System.** `etiqueta-vencimiento` sigue siendo el mismo `badge`.

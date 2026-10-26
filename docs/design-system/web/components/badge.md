@@ -1,7 +1,7 @@
 ---
 component: Badge
-version: 1.2.0
-last_updated: 2026-09-04
+version: 1.3.0
+last_updated: 2026-10-26
 status: normativo
 surface: web
 origin: Manual de marca Jiku v1.0 — «Badges, etiquetas y estados»
@@ -25,6 +25,7 @@ Comunica el estado, el tipo o la prioridad de una entidad en un espacio mínimo.
 - Estado de un requisito, proyecto o tarea.
 - Tipo y prioridad como etiqueta.
 - **Cambiar el estado** de un requisito desde la cabecera de detalle, con la variant `editable`.
+- **Cambiar el tipo o la prioridad** desde la misma cabecera, con la variant `editable` y `attributeLabel` («Tipo», «Prioridad»).
 
 **Cuándo NO usar:**
 
@@ -159,6 +160,11 @@ Un solo tamaño: **alto 22 px**, dado por el `text.filter-label` (11/600) más e
 - **`editable`:** es un control — `<button>` con `aria-haspopup="listbox"` y `aria-expanded`; el
   chevron `▾` es su affordance visible y **no basta por sí solo**, el rol lo declara. Su nombre
   accesible **DEBE** incluir qué cambia: «Estado: Desarrollo», no sólo «Desarrollo».
+  El prefijo lo da la prop `attributeLabel` (default `"Estado"`): el nombre accesible es
+  `${attributeLabel}: ${label}` — «Tipo: Mejora», «Prioridad: Alta». **Todo `editable` que no
+  cambie el estado DEBE pasarla**; sin ella se anuncia como «Estado: …» (REQ-020, CA-7). Es el
+  nombre del atributo tal como lo lee la pantalla, no una frase («Cambiar tipo»):
+  `aria-haspopup` ya anuncia que es un control.
 - El glifo de `area` distingue **por forma además de por color**, para no depender del matiz.
 - El **glifo de `card-tag` es decorativo** (`aria-hidden="true"`): la clasificación y la prioridad
   están escritas en el label («Interno», «Prioridad 0»). La forma es un refuerzo visual, no el
@@ -205,6 +211,7 @@ Un solo tamaño: **alto 22 px**, dado por el `text.filter-label` (11/600) más e
 | `glyph` | `"square" \| "round"` | — | **Sólo `card-tag`:** forma del glifo. `square` = clasificación, `round` = prioridad. **No se deduce de `family`** |
 | `options` | `{ value, label }[]` | — | Sólo `editable`: estados disponibles |
 | `onChange` | `(value) => void` | — | Sólo `editable` |
+| `attributeLabel` | `string` | `"Estado"` | **Sólo `editable`:** nombre del atributo que cambia; forma el nombre accesible `${attributeLabel}: ${label}`. Pasarlo en todo `editable` que no sea de estado |
 
 El módulo exporta además **`STATE_TO_FAMILY`**, el mapeo de estado de dominio a familia de color de
 la tabla de arriba, para que las pantallas lo consuman sin reimplementarlo.
@@ -219,6 +226,10 @@ la tabla de arriba, para que las pantallas lo consuman sin reimplementarlo.
 
 ## Historial
 
+- **1.3.0** (2026-10-26, REQ-020 / S-092) — Se agrega la prop **`attributeLabel`** (default
+  `"Estado"`) a la variant `editable`: el nombre accesible pasa a ser `${attributeLabel}: ${label}`.
+  Las pills de tipo y prioridad de la cabecera de detalle se anunciaban como «Estado: …» porque el
+  prefijo estaba fijo. Aditiva y opcional: los usos de estado no cambian (MINOR).
 - **1.2.0** (2026-09-04) — Se agrega la prop **`glyph`** (`"square" | "round"`) para la variant
   `card-tag`: cuadrado con borde para la clasificación, círculo lleno para la prioridad. **La forma
   la declara el consumidor y no se deduce de la familia de color**, porque «Prioridad 0» es family
