@@ -343,14 +343,6 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 
 **Usage:** see the unit test next to the file.
 
-## resolveRoot
-
-**Location:** `web/src/features/docs/utils/folders.ts`
-
-**Description:** Builds the `/docs` root view from all visible folders (visible root or top-level visible folders).
-
-**Usage:** see the unit test next to the file.
-
 ## attachmentMarkdown
 
 **Location:** `web/src/features/docs/utils/attachmentMarkdown.ts`
@@ -416,3 +408,35 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 **Signature:** `parseFinishDate(value: Date | string | null | undefined): Date | null`
 
 **Usage:** `const date = parseFinishDate(objective.estimatedFinishDate); if (date) calculateDaysLeft(date);`
+
+## docsSearchParams
+
+**Location:** `web/src/features/docs/utils/docsSearchParams.ts`
+
+**Description:** URL to state to API filters: `parseDocsSearch`, `serializeDocsSearch`, `addToken`, `removeTokenAt`, `viewOf`, `toListFilters`, `toSearchQuery`.
+
+**Usage:** ``parseDocsSearch(new URLSearchParams(qs))``
+
+## assignErrors
+
+**Location:** `web/src/features/docs/utils/assignErrors.ts`
+
+**Description:** Maps an assign-project error `code` to a toast.
+
+**Usage:** ``assignErrorToast(error)``
+
+## editorLabel
+
+**Location:** `web/src/features/docs/utils/editorLabel.ts`
+
+**Description:** "vos" / name / "—" for the last editor.
+
+**Usage:** ``editorLabel({ name, sub, currentUserId })``
+
+## formatDay
+
+**Location:** `web/src/features/docs/utils/dates.ts`
+
+**Description:** `DD/MM/YYYY` day formatter.
+
+**Usage:** ``formatDay(iso)``

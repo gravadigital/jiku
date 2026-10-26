@@ -1,0 +1,56 @@
+@use '@/styles' as *;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+// Viewport único (desktop 1440 px): grilla de 12 columnas, sin @media.
+.header,
+.options {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-grid-gap);
+}
+
+.heading {
+  grid-column: 1 / 10;
+}
+
+.actions {
+  grid-column: 10 / 13;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body-default-size);
+}
+
+.help {
+  grid-column: 1 / 7;
+  margin: 0;
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-13);
+
+  kbd {
+    padding: 0 var(--space-1);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-action);
+    font-family: inherit;
+  }
+}
+
+.toggles {
+  grid-column: 7 / 13;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

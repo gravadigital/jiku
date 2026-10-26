@@ -26,16 +26,16 @@ describe('useDocuments', () => {
       })
       .mockResolvedValueOnce({ ok: true, data: { items: [], page: { limit: 10, returned: 3 } } });
     const { Wrapper } = setup();
-    const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {
+    const { result } = renderHook(() => useDocuments({ filters: { projectId: [12] } }), {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(result.current.hasNextPage).toBe(true));
-    expect(listDocuments).toHaveBeenCalledWith({ projectId: 12, limit: 10 });
+    expect(listDocuments).toHaveBeenCalledWith({ projectId: [12], limit: 10 });
 
     await act(async () => {
       await result.current.fetchNextPage();
     });
-    expect(listDocuments).toHaveBeenLastCalledWith({ projectId: 12, limit: 10, cursor: 'c2' });
+    expect(listDocuments).toHaveBeenLastCalledWith({ projectId: [12], limit: 10, cursor: 'c2' });
     await waitFor(() => expect(result.current.hasNextPage).toBe(false));
   });
 
@@ -44,7 +44,7 @@ describe('useDocuments', () => {
     vi.mocked(listDocuments).mockResolvedValue({ ok: false, error: err } as never);
     const { Wrapper, client } = setup();
     const spy = vi.spyOn(client, 'invalidateQueries');
-    const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {
+    const { result } = renderHook(() => useDocuments({ filters: { projectId: [12] } }), {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -59,7 +59,7 @@ describe('useDocuments', () => {
     } as never);
     const { Wrapper, client } = setup();
     const spy = vi.spyOn(client, 'invalidateQueries');
-    const { result } = renderHook(() => useDocuments({ filters: { projectId: 12 } }), {
+    const { result } = renderHook(() => useDocuments({ filters: { projectId: [12] } }), {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(result.current.isError).toBe(true));

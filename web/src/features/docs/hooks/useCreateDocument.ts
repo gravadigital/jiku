@@ -16,6 +16,9 @@ export const useCreateDocument = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['docs-folder-contents', variables.folderId] });
       queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
+      // Listados y búsqueda de `/docs`.
+      queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
+      queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });
     },
   });
 };

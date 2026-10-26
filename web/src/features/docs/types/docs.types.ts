@@ -26,6 +26,8 @@ export interface DocsLock {
   sessionId: string;
   /** sub de Zitadel */
   holder: string;
+  /** Nombre de quien tiene el lock; `null` si el servicio no lo resuelve. */
+  holderName?: string | null;
   via: 'human' | 'agent';
   expiresAt: string;
 }
@@ -35,6 +37,26 @@ export interface DocsRelations {
   projects?: number[];
   requirements?: number[];
   tasks?: number[];
+}
+
+export type DocsVisibility = 'internal' | 'public' | 'restricted';
+
+/** Un id desconocido llega con `name: null`: la web muestra `#id`. */
+export interface DocsClientRef {
+  id: number;
+  name: string | null;
+}
+
+export interface DocsProjectRef {
+  id: number;
+  name: string | null;
+  code: string | null;
+  clientId: number | null;
+}
+
+export interface DocsTitleRef {
+  id: number;
+  title: string | null;
 }
 
 export interface DocsDocument {
@@ -47,13 +69,23 @@ export interface DocsDocument {
   version: number;
   checksum: string;
   sizeBytes: number;
-  visibility: 'internal' | 'public';
+  visibility: DocsVisibility;
   createdAt: string;
   /** sub de Zitadel */
   createdBy: string;
+  createdByName?: string | null;
   updatedAt: string;
   /** sub de Zitadel */
   updatedBy: string;
+  updatedByName?: string | null;
+  /** Ids de cliente / proyecto (contrato 1.3.0). */
+  clients?: number[];
+  projects?: number[];
+  /** Solo con `projectId` en el filtro. */
+  projectMatch?: 'direct' | 'indirect';
+  prunedVersionsCount?: number;
+  clientRefs?: DocsClientRef[];
+  projectRefs?: DocsProjectRef[];
   deletedAt?: string | null;
   /** Solo con include content y <= 256 KiB. */
   content?: string;
@@ -84,14 +116,31 @@ export type DocsDocumentSort =
   'updatedAt' | '-updatedAt' | 'createdAt' | '-createdAt' | 'title' | '-title' | 'path' | '-path';
 
 export interface DocumentsFilters {
-  projectId?: number;
+  projectId?: number[];
+  clientId?: number[];
+  topic?: string[];
+  person?: string[];
   requirementId?: number;
   taskId?: number;
+  hasProject?: boolean;
+  hasClient?: boolean;
+  hasTopic?: boolean;
+  visibility?: DocsVisibility;
+  myActiveProjects?: boolean;
+  count?: boolean;
   folderId?: string;
   sort?: DocsDocumentSort;
   limit?: number;
   cursor?: string;
 }
+
+export type SearchDocumentsParams = Omit<
+  DocumentsFilters,
+  'myActiveProjects' | 'count' | 'sort' | 'cursor' | 'folderId'
+> & {
+  q: string;
+  limit?: number;
+};
 
 // --- S-082: carpetas, búsqueda y escritura (verbatim de docs/apis/api.yaml, Docs*) ---
 
@@ -127,6 +176,15 @@ export interface DocsSearchHit {
   updatedAt: string;
   /** sub de Zitadel */
   updatedBy: string;
+  updatedByName?: string | null;
+  createdBy?: string;
+  createdByName?: string | null;
+  visibility?: DocsVisibility;
+  clients?: number[];
+  projects?: number[];
+  projectMatch?: 'direct' | 'indirect';
+  clientRefs?: DocsClientRef[];
+  projectRefs?: DocsProjectRef[];
 }
 
 /** Sin `page`: devuelve los mejores `limit` resultados. */
@@ -186,7 +244,8 @@ export type DocsResult<T> = { ok: true; data: T } | { ok: false; error: DocsErro
 
 export interface CreateDocumentPayload {
   id?: string;
-  folderId: string;
+  /** Sin `folderId` el módulo ubica el documento (REQ-021). */
+  folderId?: string;
   fileName: string;
   content: string;
   message?: string;
@@ -276,4 +335,78 @@ export interface CreateShareInput {
   includeAttachments: boolean;
   note?: string;
   acknowledgeSecretWarning?: boolean;
+}
+
+// --- Contrato 1.3.0: sugerencias del buscador y relaciones (verbatim de docs/apis/api.yaml) ---
+
+export interface DocsSuggestedProject {
+  id: number;
+  name: string;
+  code: string | null;
+  clientId: number | null;
+  clientName: string | null;
+  /** El proyecto es de la persona que consulta. */
+  mine: boolean;
+}
+
+export interface DocsSuggestedClient {
+  id: number;
+  name: string;
+}
+
+export interface DocsSuggestedPerson {
+  userId: string;
+  name: string;
+}
+
+export interface DocsTopic {
+  topic: string;
+  documents: number;
+}
+
+export interface DocsSearchSuggestions {
+  projects: DocsSuggestedProject[];
+  clients: DocsSuggestedClient[];
+  persons: DocsSuggestedPerson[];
+  topics: DocsTopic[];
+}
+
+export interface DocsRelationSet {
+  clients?: number[];
+  projects?: number[];
+  requirements?: number[];
+  tasks?: number[];
+}
+
+export interface DocsRelationsResult {
+  id: string;
+  version: number;
+  relations: {
+    clients: number[];
+    projects: number[];
+    requirements: number[];
+    tasks: number[];
+  };
+  warnings?: string[];
+}
+
+export interface DocsRelationSuggestion {
+  /** `null`: candidato solo de cliente. */
+  projectId: number | null;
+  clientId: number | null;
+  score: number;
+  reason: string;
+  projectName?: string | null;
+  projectCode?: string | null;
+  clientName?: string | null;
+}
+
+export interface DocsRelationSuggestions {
+  items: DocsRelationSuggestion[];
+}
+
+export interface UpdateRelationsPayload {
+  baseVersion: number;
+  add?: DocsRelationSet;
+  remove?: DocsRelationSet;
 }

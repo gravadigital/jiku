@@ -199,36 +199,6 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 
 **Usage:** `useFolderTrail({ folderId, enabled? })`
 
-## useRootFolders
-
-**Location:** `web/src/features/docs/hooks/useRootFolders.ts`
-
-**Description:** All visible folders resolved to the `/docs` root view with `resolveRoot` in `select`.
-
-**Signature:** `useRootFolders({ enabled? })`
-
-**Usage:** `useRootFolders({ enabled? })`
-
-## useFolderContents
-
-**Location:** `web/src/features/docs/hooks/useFolderContents.ts`
-
-**Description:** Infinite query that exhausts subfolders then documents (50 per page) — one table, one "Ver más".
-
-**Signature:** `useFolderContents({ folderId, enabled? })`
-
-**Usage:** `useFolderContents({ folderId, enabled? })`
-
-## useDocsSearch
-
-**Location:** `web/src/features/docs/hooks/useDocsSearch.ts`
-
-**Description:** Global text search; enabled only with a trimmed query of 2+ characters.
-
-**Signature:** `useDocsSearch({ q, enabled? })`
-
-**Usage:** `useDocsSearch({ q, enabled? })`
-
 ## useCreateDocument
 
 **Location:** `web/src/features/docs/hooks/useCreateDocument.ts`
@@ -298,3 +268,63 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 **Signature:** `useRevokeShare(documentId)` → mutation of `shareId`
 
 **Usage:** `revoke.mutate(share.id, { onSuccess, onError })`
+
+## useDocsList
+
+**Location:** `web/src/features/docs/hooks/useDocsList.ts`
+
+**Description:** Cursor-chained `useInfiniteQuery` of documents (20 per page, `count=true`), rebuilds page N from the URL; exposes `lastAvailablePage`.
+
+**Signature:** ``useDocsList({ filters, pagina, enabled? })``
+
+**Usage:** `useDocsList({ filters, pagina, enabled? })`
+
+## useDocsTextSearch
+
+**Location:** `web/src/features/docs/hooks/useDocsTextSearch.ts`
+
+**Description:** Text search (limit 50) with the same filters.
+
+**Signature:** ``useDocsTextSearch({ query, enabled? })``
+
+**Usage:** `useDocsTextSearch({ query, enabled? })`
+
+## useDocsHome
+
+**Location:** `web/src/features/docs/hooks/useDocsHome.ts`
+
+**Description:** "En mis proyectos activos" and "Editados recientemente" groups of the home state.
+
+**Signature:** ``useDocsHome({ sort, enabled? })``
+
+**Usage:** `useDocsHome({ sort, enabled? })`
+
+## useDocsSuggestions
+
+**Location:** `web/src/features/docs/hooks/useDocsSuggestions.ts`
+
+**Description:** Grouped suggestions for the search bar (`['docs','suggestions',q,clientId]`).
+
+**Signature:** ``useDocsSuggestions({ q, clientId?, enabled? })``
+
+**Usage:** `useDocsSuggestions({ q, clientId?, enabled? })`
+
+## useSuggestedRelations
+
+**Location:** `web/src/features/docs/hooks/useSuggestedRelations.ts`
+
+**Description:** Project candidates for a document (5 min staleTime).
+
+**Signature:** ``useSuggestedRelations({ id, enabled? })``
+
+**Usage:** `useSuggestedRelations({ id, enabled? })`
+
+## useAssignProject
+
+**Location:** `web/src/features/docs/hooks/useAssignProject.ts`
+
+**Description:** Mutation that adds a project relation and invalidates the document lists.
+
+**Signature:** ``useAssignProject()``
+
+**Usage:** `useAssignProject()`

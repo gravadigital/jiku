@@ -5,9 +5,6 @@ export {
   useDocuments,
   useDocument,
   useFolderTrail,
-  useRootFolders,
-  useFolderContents,
-  useDocsSearch,
   useCreateDocument,
   useSaveDocument,
   useUploadDocAttachment,
@@ -15,7 +12,13 @@ export {
   useDocumentShares,
   useCreateShare,
   useRevokeShare,
+  useDocsList,
+  useDocsTextSearch,
+  useDocsHome,
+  useDocsSuggestions,
+  useSuggestedRelations,
+  useAssignProject,
 } from './hooks';
 export { DocsPanel } from './components/DocsPanel';
 export { DocumentView } from './components/DocumentView';
-export { DocsBrowser } from './components/DocsBrowser';
+export { DocsSearchPage } from './components/DocsSearchPage';

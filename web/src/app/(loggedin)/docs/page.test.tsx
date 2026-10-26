@@ -10,8 +10,8 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 vi.mock('@/features/docs/services/modulesApi', () => ({ getModules: vi.fn() }));
-vi.mock('@/features/docs/components/DocsBrowser', () => ({
-  DocsBrowser: () => <div>browser</div>,
+vi.mock('@/features/docs/components/DocsSearchPage', () => ({
+  DocsSearchPage: () => <div>buscador</div>,
 }));
 
 describe('DocsPage', () => {
@@ -27,7 +27,7 @@ describe('DocsPage', () => {
   );
 
   it.each(['available', 'unavailable'])(
-    'TS-47: módulo %s renderiza DocsBrowser',
+    'TS-47: módulo %s renderiza DocsSearchPage',
     async (status) => {
       vi.mocked(getModules).mockResolvedValue([
         { module: 'docs', status, features: { sharing: false } },

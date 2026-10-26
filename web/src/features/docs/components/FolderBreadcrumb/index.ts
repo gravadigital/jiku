@@ -1,1 +1,0 @@
-export { FolderBreadcrumb } from './FolderBreadcrumb';

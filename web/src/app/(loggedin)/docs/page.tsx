@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { DocsBrowser } from '@/features/docs/components/DocsBrowser';
+import { DocsSearchPage } from '@/features/docs/components/DocsSearchPage';
 import { getModules } from '@/features/docs/services/modulesApi';
 
 // El corte real de acceso: con el módulo `not_installed` (o sin entrada) la ruta no existe.
@@ -14,7 +14,7 @@ export default async function DocsPage() {
 
   return (
     <Suspense fallback={null}>
-      <DocsBrowser />
+      <DocsSearchPage />
     </Suspense>
   );
 }

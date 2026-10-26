@@ -1,0 +1,14 @@
+@use '@/styles' as *;
+
+.suggested {
+  color: var(--text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.picker {
+  min-width: 220px;
+}
+
+.srOnly {
+  @include sr-only;
+}

@@ -12,7 +12,8 @@ import styles from './NewDocumentDialog.module.scss';
 
 interface NewDocumentDialogProps {
   readonly open: boolean;
-  readonly folder: { readonly id: string; readonly path: string };
+  /** Sin carpeta: el módulo ubica el documento (alta desde `/docs`, REQ-021). */
+  readonly folder?: { readonly id: string; readonly path: string };
   readonly onClose: () => void;
 }
 
@@ -79,7 +80,7 @@ export function NewDocumentDialog({ open, folder, onClose }: NewDocumentDialogPr
     create.mutate(
       {
         id: documentId,
-        folderId: folder.id,
+        ...(folder ? { folderId: folder.id } : {}),
         fileName: normalizeFileName(fileName),
         content: cleanTitle ? `# ${cleanTitle}\n` : '',
       },
@@ -90,7 +91,7 @@ export function NewDocumentDialog({ open, folder, onClose }: NewDocumentDialogPr
         },
       }
     );
-  }, [canCreate, create, documentId, fileName, folder.id, onClose, router, title]);
+  }, [canCreate, create, documentId, fileName, folder, onClose, router, title]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDialogElement>) => {
     if (event.key === 'Escape') {
@@ -122,10 +123,12 @@ export function NewDocumentDialog({ open, folder, onClose }: NewDocumentDialogPr
         <h2 id={titleId} className={styles.title}>
           Nuevo documento
         </h2>
-        <p className={styles.destination}>
-          <span aria-hidden="true">▤</span>
-          {`Se crea en ${folder.path}`}
-        </p>
+        {folder && (
+          <p className={styles.destination}>
+            <span aria-hidden="true">▤</span>
+            {`Se crea en ${folder.path}`}
+          </p>
+        )}
         <Input
           label="Título"
           placeholder="Guía de despliegue"

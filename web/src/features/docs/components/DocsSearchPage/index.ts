@@ -1,0 +1,1 @@
+export { DocsSearchPage } from './DocsSearchPage';

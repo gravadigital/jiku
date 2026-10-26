@@ -1042,26 +1042,6 @@ import { DocsPanel } from '@/features/docs';
 
 **Usage:** `<DocumentView id={id} />` (after validating the ULID and the module state server-side).
 
-## DocsBrowser
-
-**Location:** `web/src/features/docs/components/DocsBrowser/DocsBrowser.tsx`
-
-**Description:** Client container of `/docs`: folder-by-level table + global text search (debounced, kept in `?q=`), folder in `?folder=`, all loading / empty / error / not-found / module-unavailable states, and the O-11 trigger. `DocumentView`'s sibling.
-
-**Signature:** ``DocsBrowser()` (reads `useSearchParams`)`
-
-**Usage:** ``<Suspense><DocsBrowser /></Suspense>` in `app/(loggedin)/docs/page.tsx``
-
-## FolderBreadcrumb
-
-**Location:** `web/src/features/docs/components/FolderBreadcrumb/FolderBreadcrumb.tsx`
-
-**Description:** `<nav aria-label="Ruta de la carpeta">`: `Inicio` plus one level per folder, last level without link and `aria-current="page"`, unreadable ancestors (`id: null`) as text.
-
-**Signature:** ``FolderBreadcrumb({ trail }: { trail: FolderTrailItem[] })``
-
-**Usage:** ``<FolderBreadcrumb trail={folderTrail.trail} />``
-
 ## SearchSnippet
 
 **Location:** `web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`
@@ -1141,3 +1121,103 @@ import { DocsPanel } from '@/features/docs';
 **Signature:** `DocsNotice({ intent: 'warning' | 'error' | 'info' | 'success', role?: 'alert' | 'status' | 'none', children })`
 
 **Usage:** `<DocsNotice intent="success" role="status">Copiá el link ahora…</DocsNotice>`
+
+## DocsSearchPage
+
+**Location:** `web/src/features/docs/components/DocsSearchPage/DocsSearchPage.tsx`
+
+**Description:** Client container of `/docs`: URL-driven single screen (home, suggestions, results, filtered from a card, no project), header, options row and module states.
+
+**Signature:** ``DocsSearchPage()` (reads `useSearchParams`)`
+
+**Usage:** `<Suspense fallback={null}><DocsSearchPage /></Suspense>`
+
+## DocsSearchBar
+
+**Location:** `web/src/features/docs/components/DocsSearchBar/DocsSearchBar.tsx`
+
+**Description:** Hand-built combobox with filter tokens and grouped suggestions (projects, clients, topics, people, "Sin …"), keyboard navigation and Backspace to remove the last token.
+
+**Signature:** ``DocsSearchBar({ tokens, onAdd, onRemove, ... })``
+
+**Usage:** `<DocsSearchBar tokens={state.tokens} onAdd={(t, label) => ...} />`
+
+## DocsResults
+
+**Location:** `web/src/features/docs/components/DocsResults/DocsResults.tsx`
+
+**Description:** Results table(s) with count, pagination, empty/error states and live region.
+
+**Signature:** ``DocsResults({ ... })``
+
+**Usage:** `<DocsResults ... renderAction={...} />`
+
+## DocumentRow
+
+**Location:** `web/src/features/docs/components/DocumentRow/DocumentRow.tsx`
+
+**Description:** Title cell plus `toDocumentRow()` normalizing list items and search hits to one row shape.
+
+**Signature:** ``DocumentRow(...)`, `toDocumentRow(item)``
+
+**Usage:** see `DocsResults`
+
+## ClientProjectLabel
+
+**Location:** `web/src/features/docs/components/ClientProjectLabel/ClientProjectLabel.tsx`
+
+**Description:** "Client · Project" label with `#id` fallback when the name is unknown.
+
+**Signature:** ``ClientProjectLabel({ clientRefs, projectRefs })``
+
+**Usage:** `<ClientProjectLabel clientRefs={...} projectRefs={...} />`
+
+## TopicPills
+
+**Location:** `web/src/features/docs/components/TopicPills/TopicPills.tsx`
+
+**Description:** Up to 3 outline badges plus "+n".
+
+**Signature:** ``TopicPills({ topics })``
+
+**Usage:** `<TopicPills topics={doc.topics} />`
+
+## VisibilityPill
+
+**Location:** `web/src/features/docs/components/VisibilityPill/VisibilityPill.tsx`
+
+**Description:** "Visible para el cliente" / "Restringido" pill.
+
+**Signature:** ``VisibilityPill({ visibility })``
+
+**Usage:** `<VisibilityPill visibility={doc.visibility} />`
+
+## HighlightedText
+
+**Location:** `web/src/features/docs/components/HighlightedText/HighlightedText.tsx`
+
+**Description:** Renders text with `<mark>` on the match (reuses `highlightSnippet`).
+
+**Signature:** ``HighlightedText({ text, query })``
+
+**Usage:** `<HighlightedText text={title} query={q} />`
+
+## AssignProjectAction
+
+**Location:** `web/src/features/docs/components/AssignProjectAction/AssignProjectAction.tsx`
+
+**Description:** Row action of the "Sin proyecto" view: "Asignar sugerido" or manual "Asignar proyecto" with toasts per error code.
+
+**Signature:** ``AssignProjectAction({ item })``
+
+**Usage:** `renderAction={(item) => <AssignProjectAction item={item} />}`
+
+## ProjectPicker
+
+**Location:** `web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`
+
+**Description:** Single searchable `Select` of projects.
+
+**Signature:** ``ProjectPicker({ ... })``
+
+**Usage:** used by `AssignProjectAction`

@@ -7,7 +7,7 @@
 
 ## Components
 
-Total: 36
+Total: 44
 
 - **AutomatedIdentityBadge** (`web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - The single implementation of the automated-identity mark: renders the `"Automático"` badge only when `identityType === 'service'`, and nothing at all otherwise.
 - **Button** (`web/src/shared/components/ui/Button/Button.tsx`) - The Design System's single button: five semantic variants plus `fab`, `children` as label slot, no `size`/`type` props.
@@ -35,8 +35,6 @@ Total: 36
 - **DocsPanel** (`web/src/features/docs/components/DocsPanel/DocsPanel.tsx`) - The "Documentación" card embedded in project, requirement and task detail: lists the documents linked to a `scope` (`projectId | requirementId | taskId`), 10 per page with cursor "Ver más". Renders nothing when the optional docs module is `not_installed`; shows the unavailable notice when `unavailable` or on query error.
 - **DocsNotice** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - Local inline alert (`role="alert"`, `warning`/`error` intent over the `review`/`urgent` state tokens) covering the accepted DS gap `alert`; not in `shared/components/ui` on purpose.
 - **DocumentView** (`web/src/features/docs/components/DocumentView/DocumentView.tsx`) - Client container of `/docs/[id]` (read mode): header, breadcrumb, version meta, safe markdown content, links, topics and attachments, with loading / not found / module-unavailable states. Calls `notFound()` if the module becomes `not_installed`.
-- **DocsBrowser** (`web/src/features/docs/components/DocsBrowser/DocsBrowser.tsx`) - Client container of `/docs`: folder-by-level table + global text search (debounced, kept in `?q=`), folder in `?folder=`, all loading / empty / error / not-found / module-unavailable states, and the O-11 trigger. `DocumentView`'s sibling.
-- **FolderBreadcrumb** (`web/src/features/docs/components/FolderBreadcrumb/FolderBreadcrumb.tsx`) - `<nav aria-label="Ruta de la carpeta">`: `Inicio` plus one level per folder, last level without link and `aria-current="page"`, unreadable ancestors (`id: null`) as text.
 - **SearchSnippet** (`web/src/features/docs/components/SearchSnippet/SearchSnippet.tsx`) - Renders a search `snippet` as text with `<mark>` on the match; never interprets HTML (P-8).
 - **NewDocumentDialog** (`web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`) - O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title suggests the file name until edited by hand, creates with a client-generated ULID and navigates to `/docs/{id}?editar=1`.
 - **DocumentEditor** (`web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`) - Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
@@ -44,11 +42,21 @@ Total: 36
 - **DocsNotice `info` / `role`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-082 adds the neutral `info` intent and `role?: 'alert' | 'none'` (default `alert`) so initial/silent states are not announced.
 - **ShareDocumentDialog** (`web/src/features/docs/components/ShareDocumentDialog/ShareDocumentDialog.tsx`) - O-12 modal (640 px `<dialog>`): expiry / note / attachments form, state machine default → created · confirm possible secret · sharing blocked, shows the public URL once with "Copiar" and discards it on close (never stored beyond local `useState`).
 - **ShareLinksTable** (`web/src/features/docs/components/ShareLinksTable/ShareLinksTable.tsx`) - Share list of a document (status, expiry, note, accesses, last access; never the URL or token) with O-02 revocation rendered in a portal outside the O-12 `<dialog>`.
+- **DocsSearchPage** (`web/src/features/docs/components/DocsSearchPage/DocsSearchPage.tsx`) - Client container of `/docs`: URL-driven single screen (home, suggestions, results, filtered from a card, no project), header, options row and module states.
+- **DocsSearchBar** (`web/src/features/docs/components/DocsSearchBar/DocsSearchBar.tsx`) - Hand-built combobox with filter tokens and grouped suggestions (projects, clients, topics, people, "Sin …"), keyboard navigation and Backspace to remove the last token.
+- **DocsResults** (`web/src/features/docs/components/DocsResults/DocsResults.tsx`) - Results table(s) with count, pagination, empty/error states and live region.
+- **DocumentRow** (`web/src/features/docs/components/DocumentRow/DocumentRow.tsx`) - Title cell plus `toDocumentRow()` normalizing list items and search hits to one row shape.
+- **ClientProjectLabel** (`web/src/features/docs/components/ClientProjectLabel/ClientProjectLabel.tsx`) - "Client · Project" label with `#id` fallback when the name is unknown.
+- **TopicPills** (`web/src/features/docs/components/TopicPills/TopicPills.tsx`) - Up to 3 outline badges plus "+n".
+- **VisibilityPill** (`web/src/features/docs/components/VisibilityPill/VisibilityPill.tsx`) - "Visible para el cliente" / "Restringido" pill.
+- **HighlightedText** (`web/src/features/docs/components/HighlightedText/HighlightedText.tsx`) - Renders text with `<mark>` on the match (reuses `highlightSnippet`).
+- **AssignProjectAction** (`web/src/features/docs/components/AssignProjectAction/AssignProjectAction.tsx`) - Row action of the "Sin proyecto" view: "Asignar sugerido" or manual "Asignar proyecto" with toasts per error code.
+- **ProjectPicker** (`web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`) - Single searchable `Select` of projects.
 - **DocsNotice `success` / `role="status"`** (`web/src/features/docs/components/DocsNotice/DocsNotice.tsx`) - S-083 adds the `success` intent (`resolved` state family, check icon) and `role: 'status'` for polite announcements.
 
 ## Services
 
-Total: 17
+Total: 18
 
 - **requestUploadTicket** (`web/src/features/attachments/services/attachmentsApi.ts`) - Server Action that asks the api for upload permission and returns the `UploadTicket` (`fileId`, `uploadUrl`, `expiresIn`).
 - **putFileToStorage** (`web/src/features/attachments/services/attachmentsClientApi.ts`) - Sends the raw byte straight to the presigned S3 URL over `XMLHttpRequest`, reporting real transfer progress.
@@ -67,10 +75,11 @@ Total: 17
 - **requestAttachmentUpload / confirmAttachment** (`web/src/features/docs/services/docsAttachmentsApi.ts`) - Server Actions for `POST /docs/attachments` and `…/confirm`; never log the presigned `uploadUrl`.
 - **releaseLockKeepalive / uploadDocAttachment** (`web/src/features/docs/services/docsClientApi.ts`) - Browser-side: `keepalive` unlock through the BFF `POST /api/docs/documents/{id}/unlock`; and the four-step attachment upload (SHA-256 → request → `putFileToStorage` → confirm).
 - **listShares / createShare / revokeShare** (`web/src/features/docs/services/sharesApi.ts`) - Server Actions for shared links (`GET`/`POST /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`); `createShare` computes `expiresAt` server-side from `expiresInDays` and never logs the URL or token; all return `DocsResult`.
+- **getDocsSuggestions / getSuggestedRelations / updateRelations** (`web/src/features/docs/services/docsApi.ts`) - Server Actions for `GET /docs/suggestions`, `GET /docs/documents/{id}/suggested-relations` and `POST /docs/documents/{id}/relations`; `DocsResult`.
 
 ## Hooks
 
-Total: 22
+Total: 25
 
 - **useUploadAttachment** (`web/src/features/attachments/hooks/useUploadAttachment.ts`) - Sequential upload queue: one file at a time, per-file progress, per-file errors, and retry of the failed ones.
 - **useAttachmentMeta** (`web/src/features/attachments/hooks/useAttachmentMeta.ts`) - Resolves name, size and mime of an attachment or a file via `HEAD`, and exposes the error `status`/`code` so callers can tell 403 apart from 404.
@@ -82,9 +91,12 @@ Total: 22
 - **useDocuments** (`web/src/features/docs/hooks/useDocuments.ts`) - Cursor-paginated `useInfiniteQuery` (10 per page) of the documents linked to a project, requirement or task.
 - **useDocument** (`web/src/features/docs/hooks/useDocument.ts`) - Document detail by ULID; does not retry 404 or `module_unavailable`.
 - **useFolderTrail** (`web/src/features/docs/hooks/useFolderTrail.ts`) - Folder + ancestor trail (`['docs-folder-trail', id]`).
-- **useRootFolders** (`web/src/features/docs/hooks/useRootFolders.ts`) - All visible folders resolved to the `/docs` root view with `resolveRoot` in `select`.
-- **useFolderContents** (`web/src/features/docs/hooks/useFolderContents.ts`) - Infinite query that exhausts subfolders then documents (50 per page) — one table, one "Ver más".
-- **useDocsSearch** (`web/src/features/docs/hooks/useDocsSearch.ts`) - Global text search; enabled only with a trimmed query of 2+ characters.
+- **useDocsList** (`web/src/features/docs/hooks/useDocsList.ts`) - Cursor-chained `useInfiniteQuery` of documents (20 per page, `count=true`), rebuilds page N from the URL; exposes `lastAvailablePage`.
+- **useDocsTextSearch** (`web/src/features/docs/hooks/useDocsTextSearch.ts`) - Text search (limit 50) with the same filters.
+- **useDocsHome** (`web/src/features/docs/hooks/useDocsHome.ts`) - "En mis proyectos activos" and "Editados recientemente" groups of the home state.
+- **useDocsSuggestions** (`web/src/features/docs/hooks/useDocsSuggestions.ts`) - Grouped suggestions for the search bar (`['docs','suggestions',q,clientId]`).
+- **useSuggestedRelations** (`web/src/features/docs/hooks/useSuggestedRelations.ts`) - Project candidates for a document (5 min staleTime).
+- **useAssignProject** (`web/src/features/docs/hooks/useAssignProject.ts`) - Mutation that adds a project relation and invalidates the document lists.
 - **useCreateDocument** (`web/src/features/docs/hooks/useCreateDocument.ts`) - Create mutation; invalidates the folder contents and `['docs-documents']`.
 - **useSaveDocument** (`web/src/features/docs/hooks/useSaveDocument.ts`) - Save mutation (`retry: 0`); invalidates the document, listings and `['docs-folder-contents']` by prefix.
 - **useUploadDocAttachment** (`web/src/features/docs/hooks/useUploadDocAttachment.ts`) - Attachment upload mutation; invalidates the document.
@@ -95,7 +107,7 @@ Total: 22
 
 ## Utils
 
-Total: 30
+Total: 33
 
 - **parseFinishDate** (`web/src/shared/utils/parse-finish-date.ts`) - Parses the legacy `estimatedFinishDate` string into a local `Date`, or `null` when empty, invalid or not `YYYY-MM-DD`-prefixed.
 - **extractFileIds** (`web/src/features/attachments/utils/extractFileIds.ts`) - Reads the `[file:N]` placeholders out of markdown to build the `fileIds` payload.
@@ -119,7 +131,6 @@ Total: 30
 - **slugifyFileName / normalizeFileName** (`web/src/features/docs/utils/slug.ts`) - Suggests `guia-de-despliegue.md` from a title; appends `.md` only when missing.
 - **highlightSnippet** (`web/src/features/docs/utils/snippet.ts`) - Splits a search snippet into `{ text, mark? }` segments from `<b>` marks or the query terms; never HTML.
 - **isLockActive / lockedMessage** (`web/src/features/docs/utils/lockState.ts`) - Is another session's lock still valid; `"{persona} lo está editando hasta las {HH:mm}…"`.
-- **resolveRoot** (`web/src/features/docs/utils/folders.ts`) - Builds the `/docs` root view from all visible folders (visible root or top-level visible folders).
 - **attachmentMarkdown** (`web/src/features/docs/utils/attachmentMarkdown.ts`) - `![name](link)` for images, `[name](link)` otherwise; escapes `[`, `]` and `\`.
 - **formatTime** (`web/src/features/docs/utils/dates.ts`) - ISO string to `HH:mm` (local getters).
 - **shouldRetryDocsQuery** (`web/src/features/docs/utils/moduleInvalidation.ts`) - Retry policy of docs queries: never 404, 403 or `module_unavailable`.
@@ -127,6 +138,10 @@ Total: 30
 - **docsErrors** (`web/src/features/docs/utils/docsErrors.ts`) - `code` → UI message mapping for create, save and attachment errors.
 - **SHARE_EXPIRY_OPTIONS / expiresAtFrom / shareStatusBadge / shareDescription** (`web/src/features/docs/utils/shares.ts`) - Expiry choices (7/15/30/90/180 days, default 30), `expiresAt` from days, status → `Badge` label/family, and the hidden description that tells the "Revocar" buttons apart.
 - **describeCreateShareError / revokeShareErrorMessage / SHARES_LOAD_FAILED_MESSAGE** (`web/src/features/docs/utils/shareErrors.ts`) - `code` → O-12 state, field error or notice for link creation; revoke error message (`null` for `share_not_found`).
+- **docsSearchParams** (`web/src/features/docs/utils/docsSearchParams.ts`) - URL to state to API filters: `parseDocsSearch`, `serializeDocsSearch`, `addToken`, `removeTokenAt`, `viewOf`, `toListFilters`, `toSearchQuery`.
+- **assignErrors** (`web/src/features/docs/utils/assignErrors.ts`) - Maps an assign-project error `code` to a toast.
+- **editorLabel** (`web/src/features/docs/utils/editorLabel.ts`) - "vos" / name / "—" for the last editor.
+- **formatDay** (`web/src/features/docs/utils/dates.ts`) - `DD/MM/YYYY` day formatter.
 
 ## Types
 

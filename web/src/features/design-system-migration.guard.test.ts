@@ -80,8 +80,16 @@ function isExcluded(filePath: string): boolean {
  * botón/tabla en una pantalla en vez de consumir el componente del DS). El resto de la
  * superficie (fuera de `ui/` y de la excepción de `attachments/` de abajo) sigue cubierto.
  */
+/**
+ * `features/docs/components/DocsSearchBar` es el combobox con tokens de REQ-021/S-095: un
+ * gap aceptado del DS (`search-bar` + `chips` + `list`, candidato a primitivo si aparece un
+ * segundo uso). Los `<button>` de "quitar filtro" (×) y "Quitar todos los filtros" son los
+ * controles internos del chip, igual que el `chipRemove` del `Select` `multiple`: el DS no
+ * tiene un botón de ícono chico. Se excluye sólo de los checks de `<button>`/`<table>`.
+ */
 const BUTTON_TABLE_EXCLUDED_DIRS = [
   path.join(WEB_SRC, 'features/attachments'),
+  path.join(WEB_SRC, 'features/docs/components/DocsSearchBar'),
   path.join(WEB_SRC, 'shared/components/ui'),
 ];
 
