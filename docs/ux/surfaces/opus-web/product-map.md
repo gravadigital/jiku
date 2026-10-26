@@ -31,7 +31,7 @@ origin: relevamiento de código — brownfield
 | 2 | login-entrada | Callback post-OIDC, sin UI propia | cliente | ambos | C-67 |
 | 3 | proyectos-redireccion | Redirige al primer proyecto por orden alfabético; sin proyectos, es donde el cliente nuevo entiende que su acceso todavía no está | cliente | ambos | C-59, REQ-007 |
 | 4 | tablero-requisitos | Ver el avance de todos los requisitos del proyecto y su documentación pública | cliente | ambos | C-60, C-61, C-66, REQ-005, REQ-016, REQ-019 |
-| 5 | detalle-requisito | Ver un requisito, su actividad pública y sus documentos, comentar y suscribirse | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005, REQ-016, REQ-019 |
+| 5 | detalle-requisito | Ver un requisito, su actividad pública y sus documentos, comentar y suscribirse; si no está disponible o no hay acceso, decirlo y volver al tablero | cliente | ambos | C-63, C-64, C-65, REQ-001, REQ-005, REQ-016, REQ-019, REQ-020 |
 | 6 | documento | Leer un documento público del proyecto, con sus adjuntos | cliente | ambos | REQ-016 RF-24, REQ-019 |
 
 *(La ruta `/` no tiene pantalla: es un server component sin JSX que llama a `auth()` y redirige.)*
@@ -61,7 +61,7 @@ origin: relevamiento de código — brownfield
 
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
-| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas. **REQ-005:** compone los mismos tres paneles que la pantalla #5, así que hereda `marca-identidad-automatica` en `pie-autoria` y en el feed, y la variant `identidad-automatica` del comentario (RF-3, RF-10). **REQ-016:** por la misma razón hereda `seccion-documentos` debajo de `pie-autoria`; abrir un documento sale del modal hacia `documento` (#6) |
+| O-01 | Detalle de requisito | modal (desktop) / **fullscreen con tabs** (mobile) | tablero-requisitos · fila o card | Ver el requisito sin perder el tablero. En mobile los paneles son tabs excluyentes, no dos columnas. **REQ-005:** compone los mismos tres paneles que la pantalla #5, así que hereda `marca-identidad-automatica` en `pie-autoria` y en el feed, y la variant `identidad-automatica` del comentario (RF-3, RF-10). **REQ-016:** por la misma razón hereda `seccion-documentos` debajo de `pie-autoria`; abrir un documento sale del modal hacia `documento` (#6). **REQ-020:** ante un 403/404 muestra el mismo aviso que la pantalla #5 (`RequirementUnavailable`: *"El requisito no está disponible o no tenés acceso"*) con **"Volver al tablero"**, que cierra el modal; sin "Reintentar". Con error de red o 5xx muestra "Error al cargar el requisito" y **gana "Reintentar"** junto a cerrar, que hoy no ofrece en ningún caso [RF-6, RF-7, DD-8] |
 | O-02 | Nuevo requisito | modal | Sidebar · botón "Nuevo requisito"; tablero-requisitos | Crear un requisito. **REQ-001:** los adjuntos dejan de ser borrador y la subida muestra progreso real (RF-1, RF-8). **REQ-004:** un `504 gateway_timeout` deja el alta en duda —el requisito pudo haberse creado— y el modal **no muestra ningún error**, así que el reintento probable duplica el pedido y el duplicado aparece en `web` (RF-16, CA-9) |
 | O-03 | Dropdown de estado | dropdown en portal | fila de lista, card de kanban | Cambiar estado inline — **solo visible para rol interno** |
 | O-04 | Dropdown de prioridad | dropdown en portal | fila de lista, card de kanban | Cambiar prioridad inline — **solo rol interno** |
@@ -131,6 +131,15 @@ el gap bloqueante de navegación en mobile.
 > texto**: apunta a la web interna, que el cliente no puede abrir [RF-7, DD-6, DD-7]. El estado del
 > visor ante un 403 no cambia [DD-9]. El resto del REQ (el `actor` completo que la api manda a
 > jiku-docs) no se ve en la interfaz, pero es lo que deja entrar a un externo real a la documentación.
+
+> **REQ-020 no agrega ni quita pantallas ni overlays; rediseña un estado de `detalle-requisito` (#5)
+> y de O-01.** Un externo que abre un requisito interno —o uno de un proyecto sin permiso— veía
+> "Error al cargar el requisito" con "Reintentar", sin explicación, tras un reintento automático
+> inútil. Ahora un 403 o 404 de la api muestra **"El requisito no está disponible o no tenés
+> acceso"**, con **"Volver al tablero"** y sin "Reintentar"; en la página se conserva una cabecera
+> mínima (`{proyecto} › Requisitos`). Los errores de red o 5xx siguen ofreciendo "Reintentar", y el
+> modal lo gana [RF-6, RF-7, CA-10, CA-11]. No distingue "no existe" de "sin permiso", igual que la
+> api. El resto del REQ (CORS, log de core, `web`) no se ve en esta superficie.
 
 > **REQ-005 no agrega ni quita pantallas ni overlays.** El evento de autenticación del bus no tiene
 > interfaz. Lo que cambia es que un **conector externo** —que desde REQ-001 puede ser el autor de
@@ -204,7 +213,8 @@ Pantallas: login (#1), login-entrada (#2)
   el portal exactamente los mismos requisitos que el cliente. Antes no era así —los `internal` se
   listaban y se abrían— y era un error, no una decisión. El recorte es de la superficie, no del
   caller: el portal es la pantalla que se comparte con el cliente. Un requisito interno abierto
-  por URL directa responde 404.
+  por URL directa responde 404, y **desde REQ-020** el portal lo muestra como "no disponible o sin
+  acceso", con vuelta al tablero, en la página y en el modal.
 - **Sin proyectos asignados** — Si el cliente no tiene ninguna fila en `user_project_permissions`,
   el sidebar queda vacío y `/projects` no tiene a dónde redirigir. **Desde REQ-007 este es el estado
   de entrada de todo cliente nuevo**, no un borde: al desaparecer el 401 `user_not_found`, una

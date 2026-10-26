@@ -1119,10 +1119,9 @@
           "content": "Breadcrumb + acciones del detalle",
           "hidden_in_states": [
             "loading",
-            "error de sistema",
-            "not found"
+            "error de sistema"
           ],
-          "annotation": "sin texto propio: es el mismo BoardHeader del tablero invocado con requirementId (61px de alto). Contiene el breadcrumb y los tres botones de acción, que se dibujan como bloques propios"
+          "annotation": "sin texto propio: es el mismo BoardHeader del tablero invocado con requirementId (61px de alto). Contiene el breadcrumb y los tres botones de acción, que se dibujan como bloques propios. En no disponible o sin acceso queda como cabecera mínima: solo el breadcrumb de 2 niveles, sin los tres botones [REQ-020]"
         },
         {
           "name": "breadcrumb",
@@ -1135,10 +1134,18 @@
           ],
           "hidden_in_states": [
             "loading",
-            "error de sistema",
-            "not found"
+            "error de sistema"
           ],
-          "annotation": "{nombre del proyecto} › \"Requisitos\" › #{id}; el separador es un carácter literal. Con requirementId presente \"Requisitos\" pasa a ser un button clickeable que vuelve al tablero; sin él es un span. No es semántico: div sin nav aria-label ni lista"
+          "annotation": "{nombre del proyecto} › \"Requisitos\" › #{id}; el separador es un carácter literal. Con requirementId presente \"Requisitos\" pasa a ser un button clickeable que vuelve al tablero; sin él es un span. No es semántico: div sin nav aria-label ni lista",
+          "state_overrides": {
+            "no disponible o sin acceso": {
+              "items": [
+                "Proyecto Alfa",
+                "Requisitos"
+              ],
+              "annotation": "REQ-020 · en no disponible o sin acceso queda en dos niveles —{proyecto} › \"Requisitos\"— con \"Requisitos\" clickeable hacia el tablero. No muestra #{id}: nombraría algo que la pantalla no puede confirmar que exista [DD-8]"
+            }
+          }
         },
         {
           "name": "boton-enlace",
@@ -1150,7 +1157,7 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found"
+            "no disponible o sin acceso"
           ],
           "annotation": "copia {origin}/projects/{projectId}/requirements/{requirementId} al portapapeles y pasa a \"Copiado\" con icono Check por 2 segundos. El cambio no se anuncia: sin aria-live"
         },
@@ -1164,7 +1171,7 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found"
+            "no disponible o sin acceso"
           ],
           "annotation": "solo se renderiza para external-user. Alterna a \"Desuscribirse\" según si el currentUserId está en subscribers; en curso dice \"...\" y en error \"Error\", con el motivo \"Error al procesar la solicitud\" en un title invisible en touch. Ni el éxito ni el error están implementados como estado"
         },
@@ -1178,7 +1185,7 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found"
+            "no disponible o sin acceso"
           ],
           "annotation": "router.push al tablero de requisitos del proyecto"
         },
@@ -1473,18 +1480,18 @@
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "disparado por el error de useRequirement. El error propio del comentario no pasa por acá: vive en el p role=alert del editor, dentro del default"
+          "annotation": "disparado por el error de useRequirement. Desde REQ-020 solo con red o 5xx (classifyRequirementError → system), con un reintento automático antes de mostrarse; un 403 o 404 ya no cae acá [RF-7, CA-11, DD-9]. El error propio del comentario no pasa por acá: vive en el p role=alert del editor, dentro del default"
         },
         {
-          "name": "alerta-not-found",
-          "type": "alert",
+          "name": "aviso-no-disponible",
+          "type": "empty-state",
           "category": "feedback",
-          "kind": "error",
-          "content": "Requisito no encontrado",
+          "content": "El requisito no está disponible o no tenés acceso",
+          "paragraph": "Puede que no exista o que no tengas permiso para verlo. Si te compartieron este enlace, pedile acceso a tu contacto en el equipo.",
           "visible_only_in_states": [
-            "not found"
+            "no disponible o sin acceso"
           ],
-          "annotation": "query resuelta sin error y sin datos. No distingue el permiso denegado del inexistente. Es el único not found implementado de la superficie: no hay not-found.tsx en ninguna ruta"
+          "annotation": "nuevo con REQ-020, reemplaza a alerta-not-found (\"Requisito no encontrado\"). Icono FileQuestion 40px en gris, decorativo (aria-hidden): no es una falla. Componente compartido RequirementUnavailable, el mismo que usa O-01 [DD-8]. Lo dispara un 403/404 o los códigos access_denied / requirement_not_found [DD-7], y la query resuelta sin datos. No distingue \"no existe\" de \"sin permiso\" a propósito: la api ya los iguala. El título es el h1 del estado; sin role=alert"
         },
         {
           "name": "boton-volver-listado",
@@ -1494,10 +1501,9 @@
           "content": "Volver al listado",
           "icon": "arrow-left",
           "visible_only_in_states": [
-            "error de sistema",
-            "not found"
+            "error de sistema"
           ],
-          "annotation": "única salida en not found; en error de sistema acompaña a \"Reintentar\""
+          "annotation": "acompaña a \"Reintentar\" en error de sistema. Desde REQ-020 ya no aparece en no disponible o sin acceso: ahí la salida es boton-volver-tablero"
         },
         {
           "name": "boton-reintentar",
@@ -1509,7 +1515,7 @@
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "refetch() de useRequirement, no navega. No existe en not found: ahí reintentar no tendría sentido"
+          "annotation": "refetch() de useRequirement, no navega. No existe en no disponible o sin acceso: ahí reintentar nunca va a funcionar [REQ-020 RF-6, CA-10]. Sigue en error de red o 5xx, donde sí puede [RF-7, CA-11]"
         },
         {
           "name": "progreso-subida-adjunto",
@@ -1544,7 +1550,7 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found"
+            "no disponible o sin acceso"
           ],
           "state_overrides": {
             "documentos no disponibles": {
@@ -1596,7 +1602,7 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found",
+            "no disponible o sin acceso",
             "documentos no disponibles",
             "sin acceso a documentos"
           ],
@@ -1614,7 +1620,7 @@
             "error de validación",
             "error de sistema",
             "success",
-            "not found",
+            "no disponible o sin acceso",
             "terminal",
             "readonly",
             "documentos no disponibles",
@@ -1631,11 +1637,23 @@
           "hidden_in_states": [
             "loading",
             "error de sistema",
-            "not found",
+            "no disponible o sin acceso",
             "documentos no disponibles",
             "sin acceso a documentos"
           ],
           "annotation": "solo cuando hay más documentos · pagina por cursor"
+        },
+        {
+          "name": "boton-volver-tablero",
+          "type": "button",
+          "category": "input",
+          "variant": "primary",
+          "content": "Volver al tablero",
+          "icon": "arrow-left",
+          "visible_only_in_states": [
+            "no disponible o sin acceso"
+          ],
+          "annotation": "nuevo con REQ-020 · router.push a /projects/{projectId}/requirements. Primary porque es la única acción del estado. Dice \"tablero\" y no \"listado\": es la misma palabra que usa O-01, donde cierra el modal [DD-8]"
         }
       ],
       "layouts": {
@@ -1666,7 +1684,8 @@
           },
           "indicador-carga",
           "alerta-sistema",
-          "alerta-not-found",
+          "aviso-no-disponible",
+          "boton-volver-tablero",
           {
             "row": "acciones-excepcion",
             "cols": [
@@ -1784,7 +1803,27 @@
                   },
                   "indicador-carga",
                   "alerta-sistema",
-                  "alerta-not-found",
+                  {
+                    "row": "aviso-no-disponible",
+                    "cols": [
+                      {
+                        "w": 3,
+                        "stack": []
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "aviso-no-disponible",
+                          "boton-volver-tablero"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": []
+                      }
+                    ],
+                    "annotation": "REQ-020 · centrado en el cuerpo, ancho máximo ~480px, con la sidebar visible"
+                  },
                   {
                     "row": "acciones-excepcion",
                     "cols": [
@@ -1898,7 +1937,7 @@
           "applies": true
         },
         {
-          "name": "not found",
+          "name": "no disponible o sin acceso",
           "applies": true
         },
         {
@@ -3295,6 +3334,14 @@
       "srcBlock": "lista-documentos",
       "dst": "documento",
       "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcState": "no disponible o sin acceso",
+      "srcBlock": "boton-volver-tablero",
+      "dst": "tablero-requisitos",
+      "trigger": "click 'Volver al tablero'",
       "automatic": false
     },
     {

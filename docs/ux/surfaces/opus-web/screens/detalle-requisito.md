@@ -9,8 +9,8 @@ audiences:
   - cliente
 fidelity: mid
 status: as-is-sin-validar
-version: "1.2"
-date: 2026-10-25
+version: "1.3"
+date: 2026-10-26
 ---
 
 # Pantalla: Detalle de requisito
@@ -42,7 +42,8 @@ Envuelta por el chrome de `(dashboard)`.
 - A `/projects/{id}/docs/{documentId}` (`documento`) · click en una fila de `lista-documentos` [REQ-016]
 - A `/projects/{id}/requirements` · botón "Volver" · `BoardHeader.tsx:138`
 - A `/projects/{id}/requirements` · click en "Requisitos" del breadcrumb · `BoardHeader.tsx:81`
-- A `/projects/{id}/requirements` · botón "Volver al listado" en los estados de error y not found · `[requirementId]/page.tsx:38`, `:55`
+- A `/projects/{id}/requirements` · botón "Volver al listado" en el estado de error de sistema · `[requirementId]/page.tsx:38`
+- A `/projects/{id}/requirements` · botón "Volver al tablero" o "Requisitos" del breadcrumb en el estado no disponible o sin acceso [REQ-020 RF-6]
 
 **Salidas automáticas:**
 - Ninguna.
@@ -51,11 +52,11 @@ Envuelta por el chrome de `(dashboard)`.
 
 | # | Nombre | Tipo | Variant/Level/State | Categoría | Viewports | Visibilidad | Propósito |
 |---|--------|------|---------------------|-----------|-----------|-------------|-----------|
-| 1 | encabezado-detalle | header | — | layout | ambos | hidden_in_states: loading, error de sistema / sin conexión, not found | Breadcrumb + acciones del detalle |
-| 2 | breadcrumb | breadcrumbs | 3 niveles | navigation | ambos | hidden_in_states: loading, error de sistema / sin conexión, not found | Ubicación y vuelta al tablero |
-| 3 | boton-enlace | button | secondary · con feedback | input | ambos | hidden_in_states: loading, error de sistema / sin conexión, not found | Copiar la URL del requisito |
-| 4 | boton-suscripcion | button | secondary · suscrito/no/error | input | ambos *(solo `external-user`)* | hidden_in_states: loading, error de sistema / sin conexión, not found | Suscribirse a las novedades |
-| 5 | boton-volver | button | secondary | input | ambos | hidden_in_states: loading, error de sistema / sin conexión, not found | Volver al tablero |
+| 1 | encabezado-detalle | header | — | layout | ambos | hidden_in_states: loading, error de sistema / sin conexión | Breadcrumb + acciones del detalle. **En no disponible o sin acceso queda como cabecera mínima**: solo el breadcrumb [REQ-020] |
+| 2 | breadcrumb | breadcrumbs | 3 niveles · state_overrides: no disponible o sin acceso→2 niveles | navigation | ambos | hidden_in_states: loading, error de sistema / sin conexión | Ubicación y vuelta al tablero |
+| 3 | boton-enlace | button | secondary · con feedback | input | ambos | hidden_in_states: loading, error de sistema / sin conexión, no disponible o sin acceso | Copiar la URL del requisito |
+| 4 | boton-suscripcion | button | secondary · suscrito/no/error | input | ambos *(solo `external-user`)* | hidden_in_states: loading, error de sistema / sin conexión, no disponible o sin acceso | Suscribirse a las novedades |
+| 5 | boton-volver | button | secondary | input | ambos | hidden_in_states: loading, error de sistema / sin conexión, no disponible o sin acceso | Volver al tablero |
 | 6 | panel-propiedades | sidebar | — | layout | ambos | visible_only_in_states: default | Columna de propiedades del requisito |
 | 7 | propiedad-estado | badge | 7 estados · readonly | content | ambos | visible_only_in_states: default | Estado actual, de solo lectura |
 | 8 | propiedad-tipo | section | — | content | ambos | visible_only_in_states: default | Tipo del requisito |
@@ -76,9 +77,9 @@ Envuelta por el chrome de `(dashboard)`.
 | 23 | indicador-carga | loader | lg | feedback | ambos | visible_only_in_states: loading | Señal de carga de la pantalla entera |
 | 24 | sidebar-navegacion | sidebar | — | layout | solo desktop | — | Chrome de `(dashboard)`: proyectos, alta y cerrar sesión. Bajo 768px no se renderiza |
 | 25 | alerta-sistema | alert | error | feedback | ambos | visible_only_in_states: error de sistema / sin conexión | Texto del fallo de carga |
-| 26 | alerta-not-found | alert | error | feedback | ambos | visible_only_in_states: not found | Texto de requisito inexistente |
-| 27 | boton-volver-listado | button | secondary | input | ambos | visible_only_in_states: error de sistema / sin conexión, not found | Salida del estado de excepción |
-| 28 | boton-reintentar | button | primary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Reintentar la carga. **No existe en not found** |
+| 26 | aviso-no-disponible | empty-state | — | feedback | ambos | visible_only_in_states: no disponible o sin acceso | Explica que el requisito no está disponible o que no hay acceso, sin distinguir los dos casos [REQ-020 RF-6]. Reemplaza a `alerta-not-found` |
+| 27 | boton-volver-listado | button | secondary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Salida del estado de error de sistema |
+| 28 | boton-reintentar | button | primary | input | ambos | visible_only_in_states: error de sistema / sin conexión | Reintentar la carga. **No existe en no disponible o sin acceso** [REQ-020 RF-7] |
 | 29 | progreso-subida-adjunto | progress-bar | — | feedback | ambos | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
 | 30 | marca-identidad-automatica | badge | automatico | content | ambos | visible_only_in_states: default | Marca que el autor mostrado es una identidad de servicio y no una persona |
 | 31 | seccion-documentos | section | colapsable · expandida al entrar | content | ambos | **no se renderiza con el módulo `not_installed` ni con 0 documentos**; hidden_in_states: loading | Documentos públicos del requisito [REQ-016 RF-24] |
@@ -87,6 +88,7 @@ Envuelta por el chrome de `(dashboard)`.
 | 34 | alerta-documentos-no-disponible | alert | warning | feedback | ambos | visible_only_in_states: documentos no disponibles | El módulo está registrado pero no responde |
 | 35 | boton-ver-mas-documentos | button | secondary | input | ambos | visible solo cuando hay más documentos | Trae los siguientes |
 | 36 | alerta-documentos-sin-acceso | alert | warning | feedback | ambos | visible_only_in_states: sin acceso a documentos | La persona no tiene acceso a la documentación del proyecto [REQ-019 RF-9] |
+| 37 | boton-volver-tablero | button | primary | input | ambos | visible_only_in_states: no disponible o sin acceso | Única acción del estado: vuelve al tablero del proyecto [REQ-020 RF-6, CA-10] |
 
 **Origen:** `src/app/(dashboard)/projects/[projectId]/requirements/[requirementId]/page.tsx`, `RequirementDetailView/RequirementDetailView.tsx`, `RequirementDetailView/RequirementDetailView.module.scss`, `BoardHeader/BoardHeader.tsx`, `RequirementDetailModal/components/RequirementInfoPanel/RequirementInfoPanel.tsx`, `RequirementDetailModal/components/ActivityPanel/ActivityPanel.tsx`, `RequirementDetailModal/components/CommentInput/CommentInput.tsx`, `subscriptions/components/SubscribersList/SubscribersList.tsx` [fuente: código-existente].
 
@@ -107,6 +109,8 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
 - titulo-actividad
 - feed-actividad *(item-comentario e item-cambio, con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - editor-comentario — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
+
+**En el estado no disponible o sin acceso** [REQ-020]: encabezado-detalle *(solo breadcrumb, 2 niveles)* → aviso-no-disponible *(ancho completo, alineado arriba, no centrado en la pantalla)* → boton-volver-tablero *(ancho completo)*. Sin sidebar, como el resto de la pantalla en mobile: el botón es la única salida.
 
 **Origen:** `RequirementDetailView.module.scss:91-99` — `@include mobile { .body { flex-direction: column } .rightPanel { width: 100%; flex-shrink: 1 } }` y `RequirementInfoPanel.module.scss:20-40` — `.layout { @include mobile { flex-direction: column; overflow: visible } }`, `.sidebar { @include mobile { width: 100%; border-right: none; border-bottom: 1px solid #e5e7eb } }` [fuente: código-existente].
 
@@ -129,6 +133,13 @@ Notas de tipificación del relevamiento: `panel-propiedades` se relevó como `si
     - feed-actividad *(scroll)* — item-comentario, item-cambio, marca-identidad-automatica *(junto al autor de cada entrada de una identidad de servicio)*
     - editor-comentario *(anclado abajo)* — boton-adjuntar, progreso-subida-adjunto *(solo mientras sube)*, boton-enviar
 
+**En el estado no disponible o sin acceso** [REQ-020]:
+
+- *(chrome: sidebar-navegacion 263px — sigue visible)*
+- encabezado-detalle *(61px, solo breadcrumb de 2 niveles, sin los tres botones)*
+- row `cuerpo`
+  - col 3/12 → 9/12 *(centrado, ancho máximo ~480px)*: aviso-no-disponible, boton-volver-tablero *(debajo, alineado al centro)*
+
 **Origen:** `RequirementDetailView.module.scss:11-49` — `.body { display:flex }` con `.leftPanel { flex: 1 1 0 }` y `.rightPanel { width: 559px; flex-shrink: 0 }`; el panel de propiedades en `RequirementInfoPanel.module.scss:15-40` — `.layout { display:flex }` con `.sidebar { width: 220px; flex-shrink: 0 }` [fuente: código-existente].
 
 **Las fracciones son aproximadas y no son derivables del código como fracciones, y el motivo importa:** el panel derecho es de **559px fijos**, no proporcional, y el de propiedades de **220px fijos**. A 1200px de viewport menos 263 de sidebar quedan 937 útiles, así que la actividad se lleva ~60% del ancho; a 1920px se lleva ~34%. La proporción cambia con la pantalla. Las fracciones 5/12 y 7/12 del header tampoco son una grilla: es un reparto entre dos grupos de ancho natural.
@@ -147,7 +158,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Texto/label: `{nombre del proyecto}` › "Requisitos" › `#{id}`
 - Icono: nada — el separador `›` es un carácter literal
 - Asset: nada
-- Annotation: con `requirementId` presente, "Requisitos" pasa a ser un `<button>` clickeable (`BoardHeader.tsx:78-84`); sin él es un `<span>`
+- Annotation: con `requirementId` presente, "Requisitos" pasa a ser un `<button>` clickeable (`BoardHeader.tsx:78-84`); sin él es un `<span>`. **En no disponible o sin acceso** queda en dos niveles —`{nombre del proyecto}` › "Requisitos"— con "Requisitos" clickeable hacia el tablero: no se muestra `#{id}` porque nombraría algo que la pantalla no puede confirmar que exista [REQ-020 DD-8]
 
 ### boton-enlace
 - Texto/label: "Enlace" · tras copiar: "Copiado"
@@ -304,23 +315,29 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Asset: nada
 - Annotation: `[requirementId]/page.tsx:32-47` · disparado por el `error` de `useRequirement`
 
-### alerta-not-found
-- Texto/label: "Requisito no encontrado"
-- Icono: error (automático por `kind`)
+### aviso-no-disponible
+- Texto/label: título `"El requisito no está disponible o no tenés acceso"` · cuerpo `"Puede que no exista o que no tengas permiso para verlo. Si te compartieron este enlace, pedile acceso a tu contacto en el equipo."`
+- Icono: `FileQuestion` de lucide-react, 40px, en gris (no en rojo: no es una falla)
 - Asset: nada
-- Annotation: `[requirementId]/page.tsx:49-61` · query resuelta sin error y sin datos. **No distingue permiso denegado** de inexistente
+- Annotation: **nuevo con REQ-020**, reemplaza a `alerta-not-found` ("Requisito no encontrado"). Componente compartido `RequirementUnavailable`, el mismo que usa O-01 [DD-8]. Lo dispara `classifyRequirementError` → `not_found`: status 403 o 404, o `code` `requirement_not_found` / `access_denied` [DD-7]; también la query resuelta sin error y sin datos (`page.tsx:49-61`). **No distingue "no existe" de "sin permiso" a propósito**: la api ya los iguala —un requisito `internal` responde el mismo 404 que un id inexistente (`api.yaml:2989-2991`)— y el portal no le confirma a un externo qué hay del otro lado (REQ-006 §22). El cuerpo nombra una acción posible fuera del producto porque dentro no hay ninguna
 
 ### boton-volver-listado
 - Texto/label: "Volver al listado"
 - Icono: arrow-left
 - Asset: nada
-- Annotation: única salida en `not found`; en `error de sistema` acompaña a "Reintentar"
+- Annotation: acompaña a "Reintentar" en `error de sistema`. **Desde REQ-020 ya no aparece en no disponible o sin acceso**: ahí la salida es `boton-volver-tablero`
 
 ### boton-reintentar
 - Texto/label: "Reintentar"
 - Icono: refresh
 - Asset: nada
-- Annotation: `refetch()` de `useRequirement`, no navega. **No existe en `not found`**: ahí reintentar no tendría sentido
+- Annotation: `refetch()` de `useRequirement`, no navega. **No existe en no disponible o sin acceso**: ahí reintentar nunca va a funcionar [REQ-020 RF-6, CA-10]. Sigue en error de red o 5xx, donde sí puede [RF-7, CA-11]
+
+### boton-volver-tablero
+- Texto/label: "Volver al tablero"
+- Icono: `ArrowLeft` de lucide-react, 16px
+- Asset: nada
+- Annotation: **nuevo con REQ-020.** Navega a `/projects/{projectId}/requirements`. Es primary porque es la única acción del estado. Dice "tablero" y no "listado" porque el destino es el tablero del proyecto en cualquiera de sus vistas, y es la misma palabra que usa el modal O-01, donde la acción cierra el modal y deja al cliente sobre el tablero [DD-8]
 
 
 ### marca-identidad-automatica
@@ -403,7 +420,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - Cambios:
   - texto de error + **dos botones**: "Volver al listado" (secondary) y "Reintentar" (primary)
   - todos los bloques de contenido: ocultos en este estado (hidden_in_states) · `[requirementId]/page.tsx:32-47`
-- Annotation: disparado por `error` de `useRequirement`. Hay además un error de sistema propio del comentario, dentro del default: "Sin permiso para comentar" (403), o el `message` del `ApiError`, o "Error al enviar el comentario", en el mismo `<p role="alert">` (`CommentInput.tsx:38-45`). **Con REQ-001 se suman dos mensajes ahí mismo:** "No podés adjuntar un archivo que subió otra persona" cuando el vínculo se rechaza por titularidad (RF-12, CA-11) y "El archivo no está disponible" al abrir un adjunto cuyo contenido nunca llegó al storage (RF-21, CA-15). El **error de la suscripción no está implementado como estado**: el botón muestra "Error" y el motivo va en un `title`, invisible en touch, sin toast ni mensaje persistente (`BoardHeader.tsx:114-131`)
+- Annotation: disparado por `error` de `useRequirement`. **Desde REQ-020 solo con errores que reintentar puede arreglar**: red o 5xx (`classifyRequirementError` → `system`), con un reintento automático antes de mostrarse. Un 403 o 404 ya no cae acá [RF-7, CA-11, DD-9]. Hay además un error de sistema propio del comentario, dentro del default: "Sin permiso para comentar" (403), o el `message` del `ApiError`, o "Error al enviar el comentario", en el mismo `<p role="alert">` (`CommentInput.tsx:38-45`). **Con REQ-001 se suman dos mensajes ahí mismo:** "No podés adjuntar un archivo que subió otra persona" cuando el vínculo se rechaza por titularidad (RF-12, CA-11) y "El archivo no está disponible" al abrir un adjunto cuyo contenido nunca llegó al storage (RF-21, CA-15). El **error de la suscripción no está implementado como estado**: el botón muestra "Error" y el motivo va en un `title`, invisible en touch, sin toast ni mensaje persistente (`BoardHeader.tsx:114-131`)
 - **REQ-004: la falla del bus al comentar se parte en dos, y el portal no muestra la diferencia.** La api separa `503 service_unavailable` (`"El servicio no está disponible en este momento"`) de `504 gateway_timeout` (`"La operación tardó demasiado"`) (RF-16, CA-8, CA-9). El comentario es un comando del bus, así que los dos mensajes llegan como `message` del `ApiError` al mismo `<p role="alert">` del editor: **la pantalla no se modifica** y el texto sí cambia. Con el 503 el comentario **no** se agregó y reintentar es seguro; con el 504 **pudo** haberse agregado, y reintentar deja **dos comentarios iguales** en un feed que el equipo también lee. Como el envío exitoso **no tiene confirmación** —ver el estado `success`—, el cliente no tiene forma de verificar antes de repetir: tiene que releer el feed. La suscripción, en cambio, es idempotente y el desdoblamiento no le cambia nada [REQ-004]
 
 ### documentos no disponibles (parent_state: default)
@@ -431,13 +448,14 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
   - feed-actividad: el comentario aparece tras la invalidación de `['requirement', requirementId]` · `CommentInput.tsx:123-127`, `useCreateComment.ts:10-12`
 - Annotation: el **success de la suscripción no está implementado**: sin confirmación, el botón cambia de "Suscribirse" a "Desuscribirse" cuando llega el refetch (`useSubscribe.ts:11-16`)
 
-### not found
-- Aplica: Sí
-- Mensaje: "Requisito no encontrado"
+### no disponible o sin acceso
+- Aplica: Sí — **rediseñado con REQ-020** (era `not found`, "Requisito no encontrado") [RF-6, CA-10]
+- Mensaje: "El requisito no está disponible o no tenés acceso"
 - Cambios:
-  - texto + botón "Volver al listado". **Sin reintentar**
-  - todos los bloques de contenido: ocultos en este estado (hidden_in_states) · `[requirementId]/page.tsx:49-61`
-- Annotation: disparado por una query que resolvió sin error pero sin datos. Un requisito de otro proyecto cae acá o en error, según responda la api: **no se distingue el permiso denegado**. Es el único estado not-found implementado de la superficie; no hay `not-found.tsx` en ninguna ruta
+  - encabezado-detalle: visible como cabecera mínima — breadcrumb de 2 niveles (`{proyecto}` › "Requisitos"), sin boton-enlace, boton-suscripcion ni boton-volver
+  - aviso-no-disponible + boton-volver-tablero: visibles. **Sin "Reintentar" y sin "Volver al listado"**
+  - todos los bloques de contenido: ocultos en este estado (hidden_in_states)
+- Annotation: disparado por un 403 o 404 de `GET /api/opus/requirements/{id}` (o sus códigos `access_denied` / `requirement_not_found`), y por la query resuelta sin datos. **Sin reintento automático**: `useRequirement` deja de reintentar estos errores, así que el cliente ve el estado sin la espera de un reintento inútil [DD-9]. El caso típico es un externo que abre por enlace un requisito interno, o uno de un proyecto sin permiso. Sigue siendo el único estado not-found implementado de la superficie; no hay `not-found.tsx` en ninguna ruta
 
 ### estado terminal / readonly
 - Aplica: No — no implementado (ver gaps-as-is.md). Está presente de hecho y sin marcarse: estado, tipo y prioridad son de solo lectura acá para todos los roles, incluidos los internos que sí pueden editarlos en el tablero, y nada lo indica (`RequirementInfoPanel.tsx:88-117`). Un requisito `resuelto` o `cancelado` se ve igual que uno activo, y el editor de comentarios sigue habilitado
@@ -455,6 +473,8 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - adjunto en el editor · on click en quitar → lo saca del texto y fusiona los segmentos vecinos · `RichTextEditor.tsx:101-119`
 - boton-enviar / submit · → crea el comentario con los archivos pendientes. **Con REQ-001 el vínculo se crea contra archivos que ya existen** (RF-4), y el comentario y sus vínculos se guardan juntos o no se guarda ninguno · `CommentInput.tsx:115-130`
 
+- **REQ-020 ·** boton-volver-tablero · on click → `router.push` a `/projects/{projectId}/requirements`
+- **REQ-020 ·** breadcrumb "Requisitos" en no disponible o sin acceso · on click → al tablero, igual que en default
 - **REQ-016 ·** fila de lista-documentos · on click → navega a `/projects/{projectId}/docs/{documentId}`
 - **REQ-016 ·** título de seccion-documentos · on click → colapsa / expande
 - **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
@@ -479,6 +499,7 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
   - El **feed de actividad no es una lista**: `<div>` anidados, sin `<ul>`/`<li>` ni `role="list"` (`ActivityPanel.tsx:145-153`).
   - El **`<textarea>` del editor no tiene etiqueta**: solo `placeholder`, sin `<label>` ni `aria-label` (`RichTextEditor.tsx:126-134`). Y como el editor se parte en un `<textarea>` por segmento de texto, el foco no se maneja entre ellos.
   - **La marca de identidad automática no puede quedar en el avatar.** El avatar del comentario es `aria-hidden`, así que un lector de pantalla nunca sabría que el icono reemplazó a las iniciales: la marca es un `badge` con texto visible y nombre accesible propio, leído junto al nombre del autor. **Se descartó el `title` de `:hover`**, el patrón que esta superficie ya usa para el motivo del fallo de suscripción y que este mismo documento registra como invisible en touch (REQ-005).
+  - **El estado no disponible o sin acceso tiene `<h1>`** (REQ-020): el título de aviso-no-disponible es el único encabezado del estado, así que se marca como `<h1>` y no hereda el `<h2>` del título del requisito. **No lleva `role="alert"`**: es el contenido de la página, no una interrupción, y el lector lo encuentra al llegar. Orden de foco del estado: "Requisitos" del breadcrumb → boton-volver-tablero. El icono es decorativo (`aria-hidden`).
   - Presentes: `aria-label` en los tres botones del header (`BoardHeader.tsx:101`, `:117`, `:139`), `role="alert"` en el error del comentario (`CommentInput.tsx:139`), `aria-label` en el input de archivo y en los botones de adjuntar y enviar (`:162`, `:168`, `:178`), `aria-hidden` en iconos decorativos, avatar de comentario, timeline y punto de estado, y `<ul>`/`<li>` reales en la lista de suscriptores (`SubscribersList.tsx:16-22`).
 
 ## Decisiones y descartes
@@ -530,3 +551,13 @@ Es un layout de **tres columnas anidadas**: propiedades (220px) | contenido (fle
 - **O-01 lo hereda**, igual que heredó la sección en REQ-016.
 - **Sin cambios de layout en ningún viewport.** El aviso ocupa el lugar del de no disponible.
 - **No se agregó componente al Design System.** `alert` sigue sin spec en `opus-web` v0.1.0; gap previo. Ver la `## Revisión UX` de REQ-019.
+
+### REQ-020 — Arreglos chicos de las pruebas e2e y del relevamiento de pantallas (2026-10-26)
+
+- **`not found` pasa a "no disponible o sin acceso", y deja de ser un error.** El cliente que abre por enlace un requisito interno veía "Error al cargar el requisito" con "Reintentar": un error que reintentar nunca arregla. El estado nuevo explica, no alarma —icono gris, sin `kind: error`— y ofrece la única salida útil [RF-6, CA-10].
+- **No se distingue "no existe" de "sin permiso".** La api los iguala a propósito y el portal no le confirma a un externo qué hay del otro lado (REQ-006 §22, mismo criterio que `classifyDocumentError` de REQ-016). El título nombra las dos posibilidades juntas.
+- **Cabecera mínima en vez de ninguna.** El código actual reemplazaba la pantalla entera; se conserva el breadcrumb `{proyecto} › Requisitos` para que el cliente sepa dónde está y tenga una segunda vía al tablero. Se le saca `#{id}` y los tres botones: copiar el enlace, suscribirse o "Volver" sobre algo que no se puede ver no tienen sentido, y "Volver" duplicaría `boton-volver-tablero`.
+- **"Volver al tablero", primary.** Es la única acción del estado. "Volver al listado" se queda solo en el error de sistema, acompañando a "Reintentar"; no se unificó el texto ahí para no tocar un estado que el REQ no cambia.
+- **Mismo arreglo en los dos viewports, distinto acomodo.** En desktop el aviso va centrado en el cuerpo con la sidebar visible; en mobile va arriba, a ancho completo, porque centrado verticalmente quedaría lejos del breadcrumb. En mobile el botón es la única salida de la pantalla (no hay sidebar).
+- **O-01 recibe el mismo componente**, con "Volver al tablero" cerrando el modal, y gana "Reintentar" en su error de sistema, que hoy no ofrece [DD-8, RF-7]. Ver el inventario de overlays del product-map.
+- **Design System:** `empty-state` no tiene spec en `opus-web` v0.1.0 (catálogo de tres componentes); `button` está cubierto. Gap anotado en la `## Revisión UX` de REQ-020.

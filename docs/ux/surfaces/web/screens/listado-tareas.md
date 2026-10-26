@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.1"
-date: 2026-09-02
+version: "1.2"
+date: 2026-10-26
 ---
 
 # Pantalla: Listado de tareas
@@ -171,7 +171,7 @@ Notas de transcripción [fuente: código-existente]:
 - Texto/label: textos verbatim posibles: `"No definida"` cuando no hay fecha estimada (`ObjectivesTable.tsx:19`) · `"Vence hoy"` (`:36`) · el texto calculado por `getFinishDateText` para el resto de los casos (`:114`)
 - Icono: nada
 - Asset: nada
-- Annotation: la tarea finalizada usa una clase distinta (`styles.finished`, `:109`)
+- Annotation: la tarea finalizada usa una clase distinta (`styles.finished`, `:109`). **Desde REQ-020 una fecha nula, vacía o inválida muestra `"No definida"`** y nada más: ni `"Vencido hace"`, ni `"Falta"`, ni `"Vence hoy"`, ni la marca `closeToDeadline` [RF-5, CA-8]. "Inválida" es todo lo que no empiece con `YYYY-MM-DD`, la forma del contrato: la columna es `VARCHAR` y trae texto heredado que producía `"Vencido hace: 32666 día(s)"`. Una fecha válida se toma como **fecha local**, no UTC, para no correrse un día en UTC-3; el conteo sigue siendo en días hábiles — vencida hace 3 días hábiles y abierta → `"Vencido hace: 3 día(s)"` [CA-9, DD-6]
 
 ### paginacion
 - Texto/label: los números de página
@@ -204,7 +204,7 @@ Notas de transcripción [fuente: código-existente]:
 - Aplica: Sí
 - Mensaje: —
 - Cambios: ninguno (estado base). Query resuelta con al menos una tarea (`ObjectivesTable.tsx:56-134`)
-- Sub-estados de vencimiento por fila (`ObjectivesTable.tsx:16-40`, `:107-115`): finalizada (`:108-112`) · vence hoy (`:34-37`) · vencida / próxima al vencimiento (`:16-40`) · sin fecha, con el texto `"No definida"` (`:18-19`)
+- Sub-estados de vencimiento por fila (`ObjectivesTable.tsx:16-40`, `:107-115`): finalizada (`:108-112`) · vence hoy (`:34-37`) · vencida / próxima al vencimiento (`:16-40`) · sin fecha **o con fecha inválida** —desde REQ-020—, con el texto `"No definida"` y sin marca de cercanía (`:18-19`) [RF-5]
 - Sub-estado de cambio de estado inline: seleccionar una opción en pill-estado dispara la mutación y su toast (`StateTag.tsx:55-64`)
 
 ### empty
@@ -293,3 +293,10 @@ Notas de transcripción [fuente: código-existente]:
 - **[REQ-013] Los estados declarados en esta ficha se conservan.** La migración es de presentación: ningún estado se agrega, se quita ni cambia su condición de disparo. Lo que cambia es cómo se ve cada uno —el loader es ahora uno solo, el vacío tiene componente `EmptyState` disponible— sin que la ficha declare estados nuevos. **Cablear `EmptyState` en las pantallas que hoy no tienen estado vacío queda fuera de este REQ** y sigue registrado en `gaps-as-is.md` [REQ-013 §Fuera de Alcance].
 - **[REQ-013] `desktop` sigue siendo el viewport único.** El requerimiento **no** habilita mobile: el DS mantiene el responsive del shell como objetivo declarado sin fecha y no declara el viewport `mobile` hasta que el shell lo cumpla. El layout por viewport de esta ficha no cambia [REQ-013 §Fuera de Alcance, CA-15].
 - **[REQ-013] El selector de tema vive en el shell, no en esta pantalla.** La superficie gana modo oscuro con un control para elegirlo, ubicado en el pie de la sidebar junto a Cerrar sesión. Como es parte del shell de `(loggedin)`, está presente acá pero **no se declara como bloque de esta ficha**: declararlo en las 21 pantallas autenticadas repetiría veintiuna veces el mismo control. En modo oscuro esta pantalla usa la paleta propia del DS —canvas `#0E121A`, superficies `#1B202C` separadas por contraste y sin borde—, no una inversión de la clara [REQ-013 RF-7, CA-11].
+
+### REQ-020 — Arreglos chicos de las pruebas e2e y del relevamiento de pantallas (2026-10-26)
+
+- **Una fecha que no se puede leer se trata como una fecha que no está.** `"Vencido hace: 32666 día(s)"` no es un vencimiento: es un dato heredado mal interpretado. Mostrar `"No definida"` dice la verdad —la tarea no tiene una fecha de cierre usable— y reutiliza un texto que la columna ya tenía, en vez de inventar uno nuevo como "Fecha inválida", que le hablaría al equipo de un problema de datos que no puede corregir desde acá [RF-5, CA-8].
+- **Se descartó mostrar el valor crudo.** Un texto heredado arbitrario en una columna de fechas confunde más que la ausencia, y el detalle de la tarea sigue mostrando lo que haya.
+- **La fecha válida se corre a local.** Es un cambio invisible salvo en el borde: una tarea que vence hoy dejaba de verse como "Vence hoy" un día antes en Argentina [DD-6].
+- **Sin cambios de bloques, layout ni Design System.** `etiqueta-vencimiento` sigue siendo el mismo `badge`.

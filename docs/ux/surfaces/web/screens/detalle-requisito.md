@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.5"
-date: 2026-10-24
+version: "1.6"
+date: 2026-10-26
 ---
 
 # Pantalla: Detalle de requisito
@@ -166,19 +166,19 @@ date: 2026-10-24
 - Texto/label: el estado actual · opciones `"Análisis"` · `"Planificación"` · `"En cola"` · `"Desarrollo"` · `"Revisión"` · `"Resuelto"` · `"Cancelado"`
 - Icono: nada
 - Asset: nada
-- Annotation: **el update es optimista** (`useUpdateRequirement.ts:36-43`), así que el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error. **Desde REQ-012 la lista es siempre la misma: los siete estados, sin recorte y sin excepción por tipo.** El descarte de `"En cola"` para `type: 'incidencia'` (`RequirementHeader.tsx:161-166`, `:23-30`) **se elimina**: era el reflejo en la UI de la secuencia que `core` dejó de validar, y sostenerlo dejaría a la pantalla impidiendo algo que el servidor ya acepta. La pill tampoco se deshabilita en `resuelto` ni en `cancelado`: son estados de los que ahora se sale [REQ-012 RF-1, RF-2, RF-12, CA-6]
+- Annotation: **el update es optimista** (`useUpdateRequirement.ts:36-43`), así que el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error. **Desde REQ-012 la lista es siempre la misma: los siete estados, sin recorte y sin excepción por tipo.** El descarte de `"En cola"` para `type: 'incidencia'` (`RequirementHeader.tsx:161-166`, `:23-30`) **se elimina**: era el reflejo en la UI de la secuencia que `core` dejó de validar, y sostenerlo dejaría a la pantalla impidiendo algo que el servidor ya acepta. La pill tampoco se deshabilita en `resuelto` ni en `cancelado`: son estados de los que ahora se sale [REQ-012 RF-1, RF-2, RF-12, CA-6]. Nombre accesible `"Estado: {estado actual}"` —el único de los tres que ya era correcto [REQ-020 CA-7]
 
 ### pill-tipo
 - Texto/label: el tipo actual · opciones `"Sin tipo"` · `"Funcionalidad"` · `"Mejora"` · `"Incidencia"` · `"Otro"`
 - Icono: nada
 - Asset: nada
-- Annotation: `RequirementHeader.tsx:186-194`, `:43-47`
+- Annotation: `RequirementHeader.tsx:186-194`, `:43-47`. **Nombre accesible `"Tipo: {tipo actual}"`** — desde REQ-020; antes se anunciaba como `"Estado: …"`, igual que las otras dos pills, porque el `Badge` editable fijaba ese prefijo [RF-4, CA-7, DD-5]. El texto visible no cambia
 
 ### pill-prioridad
 - Texto/label: la prioridad actual · opciones `"Sin prioridad"` · `"Baja"` · `"Media"` · `"Alta"` · `"Urgente"`
 - Icono: nada
 - Asset: nada
-- Annotation: `RequirementHeader.tsx:196-204`, `:51-55`
+- Annotation: `RequirementHeader.tsx:196-204`, `:51-55`. **Nombre accesible `"Prioridad: {prioridad actual}"`** — desde REQ-020; antes `"Estado: …"` [RF-4, CA-7, DD-5]. El texto visible no cambia
 
 ### boton-volver
 - Texto/label: `"Volver"`
@@ -684,6 +684,7 @@ date: 2026-10-24
 - **Propio de esta composición:**
   - **El motivo de una opción deshabilitada solo llega por `Tooltip`, que es solo `:hover` y sin `aria-describedby`:** un usuario de teclado o de lector de pantalla ve la opción deshabilitada sin explicación, y esa información no está en ningún otro lado (`RequirementHeader.tsx:136-138`, `Tooltip.module.scss:37`).
   - **Las tabs de tarea no se anuncian como tabs:** son un `<div className={styles.tabs}>` con `<button>`, **sin `role="tablist"`/`role="tab"` y sin `<nav aria-label>`** — peor que las tabs de `detalle-proyecto`, que al menos tienen `<nav aria-label>` (`RequirementDetail.tsx:159-180`). El cambio de tab tampoco se anuncia: sin `aria-live`.
+  - **Cada pill nombra su atributo** (REQ-020): `"Estado: Desarrollo"`, `"Tipo: Mejora"`, `"Prioridad: Alta"`. Hasta REQ-020 las tres decían `"Estado: …"` y quien usa lector de pantalla no podía saber cuál de las tres estaba por cambiar [RF-4, CA-7].
   - **El update optimista no se anuncia:** el valor de la pill cambia sin aviso (`RequirementHeader.tsx:99-111`).
   - **El indicador `✓`/`!` del campo del acordeón no tiene texto alternativo:** un lector lee `"! Alcance"` sin saber que significa "falta completar" (`RequirementStatusCard.tsx:118`). El acordeón tiene `aria-expanded` pero **le falta `aria-controls`** (`:116`).
   - **El símbolo `×` del stepper no tiene texto que lo explique**, aunque se lee como carácter (`RequirementStatusCard.tsx:339`); el nodo actual sí lleva `aria-current="step"` (`:328`).
@@ -775,3 +776,8 @@ date: 2026-10-24
 - **La card lista y no crea.** El vínculo vive en el frontmatter del documento; el alta está en `documentacion`.
 - **No se agregó componente al Design System.** `card`, `table`, `badge`, `empty-state` y `loader` tienen spec en `web` v4.2.0; el `alert` del aviso queda anotado como gap en la `## Revisión UX` de REQ-016.
 
+### REQ-020 — Arreglos chicos de las pruebas e2e y del relevamiento de pantallas (2026-10-26)
+
+- **Solo cambia lo que se oye, no lo que se ve.** Las pills de tipo y prioridad se anunciaban como "Estado: …" porque el `Badge` editable fijaba el prefijo. Cada una pasa a nombrar su propio atributo; el texto visible, el orden de foco y el layout no cambian [RF-4, CA-7].
+- **El prefijo es el nombre del atributo tal como lo lee la pantalla** —"Estado", "Tipo", "Prioridad"—, no una frase ("Cambiar tipo"): el `aria-haspopup="listbox"` ya anuncia que es un control, y repetirlo alarga lo que el lector dice en cada parada.
+- **Design System:** el `Badge` (`web` v4.2.0) ya exige que el nombre accesible del `editable` diga qué cambia; la spec lo ejemplifica solo con estado. La prop aditiva `attributeLabel` (default `"Estado"`) queda anotada para registrarse en `badge.md` con `/product-design-system-update`. Ver la `## Revisión UX` de REQ-020.

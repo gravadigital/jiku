@@ -38,11 +38,11 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
-| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir, ver sus horas por persona y sus documentos | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012, REQ-016 |
+| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir, ver sus horas por persona y sus documentos | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012, REQ-016, REQ-020 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
-| 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008 |
+| 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008, REQ-020 |
 | 18 | detalle-tarea | Ver una tarea, sus documentos, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011, REQ-016 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
@@ -178,6 +178,14 @@ del grupo `(loggedin)` [fuente: código-existente].
 > **Se verificó `sin-permisos` y no cambia** —corta por rol, no por ausencia de fila en `users`— y
 > se verificó que ninguna otra vista dependa del 401 como señal. Ninguna pantalla gana ni pierde
 > bloques [REQ-007].
+
+> **REQ-020 no agrega ni quita pantallas ni overlays, ni cambia ningún bloque; corrige dos.**
+> **(1)** En `detalle-requisito` (#13) las tres pills editables del encabezado se anunciaban todas
+> como "Estado: …" en un lector de pantalla; cada una pasa a nombrar su atributo —"Estado: …",
+> "Tipo: …", "Prioridad: …"— [RF-4, CA-7, DD-5]. **(2)** En `listado-tareas` (#17), una fecha
+> estimada de fin nula o inválida producía textos como "Vencido hace: 32666 día(s)"; ahora muestra
+> `"No definida"`, sin texto de vencimiento ni marca de cercanía, y el cálculo toma la fecha como
+> local para no correrse un día [RF-5, CA-8, CA-9, DD-6]. Nada cambia de forma ni de lugar.
 
 > **REQ-016 agrega dos pantallas y dos overlays, y toca tres.** Integra el **módulo opcional de
 > documentación** (jiku-docs). Lo que lo hace distinto de todo lo anterior es que **es opcional**: la

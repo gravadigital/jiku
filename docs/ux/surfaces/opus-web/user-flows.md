@@ -96,6 +96,16 @@ secundario.
 - **Fallan las 7 queries del tablero** — **Se ve un tablero vacío, indistinguible de un proyecto
   sin requisitos** [fuente: código-existente]. No hay estado de error.
 - **`projectId` inexistente** — **No da 404**: no hay `not-found.tsx` en ninguna ruta.
+- **Requisito interno o sin permiso** — **Rediseñado con REQ-020.** El cliente abre por un enlace
+  —copiado por alguien del equipo, o de un correo— un requisito `internal` o de un proyecto en el
+  que no tiene permiso. La api responde 404 o 403 y **detalle-requisito** (o O-01) muestra
+  *"El requisito no está disponible o no tenés acceso"*, con un texto que le sugiere pedir acceso
+  a su contacto y **"Volver al tablero"** como única acción; sin "Reintentar", porque no lo
+  arreglaría, y sin reintento automático previo [RF-6, CA-10, DD-9]. La página conserva el
+  breadcrumb `{proyecto} › Requisitos`. Vuelve al paso 4 del happy path. Antes veía "Error al
+  cargar el requisito" con "Reintentar", sin header ni explicación.
+- **Falla la carga del requisito (red o 5xx)** — "Error al cargar el requisito" con
+  **"Reintentar"**, en la página y, **desde REQ-020**, también en el modal [RF-7, CA-11].
 - **Link viejo de adjunto, ya con sesión** — Un cliente logueado que pegue
   `/attachments/123/informe.pdf` pasa el guard y cae en el **404 por defecto de Next**, sin chrome
   ni forma de volver [REQ-002 CA-2]. **No hay recuperación guiada:** tiene que volver atrás en el

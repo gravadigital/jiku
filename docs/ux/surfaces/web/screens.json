@@ -3729,7 +3729,7 @@
             "Resuelto",
             "Cancelado"
           ],
-          "annotation": "el update es optimista: el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error (useUpdateRequirement.ts:36-43) · para type incidencia, \"En cola\" se saca de las opciones salvo que el requisito ya esté ahí (RequirementHeader.tsx:161-166, :175-184) · cierra por click afuera pero no con Escape ni con flechas pese al role=listbox",
+          "annotation": "el update es optimista: el valor cambia en pantalla antes de la confirmación de la api, con rollback ante error (useUpdateRequirement.ts:36-43) · para type incidencia, \"En cola\" se saca de las opciones salvo que el requisito ya esté ahí (RequirementHeader.tsx:161-166, :175-184) · cierra por click afuera pero no con Escape ni con flechas pese al role=listbox · nombre accesible \"Estado: {estado actual}\", el único de los tres que ya era correcto [REQ-020 CA-7]",
           "state_overrides": {
             "loading": {
               "state": "disabled",
@@ -3757,7 +3757,7 @@
             "Incidencia",
             "Otro"
           ],
-          "annotation": "cambia el tipo in-place con update optimista (RequirementHeader.tsx:186-194)",
+          "annotation": "cambia el tipo in-place con update optimista (RequirementHeader.tsx:186-194) · nombre accesible \"Tipo: {tipo actual}\" desde REQ-020; antes se anunciaba como \"Estado: …\" porque el Badge editable fijaba ese prefijo. El texto visible no cambia [RF-4, CA-7, DD-5]",
           "state_overrides": {
             "loading": {
               "state": "disabled",
@@ -3778,7 +3778,7 @@
             "Alta",
             "Urgente"
           ],
-          "annotation": "cambia la prioridad in-place con update optimista (RequirementHeader.tsx:196-204)",
+          "annotation": "cambia la prioridad in-place con update optimista (RequirementHeader.tsx:196-204) · nombre accesible \"Prioridad: {prioridad actual}\" desde REQ-020; antes \"Estado: …\". El texto visible no cambia [RF-4, CA-7, DD-5]",
           "state_overrides": {
             "loading": {
               "state": "disabled",
@@ -6123,7 +6123,7 @@
           "type": "badge",
           "category": "content",
           "content": "Vence hoy",
-          "annotation": "textos posibles: \"Vence hoy\", \"No definida\" cuando no hay fecha estimada, o el texto que calcula getFinishDateText (vencida / próxima al vencimiento). La tarea finalizada usa una clase distinta"
+          "annotation": "textos posibles: \"Vence hoy\", \"No definida\" cuando no hay fecha estimada, o el texto que calcula getFinishDateText (vencida / próxima al vencimiento). La tarea finalizada usa una clase distinta. Desde REQ-020 una fecha nula, vacía o inválida (todo lo que no empiece con YYYY-MM-DD) muestra \"No definida\" y nada más: ni \"Vencido hace\", ni \"Falta\", ni \"Vence hoy\", ni la marca closeToDeadline [RF-5, CA-8]. Una fecha válida se toma como fecha local, no UTC; el conteo sigue en días hábiles [CA-9, DD-6]"
         },
         {
           "name": "paginacion",
