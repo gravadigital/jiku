@@ -1,4 +1,5 @@
 import { calculateDaysLeft } from '@/shared/utils/calculate-days-left';
+import { parseFinishDate } from '@/shared/utils/parse-finish-date';
 
 export const OBJECTIVE_STATE_LABELS: Record<string, string> = {
   activo: 'Activo',
@@ -36,6 +37,7 @@ export const isOverdue = (
   estimatedFinishDate: Date | string | null | undefined
 ): boolean => {
   if (CLOSED_STATES.includes(state as ClosedState)) return false;
-  if (!estimatedFinishDate) return false;
-  return calculateDaysLeft(new Date(estimatedFinishDate)) < 0;
+  const date = parseFinishDate(estimatedFinishDate);
+  if (!date) return false;
+  return calculateDaysLeft(date) < 0;
 };

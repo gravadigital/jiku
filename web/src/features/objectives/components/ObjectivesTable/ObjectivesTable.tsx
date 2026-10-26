@@ -3,7 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { getObjectives, getObjectivesCount } from '@/features/objectives';
 import { Card, EmptyState, Pagination, Table } from '@/shared/components/ui';
-import { calculateDaysLeft, calculateTimeSince } from '@/shared/utils';
+import { calculateDaysLeft, calculateTimeSince, parseFinishDate } from '@/shared/utils';
 import { isOverdue } from '../../utils/objectiveHelpers';
 import { AreaTag } from '../AreaTag';
 import { StateTag } from '../StateTag';
@@ -25,96 +25,94 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
   const objectivesCount = await getObjectivesCount(filters);
   const objectives = await getObjectives(filters);
 
-  const getFinishDateText = (estimatedFinishDate: Date | string | null) => {
-    if (!estimatedFinishDate) {
+  const getFinishDateText = (date: Date | null) => {
+    if (!date) {
       return 'No definida';
     }
-    const date = new Date(estimatedFinishDate);
     const formattedDate = date.toLocaleDateString('es-ES', { month: 'short' });
     const day = date.getDate();
 
     return `Hasta: ${day} ${formattedDate} | `;
   };
 
-  const getDaysLeftText = (estimatedFinishDate: Date | string | null, state: string) => {
-    if (!estimatedFinishDate) {
+  const getDaysLeftText = (date: Date | null, state: string) => {
+    if (!date) {
       return '';
     }
-    const date = new Date(estimatedFinishDate);
     const daysLeft = calculateDaysLeft(date);
 
     if (daysLeft === 0) {
       return 'Vence hoy';
     }
     if (daysLeft < 0) {
-      if (!isOverdue(state, estimatedFinishDate)) return '';
+      if (!isOverdue(state, date)) return '';
       return `Vencido hace: ${Math.abs(daysLeft)} día(s)`;
     }
 
     return `Falta: ${daysLeft} día(s)`;
   };
 
-  const isCloseToDeadline = (estimatedFinishDate: Date | string | null, state: string) => {
-    if (!estimatedFinishDate) {
+  const isCloseToDeadline = (date: Date | null, state: string) => {
+    if (!date) {
       return false;
     }
-    const daysLeft = calculateDaysLeft(new Date(estimatedFinishDate));
-    if (daysLeft < 0 && !isOverdue(state, estimatedFinishDate)) return false;
+    const daysLeft = calculateDaysLeft(date);
+    if (daysLeft < 0 && !isOverdue(state, date)) return false;
     return daysLeft <= 4;
   };
 
-  const rows: TableRow[] = objectives.map((objective: Objective) => ({
-    areaResponsible: (
-      <AreaTag
-        persons={objective.persons}
-        area={objective.area}
-        projectName={objective.project.name}
-        showProject={false}
-      />
-    ),
-    endDate: objective.finishedAt ? (
-      <span className={styles.finished}>
-        Cerrado hace {calculateTimeSince(new Date(objective.finishedAt))}
-      </span>
-    ) : (
-      <>
-        <span>{getFinishDateText(objective.estimatedFinishDate)}</span>
-        <span
-          className={
-            isCloseToDeadline(objective.estimatedFinishDate, objective.state)
-              ? styles.closeToDeadline
-              : ''
-          }
-        >
-          {getDaysLeftText(objective.estimatedFinishDate, objective.state)}
+  const rows: TableRow[] = objectives.map((objective: Objective) => {
+    // Se parsea una vez por fila; una fecha inválida no muestra vencimiento (S-092, DD-6).
+    const finishDate = parseFinishDate(objective.estimatedFinishDate);
+    return {
+      areaResponsible: (
+        <AreaTag
+          persons={objective.persons}
+          area={objective.area}
+          projectName={objective.project.name}
+          showProject={false}
+        />
+      ),
+      endDate: objective.finishedAt ? (
+        <span className={styles.finished}>
+          Cerrado hace {calculateTimeSince(new Date(objective.finishedAt))}
         </span>
-      </>
-    ),
-    priority: objective.priority,
-    project: objective.project.name,
-    startDate: new Date(objective.createdAt).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }),
-    state: (
-      <StateTag
-        state={objective.state}
-        objectiveId={objective.id || 0}
-        priority={objective.priority}
-        area={objective.area}
-        estimatedFinishDate={objective.estimatedFinishDate}
-        persons={objective.persons}
-        title={objective.title}
-        description={objective.description}
-      />
-    ),
-    title: (
-      <Link href={`/objectives/${objective.id}`} className={styles.titleLink}>
-        {objective.title}
-      </Link>
-    ),
-  }));
+      ) : (
+        <>
+          <span>{getFinishDateText(finishDate)}</span>
+          <span
+            className={isCloseToDeadline(finishDate, objective.state) ? styles.closeToDeadline : ''}
+          >
+            {getDaysLeftText(finishDate, objective.state)}
+          </span>
+        </>
+      ),
+      priority: objective.priority,
+      project: objective.project.name,
+      startDate: new Date(objective.createdAt).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      state: (
+        <StateTag
+          state={objective.state}
+          objectiveId={objective.id || 0}
+          priority={objective.priority}
+          area={objective.area}
+          estimatedFinishDate={objective.estimatedFinishDate}
+          persons={objective.persons}
+          title={objective.title}
+          description={objective.description}
+        />
+      ),
+      title: (
+        <Link href={`/objectives/${objective.id}`} className={styles.titleLink}>
+          {objective.title}
+        </Link>
+      ),
+    };
+  });
 
   return (
     // Igual que el listado de requisitos: la tabla vive dentro de una card. Sin ella la tabla
@@ -138,7 +136,11 @@ export async function ObjectivesTable({ filters }: { readonly filters: Objective
         }
       />
       {objectives.length > 0 && (
-        <Pagination totalItems={objectivesCount} limit={Number(filters.limit) || 20} basePath="/objectives" />
+        <Pagination
+          totalItems={objectivesCount}
+          limit={Number(filters.limit) || 20}
+          basePath="/objectives"
+        />
       )}
     </Card>
   );

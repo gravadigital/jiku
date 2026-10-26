@@ -285,7 +285,7 @@ import { Loader } from '@/shared/components/ui';
 
 **Location:** `web/src/shared/components/ui/Badge/Badge.tsx`
 
-**Description:** The single status/tag pill of the Design System (spec `Badge` v1.1.0). Four
+**Description:** The single status/tag pill of the Design System (spec `Badge` v1.3.0). Four
 variants are read-only presentation (`state`, `outline`, `area`, `card-tag`); `editable` is a real
 control — the state-change dropdown that S-050 established must always offer **all seven states**,
 uncut, even when the current state is `resuelto` or `cancelado` (they are not terminal).
@@ -296,11 +296,14 @@ uncut, even when the current state is `resuelto` or `cancelado` (they are not te
 - Color always doubles with text: the colored dot (`aria-hidden="true"`) never carries the state
   alone.
 - `editable` is a `<button aria-haspopup="listbox" aria-expanded>` whose accessible name states
-  what it changes ("Estado: Desarrollo"), not just the value.
+  what it changes ("Estado: Desarrollo"), not just the value. The prefix is `attributeLabel`
+  (default `'Estado'`): pass `attributeLabel="Tipo"` / `"Prioridad"` on every non-state editable,
+  or it is announced as "Estado: …" (S-092).
 
 **Interface:**
 
 ```tsx
+type BadgeGlyph = 'square' | 'round';
 type BadgeVariant = 'state' | 'outline' | 'area' | 'editable' | 'card-tag';
 type BadgeFamily = 'resolved' | 'in-progress' | 'review' | 'urgent' | 'analysis' | 'neutral';
 
@@ -314,6 +317,8 @@ interface BadgePresentationalProps {
   readonly variant?: Exclude<BadgeVariant, 'editable'>;
   readonly family?: BadgeFamily;
   readonly label: string;
+  /** Glyph shape. Only applies to `card-tag`: square for the type, circle for the priority. */
+  readonly glyph?: BadgeGlyph;
 }
 
 // editable
@@ -323,6 +328,8 @@ interface BadgeEditableProps {
   readonly label: string;
   readonly options: BadgeOption[];
   readonly onChange: (value: string) => void;
+  /** Attribute the pill changes; forms the accessible name `${attributeLabel}: ${label}`. */
+  readonly attributeLabel?: string;
 }
 
 declare const STATE_TO_FAMILY: Record<string, BadgeFamily>;
@@ -341,6 +348,15 @@ import { Badge, STATE_TO_FAMILY } from '@/shared/components/ui';
   label={stateLabel}
   options={SEVEN_STATES}
   onChange={handleStateChange}
+/>
+
+<Badge
+  variant="editable"
+  family={PRIORITY_TO_FAMILY[priority]}
+  attributeLabel="Prioridad"
+  label={PRIORITY_LABELS[priority]}
+  options={PRIORITY_OPTIONS}
+  onChange={handlePriorityChange}
 />
 ```
 

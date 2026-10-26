@@ -1,7 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ObjectiveCard } from './ObjectiveCard';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
@@ -74,5 +74,27 @@ describe('ObjectiveCard', () => {
     );
 
     expect(container.querySelector('[class*="taskOverdue"]')).toBeNull();
+  });
+});
+
+describe('S-092: ObjectiveCard con fecha de cierre', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('TS-24: fecha inválida no tiñe la card', () => {
+    const { container } = render(
+      <ObjectiveCard {...baseProps} estimatedFinishDate="abc" state="activo" />,
+      { wrapper: createWrapper() }
+    );
+    expect(container.querySelector('[class*="taskOverdue"]')).toBeNull();
+  });
+
+  it('TS-25: vencida válida sigue teñida', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 26, 10, 0, 0));
+    const { container } = render(
+      <ObjectiveCard {...baseProps} estimatedFinishDate="2026-10-21" state="activo" />,
+      { wrapper: createWrapper() }
+    );
+    expect(container.querySelector('[class*="taskOverdue"]')).not.toBeNull();
   });
 });

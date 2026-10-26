@@ -512,3 +512,29 @@ describe('S-057: preservación de comportamiento (CA-3) — pill de estado', () 
     expect(screen.queryByText(/transici[oó]n inv[aá]lida/i)).not.toBeInTheDocument();
   });
 });
+
+describe('S-092: nombre accesible por pill', () => {
+  it('TS-29: estado, tipo y prioridad tienen nombre propio', () => {
+    render(<RequirementHeader requirement={baseRequirement} onUpdate={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Estado: Análisis' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tipo: Funcionalidad' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prioridad: Alta' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Estado:/ })).toHaveLength(1);
+  });
+
+  it('TS-30: valores vacíos', () => {
+    render(
+      <RequirementHeader
+        requirement={{ ...baseRequirement, type: null, priority: 'sin_prioridad' }}
+        onUpdate={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Tipo: Sin tipo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prioridad: Sin prioridad' })).toBeInTheDocument();
+  });
+
+  it('TS-31: readonly no expone botones de pill', () => {
+    render(<RequirementHeader requirement={baseRequirement} />);
+    expect(screen.queryByRole('button', { name: /^(Estado|Tipo|Prioridad):/ })).toBeNull();
+  });
+});

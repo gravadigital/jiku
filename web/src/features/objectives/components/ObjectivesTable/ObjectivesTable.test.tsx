@@ -2,7 +2,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as objectivesApi from '../../services/objectivesApi';
 import { ObjectivesTable } from './ObjectivesTable';
 import type { ObjectiveFilters } from '@/features/objectives';
@@ -150,5 +150,94 @@ describe('ObjectivesTable', () => {
     const empty = screen.getByText('No hay tareas que coincidan con estos filtros.');
     expect(empty.closest('[aria-live="polite"]')).not.toBeNull();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('S-092: vencimiento con fecha inválida', () => {
+  const task = (over: Record<string, unknown>, id = 1) => ({
+    id,
+    area: 'desarrollo',
+    createdAt: new Date('2026-01-01'),
+    estimatedFinishDate: null,
+    finishedAt: null,
+    persons: [],
+    priority: 0,
+    project: { id: 1, name: 'Proyecto Alpha' },
+    state: 'activo',
+    title: `Tarea ${id}`,
+    ...over,
+  });
+
+  const renderTasks = async (tasks: unknown[]) => {
+    vi.mocked(objectivesApi.getObjectivesCount).mockResolvedValue(tasks.length);
+    vi.mocked(objectivesApi.getObjectives).mockResolvedValue(tasks as any);
+    return render(await ObjectivesTable({ filters: baseFilters }), { wrapper: createWrapper() });
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 26, 10, 0, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const expectNoDeadlineText = (container: HTMLElement) => {
+    expect(screen.getByText('No definida')).toBeInTheDocument();
+    expect(screen.queryByText(/Vencido hace/)).toBeNull();
+    expect(screen.queryByText(/Falta/)).toBeNull();
+    expect(screen.queryByText('Vence hoy')).toBeNull();
+    expect(container.querySelector('[class*="closeToDeadline"]')).toBeNull();
+  };
+
+  it('TS-15: vencida hace 3 días hábiles y abierta', async () => {
+    const { container } = await renderTasks([task({ estimatedFinishDate: '2026-10-21' })]);
+    expect(screen.getByText(/Hasta: 21 /)).toBeInTheDocument();
+    const span = screen.getByText('Vencido hace: 3 día(s)');
+    expect(span.className).toMatch(/closeToDeadline/);
+    expect(container).toBeTruthy();
+  });
+
+  it.each([
+    ['TS-16: fecha null', null],
+    ['TS-17: fecha vacía', ''],
+    ['TS-18: texto inválido (antes mostraba "Vence hoy")', 'abc'],
+    ['TS-19: formato no ISO', '31/12/2026'],
+  ])('%s', async (_name, value) => {
+    const { container } = await renderTasks([task({ estimatedFinishDate: value })]);
+    expectNoDeadlineText(container);
+  });
+
+  it('TS-20: futura válida', async () => {
+    await renderTasks([task({ estimatedFinishDate: '2026-10-29' })]);
+    expect(screen.getByText('Falta: 3 día(s)').className).toMatch(/closeToDeadline/);
+  });
+
+  it('TS-21: vence hoy', async () => {
+    await renderTasks([task({ estimatedFinishDate: '2026-10-26' })]);
+    expect(screen.getByText('Vence hoy')).toBeInTheDocument();
+  });
+
+  it('TS-22: vencida pero cerrada', async () => {
+    const { container } = await renderTasks([
+      task({ estimatedFinishDate: '2026-10-21', state: 'finalizado' }),
+    ]);
+    expect(screen.getByText(/Hasta: 21 /)).toBeInTheDocument();
+    expect(screen.queryByText(/Vencido hace/)).toBeNull();
+    expect(container.querySelector('[class*="closeToDeadline"]')).toBeNull();
+  });
+
+  it('TS-23: filas mezcladas', async () => {
+    const { container } = await renderTasks([
+      task({ estimatedFinishDate: '2026-10-21' }, 1),
+      task({ estimatedFinishDate: 'abc' }, 2),
+      task({ estimatedFinishDate: null }, 3),
+    ]);
+    expect(screen.getAllByText('Vencido hace: 3 día(s)')).toHaveLength(1);
+    expect(screen.getAllByText('No definida')).toHaveLength(2);
+    expect(container.querySelectorAll('[class*="closeToDeadline"]')).toHaveLength(1);
+  });
+
+  it('TS-27: dato real 1901-08-09T04:16:48.000Z es un YYYY-MM-DD válido: se reporta, no se esconde (DD-6)', async () => {
+    await renderTasks([task({ estimatedFinishDate: '1901-08-09T04:16:48.000Z' })]);
+    expect(screen.getByText('Vencido hace: 32666 día(s)')).toBeInTheDocument();
   });
 });

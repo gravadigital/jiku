@@ -40,6 +40,8 @@ interface BadgeEditableProps {
   readonly label: string;
   readonly options: BadgeOption[];
   readonly onChange: (value: string) => void;
+  /** Atributo que cambia la pill; forma el nombre accesible `${attributeLabel}: ${label}`. */
+  readonly attributeLabel?: string;
 }
 
 type BadgeProps = BadgePresentationalProps | BadgeEditableProps;
@@ -124,7 +126,7 @@ export function Badge(props: BadgeProps) {
   const familyClass = FAMILY_CLASS[family];
 
   if (variant === 'editable') {
-    const { options, onChange } = props as BadgeEditableProps;
+    const { options, onChange, attributeLabel = 'Estado' } = props as BadgeEditableProps;
 
     const handleSelect = (value: string) => {
       onChange(value);
@@ -138,7 +140,7 @@ export function Badge(props: BadgeProps) {
           className={cn(styles.badge, styles.editable, familyClass)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label={`Estado: ${label}`}
+          aria-label={`${attributeLabel}: ${label}`}
           onClick={() => setOpen((prev) => !prev)}
         >
           <span className={styles.dot} aria-hidden="true" />

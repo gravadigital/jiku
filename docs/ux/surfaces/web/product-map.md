@@ -183,8 +183,8 @@ del grupo `(loggedin)` [fuente: código-existente].
 > **(1)** En `detalle-requisito` (#13) las tres pills editables del encabezado se anunciaban todas
 > como "Estado: …" en un lector de pantalla; cada una pasa a nombrar su atributo —"Estado: …",
 > "Tipo: …", "Prioridad: …"— [RF-4, CA-7, DD-5]. **(2)** En `listado-tareas` (#17), una fecha
-> estimada de fin nula o inválida producía textos como "Vencido hace: 32666 día(s)"; ahora muestra
-> `"No definida"`, sin texto de vencimiento ni marca de cercanía, y el cálculo toma la fecha como
+> estimada de fin nula o inválida producía textos sin sentido (`"Hasta: NaN Invalid Date"`,
+> `"Vence hoy"`); ahora muestra `"No definida"`, sin texto de vencimiento ni marca de cercanía, y el cálculo toma la fecha como
 > local para no correrse un día [RF-5, CA-8, CA-9, DD-6]. Nada cambia de forma ni de lugar.
 
 > **REQ-016 agrega dos pantallas y dos overlays, y toca tres.** Integra el **módulo opcional de

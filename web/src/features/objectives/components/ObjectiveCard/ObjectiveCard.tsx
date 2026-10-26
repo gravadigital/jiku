@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Card, DateLabel, FinishDateLabel } from '@/shared/components/ui';
-import { calculateDaysLeft } from '@/shared/utils';
+import { calculateDaysLeft, parseFinishDate } from '@/shared/utils';
 import questionIcon from '@root/assets/question-icon.svg';
 import scheduleIcon from '@root/assets/schedule-icon.svg';
 import starIcon from '@root/assets/star-icon.svg';
@@ -71,14 +71,14 @@ function getCardClass(
     return 'finished';
   }
 
-  if (estimatedFinishDate) {
-    const date = new Date(estimatedFinishDate);
+  const date = parseFinishDate(estimatedFinishDate);
+  if (date) {
     const daysLeft = calculateDaysLeft(date);
 
     if (daysLeft === 0) {
       return 'expiresToday';
     } else if (daysLeft < 0) {
-      return isOverdue(state, estimatedFinishDate) ? 'expired' : 'default';
+      return isOverdue(state, date) ? 'expired' : 'default';
     } else if (daysLeft <= 7) {
       return 'closeToDeadline';
     }

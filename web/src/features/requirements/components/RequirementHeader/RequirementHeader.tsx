@@ -127,6 +127,7 @@ export function RequirementHeader({ requirement, onUpdate, isPending }: Requirem
             <Badge
               variant="editable"
               family="neutral"
+              attributeLabel="Tipo"
               label={typeLabel}
               options={TYPE_OPTIONS}
               onChange={handleTypeChange}
@@ -139,6 +140,7 @@ export function RequirementHeader({ requirement, onUpdate, isPending }: Requirem
             <Badge
               variant="editable"
               family={PRIORITY_TO_FAMILY[priority]}
+              attributeLabel="Prioridad"
               label={PRIORITY_LABELS[priority]}
               options={PRIORITY_OPTIONS}
               onChange={handlePriorityChange}

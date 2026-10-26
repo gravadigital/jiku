@@ -406,3 +406,13 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 **Description:** `describeCreateShareError(error)` → `{ state?: 'secret' | 'blocked', field?, notice? }`; `revokeShareErrorMessage(error)` (`null` for `share_not_found`); `SHARES_LOAD_FAILED_MESSAGE`.
 
 **Usage:** see the unit test next to the file.
+
+## parseFinishDate
+
+**Location:** `web/src/shared/utils/parse-finish-date.ts`
+
+**Description:** Parses the legacy VARCHAR `estimatedFinishDate`. Returns a **local** `Date` for values starting with `YYYY-MM-DD` (a time suffix is ignored), or `null` for null, empty, invalid, out-of-range or non-ISO values. A valid `Date` is returned as is.
+
+**Signature:** `parseFinishDate(value: Date | string | null | undefined): Date | null`
+
+**Usage:** `const date = parseFinishDate(objective.estimatedFinishDate); if (date) calculateDaysLeft(date);`
