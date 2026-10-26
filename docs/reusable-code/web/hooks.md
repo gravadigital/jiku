@@ -185,19 +185,29 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 
 **Description:** Document detail by ULID; no retry on 404 or `module_unavailable`.
 
-**Signature:** `useDocument({ id, enabled? })` → `useQuery` result of `DocsDocumentDetail`
+**Signature:** `useDocument({ id, version?, enabled?, refetchInterval? })` → `useQuery` result of `DocsDocumentDetail`
 
 **Usage:** `const { data } = useDocument({ id });`
 
-## useFolderTrail
+## useDocumentVersions
 
-**Location:** `web/src/features/docs/hooks/useFolderTrail.ts`
+**Location:** `web/src/features/docs/hooks/useDocumentVersions.ts`
 
-**Description:** Folder + ancestor trail (`['docs-folder-trail', id]`).
+**Description:** Infinite query of the document history (`['docs','versions',id]`), cursor-paginated.
 
-**Signature:** `useFolderTrail({ folderId, enabled? })`
+**Signature:** `useDocumentVersions({ id, enabled? })`
 
-**Usage:** `useFolderTrail({ folderId, enabled? })`
+**Usage:** `const { data, hasNextPage, fetchNextPage } = useDocumentVersions({ id, enabled: open });`
+
+## useRestoreVersion
+
+**Location:** `web/src/features/docs/hooks/useRestoreVersion.ts`
+
+**Description:** Restore mutation (`retry: 0`); invalidates the document, versions and lists in `onSettled`. No toasts or navigation.
+
+**Signature:** `useRestoreVersion(id)` → mutation of `{ fromVersion, baseVersion }`
+
+**Usage:** `restore.mutate({ fromVersion: 5, baseVersion: doc.version })`
 
 ## useCreateDocument
 

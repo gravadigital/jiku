@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { notFound } from 'next/navigation';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useDocument } from '../../hooks/useDocument';
@@ -11,7 +11,6 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   notFound: vi.fn(),
 }));
-vi.mock('../../hooks/useFolderTrail', () => ({ useFolderTrail: () => ({ data: undefined }) }));
 vi.mock('../../hooks/useEditSession', () => ({
   useEditSession: () => ({
     phase: 'idle',
@@ -25,7 +24,13 @@ vi.mock('../../hooks/useEditSession', () => ({
 }));
 vi.mock('../../hooks/useDocument', () => ({ useDocument: vi.fn() }));
 vi.mock('../../hooks/useModules', () => ({ useModule: vi.fn() }));
-vi.mock('@/features/auth/hooks/usePersons', () => ({ usePersons: vi.fn(() => ({ data: [] })) }));
+vi.mock('@/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+}));
+vi.mock('../VersionHistoryPanel', () => ({
+  VersionHistoryPanel: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Historial de versiones" /> : null,
+}));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
 const UNAVAILABLE =
@@ -46,7 +51,7 @@ describe('DocumentView — estados', () => {
     setDoc({ isLoading: true, isError: false, data: undefined });
     render(<DocumentView id={ID} />);
     expect(screen.getByRole('status')).toHaveTextContent('Cargando documento…');
-    expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Ruta' })).toBeNull();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
   });
 
@@ -61,9 +66,15 @@ describe('DocumentView — estados', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Este documento no existe o no tenés permiso para verlo.'
     );
-    expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
+    // TS-37: el breadcrumb queda como única salida, sin "Volver".
+    const route = screen.getByRole('navigation', { name: 'Ruta' });
+    expect(within(route).getByRole('link', { name: 'Documentación' })).toHaveAttribute(
+      'href',
+      '/docs'
+    );
+    expect(screen.queryByRole('button', { name: 'Volver' })).toBeNull();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Adjuntos' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: /Adjuntos/ })).toBeNull();
   });
 
   it('TS-58: módulo caído sin documento cargado muestra solo el aviso de no disponible', () => {
@@ -78,7 +89,7 @@ describe('DocumentView — estados', () => {
     const alerts = screen.getAllByRole('alert');
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toHaveTextContent(UNAVAILABLE);
-    expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Ruta' })).toBeInTheDocument();
   });
 
   it('un error distinto de 404 no se presenta como "no existe"', () => {

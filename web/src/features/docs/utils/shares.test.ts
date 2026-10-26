@@ -24,9 +24,20 @@ describe('shares utils', () => {
   });
 
   it('TS-11: badge por estado', () => {
-    expect(shareStatusBadge('active')).toEqual({ label: 'Activo', family: 'resolved' });
-    expect(shareStatusBadge('expired')).toEqual({ label: 'Vencido', family: 'neutral' });
-    expect(shareStatusBadge('revoked')).toEqual({ label: 'Revocado', family: 'neutral' });
+    expect(shareStatusBadge({ status: 'active' })).toEqual({ label: 'Activo', family: 'resolved' });
+    expect(shareStatusBadge({ status: 'expired' })).toEqual({
+      label: 'Vencido',
+      family: 'neutral',
+    });
+    expect(shareStatusBadge({ status: 'revoked', revokeReason: 'manual' })).toEqual({
+      label: 'Revocado',
+      family: 'neutral',
+    });
+    expect(shareStatusBadge({ status: 'revoked', revokeReason: 'restricted' })).toEqual({
+      label: 'Revocado (restringido)',
+      family: 'neutral',
+    });
+    expect(shareStatusBadge({ status: 'revoked', revokeReason: null }).label).toBe('Revocado');
   });
 
   it('P-9: shareDescription con y sin nota', () => {

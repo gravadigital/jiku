@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-26
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-096]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -435,8 +435,8 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
   504, se crea un documento nuevo. Los documentos de más de 256 KiB no se crean ni editan por HTTP
   (no hay `contentUploadId`).
 - **jiku-docs >= 1.3.0** (REQ-021 / S-094): los filtros nuevos y el alta sin carpeta no existen en versiones anteriores (`invalid_fields`). No hay chequeo en runtime.
-- **Fuera de la interfaz** aunque la api los expone: historial (`GET .../versions`), mover,
-  restaurar y borrar documentos. La administración de carpetas y ACL no está en este producto
+- **Fuera de la interfaz** aunque la api los expone: mover y borrar documentos. El historial y
+  restaurar están en la interfaz desde REQ-021 (O-13). La administración de carpetas y ACL no está en este producto
   (jiku-go). opus-web no edita, no busca y no comparte.
 - **Sin tiempo real en el navegador:** `docs-notify` no llega a la web; los cambios de otra persona
   se ven al refrescar o al guardar (conflicto).

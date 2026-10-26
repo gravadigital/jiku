@@ -18,8 +18,8 @@ vi.mock('../../hooks/useUploadDocAttachment', () => ({
   useUploadDocAttachment: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }));
 vi.mock('../../services/docsApi', () => ({ getDocument: vi.fn() }));
-vi.mock('@/features/auth/hooks/usePersons', () => ({
-  usePersons: vi.fn(() => ({ data: [{ userId: 'sub-ana', firstName: 'Ana', lastName: 'Gómez' }] })),
+vi.mock('@/hooks/use-current-user', () => ({
+  useCurrentUser: vi.fn(() => ({ id: 'sub-yo', name: 'Yo' })),
 }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
@@ -29,7 +29,6 @@ const DOC = {
   fileName: 'arquitectura.md',
   version: 6,
   content: '# Arquitectura',
-  folder: { id: 'F', path: '/clientes/acme/', effectivePermission: 'write', sharingBlocked: false },
 };
 const session = {
   phase: 'editing',
@@ -75,7 +74,13 @@ describe('DocumentEditor — conflicto de versión', () => {
   it('TS-80: conserva el texto propio y muestra la versión ajena en texto plano', async () => {
     vi.mocked(getDocument).mockResolvedValue({
       ok: true,
-      data: { ...DOC, version: 7, updatedBy: 'sub-ana', content: '# Versión de Ana' },
+      data: {
+        ...DOC,
+        version: 7,
+        updatedBy: 'sub-ana',
+        updatedByName: 'Ana Gómez',
+        content: '# Versión de Ana',
+      },
     } as never);
     setup();
     await triggerConflict();
@@ -92,6 +97,42 @@ describe('DocumentEditor — conflicto de versión', () => {
     expect(screen.queryByText(/Arrastrá archivos aquí/)).toBeNull();
     expect(screen.getByRole('button', { name: /Guardar sobre la versión 7/ })).toBeEnabled();
     expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('TS-30: el nombre que manda el servicio; sin nombre, "Otra persona"', async () => {
+    vi.mocked(getDocument).mockResolvedValue({
+      ok: true,
+      data: {
+        ...DOC,
+        version: 7,
+        updatedBy: 'sub-luis',
+        updatedByName: 'Luis Gómez',
+        content: 'x',
+      },
+    } as never);
+    setup();
+    await triggerConflict();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Luis Gómez guardó la versión 7 mientras editabas.'
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Versión 7, guardada por Luis Gómez' })
+    ).toBeInTheDocument();
+  });
+
+  it('TS-30: recarga exitosa sin updatedByName usa "Otra persona"', async () => {
+    vi.mocked(getDocument).mockResolvedValue({
+      ok: true,
+      data: { ...DOC, version: 7, updatedBy: 'sub-x', updatedByName: null, content: 'x' },
+    } as never);
+    setup();
+    await triggerConflict();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Otra persona guardó la versión 7 mientras editabas.'
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Versión 7, guardada por Otra persona' })
+    ).toBeInTheDocument();
   });
 
   it('TS-81: guardar sobre la versión actual usa la nueva base', async () => {
@@ -123,7 +164,7 @@ describe('DocumentEditor — conflicto de versión', () => {
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'otra persona guardó la versión 7 mientras editabas'
+        'Otra persona guardó la versión 7 mientras editabas'
       )
     );
     expect(

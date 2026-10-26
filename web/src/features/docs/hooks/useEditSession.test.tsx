@@ -11,7 +11,12 @@ vi.mock('../services/docsClientApi', () => ({ releaseLockKeepalive: vi.fn() }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
 const GRANT = { id: ID, sessionId: 'x', expiresAt: '2026-10-24T14:02:00.000Z' };
-const DETAILS = { holder: 'sub-ana', via: 'human', expiresAt: '2026-10-24T14:32:00.000Z' };
+const DETAILS = {
+  holder: 'sub-ana',
+  holderName: 'Ana Gómez',
+  via: 'human',
+  expiresAt: '2026-10-24T14:32:00.000Z',
+};
 
 function setup() {
   const client = new QueryClient();
@@ -69,6 +74,20 @@ describe('useEditSession', () => {
     expect(result.current.blockedBy).toEqual(DETAILS);
     await tick(120_000);
     expect(lockDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('TS-10: sin holderName en details, holderName es null', async () => {
+    const { holderName: _omit, ...details } = DETAILS;
+    void _omit;
+    vi.mocked(lockDocument).mockResolvedValue({
+      ok: false,
+      error: { code: 'document_locked', message: 'x', status: 409, details },
+    });
+    const { result } = setup();
+    await act(async () => {
+      await result.current.start();
+    });
+    expect(result.current.blockedBy).toEqual({ ...details, holderName: null });
   });
 
   it('otros errores vuelven a idle y se devuelven; module_unavailable invalida [modules]', async () => {
@@ -179,7 +198,12 @@ describe('useEditSession', () => {
       await result.current.start();
     });
     act(() =>
-      result.current.markBlocked({ holder: 'sub-ana', via: 'human', expiresAt: DETAILS.expiresAt })
+      result.current.markBlocked({
+        holder: 'sub-ana',
+        holderName: null,
+        via: 'human',
+        expiresAt: DETAILS.expiresAt,
+      })
     );
     expect(result.current.phase).toBe('lost');
     expect(result.current.blockedBy?.holder).toBe('sub-ana');

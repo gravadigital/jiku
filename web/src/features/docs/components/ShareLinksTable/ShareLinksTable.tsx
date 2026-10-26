@@ -71,7 +71,7 @@ export function ShareLinksTable({ documentId, enabled = true }: ShareLinksTableP
   };
 
   const rows = items.map((share) => {
-    const badge = shareStatusBadge(share.status);
+    const badge = shareStatusBadge(share);
     const descriptionId = `${idPrefix}-${share.id}`;
     return {
       estado: (

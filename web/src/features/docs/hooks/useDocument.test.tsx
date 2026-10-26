@@ -87,3 +87,26 @@ describe('useDocument (S-082)', () => {
     );
   });
 });
+
+describe('useDocument con versión (TS-15)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('keys y argumentos de getDocument; invalidar el prefijo alcanza las dos', async () => {
+    vi.mocked(getDocument).mockResolvedValue({ ok: true, data: { id: ID } } as never);
+    const { Wrapper, client } = setup();
+    const a = renderHook(() => useDocument({ id: ID }), { wrapper: Wrapper });
+    const b = renderHook(() => useDocument({ id: ID, version: 4 }), { wrapper: Wrapper });
+    await waitFor(() =>
+      expect(a.result.current.isSuccess && b.result.current.isSuccess).toBe(true)
+    );
+    expect(getDocument).toHaveBeenCalledWith(ID, undefined);
+    expect(getDocument).toHaveBeenCalledWith(ID, 4);
+    const cache = client.getQueryCache();
+    expect(cache.find({ queryKey: ['docs-document', ID], exact: true })).toBeDefined();
+    expect(
+      cache.find({ queryKey: ['docs-document', ID, { version: 4 }], exact: true })
+    ).toBeDefined();
+    await client.invalidateQueries({ queryKey: ['docs-document', ID] });
+    expect(getDocument).toHaveBeenCalledTimes(4);
+  });
+});

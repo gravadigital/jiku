@@ -18,6 +18,8 @@ interface MarkdownViewerProps {
    * nivel para no competir con el h1 de la pantalla (P-1).
    */
   readonly mode?: 'comment' | 'document';
+  /** Solo modo `document`: línea del encabezado → `id` de ancla (ver `extractHeadings`). */
+  readonly headingIds?: ReadonlyMap<number, string>;
 }
 
 const SHIFTED_HEADINGS = {
@@ -29,16 +31,24 @@ const SHIFTED_HEADINGS = {
   h6: 'h6',
 } as const;
 
-function shiftedHeading(tag: keyof typeof SHIFTED_HEADINGS) {
+type HeadingProps = {
+  children?: React.ReactNode;
+  node?: { position?: { start: { line: number } } };
+};
+
+function shiftedHeading(tag: keyof typeof SHIFTED_HEADINGS, ids?: ReadonlyMap<number, string>) {
   const Tag = SHIFTED_HEADINGS[tag];
-  const Heading = ({ children }: { children?: React.ReactNode }) => <Tag>{children}</Tag>;
+  const Heading = ({ children, node }: HeadingProps) => {
+    const line = node?.position?.start.line;
+    return <Tag id={line === undefined ? undefined : ids?.get(line)}>{children}</Tag>;
+  };
   Heading.displayName = `DocumentHeading(${tag})`;
   return Heading;
 }
 
-const DOCUMENT_COMPONENTS = {
-  h1: shiftedHeading('h1'),
-  h2: shiftedHeading('h2'),
+const documentComponents = (ids?: ReadonlyMap<number, string>) => ({
+  h1: shiftedHeading('h1', ids),
+  h2: shiftedHeading('h2', ids),
   h3: shiftedHeading('h3'),
   h4: shiftedHeading('h4'),
   h5: shiftedHeading('h5'),
@@ -53,16 +63,23 @@ const DOCUMENT_COMPONENTS = {
     </a>
   ),
   html: () => null,
-};
+});
 
-function DocumentMarkdown({ content }: { readonly content: string }) {
+function DocumentMarkdown({
+  content,
+  headingIds,
+}: {
+  readonly content: string;
+  readonly headingIds?: ReadonlyMap<number, string>;
+}) {
+  const components = useMemo(() => documentComponents(headingIds), [headingIds]);
   return (
     <div className={styles.viewer}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         urlTransform={docsUrlTransform}
         skipHtml
-        components={DOCUMENT_COMPONENTS}
+        components={components}
       >
         {content}
       </ReactMarkdown>
@@ -205,9 +222,9 @@ function CommentMarkdown({ content }: { readonly content: string }) {
   );
 }
 
-export function MarkdownViewer({ content, mode = 'comment' }: MarkdownViewerProps) {
+export function MarkdownViewer({ content, mode = 'comment', headingIds }: MarkdownViewerProps) {
   if (mode === 'document') {
-    return <DocumentMarkdown content={content} />;
+    return <DocumentMarkdown content={content} headingIds={headingIds} />;
   }
   return <CommentMarkdown content={content} />;
 }

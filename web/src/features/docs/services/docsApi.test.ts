@@ -6,7 +6,9 @@ import {
   getDocument,
   getSuggestedRelations,
   listDocuments,
+  listVersions,
   lockDocument,
+  restoreVersion,
   searchDocuments,
   unlockDocument,
   updateDocument,
@@ -345,5 +347,69 @@ describe('S-095: listas, sugerencias y relaciones', () => {
     await expect(
       updateRelations(ID_B, { baseVersion: 3, add: { projects: [12] } })
     ).resolves.toEqual({ ok: false, error });
+  });
+});
+
+describe('getDocument con versión y versiones (S-096)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('TS-1: vigente con un solo argumento y versionado con params', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: DOC_A });
+    const current = await getDocument(ID);
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, `/docs/documents/${ID}`);
+    expect(current).toEqual({ ok: true, data: DOC_A });
+    const old = await getDocument(ID, 4);
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, `/docs/documents/${ID}`, {
+      params: { version: 4 },
+    });
+    expect(old.ok).toBe(true);
+  });
+
+  it('TS-2: conserva version_pruned con sus details sin lanzar', async () => {
+    const error = {
+      code: 'version_pruned',
+      message: 'Version pruned',
+      status: 404,
+      details: { requestedVersion: 7, previousAvailable: 5, nextAvailable: 9 },
+    };
+    vi.mocked(apiClient.get).mockRejectedValue(error);
+    expect(await getDocument(ID, 7)).toEqual({ ok: false, error });
+  });
+
+  it('TS-3: listVersions pide 50 y pasa el cursor', async () => {
+    const page = { items: [], page: { limit: 50, returned: 0 } };
+    vi.mocked(apiClient.get).mockResolvedValue({ data: page });
+    expect(await listVersions(ID, {})).toEqual({ ok: true, data: page });
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, `/docs/documents/${ID}/versions`, {
+      params: { limit: 50 },
+    });
+    await listVersions(ID, { cursor: 'c1' });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, `/docs/documents/${ID}/versions`, {
+      params: { limit: 50, cursor: 'c1' },
+    });
+  });
+
+  it('TS-4: restoreVersion manda fromVersion y baseVersion', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { id: ID, version: 7 } });
+    const result = await restoreVersion(ID, { fromVersion: 5, baseVersion: 6 });
+    expect(apiClient.post).toHaveBeenCalledWith(`/docs/documents/${ID}/restore`, {
+      fromVersion: 5,
+      baseVersion: 6,
+    });
+    expect(result).toEqual({ ok: true, data: { id: ID, version: 7 } });
+  });
+
+  it('TS-5: restoreVersion devuelve el error sin lanzar', async () => {
+    const error = {
+      code: 'version_conflict',
+      message: 'Version conflict',
+      status: 409,
+      details: { currentVersion: 8 },
+    };
+    vi.mocked(apiClient.post).mockRejectedValue(error);
+    expect(await restoreVersion(ID, { fromVersion: 5, baseVersion: 6 })).toEqual({
+      ok: false,
+      error,
+    });
   });
 });

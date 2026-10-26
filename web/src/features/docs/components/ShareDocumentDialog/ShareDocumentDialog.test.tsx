@@ -36,12 +36,12 @@ const DOC = {
   topics: [],
   attachments: [],
   lock: null,
-  folder: {
-    id: FOLDER_ID,
-    path: '/clientes/acme/',
-    effectivePermission: 'manage',
-    sharingBlocked: false,
-  },
+  clients: [4],
+  projects: [12],
+  clientRefs: [{ id: 4, name: 'EXO' }],
+  projectRefs: [{ id: 12, name: 'Videoconferencia', code: 'VID', clientId: 4 }],
+  requirementRefs: [],
+  taskRefs: [],
 } as never;
 const SHARE_ACTIVE = {
   id: '01J9Z3K8M2Q4R6T8V0W2Y4A6S1',
@@ -275,7 +275,7 @@ describe('ShareDocumentDialog', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Crear link' }));
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'La carpeta de este documento no permite compartirlo fuera de Jiku.'
+      'Este documento es restringido: no se puede compartir fuera de Jiku.'
     );
     expect(screen.queryByRole('combobox', { name: /Vence en/ })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Nota (opcional)' })).toBeNull();
@@ -284,19 +284,39 @@ describe('ShareDocumentDialog', () => {
     expect(screen.getByRole('button', { name: 'Revocar' })).toBeInTheDocument();
   });
 
-  it('TS-29: carpeta con sharingBlocked abre bloqueada', () => {
-    const doc = {
-      ...(DOC as object),
-      folder: { ...(DOC as { folder: object }).folder, sharingBlocked: true },
-    };
+  it('TS-29/TS-48: documento restringido abre bloqueado, sin texto de carpeta', () => {
+    const doc = { ...(DOC as object), visibility: 'restricted' };
     setup(doc as never);
     expect(
-      screen.getByText('La carpeta de este documento no permite compartirlo fuera de Jiku.')
+      screen.getByText('Este documento es restringido: no se puede compartir fuera de Jiku.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Nota (opcional)' })).toBeNull();
     const revoke = screen.getByRole('button', { name: 'Revocar' });
     expect(revoke).toBeEnabled();
     expect(revoke).toHaveFocus();
+  });
+
+  it('TS-47: subtítulo con cliente y proyecto, y sus bordes', () => {
+    const { rerender } = setup();
+    expect(dialogOf()).toHaveTextContent('Arquitectura · EXO · Videoconferencia');
+    expect(dialogOf()).not.toHaveTextContent('/clientes/');
+    const base = DOC as object;
+    rerender(
+      <ShareDocumentDialog
+        open
+        doc={{ ...base, clientRefs: [], projectRefs: [], clients: [], projects: [] } as never}
+        onClose={vi.fn()}
+      />
+    );
+    expect(dialogOf()).toHaveTextContent('Arquitectura · Sin cliente · Sin proyecto');
+    rerender(
+      <ShareDocumentDialog
+        open
+        doc={{ ...base, projectRefs: [], projects: [] } as never}
+        onClose={vi.fn()}
+      />
+    );
+    expect(dialogOf()).toHaveTextContent('Arquitectura · EXO · Sin proyecto');
   });
 
   it('TS-30: share_expiry_invalid marca el selector', () => {

@@ -7,7 +7,6 @@ const LOCK = {
   via: 'human' as const,
   expiresAt: '2026-10-24T14:02:00.000Z',
 };
-const persons = [{ userId: 'sub-ana', firstName: 'Ana', lastName: 'Gómez' }];
 
 describe('isLockActive (TS-22)', () => {
   it('vigente, vencido, propio y sin lock', () => {
@@ -18,17 +17,20 @@ describe('isLockActive (TS-22)', () => {
   });
 });
 
-describe('lockedMessage (TS-23)', () => {
-  const expiresAt = '2026-10-24T14:32:00.000Z';
-  it('humano, agente y desconocido', () => {
-    expect(lockedMessage({ holder: 'sub-ana', via: 'human', expiresAt }, persons)).toBe(
-      'Ana Gómez lo está editando hasta las 14:32. Podés leerlo mientras tanto.'
-    );
-    expect(lockedMessage({ holder: 'sub-ana', via: 'agent', expiresAt }, persons)).toBe(
-      'Un agente lo está editando hasta las 14:32. Podés leerlo mientras tanto.'
-    );
-    expect(lockedMessage({ holder: 'sub-x', via: 'human', expiresAt }, persons)).toBe(
-      'otra persona lo está editando hasta las 14:32. Podés leerlo mientras tanto.'
+describe('lockedMessage (TS-9)', () => {
+  const LUIS = {
+    holder: 'sub-luis',
+    holderName: 'Luis Gómez',
+    via: 'human' as const,
+    expiresAt: '2026-10-26T15:45:00.000Z',
+  };
+  const tail = 'lo está editando hasta las 15:45. Podés leerlo mientras tanto.';
+  it('nombre del servicio, sin nombre, agente y propio', () => {
+    expect(lockedMessage(LUIS, 'sub-yo')).toBe(`Luis Gómez ${tail}`);
+    expect(lockedMessage({ ...LUIS, holderName: null }, 'sub-yo')).toBe(`Otra persona ${tail}`);
+    expect(lockedMessage({ ...LUIS, via: 'agent' }, 'sub-yo')).toBe(`Un agente ${tail}`);
+    expect(lockedMessage({ ...LUIS, holder: 'sub-yo' }, 'sub-yo')).toBe(
+      'Lo estás editando en otra pestaña o ventana.'
     );
   });
 });

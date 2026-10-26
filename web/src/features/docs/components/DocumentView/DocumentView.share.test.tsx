@@ -4,6 +4,7 @@ import { useDocument } from '../../hooks/useDocument';
 import { useEditSession } from '../../hooks/useEditSession';
 import { useModule } from '../../hooks/useModules';
 import { DocumentView } from './DocumentView';
+import { DETAIL_A, ID_A as ID } from './fixtures';
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('next/navigation', () => ({
@@ -17,7 +18,6 @@ vi.mock('react-toastify', () => ({
 vi.mock('../../hooks/useDocument', () => ({ useDocument: vi.fn() }));
 vi.mock('../../hooks/useModules', () => ({ useModule: vi.fn() }));
 vi.mock('../../hooks/useEditSession', () => ({ useEditSession: vi.fn() }));
-vi.mock('../../hooks/useFolderTrail', () => ({ useFolderTrail: () => ({ data: undefined }) }));
 vi.mock('../../hooks/useCreateShare', () => ({
   useCreateShare: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false }),
 }));
@@ -28,32 +28,15 @@ vi.mock('../../hooks/useRevokeShare', () => ({
   useRevokeShare: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('../DocumentEditor', () => ({ DocumentEditor: () => <div>editor</div> }));
-vi.mock('@/features/auth/hooks/usePersons', () => ({ usePersons: vi.fn(() => ({ data: [] })) }));
+vi.mock('@/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ id: 'sub-yo', name: 'Yo' }),
+}));
+vi.mock('../VersionHistoryPanel', () => ({
+  VersionHistoryPanel: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Historial de versiones" /> : null,
+}));
 
-const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
-const FOLDER_ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6F0';
-const DOC = {
-  id: ID,
-  title: 'Arquitectura',
-  path: '/clientes/acme/arquitectura.md',
-  folderId: FOLDER_ID,
-  fileName: 'arquitectura.md',
-  version: 6,
-  visibility: 'internal',
-  updatedAt: '2026-10-24T11:30:00.000Z',
-  updatedBy: 'sub-ana',
-  content: '# Arquitectura\n\nTexto',
-  relations: {},
-  topics: [],
-  attachments: [],
-  lock: null,
-  folder: {
-    id: FOLDER_ID,
-    path: '/clientes/acme/',
-    effectivePermission: 'manage',
-    sharingBlocked: false,
-  },
-};
+const DOC = { ...DETAIL_A, title: 'Arquitectura', clientRefs: [], projectRefs: [] };
 
 const module_ = (status: string, sharing: boolean) =>
   vi.mocked(useModule).mockReturnValue({ status, sharing, isKnown: true } as never);
@@ -67,11 +50,8 @@ const session = (phase = 'idle') =>
     markBlocked: vi.fn(),
     clearBlocked: vi.fn(),
   } as never);
-const setDoc = (folder: Record<string, unknown> = {}) =>
-  vi.mocked(useDocument).mockReturnValue({
-    data: { ...DOC, folder: { ...DOC.folder, ...folder } },
-    isError: false,
-  } as never);
+const setDoc = (over: Record<string, unknown> = {}) =>
+  vi.mocked(useDocument).mockReturnValue({ data: { ...DOC, ...over }, isError: false } as never);
 
 describe('DocumentView — Compartir', () => {
   beforeEach(() => {
@@ -81,16 +61,15 @@ describe('DocumentView — Compartir', () => {
     setDoc();
   });
 
-  it('TS-39: con sharing y manage aparece entre Volver y Editar', () => {
+  it('TS-31: con sharing aparece entre Historial y Editar, habilitado y sin rol', () => {
     render(<DocumentView id={ID} />);
     const share = screen.getByRole('button', { name: /Compartir/ });
     expect(share).toBeEnabled();
-    const labels = screen.getAllByRole('button').concat(screen.getAllByRole('link'));
-    const order = labels
-      .filter((el) => /Volver|Compartir|Editar/.test(el.textContent ?? ''))
-      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
-      .map((el) => (el.textContent ?? '').replace(/[^A-Za-z]/g, ''));
-    expect(order).toEqual(['Volver', 'Compartir', 'Editar']);
+    const order = screen
+      .getAllByRole('button')
+      .filter((el) => /Historial|Compartir|Editar/.test(el.textContent ?? ''))
+      .map((el) => (el.textContent ?? '').replace(/[^A-Za-z ]/g, '').trim());
+    expect(order).toEqual(['Historial de versiones', 'Compartir', 'Editar']);
   });
 
   it('TS-40: sin sharing no aparece (CA-32)', () => {
@@ -98,12 +77,6 @@ describe('DocumentView — Compartir', () => {
     render(<DocumentView id={ID} />);
     expect(screen.queryByRole('button', { name: /Compartir/ })).toBeNull();
     expect(screen.getByRole('button', { name: /Editar/ })).toBeInTheDocument();
-  });
-
-  it.each(['write', 'read', null])('TS-41: permiso %s no muestra Compartir', (permission) => {
-    setDoc({ effectivePermission: permission });
-    render(<DocumentView id={ID} />);
-    expect(screen.queryByRole('button', { name: /Compartir/ })).toBeNull();
   });
 
   it('TS-42: módulo no disponible lo deshabilita', () => {
@@ -128,13 +101,24 @@ describe('DocumentView — Compartir', () => {
     expect(screen.getByRole('button', { name: /Compartir/ })).toHaveFocus();
   });
 
-  it('TS-45: carpeta con compartir bloqueado igual muestra el botón', () => {
-    setDoc({ sharingBlocked: true });
+  it('TS-32: documento restringido deshabilita Compartir con la nota como descripción', () => {
+    setDoc({ visibility: 'restricted' });
     render(<DocumentView id={ID} />);
     const share = screen.getByRole('button', { name: /Compartir/ });
-    fireEvent.click(share);
+    expect(share).toBeDisabled();
+    expect(share).toHaveAccessibleDescription(
+      'Los documentos restringidos no se pueden compartir por link.'
+    );
     expect(
-      screen.getByText('La carpeta de este documento no permite compartirlo fuera de Jiku.')
-    ).toBeInTheDocument();
+      screen.getByText('Los documentos restringidos no se pueden compartir por link.')
+    ).toBeVisible();
+    expect(screen.getAllByText('Restringido').length).toBeGreaterThan(0);
+    fireEvent.click(share);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('TS-31: Editar se ofrece sin consultar carpeta ni rol', () => {
+    render(<DocumentView id={ID} />);
+    expect(screen.getByRole('button', { name: /Editar/ })).toBeEnabled();
   });
 });

@@ -1,14 +1,10 @@
-.list,
-.topicList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 .list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .row {
@@ -32,25 +28,12 @@
   }
 }
 
+.id {
+  color: var(--text-secondary);
+}
+
 .empty {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-body-default-size);
-}
-
-.topics {
-  margin-top: var(--space-4);
-}
-
-.topicsTitle {
-  margin: 0 0 var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--text-body-default-size);
-  font-weight: var(--text-table-data-weight);
-}
-
-.topicList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }

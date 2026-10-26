@@ -16,8 +16,8 @@ vi.mock('react-toastify', () => ({
 vi.mock('../../hooks/useSaveDocument', () => ({ useSaveDocument: vi.fn() }));
 vi.mock('../../hooks/useUploadDocAttachment', () => ({ useUploadDocAttachment: vi.fn() }));
 vi.mock('../../services/docsApi', () => ({ getDocument: vi.fn() }));
-vi.mock('@/features/auth/hooks/usePersons', () => ({
-  usePersons: vi.fn(() => ({ data: [{ userId: 'sub-ana', firstName: 'Ana', lastName: 'Gómez' }] })),
+vi.mock('@/hooks/use-current-user', () => ({
+  useCurrentUser: vi.fn(() => ({ id: 'sub-yo', name: 'Yo' })),
 }));
 
 const ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6C8';
@@ -29,7 +29,6 @@ const DOC = {
   fileName: 'arquitectura.md',
   version: 6,
   content: '# Arquitectura\n\nTexto',
-  folder: { id: 'F', path: '/clientes/acme/', effectivePermission: 'write', sharingBlocked: false },
 };
 
 const mutate = vi.fn();
@@ -89,6 +88,28 @@ describe('DocumentEditor', () => {
     expect(screen.getByRole('textbox', { name: 'Qué cambiaste (opcional)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Guardar/ })).toBeInTheDocument();
+  });
+
+  it('TS-20: la vista previa no muestra el frontmatter y el textarea lo conserva', () => {
+    const content =
+      '---\ntitle: Arquitectura\njiku:\n  projects: [12]\n---\n# Contexto\n\nTexto.\n';
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <DocumentEditor
+          doc={{ ...DOC, content } as never}
+          session={makeSession()}
+          onDone={onDone}
+        />
+      </QueryClientProvider>
+    );
+    expect(screen.getByRole('heading', { name: 'Contexto' })).toBeInTheDocument();
+    // El textarea conserva el texto completo; la vista previa (un <h2> "Vista previa" + render) no.
+    const preview = screen.getByRole('heading', { name: 'Vista previa' })
+      .parentElement as HTMLElement;
+    expect(preview).not.toHaveTextContent('jiku:');
+    expect(preview).not.toHaveTextContent('title: Arquitectura');
+    expect(textbox()).toHaveValue(content);
   });
 
   it('TS-76: la vista previa se actualiza con debounce de 300 ms', () => {
@@ -172,7 +193,12 @@ describe('DocumentEditor', () => {
     renderEditor(
       makeSession({
         phase: 'lost',
-        blockedBy: { holder: 'sub-ana', via: 'human', expiresAt: '2026-10-24T14:40:00.000Z' },
+        blockedBy: {
+          holder: 'sub-ana',
+          holderName: 'Ana Gómez',
+          via: 'human',
+          expiresAt: '2026-10-24T14:40:00.000Z',
+        },
       })
     );
     expect(screen.getByRole('alert')).toHaveTextContent(

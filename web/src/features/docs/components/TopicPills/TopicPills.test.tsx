@@ -17,4 +17,11 @@ describe('TopicPills', () => {
     rerender(<TopicPills topics={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+  it('con hrefOf cada pill es un enlace y max Infinity las muestra todas', () => {
+    render(
+      <TopicPills topics={['a', 'b', 'c', 'd']} max={Infinity} hrefOf={(t) => `/docs?tema=${t}`} />
+    );
+    expect(screen.getByRole('link', { name: 'd' })).toHaveAttribute('href', '/docs?tema=d');
+    expect(screen.getAllByRole('link')).toHaveLength(4);
+  });
 });

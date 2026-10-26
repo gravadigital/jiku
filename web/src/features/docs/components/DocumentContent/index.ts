@@ -1,1 +1,1 @@
-export { DocumentContent } from './DocumentContent';
+export { DocumentContent, useDocumentHeadings } from './DocumentContent';

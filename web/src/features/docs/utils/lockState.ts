@@ -1,5 +1,4 @@
 import { formatTime } from './dates';
-import { personName } from './persons';
 import type { DocsLock } from '../types/docs.types';
 
 /** Hay un lock vigente de OTRA sesión (la propia nunca bloquea). */
@@ -15,21 +14,21 @@ export function isLockActive(
 
 interface LockHolder {
   holder: string;
+  holderName?: string | null;
   via: 'human' | 'agent';
   expiresAt: string;
 }
 
-interface PersonLike {
-  userId?: string | null;
-  firstName: string;
-  lastName: string;
+/** Quién tiene la reserva: el nombre del servicio; `"Otra persona"` solo si no lo manda. */
+export function lockHolderLabel(lock: Pick<LockHolder, 'holderName' | 'via'>): string {
+  if (lock.via === 'agent') return 'Un agente';
+  return lock.holderName?.trim() ? lock.holderName : 'Otra persona';
 }
 
 /** Texto de `aviso-bloqueado` (P-17). */
-export function lockedMessage(
-  lock: LockHolder,
-  persons: readonly PersonLike[] | undefined
-): string {
-  const who = lock.via === 'agent' ? 'Un agente' : personName(persons, lock.holder);
-  return `${who} lo está editando hasta las ${formatTime(lock.expiresAt)}. Podés leerlo mientras tanto.`;
+export function lockedMessage(lock: LockHolder, currentUserId?: string | null): string {
+  if (lock.via === 'human' && currentUserId && lock.holder === currentUserId) {
+    return 'Lo estás editando en otra pestaña o ventana.';
+  }
+  return `${lockHolderLabel(lock)} lo está editando hasta las ${formatTime(lock.expiresAt)}. Podés leerlo mientras tanto.`;
 }

@@ -13,6 +13,8 @@ export type EditPhase = 'idle' | 'acquiring' | 'editing' | 'lost';
 /** Quién tiene la reserva cuando `document_locked` (verbatim de `error.details`, CA-18). */
 export interface LockBlocker {
   holder: string;
+  /** Nombre que manda el servicio; `null` si no lo resuelve. */
+  holderName: string | null;
   via: 'human' | 'agent';
   expiresAt: string;
 }
@@ -26,6 +28,7 @@ const toBlocker = (error: DocsError): LockBlocker | null => {
   if (!details?.holder || !details.expiresAt) return null;
   return {
     holder: details.holder,
+    holderName: typeof details.holderName === 'string' ? details.holderName : null,
     via: details.via === 'agent' ? 'agent' : 'human',
     expiresAt: details.expiresAt,
   };
