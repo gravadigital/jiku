@@ -68,6 +68,17 @@ describe('413 en JSON (S-088)', () => {
     fakeBus.moduleSent.length.should.equal(0);
   });
 
+  it('S-094 · TS-39: POST de relations mayor a 768 KiB responde 413 sin llegar al módulo', async () => {
+    await docsAvailable();
+    const res = await request(application)
+      .post(`/api/docs/documents/${DOC_ID}/relations`)
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ baseVersion: 3, add: { projects: [12] }, pad: BIG });
+    res.status.should.equal(413);
+    res.body.should.deepEqual(PAYLOAD_TOO_LARGE);
+    fakeBus.moduleSent.length.should.equal(0);
+  });
+
   it('S-088 · TS-3 (CA-2): el 413 corta antes que el estado del módulo', async () => {
     await docsNotInstalled();
     const res = await request(application)

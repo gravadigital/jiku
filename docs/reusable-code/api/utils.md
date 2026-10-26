@@ -246,6 +246,58 @@ with `bindOnly` nats.js does not query the stream and would use `STREAM.MSG.GET`
 auth-callout does not authorise. `pingModule` is `true` on any reply and `false` on no-responders or
 timeout.
 
+## buildDocumentsFilter / joiIntList / joiStrList
+
+**Location:** `api/lib/modules/docs/query.ts`
+
+**Description:** Translates the validated query of `GET /docs/documents` and `GET /docs/search` to the jiku-docs
+`DocumentsFilter`. Only present keys; `person` becomes `or: [{ createdBy }, { updatedBy }]` ("created by or last editor").
+`joiIntList(max?)` / `joiStrList(max?)` accept a value or a repeated parameter (`.single()`), always an array.
+
+**Signature:**
+
+```ts
+buildDocumentsFilter(query: Record<string, any>): Record<string, unknown>;
+```
+
+**Usage example:**
+
+```ts
+filter: buildDocumentsFilter(SCHEMA.validate(req.query).value)
+```
+
+## withListRefs / withDocumentRefs
+
+**Location:** `api/lib/modules/docs/relation-refs.ts`
+
+**Description:** Names from the api database for the ids jiku-docs returns: `clientRefs`, `projectRefs`
+(+ `requirementRefs`, `taskRefs` in the detail). One `IN` query per type per response, none if there are no ids.
+
+**Signature:**
+
+```ts
+withListRefs<T extends { clients?: number[]; projects?: number[] }>(items: T[]): Promise<Array<T & { clientRefs; projectRefs }>>;
+withDocumentRefs(document): Promise<typeof document & { clientRefs; projectRefs; requirementRefs; taskRefs }>;
+```
+
+**Usage example:**
+
+```ts
+return res.status(200).json({ ...data, items: await withListRefs(data.items ?? []) });
+```
+
+## activeProjectIdsOf
+
+**Location:** `api/lib/modules/docs/active-projects.ts`
+
+**Description:** Ids of the `activo` projects in which the person with `people.user_id = sub` participates (max 200).
+
+**Signature:**
+
+```ts
+activeProjectIdsOf(sub: string): Promise<number[]>;
+```
+
 ## isUlid / joiUlid / respondDocsNotFound
 
 **Location:** `api/lib/modules/docs/ids.ts`

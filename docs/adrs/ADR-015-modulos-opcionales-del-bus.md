@@ -638,6 +638,7 @@ una discrepancia de hasta 30 s (DD-5).
   [`lectura-por-link-compartido`](../flows/lectura-por-link-compartido.md)
 - Revisión: [REQ-019](../requests/REQ-019.actor-completo-hacia-jiku-docs-y-ajustes-del-portal-de-documentos.md)
   (DD-1 a DD-5) y S-089; D-11 de jiku-docs en `decisiones-integracion.md`
+- Revisión: [REQ-021](../requests/REQ-021.documentacion-sin-carpetas-en-la-web.md) (referencias con nombre, jiku-docs 1.3.0) y S-094
 - Revisión: [REQ-020](../requests/REQ-020.arreglos-chicos-de-pruebas-e2e-y-relevamiento-de-pantallas.md)
   (F-18, DD-1, DD-2) y S-091
 - Operación del callout: `deploy/nats/auth-callout/README.md`
@@ -691,3 +692,40 @@ cadena de `lib/public-routes/index.ts` y el contrato HTTP. Web y opus-web no dep
 
 **Efecto para terceros:** un cliente de navegador que leyera `/p/docs/*` por JavaScript deja de poder
 hacerlo (nota de release, DD-10 de REQ-020).
+
+## Revisión: composición de referencias con nombre y jiku-docs 1.3.0 (REQ-021 / S-094, 2026-10-26)
+
+**Se elimina la composición `documents.get` + `folders.get`.** `GET /api/docs/documents/{id}` hace una
+sola consulta (`documents.get`) y ya no responde `folder`. Con jiku-docs 1.3.0 la carpeta no decide
+permisos (la visibilidad del documento sí); la web decide editar y compartir por visibilidad y rol, y lo
+que necesita son **nombres**, no la carpeta. **Cambio incompatible del contrato HTTP**, con un único
+consumidor (web), que se publica junto.
+
+**La composición pasa a ser de referencias con nombre**, resueltas desde la base de la api (lectura
+directa, ADR-001; no se agregan consultas a `jiku-queries`): `clientRefs` y `projectRefs` en los ítems de
+`GET /docs/documents`, los hits de `GET /docs/search` y el detalle; `requirementRefs` y `taskRefs` solo en
+el detalle. Reglas de lote: **una consulta `IN` por tipo y por respuesta** (nunca por ítem), ninguna
+consulta si no hay ids de ese tipo, orden el de jiku-docs, un id desconocido va con los campos en `null`,
+los campos de jiku-docs no se modifican (solo se agregan claves). Código: `lib/modules/docs/relation-refs.ts`.
+
+**`GET /api/docs/suggestions` es la primera ruta de módulo que combina base y bus**: proyectos, clientes y
+personas salen de la base (`active-projects.ts` resuelve "mis proyectos activos") y los temas de
+`topics.list` por prefijo. Primero la base, después el bus; si el bus falla se responde el error del
+módulo, sin sugerencias parciales. `GET /docs/documents?myActiveProjects=true` usa el mismo helper y
+responde la lista vacía **sin llamar al bus** cuando la persona no tiene proyectos activos.
+
+**Mapa de errores:** `version_pruned: 404` (la versión pedida fue compactada) con `errorDetails
+{ requestedVersion, previousAvailable, nextAvailable }` verbatim como `details`. El mapa de
+`docs/errors.ts` pasa a 31 códigos.
+
+**Portal:** `GET /opus/docs/documents` y `GET /opus/docs/documents/{id}` piden `fields` explícitos sin
+`path`, `folderId` ni `fileName` (el portal ya no recibe la ruta). **`visibility` tiene que estar en
+`fields`**: DD-3 (404 si no es `public`) falla cerrado y, sin ella, todo respondería 404.
+
+**Lo que no cambia:** la api sigue sin autorizar el dominio (`restricted`, asignar relaciones: lo decide
+jiku-docs con el `actor`); el `actor` completo de `buildActor`; `validateToken`, `config/public.ts` y el
+embudo. Las tres rutas nuevas son `hasAnyRole(['admin','user'])`.
+
+**Requisito de versión:** la api requiere **jiku-docs >= 1.3.0**. No hay chequeo en runtime (el
+registro no publica versión menor). Con una versión anterior, los filtros nuevos responden
+`invalid_fields` y el alta sin carpeta exige `folderId`.

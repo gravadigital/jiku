@@ -1,6 +1,6 @@
 openapi: 3.0.3
 
-# Contrato HTTP de `api` — las 89 operaciones que sirve (72 internas, 15 del portal, 2 públicas).
+# Contrato HTTP de `api` — las 92 operaciones que sirve (75 internas, 15 del portal, 2 públicas).
 #
 # REQ-016 / S-077 — `x-jiku-module`
 #   Una operación marcada `x-jiku-module: docs` depende del módulo opcional `docs` (jiku-docs):
@@ -2133,16 +2133,35 @@ paths:
       description: |
         Llama a `documents.list` de jiku-docs. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
 
-        Payload: `{ filter, sort: [sort], page: { limit, cursor? }, include: ['lock'] }`. Las claves de
+        Payload: `{ filter, sort: [sort], page: { limit, cursor? }, include: ['lock', 'topics'], count? }`. Las claves de
         `filter` que no vinieron no se mandan. Un parámetro no declarado es 400 `invalid_fields`.
+
+        **Requiere jiku-docs >= 1.3.0** (REQ-021 / S-094). `projectId`, `clientId` y `topic` aceptan un valor o una
+        lista (parámetro repetido, hasta 20): un tipo repetido es O, tipos distintos son Y. Se normalizan siempre a
+        array en `filter`. `person` (hasta 10 `sub`) se traduce a `filter.or: [{ createdBy }, { updatedBy }]`: "creado
+        por o último editor". `count=true` manda `count: true` y la respuesta trae `page.total`.
+        `myActiveProjects=true` se resuelve desde la base (proyectos `activo` en los que participa la persona, hasta
+        200) y se manda como `filter.projectId`; es excluyente con `projectId` (400); sin proyectos responde
+        `{ items: [], page: { limit, returned: 0 } }` (con `total: 0` si hay `count`) **sin llamar al bus**.
+
+        Cada ítem gana `clientRefs` y `projectRefs` con los nombres, resueltos desde la base en lote (una consulta
+        por tipo por respuesta); un id desconocido va con `name`/`code`/`clientId` en `null`. Los campos de
+        jiku-docs (`clients`, `projects`, `projectMatch`, `topics`, `lock`, ...) pasan intactos.
       parameters:
-        - { name: projectId, in: query, description: "Filtro por proyecto", schema: { type: integer, minimum: 1 } }
+        - { name: projectId, in: query, description: "Proyecto; repetido = lista (O), hasta 20. Excluyente con `myActiveProjects`", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
         - { name: requirementId, in: query, description: "Filtro por requisito", schema: { type: integer, minimum: 1 } }
         - { name: taskId, in: query, description: "Filtro por tarea", schema: { type: integer, minimum: 1 } }
-        - { name: clientId, in: query, description: "Filtro por actor", schema: { type: integer, minimum: 1 } }
+        - { name: clientId, in: query, description: "Cliente; repetido = lista (O), hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
         - { name: folderId, in: query, description: "Filtro por carpeta", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
         - { name: pathPrefix, in: query, description: "Prefijo de path", schema: { type: string, minLength: 1, maxLength: 500 } }
-        - { name: topic, in: query, description: "Tema", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: topic, in: query, description: "Tema; repetido = lista (O), hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 500 } } }
+        - { name: hasProject, in: query, description: "`false` = sin relación con proyecto (ni por requisito ni por tarea)", schema: { type: boolean } }
+        - { name: hasClient, in: query, description: "`false` = sin cliente", schema: { type: boolean } }
+        - { name: hasTopic, in: query, description: "`false` = sin tema", schema: { type: boolean } }
+        - { name: person, in: query, description: "`sub` de la persona (creó o editó por última vez); repetido = lista, hasta 10", style: form, explode: true, schema: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 200 } } }
+        - { name: visibility, in: query, description: "Visibilidad", schema: { type: string, enum: [internal, public, restricted] } }
+        - { name: myActiveProjects, in: query, description: "`true` = los proyectos activos de la persona. Excluyente con `projectId`", schema: { type: boolean } }
+        - { name: count, in: query, description: "`true` = devuelve `page.total`", schema: { type: boolean } }
         - { name: sort, in: query, description: "Orden", schema: { type: string, enum: [updatedAt, -updatedAt, createdAt, -createdAt, title, -title, path, -path], default: -updatedAt } }
         - { name: limit, in: query, description: "Tamaño de página", schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: cursor, in: query, description: "`page.cursor` de la respuesta anterior; su ausencia es el fin", schema: { type: string, maxLength: 500 } }
@@ -2168,6 +2187,7 @@ paths:
         Publica `documents.new` de jiku-docs en nombre de la persona (REQ-016, ruta 8). La api fija `via: human` (DD-9), calcula
         `checksum = "sha256:" + hex(sha256(utf8(content)))` y, si el cliente no manda `id`, genera el ULID (DD-8).
         Reenviar el mismo `id` tras un 504 es seguro (`already_exists`); **un alta sin `id` no es idempotente**: la api genera uno nuevo por pedido.
+        **Requiere jiku-docs >= 1.3.0:** `folderId` y `fileName` son opcionales. Sin `folderId` la carpeta sale de las relaciones del frontmatter (`/clientes/<cliente>/<proyecto>/`, `/clientes/<cliente>/general/` o `/general/`); sin `fileName`, del título (kebab-case `.md`, único en la carpeta). La respuesta trae `folderId` y `fileName`. Un `user` con `visibility: restricted` en el frontmatter recibe 403 `permission_denied` (lo decide jiku-docs).
         `content` inline de hasta 256 KiB (el body de esta ruta admite hasta 768 KiB de JSON; más allá, 413). `contentUploadId`, `via` y `checksum` no se aceptan (400). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
       requestBody:
         required: true
@@ -2176,11 +2196,11 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [folderId, fileName, content]
+              required: [content]
               properties:
                 id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
-                folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
-                fileName: { type: string, minLength: 1, description: "Archivo `.md` de hasta 200 caracteres, sin `/` ni `\\`: lo valida jiku-docs (`file_name_invalid`)" }
+                folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', description: "Opcional (jiku-docs >= 1.3.0): sin él la carpeta sale del frontmatter" }
+                fileName: { type: string, minLength: 1, description: "Opcional: sin él sale del título. Archivo `.md` de hasta 200 caracteres, sin `/` ni `\\`: lo valida jiku-docs (`file_name_invalid`)" }
                 content: { type: string, description: "Markdown, hasta 256 KiB (`content_too_large`)" }
                 message: { type: string, minLength: 1, description: "Mensaje de la versión (máximo 500, lo valida jiku-docs)" }
       responses:
@@ -2206,13 +2226,15 @@ paths:
       x-jiku-module: docs
       x-roles: [admin, user]
       description: |
-        Llama a `documents.get` y, con su `folderId`, a `folders.get` (dos consultas en serie). Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+        Llama a `documents.get` (una sola consulta; ya no compone `folders.get`). La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
 
-        **Única composición de la api:** `{ ...document, folder: { id, path, effectivePermission, sharingBlocked } }`,
-        para que la web sepa en un pedido si puede editar (`write`) o compartir (`manage`). Si falla
-        cualquiera de las dos, responde ese error y no un documento sin `folder`. Un documento de más de
-        256 KiB trae `contentUrl` en lugar de `content`. Un `id` mal formado responde 404 `document_not_found`
-        sin llamar al bus.
+        **Cambio incompatible (REQ-021 / S-094, requiere jiku-docs >= 1.3.0):** la respuesta ya no trae `folder`.
+        Se agregan `clientRefs`, `projectRefs`, `requirementRefs` y `taskRefs` con los nombres, resueltos desde la
+        base en lote. Los campos de jiku-docs pasan verbatim (`prunedVersionsCount`, `createdByName`,
+        `updatedByName`, `lock.holderName`, `visibility: restricted`, `clients`, `projects`). Un documento de más
+        de 256 KiB trae `contentUrl` en lugar de `content`. Un `id` mal formado responde 404 `document_not_found`
+        sin llamar al bus. Una `version` compactada responde 404 `version_pruned` con
+        `details: { requestedVersion, previousAvailable, nextAvailable }`.
       parameters:
         - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
         - { name: version, in: query, description: "Versión pedida; sin ella, la vigente", schema: { type: integer, minimum: 1 } }
@@ -2328,14 +2350,22 @@ paths:
       description: |
         Llama a `documents.search` con `mode: 'text'` (no se expone `mode`: en la v1 `semantic` y `hybrid`
         responden `semantic_search_not_configured`). `q` se manda como `query`; `limit` va en la raíz, no en
-        `page`. Responde el `data` de jiku-docs sin transformar. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
+        `page`. Sin `cursor`, `count` ni `myActiveProjects`. Los filtros se traducen igual que en
+        `GET /docs/documents` (listas, `has*`, `person`, `visibility`; requiere jiku-docs >= 1.3.0) y cada hit gana
+        `clientRefs` y `projectRefs` desde la base. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token). `requireModule` va antes que el rol.
       parameters:
         - { name: q, in: query, required: true, description: "Texto a buscar", schema: { type: string, minLength: 2, maxLength: 1000 } }
-        - { name: projectId, in: query, description: "Filtro por proyecto", schema: { type: integer, minimum: 1 } }
+        - { name: projectId, in: query, description: "Proyecto; repetido = lista, hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
+        - { name: clientId, in: query, description: "Cliente; repetido = lista, hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: integer, minimum: 1 } } }
         - { name: requirementId, in: query, description: "Filtro por requisito", schema: { type: integer, minimum: 1 } }
         - { name: taskId, in: query, description: "Filtro por tarea", schema: { type: integer, minimum: 1 } }
         - { name: pathPrefix, in: query, description: "Prefijo de path", schema: { type: string, minLength: 1, maxLength: 500 } }
-        - { name: topic, in: query, description: "Tema", schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: topic, in: query, description: "Tema; repetido = lista, hasta 20", style: form, explode: true, schema: { type: array, maxItems: 20, items: { type: string, minLength: 1, maxLength: 500 } } }
+        - { name: hasProject, in: query, description: "`false` = sin proyecto", schema: { type: boolean } }
+        - { name: hasClient, in: query, description: "`false` = sin cliente", schema: { type: boolean } }
+        - { name: hasTopic, in: query, description: "`false` = sin tema", schema: { type: boolean } }
+        - { name: person, in: query, description: "`sub` (creó o editó por última vez); repetido = lista, hasta 10", style: form, explode: true, schema: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 200 } } }
+        - { name: visibility, in: query, description: "Visibilidad", schema: { type: string, enum: [internal, public, restricted] } }
         - { name: limit, in: query, description: "Cantidad de resultados", schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
       responses:
         '200':
@@ -2505,7 +2535,7 @@ paths:
       x-jiku-module: docs
       x-roles: [admin, user]
       description: |
-        Publica `documents.{id}.restore` (REQ-016, ruta 12): la versión `fromVersion` pasa a ser una versión nueva. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
+        Publica `documents.{id}.restore` (REQ-016, ruta 12): la versión `fromVersion` pasa a ser una versión nueva. Si `fromVersion` fue compactada: 404 `version_pruned` con `details`. La api no autoriza el dominio de documentación (REQ-016, DD-2): jiku-docs resuelve el ACL con el `actor` (el `sub` del token) y responde `permission_denied`. `requireModule` va antes que el rol. Las reglas de dominio las valida jiku-docs y su `code` llega sin traducir (DD-7). Un `id` mal formado responde 404 sin llamar al bus.
       parameters:
         - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
       requestBody:
@@ -2531,6 +2561,117 @@ paths:
         '404': { $ref: '#/components/responses/ModuleNotFound' }
         '409': { $ref: '#/components/responses/ModuleConflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/relations:
+    post:
+      tags: [docs]
+      summary: Agrega o quita relaciones de un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Publica `documents.{id}.relations.update` (REQ-021 / S-094; requiere jiku-docs >= 1.3.0). Reescribe solo el bloque
+        `jiku:` del frontmatter y crea una versión; jiku-docs agrega el cliente de cada proyecto asignado. **Sin `via` ni
+        `checksum`** (el origen sale de la clase del caller). La api valida la forma; "al menos un id" y "un id en `add` y
+        `remove` a la vez" los valida jiku-docs (`invalid_fields`). `version_conflict` responde 409 con
+        `details.currentVersion`; `document_locked`, 409 con `details.holder`, `holderName`, `via` y `expiresAt`.
+        `invalid_relation` es 400. `requireModule` va antes que el rol. Un `id` mal formado responde 404 sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [baseVersion]
+              anyOf:
+                - required: [add]
+                - required: [remove]
+              properties:
+                baseVersion: { type: integer, minimum: 1 }
+                add: { $ref: '#/components/schemas/DocsRelationSet' }
+                remove: { $ref: '#/components/schemas/DocsRelationSet' }
+                sessionId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsRelationsResult' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '409': { $ref: '#/components/responses/ModuleConflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/documents/{id}/suggested-relations:
+    get:
+      tags: [docs]
+      summary: Relaciones sugeridas para un documento
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Llama a `documents.suggest-relations` (REQ-021 / S-094; requiere jiku-docs >= 1.3.0) y agrega `projectName`,
+        `projectCode` y `clientName` desde la base (`null` si el id es `null` o desconocido). Orden y `score` de
+        jiku-docs. `clientName` es el del `clientId` del candidato. Sin query params. Un `id` mal formado responde 404
+        sin llamar al bus.
+      parameters:
+        - { name: id, in: path, required: true, description: "Id del documento (ULID)", schema: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsRelationSuggestions' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+
+  /docs/suggestions:
+    get:
+      tags: [docs]
+      summary: Sugerencias del buscador de documentación
+      x-jiku-module: docs
+      x-roles: [admin, user]
+      description: |
+        Sugerencias agrupadas (REQ-021 / S-094). Primero la base, después el bus: proyectos, clientes y personas salen de
+        la base; los temas de `topics.list { filter: { prefix: q }, page: { limit } }`. Si `topics.list` falla responde el
+        error del módulo (sin sugerencias parciales). `limit` es el tope **por grupo**.
+
+        - **projects:** `name` o `code` contiene `q` (sin distinguir mayúsculas; los comodines de `q` se escapan),
+          limitado al cliente si viene `clientId`. Orden: los activos de la persona (`mine: true`), después los
+          `activo`, después el resto; dentro de cada grupo por `name`.
+        - **clients:** `name` contiene `q`. **persons:** personas habilitadas con usuario (`userId` es el `sub`), nombre o
+          apellido contiene `q`. `clientId` limita solo proyectos.
+        - **topics:** solo por **prefijo** ("vid" encuentra "video", no "pedido-video").
+
+        "Buscar «q»" y "Sin proyecto / Sin cliente / Sin tema" los arma la web.
+      parameters:
+        - { name: q, in: query, required: true, description: "Texto (se recorta con trim)", schema: { type: string, minLength: 1, maxLength: 100 } }
+        - { name: clientId, in: query, description: "Limita los proyectos a este cliente", schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, description: "Tope por grupo", schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocsSearchSuggestions' }
+        '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ModuleForbidden' }
+        '404': { $ref: '#/components/responses/ModuleNotInstalled' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
@@ -3251,12 +3392,13 @@ paths:
       description: |
         Superficie de solo lectura del portal. Llama a `documents.list` con `filter: { projectId | requirementId,
         visibility: 'public' }`: **`visibility: public` lo fuerza la api** y la query no lo acepta (400). Exige
-        exactamente uno de `projectId` o `requirementId`. Orden `-updatedAt`, sin `include`.
+        exactamente uno de `projectId` o `requirementId`. Orden `-updatedAt`, sin `include`. Pide `fields: [id, title,
+        version, visibility, createdAt, updatedAt]`: **sin `path`, `folderId` ni `fileName`** (el portal no recibe la ruta).
 
         Orden de las verificaciones: rol, forma, carga del proyecto o requisito (404 `project_not_found` /
         `requirement_not_found`), permiso de proyecto para `external-user` (403 `access_denied`) y, si filtra
         por requisito, que sea público (404 `requirement_not_found`). jiku-docs aplica además su regla de
-        externos (`public`, proyecto permitido, carpeta sin `externalBlocked`).
+        externos (`public` y proyecto permitido).
       parameters:
         - { name: projectId, in: query, description: "Proyecto (excluyente con requirementId)", schema: { type: integer, minimum: 1 } }
         - { name: requirementId, in: query, description: "Requisito (excluyente con projectId)", schema: { type: integer, minimum: 1 } }
@@ -3283,9 +3425,10 @@ paths:
       x-jiku-module: docs
       x-roles: [external-user, admin, user]
       description: |
-        Llama a `documents.get` con `include: ['content', 'attachments']`. Si `visibility` no es `public`
+        Llama a `documents.get` con `include: ['content', 'attachments']` y los mismos `fields` sin ruta que el listado
+        (`visibility` tiene que estar: sin ella el chequeo de abajo fallaría cerrado). Si `visibility` no es `public`
         (o falta), responde 404 `document_not_found`, idéntico al de un id inexistente (DD-3). No compone
-        `folder`: los externos no ven carpetas. **Excepción anotada a ADR-006** (DD-4): no verifica permiso de
+        `folder` ni devuelve `path`. **Excepción anotada a ADR-006** (DD-4): no verifica permiso de
         proyecto porque el proyecto no se conoce antes de pedir el documento; lo cubre la regla de externos de
         jiku-docs.
       parameters:
@@ -3868,9 +4011,32 @@ components:
         uploadedBy: { type: string }
         createdAt: { type: string, format: date-time }
 
+    DocsClientRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string, nullable: true, description: "`null` si el id no existe" }
+    DocsProjectRef:
+      type: object
+      required: [id, name, code, clientId]
+      properties:
+        id: { type: integer }
+        name: { type: string, nullable: true }
+        code: { type: string, nullable: true }
+        clientId: { type: integer, nullable: true }
+    DocsTitleRef:
+      type: object
+      description: Requisito o tarea
+      required: [id, title, projectId]
+      properties:
+        id: { type: integer }
+        title: { type: string, nullable: true }
+        projectId: { type: integer, nullable: true }
+
     DocsDocument:
       type: object
-      description: Campos base más los que pidan `include` y el tamaño (`content` hasta 256 KiB; `contentUrl` por encima, vence a los 300 s)
+      description: Campos base más los que pidan `include` y el tamaño (`content` hasta 256 KiB; `contentUrl` por encima, vence a los 300 s). En listado y detalle la api agrega `clientRefs` y `projectRefs`
       properties:
         id: { type: string }
         title: { type: string }
@@ -3880,12 +4046,20 @@ components:
         version: { type: integer }
         checksum: { type: string }
         sizeBytes: { type: integer }
-        visibility: { type: string, enum: [internal, public] }
+        visibility: { type: string, enum: [internal, public, restricted] }
         createdAt: { type: string, format: date-time }
         createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
         updatedAt: { type: string, format: date-time }
         updatedBy: { type: string }
+        updatedByName: { type: string, nullable: true }
         deletedAt: { type: string, format: date-time, nullable: true }
+        clients: { type: array, items: { type: integer } }
+        projects: { type: array, items: { type: integer } }
+        projectMatch: { type: string, enum: [direct, indirect], description: "Solo con `projectId` en el filtro" }
+        prunedVersionsCount: { type: integer, description: "Solo en el detalle" }
+        clientRefs: { type: array, items: { $ref: '#/components/schemas/DocsClientRef' }, description: "Agregado por la api, en el orden de `clients`" }
+        projectRefs: { type: array, items: { $ref: '#/components/schemas/DocsProjectRef' }, description: "Agregado por la api, en el orden de `projects`" }
         content: { type: string }
         contentUrl: { type: string }
         relations:
@@ -3902,24 +4076,95 @@ components:
           properties:
             sessionId: { type: string }
             holder: { type: string }
+            holderName: { type: string, nullable: true }
             via: { type: string, enum: [human, agent] }
             expiresAt: { type: string, format: date-time }
         attachments: { type: array, items: { $ref: '#/components/schemas/DocsAttachment' } }
 
     DocsDocumentDetail:
+      description: Un documento de jiku-docs más las referencias con nombre. Sin `folder` (se eliminó en S-094)
       allOf:
         - $ref: '#/components/schemas/DocsDocument'
         - type: object
-          required: [folder]
+          required: [clientRefs, projectRefs, requirementRefs, taskRefs]
           properties:
-            folder:
-              type: object
-              required: [id, path, effectivePermission, sharingBlocked]
-              properties:
-                id: { type: string }
-                path: { type: string }
-                effectivePermission: { type: string, enum: [read, write, manage], nullable: true }
-                sharingBlocked: { type: boolean }
+            requirementRefs: { type: array, items: { $ref: '#/components/schemas/DocsTitleRef' }, description: "Orden de `relations.requirements`" }
+            taskRefs: { type: array, items: { $ref: '#/components/schemas/DocsTitleRef' }, description: "Orden de `relations.tasks`" }
+
+    DocsRelationSet:
+      type: object
+      additionalProperties: false
+      properties:
+        clients: { type: array, maxItems: 100, items: { type: integer, minimum: 1 } }
+        projects: { type: array, maxItems: 100, items: { type: integer, minimum: 1 } }
+        requirements: { type: array, maxItems: 100, items: { type: integer, minimum: 1 } }
+        tasks: { type: array, maxItems: 100, items: { type: integer, minimum: 1 } }
+    DocsRelationsResult:
+      type: object
+      required: [id, version, relations]
+      properties:
+        id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
+        version: { type: integer }
+        relations:
+          type: object
+          properties:
+            clients: { type: array, items: { type: integer } }
+            projects: { type: array, items: { type: integer } }
+            requirements: { type: array, items: { type: integer } }
+            tasks: { type: array, items: { type: integer } }
+        warnings: { type: array, items: { type: string } }
+    DocsRelationSuggestions:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [projectId, clientId, score, reason, projectName, projectCode, clientName]
+            properties:
+              projectId: { type: integer, nullable: true, description: "`null` en un candidato solo de cliente" }
+              clientId: { type: integer, nullable: true }
+              score: { type: number, minimum: 0, maximum: 1 }
+              reason: { type: string }
+              projectName: { type: string, nullable: true }
+              projectCode: { type: string, nullable: true }
+              clientName: { type: string, nullable: true }
+    DocsSearchSuggestions:
+      type: object
+      required: [projects, clients, persons, topics]
+      properties:
+        projects:
+          type: array
+          items:
+            type: object
+            required: [id, name, code, clientId, clientName, mine]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              code: { type: string }
+              clientId: { type: integer, nullable: true }
+              clientName: { type: string, nullable: true }
+              mine: { type: boolean, description: "Proyecto activo en el que participa la persona" }
+        clients:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+        persons:
+          type: array
+          items:
+            type: object
+            required: [userId, name]
+            properties:
+              userId: { type: string, description: "El `sub`: lo que guardan `createdBy`/`updatedBy`" }
+              name: { type: string }
+        topics:
+          type: array
+          items: { $ref: '#/components/schemas/DocsTopic' }
 
     DocsFolder:
       type: object
@@ -3942,6 +4187,9 @@ components:
         checksum: { type: string }
         sizeBytes: { type: integer }
         author: { type: string }
+        authorName: { type: string, nullable: true }
+        kind: { type: string, enum: [create, update, restore] }
+        protected: { type: boolean }
         via: { type: string, enum: [human, agent, service] }
         sessionId: { type: string, nullable: true }
         message: { type: string, nullable: true }
@@ -3959,6 +4207,15 @@ components:
         score: { type: number }
         updatedAt: { type: string, format: date-time }
         updatedBy: { type: string }
+        updatedByName: { type: string, nullable: true }
+        createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
+        visibility: { type: string, enum: [internal, public, restricted] }
+        clients: { type: array, items: { type: integer } }
+        projects: { type: array, items: { type: integer } }
+        projectMatch: { type: string, enum: [direct, indirect] }
+        clientRefs: { type: array, items: { $ref: '#/components/schemas/DocsClientRef' } }
+        projectRefs: { type: array, items: { $ref: '#/components/schemas/DocsProjectRef' } }
 
     DocsTopic:
       type: object
@@ -4008,6 +4265,8 @@ components:
         id: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$' }
         version: { type: integer }
         path: { type: string }
+        folderId: { type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$', description: "jiku-docs >= 1.3.0" }
+        fileName: { type: string, description: "jiku-docs >= 1.3.0" }
         warnings: { type: array, items: { type: string }, description: "Por ejemplo `possible_secret_detected` (no bloquea)" }
     DocsIdResult:
       type: object
@@ -4052,7 +4311,7 @@ components:
         expiresAt: { type: string, format: date-time }
         revokedAt: { type: string, format: date-time, nullable: true }
         revokedBy: { type: string, nullable: true }
-        revokeReason: { type: string, enum: [manual, document_deleted], nullable: true }
+        revokeReason: { type: string, enum: [manual, document_deleted, restricted], nullable: true }
         accessCount: { type: integer }
         lastAccessAt: { type: string, format: date-time, nullable: true }
     DocsSharePage:

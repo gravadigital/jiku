@@ -7,7 +7,7 @@ La única puerta HTTP de Jiku. Autentica contra Zitadel, autoriza por rol y por 
 NATS que atiende `core`.
 
 - **Tipo:** api (servicio HTTP) · **Lenguaje:** node (TypeScript) · **Path:** `api/`
-- **Expone:** 89 operaciones según `docs/apis/api.yaml` — 72 internas, 15 del portal (`/api/opus/*`) y 2 públicas (`/p/docs/*`, en la raíz)
+- **Expone:** 92 operaciones según `docs/apis/api.yaml` — 75 internas, 15 del portal (`/api/opus/*`) y 2 públicas (`/p/docs/*`, en la raíz)
 - **Consume:** PostgreSQL (solo lectura), NATS (→ core, y → jiku-docs si está instalado), Zitadel, storage S3-compatible
 
 ## La decisión estructural: lee la base, escribe por el bus

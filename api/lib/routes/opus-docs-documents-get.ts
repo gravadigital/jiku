@@ -3,7 +3,7 @@ import joi from 'joi';
 import { Project, Requirement } from '@jiku/models';
 import logger from '../logger';
 import { moduleQuery } from '../modules/client';
-import { buildPage, PAGE_LIMIT_MAX } from '../modules/docs/query';
+import { buildPage, PAGE_LIMIT_MAX, PORTAL_DOC_FIELDS } from '../modules/docs/query';
 import hasAnyRole from '../utils/middlewares/has-any-role';
 import requireModule from '../utils/middlewares/require-module';
 import validateProjectPermissions from '../utils/middlewares/validate-project-permission';
@@ -73,6 +73,8 @@ async function listPublicDocuments(req: Request, res: Response) {
       filter: { ...scope, visibility: 'public' },
       sort: ['-updatedAt'],
       page: buildPage(query),
+      // Sin `path`/`folderId`/`fileName` (REQ-021). `visibility` tiene que estar (DD-3).
+      fields: PORTAL_DOC_FIELDS,
     });
     if (!data) return;
     return res.status(200).json(data);

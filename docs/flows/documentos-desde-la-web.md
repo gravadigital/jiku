@@ -4,8 +4,8 @@ title: Documentos desde la web — panel, visor, edición con reserva, adjuntos 
 type: feature
 status: Draft
 created: 2026-10-24
-last_updated: 2026-10-25
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090]
+last_updated: 2026-10-26
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -13,8 +13,8 @@ stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, 
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-10-24
-**Última actualización:** 2026-10-25
-**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090
+**Última actualización:** 2026-10-26
+**Stories:** S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094
 
 ## Descripción
 
@@ -59,13 +59,14 @@ sequenceDiagram
 
     Note over WEB,API: A. Panel y visor
     WEB->>API: GET /api/docs/documents?projectId=
-    API->>DOCS: query documents.list { filter, sort, page, include:['lock'], actor:{id, roles, …} }
+    API->>DOCS: query documents.list { filter, sort, page, include:['lock','topics'], count?, actor:{id, roles, …} }
     DOCS-->>API: Reply { data }
-    API-->>WEB: 200 { items, page }
+    API->>API: clients/projects WHERE id IN (...) (una consulta por tipo)
+    API-->>WEB: 200 { items: [{ ..., clientRefs, projectRefs }], page }
     WEB->>API: GET /api/docs/documents/{id}
     API->>DOCS: query documents.get (include content, relations, topics, lock, attachments)
-    API->>DOCS: query folders.get (include effectivePermission)
-    API-->>WEB: 200 { ...document, folder: { id, path, effectivePermission, sharingBlocked } }
+    API->>API: clientRefs, projectRefs, requirementRefs, taskRefs desde la base
+    API-->>WEB: 200 { ...document, clientRefs, projectRefs, requirementRefs, taskRefs }
 
     Note over WEB,DOCS: C. Edición con reserva
     WEB->>API: POST /api/docs/documents/{id}/lock { sessionId }
@@ -113,17 +114,21 @@ El panel solo se renderiza si `useModule('docs')` no es `not_installed`. Su Serv
 **Request:**
 - **Método:** GET
 - **Endpoint:** `/api/docs/documents`
-- **Query:** `projectId`, `requirementId`, `taskId`, `clientId`, `folderId`, `pathPrefix`, `topic`,
-  `sort` (default `-updatedAt`), `limit` (1..`PAGE_LIMIT_MAX`, default 50; el panel pide 10),
-  `cursor`. Las claves no declaradas son 400 `invalid_fields`.
+- **Query:** `projectId`, `clientId` y `topic` (valor o lista, hasta 20), `requirementId`, `taskId`,
+  `folderId`, `pathPrefix`, `hasProject`, `hasClient`, `hasTopic`, `person` (hasta 10; creado por o
+  último editor), `visibility`, `myActiveProjects` (excluyente con `projectId`), `count`, `sort`
+  (default `-updatedAt`), `limit` (1..`PAGE_LIMIT_MAX`, default 50; el panel pide 10), `cursor`. Las
+  claves no declaradas son 400 `invalid_fields`. Requiere jiku-docs >= 1.3.0.
 - **Cadena:** `requireModule('docs')` → `hasAnyRole(['admin','user'])` → Joi → handler.
 
 **Consulta al bus:**
 - **Subject:** `{instance}.{apiUserId}.jiku-docs-queries.v1.documents.list`
-- **Payload:** `{ filter, sort: [sort], page, include: ['lock'], actor: { id, roles, name?, username?, email? } }`
+- **Payload:** `{ filter, sort: [sort], page, include: ['lock', 'topics'], count?: true, actor: { id, roles, name?, username?, email? } }`
+  (`count` solo existe si vino `count=true`; `myActiveProjects=true` se resuelve desde la base y se manda
+  como `filter.projectId`; sin proyectos activos responde `{ items: [], page }` sin llamar al bus)
 
-**Response (éxito):** `200` con el `data` de jiku-docs **sin transformar** (`{ items, page }`;
-`page.cursor` pagina).
+**Response (éxito):** `200` con el `data` de jiku-docs (`{ items, page }`; `page.cursor` pagina,
+`page.total` con `count`) más `clientRefs` y `projectRefs` en cada ítem, resueltos desde la base en lote.
 
 **Ref:** `docs/apis/api.yaml` (`GET /docs/documents`)
 
@@ -133,36 +138,59 @@ El panel solo se renderiza si `useModule('docs')` no es `not_installed`. Su Serv
 
 **Origen:** web (`DocumentView`, página `/docs/[id]`)
 **Destino:** api → jiku-docs
-**Tipo:** REST + dos consultas por el bus
+**Tipo:** REST + una consulta por el bus
 
 **Request:** `GET /api/docs/documents/{id}` (query opcional `version`).
 
 La api valida que `{id}` sea un ULID **antes** de tocar el bus (un id mal formado responde 404
-`document_not_found`, igual que uno inexistente). Después compone dos consultas en serie, la única
-composición de la api:
-
-1. `documents.get { id, include: ['content','relations','topics','lock','attachments'] }`
-2. `folders.get { id: document.folderId, include: ['effectivePermission'] }`
+`document_not_found`, igual que uno inexistente). Después hace **una sola consulta** (desde S-094 ya no
+compone `folders.get`): `documents.get { id, version?, include: ['content','relations','topics','lock','attachments'] }`.
 
 **Response (éxito):** `200`
 ```json
 {
-  "...document": "lo que devuelve documents.get",
-  "folder": {
-    "id": "string",
-    "path": "string",
-    "effectivePermission": "string — read | write | manage",
-    "sharingBlocked": "boolean"
-  }
+  "...document": "lo que devuelve documents.get (prunedVersionsCount, createdByName, updatedByName, lock.holderName, visibility incluida 'restricted')",
+  "clientRefs": "[{ id, name | null }]",
+  "projectRefs": "[{ id, name | null, code | null, clientId | null }]",
+  "requirementRefs": "[{ id, title | null, projectId | null }]",
+  "taskRefs": "[{ id, title | null, projectId | null }]"
 }
 ```
 
-La web decide con `folder.effectivePermission` si ofrece editar (`write` o `manage`) o compartir
-(`manage`, con `features.sharing`). **Un documento con `contentUrl` (más de 256 KiB) se muestra en
+La web decide editar y compartir por la visibilidad del documento y el rol; los nombres vienen en las
+`*Refs`. Una `version` compactada responde 404 `version_pruned` con `details`. **Un documento con `contentUrl` (más de 256 KiB) se muestra en
 solo lectura**: la Server Action `getDocument` descarga el contenido **del lado del servidor** y la
 interfaz no ofrece editar.
 
 **Ref:** `docs/apis/api.yaml` (`GET /docs/documents/{id}`)
+
+---
+
+### Paso 2b: alta sin carpeta (web)
+
+**Origen:** web · **Destino:** api → jiku-docs · **Tipo:** REST + Comando por el bus
+
+`POST /api/docs/documents { id?, folderId?, fileName?, content, message? }`. Desde jiku-docs 1.3.0
+`folderId` y `fileName` son opcionales: sin `folderId` la carpeta sale de las relaciones del frontmatter
+(`/clientes/<cliente>/<proyecto>/`, `/clientes/<cliente>/general/` o `/general/`) y sin `fileName` del
+título. **Comando:** `documents.new { id, content, checksum, via: 'human', folderId?, fileName?, message?,
+actor }`. **Response:** `201 { id, version, path, folderId, fileName, warnings? }`. Un `user` con
+`visibility: restricted` en el frontmatter recibe 403 `permission_denied` (lo decide jiku-docs).
+
+---
+
+### Paso 2c: historial y relaciones (web)
+
+- **Historial:** `GET /api/docs/documents/{id}/versions` trae por versión `authorName`, `kind`
+  (`create|update|restore`) y `protected` (verbatim). `POST .../restore` de una versión compactada responde
+  404 `version_pruned`. Abrir una versión compactada (`?version=N`) también.
+- **Relaciones:** `POST /api/docs/documents/{id}/relations { baseVersion, add?, remove?, sessionId? }` →
+  comando `documents.{id}.relations.update { baseVersion, add?, remove?, sessionId?, actor }` (sin `via` ni
+  `checksum`); `200 { id, version, relations, warnings? }`. Errores: 409 `version_conflict` /
+  `document_locked` (con `details.holderName`), 400 `invalid_relation`.
+- **Sugeridas:** `GET /api/docs/documents/{id}/suggested-relations` → `documents.suggest-relations { id,
+  actor }`; `200 { items: [{ projectId, clientId, score, reason, projectName, projectCode, clientName }] }`
+  con los nombres desde la base.
 
 ---
 
@@ -201,8 +229,8 @@ Al entrar en edición la web genera un `sessionId` (ULID) **nuevo** y toma la re
 
 Cada **60 s** (`RENEW_INTERVAL_MS = 60_000`) la web repite el mismo `POST .../lock` con el
 **mismo `sessionId`**. Si la renovación falla, la fase pasa a `lost` y la interfaz lo avisa; si el
-error es `document_locked`, se muestra quién tiene la reserva (`details.holder`, `details.via`,
-`details.expiresAt`, verbatim).
+error es `document_locked`, se muestra quién tiene la reserva (`details.holder`, `details.holderName`,
+`details.via`, `details.expiresAt`, verbatim).
 
 ---
 
@@ -318,8 +346,8 @@ no busca, no comparte.
 
 | Operación | Endpoint | Detalle |
 |---|---|---|
-| Listar | `GET /api/opus/docs/documents` | Query `projectId` **o** `requirementId` (uno solo); `limit`, `cursor`. Cadena: `requireModule` → `hasAnyRole(['external-user','admin','user'])` → forma → `loadDocsScope` → `validateProjectPermissions` → `validateRequirementIsPublic` (solo si filtra por requisito) → handler. **`filter.visibility: 'public'` lo fuerza el handler**; la query no puede pisarlo |
-| Detalle | `GET /api/opus/docs/documents/{id}` | `documents.get { id, include: ['content','attachments'] }`; **404 `document_not_found` si `visibility !== 'public'`** (falla cerrado) |
+| Listar | `GET /api/opus/docs/documents` | Query `projectId` **o** `requirementId` (uno solo); `limit`, `cursor`. Cadena: `requireModule` → `hasAnyRole(['external-user','admin','user'])` → forma → `loadDocsScope` → `validateProjectPermissions` → `validateRequirementIsPublic` (solo si filtra por requisito) → handler. **`filter.visibility: 'public'` lo fuerza el handler**; la query no puede pisarlo. Lista y detalle piden `fields: ['id','title','version','visibility','createdAt','updatedAt']`: **sin `path`, `folderId` ni `fileName`** (`visibility` tiene que estar, o DD-3 respondería 404 siempre) |
+| Detalle | `GET /api/opus/docs/documents/{id}` | `documents.get { id, include: ['content','attachments'], fields }`; **404 `document_not_found` si `visibility !== 'public'`** (falla cerrado) |
 | Adjunto | `GET /api/opus/docs/documents/{documentId}/attachments/{id}` | `documents.get { id: documentId, include: ['attachments'] }`; **404 `document_not_found` si `visibility !== 'public'`** (todo rol, también `admin`/`user`); **404 `attachment_not_found` si `id` no está en `attachments[].id`**; recién entonces `attachments.{id}.request-download` → 302 a la URL prefirmada |
 
 Los adjuntos se enlazan por el handler propio
@@ -365,9 +393,13 @@ traducir y `details` verbatim (la clave no existe si no viene). Mapa completo en
 | 1-9 | jiku-docs no contestó a tiempo | 504 | `{ "code": "gateway_timeout" }` | Sin reintento en escrituras (pudo aplicarse) |
 | 1-9 | Sin identidad verificada | 401 | `{ "code": "unauthorized" }` | **Falla cerrado, sin publicar**: sin `actor` jiku-docs trataría la llamada como el propio servicio |
 | 2-9 | Id de path malformado | 404 | `*_not_found` | No llama al bus |
-| 1-8 | Sin permiso sobre la carpeta | 403 | `{ "code": "permission_denied" }` | La web lo muestra como error de permiso; al guardar pasa el editor a solo lectura |
+| 1-8 | Sin permiso sobre el documento | 403 | `{ "code": "permission_denied" }` | La web lo muestra como error de permiso; al guardar pasa el editor a solo lectura |
+| 2 | Versión pedida compactada (también en `restore`) | 404 | `{ "code": "version_pruned", "details": { "requestedVersion", "previousAvailable", "nextAvailable" } }` | La web ofrece las versiones disponibles más cercanas |
+| 2b | `visibility: restricted` de un `user` en el alta | 403 | `{ "code": "permission_denied" }` | Error en el alta |
+| 2c | Relación inválida | 400 | `{ "code": "invalid_relation" }` | Mensaje en el buscador |
+| 1 | Filtros combinados inválidos (`myActiveProjects` + `projectId`, listas largas) | 400 | `{ "code": "invalid_fields" }` | Sin llamar al bus |
 | 5 | Otra persona guardó antes | 409 | `{ "code": "version_conflict", "details": { "currentVersion": N } }` | La web **conserva el texto de la persona**, trae la versión actual, avisa quién guardó y nunca reintenta sola: la persona decide guardar sobre la versión actual |
-| 3, 5 | Reserva en poder de otra sesión | 409 | `{ "code": "document_locked", "details": { "holder", "via", "expiresAt" } }` | La web muestra quién tiene la reserva; no se pierde el texto |
+| 3, 5 | Reserva en poder de otra sesión | 409 | `{ "code": "document_locked", "details": { "holder", "holderName", "via", "expiresAt" } }` | La web muestra quién tiene la reserva; no se pierde el texto |
 | 4 | La renovación falla (reserva vencida o tomada por otra sesión, u otro error) | 409 u otro | `document_locked` con `details`, u otro código | La fase pasa a `lost`; el texto sigue en el editor |
 | 3-5 | Alta con nombre repetido, o nombre inválido | 409 / 400 | `already_exists` / `file_name_invalid` | Error junto al campo en el alta |
 | 5 | Frontmatter o vínculo inválido | 400 | `frontmatter_invalid` / `invalid_relation` | Mensaje bajo el editor |
@@ -402,6 +434,7 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
 - **El alta sin `id` no es idempotente:** si la api genera el ULID y el cliente reintenta tras un
   504, se crea un documento nuevo. Los documentos de más de 256 KiB no se crean ni editan por HTTP
   (no hay `contentUploadId`).
+- **jiku-docs >= 1.3.0** (REQ-021 / S-094): los filtros nuevos y el alta sin carpeta no existen en versiones anteriores (`invalid_fields`). No hay chequeo en runtime.
 - **Fuera de la interfaz** aunque la api los expone: historial (`GET .../versions`), mover,
   restaurar y borrar documentos. La administración de carpetas y ACL no está en este producto
   (jiku-go). opus-web no edita, no busca y no comparte.
@@ -419,4 +452,4 @@ Markdown. El usuario del portal ve los documentos `public` de su proyecto o requ
 
 **Origen:** REQ-016 · stories S-077 (cliente de módulos), S-078 y S-079 (rutas de lectura y
 escritura de la api), S-081 (panel y visor de web), S-082 (editor con reserva, carpetas, búsqueda y
-adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON) · REQ-019 · S-089 (`actor` completo hacia jiku-docs) · S-090 (enlaces entre documentos como texto y aviso "sin acceso" en el portal).
+adjuntos), S-084 (opus-web), S-085 (esta documentación) · REQ-017 · S-087 (adjunto del portal bajo su documento) · S-088 (413 en JSON) · REQ-019 · S-089 (`actor` completo hacia jiku-docs) · S-090 (enlaces entre documentos como texto y aviso "sin acceso" en el portal) · REQ-021 · S-094 (jiku-docs 1.3.0: filtros, `*Refs`, relaciones, alta sin carpeta, portal sin ruta). El buscador: [`buscador-de-documentacion`](buscador-de-documentacion.md).

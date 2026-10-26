@@ -16,7 +16,7 @@ const CONTENT_SUM = 'sha256:56ef0169a0ce1c72ce999efd5044f748c00da07d58ec73958f2b
 const ACTOR = { actor: expectedActor('token_01_user') };
 const URL = '/api/docs/documents';
 const BODY = { folderId: FOLDER_ID, fileName: 'acta.md', content: CONTENT };
-const OK = { id: DOC_ID, version: 1, path: '/clientes/acme/acta.md' };
+const OK = { id: DOC_ID, version: 1, path: '/clientes/acme/acta.md', folderId: FOLDER_ID, fileName: 'acta.md' };
 
 describe('POST /api/docs/documents (S-079)', () => {
   let application: Application;
@@ -84,10 +84,10 @@ describe('POST /api/docs/documents (S-079)', () => {
 
   it('S-079 · TS-6: body inválido', async () => {
     await docsAvailable();
-    const { folderId, fileName, content } = BODY;
+    const { folderId, fileName } = BODY;
     const bad: any[] = [
-      { fileName, content }, { ...BODY, folderId: 'abc' }, { folderId, content }, { ...BODY, fileName: '' },
-      { folderId, fileName }, { ...BODY, content: 123 }, { ...BODY, id: 'abc' }, { ...BODY, checksum: CONTENT_SUM },
+      { ...BODY, folderId: 'abc' }, { ...BODY, fileName: '' }, { folderId, fileName }, {},
+      { fileName: 123, content: 'x' }, { ...BODY, content: 123 }, { ...BODY, id: 'abc' }, { ...BODY, checksum: CONTENT_SUM },
       { ...BODY, via: 'agent' }, { ...BODY, contentUploadId: DOC_ID }, { ...BODY, foo: 1 },
     ];
     for (const body of bad) {
@@ -97,6 +97,30 @@ describe('POST /api/docs/documents (S-079)', () => {
       res.body.message.should.startWith('Invalid field - ');
     }
     fakeBus.moduleSent.length.should.equal(0);
+  });
+
+  it('S-094 · TS-29/30: alta sin carpeta ni nombre y con ellos', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.new', success(OK));
+    const content = '---\ntitle: Acta\nvisibility: internal\njiku:\n  clients: [4]\n  projects: [12]\n---\n\n# Acta\n';
+    const res = await post({ content });
+    res.status.should.equal(201);
+    res.body.folderId.should.equal(FOLDER_ID);
+    res.body.fileName.should.equal('acta.md');
+    const payload = fakeBus.lastModule!.payload as any;
+    Object.keys(payload).sort().should.deepEqual(['actor', 'checksum', 'content', 'id', 'via']);
+    payload.checksum.should.match(/^sha256:/);
+    payload.actor.should.deepEqual(expectedActor('token_01_user'));
+    await post(BODY);
+    (fakeBus.lastModule!.payload as any).should.containEql({ folderId: FOLDER_ID, fileName: 'acta.md' });
+  });
+
+  it('S-094 · TS-31: restricted de un user -> permission_denied del servicio', async () => {
+    await docsAvailable();
+    fakeBus.moduleReply('documents.new', failure('permission_denied', 'Solo admin puede usar restricted'));
+    const res = await post({ content: '---\ntitle: Secreto\nvisibility: restricted\n---\n' });
+    res.status.should.equal(403);
+    res.body.should.deepEqual({ code: 'permission_denied', message: 'Solo admin puede usar restricted' });
   });
 
   it('S-079 · TS-7: errores de jiku-docs sin traducir', async () => {

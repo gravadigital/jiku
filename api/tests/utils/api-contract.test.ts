@@ -114,12 +114,12 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
   });
 
   // S-078 · TS-47: el par propio de las rutas de módulo (su texto no describe a core).
-  it('S-078 · TS-47 (S-079: 23/23): las rutas de módulo declaran el par 503/504 de módulo', () => {
+  it('S-078 · TS-47 (S-079: 23/23; S-094: 26/26): las rutas de módulo declaran el par 503/504 de módulo', () => {
     const unavailable = countLinesWith(MODULE_UNAVAILABLE_REF);
     const timeout = countLinesWith(MODULE_GATEWAY_TIMEOUT_REF);
 
     unavailable.should.equal(timeout);
-    unavailable.should.equal(23);
+    unavailable.should.equal(26); // S-094: + relations, suggested-relations, suggestions
   });
 
   // TS-22: ninguna clave '503' o '504' apunta a otro componente. Es lo que impide que una
@@ -301,7 +301,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   it('S-078 · TS-46: las once rutas de documentación declaran x-jiku-module y roles', () => {
     const spec = readFileSync(SPEC_PATH, 'utf8');
     const internal = ['/docs/documents', '/docs/documents/{id}', '/docs/documents/{id}/versions', '/docs/search',
-      '/docs/topics', '/docs/folders', '/docs/folders/{id}', '/docs/attachments/{id}'];
+      '/docs/documents/{id}/suggested-relations', '/docs/suggestions', '/docs/topics', '/docs/folders', '/docs/folders/{id}', '/docs/attachments/{id}'];
     const portal = ['/opus/docs/documents', '/opus/docs/documents/{id}',
       '/opus/docs/documents/{documentId}/attachments/{id}'];
     // S-087: la ruta vieja del adjunto del portal ya no se declara.
@@ -333,12 +333,13 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     spec.should.match(/\n {4}ModulesResponse:/);
   });
 
-  it('S-079 · TS-47: las doce rutas de escritura declaran el módulo, roles, 409 (solo donde el contrato de jiku-docs lo produce) y el par 503/504', () => {
+  it('S-079 · TS-47: las trece rutas de escritura declaran el módulo, roles, 409 (solo donde el contrato de jiku-docs lo produce) y el par 503/504', () => {
     const spec = readFileSync(SPEC_PATH, 'utf8');
     const ops: Array<[string, string, boolean]> = [
       ['/docs/documents', 'post', true], ['/docs/documents/{id}', 'put', true], ['/docs/documents/{id}', 'delete', true],
       ['/docs/documents/{id}/move', 'post', true], ['/docs/documents/{id}/restore', 'post', true],
       ['/docs/documents/{id}/lock', 'post', true], ['/docs/documents/{id}/unlock', 'post', true],
+      ['/docs/documents/{id}/relations', 'post', true], // S-094
       ['/docs/attachments', 'post', true], ['/docs/attachments/{id}/confirm', 'post', false],
       ['/docs/documents/{id}/shares', 'get', false], ['/docs/documents/{id}/shares', 'post', true],
       ['/docs/shares/{id}', 'delete', false],
@@ -372,8 +373,8 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     block.should.match(/holder: /);
     block.should.match(/via: human/);
     block.should.match(/expiresAt: /);
-    // S-088: el encabezado cuenta operaciones: 89 (72 internas, 15 del portal, 2 públicas).
-    spec.should.match(/las 89 operaciones/);
+    // S-088: el encabezado cuenta operaciones: 92 desde S-094 (75 internas, 15 del portal, 2 públicas).
+    spec.should.match(/las 92 operaciones/);
     spec.should.match(/cinco métodos/);
   });
 
@@ -423,12 +424,12 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
       block.should.match(/X-Robots-Tag: noindex/, name);
     });
     spec.should.match(/idéntica para cualquier causa/);
-    spec.should.match(/las 89 operaciones/);
+    spec.should.match(/las 92 operaciones/);
     spec.should.not.match(/no queda una sola operación con `security: \[\]`/);
     // Los 503 de las rutas públicas no cuentan en los pares de core ni de módulo.
     const count = (needle: string) => spec.split('\n').filter((l) => l.includes(needle)).length;
-    count("'503': { $ref: '#/components/responses/ModuleUnavailable' }").should.equal(23);
-    count("'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }").should.equal(23);
+    count("'503': { $ref: '#/components/responses/ModuleUnavailable' }").should.equal(26); // S-094
+    count("'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }").should.equal(26);
     count("'503': { $ref: '#/components/responses/BusUnavailable' }").should.equal(28);
     count("'504': { $ref: '#/components/responses/GatewayTimeout' }").should.equal(28);
   });
@@ -439,26 +440,27 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     ['/docs/documents/{id}/lock', 'post'], ['/docs/documents/{id}/unlock', 'post'],
     ['/docs/attachments', 'post'], ['/docs/attachments/{id}/confirm', 'post'],
     ['/docs/documents/{id}/shares', 'post'],
+    ['/docs/documents/{id}/relations', 'post'], // S-094
   ];
 
   it('S-088 · TS-9 (CA-1): el encabezado coincide con las operaciones declaradas', () => {
     const spec = readFileSync(SPEC_PATH, 'utf8');
     const operations = spec.split('\n').filter((l) => /^    (get|post|put|delete|patch):$/.test(l)).length;
-    operations.should.equal(89);
+    operations.should.equal(92); // S-094: + 3 rutas de documentación
     const header = /las (\d+) operaciones/.exec(spec);
     (header !== null).should.be.true('el encabezado no dice "las N operaciones"');
     Number(header![1]).should.equal(operations);
     spec.should.not.match(/los 88 endpoints/);
   });
 
-  it('S-088 · TS-10/TS-11/TS-12 (CA-2): las nueve escrituras declaran 413 y el componente PayloadTooLarge', () => {
+  it('S-088 · TS-10/TS-11/TS-12 (CA-2): las diez escrituras declaran 413 y el componente PayloadTooLarge', () => {
     const spec = readFileSync(SPEC_PATH, 'utf8');
     const line = "'413': { $ref: '#/components/responses/PayloadTooLarge' }";
     WRITES_413.forEach(([name, verb]) => {
       operation(spec, name, verb).should.containEql(line);
     });
-    spec.split('\n').filter((l) => l.includes(line)).length.should.equal(9);
-    (spec.match(/'413':/g) || []).length.should.equal(9);
+    spec.split('\n').filter((l) => l.includes(line)).length.should.equal(10); // S-094: + relations
+    (spec.match(/'413':/g) || []).length.should.equal(10);
     const start = spec.indexOf('\n    PayloadTooLarge:');
     start.should.be.above(-1, 'components no declara PayloadTooLarge');
     const rest = spec.slice(start + 1);
@@ -476,6 +478,6 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     const codes = (block.match(/^\s+'(\d{3})':/gm) || []).map((l) => l.trim().slice(1, 4));
     codes.should.deepEqual(['200', '401', '403', '404', '500', '503', '504']);
     spec.split('\n').filter((l) => l.includes("'400': { $ref: '#/components/responses/ModuleBadRequest' }"))
-      .length.should.equal(18);
+      .length.should.equal(21); // S-094: + relations, suggested-relations, suggestions
   });
 });

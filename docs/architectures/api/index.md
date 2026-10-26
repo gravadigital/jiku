@@ -8,7 +8,7 @@ módulo opcional de documentación (jiku-docs) instalado, también lee y escribe
 bus** en nombre de la persona ([ADR-015](../../adrs/ADR-015-modulos-opcionales-del-bus.md)).
 
 - **Tipo:** api · **Lenguaje:** node (TypeScript) · **Path:** `api/`
-- **Expone:** 89 operaciones (`docs/apis/api.yaml`) — 72 internas bajo `/api`, 15 del portal en `/api/opus/*` y 2 públicas en `/p/docs/*` (en la raíz, host propio)
+- **Expone:** 92 operaciones (`docs/apis/api.yaml`) — 75 internas bajo `/api`, 15 del portal en `/api/opus/*` y 2 públicas en `/p/docs/*` (en la raíz, host propio)
 - **Consume:** PostgreSQL (solo lectura), NATS (→ core; → jiku-docs, **opcional**, descubierto por el KV `JIKU_MODULES`), Zitadel, storage S3-compatible
 
 ## Documentos
@@ -94,7 +94,7 @@ Los módulos no son carpetas: son **grupos de archivos de ruta con un prefijo co
 | Documento | Contenido |
 |---|---|
 | [../../analysis/services/api.md](../../analysis/services/api.md) | Análisis de importación |
-| [../../apis/api.yaml](../../apis/api.yaml) | OpenAPI 3.0 — las 89 operaciones |
+| [../../apis/api.yaml](../../apis/api.yaml) | OpenAPI 3.0 — las 92 operaciones |
 | [../../apis/core.yaml](../../apis/core.yaml) | AsyncAPI del bus — el otro lado de cada comando |
 | [../../apis/jiku-modules.yaml](../../apis/jiku-modules.yaml) | Contrato del registro `JIKU_MODULES` (descubrimiento de módulos) |
 | [../../adrs/ADR-015-modulos-opcionales-del-bus.md](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Decisión de los módulos opcionales del bus y la segunda excepción a ADR-001 |

@@ -81,6 +81,9 @@ export { default as DocsDocumentsIdLockPost } from './docs-documents-id-lock-pos
 export { default as DocsDocumentsIdUnlockPost } from './docs-documents-id-unlock-post';
 export { default as DocsAttachmentsPost } from './docs-attachments-post';
 export { default as DocsAttachmentsIdConfirmPost } from './docs-attachments-id-confirm-post';
+export { default as DocsDocumentsIdRelationsPost } from './docs-documents-id-relations-post';
+export { default as DocsDocumentsIdSuggestedRelationsGet } from './docs-documents-id-suggested-relations-get';
+export { default as DocsSuggestionsGet } from './docs-suggestions-get';
 export { default as DocsDocumentsIdSharesGet } from './docs-documents-id-shares-get';
 export { default as DocsDocumentsIdSharesPost } from './docs-documents-id-shares-post';
 export { default as DocsSharesIdDelete } from './docs-shares-id-delete';

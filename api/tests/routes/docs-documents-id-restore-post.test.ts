@@ -35,6 +35,15 @@ describe('POST /api/docs/documents/:id/restore (S-079)', () => {
     fakeBus.lastModule!.payload.should.deepEqual({ ...BODY, ...ACTOR });
   });
 
+  it('S-094 · TS-27: version_pruned responde 404 con details', async () => {
+    await docsAvailable();
+    const details = { requestedVersion: 7, previousAvailable: 5, nextAvailable: 9 };
+    fakeBus.moduleReply(METHOD, failure('version_pruned', 'x', details));
+    const res = await call({ fromVersion: 7, baseVersion: 10 });
+    res.status.should.equal(404);
+    res.body.should.deepEqual({ code: 'version_pruned', message: 'x', details });
+  });
+
   it('S-079 · TS-24: inválido y bloqueado', async () => {
     await docsAvailable();
     for (const body of [{ baseVersion: 7 }, { fromVersion: 0, baseVersion: 7 }]) {

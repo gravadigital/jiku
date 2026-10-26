@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-26
-stories: [S-075, S-079, S-080, S-083, S-085, S-089, S-091]
+stories: [S-075, S-079, S-080, S-083, S-085, S-089, S-091, S-094]
 ---
 
 # Lectura por Link Compartido — Creación del Link en la Web y Lectura Anónima por el Host Público
@@ -14,7 +14,7 @@ stories: [S-075, S-079, S-080, S-083, S-085, S-089, S-091]
 **Status:** Draft
 **Creado:** 2026-10-24
 **Última actualización:** 2026-10-26
-**Stories:** S-075, S-079, S-080, S-083, S-085, S-089, S-091
+**Stories:** S-075, S-079, S-080, S-083, S-085, S-089, S-091, S-094
 
 ## Descripción
 
@@ -262,7 +262,7 @@ responde **302** a `downloadUrl` con `X-Content-Type-Options: nosniff` y las cin
 | Paso | Error | Código | Response | Comportamiento |
 |------|-------|--------|----------|---------------|
 | 1 | `JIKU_PUBLIC_URL` sin definir | 404 | `{ "code": "sharing_not_configured", "message": "Los links compartidos no están configurados" }` | La web invalida `['modules']` y avisa que compartir no está habilitado |
-| 1 | Carpeta con compartir bloqueado | 403 | `{ "code": "sharing_blocked" }` | El diálogo muestra el estado bloqueado |
+| 1 | Carpeta con compartir bloqueado, o documento `restricted` (jiku-docs 1.3.0) | 403 | `{ "code": "sharing_blocked" }` | El diálogo muestra el estado bloqueado |
 | 1 | Documento con posible secreto | 400 | `{ "code": "secret_warning_not_acknowledged" }` | Confirmación y reenvío con `acknowledgeSecretWarning: true` |
 | 1 | Vencimiento fuera de rango | 400 | `{ "code": "share_expiry_invalid" }` | Error junto al campo (7 a 180 días) |
 | 1 | Sin permiso | 403 | `{ "code": "permission_denied" }` | Aviso en el diálogo |
@@ -292,6 +292,7 @@ documento si las incluye el link.
 
 ## Notas
 
+- **`restricted` (REQ-021 / S-094):** un documento `restricted` no admite links (`sharing_blocked`); pasar un documento a `restricted` revoca los links activos (`revokeReason: restricted`), y `shares.resolve` de un `restricted` responde `share_not_found`, que la api muestra como la misma página 404. Sin cambios de código.
 - **El 404 es uno solo.** Revocado, vencido, inexistente, host equivocado, token mal formado y
   `JIKU_PUBLIC_URL` sin configurar se ven idénticos: la página no revela si un link existió.
 - **Página e imágenes comparten el cupo de 60/min:** un documento con más de ~59 imágenes agota el

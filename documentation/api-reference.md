@@ -1,6 +1,6 @@
 # HTTP API reference
 
-The 89 endpoints the API serves, generated from the route definitions. For the bus contract
+The 92 endpoints the API serves, generated from the route definitions. For the bus contract
 behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
 
 ## How authentication works
@@ -186,6 +186,8 @@ that the response is `413 payload_too_large`.
 | PUT    | `/api/docs/documents/:id`           | user, admin                | ●   |
 | DELETE | `/api/docs/documents/:id`           | user, admin                | ●   |
 | GET    | `/api/docs/documents/:id/versions`  | user, admin                | ●   |
+| POST   | `/api/docs/documents/:id/relations` | user, admin                | ●   |
+| GET    | `/api/docs/documents/:id/suggested-relations` | user, admin      | ●   |
 | POST   | `/api/docs/documents/:id/move`      | user, admin                | ●   |
 | POST   | `/api/docs/documents/:id/restore`   | user, admin                | ●   |
 | POST   | `/api/docs/documents/:id/lock`      | user, admin                | ●   |
@@ -194,6 +196,7 @@ that the response is `413 payload_too_large`.
 | POST   | `/api/docs/documents/:id/shares`    | user, admin                | ●   |
 | DELETE | `/api/docs/shares/:id`              | user, admin                | ●   |
 | GET    | `/api/docs/search`                  | user, admin                | ●   |
+| GET    | `/api/docs/suggestions`             | user, admin                | ●   |
 | GET    | `/api/docs/topics`                  | user, admin                | ●   |
 | GET    | `/api/docs/folders`                 | user, admin                | ●   |
 | GET    | `/api/docs/folders/:id`             | user, admin                | ●   |
