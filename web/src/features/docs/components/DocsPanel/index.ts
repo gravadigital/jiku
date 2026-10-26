@@ -1,2 +1,2 @@
 export { DocsPanel } from './DocsPanel';
-export type { DocsScope } from './DocsPanel';
+export type { DocsCardContext, DocsScope } from './DocsPanel';

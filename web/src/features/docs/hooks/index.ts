@@ -1,5 +1,5 @@
 export { useModules, useModule } from './useModules';
-export { useDocuments } from './useDocuments';
+export { useDocsCard } from './useDocsCard';
 export { useDocument } from './useDocument';
 export { useDocumentVersions } from './useDocumentVersions';
 export { useRestoreVersion } from './useRestoreVersion';

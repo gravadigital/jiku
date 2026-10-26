@@ -25,8 +25,12 @@ const baseObjective = {
 
 // La card de documentación tiene sus propios tests (features/docs); acá solo importa dónde se monta.
 vi.mock('@/features/docs', () => ({
-  DocsPanel: ({ scope }: { scope: object }) => (
-    <section aria-label="docs-panel" data-scope={JSON.stringify(scope)} />
+  DocsPanel: ({ scope, context }: { scope: object; context?: object }) => (
+    <section
+      aria-label="docs-panel"
+      data-scope={JSON.stringify(scope)}
+      data-context={JSON.stringify(context)}
+    />
   ),
 }));
 
@@ -68,6 +72,10 @@ describe('ObjectiveDetail — TS-98/S-060: cabecera migrada a ViewHeader', () =>
     const history = screen.getByText('historial');
 
     expect(docs).toHaveAttribute('data-scope', JSON.stringify({ taskId: 7 }));
+    expect(docs).toHaveAttribute(
+      'data-context',
+      JSON.stringify({ projectId: 7, title: 'Migrar el header a ViewHeader' })
+    );
     expect(details.compareDocumentPosition(docs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(docs.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

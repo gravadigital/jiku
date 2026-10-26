@@ -34,8 +34,12 @@ vi.mock('@/features/attachments/components/MarkdownViewer', () => ({
 
 // La card de documentación tiene sus propios tests (features/docs); acá solo importa dónde se monta.
 vi.mock('@/features/docs', () => ({
-  DocsPanel: ({ scope }: { scope: object }) => (
-    <section aria-label="docs-panel" data-scope={JSON.stringify(scope)} />
+  DocsPanel: ({ scope, context }: { scope: object; context?: object }) => (
+    <section
+      aria-label="docs-panel"
+      data-scope={JSON.stringify(scope)}
+      data-context={JSON.stringify(context)}
+    />
   ),
 }));
 
@@ -146,8 +150,14 @@ describe('RequirementDetail', () => {
     const resolution = screen.getByRole('heading', { name: /Resolución/ });
 
     expect(docs).toHaveAttribute('data-scope', JSON.stringify({ requirementId: 5 }));
+    expect(docs).toHaveAttribute(
+      'data-context',
+      JSON.stringify({ projectId: 1, title: 'Req test' })
+    );
     expect(tags.compareDocumentPosition(docs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(docs.compareDocumentPosition(resolution) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      docs.compareDocumentPosition(resolution) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   // El handoff de identidad fija el layout de detalle en minmax(560px, 1fr) + aside de 380px
@@ -223,9 +233,9 @@ describe('RequirementDetail', () => {
   it('TS-19: el orden de los títulos de card en la columna derecha es el esperado (S-045)', () => {
     render(<RequirementDetail requirement={baseRequirement} />, { wrapper: createWrapper() });
 
-    const rightColumn = screen.getByText('Información General').closest(
-      '[class*="rightColumn"]'
-    ) as HTMLElement;
+    const rightColumn = screen
+      .getByText('Información General')
+      .closest('[class*="rightColumn"]') as HTMLElement;
     // S-057: `RequirementResolutionCard` migró al componente `Card` del DS, cuyo título
     // resuelve a `[class*="title"]` (un heading), no al `[class*="cardTitle"]` que todavía
     // usan sus hermanas sin migrar (Task 7). Se combinan ambos selectores, en orden de DOM.
@@ -524,9 +534,7 @@ describe('RequirementDetail', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Página 3' }));
 
-        expect(() =>
-          changePageSize(10)
-        ).not.toThrow();
+        expect(() => changePageSize(10)).not.toThrow();
 
         expect(screen.getByText('Obj 1')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute(

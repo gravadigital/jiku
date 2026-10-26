@@ -1,28 +1,59 @@
 @use '@/styles' as *;
 
-.content {
+.cardTitle {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-4);
-  width: 100%;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--text-card-title-family);
+  font-size: var(--text-card-title-size);
+  font-weight: var(--text-card-title-weight);
 }
 
-.titleCell {
+.count {
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+// Navegación, no acción: es un enlace con los tokens visuales de `Button` `secondary-nav`.
+.seeAll {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.titleLink {
-  color: var(--text-primary);
-  font-weight: var(--text-table-data-weight);
+  gap: var(--space-1);
+  height: var(--button-height);
+  padding: 0 var(--space-4);
+  border: var(--button-secondary-border-width) solid var(--button-secondary-border-nav);
+  border-radius: var(--button-radius);
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  font-family: var(--button-font);
+  font-size: var(--text-body-default-size);
   text-decoration: none;
 
   &:hover {
-    color: var(--text-link);
-    text-decoration: underline;
+    background-color: var(--bg-surface-sunken);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--button-focus);
+  }
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  > li + li {
+    border-top: 1px solid var(--border-default, var(--bg-surface-sunken));
   }
 }
 

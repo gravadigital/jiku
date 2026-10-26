@@ -214,9 +214,7 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
                   columns={OBJ_COLUMNS}
                   rows={objRows}
                   ariaLabel="Tabla de tareas"
-                  emptyState={
-                    <EmptyState variant="filtered" message="Sin tareas en esta etapa" />
-                  }
+                  emptyState={<EmptyState variant="filtered" message="Sin tareas en esta etapa" />}
                 />
                 <div className={styles.paginationRow}>
                   <Pagination
@@ -238,7 +236,10 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
           {/* Card: Actividad */}
           <Card variant="panel" title="Actividad" headingLevel="h2">
             <div className={styles.activityScroll}>
-              <RequirementActivityFeed activity={requirement.activity ?? []} reqid={requirement.id} />
+              <RequirementActivityFeed
+                activity={requirement.activity ?? []}
+                reqid={requirement.id}
+              />
             </div>
             <RequirementActivityForm reqid={requirement.id} />
           </Card>
@@ -349,7 +350,10 @@ export function RequirementDetail({ requirement }: RequirementDetailProps) {
           </Card>
 
           {/* Card: Documentación (REQ-016, solo con el módulo instalado) */}
-          <DocsPanel scope={{ requirementId: requirement.id }} />
+          <DocsPanel
+            scope={{ requirementId: requirement.id }}
+            context={{ projectId: requirement.projectId, title: requirement.title }}
+          />
 
           {/* Card: Resolución */}
           <RequirementResolutionCard

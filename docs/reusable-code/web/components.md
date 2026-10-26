@@ -1010,17 +1010,27 @@ export default function ErrorPage({ error }: { readonly error: CustomError }) {
 
 **Location:** `web/src/features/docs/components/DocsPanel/DocsPanel.tsx`
 
-**Description:** "Documentación" card for the project, requirement and task detail screens. Lists linked documents (title link to `/docs/{id}`, folder path, `DD/MM/AAAA` date, "En edición" mark for a live lock) with cursor "Ver más". Renders `null` when the docs module is `not_installed`.
+**Description:** "Documentación" card for the project, requirement and task detail screens. Header with the count (`page.total`, or "N+"), a "+" that opens `NewDocumentDialog` with the ficha's relations preloaded, and a "Ver todos ›" link to `/docs?proyecto|requisito|tarea={id}&origen=…`; up to 5 `DocumentRowCompact` rows from a single `useDocsCard` query. Renders `null` when the docs module is `not_installed`; shows the unavailable notice (and a disabled "+") when `unavailable` or on query error.
 
-**Signature:** `DocsPanel({ scope }: { scope: { projectId: number } | { requirementId: number } | { taskId: number } })`
+**Signature:** `DocsPanel({ scope, context? }: { scope: DocsScope; context?: DocsCardContext })` where `DocsScope = { projectId } | { requirementId } | { taskId }` and `DocsCardContext = { clientId?, projectId?, title? }`
 
 **Usage:**
 
 ```tsx
 import { DocsPanel } from '@/features/docs';
 
-<DocsPanel scope={{ projectId: Number(id) }} />
+<DocsPanel scope={{ requirementId: requirement.id }} context={{ projectId: requirement.projectId, title: requirement.title }} />
 ```
+
+## DocumentRowCompact
+
+**Location:** `web/src/features/docs/components/DocumentRowCompact/DocumentRowCompact.tsx`
+
+**Description:** Compact `<li>` row of the documentation cards: file icon, title link to `/docs/{id}` (whole row clickable), mono date on the right and, below, topics or "Sin tema" plus the optional "vinculado, sin proyecto propio" mark. No path, no lock badge. Grid with `minmax(0, 1fr)` so long titles wrap instead of overflowing a 420 px card.
+
+**Signature:** `DocumentRowCompact({ doc, showIndirect? }: { doc: Pick<DocsDocument, 'id' | 'title' | 'updatedAt' | 'topics' | 'projectMatch'>; showIndirect?: boolean })`
+
+**Usage:** `<ul><DocumentRowCompact doc={doc} showIndirect /></ul>`
 
 ## DocsNotice
 

@@ -36,7 +36,7 @@ describe('useCreateDocument (TS-37)', () => {
       await result.current.mutateAsync({ id: ID, content: 'x' });
     });
     await waitFor(() => expect(result.current.data).toEqual({ id: ID, version: 1 }));
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'documents'] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'search'] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'topics'] });
@@ -70,7 +70,7 @@ describe('useSaveDocument (TS-38)', () => {
     });
     expect(updateDocument).toHaveBeenCalledWith(ID, payload);
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-document', ID] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ['docs', 'topics'] });
     expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-folder-contents'] });
   });

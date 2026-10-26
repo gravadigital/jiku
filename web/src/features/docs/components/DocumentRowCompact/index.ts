@@ -1,0 +1,1 @@
+export { DocumentRowCompact } from './DocumentRowCompact';

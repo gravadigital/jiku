@@ -263,25 +263,15 @@ const links = parseExternalLinks(process.env.EXTERNAL_LINKS);
 
 **Usage:** `<ReactMarkdown urlTransform={docsUrlTransform} />`
 
-## folderPathOf / displayTitle
+## docsCard
 
-**Location:** `web/src/features/docs/utils/paths.ts`
+**Location:** `web/src/features/docs/utils/docsCard.ts`
 
-**Description:** Folder part of a document path; display title falling back to the file name without `.md`.
+**Description:** Pure helpers of the documentation card: `cardFilters` (query filters per scope, `limit: 5`, `count: true`), `seeAllHref` ("Ver todos" link to the `/docs` search), `cardInitial` (relations preloaded in the new-document dialog, no `undefined` keys) and `countLabel` (`total`, or "N+" with a cursor).
 
-**Signature:** `folderPathOf(path: string): string`, `displayTitle(doc: { title?: string | null; fileName: string }): string`
+**Signature:** `cardFilters(scope: DocsScope): DocumentsFilters`, `seeAllHref(scope: DocsScope): string`, `cardInitial(scope: DocsScope, context?: DocsCardContext): NewDocumentInitial`, `countLabel(page: DocsPageInfo): string`
 
-**Usage:** `folderPathOf('/ops/runbook.md') // '/ops/'`
-
-## personName
-
-**Location:** `web/src/features/docs/utils/persons.ts`
-
-**Description:** Resolves a Zitadel `sub` to `"{firstName} {lastName}"`, or `"otra persona"`.
-
-**Signature:** `personName(persons: readonly Person[] | undefined, sub: string): string`
-
-**Usage:** `personName(persons, doc.updatedBy)`
+**Usage:** `seeAllHref({ projectId: 12 }) // '/docs?proyecto=12&origen=proyecto'`
 
 ## formatDateTime
 

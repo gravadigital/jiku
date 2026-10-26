@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-26
 last_updated: 2026-10-26
-stories: [S-094]
+stories: [S-094, S-098]
 ---
 
 # Buscador de Documentación — Sugerencias, Resultados Filtrados y Asignación de Proyecto
@@ -14,7 +14,7 @@ stories: [S-094]
 **Status:** Draft
 **Creado:** 2026-10-26
 **Última actualización:** 2026-10-26
-**Stories:** S-094
+**Stories:** S-094, S-098
 
 ## Descripción
 
@@ -78,6 +78,11 @@ persona primero con `mine: true`, después los `activo`, después el resto), `cl
 **Response:** `200 { projects, clients, persons, topics }`.
 
 ### Paso 2: resultados filtrados
+
+**Entrada desde una ficha:** el **"Ver todos ›"** de la card de documentación de un proyecto,
+requisito o tarea llega a `/docs?proyecto={id}&origen=proyecto` (o `requisito` / `tarea`); el listado
+pide `GET /api/docs/documents?projectId=12&sort=-updatedAt&limit=20&count=true` y ofrece "Volver" a
+la ficha.
 
 **Request:** `GET /api/docs/documents` con `projectId`/`clientId`/`topic` (listas), `hasProject`,
 `hasClient`, `hasTopic`, `person`, `visibility`, `myActiveProjects`, `count`. Mismo tipo repetido = O,

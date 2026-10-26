@@ -13,7 +13,6 @@ const KEYS = [
   ['docs', 'versions', ID],
   ['docs', 'documents'],
   ['docs', 'search'],
-  ['docs-documents'],
 ];
 
 function setup() {
@@ -37,6 +36,7 @@ describe('useRestoreVersion (TS-17)', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(restoreVersion).toHaveBeenCalledWith(ID, { fromVersion: 5, baseVersion: 6 });
     for (const queryKey of KEYS) expect(spy).toHaveBeenCalledWith({ queryKey });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
 
     spy.mockClear();
     const error = { code: 'version_conflict', message: 'x', status: 409 };
@@ -45,5 +45,6 @@ describe('useRestoreVersion (TS-17)', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toMatchObject({ code: 'version_conflict' });
     for (const queryKey of KEYS) expect(spy).toHaveBeenCalledWith({ queryKey });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ['docs-documents'] });
   });
 });

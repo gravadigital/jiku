@@ -155,17 +155,25 @@ describe('DocsSearchPage', () => {
       },
     });
     renderPage('q=arquitectura');
-    expect(await screen.findByRole('columnheader', { name: 'Documento · 1 de 1' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: 'Documento · 1 de 1' })
+    ).toBeInTheDocument();
     expect(searchDocuments).toHaveBeenCalledWith({ q: 'arquitectura', limit: 50 });
     expect(screen.getByRole('radio', { name: 'Relevancia' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Más recientes' })).toBeInTheDocument();
   });
 
   it('TS-34: listado con conteo y siguiente página', async () => {
-    const items = Array.from({ length: 20 }, (_, i) => ({ ...DOC_A, id: `id${i}`, title: `D${i}` }));
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      ...DOC_A,
+      id: `id${i}`,
+      title: `D${i}`,
+    }));
     vi.mocked(listDocuments).mockResolvedValue(page(items, { cursor: 'c1', total: 45 }));
     renderPage('cliente=4');
-    expect(await screen.findByRole('columnheader', { name: 'Documento · 20 de 45' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('columnheader', { name: 'Documento · 20 de 45' })
+    ).toBeInTheDocument();
     expect(listDocuments).toHaveBeenCalledWith({
       clientId: [4],
       sort: '-updatedAt',
@@ -194,14 +202,21 @@ describe('DocsSearchPage', () => {
       await screen.findByRole('heading', { level: 1, name: 'Documentos · Videoconferencia' })
     ).toBeInTheDocument();
     expect(await screen.findByRole('columnheader', { name: 'Temas' })).toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'Cliente · Proyecto' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('columnheader', { name: 'Cliente · Proyecto' })
+    ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Volver al proyecto/ }));
     expect(push).toHaveBeenCalledWith('/projects/12');
     unmount();
 
-    renderPage('requisito=5&origen=requisito');
+    const second = renderPage('requisito=5&origen=requisito');
     await userEvent.click(await screen.findByRole('button', { name: /Volver al requisito/ }));
     expect(push).toHaveBeenLastCalledWith('/requirements/5');
+    second.unmount();
+
+    renderPage('tarea=7&origen=tarea');
+    await userEvent.click(await screen.findByRole('button', { name: /Volver a la tarea/ }));
+    expect(push).toHaveBeenLastCalledWith('/objectives/7');
   });
 
   it('TS-36: el destino de "Volver" nunca sale de la query', async () => {
@@ -214,7 +229,9 @@ describe('DocsSearchPage', () => {
   it('sin el token de origen no hay botón Volver y el título es "Documentación"', async () => {
     vi.mocked(listDocuments).mockResolvedValue(page([DOC_A], { total: 1 }));
     renderPage('origen=proyecto&tema=video');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Documentación' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Documentación' })
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Volver/ })).not.toBeInTheDocument();
   });
 
@@ -237,7 +254,9 @@ describe('DocsSearchPage', () => {
   it('TS-46: vista sin proyecto', async () => {
     vi.mocked(listDocuments).mockResolvedValue(page([DOC_B], { total: 1 }));
     renderPage('sinProyecto=1');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Sin proyecto' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Sin proyecto' })
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Documentos que todavía no están vinculados a un proyecto/)
     ).toBeInTheDocument();
@@ -260,7 +279,13 @@ describe('DocsSearchPage', () => {
       'La documentación no está disponible en este momento. Probá de nuevo en unos minutos.'
     );
     expect(screen.getByRole('combobox')).toBeDisabled();
-    expect(screen.getAllByRole('radio').every((r) => (r as HTMLInputElement).disabled || r.getAttribute('aria-disabled') === 'true')).toBe(true);
+    expect(
+      screen
+        .getAllByRole('radio')
+        .every(
+          (r) => (r as HTMLInputElement).disabled || r.getAttribute('aria-disabled') === 'true'
+        )
+    ).toBe(true);
     expect(screen.getByRole('button', { name: 'Nuevo documento' })).toBeDisabled();
     expect(screen.queryByRole('radiogroup', { name: 'Ordenar por' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Enter/)).not.toBeInTheDocument();
@@ -306,7 +331,11 @@ describe('DocsSearchPage', () => {
   });
 
   it('con el módulo no instalado no se pinta nada', () => {
-    vi.mocked(useModule).mockReturnValue({ status: 'not_installed', sharing: false, isKnown: false });
+    vi.mocked(useModule).mockReturnValue({
+      status: 'not_installed',
+      sharing: false,
+      isKnown: false,
+    });
     const { container } = renderPage();
     expect(container).toBeEmptyDOMElement();
   });
