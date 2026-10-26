@@ -1056,17 +1056,47 @@ import { DocsPanel } from '@/features/docs';
 
 **Location:** `web/src/features/docs/components/NewDocumentDialog/NewDocumentDialog.tsx`
 
-**Description:** O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title suggests the file name until edited by hand, creates with a client-generated ULID and navigates to `/docs/{id}?editar=1`.
+**Description:** O-11 modal (`<dialog>` + `showModal()`, `ConfirmDialog` frame): title, client, project, free topics and visibility. Builds the frontmatter, creates without folder or file name with a client-generated ULID (reused on retry; `already_exists` with that id counts as success), navigates to `/docs/{id}?editar=1` and closes afterwards.
 
-**Signature:** ``NewDocumentDialog({ open, folder: { id, path }, onClose })``
+**Signature:** ``NewDocumentDialog({ open, initial?: NewDocumentInitial, onClose })`` with ``NewDocumentInitial { clientId?, projectId?, requirement?: { id, title }, task?: { id, title } }``
 
-**Usage:** ``<NewDocumentDialog open={open} folder={folder} onClose={close} />``
+**Usage:** ``<NewDocumentDialog open={open} initial={{ projectId: 12 }} onClose={close} />``
+
+## TopicsInput
+
+**Location:** `web/src/features/docs/components/TopicsInput/TopicsInput.tsx`
+
+**Description:** Free-topics combobox with chips and prefix suggestions (`useTopicSuggestions`). Enter adds the active suggestion or the typed text (normalized, no duplicates); Backspace on an empty field removes the last chip; Escape closes the list only when open.
+
+**Signature:** ``TopicsInput({ value, onChange, label?, placeholder?, disabled? })``
+
+**Usage:** ``<TopicsInput value={topics} onChange={setTopics} />``
+
+## VisibilityField
+
+**Location:** `web/src/features/docs/components/VisibilityField/VisibilityField.tsx`
+
+**Description:** Segmented selector Interno / Visible para el cliente / Restringido with per-option help, an optional link-revocation warning and an error, all tied to the group by `aria-describedby`.
+
+**Signature:** ``VisibilityField({ value, onChange, canRestrict, initialValue?, warnOnRestrict?, error? })``
+
+**Usage:** ``<VisibilityField value={v} onChange={setV} canRestrict={useCanRestrictDocs()} />``
+
+## ClientProjectFields
+
+**Location:** `web/src/features/docs/components/ClientProjectFields/ClientProjectFields.tsx`
+
+**Description:** Client and project selectors for the principal relation; applies `relationFields` rules (project limited to the client, project fills the client, client change clears a foreign project).
+
+**Signature:** ``ClientProjectFields({ value: { clients, projects }, onChange, disabled?, layout?: 'row' | 'stack' })``
+
+**Usage:** ``<ClientProjectFields value={relations} onChange={setRelations} layout="stack" />``
 
 ## DocumentEditor
 
 **Location:** `web/src/features/docs/components/DocumentEditor/DocumentEditor.tsx`
 
-**Description:** Edit mode of `/docs/[id]`: markdown textarea + debounced preview, save with the entry base version (kept in local state), `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
+**Description:** Edit mode of `/docs/[id]`: properties by fields (title, visibility, topics, client, project) plus a markdown textarea over the body (full content when the frontmatter is unreadable), debounced preview, a single save with the entry base version (kept in local state) and an optional version message that protects it, `version_conflict` side-by-side plain-text view, locked/lost notices, O-02 discard confirm, `beforeunload`, attachment insertion at the cursor.
 
 **Signature:** ``DocumentEditor({ doc, session, suppressNotices?, onDone })``
 
@@ -1216,9 +1246,9 @@ import { DocsPanel } from '@/features/docs';
 
 **Location:** `web/src/features/docs/components/ProjectPicker/ProjectPicker.tsx`
 
-**Description:** Single searchable `Select` of projects.
+**Description:** Single searchable `Select` of projects. Optional `emptyLabel` adds a first "none" option (`onClear`), and `onChange` also reports the project's client id.
 
-**Signature:** ``ProjectPicker({ ... })``
+**Signature:** ``ProjectPicker({ value, onChange(id, name, clientId), clientId?, emptyLabel?, onClear?, label?, placeholder?, disabled? })``
 
 **Usage:** used by `AssignProjectAction`
 

@@ -30,7 +30,7 @@ import { DocsNotice } from '../DocsNotice';
 import { DocsResults } from '../DocsResults';
 import { DocsSearchBar, useTokenLabel } from '../DocsSearchBar';
 import { toRowModel, type RowLayout } from '../DocumentRow';
-import { NewDocumentDialog } from '../NewDocumentDialog';
+import { NewDocumentDialog, type NewDocumentInitial } from '../NewDocumentDialog';
 import styles from './DocsSearchPage.module.scss';
 
 const SIN_PROYECTO_SUBTITLE =
@@ -55,6 +55,23 @@ const ORDER_LABELS: Record<DocsOrder, string> = {
 const TEXT_PAGE = 20;
 // Un token cualquiera sin consultas: `useTokenLabel` necesita un token aun sin origen.
 const NO_ORIGIN_TOKEN: DocsToken = { kind: 'sinProyecto' };
+
+// Relaciones del filtro vigente para el alta (REQ-021): el primer proyecto y cliente, y el
+// requisito o la tarea de origen.
+function newDocumentInitial(
+  tokens: readonly DocsToken[],
+  origin: { kind: string; id: number } | null,
+  originName: string
+): NewDocumentInitial | undefined {
+  const initial: NewDocumentInitial = {};
+  const project = tokens.find((t) => t.kind === 'proyecto');
+  const client = tokens.find((t) => t.kind === 'cliente');
+  if (project && 'id' in project) initial.projectId = project.id;
+  if (client && 'id' in client) initial.clientId = client.id;
+  if (origin?.kind === 'requisito') initial.requirement = { id: origin.id, title: originName || null };
+  if (origin?.kind === 'tarea') initial.task = { id: origin.id, title: originName || null };
+  return Object.keys(initial).length > 0 ? initial : undefined;
+}
 
 export function DocsSearchPage() {
   const router = useRouter();
@@ -113,6 +130,8 @@ export function DocsSearchPage() {
 
   const firstClient = state.tokens.find((t) => t.kind === 'cliente');
   const clientIdForSuggestions = firstClient && 'id' in firstClient ? firstClient.id : undefined;
+
+  const initial = newDocumentInitial(state.tokens, view.origin, originName);
 
   const orderOptions: DocsOrder[] =
     view.mode === 'texto' ? ['relevancia', 'recientes'] : ['recientes', 'az'];
@@ -244,7 +263,7 @@ export function DocsSearchPage() {
         />
       )}
 
-      <NewDocumentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <NewDocumentDialog open={dialogOpen} initial={initial} onClose={() => setDialogOpen(false)} />
     </div>
   );
 }

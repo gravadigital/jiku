@@ -87,9 +87,15 @@ function isExcluded(filePath: string): boolean {
  * controles internos del chip, igual que el `chipRemove` del `Select` `multiple`: el DS no
  * tiene un botón de ícono chico. Se excluye sólo de los checks de `<button>`/`<table>`.
  */
+/**
+ * `features/docs/components/TopicsInput` (REQ-021/S-097) es el combobox de temas libres: gap
+ * aceptado del DS (`Select` `multiple` no admite valores nuevos). El `<button>` × de cada chip es
+ * su control interno, igual que en `DocsSearchBar`. Se excluye sólo de los checks de `<button>`/`<table>`.
+ */
 const BUTTON_TABLE_EXCLUDED_DIRS = [
   path.join(WEB_SRC, 'features/attachments'),
   path.join(WEB_SRC, 'features/docs/components/DocsSearchBar'),
+  path.join(WEB_SRC, 'features/docs/components/TopicsInput'),
   path.join(WEB_SRC, 'shared/components/ui'),
 ];
 

@@ -13,6 +13,26 @@ vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
 vi.mock('react-toastify', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
+vi.mock('@/features/clients', () => ({
+  useClients: () => ({
+    data: [
+      { id: 4, name: 'EXO' },
+      { id: 2, name: 'ACME' },
+    ],
+  }),
+}));
+vi.mock('@/features/projects/hooks/useProjects', () => ({
+  useProjects: () => ({
+    data: [
+      { id: 12, name: 'Videoconferencia', client: { id: 4, name: 'EXO' } },
+      { id: 31, name: 'Portal', client: { id: 2, name: 'ACME' } },
+    ],
+  }),
+}));
+vi.mock('../../hooks/useTopicSuggestions', () => ({
+  useTopicSuggestions: () => ({ data: undefined, isFetching: false }),
+}));
+vi.mock('../../hooks/useCanRestrictDocs', () => ({ useCanRestrictDocs: vi.fn(() => false) }));
 vi.mock('../../hooks/useSaveDocument', () => ({ useSaveDocument: vi.fn() }));
 vi.mock('../../hooks/useUploadDocAttachment', () => ({
   useUploadDocAttachment: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
@@ -48,7 +68,7 @@ const CONFLICT = {
 
 const mutate = vi.fn();
 const onDone = vi.fn();
-const textbox = () => screen.getByRole('textbox', { name: 'Contenido (markdown)' });
+const textbox = () => screen.getByRole('textbox', { name: 'Markdown' });
 
 const setup = () => {
   const client = new QueryClient();
@@ -152,6 +172,43 @@ describe('DocumentEditor — conflicto de versión', () => {
       sessionId: '01J9Z3K8M2Q4R6T8V0W2Y4A6E2',
     });
     expect(toast.success).toHaveBeenCalledWith('Guardaste la versión 8.');
+  });
+
+  it('TS-48: compone sobre el frontmatter de la versión ajena sin revertir sus cambios', async () => {
+    const mine = '---\ntitle: Arq # t\nowner: ana\n---\n# A\n';
+    vi.mocked(getDocument).mockResolvedValue({
+      ok: true,
+      data: {
+        ...DOC,
+        version: 7,
+        updatedBy: 'sub-luis',
+        updatedByName: 'Luis Gómez',
+        content: mine.replace('owner: ana', 'owner: luis'),
+      },
+    } as never);
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <DocumentEditor
+          doc={{ ...DOC, visibility: 'internal', content: mine } as never}
+          session={session}
+          onDone={onDone}
+        />
+      </QueryClientProvider>
+    );
+    mutate.mockImplementationOnce((_p, options) => options.onError(CONFLICT));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Título' }), {
+      target: { value: 'Arq v2' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Guardar/ }));
+    expect(await screen.findByText('Versión 7, guardada por Luis Gómez')).toBeInTheDocument();
+
+    mutate.mockImplementationOnce((_p, options) => options.onSuccess({ id: ID, version: 8 }));
+    await userEvent.click(screen.getByRole('button', { name: /Guardar sobre la versión 7/ }));
+    const second = mutate.mock.calls[1]![0];
+    expect(second.baseVersion).toBe(7);
+    expect(second.content).toContain('title: Arq v2 # t\n');
+    expect(second.content).toContain('owner: luis\n');
   });
 
   it('TS-82: sin poder recargar la versión usa currentVersion y lo dice en el panel', async () => {

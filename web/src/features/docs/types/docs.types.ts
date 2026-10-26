@@ -175,6 +175,9 @@ export interface DocsWriteResult {
   id: string;
   version: number;
   path?: string;
+  /** Con el alta sin carpeta (REQ-021): dónde ubicó el servicio el documento. */
+  folderId?: string;
+  fileName?: string;
   /** Por ejemplo `possible_secret_detected` (no bloquea). */
   warnings?: string[];
 }
@@ -223,9 +226,7 @@ export type DocsResult<T> = { ok: true; data: T } | { ok: false; error: DocsErro
 
 export interface CreateDocumentPayload {
   id?: string;
-  /** Sin `folderId` el módulo ubica el documento (REQ-021). */
-  folderId?: string;
-  fileName: string;
+  /** Sin carpeta ni nombre de archivo: los genera el módulo a partir del frontmatter (REQ-021). */
   content: string;
   message?: string;
 }
@@ -325,6 +326,11 @@ export interface DocsSuggestedPerson {
 export interface DocsTopic {
   topic: string;
   documents: number;
+}
+
+export interface DocsTopicPage {
+  items: DocsTopic[];
+  page: DocsPageInfo;
 }
 
 export interface DocsSearchSuggestions {

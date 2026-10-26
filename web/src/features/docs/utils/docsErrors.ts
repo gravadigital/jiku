@@ -10,18 +10,32 @@ export const codeOf = (error: unknown): string | undefined =>
 const messageOf = (error: unknown): string =>
   (error as { message?: string } | null | undefined)?.message ?? '';
 
-/** Errores del alta (O-11): el de validación va junto al campo; el resto, como aviso bajo los campos. */
-export function describeCreateError(error: unknown): { field?: string; notice?: string } {
+export const CREATE_RESTRICTED_DENIED_MESSAGE =
+  'Solo la conducción puede crear un documento restringido.';
+export const RESTRICT_DENIED_MESSAGE = 'Solo la conducción puede restringir un documento.';
+export const TITLE_REQUIRED_MESSAGE = 'El título no puede quedar vacío.';
+
+/**
+ * Errores del alta (O-11), siempre como aviso: `visibility` va pegado al selector de visibilidad.
+ * `already_exists` devuelve `null`: con el `id` propio es un intento previo que sí se aplicó (el
+ * diálogo lo trata como éxito).
+ */
+export function describeCreateError(
+  error: unknown
+): { notice: string; target: 'visibility' | 'form' } | null {
   switch (codeOf(error)) {
     case 'already_exists':
-      return { field: 'Ya hay un documento con ese nombre en esta carpeta.' };
-    case 'file_name_invalid':
-      return { field: 'Ese nombre no es válido. Usá minúsculas, números y guiones.' };
+      return null;
+    case 'permission_denied':
+      return { notice: CREATE_RESTRICTED_DENIED_MESSAGE, target: 'visibility' };
+    case 'invalid_relation':
+      return { notice: 'El proyecto o el cliente elegido ya no existe. Elegí otro.', target: 'form' };
+    case 'frontmatter_invalid':
+      return { notice: `Las propiedades no son válidas: ${messageOf(error)}.`, target: 'form' };
     case 'module_unavailable':
-      return { notice: DOCS_UNAVAILABLE_MESSAGE };
+      return { notice: DOCS_UNAVAILABLE_MESSAGE, target: 'form' };
     default:
-      // Incluye `folder_not_found`: se muestra como error de sistema.
-      return { notice: 'No se pudo crear el documento. Intentá de nuevo.' };
+      return { notice: 'No se pudo crear el documento. Intentá de nuevo.', target: 'form' };
   }
 }
 
@@ -29,7 +43,7 @@ export function describeCreateError(error: unknown): { field?: string; notice?: 
 export function saveValidationMessage(error: unknown): string | null {
   switch (codeOf(error)) {
     case 'frontmatter_invalid':
-      return `El frontmatter no es válido: ${messageOf(error)}. Corregilo y volvé a guardar.`;
+      return `Las propiedades no son válidas: ${messageOf(error)}.`;
     case 'invalid_relation':
       return `Uno de los vínculos no existe: ${messageOf(error)}.`;
     case 'content_too_large':
@@ -46,10 +60,14 @@ export const START_EDIT_FAILED_MESSAGE = 'No se pudo empezar a editar. Intentá 
 export const CURRENT_VERSION_FAILED_MESSAGE =
   'No se pudo cargar la versión actual. Recargá la página para verla.';
 
-export const savedMessage = (version: number, warnings?: string[]): string =>
-  warnings?.includes('possible_secret_detected')
-    ? `Guardaste la versión ${version}. Revisalo: parece contener una clave o un token.`
+export const savedMessage = (version: number, warnings?: string[], withMessage = false): string => {
+  if (warnings?.includes('possible_secret_detected')) {
+    return `Guardaste la versión ${version}. Revisalo: parece contener una clave o un token.`;
+  }
+  return withMessage
+    ? `Guardaste la versión ${version}. Quedó protegida.`
     : `Guardaste la versión ${version}.`;
+};
 
 /** Errores de la subida de un adjunto (zona de adjuntos). */
 export function attachmentErrorMessage(error: unknown): string {

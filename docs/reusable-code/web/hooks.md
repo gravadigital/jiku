@@ -338,3 +338,23 @@ function useModule(name: string): { status: ModuleStatus; sharing: boolean; isKn
 **Signature:** ``useAssignProject()``
 
 **Usage:** `useAssignProject()`
+
+## useTopicSuggestions
+
+**Location:** `web/src/features/docs/hooks/useTopicSuggestions.ts`
+
+**Description:** Topic suggestions by prefix from `GET /docs/topics`; query key `['docs', 'topics', prefix]`, disabled with an empty prefix.
+
+**Signature:** ``useTopicSuggestions({ prefix, enabled? })``
+
+**Usage:** `useTopicSuggestions({ prefix: normalizeTopic(text) })`
+
+## useCanRestrictDocs
+
+**Location:** `web/src/features/docs/hooks/useCanRestrictDocs.ts`
+
+**Description:** `true` when the session user has the `admin` role. A UI hint: jiku-docs enforces it with `permission_denied`.
+
+**Signature:** ``useCanRestrictDocs(): boolean``
+
+**Usage:** `const canRestrict = useCanRestrictDocs()`

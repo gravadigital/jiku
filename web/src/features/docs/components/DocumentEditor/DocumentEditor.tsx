@@ -5,21 +5,33 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { Button, Card, ConfirmDialog, Input } from '@/shared/components/ui';
+import { useCanRestrictDocs } from '../../hooks/useCanRestrictDocs';
 import { useSaveDocument } from '../../hooks/useSaveDocument';
 import { getDocument } from '../../services/docsApi';
 import { codeOf } from '../../utils/docsErrors';
 import {
   CURRENT_VERSION_FAILED_MESSAGE,
   PERMISSION_DENIED_MESSAGE,
+  RESTRICT_DENIED_MESSAGE,
   SAVE_FAILED_MESSAGE,
+  TITLE_REQUIRED_MESSAGE,
   saveValidationMessage,
   savedMessage,
 } from '../../utils/docsErrors';
 import { unwrap } from '../../utils/docsResult';
+import {
+  composeContent,
+  parseContent,
+  type EditableProperties,
+  type ReadableContent,
+} from '../../utils/frontmatterDocument';
 import { lockedMessage } from '../../utils/lockState';
+import { ClientProjectFields } from '../ClientProjectFields';
 import { DocsNotice } from '../DocsNotice';
 import { DocumentAttachZone } from '../DocumentAttachZone';
 import { DocumentContent } from '../DocumentContent';
+import { TopicsInput } from '../TopicsInput';
+import { VisibilityField } from '../VisibilityField';
 import styles from './DocumentEditor.module.scss';
 import type { EditSession, LockBlocker } from '../../hooks/useEditSession';
 import type { DocsDocumentDetail } from '../../types/docs.types';
@@ -42,6 +54,16 @@ interface DocumentEditorProps {
   readonly onDone: () => void;
 }
 
+const sameList = (a: readonly unknown[], b: readonly unknown[]) =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
+
+const sameProps = (a: EditableProperties, b: EditableProperties) =>
+  a.title === b.title &&
+  a.visibility === b.visibility &&
+  sameList(a.topics, b.topics) &&
+  sameList(a.clients, b.clients) &&
+  sameList(a.projects, b.projects);
+
 const LockIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
     <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
@@ -61,7 +83,22 @@ export function DocumentEditor({
 
   // ADR-011: borrador y versión base son estado de interfaz. NO se derivan del query del
   // documento: ese query se refresca (foco, invalidaciones) y cambiaría la base en plena edición.
-  const [initialContent] = useState(doc.content ?? '');
+  // La edición es por campos (propiedades) más el cuerpo; si el frontmatter no se puede leer, se
+  // edita el contenido completo (REQ-021).
+  const [parsed] = useState(() => parseContent(doc.content ?? ''));
+  const readable: ReadableContent | null = parsed.readable ? parsed : null;
+  const [initialProps] = useState<EditableProperties>(() => ({
+    title: readable?.values.title ?? doc.title ?? '',
+    visibility: readable?.values.visibility ?? doc.visibility,
+    topics: readable?.values.topics ?? [],
+    clients: readable?.values.clients ?? [],
+    projects: readable?.values.projects ?? [],
+  }));
+  const [fields, setFields] = useState<EditableProperties>(initialProps);
+  const [titleError, setTitleError] = useState(false);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const canRestrict = useCanRestrictDocs();
+  const [initialContent] = useState(readable ? readable.body : (doc.content ?? ''));
   const [draft, setDraft] = useState(initialContent);
   const [baseVersion, setBaseVersion] = useState(doc.version);
   const [message, setMessage] = useState('');
@@ -78,7 +115,14 @@ export function DocumentEditor({
 
   const textarea = useCallback(() => containerRef.current?.querySelector('textarea') ?? null, []);
 
-  const dirty = draft !== initialContent;
+  const dirty = draft !== initialContent || (readable !== null && !sameProps(fields, initialProps));
+
+  const updateFields = (patch: Partial<EditableProperties>) => {
+    setFields((prev) => ({ ...prev, ...patch }));
+    setTitleError(false);
+    setVisibilityError(null);
+    if (validationError) setValidationError(null);
+  };
 
   // Foco al editor al entrar, con el cursor al final (así un adjunto sin posición previa va al final).
   useEffect(() => {
@@ -153,19 +197,35 @@ export function DocumentEditor({
     setResolving(false);
   };
 
+  const buildContent = (): string => {
+    if (!readable) return draft;
+    // Tras un conflicto se compone sobre el frontmatter de la versión ajena (solo con lo que la
+    // persona tocó), para no revertir en silencio cambios ajenos de propiedades.
+    const theirs = conflict?.current?.content;
+    const parsedTheirs = theirs === undefined ? null : parseContent(theirs);
+    const base = parsedTheirs?.readable ? parsedTheirs : readable;
+    return composeContent(base, initialProps, { ...fields, title: fields.title.trim() }, draft);
+  };
+
   const handleSave = () => {
     setValidationError(null);
+    setVisibilityError(null);
+    if (readable && fields.title.trim() === '') {
+      setTitleError(true);
+      return;
+    }
+    const messageText = message.trim();
     save.mutate(
       {
         baseVersion,
-        content: draft,
+        content: buildContent(),
         ...(session.sessionId ? { sessionId: session.sessionId } : {}),
         ...(message.trim() ? { message } : {}),
       },
       {
         onSuccess: (result) => {
           void session.release();
-          const text = savedMessage(result.version, result.warnings);
+          const text = savedMessage(result.version, result.warnings, messageText !== '');
           if (result.warnings?.includes('possible_secret_detected')) toast.warning(text);
           else toast.success(text);
           onDone();
@@ -186,6 +246,17 @@ export function DocumentEditor({
           const validation = saveValidationMessage(error);
           if (validation) {
             setValidationError(validation);
+            return;
+          }
+          if (
+            code === 'permission_denied' &&
+            readable &&
+            fields.visibility !== initialProps.visibility &&
+            (fields.visibility === 'restricted' || initialProps.visibility === 'restricted')
+          ) {
+            // Un `user` no puede poner ni quitar "Restringido": se queda editando para corregirlo.
+            toast.error(RESTRICT_DENIED_MESSAGE);
+            setVisibilityError(RESTRICT_DENIED_MESSAGE);
             return;
           }
           if (code === 'permission_denied') {
@@ -244,12 +315,59 @@ export function DocumentEditor({
     <div className={styles.editor}>
       {renderNotice()}
 
+      {readable ? (
+        <Card variant="panel">
+          <div className={styles.properties}>
+            <div className={styles.propTitle}>
+              <Input
+                label="Título"
+                value={fields.title}
+                disabled={readOnly}
+                error={titleError ? TITLE_REQUIRED_MESSAGE : undefined}
+                onChange={(title) => updateFields({ title })}
+              />
+            </div>
+            <div className={styles.propVisibility}>
+              <VisibilityField
+                value={fields.visibility}
+                initialValue={initialProps.visibility}
+                canRestrict={canRestrict}
+                warnOnRestrict
+                error={visibilityError ?? undefined}
+                onChange={(visibility) => updateFields({ visibility })}
+              />
+            </div>
+            <div className={styles.propTopics}>
+              <TopicsInput
+                value={fields.topics}
+                disabled={readOnly}
+                onChange={(topics) => updateFields({ topics })}
+              />
+            </div>
+            <div className={styles.propLinks}>
+              <p className={styles.groupLabel}>Vinculado a</p>
+              <ClientProjectFields
+                layout="stack"
+                disabled={readOnly}
+                value={{ clients: fields.clients, projects: fields.projects }}
+                onChange={({ clients, projects }) => updateFields({ clients, projects })}
+              />
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <DocsNotice intent="warning">
+          No pudimos leer las propiedades de este documento. Editá el texto completo, propiedades
+          incluidas, y al guardar el módulo te va a decir si algo no es válido.
+        </DocsNotice>
+      )}
+
       <div className={styles.editRow}>
         <div className={styles.left}>
           {session.phase === 'editing' && !session.blockedBy && (
             <p className={styles.indicator}>
               <LockIcon />
-              Lo estás editando. Nadie más puede guardar hasta que termines.
+              Estás editando. Nadie más puede guardar este documento hasta que guardes o canceles.
             </p>
           )}
           {/* Los eventos de selección burbujean: se recuerda la última posición del cursor porque
@@ -265,7 +383,7 @@ export function DocumentEditor({
           >
             <Input
               variant="textarea"
-              label="Contenido (markdown)"
+              label="Markdown"
               value={draft}
               disabled={readOnly}
               error={validationError ?? undefined}
@@ -299,11 +417,14 @@ export function DocumentEditor({
       <div className={styles.actionsRow}>
         <div className={styles.message}>
           <Input
-            label="Qué cambiaste (opcional)"
-            placeholder="Ej.: agrego los pasos de despliegue"
+            label="Mensaje de la versión (opcional)"
+            placeholder="Ej.: cierre de sprint"
             value={message}
             onChange={setMessage}
           />
+          <p className={styles.messageHelp}>
+            Con mensaje, esta versión queda protegida: no se borra al compactar el historial.
+          </p>
         </div>
         <div className={styles.buttons}>
           <Button variant="secondary-dismiss" onClick={handleCancel}>

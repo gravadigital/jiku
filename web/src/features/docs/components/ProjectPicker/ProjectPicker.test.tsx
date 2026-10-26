@@ -29,6 +29,26 @@ describe('ProjectPicker', () => {
     await userEvent.click(screen.getByRole('combobox', { name: 'Proyecto' }));
     expect(screen.getAllByRole('option')).toHaveLength(1);
     await userEvent.click(screen.getByRole('option', { name: 'Videoconferencia · EXO' }));
-    expect(onChange).toHaveBeenCalledWith(12, 'Videoconferencia');
+    expect(onChange).toHaveBeenCalledWith(12, 'Videoconferencia', 4);
+  });
+
+  it('TS-24: emptyLabel agrega la opción vacía y onClear', async () => {
+    const onClear = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <ProjectPicker value={12} emptyLabel="Sin proyecto" onClear={onClear} onChange={onChange} />
+    );
+    await userEvent.click(screen.getByRole('combobox', { name: 'Proyecto' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Sin proyecto' }));
+    expect(onClear).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('combobox', { name: 'Proyecto' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Portal · ACME' }));
+    expect(onChange).toHaveBeenCalledWith(31, 'Portal', 2);
+  });
+
+  it('sin emptyLabel no hay opción vacía', async () => {
+    render(<ProjectPicker value={null} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Proyecto' }));
+    expect(screen.queryByRole('option', { name: 'Sin proyecto' })).not.toBeInTheDocument();
   });
 });

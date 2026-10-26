@@ -38,6 +38,8 @@ interface ToggleGroupProps {
   readonly onChange: (value: string) => void;
   /** Solo tiene efecto en `stepper-value`: habilita la opción «Otro». */
   readonly allowOther?: boolean;
+  /** Ids (separados por espacio) del texto de ayuda o de error del grupo. */
+  readonly ariaDescribedBy?: string;
 }
 
 const VARIANT_CLASS: Record<ToggleGroupVariant, string> = {
@@ -56,6 +58,7 @@ export function ToggleGroup({
   value,
   onChange,
   allowOther = false,
+  ariaDescribedBy,
 }: ToggleGroupProps) {
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const showOther = allowOther && variant === 'stepper-value';
@@ -104,6 +107,7 @@ export function ToggleGroup({
     <div
       role="radiogroup"
       aria-label={label}
+      aria-describedby={ariaDescribedBy}
       className={cn(styles.container, VARIANT_CLASS[variant])}
     >
       {allOptions.map((option, index) => {

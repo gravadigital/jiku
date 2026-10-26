@@ -12,6 +12,7 @@ import type {
   DocsResult,
   DocsSearchResponse,
   DocsSearchSuggestions,
+  DocsTopicPage,
   DocsVersionPage,
   DocsWriteResult,
   DocumentsFilters,
@@ -115,6 +116,23 @@ export const getDocsSuggestions = async ({
   toResult(async () => {
     const response = await apiClient.get('/docs/suggestions', {
       params: definedOnly({ q, clientId, limit }),
+    });
+    return response.data;
+  });
+
+// El contrato ofrece solo prefijo; el tope de 10 es de la web (la ruta admite hasta 200).
+export const listTopics = async ({
+  prefix,
+  limit = 10,
+  cursor,
+}: {
+  prefix?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<DocsResult<DocsTopicPage>> =>
+  toResult(async () => {
+    const response = await apiClient.get('/docs/topics', {
+      params: definedOnly({ prefix, limit, cursor }),
     });
     return response.data;
   });

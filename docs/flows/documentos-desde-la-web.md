@@ -5,7 +5,7 @@ type: feature
 status: Draft
 created: 2026-10-24
 last_updated: 2026-10-26
-stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-096]
+stories: [S-077, S-078, S-079, S-081, S-082, S-084, S-085, S-087, S-088, S-089, S-090, S-094, S-096, S-097]
 ---
 
 # Documentos desde la Web — Panel, Visor, Edición con Reserva, Adjuntos y Portal en Solo Lectura
@@ -177,6 +177,13 @@ título. **Comando:** `documents.new { id, content, checksum, via: 'human', fold
 actor }`. **Response:** `201 { id, version, path, folderId, fileName, warnings? }`. Un `user` con
 `visibility: restricted` en el frontmatter recibe 403 `permission_denied` (lo decide jiku-docs).
 
+**Lo que manda la web (REQ-021):** solo `id` y `content`. La web arma el frontmatter del contenido
+(`title`, `visibility`, `topics` y `jiku: { clients, projects, requirements?, tasks? }`, con el cuerpo
+inicial `# {título}`) y **no manda `folderId` ni `fileName`**: la ubicación y el nombre los genera
+jiku-docs. El `id` es un ULID generado al abrir el diálogo y se reusa en los reintentos: un
+`409 already_exists` con ese `id` significa que el intento anterior sí se aplicó y la web lo trata como
+éxito. Tras crear, la web navega a `/docs/{id}?editar=1` y **recién después** cierra el diálogo.
+
 ---
 
 ### Paso 2c: historial y relaciones (web)
@@ -201,6 +208,10 @@ actor }`. **Response:** `201 { id, version, path, folderId, fileName, warnings? 
 **Tipo:** REST + Comando por el bus
 
 Al entrar en edición la web genera un `sessionId` (ULID) **nuevo** y toma la reserva.
+
+Desde "Crear y editar" (`/docs/{id}?editar=1`) la vista toma la reserva **primero** y recién después
+limpia `?editar=1` de la URL con `history.replaceState` (sin navegación de Next), así el documento queda
+en edición con la reserva tomada y sin recarga.
 
 **Request:**
 - **Método:** POST
@@ -262,6 +273,13 @@ via: 'human', actor }`. El `checksum` lo **calcula la api** del texto (`contentC
 
 Al guardar bien, la web libera la reserva (Paso 6). **Sin reintento automático**: un 504 significa
 "pudo haberse aplicado".
+
+**Cambios de REQ-021:** el `message` opcional **protege** la versión de la compactación del historial.
+La edición es por campos (título, visibilidad, temas, cliente y proyecto) más el editor del cuerpo, y la
+web reescribe el frontmatter al guardar (librería `yaml`: conserva claves desconocidas, comentarios y
+estilo; solo toca las claves que la persona cambió) y manda **un solo `PUT`** con propiedades, cuerpo y
+mensaje. Con el frontmatter ilegible se edita el contenido completo, propiedades incluidas. Tras un
+`version_conflict`, el próximo `PUT` compone sobre el frontmatter de la versión actual.
 
 **Ref:** `docs/apis/api.yaml` (`PUT /docs/documents/{id}`)
 
@@ -395,13 +413,13 @@ traducir y `details` verbatim (la clave no existe si no viene). Mapa completo en
 | 2-9 | Id de path malformado | 404 | `*_not_found` | No llama al bus |
 | 1-8 | Sin permiso sobre el documento | 403 | `{ "code": "permission_denied" }` | La web lo muestra como error de permiso; al guardar pasa el editor a solo lectura |
 | 2 | Versión pedida compactada (también en `restore`) | 404 | `{ "code": "version_pruned", "details": { "requestedVersion", "previousAvailable", "nextAvailable" } }` | La web ofrece las versiones disponibles más cercanas |
-| 2b | `visibility: restricted` de un `user` en el alta | 403 | `{ "code": "permission_denied" }` | Error en el alta |
+| 2b | `visibility: restricted` de un `user` en el alta | 403 | `{ "code": "permission_denied" }` | Error junto al selector de visibilidad |
 | 2c | Relación inválida | 400 | `{ "code": "invalid_relation" }` | Mensaje en el buscador |
 | 1 | Filtros combinados inválidos (`myActiveProjects` + `projectId`, listas largas) | 400 | `{ "code": "invalid_fields" }` | Sin llamar al bus |
 | 5 | Otra persona guardó antes | 409 | `{ "code": "version_conflict", "details": { "currentVersion": N } }` | La web **conserva el texto de la persona**, trae la versión actual, avisa quién guardó y nunca reintenta sola: la persona decide guardar sobre la versión actual |
 | 3, 5 | Reserva en poder de otra sesión | 409 | `{ "code": "document_locked", "details": { "holder", "holderName", "via", "expiresAt" } }` | La web muestra quién tiene la reserva; no se pierde el texto |
 | 4 | La renovación falla (reserva vencida o tomada por otra sesión, u otro error) | 409 u otro | `document_locked` con `details`, u otro código | La fase pasa a `lost`; el texto sigue en el editor |
-| 3-5 | Alta con nombre repetido, o nombre inválido | 409 / 400 | `already_exists` / `file_name_invalid` | Error junto al campo en el alta |
+| 3-5 | Alta con nombre repetido, o nombre inválido | 409 / 400 | `already_exists` / `file_name_invalid` | Sin uso desde la web (REQ-021: la web no manda `fileName`); un `already_exists` del mismo `id` se trata como éxito |
 | 5 | Frontmatter o vínculo inválido | 400 | `frontmatter_invalid` / `invalid_relation` | Mensaje bajo el editor |
 | 5 | Contenido supera 256 KiB | 400 | `{ "code": "content_too_large" }` | Mensaje bajo el editor |
 | 3-7 | **Cuerpo supera 768 KiB** | 413 | `{ "code": "payload_too_large" }` | Lo responde el manejador de errores de `app.ts` antes de llegar a la ruta, sin llamar al bus. El tope de `/api/docs` es `768kb` solo para `POST`/`PUT`; el resto de la api conserva 100 kb |

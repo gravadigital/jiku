@@ -28,7 +28,12 @@ vi.mock('../../services/docsApi', () => ({
 }));
 vi.mock('../../hooks/useModules', () => ({ useModule: vi.fn() }));
 vi.mock('../NewDocumentDialog', () => ({
-  NewDocumentDialog: ({ open }: { open: boolean }) => (open ? <div role="dialog">nuevo</div> : null),
+  NewDocumentDialog: ({ open, initial }: { open: boolean; initial?: unknown }) =>
+    open ? (
+      <div role="dialog" data-initial={JSON.stringify(initial ?? null)}>
+        nuevo
+      </div>
+    ) : null,
 }));
 vi.mock('@/features/projects/hooks/useProject', () => ({
   useProject: () => ({ data: { name: 'Videoconferencia' } }),
@@ -279,6 +284,25 @@ describe('DocsSearchPage', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Nuevo documento' }));
     expect(within(screen.getByRole('dialog')).getByText('nuevo')).toBeInTheDocument();
+  });
+
+  it('TS-33: el diálogo recibe el filtro de origen como `initial`', async () => {
+    vi.mocked(listDocuments).mockResolvedValue(page([], { total: 0 }));
+    const first = renderPage('proyecto=12&origen=proyecto');
+    await userEvent.click(screen.getByRole('button', { name: 'Nuevo documento' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-initial', '{"projectId":12}');
+    first.unmount();
+
+    renderPage('cliente=4');
+    await userEvent.click(screen.getByRole('button', { name: 'Nuevo documento' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-initial', '{"clientId":4}');
+  });
+
+  it('TS-33: sin filtros el diálogo no recibe `initial`', async () => {
+    vi.mocked(listDocuments).mockResolvedValue(page([], { total: 0 }));
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Nuevo documento' }));
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-initial', 'null');
   });
 
   it('con el módulo no instalado no se pinta nada', () => {

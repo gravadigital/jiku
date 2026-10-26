@@ -6,6 +6,7 @@ import {
   getDocument,
   getSuggestedRelations,
   listDocuments,
+  listTopics,
   listVersions,
   lockDocument,
   restoreVersion,
@@ -150,7 +151,6 @@ describe('lecturas no lanzan (P-2, S-081)', () => {
   });
 });
 
-const FOLDER_ID = '01J9Z3K8M2Q4R6T8V0W2Y4A6F0';
 const SESSION = '01J9Z3K8M2Q4R6T8V0W2Y4A6E2';
 
 describe('escrituras (S-082)', () => {
@@ -161,9 +161,7 @@ describe('escrituras (S-082)', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data });
     const payload = {
       id: ID,
-      folderId: FOLDER_ID,
-      fileName: 'guia-de-despliegue.md',
-      content: '# Guía de despliegue\n',
+      content: '---\ntitle: X\nvisibility: internal\n---\n\n# X\n',
     };
     await expect(createDocument(payload)).resolves.toEqual({ ok: true, data });
     expect(apiClient.post).toHaveBeenCalledWith('/docs/documents', payload);
@@ -171,19 +169,15 @@ describe('escrituras (S-082)', () => {
 
   it('createDocument conserva content vacío', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: { id: ID, version: 1 } });
-    await createDocument({ folderId: FOLDER_ID, fileName: 'a.md', content: '' });
-    expect(apiClient.post).toHaveBeenCalledWith('/docs/documents', {
-      folderId: FOLDER_ID,
-      fileName: 'a.md',
-      content: '',
-    });
+    await createDocument({ content: '' });
+    expect(apiClient.post).toHaveBeenCalledWith('/docs/documents', { content: '' });
   });
 
   it('TS-3: una escritura que falla no lanza', async () => {
     const error = { code: 'already_exists', message: 'Ya existe', status: 409 };
     vi.mocked(apiClient.post).mockRejectedValue(error);
     await expect(
-      createDocument({ folderId: FOLDER_ID, fileName: 'a.md', content: 'x' })
+      createDocument({ content: 'x' })
     ).resolves.toEqual({ ok: false, error });
   });
 
@@ -411,5 +405,25 @@ describe('getDocument con versión y versiones (S-096)', () => {
       ok: false,
       error,
     });
+  });
+});
+
+describe('listTopics (TS-11)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('pide por prefijo con tope 10 y no lanza', async () => {
+    const data = {
+      items: [{ topic: 'videoconferencia', documents: 12 }],
+      page: { limit: 10, returned: 1 },
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    await expect(listTopics({ prefix: 'vid' })).resolves.toEqual({ ok: true, data });
+    expect(apiClient.get).toHaveBeenCalledWith('/docs/topics', {
+      params: { prefix: 'vid', limit: 10 },
+    });
+
+    const error = { code: 'module_unavailable', status: 503, message: 'Unavailable' };
+    vi.mocked(apiClient.get).mockRejectedValue(error);
+    await expect(listTopics({ prefix: 'vid' })).resolves.toEqual({ ok: false, error });
   });
 });

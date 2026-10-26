@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { notFound, useRouter, useSearchParams } from 'next/navigation';
+import { notFound, useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { Button, Card, Loader, ViewHeader } from '@/shared/components/ui';
@@ -74,8 +74,25 @@ const RouteNav = () => (
   </nav>
 );
 
+// Edición: `ViewHeader` solo admite un nivel de breadcrumb (DS gap), así que el de tres niveles
+// se arma acá con el mismo armazón.
+const EditingRouteNav = ({ title }: { readonly title: string }) => (
+  <nav aria-label="Ruta" className={styles.route}>
+    <ol className={styles.routeList}>
+      <li>
+        <Link href="/docs" className={styles.routeLink}>
+          Documentación
+        </Link>
+      </li>
+      <li className={styles.routeItem}>{title}</li>
+      <li className={styles.routeItem} aria-current="page">
+        Editando
+      </li>
+    </ol>
+  </nav>
+);
+
 export function DocumentView({ id }: DocumentViewProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { status, isKnown, sharing } = useModule('docs');
   // Con un bloqueo vigente se revisa cada 60 s si venció (CA-S12); el flag es estado porque
@@ -157,14 +174,17 @@ export function DocumentView({ id }: DocumentViewProps) {
     );
   }, [session]);
 
-  // P-10: tras crear un documento se entra directo en edición (`?editar=1`) y se limpia el parámetro.
+  // P-10: tras crear un documento se entra directo en edición (`?editar=1`). La reserva se toma
+  // primero y el parámetro se limpia después, con `history.replaceState` (sin navegación de Next,
+  // que re-renderiza el segmento en pleno `lock`).
   const editParam = searchParams.get('editar') === '1';
   useEffect(() => {
     if (!editParam || !doc || editParamHandled.current) return;
     editParamHandled.current = true;
-    router.replace(`/docs/${id}`);
-    if (canEdit && !lockedByOther) void startEditing();
-  }, [editParam, doc, canEdit, lockedByOther, id, router, startEditing]);
+    const clean = () => window.history.replaceState(null, '', `/docs/${id}`);
+    if (canEdit && !lockedByOther) void startEditing().finally(clean);
+    else clean();
+  }, [editParam, doc, canEdit, lockedByOther, id, startEditing]);
 
   // Al volver a la lectura (guardar o cancelar) el foco va a "Editar".
   useEffect(() => {
@@ -274,6 +294,7 @@ export function DocumentView({ id }: DocumentViewProps) {
 
   return (
     <div className={styles.page}>
+      {editing && <EditingRouteNav title={title} />}
       <div className={styles.header}>
         {/* Va primero en el DOM que los botones: el orden de foco de la UX es breadcrumb → línea
             y temas → historial → compartir → editar. La grilla los posiciona. */}
@@ -281,7 +302,7 @@ export function DocumentView({ id }: DocumentViewProps) {
           <ViewHeader
             variant="detail"
             title={title}
-            parent={{ label: 'Documentación', href: '/docs' }}
+            parent={editing ? undefined : { label: 'Documentación', href: '/docs' }}
             badges={[
               { variant: 'outline', family: 'neutral', label: visibilityLabel(doc.visibility) },
             ]}

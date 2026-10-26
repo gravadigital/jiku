@@ -1,154 +1,112 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useCreateDocument } from '../../hooks/useCreateDocument';
-import { NewDocumentDialog } from './NewDocumentDialog';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Host, NEW_ID, calls, mutate, push, setMutation, setRole } from './testSupport';
 
-const push = vi.fn();
 vi.mock('@/lib/auth', () => ({ auth: vi.fn(() => Promise.resolve(null)) }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: (url: string) => push(url) }),
+}));
 vi.mock('../../hooks/useCreateDocument', () => ({ useCreateDocument: vi.fn() }));
-vi.mock('../../utils/ulid', () => ({ newUlid: () => '01J9Z3K8M2Q4R6T8V0W2Y4A6C8' }));
+vi.mock('../../hooks/useCanRestrictDocs', () => ({ useCanRestrictDocs: vi.fn() }));
+vi.mock('../../hooks/useTopicSuggestions', () => ({
+  useTopicSuggestions: () => ({ data: undefined, isFetching: false }),
+}));
+vi.mock('../../utils/ulid', () => ({ newUlid: () => '01JA0000000000000000000NEW' }));
+vi.mock('@/features/clients', () => ({
+  useClients: () => ({ data: [{ id: 4, name: 'EXO' }, { id: 2, name: 'ACME' }] }),
+}));
+vi.mock('@/features/projects/hooks/useProjects', () => ({
+  useProjects: () => ({
+    data: [
+      { id: 12, name: 'Videoconferencia', client: { id: 4, name: 'EXO' } },
+      { id: 31, name: 'Portal', client: { id: 2, name: 'ACME' } },
+    ],
+  }),
+}));
 
-const FOLDER = { id: '01J9Z3K8M2Q4R6T8V0W2Y4A6F0', path: '/clientes/acme/' };
-const mutate = vi.fn();
-const reset = vi.fn();
-
-const setMutation = (over: Record<string, unknown> = {}) =>
-  vi.mocked(useCreateDocument).mockReturnValue({
-    mutate,
-    reset,
-    isPending: false,
-    isError: false,
-    error: null,
-    ...over,
-  } as never);
-
-function Host() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button type="button" onClick={() => setOpen(true)}>
-        Abrir
-      </button>
-      <NewDocumentDialog open={open} folder={FOLDER} onClose={() => setOpen(false)} />
-    </>
-  );
-}
+const open = async () => {
+  render(<Host />);
+  await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+};
 
 describe('NewDocumentDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    calls.length = 0;
     setMutation();
+    setRole(false);
   });
 
-  it('TS-63: se abre con foco en Título y Crear deshabilitado', async () => {
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    const dialog = screen.getByRole('dialog', { name: 'Nuevo documento' });
-    expect(dialog).toHaveAttribute('aria-modal', 'true');
+  it('TS-25: sin carpeta, nombre de archivo, ruta ni plantilla', async () => {
+    await open();
+    expect(screen.getByRole('dialog', { name: 'Nuevo documento' })).toHaveAttribute('aria-modal', 'true');
     expect(screen.getByRole('heading', { level: 2, name: 'Nuevo documento' })).toBeInTheDocument();
-    expect(screen.getByText('Se crea en /clientes/acme/')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveFocus();
+    const title = screen.getByRole('textbox', { name: 'Título' });
+    expect(title).toHaveFocus();
+    expect(title).toHaveAttribute('placeholder', 'Ej.: Guía de despliegue');
+    expect(screen.getByRole('combobox', { name: 'Cliente' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Proyecto' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Temas' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Interno' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText(/Nombre del archivo/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Se crea en/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Plantilla/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crear y editar' })).toBeDisabled();
   });
 
-  it('P-11: Título va antes que Nombre del archivo en el DOM', async () => {
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    const boxes = screen.getAllByRole('textbox');
-    expect(boxes.map((b) => b.getAttribute('placeholder'))).toEqual([
-      'Guía de despliegue',
-      'guia-de-despliegue.md',
-    ]);
-  });
-
-  it('TS-64: el título sugiere el nombre hasta que se edita a mano', async () => {
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), 'Guía de despliegue');
-    const name = screen.getByRole('textbox', { name: 'Nombre del archivo' });
-    expect(name).toHaveValue('guia-de-despliegue.md');
-    await userEvent.clear(name);
-    await userEvent.type(name, 'mi-guia');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), ' 2');
-    expect(name).toHaveValue('mi-guia');
-  });
-
-  it('TS-65: crea con id fijo, loading y navega al editor sin toast', async () => {
+  it('TS-26: crea con el frontmatter y navega antes de cerrar', async () => {
     mutate.mockImplementation((_payload, options) =>
-      options.onSuccess({ id: '01J9Z3K8M2Q4R6T8V0W2Y4A6C8', version: 1 })
+      options.onSuccess({ id: NEW_ID, version: 1, path: '/x.md', folderId: 'F', fileName: 'x.md' })
     );
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
+    await open();
     await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), 'Guía de despliegue');
-    const name = screen.getByRole('textbox', { name: 'Nombre del archivo' });
-    await userEvent.clear(name);
-    await userEvent.type(name, 'mi-guia');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Proyecto' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Videoconferencia · EXO' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Temas' }), 'infra{Enter}');
+    await userEvent.type(screen.getByRole('combobox', { name: 'Temas' }), 'accesos{Enter}');
     await userEvent.click(screen.getByRole('button', { name: 'Crear y editar' }));
-    expect(mutate).toHaveBeenCalledWith(
-      {
-        id: '01J9Z3K8M2Q4R6T8V0W2Y4A6C8',
-        folderId: FOLDER.id,
-        fileName: 'mi-guia.md',
-        content: '# Guía de despliegue\n',
-      },
-      expect.any(Object)
-    );
-    expect(push).toHaveBeenCalledWith('/docs/01J9Z3K8M2Q4R6T8V0W2Y4A6C8?editar=1');
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate.mock.calls[0]![0]).toEqual({
+      id: NEW_ID,
+      content:
+        '---\ntitle: Guía de despliegue\nvisibility: internal\ntopics: [infra, accesos]\njiku:\n  clients: [4]\n  projects: [12]\n---\n\n# Guía de despliegue\n',
+    });
+    expect(calls).toEqual([`push:/docs/${NEW_ID}?editar=1`, 'close']);
   });
 
-  it('TS-65: mientras crea el botón está en loading', async () => {
+  it('mientras crea el botón está en loading', async () => {
     setMutation({ isPending: true });
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    expect(screen.getByRole('button', { name: /Crear y editar/ })).toHaveAttribute(
-      'aria-busy',
-      'true'
-    );
+    await open();
+    expect(screen.getByRole('button', { name: /Crear y editar/ })).toHaveAttribute('aria-busy', 'true');
   });
 
-  it('TS-66: sin título el contenido es vacío', async () => {
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Nombre del archivo' }), 'notas');
+  it('TS-28: Restringido solo para admin', async () => {
+    await open();
+    expect(screen.queryByRole('radio', { name: 'Restringido' })).not.toBeInTheDocument();
+  });
+
+  it('TS-28: admin crea restringido', async () => {
+    setRole(true);
+    await open();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), 'Notas');
+    await userEvent.click(screen.getByRole('radio', { name: 'Restringido' }));
     await userEvent.click(screen.getByRole('button', { name: 'Crear y editar' }));
-    expect(mutate.mock.calls[0][0]).toMatchObject({ content: '', fileName: 'notas.md' });
+    expect(mutate.mock.calls[0]![0].content).toContain('visibility: restricted\n');
   });
 
-  it.each([
-    ['already_exists', 'Ya hay un documento con ese nombre en esta carpeta.', true],
-    ['file_name_invalid', 'Ese nombre no es válido. Usá minúsculas, números y guiones.', true],
-    [
-      'module_unavailable',
-      'La documentación no está disponible en este momento. Probá de nuevo en unos minutos.',
-      false,
-    ],
-    ['gateway_timeout', 'No se pudo crear el documento. Intentá de nuevo.', false],
-  ])('TS-67: error %s', async (code, message, inField) => {
-    setMutation({ isError: true, error: { code, message: 'x', status: 500 } });
-    render(<Host />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), 'Guía');
-    expect(screen.getByText(message, { exact: false })).toBeInTheDocument();
-    if (inField) {
-      expect(screen.getByRole('textbox', { name: 'Nombre del archivo' })).toHaveAttribute(
-        'aria-invalid',
-        'true'
-      );
-    } else {
-      expect(screen.getByRole('alert')).toHaveTextContent(message);
-    }
-    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Guía');
-    expect(screen.getByRole('dialog', { name: 'Nuevo documento' })).toBeInTheDocument();
-  });
+  it('TS-32: Enter con título vacío, Cancelar, Escape y Enter en Temas', async () => {
+    await open();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), '{Enter}');
+    expect(screen.getByText('El título no puede quedar vacío.')).toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
 
-  it('TS-68: Cancelar y Escape cierran sin crear y devuelven el foco', async () => {
-    render(<Host />);
-    const opener = screen.getByRole('button', { name: 'Abrir' });
-    await userEvent.click(opener);
+    await userEvent.type(screen.getByRole('combobox', { name: 'Temas' }), 'infra{Enter}');
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Quitar tema infra' })).toBeInTheDocument();
+
+    const opener = screen.getByRole('button', { name: 'Abrir', hidden: true });
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(opener).toHaveFocus();
