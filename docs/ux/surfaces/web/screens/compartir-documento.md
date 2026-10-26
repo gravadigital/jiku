@@ -11,15 +11,15 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: diseñada
-version: "1.0"
-date: 2026-10-24
+version: "1.1"
+date: 2026-10-26
 ---
 
 # Overlay O-12: Compartir documento
 
 ## Identidad
 
-- **Audiencia primaria:** [equipo-interno](../../../audiences/equipo-interno/research-context.md) — quien administra la carpeta del documento (`manage`).
+- **Audiencia primaria:** [equipo-interno](../../../audiences/equipo-interno/research-context.md) — toda persona interna: desde jiku-docs 1.3.0 la carpeta deja de decidir quién comparte [REQ-021].
 - **JTBD / Propósito:** darle a alguien sin cuenta un link de solo lectura que vence solo, y poder cortarlo antes si hace falta [REQ-016 RF-22, CA-31].
 - **Viewports:**
   - **desktop** — único viewport de la superficie.
@@ -27,7 +27,7 @@ date: 2026-10-24
 ## Entrada y salida
 
 **Entradas:**
-- `documento` · `boton-compartir` (solo con la función configurada y permiso `manage`)
+- `documento` · `boton-compartir` (solo con la función configurada y un documento que no sea `restricted`) [REQ-021 RF-13]
 
 **Salidas user-driven:**
 - Cierra y vuelve a `documento` · `boton-cerrar-compartir`, `Escape` o click fuera
@@ -42,22 +42,23 @@ date: 2026-10-24
 |---|--------|------|---------------------|-----------|-----------|-------------|-----------|
 | 1 | modal-compartir | modal | — | layout | desktop | — | Contenedor del diálogo |
 | 2 | titulo-compartir | heading | h2 | content | desktop | — | Título del diálogo |
-| 3 | explicacion-compartir | paragraph | caption | content | desktop | hidden_in_states: link creado | Qué ve quien recibe el link |
-| 4 | selector-vencimiento | dropdown | closed / open | input | desktop | hidden_in_states: link creado, compartir bloqueado | Cuánto dura el link |
-| 5 | campo-nota | text-input | default | input | desktop | hidden_in_states: link creado, compartir bloqueado | Para quién o para qué es el link |
-| 6 | selector-adjuntos | toggle | ToggleGroup segmentado | input | desktop | hidden_in_states: link creado, compartir bloqueado | Si el link incluye los adjuntos |
-| 7 | boton-crear-link | button | primary / disabled | input | desktop | hidden_in_states: link creado, compartir bloqueado; state_overrides: creando→disabled | Crea el link |
-| 8 | aviso-link-creado | alert | success | feedback | desktop | visible_only_in_states: link creado | El link, mostrado una sola vez |
-| 9 | campo-link | text-input | locked | input | desktop | visible_only_in_states: link creado | La URL, de solo lectura y seleccionable |
-| 10 | boton-copiar | button | primary | input | desktop | visible_only_in_states: link creado | Copia la URL |
-| 11 | aviso-secreto | alert | warning | feedback | desktop | visible_only_in_states: confirmar posible secreto | El documento parece contener un secreto |
-| 12 | boton-compartir-igual | button | primary | input | desktop | visible_only_in_states: confirmar posible secreto | Confirma y crea el link |
-| 13 | aviso-bloqueado | alert | info | feedback | desktop | visible_only_in_states: compartir bloqueado | La carpeta no permite compartir |
-| 14 | titulo-links | heading | h3 | content | desktop | — | Encabeza la lista |
-| 15 | tabla-links | table | light | content | desktop | hidden_in_states: sin links | Links existentes, sin la URL |
-| 16 | boton-revocar | button | secondary-dismiss | input | desktop | solo en filas activas | Corta el link |
-| 17 | vacio-links | empty-state | list | feedback | desktop | visible_only_in_states: sin links | Todavía no hay links |
-| 18 | boton-cerrar-compartir | button | secondary-dismiss | input | desktop | — | Cierra el diálogo |
+| 3 | subtitulo-compartir | label | — | content | desktop | — | Cliente y proyecto del documento, en lugar de la ruta [REQ-021 RF-13] |
+| 4 | explicacion-compartir | paragraph | caption | content | desktop | hidden_in_states: link creado | Qué ve quien recibe el link |
+| 5 | selector-vencimiento | dropdown | closed / open | input | desktop | hidden_in_states: link creado, compartir bloqueado | Cuánto dura el link |
+| 6 | campo-nota | text-input | default | input | desktop | hidden_in_states: link creado, compartir bloqueado | Para quién o para qué es el link |
+| 7 | selector-adjuntos | toggle | ToggleGroup segmentado | input | desktop | hidden_in_states: link creado, compartir bloqueado | Si el link incluye los adjuntos |
+| 8 | boton-crear-link | button | primary / disabled | input | desktop | hidden_in_states: link creado, compartir bloqueado; state_overrides: creando→disabled | Crea el link |
+| 9 | aviso-link-creado | alert | success | feedback | desktop | visible_only_in_states: link creado | El link, mostrado una sola vez |
+| 10 | campo-link | text-input | locked | input | desktop | visible_only_in_states: link creado | La URL, de solo lectura y seleccionable |
+| 11 | boton-copiar | button | primary | input | desktop | visible_only_in_states: link creado | Copia la URL |
+| 12 | aviso-secreto | alert | warning | feedback | desktop | visible_only_in_states: confirmar posible secreto | El documento parece contener un secreto |
+| 13 | boton-compartir-igual | button | primary | input | desktop | visible_only_in_states: confirmar posible secreto | Confirma y crea el link |
+| 14 | aviso-bloqueado | alert | info | feedback | desktop | visible_only_in_states: compartir bloqueado | El documento es restringido y no se comparte |
+| 15 | titulo-links | heading | h3 | content | desktop | — | Encabeza la lista |
+| 16 | tabla-links | table | light | content | desktop | hidden_in_states: sin links | Links existentes, sin la URL |
+| 17 | boton-revocar | button | secondary-dismiss | input | desktop | solo en filas activas | Corta el link |
+| 18 | vacio-links | empty-state | list | feedback | desktop | visible_only_in_states: sin links | Todavía no hay links |
+| 19 | boton-cerrar-compartir | button | secondary-dismiss | input | desktop | — | Cierra el diálogo |
 
 ## Layout por viewport
 
@@ -65,6 +66,7 @@ date: 2026-10-24
 
 - modal-compartir *(640 px de ancho, centrado)*
   - titulo-compartir
+  - subtitulo-compartir
   - explicacion-compartir
   - aviso-bloqueado · aviso-secreto · aviso-link-creado *(a lo sumo uno)*
   - row `link` *(solo con link creado)*: campo-link *(9/12)*, boton-copiar *(3/12)*
@@ -90,6 +92,12 @@ date: 2026-10-24
 - Icono: share
 - Asset: nada
 - Annotation: nada
+
+### subtitulo-compartir
+- Texto/label: `"{título} · {cliente} · {proyecto}"` · sin proyecto `"{título} · {cliente} · Sin proyecto"` · sin nada `"{título} · Sin cliente · Sin proyecto"`
+- Icono: nada
+- Asset: nada
+- Annotation: reemplaza la ruta de carpetas que mostraba la variante anterior de la maqueta (pantalla 09) [REQ-021 decisión 8, RF-13]
 
 ### explicacion-compartir
 - Texto/label: `"Cualquiera que tenga el link va a poder leer la última versión del documento, sin iniciar sesión, hasta que venza o lo revoques."`
@@ -152,10 +160,10 @@ date: 2026-10-24
 - Annotation: reenvía el alta reconociendo el aviso. El `"Crear link"` queda oculto en este estado para que la confirmación sea una acción distinta y no el mismo click repetido
 
 ### aviso-bloqueado
-- Texto/label: `"La carpeta de este documento no permite compartirlo fuera de Jiku."`
+- Texto/label: `"Este documento es restringido: no se puede compartir fuera de Jiku."`
 - Icono: lock
 - Asset: nada
-- Annotation: `sharing_blocked`. La lista de links existentes se sigue mostrando y se puede revocar
+- Annotation: `sharing_blocked`. Con REQ-021 lo emite un documento `restricted`, y `documento` ya deshabilita "Compartir" en ese caso: este estado queda para el documento que pasó a restringido con el diálogo abierto. La lista de links se sigue mostrando
 
 ### titulo-links
 - Texto/label: `"Links de este documento"`
@@ -164,7 +172,7 @@ date: 2026-10-24
 - Annotation: nada
 
 ### tabla-links
-- Texto/label: columnas `"Estado"` · `"Vence"` · `"Nota"` · `"Accesos"` · `"Último acceso"` · (acción). Estado con `Badge`: `"Activo"` · `"Vencido"` · `"Revocado"`. Sin nota: `"—"`. Sin accesos: `"Nunca"` en "Último acceso"
+- Texto/label: columnas `"Estado"` · `"Vence"` · `"Nota"` · `"Accesos"` · `"Último acceso"` · (acción). Estado con `Badge`: `"Activo"` · `"Vencido"` · `"Revocado"` · `"Revocado (restringido)"` cuando lo cortó el paso del documento a restringido [REQ-021, `revokeReason: restricted`]. Sin nota: `"—"`. Sin accesos: `"Nunca"` en "Último acceso"
 - Icono: nada
 - Asset: nada
 - Annotation: **la URL y el token no aparecen nunca en la lista** [REQ-016 CA-31]. Orden: más nuevo primero
@@ -247,7 +255,7 @@ date: 2026-10-24
 
 ### compartir bloqueado (parent_state: default)
 - Aplica: Sí
-- Mensaje: `"La carpeta de este documento no permite compartirlo fuera de Jiku."`
+- Mensaje: `"Este documento es restringido: no se puede compartir fuera de Jiku."`
 - Cambios:
   - aviso-bloqueado: visible
   - formulario: oculto; la lista sigue visible con boton-revocar operable
@@ -281,6 +289,19 @@ date: 2026-10-24
 - **Propio de esta composición:** el cambio a *link creado* se anuncia (`role="status"`) porque reemplaza el formulario sin navegar; `"Copiado"` también se anuncia.
 
 ## Decisiones y descartes
+
+### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
+
+**Decisiones tomadas:**
+- **Cliente · Proyecto en el subtítulo, no la ruta.** La pantalla 09 venía de la variante con carpetas; se adapta con el estilo del resto [REQ-021 decisión 8].
+- **Lo abre toda persona interna, salvo en un documento restringido.** Con 1.3.0 el permiso `manage` por carpeta desaparece; el único bloqueo es `restricted`, que `documento` resuelve antes deshabilitando el botón [REQ-021 RF-13, CA-22].
+- **Un link cortado por restringir se distingue de uno revocado a mano.** Sin la marca, la persona buscaría quién lo revocó.
+
+**Alternativas descartadas:**
+- Ocultar los links de un documento restringido: siguen existiendo como historia y conviene ver que quedaron cortados.
+
+**Preguntas abiertas:**
+- Ninguna.
 
 ### REQ-016 — Módulo opcional de documentación (2026-10-24)
 

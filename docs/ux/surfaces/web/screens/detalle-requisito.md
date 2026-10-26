@@ -8,7 +8,7 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.6"
+version: "1.7"
 date: 2026-10-26
 ---
 
@@ -35,7 +35,9 @@ date: 2026-10-26
 - `/requirements/{id}/edit` · click en `boton-editar` · `RequirementHeader.tsx:210-212`
 - `/objectives/new?requirementId={id}` · botón `+` de la sección de tareas · `RequirementDetail.tsx:~155`
 - `/objectives/{id}` · click en una fila de `tabla-tareas` · `RequirementDetail.tsx:~206`
-- `/docs/{id}` (`documento`) · click en una fila de `tabla-documentos` [REQ-016]
+- `/docs/{id}` (`documento`) · click en una fila de `lista-documentos-card` [REQ-016; REQ-021]
+- `/docs?requisito={id}&origen=requisito` (`documentacion` filtrada) · click en `boton-ver-todos-documentos` [REQ-021 RF-16, RF-17]
+- O-11 Nuevo documento con el requisito, su proyecto y su cliente precargados · click en `boton-nuevo-documento-card` [REQ-021]
 
 **Salidas automáticas:**
 - `notFound()` si el `reqid` de la URL no es numérico · `requirements/[reqid]/page.tsx:15`. Es una de las dos rutas del producto que validan el parámetro dinámico [fuente: código-existente]
@@ -80,26 +82,27 @@ date: 2026-10-26
 | 34 | boton-cancelar-requisito | button | error | input | desktop | hidden_in_states: estado terminal / readonly | Cancela el requisito |
 | 35 | boton-resolver-requisito | button | primary | input | desktop | hidden_in_states: estado terminal / readonly | Resuelve el requisito |
 | 36 | badge-resultado | badge | cancelado | content | desktop | visible_only_in_states: estado terminal / readonly | Muestra el resultado final |
-| 49 | boton-reabrir-requisito | button | secondary | input | desktop | visible_only_in_states: estado terminal / readonly | Saca al requisito de `resuelto` o `cancelado` y lo devuelve al trabajo [REQ-012 RF-2, CA-3, CA-4] |
-| 37 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
-| 38 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
-| 39 | card-horas-trabajadas | card | — | content | desktop | todos los estados | Desglose por persona de las horas imputadas al requisito, con el total al pie. Segunda card de la columna derecha |
-| 40 | total-horas-trabajadas | heading | h3 | content | desktop | hidden_in_states: horas cargando, horas no disponibles | Total de horas del requisito, incluidas las de sus tareas — **última fila de la card**, bajo el desglose |
-| 41 | desglose-horas-persona | list | — | content | desktop | hidden_in_states: horas cargando, horas no disponibles, sin horas cargadas | Una fila por persona con lo que imputó |
-| 42 | vacio-horas-trabajadas | empty-state | — | feedback | desktop | visible_only_in_states: sin horas cargadas | Mensaje cuando el requisito no tiene horas |
-| 43 | cargando-horas-trabajadas | loader | — | feedback | desktop | visible_only_in_states: horas cargando | Carga del card, independiente del resto de la pantalla |
-| 44 | boton-editar-comentario | button | — | input | desktop | visible_only_in_states: default, success; **solo en las entradas de tipo comentario y solo si el usuario es su autor o tiene rol `admin`** | Entra en modo edición de ese comentario |
-| 45 | editor-comentario-edicion | text-input | default · disabled | input | desktop | visible_only_in_states: comentario en edición | Cuerpo del comentario que se está editando |
-| 46 | boton-cancelar-edicion | button | — | input | desktop | visible_only_in_states: comentario en edición | Descarta la edición y vuelve a lectura |
-| 47 | boton-guardar-edicion | button | primary · disabled | input | desktop | visible_only_in_states: comentario en edición; state_overrides: editor vacío→disabled | Guarda el texto y los adjuntos editados |
-| 48 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | visible_only_in_states: default, success; **solo en comentarios con `editedAt`** | Indica que el comentario fue editado, y por quién si no fue su autor |
-| 50 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados al requisito [REQ-016 RF-18] |
-| 51 | tabla-documentos | table | light | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, ruta y fecha |
-| 52 | marca-documento-en-edicion | badge | — | content | desktop | solo en filas con lock vigente | Avisa que alguien lo está editando |
-| 53 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | No hay documentos vinculados |
-| 54 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
-| 55 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
-| 56 | boton-ver-mas-documentos | button | secondary-dismiss | input | desktop | visible solo cuando hay más documentos | Trae los siguientes |
+| 37 | boton-reabrir-requisito | button | secondary | input | desktop | visible_only_in_states: estado terminal / readonly | Saca al requisito de `resuelto` o `cancelado` y lo devuelve al trabajo [REQ-012 RF-2, CA-3, CA-4] |
+| 38 | progreso-subida-adjunto | progress-bar | — | feedback | desktop | visible_only_in_states: subiendo adjunto | Progreso real de la subida del archivo en curso |
+| 39 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: loading, not found | Marca que el autor mostrado es una identidad de servicio y no una persona |
+| 40 | card-horas-trabajadas | card | — | content | desktop | todos los estados | Desglose por persona de las horas imputadas al requisito, con el total al pie. Segunda card de la columna derecha |
+| 41 | total-horas-trabajadas | heading | h3 | content | desktop | hidden_in_states: horas cargando, horas no disponibles | Total de horas del requisito, incluidas las de sus tareas — **última fila de la card**, bajo el desglose |
+| 42 | desglose-horas-persona | list | — | content | desktop | hidden_in_states: horas cargando, horas no disponibles, sin horas cargadas | Una fila por persona con lo que imputó |
+| 43 | vacio-horas-trabajadas | empty-state | — | feedback | desktop | visible_only_in_states: sin horas cargadas | Mensaje cuando el requisito no tiene horas |
+| 44 | cargando-horas-trabajadas | loader | — | feedback | desktop | visible_only_in_states: horas cargando | Carga del card, independiente del resto de la pantalla |
+| 45 | boton-editar-comentario | button | — | input | desktop | visible_only_in_states: default, success; **solo en las entradas de tipo comentario y solo si el usuario es su autor o tiene rol `admin`** | Entra en modo edición de ese comentario |
+| 46 | editor-comentario-edicion | text-input | default · disabled | input | desktop | visible_only_in_states: comentario en edición | Cuerpo del comentario que se está editando |
+| 47 | boton-cancelar-edicion | button | — | input | desktop | visible_only_in_states: comentario en edición | Descarta la edición y vuelve a lectura |
+| 48 | boton-guardar-edicion | button | primary · disabled | input | desktop | visible_only_in_states: comentario en edición; state_overrides: editor vacío→disabled | Guarda el texto y los adjuntos editados |
+| 49 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | visible_only_in_states: default, success; **solo en comentarios con `editedAt`** | Indica que el comentario fue editado, y por quién si no fue su autor |
+| 50 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados a este requisito, con la cantidad [REQ-016 RF-18; REQ-021 RF-16, RF-17] |
+| 51 | boton-nuevo-documento-card | button | icono / disabled | input | desktop | state_overrides: documentación no disponible→disabled | Abre O-11 con el requisito, su proyecto y su cliente precargados |
+| 52 | boton-ver-todos-documentos | button | secondary-nav | navigation | desktop | oculto con 0 documentos y en documentación no disponible | Lleva a Documentación filtrada |
+| 53 | lista-documentos-card | list | filas compactas | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, fecha y temas, sin ruta |
+| 54 | temas-documento-card | chips | — | content | desktop | solo en filas con temas | Temas de la fila, o "Sin tema" |
+| 55 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | No hay documentos vinculados a este requisito |
+| 56 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
+| 57 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
 
 **Origen:** `RequirementHeader.tsx:169`, `:~171`, `:173`, `:175-184`, `:186-194`, `:196-204`, `:207-209`, `:210-212`; `RequirementDetail.tsx:132-136`, `:140-145`, `:147-254`, `:159-180`, `:185-225`, `:229-250`, `:256-262`, `:267-334`, `:337-359`, `:343-357`, `:361-365`; `RequirementStatusCard.tsx:353-355`, `:324-345`, `:115-145`, `:376-382`, `:385-391`; `RequirementActivityFeed.tsx:118`; `RequirementActivityForm.tsx:59`, `:61-67`, `:82-103`, `:105-127`, `:128-148`; `RequirementResolutionCard.tsx:101-119`, `:120-131`, `:133-145`, `:155-158`, `:160-167`, `:168-175`
 
@@ -127,7 +130,7 @@ date: 2026-10-26
     - card-informacion-general (marca-identidad-automatica en la fila "Creado por", cuando el creador es una identidad de servicio)
     - card-horas-trabajadas (desglose-horas-persona, total-horas-trabajadas, vacio-horas-trabajadas *(sin horas)*, cargando-horas-trabajadas *(mientras carga)*) [REQ-010 RF-8]
     - card-etiquetas (chip-etiqueta × N)
-    - card-documentacion (tabla-documentos con marca-documento-en-edicion, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*, boton-ver-mas-documentos) [REQ-016 RF-18]
+    - card-documentacion (cabecera: título con la cantidad · boton-nuevo-documento-card · boton-ver-todos-documentos; lista-documentos-card con temas-documento-card, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*) [REQ-016 RF-18; REQ-021 RF-16, RF-17]
     - card-resolucion (campo-tipo-resolucion, campo-conclusion, campo-nota-cliente, boton-cancelar-requisito, boton-resolver-requisito, badge-resultado, boton-reabrir-requisito *(solo en estado terminal, en la misma fila que badge-resultado)*) [REQ-012]
 
 **REQ-016:** `card-documentacion` va en la columna derecha entre Etiquetas y Resolución — ver Decisiones. Con el módulo `not_installed` la card no existe.
@@ -454,28 +457,40 @@ date: 2026-10-26
 - Annotation: aparece **solo** en `resuelto` y `cancelado`, al lado de badge-resultado, y devuelve el requisito a `desarrollo`. Es el par simétrico de boton-resolver-requisito y boton-cancelar-requisito: los tres son transiciones de la card de resolución, y desde REQ-012 las tres son reversibles. **`"Reabrir"` y no `"Volver a abrir"` ni `"Retomar"`**: es la palabra que el equipo ya usa para esto y la que no se confunde con `"Cancelar"`, que en esta card cancela el requisito y no la acción. **Al confirmarse limpia los tres campos de resolución** —tipo, conclusión y nota para cliente—, así que el aviso de esa pérdida es parte de la acción y no de un estado posterior [REQ-012 RF-2, RF-10, CA-3, CA-4, CA-12]
 
 ### card-documentacion
-- Texto/label: título `"Documentación"`
-- Icono: file
-- Asset: nada
-- Annotation: `Card` `panel`. **Nuevo con REQ-016.** Solo existe si el módulo de documentación está instalado; la web consulta su estado al iniciar, cada 60 s y ante una respuesta `module_unavailable` [REQ-016 RF-17, CA-25]. Pide al módulo los documentos con `requirementId` del requisito, filtrados por lo que la persona puede leer
-
-### tabla-documentos
-- Texto/label: columnas `"Documento"` · `"Ruta"` · `"Actualizado"`. La ruta es la carpeta del documento; la fecha, `DD/MM/AAAA`
+- Texto/label: título `"Documentación"` seguido de la cantidad (`"Documentación {n}"`; `"{n}+"` si el servicio no da total exacto)
 - Icono: nada
 - Asset: nada
-- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 10 filas; el resto con boton-ver-mas-documentos
+- Annotation: `Card` `panel`. Solo existe si el módulo de documentación está instalado [REQ-016 RF-17, CA-25]. Pide los 5 documentos más recientes con `requirementId` de la ficha y el total. **REQ-021:** filas compactas en lugar de tabla y sin ruta, así la card deja de desbordar a 1440 px [CA-23]
 
-### marca-documento-en-edicion
-- Texto/label: `"En edición"`
-- Icono: lock
+### boton-nuevo-documento-card
+- Texto/label: nombre accesible `"Nuevo documento en este requisito"`
+- Icono: plus
 - Asset: nada
-- Annotation: `Badge` neutro junto al título; nombre accesible `"{persona} lo está editando"`
+- Annotation: botón solo icono en la cabecera de la card. Abre O-11 con el requisito, su proyecto y su cliente ya elegidos [REQ-021 Diseño de la web]
+
+### boton-ver-todos-documentos
+- Texto/label: `"Ver todos"`
+- Icono: chevron-right
+- Asset: nada
+- Annotation: `Button` `secondary-nav` en la cabecera de la card. Navega a `/docs?requisito={id}&origen=requisito`: Documentación con el filtro de este requisito y `"Volver al requisito"` [REQ-021 RF-17]
+
+### lista-documentos-card
+- Texto/label: por fila, el título del documento y la fecha de actualización a la derecha (`DD/MM/AAAA`, o `"—"` sin fecha)
+- Icono: file (en cada fila)
+- Asset: nada
+- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 5 filas; el resto, con "Ver todos". Fecha en mono
+
+### temas-documento-card
+- Texto/label: un pill por tema; sin temas, `"Sin tema"` en texto secundario
+- Icono: nada
+- Asset: nada
+- Annotation: `Badge` `outline`, debajo del título de la fila
 
 ### vacio-documentos
 - Texto/label: `"No hay documentos vinculados a este requisito."`
 - Icono: file
 - Asset: nada
-- Annotation: `EmptyState` `list`, **sin acción de alta**: los vínculos se escriben en el frontmatter del documento, no desde esta card
+- Annotation: `EmptyState` `list`. La acción de alta está en la cabecera de la card (`+`)
 
 ### cargando-documentos
 - Texto/label: `"Cargando documentos…"`
@@ -487,13 +502,7 @@ date: 2026-10-26
 - Texto/label: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
 - Icono: warning
 - Asset: nada
-- Annotation: mismo texto en las cinco pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca este requisito sin documentos [REQ-016 CA-27]
-
-### boton-ver-mas-documentos
-- Texto/label: `"Ver más"`
-- Icono: nada
-- Asset: nada
-- Annotation: la consulta pagina por cursor; no hay total que mostrar
+- Annotation: mismo texto en todas las pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca una ficha sin documentos [REQ-016 CA-27; REQ-021 CA-26]
 
 ## Estados
 
@@ -574,7 +583,8 @@ date: 2026-10-26
 - Mensaje: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
 - Cambios:
   - aviso-documentacion-no-disponible: visible dentro de card-documentacion
-  - tabla-documentos y boton-ver-mas-documentos: ocultos
+  - lista-documentos-card y boton-ver-todos-documentos: ocultos
+  - boton-nuevo-documento-card: disabled
 - El resto de la pantalla no se ve afectado. Cuando el módulo vuelve, la card se recarga sola
 
 ### error de validación
@@ -657,8 +667,9 @@ date: 2026-10-26
 
 [fuente: código-existente]
 
-- **REQ-016 ·** fila de tabla-documentos · on click / `Enter` → navega a `/docs/{id}`
-- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
+- **REQ-016 ·** fila de lista-documentos-card · on click / `Enter` → navega a `/docs/{id}`
+- **REQ-021 ·** boton-nuevo-documento-card · on click → abre O-11 con el requisito, su proyecto y su cliente precargados
+- **REQ-021 ·** boton-ver-todos-documentos · on click → navega a `/docs?requisito={id}&origen=requisito`
 
 **Validaciones:**
 - editor-comentario · no vacío tras `trim()` → boton-enviar-comentario queda `disabled`, sin mensaje · `RequirementActivityForm.tsx:24`, `:131`
@@ -781,3 +792,17 @@ date: 2026-10-26
 - **Solo cambia lo que se oye, no lo que se ve.** Las pills de tipo y prioridad se anunciaban como "Estado: …" porque el `Badge` editable fijaba el prefijo. Cada una pasa a nombrar su propio atributo; el texto visible, el orden de foco y el layout no cambian [RF-4, CA-7].
 - **El prefijo es el nombre del atributo tal como lo lee la pantalla** —"Estado", "Tipo", "Prioridad"—, no una frase ("Cambiar tipo"): el `aria-haspopup="listbox"` ya anuncia que es un control, y repetirlo alarga lo que el lector dice en cada parada.
 - **Design System:** el `Badge` (`web` v4.2.0) ya exige que el nombre accesible del `editable` diga qué cambia; la spec lo ejemplifica solo con estado. La prop aditiva `attributeLabel` (default `"Estado"`) queda anotada para registrarse en `badge.md` con `/product-design-system-update`. Ver la `## Revisión UX` de REQ-020. **Registrada en S-092:** `badge.md` 1.3.0, DS `web` 4.3.0.
+
+### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
+
+**Decisiones tomadas:**
+- **La card pasa de tabla a filas compactas, sin ruta.** Título, fecha y temas (o "Sin tema") por fila, como la card de la propuesta B; la ruta deja de mostrarse en todo el producto [REQ-021 decisión 2, decisión 7]. La tabla con columna de ruta era la que desbordaba la card a 1440 px [REQ-021 decisión 9, CA-23].
+- **La card ahora crea: "+" abre el alta con el requisito, su proyecto y su cliente precargados.** Revierte la decisión de REQ-016 ("la card lista y no crea"): con propiedades por campos, el alta puede dejar el vínculo hecho sin que nadie escriba frontmatter.
+- **"Ver todos" en lugar de "Ver más".** La card muestra los 5 más recientes y la cantidad; el listado completo vive en Documentación con el filtro de este requisito, que además se puede afinar con otros filtros.
+- **Sin marca "En edición" en las filas.** El formato de la propuesta B no la lleva y la card es una puerta de entrada; la marca sigue en Documentación y en el documento.
+
+**Alternativas descartadas:**
+- Mantener la tabla con menos columnas: la card es angosta y la tabla desborda con títulos largos.
+
+**Preguntas abiertas:**
+- Ninguna.

@@ -2022,12 +2022,125 @@
           "name": "card-documentacion",
           "type": "card",
           "category": "content",
-          "content": "Documentación",
-          "icon": "file",
+          "content": "Documentación 3",
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con projectId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+          "state_overrides": {
+            "empty": {
+              "content": "Documentación 0"
+            },
+            "documentación no disponible": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "Card panel · solo existe con el módulo instalado (con not_installed no se renderiza) · pide los 5 más recientes con projectId de la ficha y el total (\"{n}+\" sin total exacto) · REQ-021: filas compactas, sin ruta [REQ-016 RF-17, RF-18; REQ-021 RF-16, RF-17]"
+        },
+        {
+          "name": "boton-nuevo-documento-card",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "plus",
+          "content": "Nuevo documento en este proyecto",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "state_overrides": {
+            "documentación no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "solo icono en la cabecera de la card; el texto es su nombre accesible · abre O-11 con el proyecto y su cliente ya elegidos [REQ-021 RF-16, CA-9]"
+        },
+        {
+          "name": "boton-ver-todos-documentos",
+          "type": "button",
+          "category": "navigation",
+          "variant": "secondary",
+          "icon": "chevron-right",
+          "content": "Ver todos",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "secondary-nav en la cabecera · navega a /docs?proyecto={id}&origen=proyecto: Documentación filtrada con \"Volver al proyecto\" [REQ-021 RF-16, RF-17, CA-7]"
+        },
+        {
+          "name": "lista-documentos-card",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Guía de despliegue del portal",
+              "subtitle": "22/10/2026",
+              "icon": "file"
+            },
+            {
+              "title": "Análisis de integración con SAP",
+              "subtitle": "15/10/2026",
+              "icon": "file"
+            },
+            {
+              "title": "Casos de prueba del reporte",
+              "subtitle": "12/10/2026",
+              "icon": "file"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "una fila por documento: título y fecha DD/MM/AAAA a la derecha (\"—\" sin fecha), en mono · fila entera clickeable y enfocable (enlace a /docs/{id}) · última actualización primero, hasta 5"
+        },
+        {
+          "name": "temas-documento-card",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "despliegue",
+            "operación"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge outline debajo del título de la fila · sin temas: \"Sin tema\" en texto secundario"
+        },
+        {
+          "name": "marca-sin-proyecto-propio",
+          "type": "label",
+          "category": "content",
+          "content": "Sin tema · vinculado, sin proyecto propio",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "solo en filas con projectMatch = indirect: el documento llega por un requisito o una tarea del proyecto [REQ-021 decisión 7, RF-16, CA-8]"
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a este proyecto.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list · la acción de alta está en la cabecera de la card (+)"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader inline dentro de la card, con su propia consulta; el resto de la pantalla no espera"
         },
         {
           "name": "aviso-documentacion-no-disponible",
@@ -2038,100 +2151,7 @@
           "visible_only_in_states": [
             "documentación no disponible"
           ],
-          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
-        },
-        {
-          "name": "tabla-documentos",
-          "type": "table",
-          "category": "content",
-          "columns": [
-            {
-              "label": "Documento",
-              "width": 50
-            },
-            {
-              "label": "Ruta",
-              "width": 30
-            },
-            {
-              "label": "Actualizado",
-              "width": 20
-            }
-          ],
-          "rows": [
-            [
-              "Guía de despliegue del portal",
-              "Opus / Portal / Operación",
-              "22/10/2026"
-            ],
-            [
-              "Análisis de integración con SAP",
-              "Opus / Portal / Análisis",
-              "15/10/2026"
-            ],
-            [
-              "Manual de usuario — módulo de reportes",
-              "Opus / Portal / Manuales",
-              "02/10/2026"
-            ]
-          ],
-          "hidden_in_states": [
-            "loading",
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
-        },
-        {
-          "name": "marca-documento-en-edicion",
-          "type": "badge",
-          "category": "content",
-          "content": "En edición",
-          "hidden_in_states": [
-            "loading",
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
-        },
-        {
-          "name": "vacio-documentos",
-          "type": "empty-state",
-          "category": "feedback",
-          "content": "No hay documentos vinculados a este proyecto.",
-          "visible_only_in_states": [
-            "empty"
-          ],
-          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
-        },
-        {
-          "name": "cargando-documentos",
-          "type": "loader",
-          "category": "feedback",
-          "content": "Cargando documentos…",
-          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera",
-          "hidden_in_states": [
-            "default",
-            "empty",
-            "loading",
-            "error de validación",
-            "error de sistema",
-            "success",
-            "documentación no disponible"
-          ]
-        },
-        {
-          "name": "boton-ver-mas-documentos",
-          "type": "button",
-          "category": "input",
-          "variant": "secondary",
-          "content": "Ver más",
-          "hidden_in_states": [
-            "loading",
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
+          "annotation": "la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en todas las pantallas de documentación [REQ-016 CA-27; REQ-021 CA-26]"
         }
       ],
       "layouts": {
@@ -2215,17 +2235,39 @@
                         "w": 12,
                         "card": true,
                         "stack": [
-                          "card-documentacion",
+                          {
+                            "row": "cabecera-documentacion",
+                            "cols": [
+                              {
+                                "w": 6,
+                                "stack": [
+                                  "card-documentacion"
+                                ]
+                              },
+                              {
+                                "w": 2,
+                                "stack": [
+                                  "boton-nuevo-documento-card"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-ver-todos-documentos"
+                                ]
+                              }
+                            ]
+                          },
                           "aviso-documentacion-no-disponible",
-                          "tabla-documentos",
-                          "marca-documento-en-edicion",
+                          "lista-documentos-card",
+                          "temas-documento-card",
+                          "marca-sin-proyecto-propio",
                           "vacio-documentos",
-                          "cargando-documentos",
-                          "boton-ver-mas-documentos"
+                          "cargando-documentos"
                         ]
                       }
                     ],
-                    "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
+                    "annotation": "REQ-016/REQ-021 · card-documentacion: no existe con el módulo not_installed"
                   },
                   {
                     "row": "bloque-adjuntos",
@@ -4361,12 +4403,108 @@
           "name": "card-documentacion",
           "type": "card",
           "category": "content",
-          "content": "Documentación",
-          "icon": "file",
+          "content": "Documentación 2",
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con requirementId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+          "state_overrides": {
+            "empty": {
+              "content": "Documentación 0"
+            },
+            "documentación no disponible": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "Card panel · solo existe con el módulo instalado (con not_installed no se renderiza) · pide los 5 más recientes con requirementId de la ficha y el total (\"{n}+\" sin total exacto) · REQ-021: filas compactas, sin ruta [REQ-016 RF-17, RF-18; REQ-021 RF-16, RF-17]"
+        },
+        {
+          "name": "boton-nuevo-documento-card",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "plus",
+          "content": "Nuevo documento en este requisito",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "state_overrides": {
+            "documentación no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "solo icono en la cabecera de la card; el texto es su nombre accesible · abre O-11 con el requisito, su proyecto y su cliente ya elegidos [REQ-021 RF-16, CA-9]"
+        },
+        {
+          "name": "boton-ver-todos-documentos",
+          "type": "button",
+          "category": "navigation",
+          "variant": "secondary",
+          "icon": "chevron-right",
+          "content": "Ver todos",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "secondary-nav en la cabecera · navega a /docs?requisito={id}&origen=requisito: Documentación filtrada con \"Volver al requisito\" [REQ-021 RF-16, RF-17, CA-7]"
+        },
+        {
+          "name": "lista-documentos-card",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Exportación a Excel — decisiones de formato",
+              "subtitle": "21/10/2026",
+              "icon": "file"
+            },
+            {
+              "title": "Casos de prueba del reporte",
+              "subtitle": "18/10/2026",
+              "icon": "file"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "una fila por documento: título y fecha DD/MM/AAAA a la derecha (\"—\" sin fecha), en mono · fila entera clickeable y enfocable (enlace a /docs/{id}) · última actualización primero, hasta 5"
+        },
+        {
+          "name": "temas-documento-card",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "análisis",
+            "excel"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge outline debajo del título de la fila · sin temas: \"Sin tema\" en texto secundario"
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a este requisito.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list · la acción de alta está en la cabecera de la card (+)"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader inline dentro de la card, con su propia consulta; el resto de la pantalla no espera"
         },
         {
           "name": "aviso-documentacion-no-disponible",
@@ -4377,86 +4515,7 @@
           "visible_only_in_states": [
             "documentación no disponible"
           ],
-          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
-        },
-        {
-          "name": "tabla-documentos",
-          "type": "table",
-          "category": "content",
-          "columns": [
-            {
-              "label": "Documento",
-              "width": 50
-            },
-            {
-              "label": "Ruta",
-              "width": 30
-            },
-            {
-              "label": "Actualizado",
-              "width": 20
-            }
-          ],
-          "rows": [
-            [
-              "Exportación a Excel — decisiones de formato",
-              "Opus / Portal / Análisis",
-              "21/10/2026"
-            ],
-            [
-              "Casos de prueba del reporte",
-              "Opus / Portal / QA",
-              "18/10/2026"
-            ]
-          ],
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
-        },
-        {
-          "name": "marca-documento-en-edicion",
-          "type": "badge",
-          "category": "content",
-          "content": "En edición",
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
-        },
-        {
-          "name": "vacio-documentos",
-          "type": "empty-state",
-          "category": "feedback",
-          "content": "No hay documentos vinculados a este requisito.",
-          "visible_only_in_states": [
-            "empty"
-          ],
-          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
-        },
-        {
-          "name": "cargando-documentos",
-          "type": "loader",
-          "category": "feedback",
-          "content": "Cargando documentos…",
-          "visible_only_in_states": [
-            "loading"
-          ],
-          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera"
-        },
-        {
-          "name": "boton-ver-mas-documentos",
-          "type": "button",
-          "category": "input",
-          "variant": "secondary",
-          "content": "Ver más",
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
+          "annotation": "la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en todas las pantallas de documentación [REQ-016 CA-27; REQ-021 CA-26]"
         }
       ],
       "layouts": {
@@ -4702,17 +4761,38 @@
                         "w": 12,
                         "card": true,
                         "stack": [
-                          "card-documentacion",
+                          {
+                            "row": "cabecera-documentacion",
+                            "cols": [
+                              {
+                                "w": 6,
+                                "stack": [
+                                  "card-documentacion"
+                                ]
+                              },
+                              {
+                                "w": 2,
+                                "stack": [
+                                  "boton-nuevo-documento-card"
+                                ]
+                              },
+                              {
+                                "w": 4,
+                                "stack": [
+                                  "boton-ver-todos-documentos"
+                                ]
+                              }
+                            ]
+                          },
                           "aviso-documentacion-no-disponible",
-                          "tabla-documentos",
-                          "marca-documento-en-edicion",
+                          "lista-documentos-card",
+                          "temas-documento-card",
                           "vacio-documentos",
-                          "cargando-documentos",
-                          "boton-ver-mas-documentos"
+                          "cargando-documentos"
                         ]
                       }
                     ],
-                    "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
+                    "annotation": "REQ-016/REQ-021 · card-documentacion: no existe con el módulo not_installed"
                   },
                   "card-resolucion",
                   "campo-tipo-resolucion",
@@ -6684,12 +6764,102 @@
           "name": "card-documentacion",
           "type": "card",
           "category": "content",
-          "content": "Documentación",
-          "icon": "file",
+          "content": "Documentación 1",
           "hidden_in_states": [
             "loading"
           ],
-          "annotation": "Card panel · nuevo con REQ-016 · solo existe con el módulo de documentación instalado (con not_installed no se renderiza ni reserva espacio); la web consulta el estado al iniciar, cada 60 s y ante un module_unavailable · documentos con taskId de la ficha, filtrados por lo que la persona puede leer · lista y no crea: el vínculo vive en el frontmatter [REQ-016 RF-17, RF-18, CA-25]"
+          "state_overrides": {
+            "empty": {
+              "content": "Documentación 0"
+            },
+            "documentación no disponible": {
+              "content": "Documentación"
+            }
+          },
+          "annotation": "Card panel · solo existe con el módulo instalado (con not_installed no se renderiza) · pide los 5 más recientes con taskId de la ficha y el total (\"{n}+\" sin total exacto) · REQ-021: filas compactas, sin ruta [REQ-016 RF-17, RF-18; REQ-021 RF-16, RF-17]"
+        },
+        {
+          "name": "boton-nuevo-documento-card",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "plus",
+          "content": "Nuevo documento en esta tarea",
+          "hidden_in_states": [
+            "loading"
+          ],
+          "state_overrides": {
+            "documentación no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "solo icono en la cabecera de la card; el texto es su nombre accesible · abre O-11 con la tarea, su proyecto y su cliente ya elegidos [REQ-021 RF-16, CA-9]"
+        },
+        {
+          "name": "boton-ver-todos-documentos",
+          "type": "button",
+          "category": "navigation",
+          "variant": "secondary",
+          "icon": "chevron-right",
+          "content": "Ver todos",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "secondary-nav en la cabecera · navega a /docs?tarea={id}&origen=tarea: Documentación filtrada con \"Volver a la tarea\" [REQ-021 RF-16, RF-17, CA-7]"
+        },
+        {
+          "name": "lista-documentos-card",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Endpoint de exportación — contrato",
+              "subtitle": "20/10/2026",
+              "icon": "file"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "una fila por documento: título y fecha DD/MM/AAAA a la derecha (\"—\" sin fecha), en mono · fila entera clickeable y enfocable (enlace a /docs/{id}) · última actualización primero, hasta 5"
+        },
+        {
+          "name": "temas-documento-card",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "api"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "documentación no disponible"
+          ],
+          "annotation": "Badge outline debajo del título de la fila · sin temas: \"Sin tema\" en texto secundario"
+        },
+        {
+          "name": "vacio-documentos",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "No hay documentos vinculados a esta tarea.",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list · la acción de alta está en la cabecera de la card (+)"
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentos…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader inline dentro de la card, con su propia consulta; el resto de la pantalla no espera"
         },
         {
           "name": "aviso-documentacion-no-disponible",
@@ -6700,81 +6870,7 @@
           "visible_only_in_states": [
             "documentación no disponible"
           ],
-          "annotation": "sub-estado \"documentación no disponible\": el módulo está registrado pero no responde · la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en las cinco pantallas de documentación [REQ-016 CA-27]"
-        },
-        {
-          "name": "tabla-documentos",
-          "type": "table",
-          "category": "content",
-          "columns": [
-            {
-              "label": "Documento",
-              "width": 50
-            },
-            {
-              "label": "Ruta",
-              "width": 30
-            },
-            {
-              "label": "Actualizado",
-              "width": 20
-            }
-          ],
-          "rows": [
-            [
-              "Endpoint de exportación — contrato",
-              "Opus / Portal / Técnica",
-              "20/10/2026"
-            ]
-          ],
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "fila entera clickeable y enfocable (el título es un enlace a /docs/{id}) · última actualización primero · hasta 10 filas [REQ-016 CA-26]"
-        },
-        {
-          "name": "marca-documento-en-edicion",
-          "type": "badge",
-          "category": "content",
-          "content": "En edición",
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "Badge neutro junto al título, solo en filas con lock vigente · nombre accesible \"{persona} lo está editando\""
-        },
-        {
-          "name": "vacio-documentos",
-          "type": "empty-state",
-          "category": "feedback",
-          "content": "No hay documentos vinculados a esta tarea.",
-          "visible_only_in_states": [
-            "empty"
-          ],
-          "annotation": "EmptyState list, sin acción de alta: los vínculos se escriben en el frontmatter del documento, no desde esta card"
-        },
-        {
-          "name": "cargando-documentos",
-          "type": "loader",
-          "category": "feedback",
-          "content": "Cargando documentos…",
-          "visible_only_in_states": [
-            "loading"
-          ],
-          "annotation": "Loader inline dentro de la card, mientras carga su propia consulta; el resto de la pantalla no espera"
-        },
-        {
-          "name": "boton-ver-mas-documentos",
-          "type": "button",
-          "category": "input",
-          "variant": "secondary",
-          "content": "Ver más",
-          "hidden_in_states": [
-            "empty",
-            "documentación no disponible"
-          ],
-          "annotation": "variant DS secondary-dismiss · solo cuando hay más documentos · pagina por cursor, sin total que mostrar"
+          "annotation": "la card queda visible para que el hueco no parezca una ficha sin documentos · mismo texto en todas las pantallas de documentación [REQ-016 CA-27; REQ-021 CA-26]"
         }
       ],
       "layouts": {
@@ -6852,17 +6948,38 @@
                 "w": 12,
                 "card": true,
                 "stack": [
-                  "card-documentacion",
+                  {
+                    "row": "cabecera-documentacion",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "card-documentacion"
+                        ]
+                      },
+                      {
+                        "w": 2,
+                        "stack": [
+                          "boton-nuevo-documento-card"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "boton-ver-todos-documentos"
+                        ]
+                      }
+                    ]
+                  },
                   "aviso-documentacion-no-disponible",
-                  "tabla-documentos",
-                  "marca-documento-en-edicion",
+                  "lista-documentos-card",
+                  "temas-documento-card",
                   "vacio-documentos",
-                  "cargando-documentos",
-                  "boton-ver-mas-documentos"
+                  "cargando-documentos"
                 ]
               }
             ],
-            "annotation": "REQ-016 · card-documentacion: no existe con el módulo not_installed"
+            "annotation": "REQ-016/REQ-021 · card-documentacion: no existe con el módulo not_installed"
           },
           "titulo-historial",
           "lista-historial",
@@ -9902,50 +10019,46 @@
           "category": "content",
           "level": "h1",
           "content": "Documentación",
-          "annotation": "ViewHeader sin breadcrumb propio: el de esta vista es el de carpetas, debajo · la ruta existe solo con el módulo instalado; con not_installed /docs es el 404 de la superficie [REQ-016 RF-23, CA-25]"
+          "state_overrides": {
+            "filtrado desde una ficha": {
+              "content": "Documentos · Portal Opus"
+            },
+            "sin proyecto": {
+              "content": "Sin proyecto"
+            },
+            "asignando": {
+              "content": "Sin proyecto"
+            },
+            "success": {
+              "content": "Sin proyecto"
+            }
+          },
+          "annotation": "ViewHeader sin breadcrumb propio; el de la topbar no se toca · desde una ficha: \"Documentos · {nombre del proyecto}\" (o del requisito, de la tarea) · con \"Sin proyecto\": \"Sin proyecto\" [REQ-021 decisión 1]"
         },
         {
-          "name": "breadcrumb-carpeta",
-          "type": "breadcrumbs",
+          "name": "subtitulo-sin-proyecto",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Documentos que todavía no están vinculados a un proyecto. Asignarlos hace que aparezcan en los filtros y en el detalle de cada proyecto.",
+          "visible_only_in_states": [
+            "sin proyecto",
+            "asignando",
+            "success"
+          ],
+          "annotation": "aparece con el filtro \"Sin proyecto\" activo, sea tipeando \"sin\" o con un link"
+        },
+        {
+          "name": "boton-volver-origen",
+          "type": "button",
           "category": "navigation",
-          "items": [
-            "Inicio",
-            "Opus",
-            "Portal",
-            "Operación"
+          "variant": "secondary",
+          "icon": "arrow-left",
+          "content": "Volver al proyecto",
+          "visible_only_in_states": [
+            "filtrado desde una ficha"
           ],
-          "hidden_in_states": [
-            "resultados de búsqueda",
-            "sin resultados",
-            "módulo no disponible"
-          ],
-          "state_overrides": {
-            "not found": {
-              "items": [
-                "Inicio"
-              ]
-            }
-          },
-          "annotation": "la carpeta actual viaja en la URL (?folder={id}): sobrevive a recargar y se puede compartir · el último nivel sin enlace · <nav aria-label=\"Ruta de la carpeta\">"
-        },
-        {
-          "name": "busqueda-documentos",
-          "type": "search-bar",
-          "category": "input",
-          "icon": "search",
-          "content": "Buscar en la documentación",
-          "state_overrides": {
-            "resultados de búsqueda": {
-              "content": "despliegue"
-            },
-            "sin resultados": {
-              "content": "rollback kubernetes"
-            },
-            "módulo no disponible": {
-              "state": "disabled"
-            }
-          },
-          "annotation": "busca en todo lo que la persona puede leer, no solo en la carpeta actual · debounce 300 ms, mínimo 2 caracteres · el texto viaja en la URL (?q=) · vaciar el campo vuelve a la carpeta"
+          "annotation": "variant DS secondary-nav · \"Volver al requisito\" / \"Volver a la tarea\" · aparece con origen en la URL y el token de esa entidad activo; el destino se arma con el id del token, nunca con una URL de la query"
         },
         {
           "name": "boton-nuevo-documento",
@@ -9954,18 +10067,626 @@
           "variant": "primary",
           "icon": "plus",
           "content": "Nuevo documento",
-          "hidden_in_states": [
-            "resultados de búsqueda",
-            "sin resultados",
-            "terminal",
-            "not found"
-          ],
           "state_overrides": {
             "módulo no disponible": {
               "variant": "disabled"
             }
           },
-          "annotation": "no se renderiza si la carpeta no da write ni manage, ni en la raíz (Inicio): un documento siempre vive en una carpeta · abre O-11 con la carpeta fijada"
+          "annotation": "siempre visible: ya no depende de una carpeta ni de un permiso por carpeta [REQ-021 RF-9] · filtrado desde una ficha, O-11 abre con esas relaciones precargadas"
+        },
+        {
+          "name": "buscador-documentos",
+          "type": "search-bar",
+          "category": "input",
+          "icon": "search",
+          "content": "Buscá texto o escribí un proyecto, cliente, tema o persona",
+          "state_overrides": {
+            "sugerencias abiertas": {
+              "value": "port",
+              "state": "focused"
+            },
+            "resultados": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "sin resultados": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "filtrado desde una ficha": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "sin proyecto": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "asignando": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "success": {
+              "content": "Sumar otro filtro o texto"
+            },
+            "módulo no disponible": {
+              "state": "disabled"
+            }
+          },
+          "annotation": "combobox con tokens: ≥1 carácter abre sugerencias (debounce 200 ms) · Enter sin sugerencia marcada suma el texto (≥2 caracteres) · flechas recorren · Esc cierra sin borrar · ⌫ con el campo vacío quita el último token · filtros con Y; dos del mismo tipo con O · botón \"Quitar todos los filtros\" [REQ-021 RF-2, CA-3 a CA-5]"
+        },
+        {
+          "name": "tokens-filtro",
+          "type": "chips",
+          "category": "input",
+          "items": [
+            "Proyecto Portal Opus ×",
+            "Tema despliegue ×",
+            "“pipeline” ×"
+          ],
+          "visible_only_in_states": [
+            "resultados",
+            "sin resultados",
+            "filtrado desde una ficha",
+            "sin proyecto",
+            "asignando",
+            "success"
+          ],
+          "state_overrides": {
+            "sin resultados": {
+              "items": [
+                "Cliente ACME ×",
+                "“rollback kubernetes” ×"
+              ]
+            },
+            "filtrado desde una ficha": {
+              "items": [
+                "Proyecto Portal Opus ×"
+              ]
+            },
+            "sin proyecto": {
+              "items": [
+                "Sin proyecto ×"
+              ]
+            },
+            "asignando": {
+              "items": [
+                "Sin proyecto ×"
+              ]
+            },
+            "success": {
+              "items": [
+                "Sin proyecto ×"
+              ]
+            }
+          },
+          "annotation": "dentro del buscador, a la izquierda del texto · \"Proyecto {nombre}\" · \"Cliente {nombre}\" · \"Tema {tema}\" · \"Persona {nombre}\" · \"Requisito {título}\" · \"Tarea {título}\" · texto entre comillas · \"Sin proyecto\" / \"Sin cliente\" / \"Sin tema\" · cada × con nombre accesible \"Quitar filtro {etiqueta}\" · id desconocido: #id"
+        },
+        {
+          "name": "lista-sugerencias",
+          "type": "list",
+          "category": "input",
+          "items": [
+            {
+              "title": "Buscar «port» en títulos y contenido",
+              "icon": "search"
+            },
+            {
+              "title": "Portal Opus",
+              "subtitle": "Proyectos · ACME",
+              "icon": "folder"
+            },
+            {
+              "title": "Portal de clientes",
+              "subtitle": "Proyectos · Globex",
+              "icon": "folder"
+            },
+            {
+              "title": "Portillo Hnos.",
+              "subtitle": "Clientes",
+              "icon": "users"
+            },
+            {
+              "title": "Portela, Martín",
+              "subtitle": "Personas",
+              "icon": "user"
+            },
+            {
+              "title": "portabilidad",
+              "subtitle": "Temas · 4 documentos",
+              "icon": "filter"
+            }
+          ],
+          "visible_only_in_states": [
+            "sugerencias abiertas"
+          ],
+          "annotation": "listbox agrupado bajo el campo, por encima del contenido · la coincidencia resaltada (<mark>) · hasta 5 por grupo, mis proyectos primero · con un cliente elegido, solo sus proyectos · \"sin…\" ofrece Sin proyecto / Sin cliente / Sin tema · temas por prefijo [REQ-021 RF-3, CA-2, CA-6]"
+        },
+        {
+          "name": "ayuda-teclado",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "Elegí una sugerencia para sumarla como filtro · Enter agrega el texto escrito · ⌫ quita el último filtro",
+          "hidden_in_states": [
+            "módulo no disponible"
+          ],
+          "state_overrides": {
+            "sin proyecto": {
+              "content": "Escribí «sin» para encontrar Sin proyecto, Sin cliente o Sin tema · ⌫ quita el último filtro"
+            },
+            "asignando": {
+              "content": "Escribí «sin» para encontrar Sin proyecto, Sin cliente o Sin tema · ⌫ quita el último filtro"
+            },
+            "success": {
+              "content": "Escribí «sin» para encontrar Sin proyecto, Sin cliente o Sin tema · ⌫ quita el último filtro"
+            }
+          },
+          "annotation": "Enter y ⌫ como teclas (kbd)"
+        },
+        {
+          "name": "filtro-visible-cliente",
+          "type": "toggle",
+          "category": "input",
+          "content": "Todos · Visibles para el cliente",
+          "state_overrides": {
+            "módulo no disponible": {
+              "annotation": "deshabilitado mientras el módulo no responde"
+            }
+          },
+          "annotation": "ToggleGroup segmentado (el DS no tiene checkbox), default \"Todos\" · icono eye en la segunda opción · manda visibility=public; en la URL publico=1 [REQ-021 RF-4]"
+        },
+        {
+          "name": "orden-documentos",
+          "type": "toggle",
+          "category": "input",
+          "content": "Más recientes · A–Z",
+          "hidden_in_states": [
+            "módulo no disponible"
+          ],
+          "state_overrides": {
+            "resultados": {
+              "content": "Relevancia · Más recientes"
+            }
+          },
+          "annotation": "ToggleGroup segmentado · con token de texto: \"Relevancia\" · \"Más recientes\" (default Relevancia) · viaja en la URL (orden)"
+        },
+        {
+          "name": "tabla-documentos",
+          "type": "table",
+          "category": "content",
+          "columns": [
+            {
+              "label": "Documento",
+              "width": 46
+            },
+            {
+              "label": "Cliente · Proyecto",
+              "width": 26
+            },
+            {
+              "label": "Actualizado",
+              "width": 14
+            },
+            {
+              "label": "Editado por",
+              "width": 14
+            }
+          ],
+          "rows": [
+            [
+              "En mis proyectos activos",
+              "",
+              "",
+              ""
+            ],
+            [
+              "▤ Guía de despliegue del portal",
+              "ACME · Portal Opus",
+              "22/10/2026",
+              "Ana García"
+            ],
+            [
+              "▤ Runbook de incidentes",
+              "ACME · Portal Opus",
+              "19/10/2026",
+              "vos"
+            ],
+            [
+              "Editados recientemente",
+              "",
+              "",
+              ""
+            ],
+            [
+              "▤ Análisis de integración con SAP",
+              "Globex · Integración ERP",
+              "21/10/2026",
+              "Beto Ruiz"
+            ],
+            [
+              "▤ Acta de kickoff",
+              "Initech · Sin proyecto",
+              "20/10/2026",
+              "jiku-agent"
+            ],
+            [
+              "▤ Convenciones de código del equipo",
+              "Sin cliente · Sin proyecto",
+              "15/10/2026",
+              "—"
+            ]
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "resultados": {
+              "columns": [
+                {
+                  "label": "Documento · 3 de 3",
+                  "width": 46
+                },
+                {
+                  "label": "Cliente · Proyecto",
+                  "width": 26
+                },
+                {
+                  "label": "Actualizado",
+                  "width": 14
+                },
+                {
+                  "label": "Editado por",
+                  "width": 14
+                }
+              ],
+              "rows": [
+                [
+                  "▤ Guía de despliegue del portal",
+                  "ACME · Portal Opus",
+                  "22/10/2026",
+                  "Ana García"
+                ],
+                [
+                  "▤ Checklist de pase a producción",
+                  "ACME · Portal Opus",
+                  "03/10/2026",
+                  "Beto Ruiz"
+                ],
+                [
+                  "▤ Runbook de incidentes",
+                  "ACME · Portal Opus",
+                  "19/10/2026",
+                  "vos"
+                ]
+              ]
+            },
+            "filtrado desde una ficha": {
+              "columns": [
+                {
+                  "label": "Documento · 3 de 8",
+                  "width": 46
+                },
+                {
+                  "label": "Temas",
+                  "width": 26
+                },
+                {
+                  "label": "Actualizado",
+                  "width": 14
+                },
+                {
+                  "label": "Editado por",
+                  "width": 14
+                }
+              ],
+              "rows": [
+                [
+                  "▤ Guía de despliegue del portal",
+                  "despliegue · operación",
+                  "22/10/2026",
+                  "Ana García"
+                ],
+                [
+                  "▤ Runbook de incidentes",
+                  "operación",
+                  "19/10/2026",
+                  "vos"
+                ],
+                [
+                  "▤ Notas de la daily del 14/10",
+                  "Sin tema",
+                  "14/10/2026",
+                  "Carla Díaz"
+                ]
+              ]
+            },
+            "sin proyecto": {
+              "columns": [
+                {
+                  "label": "Documento",
+                  "width": 46
+                },
+                {
+                  "label": "Cliente",
+                  "width": 18
+                },
+                {
+                  "label": "Actualizado",
+                  "width": 14
+                },
+                {
+                  "label": "",
+                  "width": 22
+                }
+              ],
+              "rows": [
+                [
+                  "▤ Acta de kickoff",
+                  "Initech",
+                  "20/10/2026",
+                  "Asignar sugerido"
+                ],
+                [
+                  "▤ Minuta con el cliente — alcance fase 2",
+                  "ACME",
+                  "17/10/2026",
+                  "Asignar proyecto"
+                ],
+                [
+                  "▤ Convenciones de código del equipo",
+                  "—",
+                  "15/10/2026",
+                  "Asignar proyecto"
+                ]
+              ]
+            },
+            "asignando": {
+              "columns": [
+                {
+                  "label": "Documento",
+                  "width": 46
+                },
+                {
+                  "label": "Cliente",
+                  "width": 18
+                },
+                {
+                  "label": "Actualizado",
+                  "width": 14
+                },
+                {
+                  "label": "",
+                  "width": 22
+                }
+              ],
+              "rows": [
+                [
+                  "▤ Acta de kickoff",
+                  "Initech",
+                  "20/10/2026",
+                  "Asignando…"
+                ],
+                [
+                  "▤ Minuta con el cliente — alcance fase 2",
+                  "ACME",
+                  "17/10/2026",
+                  "Asignar proyecto"
+                ],
+                [
+                  "▤ Convenciones de código del equipo",
+                  "—",
+                  "15/10/2026",
+                  "Asignar proyecto"
+                ]
+              ]
+            },
+            "success": {
+              "columns": [
+                {
+                  "label": "Documento",
+                  "width": 46
+                },
+                {
+                  "label": "Cliente",
+                  "width": 18
+                },
+                {
+                  "label": "Actualizado",
+                  "width": 14
+                },
+                {
+                  "label": "",
+                  "width": 22
+                }
+              ],
+              "rows": [
+                [
+                  "▤ Minuta con el cliente — alcance fase 2",
+                  "ACME",
+                  "17/10/2026",
+                  "Asignar proyecto"
+                ],
+                [
+                  "▤ Convenciones de código del equipo",
+                  "—",
+                  "15/10/2026",
+                  "Asignar proyecto"
+                ]
+              ]
+            }
+          },
+          "annotation": "Table light · fila entera clickeable y enfocable (<a> en el título) · inicio: grupos \"En mis proyectos activos\" (hasta 5, se omite si está vacío) y \"Editados recientemente\" (20) · resultados: conteo en el encabezado (\"50+\" en el tope de texto) · \"Editado por\" es el nombre del servicio, \"vos\" si es la persona actual · sin columna de ruta en ninguna vista [REQ-021 RF-1, RF-5, RF-6, RF-15]"
+        },
+        {
+          "name": "temas-documento",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "despliegue",
+            "operación",
+            "+2"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema",
+            "filtrado desde una ficha",
+            "sin proyecto",
+            "asignando",
+            "success"
+          ],
+          "annotation": "Badge outline en la celda del título · hasta 3 y \"+{n}\" · sin temas, nada"
+        },
+        {
+          "name": "marca-visibilidad",
+          "type": "badge",
+          "category": "content",
+          "icon": "eye",
+          "content": "Visible para el cliente",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema"
+          ],
+          "annotation": "Badge outline en la celda del título · restricted: \"Restringido\" (lock) · internal no lleva marca"
+        },
+        {
+          "name": "marca-en-edicion",
+          "type": "badge",
+          "category": "content",
+          "icon": "lock",
+          "content": "En edición",
+          "hidden_in_states": [
+            "loading",
+            "empty",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema",
+            "sin proyecto",
+            "asignando",
+            "success"
+          ],
+          "annotation": "Badge neutro, solo en filas con lock vigente · nombre accesible \"{lock.holderName} lo está editando\" · informa, no bloquea"
+        },
+        {
+          "name": "fragmento-coincidencia",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "…ejecutar el «pipeline» de despliegue en staging antes de abrir el pase…",
+          "visible_only_in_states": [
+            "resultados"
+          ],
+          "annotation": "debajo del título de la fila, con token de texto · la coincidencia resaltada, nunca interpretada como HTML"
+        },
+        {
+          "name": "sugerencia-proyecto",
+          "type": "label",
+          "category": "content",
+          "content": "Sugerido: Onboarding Initech",
+          "visible_only_in_states": [
+            "sin proyecto",
+            "asignando"
+          ],
+          "annotation": "debajo del título, solo en filas con candidato · el motivo (reason) va con aria-describedby · se pide por fila visible, caché de 5 min; si falla, la fila ofrece \"Asignar proyecto\" [REQ-021 RF-8, CA-11]"
+        },
+        {
+          "name": "boton-asignar-sugerido",
+          "type": "button",
+          "category": "input",
+          "variant": "tertiary",
+          "content": "Asignar sugerido",
+          "visible_only_in_states": [
+            "sin proyecto",
+            "asignando"
+          ],
+          "state_overrides": {
+            "asignando": {
+              "variant": "disabled",
+              "content": "Asignando…"
+            }
+          },
+          "annotation": "solo agrega la relación; el contenido no cambia fuera del bloque jiku: y el servicio suma el cliente del proyecto [REQ-021 decisión 6, CA-10]"
+        },
+        {
+          "name": "boton-asignar-proyecto",
+          "type": "button",
+          "category": "input",
+          "variant": "tertiary",
+          "content": "Asignar proyecto",
+          "visible_only_in_states": [
+            "sin proyecto",
+            "asignando"
+          ],
+          "annotation": "en filas sin candidato · se reemplaza por selector-proyecto-fila en la misma celda"
+        },
+        {
+          "name": "selector-proyecto-fila",
+          "type": "dropdown",
+          "category": "input",
+          "state": "open",
+          "content": "Buscar proyecto…",
+          "options": [
+            "Portal Opus",
+            "Integración ERP",
+            "Onboarding Initech",
+            "App de turnos"
+          ],
+          "visible_only_in_states": [
+            "sin proyecto"
+          ],
+          "annotation": "Select single searchable, abierto al aparecer tras \"Asignar proyecto\" · sin resultados: \"Sin resultados\" · elegir asigna; Esc o perder el foco vuelve al botón · mismo selector que O-11"
+        },
+        {
+          "name": "paginacion-documentos",
+          "type": "pagination",
+          "category": "navigation",
+          "pages": 3,
+          "hidden_in_states": [
+            "default",
+            "sugerencias abiertas",
+            "loading",
+            "empty",
+            "sin resultados",
+            "módulo no disponible",
+            "error de sistema"
+          ],
+          "annotation": "\"Anterior\" · \"Siguiente\" · \"Página {n} de {total}\" cuando hay total · listados: 20 por página con cursor; texto: hasta 50 paginados en memoria"
+        },
+        {
+          "name": "vacio-inicio",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "Todavía no hay documentos.",
+          "paragraph": "Creá el primero con «Nuevo documento».",
+          "visible_only_in_states": [
+            "empty"
+          ],
+          "annotation": "EmptyState list"
+        },
+        {
+          "name": "vacio-busqueda",
+          "type": "empty-state",
+          "category": "feedback",
+          "content": "Ningún documento cumple estos filtros.",
+          "paragraph": "Quitá alguno o probá con otras palabras.",
+          "visible_only_in_states": [
+            "sin resultados"
+          ],
+          "annotation": "EmptyState filtered: invita a cambiar los filtros, no a crear · en sin proyecto: \"Todos los documentos tienen proyecto.\""
+        },
+        {
+          "name": "cargando-documentos",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando documentación…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader block dentro del panel; encabezado y buscador quedan visibles y operables"
         },
         {
           "name": "aviso-no-disponible",
@@ -9976,176 +10697,29 @@
           "visible_only_in_states": [
             "módulo no disponible"
           ],
-          "annotation": "la web reconsulta el estado del módulo cada 60 s; al volver a available el aviso desaparece y la carpeta se carga sola [REQ-016 RF-17, CA-27]"
+          "annotation": "la web reconsulta el estado cada 60 s; al volver a available el aviso desaparece y la lista se carga sola [REQ-016 RF-17, REQ-021 CA-26]"
         },
         {
           "name": "aviso-error",
           "type": "alert",
           "category": "feedback",
           "kind": "error",
-          "content": "No se pudo cargar la carpeta. Actualizá la página.",
+          "content": "No se pudo cargar la documentación. Actualizá la página.",
           "visible_only_in_states": [
-            "error de sistema",
-            "not found"
+            "error de sistema"
           ],
-          "state_overrides": {
-            "not found": {
-              "content": "Esta carpeta no existe o no tenés permiso para verla."
-            }
-          },
-          "annotation": "role=\"alert\" · en búsqueda: \"No se pudo buscar. Intentá de nuevo.\" · un 403 sobre una carpeta: \"No tenés permiso para ver esta carpeta.\""
+          "annotation": "role=\"alert\" · en búsqueda: \"No se pudo buscar. Intentá de nuevo.\""
         },
         {
-          "name": "tabla-carpeta",
-          "type": "table",
-          "category": "content",
-          "columns": [
-            {
-              "label": "Nombre",
-              "width": 56
-            },
-            {
-              "label": "Actualizado",
-              "width": 24
-            },
-            {
-              "label": "Por",
-              "width": 20
-            }
-          ],
-          "rows": [
-            [
-              "▰ Manuales",
-              "",
-              ""
-            ],
-            [
-              "▰ QA",
-              "",
-              ""
-            ],
-            [
-              "▤ Guía de despliegue del portal",
-              "22/10/2026 14:05",
-              "Ana García"
-            ],
-            [
-              "▤ Runbook de incidentes",
-              "19/10/2026 09:40",
-              "Beto Ruiz"
-            ],
-            [
-              "▤ Checklist de pase a producción",
-              "03/10/2026 17:12",
-              "Otra persona"
-            ]
-          ],
-          "hidden_in_states": [
-            "loading",
-            "empty",
-            "resultados de búsqueda",
-            "sin resultados",
-            "módulo no disponible",
-            "error de sistema",
-            "not found"
-          ],
-          "annotation": "una sola tabla: subcarpetas primero (icono folder, sin fecha), documentos después (icono file) por última actualización · fila entera clickeable y enfocable · \"Por\" resuelve updatedBy contra las personas de Jiku; si no, \"Otra persona\""
-        },
-        {
-          "name": "marca-en-edicion",
-          "type": "badge",
-          "category": "content",
-          "content": "En edición",
-          "hidden_in_states": [
-            "loading",
-            "empty",
-            "resultados de búsqueda",
-            "sin resultados",
-            "módulo no disponible",
-            "error de sistema",
-            "not found"
-          ],
-          "annotation": "Badge neutro en la celda del título, solo en documentos con lock vigente · nombre accesible \"{persona} lo está editando\" · informa, no bloquea"
-        },
-        {
-          "name": "resultados-busqueda",
-          "type": "table",
-          "category": "content",
-          "columns": [
-            {
-              "label": "Documento",
-              "width": 56
-            },
-            {
-              "label": "Carpeta",
-              "width": 26
-            },
-            {
-              "label": "Actualizado",
-              "width": 18
-            }
-          ],
-          "rows": [
-            [
-              "Guía de despliegue del portal — «…pasos de despliegue en el cluster…»",
-              "Opus / Portal / Operación",
-              "22/10/2026"
-            ],
-            [
-              "Checklist de pase a producción — «…antes del despliegue, validar…»",
-              "Opus / Portal / Operación",
-              "03/10/2026"
-            ]
-          ],
-          "visible_only_in_states": [
-            "resultados de búsqueda"
-          ],
-          "annotation": "reemplaza a la tabla mientras hay texto buscado · el fragmento viene recortado por el módulo; la web solo resalta la coincidencia y nunca lo interpreta como HTML · el cambio se anuncia en una región live (\"{n} resultados\")"
-        },
-        {
-          "name": "vacio-carpeta",
-          "type": "empty-state",
+          "name": "toast-asignacion",
+          "type": "toast",
           "category": "feedback",
-          "content": "Esta carpeta está vacía.",
-          "paragraph": "Creá el primer documento con «Nuevo documento».",
+          "kind": "success",
+          "content": "Asignaste «Onboarding Initech» a «Acta de kickoff».",
           "visible_only_in_states": [
-            "empty"
+            "success"
           ],
-          "annotation": "EmptyState list · la segunda línea solo si la persona puede escribir en la carpeta"
-        },
-        {
-          "name": "vacio-busqueda",
-          "type": "empty-state",
-          "category": "feedback",
-          "content": "No hay documentos que coincidan con «rollback kubernetes».",
-          "paragraph": "Probá con otras palabras.",
-          "visible_only_in_states": [
-            "sin resultados"
-          ],
-          "annotation": "EmptyState filtered: invita a cambiar la búsqueda, no a crear"
-        },
-        {
-          "name": "cargando-carpeta",
-          "type": "loader",
-          "category": "feedback",
-          "content": "Cargando documentación…",
-          "visible_only_in_states": [
-            "loading"
-          ],
-          "annotation": "Loader block dentro del panel; encabezado y búsqueda quedan visibles y operables"
-        },
-        {
-          "name": "boton-ver-mas",
-          "type": "button",
-          "category": "input",
-          "variant": "secondary",
-          "content": "Ver más",
-          "visible_only_in_states": [
-            "default",
-            "resultados de búsqueda",
-            "terminal"
-          ],
-          "annotation": "variant DS secondary-dismiss · solo cuando hay más filas · pagina por cursor, por eso no hay Pagination: no hay total que mostrar"
+          "annotation": "la fila sale de la lista · conflicto (warning): \"El documento cambió; se actualizó la fila.\" · en edición: \"{lock.holderName} lo está editando; probá en unos minutos.\" · \"Ese proyecto no se puede asignar.\" · error: \"No se pudo asignar el proyecto. Intentá de nuevo.\" [REQ-021 CA-10, CA-12]"
         }
       ],
       "layouts": {
@@ -10157,18 +10731,59 @@
                 "w": 8,
                 "stack": [
                   "titulo-documentacion",
-                  "breadcrumb-carpeta"
+                  "subtitulo-sin-proyecto"
                 ]
               },
               {
                 "w": 4,
                 "stack": [
-                  "boton-nuevo-documento"
+                  {
+                    "row": "acciones-encabezado",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-volver-origen"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-nuevo-documento"
+                        ]
+                      }
+                    ]
+                  }
                 ]
               }
             ]
           },
-          "busqueda-documentos",
+          "buscador-documentos",
+          "tokens-filtro",
+          "lista-sugerencias",
+          {
+            "row": "opciones",
+            "cols": [
+              {
+                "w": 6,
+                "stack": [
+                  "ayuda-teclado"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": [
+                  "filtro-visible-cliente"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": [
+                  "orden-documentos"
+                ]
+              }
+            ]
+          },
           "aviso-no-disponible",
           "aviso-error",
           {
@@ -10178,17 +10793,69 @@
               {
                 "w": 12,
                 "stack": [
-                  "tabla-carpeta",
-                  "marca-en-edicion",
-                  "resultados-busqueda",
-                  "vacio-carpeta",
+                  "tabla-documentos",
+                  {
+                    "row": "decoracion-fila",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "stack": [
+                          "temas-documento"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "marca-visibilidad"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "marca-en-edicion"
+                        ]
+                      }
+                    ]
+                  },
+                  "fragmento-coincidencia",
+                  {
+                    "row": "accion-fila",
+                    "cols": [
+                      {
+                        "w": 4,
+                        "stack": [
+                          "sugerencia-proyecto"
+                        ]
+                      },
+                      {
+                        "w": 2,
+                        "stack": [
+                          "boton-asignar-sugerido"
+                        ]
+                      },
+                      {
+                        "w": 2,
+                        "stack": [
+                          "boton-asignar-proyecto"
+                        ]
+                      },
+                      {
+                        "w": 4,
+                        "stack": [
+                          "selector-proyecto-fila"
+                        ]
+                      }
+                    ]
+                  },
+                  "vacio-inicio",
                   "vacio-busqueda",
-                  "cargando-carpeta",
-                  "boton-ver-mas"
+                  "cargando-documentos",
+                  "paginacion-documentos"
                 ]
               }
             ]
-          }
+          },
+          "toast-asignacion"
         ]
       },
       "states": [
@@ -10214,25 +10881,45 @@
         },
         {
           "name": "success",
-          "applies": false
+          "applies": true
         },
         {
           "name": "not found",
-          "applies": true
+          "applies": false
         },
         {
           "name": "terminal",
-          "applies": true
+          "applies": false
         },
         {
-          "name": "resultados de búsqueda",
+          "name": "sugerencias abiertas",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "resultados",
           "applies": true,
           "parent_state": "default"
         },
         {
           "name": "sin resultados",
           "applies": true,
-          "parent_state": "resultados de búsqueda"
+          "parent_state": "resultados"
+        },
+        {
+          "name": "filtrado desde una ficha",
+          "applies": true,
+          "parent_state": "resultados"
+        },
+        {
+          "name": "sin proyecto",
+          "applies": true,
+          "parent_state": "resultados"
+        },
+        {
+          "name": "asignando",
+          "applies": true,
+          "parent_state": "sin proyecto"
         },
         {
           "name": "módulo no disponible",
@@ -10254,15 +10941,61 @@
           "category": "navigation",
           "items": [
             "Documentación",
-            "Opus",
-            "Portal",
-            "Operación"
+            "Guía de despliegue del portal"
           ],
           "hidden_in_states": [
-            "loading",
-            "not found"
+            "loading"
           ],
-          "annotation": "cada nivel navega a /docs?folder={id}: es la forma de llegar a los documentos vecinos"
+          "state_overrides": {
+            "not found": {
+              "items": [
+                "Documentación"
+              ]
+            },
+            "editando": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            },
+            "conflicto de versión": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            },
+            "reserva perdida": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            },
+            "error de validación": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            },
+            "error de sistema": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            },
+            "propiedades ilegibles": {
+              "items": [
+                "Documentación",
+                "Guía de despliegue del portal",
+                "Editando"
+              ]
+            }
+          },
+          "annotation": "sin carpetas ni cliente/proyecto como segmentos: el primer nivel va a /docs [REQ-021 decisión 2] · en not found queda como única salida"
         },
         {
           "name": "titulo-documento",
@@ -10274,38 +11007,103 @@
             "loading",
             "not found"
           ],
-          "annotation": "ViewHeader · sin título en el frontmatter, el nombre de archivo sin .md"
+          "annotation": "ViewHeader · sin título: \"Sin título\" (ya no cae al nombre de archivo)"
         },
         {
           "name": "badge-visibilidad",
           "type": "badge",
           "category": "content",
+          "icon": "eye",
           "content": "Visible para el cliente",
           "hidden_in_states": [
             "loading",
             "not found"
           ],
-          "annotation": "public → \"Visible para el cliente\" (eye) · internal → \"Interno\" (lock) · lo decide el frontmatter y la carpeta: es la única señal, antes de compartir o escribir algo sensible, de que el texto llega al portal"
+          "state_overrides": {
+            "restringido": {
+              "content": "Restringido",
+              "icon": "lock"
+            }
+          },
+          "annotation": "Badge outline, siempre visible · \"Interno\" (eye-off) · \"Restringido\" (lock)"
+        },
+        {
+          "name": "linea-cliente-proyecto",
+          "type": "label",
+          "category": "content",
+          "content": "ACME · Portal Opus #12",
+          "hidden_in_states": [
+            "loading",
+            "not found"
+          ],
+          "annotation": "en lugar de la ruta · el proyecto enlaza a su ficha · \"{cliente} · Sin proyecto\" · \"Sin cliente · Sin proyecto\" · varios: el primero y \"+{n}\" · id desconocido: #id sin enlace [REQ-021 RF-11, CA-17]"
+        },
+        {
+          "name": "temas-documento",
+          "type": "chips",
+          "category": "content",
+          "items": [
+            "despliegue",
+            "operación",
+            "kubernetes"
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "Badge outline · cada pill lleva a /docs?tema={tema} · sin temas no se renderiza"
         },
         {
           "name": "meta-version",
           "type": "label",
           "category": "content",
-          "content": "Versión 7 · actualizado el 22/10/2026 14:05 por Ana García",
+          "content": "Versión 7 · actualizado 22/10/2026 14:05 por Ana García",
           "hidden_in_states": [
             "loading",
             "not found"
           ],
-          "annotation": "{persona} se resuelve contra las personas de Jiku; si no, \"otra persona\""
+          "state_overrides": {
+            "viendo una versión anterior": {
+              "content": "Versión 4 · actualizado 02/10/2026 11:20 por Beto Ruiz"
+            },
+            "versión compactada": {
+              "content": "Versión 7 · actualizado 22/10/2026 14:05 por Ana García"
+            },
+            "success": {
+              "content": "Versión 8 · actualizado 26/10/2026 10:12 por vos"
+            }
+          },
+          "annotation": "nombre del servicio (updatedByName), nunca \"otra persona\" · \"por vos\" si es la persona actual · sin nombre se omite [REQ-021 RF-15, CA-18]"
         },
         {
-          "name": "boton-volver",
+          "name": "boton-historial",
           "type": "button",
           "category": "navigation",
           "variant": "secondary",
-          "icon": "arrow-left",
-          "content": "Volver",
-          "annotation": "variant DS secondary-nav · vuelve a la carpeta del documento en documentacion · única salida en loading y not found"
+          "icon": "clock",
+          "content": "Historial de versiones",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "state_overrides": {
+            "módulo no disponible": {
+              "variant": "disabled"
+            }
+          },
+          "annotation": "secondary-nav cuadrado, solo icono; el texto es su nombre accesible · abre O-13 [REQ-021 decisión 10]"
         },
         {
           "name": "boton-compartir",
@@ -10321,14 +11119,29 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
           "state_overrides": {
+            "restringido": {
+              "variant": "disabled"
+            },
             "módulo no disponible": {
               "variant": "disabled"
             }
           },
-          "annotation": "variant DS secondary-nav · no se renderiza sin la función de compartir configurada (features.sharing: false) ni sin permiso manage [REQ-016 CA-32] · si la carpeta bloquea el compartir se renderiza y O-12 lo explica"
+          "annotation": "secondary-nav · no se renderiza sin la función de compartir (features.sharing: false) · lo ve toda persona interna · restringido: deshabilitado con nota [REQ-021 RF-13, CA-22]"
+        },
+        {
+          "name": "nota-sin-compartir",
+          "type": "paragraph",
+          "category": "feedback",
+          "level": "caption",
+          "content": "Los documentos restringidos no se pueden compartir por link.",
+          "visible_only_in_states": [
+            "restringido"
+          ],
+          "annotation": "aria-describedby del botón; texto visible, no tooltip"
         },
         {
           "name": "boton-editar",
@@ -10345,7 +11158,10 @@
             "reserva perdida",
             "error de validación",
             "error de sistema",
-            "terminal"
+            "terminal",
+            "viendo una versión anterior",
+            "versión compactada",
+            "propiedades ilegibles"
           ],
           "state_overrides": {
             "bloqueado por otra persona": {
@@ -10355,29 +11171,42 @@
               "variant": "disabled"
             }
           },
-          "annotation": "pide la reserva de edición; mientras responde queda deshabilitado con Loader inline · no se renderiza para quien solo lee ni para un documento > 256 KiB"
+          "annotation": "pide la reserva; mientras responde, disabled con Loader inline · no se renderiza para un documento > 256 KiB ni viendo una versión anterior"
         },
         {
-          "name": "aviso-no-disponible",
+          "name": "aviso-version-anterior",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "info",
+          "icon": "clock",
+          "content": "Estás viendo la versión 4, guardada el 02/10/2026 11:20 por Beto Ruiz. Ver la versión actual",
+          "visible_only_in_states": [
+            "viendo una versión anterior"
+          ],
+          "annotation": "se llega desde \"Ver\" de O-13 · \"Ver la versión actual\" es un enlace a /docs/{id} · restaurar se hace desde el historial"
+        },
+        {
+          "name": "aviso-version-compactada",
           "type": "alert",
           "category": "feedback",
           "kind": "warning",
-          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "content": "La versión 5 ya no se conserva: se compactó al limpiar el historial. Versiones más cercanas: Versión 4 · Versión 6",
           "visible_only_in_states": [
-            "módulo no disponible"
+            "versión compactada"
           ],
-          "annotation": "mismo texto en las cinco pantallas que muestran documentación [REQ-016 CA-27]"
+          "annotation": "version_pruned · solo las versiones cercanas que existan · role=\"alert\" [REQ-021 RF-14, CA-21]"
         },
         {
           "name": "aviso-bloqueado",
           "type": "alert",
           "category": "feedback",
           "kind": "info",
+          "icon": "lock",
           "content": "Ana García lo está editando hasta las 14:32. Podés leerlo mientras tanto.",
           "visible_only_in_states": [
             "bloqueado por otra persona"
           ],
-          "annotation": "al abrir con una reserva vigente, o al pulsar \"Editar\" si otro la tomó antes · reserva de un agente (via: agent): \"Un agente lo está editando hasta las {HH:mm}…\" · se revisa al volver a la pestaña y cada 60 s [REQ-016 CA-18]"
+          "annotation": "lock.holderName (o details.holderName) · sin nombre: \"Otra persona lo está editando hasta las {HH:mm}…\" · agente: \"Un agente lo está editando…\" · la persona actual en otra pestaña: \"Lo estás editando en otra pestaña o ventana.\" [REQ-021 RF-15, CA-18]"
         },
         {
           "name": "aviso-documento-grande",
@@ -10388,7 +11217,18 @@
           "visible_only_in_states": [
             "terminal"
           ],
-          "annotation": "documentos de más de 256 KiB llegan por contentUrl y se muestran en solo lectura · sin permiso de escritura el readonly no muestra aviso, solo falta \"Editar\""
+          "annotation": "más de 256 KiB, llega por contentUrl: solo lectura"
+        },
+        {
+          "name": "aviso-no-disponible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "La documentación no está disponible en este momento. Probá de nuevo en unos minutos.",
+          "visible_only_in_states": [
+            "módulo no disponible"
+          ],
+          "annotation": "mismo texto en todas las pantallas que muestran documentación"
         },
         {
           "name": "aviso-conflicto",
@@ -10399,7 +11239,7 @@
           "visible_only_in_states": [
             "conflicto de versión"
           ],
-          "annotation": "role=\"alert\" [REQ-016 CA-17, CA-30]"
+          "annotation": "role=\"alert\" · nombre del servicio; \"Otra persona\" solo si no lo manda [REQ-016 CA-17, CA-30]"
         },
         {
           "name": "aviso-reserva-perdida",
@@ -10410,14 +11250,29 @@
           "visible_only_in_states": [
             "reserva perdida"
           ],
-          "annotation": "una renovación falló (sin conexión o la tomó otra persona) · si al guardar otro tiene la reserva, pasa a bloqueado conservando el texto"
+          "annotation": "aparece si una renovación falla · role=\"alert\""
+        },
+        {
+          "name": "indicador-reserva",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "success",
+          "icon": "lock",
+          "content": "Estás editando. Nadie más puede guardar este documento hasta que guardes o canceles.",
+          "visible_only_in_states": [
+            "editando",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "la reserva dura 120 s y se renueva sola cada 60 s [REQ-016 CA-29]"
         },
         {
           "name": "contenido-documento",
           "type": "paragraph",
           "category": "content",
           "level": "body",
-          "content": "## Requisitos previos\nAcceso al cluster de staging y credenciales del registry. ## Pasos\n1. Crear la rama de release… 2. Ejecutar el pipeline de despliegue… ![diagrama-de-red.png](/docs/attachments/…)",
+          "content": "Requisitos previos — Acceso al cluster de staging y credenciales del registry. Pasos — 1. Crear la rama de release. 2. Ejecutar el pipeline de despliegue. 3. Verificar el health-check del portal. [diagrama-de-red.png]",
           "hidden_in_states": [
             "loading",
             "not found",
@@ -10425,21 +11280,73 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "versión compactada",
+            "propiedades ilegibles"
           ],
           "state_overrides": {
+            "viendo una versión anterior": {
+              "content": "Requisitos previos — Acceso al cluster de staging. Pasos — 1. Crear la rama de release. 2. Desplegar a mano con kubectl apply."
+            },
             "módulo no disponible": {
               "annotation": "se muestra si ya estaba cargado; si no, oculto"
             }
           },
-          "annotation": "markdown renderizado sin el frontmatter · nunca ejecuta HTML ni scripts: el HTML crudo se muestra como texto y los enlaces solo pueden ser http(s), mailto o adjuntos · todo path /docs/attachments/{id} se reescribe al de la web · los # del documento bajan un nivel (h2) [REQ-016 CA-28, CA-33]"
+          "annotation": "markdown renderizado sin frontmatter (corrige el bug del frontmatter visible) · nunca ejecuta HTML ni scripts · enlaces solo http(s), mailto o adjuntos · /docs/attachments/{id} se reescribe al link de la web · encabezados con ancla [REQ-021 RF-11, CA-16; REQ-016 CA-28, CA-33]"
+        },
+        {
+          "name": "card-indice",
+          "type": "card",
+          "category": "navigation",
+          "content": "En este documento",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "Card panel, <nav aria-label> · sin encabezados en el documento no se renderiza"
+        },
+        {
+          "name": "lista-indice",
+          "type": "list",
+          "category": "navigation",
+          "items": [
+            {
+              "title": "Requisitos previos"
+            },
+            {
+              "title": "Pasos"
+            },
+            {
+              "title": "   Verificación"
+            },
+            {
+              "title": "Rollback"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "un enlace por h1/h2, el nivel 2 sangrado · marca el encabezado visible al hacer scroll"
         },
         {
           "name": "card-vinculos",
           "type": "card",
           "category": "content",
-          "content": "Vinculado a",
           "icon": "link",
+          "content": "Vinculado a",
           "hidden_in_states": [
             "loading",
             "not found",
@@ -10447,9 +11354,10 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "Card panel · vacío: \"Este documento no está vinculado a ningún proyecto, requisito ni tarea.\""
+          "annotation": "Card panel · vacío: \"Este documento no está vinculado a ningún cliente, proyecto, requisito ni tarea.\""
         },
         {
           "name": "lista-vinculos",
@@ -10457,12 +11365,20 @@
           "category": "navigation",
           "items": [
             {
-              "title": "Portal Opus",
+              "title": "ACME",
+              "subtitle": "Cliente"
+            },
+            {
+              "title": "Portal Opus #12",
               "subtitle": "Proyecto"
             },
             {
-              "title": "#1042 Exportar reporte a Excel",
+              "title": "Exportar reporte a Excel #1042",
               "subtitle": "Requisito"
+            },
+            {
+              "title": "Endpoint de exportación #3310",
+              "subtitle": "Tarea"
             }
           ],
           "hidden_in_states": [
@@ -10472,18 +11388,41 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "un enlace por vínculo con su tipo (Cliente · Proyecto · Requisito · Tarea) · los muestra, no los edita: se escriben en el frontmatter"
+          "annotation": "proyecto, requisito y tarea enlazan a su ficha · nombres resueltos por la api; uno desconocido: #id sin enlace [REQ-021 RF-11]"
         },
         {
-          "name": "lista-temas",
-          "type": "chips",
+          "name": "card-propiedades",
+          "type": "card",
+          "category": "content",
+          "content": "Propiedades",
+          "hidden_in_states": [
+            "loading",
+            "not found",
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "Card panel · sin \"Ruta de almacenamiento\" [REQ-021 decisión 2, CA-17]"
+        },
+        {
+          "name": "lista-propiedades",
+          "type": "list",
           "category": "content",
           "items": [
-            "despliegue",
-            "operación",
-            "kubernetes"
+            {
+              "title": "Visible para el cliente",
+              "subtitle": "Visibilidad"
+            },
+            {
+              "title": "7",
+              "subtitle": "Versión"
+            }
           ],
           "hidden_in_states": [
             "loading",
@@ -10492,16 +11431,31 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "título \"Temas\", un Badge por tema · sin temas no se renderiza"
+          "state_overrides": {
+            "restringido": {
+              "items": [
+                {
+                  "title": "Restringido",
+                  "subtitle": "Visibilidad"
+                },
+                {
+                  "title": "7",
+                  "subtitle": "Versión"
+                }
+              ]
+            }
+          },
+          "annotation": "la versión en mono"
         },
         {
           "name": "card-adjuntos-documento",
           "type": "card",
           "category": "content",
-          "content": "Adjuntos",
           "icon": "file",
+          "content": "Adjuntos 2",
           "hidden_in_states": [
             "loading",
             "not found",
@@ -10509,9 +11463,10 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "Card panel · vacío: \"Sin adjuntos.\""
+          "annotation": "Card panel · título con la cantidad · vacío: \"Sin adjuntos.\""
         },
         {
           "name": "lista-adjuntos-documento",
@@ -10519,10 +11474,12 @@
           "category": "content",
           "items": [
             {
-              "title": "diagrama-de-red.png"
+              "title": "diagrama-de-red.png",
+              "icon": "download"
             },
             {
-              "title": "variables-de-entorno.pdf"
+              "title": "variables-de-entorno.pdf",
+              "icon": "download"
             }
           ],
           "hidden_in_states": [
@@ -10532,29 +11489,17 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "cada enlace apunta a /docs/attachments/{id}, el link estable de la web (sesión → api → 302), y abre en pestaña nueva [REQ-016 RF-16]"
+          "annotation": "cada enlace apunta a /docs/attachments/{id} (sesión → api → 302) [REQ-016 RF-16]"
         },
         {
-          "name": "indicador-reserva",
-          "type": "label",
-          "category": "feedback",
-          "content": "Lo estás editando. Nadie más puede guardar hasta que termines.",
-          "visible_only_in_states": [
-            "editando",
-            "error de validación",
-            "error de sistema"
-          ],
-          "annotation": "la reserva dura 120 s y se renueva sola cada 60 s; la persona no hace nada [REQ-016 CA-29]"
-        },
-        {
-          "name": "editor-markdown",
-          "type": "textarea",
+          "name": "campo-titulo",
+          "type": "text-input",
           "category": "input",
-          "label": "Contenido (markdown)",
-          "content": "---\ntitle: Guía de despliegue del portal\nvisibility: public\nprojectId: 12\n---\n# Guía de despliegue del portal\n## Requisitos previos\n…",
-          "h": 320,
+          "label": "Título",
+          "value": "Guía de despliegue del portal",
           "visible_only_in_states": [
             "editando",
             "conflicto de versión",
@@ -10564,13 +11509,104 @@
           ],
           "state_overrides": {
             "error de validación": {
-              "type": "text-input",
               "state": "error",
-              "content": "---\ntitle: Guía de despliegue del portal\nvisibility: publik …",
-              "error_msg": "El frontmatter no es válido: visibility debe ser public o internal. Corregilo y volvé a guardar."
+              "value": "",
+              "error_msg": "El título no puede quedar vacío."
             }
           },
-          "annotation": "Input textarea, monoespaciada, incluye el frontmatter (vínculos, temas y visibilidad) · en conflicto conserva el texto propio sin tocarlo · otros errores del módulo: \"Uno de los vínculos no existe: {detalle}.\" · \"El documento supera los 256 KiB que se pueden guardar desde acá.\""
+          "annotation": "Input text, sin placeholder · oculto con frontmatter ilegible"
+        },
+        {
+          "name": "selector-visibilidad",
+          "type": "toggle",
+          "category": "input",
+          "content": "Visibilidad: Interno · Visible para el cliente · Restringido",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "ToggleGroup segmentado · \"Restringido\" solo elegible por admin; un user ve la opción marcada y deshabilitada · al elegir Restringido: \"Al guardar, los links compartidos de este documento dejan de funcionar.\" [REQ-021 decisión 5, CA-13]"
+        },
+        {
+          "name": "campo-temas",
+          "type": "text-input",
+          "category": "input",
+          "label": "Temas",
+          "value": "despliegue × · operación ×",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "temas libres: placeholder \"Agregar temas\" · sugiere por prefijo (\"{tema}\" · \"{n} documentos\"); sin coincidencias \"Enter para agregar «{texto}»\" · ⌫ quita el último [REQ-021 decisión 4, CA-15]"
+        },
+        {
+          "name": "selector-cliente",
+          "type": "dropdown",
+          "category": "input",
+          "label": "Cliente",
+          "value": "ACME",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "Select single searchable, puede quedar vacío (placeholder \"Sin cliente\") · cambiar el cliente vacía el proyecto si no es de ese cliente"
+        },
+        {
+          "name": "selector-proyecto",
+          "type": "dropdown",
+          "category": "input",
+          "label": "Proyecto",
+          "value": "Portal Opus",
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema"
+          ],
+          "annotation": "Select single searchable, limitado al cliente (placeholder \"Sin proyecto\") · elegir completa el cliente · requisitos y tareas no se editan acá: se conservan"
+        },
+        {
+          "name": "aviso-frontmatter-ilegible",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "warning",
+          "content": "No pudimos leer las propiedades de este documento. Editá el texto completo, propiedades incluidas, y al guardar el módulo te va a decir si algo no es válido.",
+          "visible_only_in_states": [
+            "propiedades ilegibles"
+          ],
+          "annotation": "reemplaza a los campos de propiedades; editor-markdown muestra el contenido completo, frontmatter incluido [REQ-021 Riesgos]"
+        },
+        {
+          "name": "editor-markdown",
+          "type": "textarea",
+          "category": "input",
+          "label": "Markdown",
+          "value": "# Guía de despliegue del portal\n\n## Requisitos previos\nAcceso al cluster de staging y credenciales del registry.\n\n## Pasos\n1. Crear la rama de release…",
+          "h": 300,
+          "visible_only_in_states": [
+            "editando",
+            "conflicto de versión",
+            "reserva perdida",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
+          ],
+          "annotation": "Input textarea monoespaciada · edita el cuerpo: las propiedades van por campos y se reescriben en el frontmatter conservando claves desconocidas y comentarios · en conflicto conserva el texto propio · errores del módulo: \"Las propiedades no son válidas: {detalle}.\" · \"Uno de los vínculos no existe: {detalle}.\" · \"El documento supera los 256 KiB que se pueden guardar desde acá.\"",
+          "state_overrides": {
+            "propiedades ilegibles": {
+              "value": "---\ntitle: Guía de despliegue del portal\nvisibility: public\nprojects: [12\ntopics: despliegue, operación\n---\n# Guía de despliegue del portal\n\n## Requisitos previos\n…"
+            }
+          }
         },
         {
           "name": "zona-adjuntar",
@@ -10579,23 +11615,27 @@
           "icon": "upload",
           "content": "Arrastrá un archivo acá o hacé click para adjuntarlo",
           "visible_only_in_states": [
-            "editando"
+            "editando",
+            "error de validación",
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "Dropzone · subiendo: \"Subiendo {archivo}…\" · rechazos del módulo: \"Ese tipo de archivo no está permitido.\" / \"El archivo supera el tamaño máximo permitido.\" · al terminar inserta ![nombre](/docs/attachments/{id}) o [nombre](…) en el cursor"
+          "annotation": "Dropzone · \"Subiendo {nombre del archivo}…\" · \"Ese tipo de archivo no está permitido.\" · \"El archivo supera el tamaño máximo permitido.\" · inserta ![nombre](/docs/attachments/{id}) o [nombre](…) en el cursor"
         },
         {
           "name": "vista-previa",
           "type": "paragraph",
           "category": "content",
           "level": "body",
-          "content": "Vista previa — Guía de despliegue del portal · Requisitos previos · Acceso al cluster de staging…",
+          "content": "Vista previa · Se actualiza mientras escribís — Guía de despliegue del portal · Requisitos previos · Acceso al cluster de staging…",
           "visible_only_in_states": [
             "editando",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "mismo render y mismas reglas de seguridad que el visor · se actualiza mientras se escribe (debounce 300 ms)"
+          "annotation": "mismo render que el visor, sin frontmatter (debounce 300 ms)"
         },
         {
           "name": "version-actual",
@@ -10606,22 +11646,23 @@
           "visible_only_in_states": [
             "conflicto de versión"
           ],
-          "annotation": "texto plano y no renderizado, seleccionable, para copiar fragmentos exactos al editor · se descartó un diff automático"
+          "annotation": "texto plano, seleccionable, para copiar fragmentos exactos"
         },
         {
           "name": "campo-mensaje",
           "type": "text-input",
           "category": "input",
-          "label": "Qué cambiaste (opcional)",
-          "content": "Ej.: agrego los pasos de despliegue",
+          "label": "Mensaje de la versión (opcional)",
+          "content": "Ej.: cierre de sprint",
           "visible_only_in_states": [
             "editando",
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "queda como mensaje de la versión nueva"
+          "annotation": "ayuda: \"Con mensaje, esta versión queda protegida: no se borra al compactar el historial.\" [REQ-021 decisión 10, RF-12, CA-19]"
         },
         {
           "name": "boton-cancelar",
@@ -10634,9 +11675,10 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
-          "annotation": "variant DS secondary-dismiss · con cambios sin guardar pide confirmación con O-02 (\"Descartar cambios\" · \"Vas a perder lo que escribiste desde la última vez que guardaste.\" · \"Descartar\" / \"Seguir editando\") · libera la reserva"
+          "annotation": "secondary-dismiss · con cambios pide O-02 (\"Descartar cambios\" · \"Vas a perder lo que escribiste desde la última vez que guardaste.\" · \"Descartar\" / \"Seguir editando\") · libera la reserva"
         },
         {
           "name": "boton-guardar",
@@ -10650,14 +11692,15 @@
             "conflicto de versión",
             "reserva perdida",
             "error de validación",
-            "error de sistema"
+            "error de sistema",
+            "propiedades ilegibles"
           ],
           "state_overrides": {
             "conflicto de versión": {
               "content": "Guardar sobre la versión 8"
             }
           },
-          "annotation": "guarda con la versión base · en conflicto la base pasa a ser la actual: guardar es una decisión explícita, nunca un reintento automático · disabled mientras guarda [REQ-016 CA-30]"
+          "annotation": "un solo guardado con propiedades, cuerpo y mensaje: una versión · en conflicto la base pasa a la actual: decisión explícita, nunca reintento automático · disabled mientras guarda [REQ-016 CA-30]"
         },
         {
           "name": "cargando-documento",
@@ -10678,14 +11721,14 @@
           "visible_only_in_states": [
             "not found"
           ],
-          "annotation": "mismo texto para inexistente y sin permiso: la diferencia solo le sirve a quien prueba ids · boton-volver queda como salida"
+          "annotation": "mismo texto para inexistente, sin permiso y restringido sin acceso"
         },
         {
           "name": "toast-resultado",
           "type": "toast",
           "category": "feedback",
           "kind": "success",
-          "content": "Guardaste la versión 8.",
+          "content": "Guardaste la versión 8. Quedó protegida.",
           "visible_only_in_states": [
             "success",
             "error de sistema"
@@ -10696,36 +11739,53 @@
               "content": "No se pudo guardar. Tu texto sigue en el editor; intentá de nuevo."
             }
           },
-          "annotation": "con posible secreto: \"Guardaste la versión {n}. Revisalo: parece contener una clave o un token.\" (aviso, no bloquea)"
+          "annotation": "sin mensaje: \"Guardaste la versión {n}.\" · posible secreto: \"Guardaste la versión {n}. Revisalo: parece contener una clave o un token.\" (no bloquea) · al restringir sin ser admin: \"Solo la conducción puede restringir un documento.\""
         }
       ],
       "layouts": {
         "desktop": [
+          "breadcrumb-documento",
           {
             "row": "encabezado",
             "cols": [
               {
                 "w": 8,
                 "stack": [
-                  "breadcrumb-documento",
-                  "titulo-documento",
                   {
-                    "row": "meta",
+                    "row": "titulo",
                     "cols": [
+                      {
+                        "w": 9,
+                        "stack": [
+                          "titulo-documento"
+                        ]
+                      },
                       {
                         "w": 3,
                         "stack": [
                           "badge-visibilidad"
                         ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "pertenencia",
+                    "cols": [
+                      {
+                        "w": 5,
+                        "stack": [
+                          "linea-cliente-proyecto"
+                        ]
                       },
                       {
-                        "w": 9,
+                        "w": 7,
                         "stack": [
-                          "meta-version"
+                          "temas-documento"
                         ]
                       }
                     ]
-                  }
+                  },
+                  "meta-version"
                 ]
               },
               {
@@ -10737,7 +11797,7 @@
                       {
                         "w": 4,
                         "stack": [
-                          "boton-volver"
+                          "boton-historial"
                         ]
                       },
                       {
@@ -10753,16 +11813,37 @@
                         ]
                       }
                     ]
+                  },
+                  "nota-sin-compartir",
+                  {
+                    "row": "acciones-edicion",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-cancelar"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-guardar"
+                        ]
+                      }
+                    ]
                   }
                 ]
               }
             ]
           },
+          "aviso-version-anterior",
+          "aviso-version-compactada",
           "aviso-no-disponible",
           "aviso-bloqueado",
           "aviso-documento-grande",
           "aviso-conflicto",
           "aviso-reserva-perdida",
+          "indicador-reserva",
           "cargando-documento",
           "aviso-not-found",
           {
@@ -10770,7 +11851,6 @@
             "cols": [
               {
                 "w": 8,
-                "card": true,
                 "stack": [
                   "contenido-documento"
                 ]
@@ -10778,62 +11858,70 @@
               {
                 "w": 4,
                 "stack": [
-                  {
-                    "row": "bloque-vinculos",
-                    "cols": [
-                      {
-                        "w": 12,
-                        "card": true,
-                        "stack": [
-                          "card-vinculos",
-                          "lista-vinculos",
-                          "lista-temas"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "row": "bloque-adjuntos",
-                    "cols": [
-                      {
-                        "w": 12,
-                        "card": true,
-                        "stack": [
-                          "card-adjuntos-documento",
-                          "lista-adjuntos-documento"
-                        ]
-                      }
-                    ]
-                  }
+                  "card-indice",
+                  "lista-indice",
+                  "card-vinculos",
+                  "lista-vinculos",
+                  "card-propiedades",
+                  "lista-propiedades",
+                  "card-adjuntos-documento",
+                  "lista-adjuntos-documento"
                 ]
               }
-            ],
-            "annotation": "lectura: default, bloqueado, módulo no disponible, readonly"
+            ]
           },
+          {
+            "row": "propiedades",
+            "cols": [
+              {
+                "w": 4,
+                "stack": [
+                  "campo-titulo"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": [
+                  "selector-visibilidad"
+                ]
+              },
+              {
+                "w": 2,
+                "stack": [
+                  "campo-temas"
+                ]
+              },
+              {
+                "w": 3,
+                "stack": [
+                  "selector-cliente",
+                  "selector-proyecto"
+                ]
+              }
+            ]
+          },
+          "aviso-frontmatter-ilegible",
           {
             "row": "edicion",
             "cols": [
               {
                 "w": 6,
                 "stack": [
-                  "indicador-reserva",
                   "editor-markdown",
                   "zona-adjuntar"
                 ]
               },
               {
                 "w": 6,
-                "card": true,
                 "stack": [
                   "vista-previa",
                   "version-actual"
                 ]
               }
-            ],
-            "annotation": "edición: la vista previa al lado y no en una pestaña · en conflicto de versión la columna derecha muestra la versión ajena en texto plano"
+            ]
           },
           {
-            "row": "acciones-edicion",
+            "row": "mensaje-version",
             "cols": [
               {
                 "w": 8,
@@ -10842,16 +11930,8 @@
                 ]
               },
               {
-                "w": 2,
-                "stack": [
-                  "boton-cancelar"
-                ]
-              },
-              {
-                "w": 2,
-                "stack": [
-                  "boton-guardar"
-                ]
+                "w": 4,
+                "stack": []
               }
             ]
           },
@@ -10892,6 +11972,21 @@
           "applies": true
         },
         {
+          "name": "restringido",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "viendo una versión anterior",
+          "applies": true,
+          "parent_state": "default"
+        },
+        {
+          "name": "versión compactada",
+          "applies": true,
+          "parent_state": "viendo una versión anterior"
+        },
+        {
           "name": "bloqueado por otra persona",
           "applies": true,
           "parent_state": "default"
@@ -10903,6 +11998,11 @@
         },
         {
           "name": "conflicto de versión",
+          "applies": true,
+          "parent_state": "editando"
+        },
+        {
+          "name": "propiedades ilegibles",
           "applies": true,
           "parent_state": "editando"
         },
@@ -11462,34 +12562,57 @@
           "annotation": "role=\"dialog\" + aria-modal, aria-labelledby hacia este h2"
         },
         {
-          "name": "carpeta-destino",
-          "type": "label",
-          "category": "content",
-          "content": "Se crea en Opus / Portal / Operación",
-          "annotation": "fija: para crear en otra carpeta se navega hasta ella"
-        },
-        {
           "name": "campo-titulo",
           "type": "text-input",
           "category": "input",
           "label": "Título",
-          "content": "Guía de despliegue",
-          "annotation": "foco inicial · el contenido inicial es # {Título}; opcional"
-        },
-        {
-          "name": "campo-nombre-archivo",
-          "type": "text-input",
-          "category": "input",
-          "icon": "file",
-          "label": "Nombre del archivo",
-          "content": "guia-de-despliegue.md",
+          "content": "Ej.: Guía de despliegue",
           "state_overrides": {
             "error de validación": {
               "state": "error",
-              "error_msg": "Ya hay un documento con ese nombre en esta carpeta."
+              "error_msg": "El título no puede quedar vacío."
             }
           },
-          "annotation": "ayuda: \"Minúsculas, números y guiones. Si no termina en .md, se lo agregamos.\" · se completa solo desde el título mientras no se toque · otro error: \"Ese nombre no es válido. Usá minúsculas, números y guiones.\""
+          "annotation": "obligatorio, foco inicial · el contenido inicial es # {Título}"
+        },
+        {
+          "name": "selector-cliente",
+          "type": "dropdown",
+          "category": "input",
+          "label": "Cliente",
+          "value": "ACME",
+          "annotation": "Select single searchable, opcional (placeholder \"Sin cliente\") · cambiar el cliente vacía el proyecto si no es de ese cliente · desde una ficha llega elegido"
+        },
+        {
+          "name": "selector-proyecto",
+          "type": "dropdown",
+          "category": "input",
+          "label": "Proyecto",
+          "value": "Portal Opus",
+          "annotation": "Select single searchable, opcional (placeholder \"Sin proyecto\") · ayuda \"Solo los proyectos de {cliente}\" · elegir completa el cliente · sin proyecto, el documento aparece en \"Sin proyecto\""
+        },
+        {
+          "name": "vinculo-precargado",
+          "type": "label",
+          "category": "content",
+          "icon": "link",
+          "content": "También se vincula a: Requisito Exportar reporte a Excel #1042",
+          "annotation": "solo al abrir desde la ficha de un requisito o una tarea (\"También se vincula a: Tarea {título} #{id}\") · informativo, no se edita"
+        },
+        {
+          "name": "campo-temas",
+          "type": "text-input",
+          "category": "input",
+          "label": "Temas",
+          "content": "Agregar temas",
+          "annotation": "temas libres: sugiere por prefijo (\"{tema}\" · \"{n} documentos\"); sin coincidencias \"Enter para agregar «{texto}»\" · sin \"Proponer tema nuevo\" [REQ-021 decisión 4, CA-15]"
+        },
+        {
+          "name": "selector-visibilidad",
+          "type": "toggle",
+          "category": "input",
+          "content": "Visibilidad: Interno · Visible para el cliente · Restringido",
+          "annotation": "ToggleGroup segmentado, default \"Interno\" · ayudas: \"Solo el equipo.\" · \"Llega al portal del cliente del proyecto.\" · \"Solo la conducción. No se puede compartir.\" · \"Restringido\" solo se renderiza para admin [REQ-021 decisión 5, CA-13]"
         },
         {
           "name": "aviso-error-alta",
@@ -11500,7 +12623,7 @@
           "visible_only_in_states": [
             "error de sistema"
           ],
-          "annotation": "role=\"alert\" debajo de los campos · con el módulo caído: \"La documentación no está disponible en este momento. Probá de nuevo en unos minutos.\""
+          "annotation": "role=\"alert\", los campos conservan lo escrito · módulo caído: \"La documentación no está disponible en este momento. Probá de nuevo en unos minutos.\" · \"Solo la conducción puede crear un documento restringido.\" · \"El proyecto o el cliente elegido ya no existe. Elegí otro.\""
         },
         {
           "name": "boton-cancelar-alta",
@@ -11508,7 +12631,7 @@
           "category": "input",
           "variant": "secondary",
           "content": "Cancelar",
-          "annotation": "variant DS secondary-dismiss · también Escape o click fuera"
+          "annotation": "secondary-dismiss · también Escape o click fuera"
         },
         {
           "name": "boton-crear",
@@ -11522,15 +12645,15 @@
               "content": "Creando…"
             }
           },
-          "annotation": "deshabilitado con el nombre vacío · crea, cierra y abre /docs/{id} ya en edición con la reserva tomada"
+          "annotation": "sin carpeta ni nombre de archivo (los genera el servicio) · navega a /docs/{id}?editar=1 y cierra después de navegar: queda en edición con la reserva tomada, sin recargar · deshabilitado con el título vacío [REQ-021 decisión 9, CA-14]"
         }
       ],
       "layouts": {
         "desktop": [
           {
             "row": "modal-nuevo-documento",
-            "fixed_cols": "minmax(0,1fr) 480px minmax(0,1fr)",
-            "annotation": "modal-nuevo-documento: 480 px centrado; reutiliza la superficie, el overlay y el foco de ConfirmDialog con un cuerpo de formulario",
+            "fixed_cols": "minmax(0,1fr) 560px minmax(0,1fr)",
+            "annotation": "modal-nuevo-documento: 560 px centrado; reutiliza la superficie, el overlay y el foco de ConfirmDialog con un cuerpo de formulario",
             "cols": [
               {
                 "w": 3,
@@ -11541,9 +12664,27 @@
                 "card": true,
                 "stack": [
                   "titulo-modal",
-                  "carpeta-destino",
-                  "campo-nombre-archivo",
                   "campo-titulo",
+                  {
+                    "row": "relaciones",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "selector-cliente"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "selector-proyecto"
+                        ]
+                      }
+                    ]
+                  },
+                  "vinculo-precargado",
+                  "campo-temas",
+                  "selector-visibilidad",
                   "aviso-error-alta",
                   {
                     "row": "acciones",
@@ -11626,6 +12767,13 @@
           "content": "Compartir «Guía de despliegue del portal»"
         },
         {
+          "name": "subtitulo-compartir",
+          "type": "label",
+          "category": "content",
+          "content": "Guía de despliegue del portal · ACME · Portal Opus",
+          "annotation": "Cliente · Proyecto en lugar de la ruta · \"{título} · {cliente} · Sin proyecto\" · \"{título} · Sin cliente · Sin proyecto\" [REQ-021 decisión 8, RF-13]"
+        },
+        {
           "name": "explicacion-compartir",
           "type": "paragraph",
           "category": "content",
@@ -11642,12 +12790,13 @@
           "type": "alert",
           "category": "feedback",
           "kind": "info",
-          "content": "La carpeta de este documento no permite compartirlo fuera de Jiku.",
+          "content": "Este documento es restringido: no se puede compartir fuera de Jiku.",
           "visible_only_in_states": [
             "compartir bloqueado",
             "terminal"
           ],
-          "annotation": "sharing_blocked · la lista se sigue mostrando y se puede revocar"
+          "annotation": "sharing_blocked · con REQ-021 lo emite un documento restricted; documento ya deshabilita \"Compartir\", así que queda para el que pasó a restringido con el diálogo abierto · la lista se sigue mostrando y se puede revocar",
+          "icon": "lock"
         },
         {
           "name": "aviso-secreto",
@@ -11785,7 +12934,8 @@
               "variant": "disabled",
               "content": "Creando…"
             }
-          }
+          },
+          "annotation": "lo abre toda persona interna; no se ofrece para un documento restringido [REQ-021 RF-13]"
         },
         {
           "name": "titulo-links",
@@ -11834,6 +12984,14 @@
               "Revocar"
             ],
             [
+              "badge:Revocado (restringido)",
+              "10/11/2026",
+              "Auditoría externa",
+              "2",
+              "18/10/2026",
+              ""
+            ],
+            [
               "badge:Vencido",
               "12/10/2026",
               "—",
@@ -11844,8 +13002,8 @@
             [
               "badge:Revocado",
               "30/09/2026",
-              "Auditoría externa",
-              "2",
+              "Demo comercial",
+              "1",
               "05/09/2026",
               ""
             ]
@@ -11859,7 +13017,7 @@
               "rows": 2
             }
           },
-          "annotation": "la URL y el token no aparecen nunca en la lista [REQ-016 CA-31] · más nuevo primero"
+          "annotation": "la URL y el token no aparecen nunca en la lista [REQ-016 CA-31] · más nuevo primero · \"Revocado (restringido)\" cuando lo cortó el paso a restringido (revokeReason: restricted) [REQ-021]"
         },
         {
           "name": "boton-revocar",
@@ -11909,6 +13067,7 @@
                 "card": true,
                 "stack": [
                   "titulo-compartir",
+                  "subtitulo-compartir",
                   "explicacion-compartir",
                   "aviso-bloqueado",
                   "aviso-secreto",
@@ -12049,6 +13208,300 @@
         },
         {
           "name": "sin links",
+          "applies": true,
+          "parent_state": "default"
+        }
+      ]
+    },
+    {
+      "name": "historial-documento",
+      "displayName": "Historial de versiones",
+      "overlay": true,
+      "overlay_type": "drawer",
+      "triggered_by": "documento",
+      "audiences": [
+        "equipo-interno"
+      ],
+      "blocks": [
+        {
+          "name": "titulo-historial",
+          "type": "heading",
+          "category": "content",
+          "level": "h2",
+          "icon": "clock",
+          "content": "Historial de versiones",
+          "annotation": "role=\"dialog\" + aria-modal, aria-labelledby hacia este h2 · al abrir, el foco va acá"
+        },
+        {
+          "name": "boton-cerrar-historial",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "close",
+          "content": "Cerrar historial",
+          "annotation": "secondary-dismiss, solo icono; el texto es su nombre accesible · también Escape o click fuera"
+        },
+        {
+          "name": "aviso-error-historial",
+          "type": "alert",
+          "category": "feedback",
+          "kind": "error",
+          "content": "No se pudo cargar el historial. Intentá de nuevo.",
+          "visible_only_in_states": [
+            "error de sistema"
+          ],
+          "annotation": "role=\"alert\" · \"No se pudo restaurar la versión {n}. Intentá de nuevo.\" · \"La versión {n} ya no se conserva.\" · \"El documento cambió mientras restaurabas; actualizamos el historial.\""
+        },
+        {
+          "name": "lista-versiones",
+          "type": "list",
+          "category": "content",
+          "items": [
+            {
+              "title": "Versión 7 · Ana García · 22/10/2026 14:05",
+              "subtitle": "Edición"
+            },
+            {
+              "title": "Versión 6 · vos · 20/10/2026 09:12",
+              "subtitle": "Edición · “cierre de sprint 41”"
+            },
+            {
+              "title": "Versión 5 · Beto Ruiz · 14/10/2026 17:40",
+              "subtitle": "Restauración de la versión 3"
+            },
+            {
+              "title": "Versión 3 · jiku-agent · 08/10/2026 11:02",
+              "subtitle": "Edición"
+            },
+            {
+              "title": "Versión 1 · Ana García · 01/10/2026 10:00",
+              "subtitle": "Creación · “primera versión”"
+            }
+          ],
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "<ol>, la más nueva primero, 50 por pedido · autor del servicio (authorName), \"vos\" si es la persona actual, \"—\" sin nombre · tipo: Creación / Edición / Restauración · el mensaje entre comillas [REQ-021 RF-15, CA-18]"
+        },
+        {
+          "name": "marca-version-actual",
+          "type": "badge",
+          "category": "content",
+          "content": "Actual",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "Badge outline, solo en la entrada de la versión vigente"
+        },
+        {
+          "name": "marca-protegida",
+          "type": "badge",
+          "category": "content",
+          "icon": "lock",
+          "content": "Protegida",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "Badge outline en versiones con mensaje · nombre accesible \"Protegida: no se borra al compactar el historial\" [REQ-021 CA-19, CA-20]"
+        },
+        {
+          "name": "boton-ver-version",
+          "type": "button",
+          "category": "navigation",
+          "variant": "secondary",
+          "icon": "eye",
+          "content": "Ver",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "secondary-nav, en cada entrada salvo la actual · abre /docs/{id}?version={n} y cierra el panel"
+        },
+        {
+          "name": "boton-restaurar-version",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "icon": "refresh",
+          "content": "Restaurar",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "state_overrides": {
+            "restaurando": {
+              "variant": "disabled",
+              "content": "Restaurando…"
+            },
+            "terminal": {
+              "variant": "disabled",
+              "annotation": "ayuda: \"Ana García lo está editando.\""
+            }
+          },
+          "annotation": "secondary-dismiss, en cada entrada salvo la actual · abre O-02: \"Restaurar la versión {n}\" · \"Se va a guardar una versión nueva con el contenido de la versión {n}. La versión actual no se pierde: queda en el historial.\" · \"Restaurar\" / \"Cancelar\""
+        },
+        {
+          "name": "boton-mas-versiones",
+          "type": "button",
+          "category": "input",
+          "variant": "secondary",
+          "content": "Ver versiones anteriores",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "secondary-dismiss · solo cuando hay más · pagina por cursor, sin total"
+        },
+        {
+          "name": "pie-compactadas",
+          "type": "paragraph",
+          "category": "content",
+          "level": "caption",
+          "content": "ⓘ 3 versiones intermedias compactadas.",
+          "hidden_in_states": [
+            "loading",
+            "error de sistema"
+          ],
+          "annotation": "fijo al pie · prunedVersionsCount · con 1: \"1 versión intermedia compactada.\" · sin compactadas no se muestra"
+        },
+        {
+          "name": "cargando-historial",
+          "type": "loader",
+          "category": "feedback",
+          "content": "Cargando versiones…",
+          "visible_only_in_states": [
+            "loading"
+          ],
+          "annotation": "Loader block"
+        },
+        {
+          "name": "toast-restaurada",
+          "type": "toast",
+          "category": "feedback",
+          "kind": "success",
+          "content": "Restauraste la versión 3 como versión 8.",
+          "visible_only_in_states": [
+            "success"
+          ],
+          "annotation": "toast de documento: el panel se cierra y meta-version muestra la versión nueva"
+        }
+      ],
+      "layouts": {
+        "desktop": [
+          {
+            "row": "panel-historial",
+            "fixed_cols": "minmax(0,1fr) 480px",
+            "annotation": "panel-historial: drawer de 480 px anclado a la derecha, alto completo, sobre la lectura del documento; reutiliza el armazón de foco de ConfirmDialog",
+            "cols": [
+              {
+                "w": 7,
+                "stack": []
+              },
+              {
+                "w": 5,
+                "card": true,
+                "stack": [
+                  {
+                    "row": "cabecera",
+                    "cols": [
+                      {
+                        "w": 9,
+                        "stack": [
+                          "titulo-historial"
+                        ]
+                      },
+                      {
+                        "w": 3,
+                        "stack": [
+                          "boton-cerrar-historial"
+                        ]
+                      }
+                    ]
+                  },
+                  "aviso-error-historial",
+                  "lista-versiones",
+                  {
+                    "row": "marcas-entrada",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "marca-version-actual"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "marca-protegida"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "row": "acciones-entrada",
+                    "cols": [
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-ver-version"
+                        ]
+                      },
+                      {
+                        "w": 6,
+                        "stack": [
+                          "boton-restaurar-version"
+                        ]
+                      }
+                    ]
+                  },
+                  "cargando-historial",
+                  "boton-mas-versiones",
+                  "pie-compactadas"
+                ]
+              }
+            ]
+          },
+          "toast-restaurada"
+        ]
+      },
+      "states": [
+        {
+          "name": "default",
+          "applies": true
+        },
+        {
+          "name": "empty",
+          "applies": false
+        },
+        {
+          "name": "loading",
+          "applies": true
+        },
+        {
+          "name": "error de validación",
+          "applies": false
+        },
+        {
+          "name": "error de sistema",
+          "applies": true
+        },
+        {
+          "name": "success",
+          "applies": true
+        },
+        {
+          "name": "not found",
+          "applies": false
+        },
+        {
+          "name": "terminal",
+          "applies": true
+        },
+        {
+          "name": "restaurando",
           "applies": true,
           "parent_state": "default"
         }
@@ -12457,45 +13910,72 @@
     },
     {
       "src": "detalle-proyecto",
-      "srcBlock": "tabla-documentos",
+      "srcBlock": "lista-documentos-card",
+      "dst": "documento",
+      "trigger": "abre el documento",
+      "automatic": false
+    },
+    {
+      "src": "detalle-proyecto",
+      "srcBlock": "boton-ver-todos-documentos",
+      "dst": "documentacion",
+      "trigger": "Documentación filtrada",
+      "automatic": false
+    },
+    {
+      "src": "detalle-proyecto",
+      "srcBlock": "boton-nuevo-documento-card",
+      "dst": "nuevo-documento",
+      "trigger": "nuevo documento (O-11)",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "lista-documentos-card",
       "dst": "documento",
       "trigger": "abre el documento",
       "automatic": false
     },
     {
       "src": "detalle-requisito",
-      "srcBlock": "tabla-documentos",
+      "srcBlock": "boton-ver-todos-documentos",
+      "dst": "documentacion",
+      "trigger": "Documentación filtrada",
+      "automatic": false
+    },
+    {
+      "src": "detalle-requisito",
+      "srcBlock": "boton-nuevo-documento-card",
+      "dst": "nuevo-documento",
+      "trigger": "nuevo documento (O-11)",
+      "automatic": false
+    },
+    {
+      "src": "detalle-tarea",
+      "srcBlock": "lista-documentos-card",
       "dst": "documento",
       "trigger": "abre el documento",
       "automatic": false
     },
     {
       "src": "detalle-tarea",
+      "srcBlock": "boton-ver-todos-documentos",
+      "dst": "documentacion",
+      "trigger": "Documentación filtrada",
+      "automatic": false
+    },
+    {
+      "src": "detalle-tarea",
+      "srcBlock": "boton-nuevo-documento-card",
+      "dst": "nuevo-documento",
+      "trigger": "nuevo documento (O-11)",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
       "srcBlock": "tabla-documentos",
       "dst": "documento",
       "trigger": "abre el documento",
-      "automatic": false
-    },
-    {
-      "src": "documentacion",
-      "srcBlock": "tabla-carpeta",
-      "dst": "documento",
-      "trigger": "abre el documento",
-      "automatic": false
-    },
-    {
-      "src": "documentacion",
-      "srcState": "resultados de búsqueda",
-      "srcBlock": "resultados-busqueda",
-      "dst": "documento",
-      "trigger": "abre un resultado",
-      "automatic": false
-    },
-    {
-      "src": "documentacion",
-      "srcBlock": "breadcrumb-carpeta",
-      "dst": "documentacion",
-      "trigger": "sube a esa carpeta",
       "automatic": false
     },
     {
@@ -12503,6 +13983,30 @@
       "srcBlock": "boton-nuevo-documento",
       "dst": "nuevo-documento",
       "trigger": "nuevo documento (O-11)",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcState": "sugerencias abiertas",
+      "srcBlock": "lista-sugerencias",
+      "dst": "documentacion",
+      "trigger": "suma el filtro",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcState": "filtrado desde una ficha",
+      "srcBlock": "boton-volver-origen",
+      "dst": "detalle-proyecto",
+      "trigger": "vuelve a la ficha",
+      "automatic": false
+    },
+    {
+      "src": "documentacion",
+      "srcState": "sin proyecto",
+      "srcBlock": "boton-asignar-proyecto",
+      "dst": "menu-react-select",
+      "trigger": "elige proyecto (O-07)",
       "automatic": false
     },
     {
@@ -12520,24 +14024,31 @@
       "automatic": false
     },
     {
-      "src": "documento",
-      "srcBlock": "boton-volver",
-      "dst": "documentacion",
-      "trigger": "vuelve a la carpeta",
+      "src": "nuevo-documento",
+      "srcBlock": "selector-proyecto",
+      "dst": "menu-react-select",
+      "trigger": "elige proyecto (O-07)",
       "automatic": false
     },
     {
       "src": "documento",
       "srcBlock": "breadcrumb-documento",
       "dst": "documentacion",
-      "trigger": "abre esa carpeta",
+      "trigger": "vuelve a Documentación",
       "automatic": false
     },
     {
       "src": "documento",
-      "srcBlock": "boton-compartir",
-      "dst": "compartir-documento",
-      "trigger": "compartir (O-12)",
+      "srcBlock": "temas-documento",
+      "dst": "documentacion",
+      "trigger": "filtra por ese tema",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "linea-cliente-proyecto",
+      "dst": "detalle-proyecto",
+      "trigger": "abre el proyecto",
       "automatic": false
     },
     {
@@ -12549,10 +14060,32 @@
     },
     {
       "src": "documento",
+      "srcBlock": "boton-historial",
+      "dst": "historial-documento",
+      "trigger": "historial (O-13)",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcBlock": "boton-compartir",
+      "dst": "compartir-documento",
+      "trigger": "compartir (O-12)",
+      "automatic": false
+    },
+    {
+      "src": "documento",
       "srcState": "editando",
       "srcBlock": "boton-cancelar",
       "dst": "confirmar-borrado",
       "trigger": "descartar cambios (O-02)",
+      "automatic": false
+    },
+    {
+      "src": "documento",
+      "srcState": "editando",
+      "srcBlock": "selector-proyecto",
+      "dst": "menu-react-select",
+      "trigger": "elige proyecto (O-07)",
       "automatic": false
     },
     {
@@ -12567,6 +14100,27 @@
       "srcBlock": "boton-cerrar-compartir",
       "dst": "documento",
       "trigger": "cierra el diálogo",
+      "automatic": false
+    },
+    {
+      "src": "historial-documento",
+      "srcBlock": "boton-ver-version",
+      "dst": "documento",
+      "trigger": "abre esa versión",
+      "automatic": false
+    },
+    {
+      "src": "historial-documento",
+      "srcBlock": "boton-restaurar-version",
+      "dst": "confirmar-borrado",
+      "trigger": "restaurar (O-02)",
+      "automatic": false
+    },
+    {
+      "src": "historial-documento",
+      "srcBlock": "boton-cerrar-historial",
+      "dst": "documento",
+      "trigger": "cierra el panel",
       "automatic": false
     }
   ]

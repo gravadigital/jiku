@@ -22,8 +22,8 @@ origin: relevamiento de código — brownfield
 | 2 | Avanzar un requisito por su workflow | Mover el pedido de un cliente hacia su cierre | equipo-interno |
 | 3 | Planificar la capacidad de la semana | Reservar quién trabaja en qué antes de que la semana pase | equipo-interno (`admin`) |
 | 4 | Descomponer un requisito en tareas | Convertir un pedido en trabajo asignable | equipo-interno |
-| 5 | Consultar y corregir la documentación de un proyecto | Tener a mano lo escrito sobre el trabajo y corregirlo sin pisar a otros | equipo-interno · **solo con el módulo de documentación** [REQ-016] |
-| 6 | Compartir un documento con alguien de afuera | Dar acceso de lectura temporal sin abrir una cuenta | equipo-interno (`manage`) · **solo con el módulo y la función de compartir** [REQ-016] |
+| 5 | Consultar y corregir la documentación de un proyecto | Tener a mano lo escrito sobre el trabajo y corregirlo sin pisar a otros | equipo-interno · **solo con el módulo de documentación** [REQ-016, REQ-021] |
+| 6 | Compartir un documento con alguien de afuera | Dar acceso de lectura temporal sin abrir una cuenta | equipo-interno · **solo con el módulo y la función de compartir**; no para documentos restringidos [REQ-016, REQ-021] |
 
 > **REQ-013 no modifica ninguno de los cuatro flujos, y es el resultado esperado.** El
 > requerimiento aplica la identidad del Manual de marca Jiku v1.0 y reemplaza cada elemento de UI
@@ -386,39 +386,68 @@ Las tareas existen, con responsables y líder asignados, y ya pueden recibir hor
 **Trigger:** la persona abre la ficha de un proyecto, requisito o tarea y ve la card
 **"Documentación"**; o entra a **Documentación** desde la sidebar para buscar algo.
 
+**REQ-021 rehace los caminos de este flujo, no su JTBD:** sin carpetas, se encuentra con un
+buscador de filtros y se llega desde la ficha en los dos sentidos. La clasificación de lo que quedó
+sin proyecto se documenta como camino alternativo y no como flujo propio, para no superar el tope
+de flujos de la superficie.
+
 **Existe solo con el módulo opcional de documentación instalado** [REQ-016 RF-14, RF-23]. Sin él,
 ninguno de estos pasos tiene interfaz.
 
 ### Happy path
 
-1. **detalle-proyecto** (o detalle-requisito / detalle-tarea) → la card "Documentación" lista los
-   documentos vinculados, con título, ruta y fecha [REQ-016 CA-26]
-2. Abre uno → **documento** lo muestra renderizado, con sus vínculos y adjuntos
-3. Pulsa **"Editar"** → la web toma la reserva de edición y abre el editor con vista previa al lado;
-   la reserva se renueva sola mientras el editor está abierto [CA-29]
+1. **detalle-proyecto** (o detalle-requisito / detalle-tarea) → la card "Documentación" muestra la
+   cantidad y los 5 más recientes, con título, fecha y temas o "Sin tema", sin ruta [REQ-021 RF-16,
+   RF-17]
+2. Abre uno → **documento** lo muestra renderizado, sin frontmatter, con Cliente · Proyecto, temas,
+   índice, "Vinculado a" y adjuntos [REQ-021 RF-11]
+3. Pulsa **"Editar"** → la web toma la reserva y abre la edición: propiedades por campos (título,
+   visibilidad, temas, cliente y proyecto) arriba, editor del cuerpo con vista previa al lado; la
+   reserva se renueva sola [CA-29; REQ-021 RF-12]
 4. Escribe; si necesita una imagen, la arrastra a la zona de adjuntos y el enlace queda insertado
-5. **"Guardar"** → versión nueva, reserva liberada, vuelta a la lectura con `"Guardaste la versión {n}."`
+5. Opcionalmente escribe un **"Mensaje de la versión"**, que la protege de la compactación
+6. **"Guardar"** → versión nueva (propiedades y texto juntos), reserva liberada, vuelta a la lectura
+   con `"Guardaste la versión {n}."` [REQ-021 CA-19]
 
 ### Caminos alternativos
 
-- **Buscar en vez de navegar** — En **documentacion**, la búsqueda recorre todo lo que la persona
-  puede leer; un resultado abre el documento.
-- **Recorrer carpetas** — En **documentacion**, breadcrumb + tabla por niveles; la carpeta queda en
-  la URL.
-- **Crear un documento** — En una carpeta con permiso de escritura, **"Nuevo documento"** (O-11)
-  pide título y nombre de archivo y abre el editor directamente.
+- **Ver todos los de la ficha** — **"Ver todos ›"** de la card lleva a **documentacion** con el
+  filtro de esa ficha, título `"Documentos · {nombre}"` y **"Volver al proyecto"** (o al requisito,
+  a la tarea) [REQ-021 RF-7, CA-7].
+- **Buscar con filtros** — En **documentacion**, un solo buscador: escribir un proyecto, cliente,
+  tema o persona y elegir la sugerencia la suma como filtro; Enter suma el texto; los filtros se
+  combinan, cada uno se quita con su × y Backspace con el campo vacío quita el último [REQ-021 RF-2,
+  RF-3, CA-2 a CA-5].
+- **Clasificar lo que quedó sin proyecto** — Escribir "sin" y elegir **"Sin proyecto"**: cada fila
+  ofrece **"Asignar sugerido"** (si el módulo propone un proyecto) o **"Asignar proyecto"** con un
+  selector en la misma fila; el documento sale de la lista al asignarlo y su texto no cambia
+  [REQ-021 RF-8, CA-10, CA-11].
+- **Crear un documento** — **"Nuevo documento"** (O-11) desde documentacion, o **"+"** desde la card
+  de una ficha con el proyecto ya elegido: título, cliente, proyecto, temas y visibilidad;
+  **"Crear y editar"** abre el editor con la reserva tomada, sin recargar [REQ-021 RF-9, RF-10,
+  CA-9, CA-14].
+- **Ver o recuperar una versión anterior** — **Historial** (O-13) lista las versiones con autor,
+  fecha, tipo y marca de protegida; "Ver" la abre en lectura y "Restaurar" crea una versión nueva
+  con ese contenido, con confirmación [REQ-021 RF-14, CA-20].
 - **Documento grande** — Más de 256 KiB: se lee, no se edita desde la web [REQ-016 Supuestos].
 
 ### Errores y recuperación
 
-- **Otra persona lo está editando** — `"{persona} lo está editando hasta las {HH:mm}. Podés leerlo
-  mientras tanto."`; "Editar" se habilita cuando la reserva vence [CA-18].
+- **Otra persona lo está editando** — `"{nombre} lo está editando hasta las {HH:mm}. Podés leerlo
+  mientras tanto."`, con el nombre que manda el servicio; "Editar" se habilita cuando la reserva
+  vence [CA-18; REQ-021 RF-15].
 - **Alguien guardó mientras editaba** — `version_conflict`: el texto propio se queda en el editor y
   la versión ajena aparece al lado, en texto plano para copiar; guardar después es una decisión
   explícita (`"Guardar sobre la versión {n}"`), nunca un reintento automático [CA-17, CA-30].
 - **Se perdió la reserva** — Por falta de conexión o porque la tomó otro: aviso, el texto se
   conserva y guardar sigue disponible.
-- **Frontmatter inválido o vínculo inexistente** — El mensaje del módulo debajo del editor.
+- **Propiedades inválidas o vínculo inexistente** — El mensaje del módulo debajo del campo o del
+  editor. Si el frontmatter no se puede leer, la edición por campos se desactiva y se edita el texto
+  completo.
+- **Versión compactada** — Abrir una versión que ya no se conserva avisa y ofrece las más cercanas
+  [REQ-021 CA-21].
+- **El documento cambió al asignar un proyecto** — `"El documento cambió; se actualizó la fila."`
+  y la fila se recarga [REQ-021 CA-12].
 - **Módulo caído** — Las cards y las pantallas muestran `"La documentación no está disponible en
   este momento. Probá de nuevo en unos minutos."` y deshabilitan las acciones; vuelven solas cuando
   el módulo responde [CA-27].
@@ -432,6 +461,8 @@ El documento tiene una versión nueva, sin haber pisado cambios ajenos, y la res
 ### Criterios de éxito
 
 - Encontrar la documentación de un proyecto debería costar **cero navegación extra**: está en la ficha
+- **Ninguna pantalla** debería mostrar una carpeta o una ruta de almacenamiento [REQ-021 RF-1]
+- Un documento creado desde una ficha debería quedar **vinculado sin escribir frontmatter**
 - **Nunca** se debería perder texto propio ni pisar texto ajeno en silencio
 - La reserva de edición debería ser **invisible mientras funciona**
 - Quien edita debería saber **antes de escribir** si el documento llega al portal del cliente
@@ -443,7 +474,8 @@ El documento tiene una versión nueva, sin haber pisado cambios ajenos, y la res
 
 **JTBD que resuelve:** "Cuando alguien sin cuenta en Jiku necesita leer un documento, quiero
 mandarle un link que se corte solo, en vez de copiar el texto a un mail o abrir un acceso."
-**Audiencia:** equipo-interno — quien administra la carpeta del documento (`manage`)
+**Audiencia:** equipo-interno — **desde REQ-021, toda persona interna** (la carpeta dejó de decidir
+quién comparte); un documento **restringido** no se comparte
 **Trigger:** en **documento**, botón **"Compartir"**.
 
 **Existe solo si la instalación tiene configurada la función de compartir** (`JIKU_PUBLIC_URL`);
@@ -468,7 +500,9 @@ si no, el botón no aparece [REQ-016 CA-32].
 
 - **Posible secreto** — Si el documento parece contener una clave o un token, O-12 lo avisa y
   pide **"Compartir igual"** como acción distinta.
-- **Carpeta que no permite compartir** — Aviso; la lista se sigue viendo y se puede revocar.
+- **Documento restringido** — "Compartir" queda deshabilitado con `"Los documentos restringidos no
+  se pueden compartir por link."`; si pasa a restringido con links activos, se cortan y la lista los
+  marca `"Revocado (restringido)"` [REQ-021 RF-13, CA-22].
 
 ### Estado final
 

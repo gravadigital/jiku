@@ -303,8 +303,8 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
 
 | # | Superficie | Quién | Acción |
 |---|---|---|---|
-| 1 | web | equipo-interno | Escribe o edita un documento en **documento**; su frontmatter lo vincula al proyecto o a un requisito y lo marca `public` |
-| 2 | — | *(sistema)* | jiku-docs guarda la versión; la visibilidad la decide el documento y su carpeta, no la interfaz |
+| 1 | web | equipo-interno | Escribe o edita un documento en **documento**; lo vincula al proyecto (o a un requisito) y lo marca **"Visible para el cliente"** — desde REQ-021 por campos, que se guardan en su frontmatter |
+| 2 | — | *(sistema)* | jiku-docs guarda la versión; la visibilidad la decide el documento (desde 1.3.0 la carpeta ya no interviene) |
 | 3 | opus-web | cliente | La próxima vez que entra, ve el documento en la sección "Documentación" del tablero o del requisito, y lo lee en **documento** |
 
 ### Qué cruza y qué no
@@ -312,7 +312,8 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
 | En `web` | ¿Lo ve el cliente? |
 |---|---|
 | Documento `public` vinculado a su proyecto o a un requisito público | ✅ Sí — la última versión |
-| Documento `internal` | ❌ Nunca — la api recorta a `public` **por superficie**, para todo rol [DD-3] |
+| Documento `internal` o `restricted` | ❌ Nunca — la api recorta a `public` **por superficie**, para todo rol [DD-3] |
+| Ruta, carpeta o frontmatter del documento | ❌ No — desde REQ-021 el portal ni siquiera los recibe [REQ-021 RF-19] |
 | Autor, versiones, reservas de edición | ❌ No — el portal muestra título, fecha, contenido y adjuntos |
 | Adjuntos del documento | ✅ Sí, por el proxy de opus-web con la sesión del cliente, pedidos bajo su documento [REQ-017] |
 | Enlace al adjunto de **otro** documento | ❌ No — en la web abre; en el portal el proxy responde 404, aunque el otro documento también sea `public` [REQ-017 DD-2, R-3] |
@@ -321,7 +322,8 @@ llegó se puede encontrar entrando a mirar; un cambio del que no queda rastro vi
 ### La discontinuidad
 
 🔴 **La misma de siempre: nadie avisa.** El cliente ve el documento si entra a mirar. Y del lado del
-equipo hay una nueva: **la visibilidad se decide escribiendo el frontmatter**, así que el equipo
+equipo hay una nueva: **la visibilidad se decide al editar el documento** (desde REQ-021 con un
+selector y no escribiendo el frontmatter, pero sigue siendo una propiedad más), así que el equipo
 puede publicar un documento al cliente sin un gesto explícito de "publicar". El badge
 `"Visible para el cliente"` de **documento** es la única señal, y está ahí por eso.
 
@@ -343,10 +345,10 @@ puede publicar un documento al cliente sin un gesto explícito de "publicar". El
 
 | # | Superficie | Quién | Acción |
 |---|---|---|---|
-| 1 | web | equipo-interno (`manage`) | Crea un link en O-12 y lo copia (se muestra una sola vez) — ver `web` Flujo 6 |
+| 1 | web | equipo-interno | Crea un link en O-12 y lo copia (se muestra una sola vez) — ver `web` Flujo 6. Desde REQ-021 lo puede hacer toda persona interna, salvo en un documento **restringido** |
 | 2 | — | equipo-interno | Lo manda por fuera del producto (mail, chat) |
 | 3 | página pública | tercero | Abre `{JIKU_PUBLIC_URL}/p/docs/{token}` sin iniciar sesión y lee el documento |
-| 4 | web | equipo-interno | Ve en la lista de O-12 cuántas veces se abrió y cuándo; lo revoca si hace falta |
+| 4 | web | equipo-interno | Ve en la lista de O-12 cuántas veces se abrió y cuándo; lo revoca si hace falta. Pasar el documento a restringido corta todos sus links (`"Revocado (restringido)"`), y el link cortado responde la misma página 404 [REQ-021] |
 
 ### La página pública no es una superficie
 

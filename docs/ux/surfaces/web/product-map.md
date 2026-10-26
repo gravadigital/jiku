@@ -2,7 +2,7 @@
 document: UX Product Map
 surface: web
 version: 1.0
-date: 2026-08-18
+date: 2026-10-26
 status: relevado-desde-código
 origin: relevamiento de código — brownfield
 ---
@@ -34,16 +34,16 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 6 | alta-actor | Dar de alta un actor | equipo-interno | solo desktop | C-03 |
 | 7 | edicion-actor | Editar un actor | equipo-interno | solo desktop | C-04 |
 | 8 | listado-proyectos | Ver y filtrar los proyectos | equipo-interno | solo desktop | C-06 |
-| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades, adjuntos y documentos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008, REQ-016 |
+| 9 | detalle-proyecto | Ver un proyecto con sus requisitos, tareas, propiedades, adjuntos y documentos | equipo-interno | solo desktop | C-10, C-12, REQ-001, REQ-005, REQ-008, REQ-016, REQ-021 |
 | 10 | alta-proyecto | Dar de alta un proyecto | equipo-interno | solo desktop | C-07, C-09 |
 | 11 | edicion-proyecto | Editar un proyecto | equipo-interno | solo desktop | C-08, C-09, C-11 |
 | 12 | listado-requisitos | Ver y filtrar los requisitos, por varios estados a la vez, con las horas cargadas de cada uno | equipo-interno | solo desktop | C-13, REQ-009, REQ-010 |
-| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir, ver sus horas por persona y sus documentos | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012, REQ-016, REQ-020 |
+| 13 | detalle-requisito | Ver un requisito, moverlo a cualquier estado, comentar y editar los comentarios propios, resolver, reabrir, ver sus horas por persona y sus documentos | equipo-interno | solo desktop | C-15, C-16, C-17, C-19, C-20, REQ-001, REQ-005, REQ-010, REQ-011, REQ-012, REQ-016, REQ-020, REQ-021 |
 | 14 | alta-requisito | Dar de alta un requisito | equipo-interno | solo desktop | C-14, C-18, REQ-001 |
 | 15 | edicion-requisito | Editar un requisito | equipo-interno | solo desktop | C-16, C-18, REQ-001 |
 | 16 | reporte-requisitos | Reportar requisitos con export CSV | equipo-interno | solo desktop | C-24 |
 | 17 | listado-tareas | Ver y filtrar las tareas | equipo-interno | solo desktop | C-25, C-28, REQ-008, REQ-020 |
-| 18 | detalle-tarea | Ver una tarea, sus documentos, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011, REQ-016 |
+| 18 | detalle-tarea | Ver una tarea, sus documentos, su historial y sus comentarios, y editar los propios | equipo-interno | solo desktop | C-31, C-32, C-33, REQ-001, REQ-003, REQ-005, REQ-011, REQ-016, REQ-021 |
 | 19 | alta-tareas | Dar de alta una o varias tareas en un submit | equipo-interno | solo desktop | C-26 |
 | 20 | edicion-tarea | Editar una tarea | equipo-interno | solo desktop | C-27 |
 | 21 | tareas-por-proyecto | Ver las tareas agrupadas por proyecto, con horas del mes | equipo-interno | solo desktop | C-29 |
@@ -51,8 +51,8 @@ del grupo `(loggedin)` [fuente: código-existente].
 | 23 | asignacion-tiempo | Planificar capacidad semanal en grilla proyecto × persona | equipo-interno (`admin`) | solo desktop | C-34..C-38, REQ-007 |
 | 24 | carga-horas | Cargar las horas y ausencias del día | equipo-interno | solo desktop | C-39..C-48 |
 | 25 | reporte-horas | Reportar horas con tabla jerárquica de 4 niveles | equipo-interno | solo desktop | C-49 |
-| 26 | documentacion | Recorrer las carpetas de documentación, buscar por texto y crear un documento en una carpeta con permiso de escritura | equipo-interno | solo desktop | REQ-016 RF-12, RF-21 |
-| 27 | documento | Leer un documento, editarlo con reserva y versión base, adjuntarle archivos y compartirlo por link | equipo-interno | solo desktop | REQ-016 RF-19, RF-20, RF-22 |
+| 26 | documentacion | Encontrar documentos con un buscador que suma filtros (proyecto, cliente, tema, persona, texto, "Sin proyecto/cliente/tema"), ver los de un proyecto, asignar proyecto a los que no lo tienen y crear uno nuevo | equipo-interno | solo desktop | REQ-016 RF-21; REQ-021 RF-1 a RF-9 |
+| 27 | documento | Leer un documento con su cliente, proyecto y temas, editar su texto y sus propiedades con reserva y versión base, ver su historial, adjuntarle archivos y compartirlo por link | equipo-interno | solo desktop | REQ-016 RF-19, RF-20, RF-22; REQ-021 RF-10 a RF-15 |
 
 **Origen:** `web/src/app/` — 25 rutas, 3 layouts, 4 `loading.tsx`, 5 `error.tsx`
 [fuente: código-existente].
@@ -187,6 +187,29 @@ del grupo `(loggedin)` [fuente: código-existente].
 > `"Vence hoy"`); ahora muestra `"No definida"`, sin texto de vencimiento ni marca de cercanía, y el cálculo toma la fecha como
 > local para no correrse un día [RF-5, CA-8, CA-9, DD-6]. Nada cambia de forma ni de lugar.
 
+> **REQ-021 no agrega pantallas, agrega un overlay y rehace las dos de documentación, dos overlays
+> y la card de tres fichas.** Con jiku-docs 1.3.0 la ubicación de un documento la genera el
+> servicio y la carpeta deja de decidir permisos, así que **las carpetas desaparecen de la
+> interfaz**: ni navegación, ni breadcrumb de carpetas, ni ruta visible en ninguna pantalla
+> [RF-1]. **(1) `documentacion` (#26)** pasa a ser **un solo buscador con tokens** (proyecto,
+> cliente, tema, persona, texto, "Sin proyecto/cliente/tema") con sugerencias agrupadas y teclado;
+> las pantallas 01 a 05 de la propuesta B son **estados de `/docs`** según los filtros de la URL,
+> no rutas: inicio, sugerencias, resultados, filtrado desde una ficha (con "Volver al proyecto") y
+> "Sin proyecto" (con "Asignar proyecto" / "Asignar sugerido" por fila) [RF-2 a RF-8]. **(2)
+> `documento` (#27)** muestra Cliente · Proyecto y temas en lugar de la ruta, índice, "Vinculado a"
+> con nombres y propiedades sin ruta; deja de mostrar el frontmatter; edita las propiedades por
+> campos y el cuerpo en el editor, con "Mensaje de la versión" que la protege; los nombres de
+> lock y autor son los del servicio; y gana **historial de versiones** con restaurar [RF-10 a
+> RF-15]. **(3) Overlays:** O-11 *Nuevo documento* pide título, cliente, proyecto, temas libres y
+> visibilidad (sin carpeta ni nombre de archivo) y se abre también desde las fichas con las
+> relaciones precargadas; O-12 *Compartir* muestra Cliente · Proyecto y no se ofrece para un
+> documento `restricted`; **O-13 *Historial de versiones*** es nuevo [RF-9, RF-13, RF-14]. **(4)
+> Fichas:** la card "Documentación" de `detalle-proyecto`, `detalle-requisito` y `detalle-tarea`
+> pasa a filas compactas sin ruta, con cantidad, "+" y "Ver todos ›" hacia `documentacion`
+> filtrada; en proyecto marca "vinculado, sin proyecto propio" [RF-16, RF-17]. **Sin cambios:**
+> sidebar, barra superior, sin ⌘K ni vistas guardadas (decisiones 1 y 3 del dueño), y
+> **`opus-web` no cambia de interfaz** —solo deja de recibir ruta y frontmatter— [RF-19].
+
 > **REQ-016 agrega dos pantallas y dos overlays, y toca tres.** Integra el **módulo opcional de
 > documentación** (jiku-docs). Lo que lo hace distinto de todo lo anterior es que **es opcional**: la
 > web consulta el estado del módulo al iniciar, cada 60 s y ante un `module_unavailable`, y con el
@@ -223,17 +246,18 @@ Ninguno es ruta. **Origen:** `docs/analysis/ux/web/screens/_overlays.md` [fuente
 | # | Overlay | Tipo | Trigger | Propósito |
 |---|---|---|---|---|
 | O-01 | Vista previa de adjunto | modal (`role="dialog"`, `aria-modal`) | detalle-proyecto · botón "Preview" de un adjunto | Ver imagen o PDF sin salir de la pantalla. **REQ-001:** suma el caso "el archivo no está disponible" (RF-21, CA-15) |
-| O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) · **REQ-016:** documento (descartar cambios) · O-12 (revocar link) | Confirmar una acción destructiva |
+| O-02 | Confirmación de borrado | modal (`<dialog>` nativo con `showModal()`) | carga-horas (2 instancias) · detalle-proyecto (adjuntos) · **REQ-016:** documento (descartar cambios) · O-12 (revocar link) · **REQ-021:** O-13 (restaurar una versión) | Confirmar una acción destructiva o que crea una versión nueva |
 | O-03 | Dropdown de estado de tarea | dropdown | listado-tareas · tag de estado; cards de tarea | Cambiar estado inline sin abrir el detalle |
 | O-04 | Pills-dropdown de estado/tipo/prioridad | dropdown (`role="listbox"`) | detalle-requisito · header | Editar los tres campos de clasificación inline. **REQ-012:** el de estado ofrece los siete estados siempre —sin recorte por secuencia y sin la excepción que escondía `"En cola"` para las incidencias— y deja de deshabilitarse en `resuelto` y `cancelado` (RF-1, RF-12) |
 | O-05 | Dropdown de tipo de proyecto | dropdown (checkboxes) | reporte-horas | Filtrar el reporte por tipo de proyecto |
 | O-06 | Date-picker de fecha de cierre | dropdown (por portal) | tareas-por-proyecto, tareas-por-responsable · etiqueta de fecha | Editar la fecha estimada desde la card |
-| O-07 | Menú de `react-select` | dropdown | 6 pantallas con selects de búsqueda | Selección con búsqueda y agrupación |
+| O-07 | Menú de `react-select` | dropdown | 6 pantallas con selects de búsqueda · **REQ-021:** documentacion (asignar proyecto en una fila), O-11 y documento en edición (cliente y proyecto) | Selección con búsqueda y agrupación |
 | O-08 | Tooltip | tooltip | transversal (10 usos) | Aclaración contextual |
 | O-09 | Acordeón de campos de estado | in-place (no overlay) | detalle-requisito | Abrir los campos que corresponden al estado actual |
 | O-10 | Cajón de actores | modal lateral | **ninguno — código muerto** | *(no alcanzable)* |
-| O-11 | Nuevo documento | modal | documentacion · `boton-nuevo-documento` | Crear un documento en la carpeta actual y entrar directo a editarlo **[REQ-016]**. Ver [`screens/nuevo-documento.md`](screens/nuevo-documento.md) |
-| O-12 | Compartir documento | modal | documento · `boton-compartir` | Crear un link de solo lectura con vencimiento (mostrado una sola vez), listar los existentes y revocarlos **[REQ-016]**. Ver [`screens/compartir-documento.md`](screens/compartir-documento.md) |
+| O-11 | Nuevo documento | modal | documentacion · `boton-nuevo-documento` · **REQ-021:** detalle-proyecto, detalle-requisito, detalle-tarea · `boton-nuevo-documento-card` | Crear un documento con título, cliente, proyecto, temas y visibilidad —sin carpeta— y entrar directo a editarlo **[REQ-016, REQ-021]**. Ver [`screens/nuevo-documento.md`](screens/nuevo-documento.md) |
+| O-12 | Compartir documento | modal | documento · `boton-compartir` | Crear un link de solo lectura con vencimiento (mostrado una sola vez), listar los existentes y revocarlos; no se ofrece para un documento restringido **[REQ-016, REQ-021]**. Ver [`screens/compartir-documento.md`](screens/compartir-documento.md) |
+| O-13 | Historial de versiones | drawer | documento · `boton-historial` | Ver las versiones con autor, fecha, tipo, mensaje y marca de protegida, abrir una en lectura, restaurarla y saber cuántas se compactaron **[REQ-021]**. Ver [`screens/historial-documento.md`](screens/historial-documento.md) |
 
 ## Estructura de Navegación
 
@@ -276,6 +300,8 @@ inline.
 
 Dentro de **carga-horas**: modo **Presente / Ausente**, que cambia el formulario completo.
 
+Dentro de **documentacion** (**REQ-021**): los filtros del buscador viven en la URL (`proyecto`, `cliente`, `tema`, `persona`, `q`, `requisito`, `tarea`, `sinProyecto`, `sinCliente`, `sinTema`, `publico`, `orden`, `pagina`, `origen`). Por eso "Ver todos" de una ficha es un link, la vista se recarga y se comparte, y "Volver al proyecto" aparece cuando la URL trae `origen`.
+
 ## Information Architecture
 
 ### Agrupación: Estructura del trabajo
@@ -307,7 +333,8 @@ Pantallas: documentacion (#26), documento (#27)
 **Por qué se agrupan:** son la única parte de la superficie que **no es de Jiku**: los datos los
 guarda y autoriza el módulo jiku-docs, y la agrupación existe o no según esté instalado. Se entra
 por la sidebar o desde la card "Documentación" de las tres fichas, que es el puente con el resto
-del mapa [REQ-016].
+del mapa [REQ-016]. **Desde REQ-021 el puente va en los dos sentidos:** la card abre el alta con
+la ficha precargada y "Ver todos" lleva a `documentacion` filtrada por esa ficha, con la vuelta.
 
 ### Agrupación: Entrada y corte de acceso
 
@@ -324,7 +351,8 @@ Pantallas: home-vacia (#1), login (#2), login-entrada (#3), sin-permisos (#4)
   `/projects`.
 - **Rol `admin` vs `user`** — No cambia la navegación: los 6 ítems se ven igual. Cambia qué se
   puede editar: la grilla de asignación semanal es de solo lectura para `user`, y solo `admin`
-  puede cargar horas en nombre de otra persona.
+  puede cargar horas en nombre de otra persona. **REQ-021:** solo `admin` puede marcar un documento
+  como **Restringido** (el `user` ve la marca pero no la opción).
 - **Sesión vencida** — El interceptor de axios redirige a `/login` ante un 401. La sesión dura
   12 h. **Desde REQ-007 ese 401 significa una sola cosa.** Antes había dos 401 indistinguibles para
   la interfaz —token vencido y `user_not_found`— y el segundo mandaba a `/login` a alguien cuya
@@ -381,6 +409,9 @@ flowchart TD
     PR1 -.card Documentación.-> D2
     R1 -.card Documentación.-> D2
     T1 -.card Documentación.-> D2
+    PR1 -.Ver todos.-> D1
+    R1 -.Ver todos.-> D1
+    T1 -.Ver todos.-> D1
 
     G3 --> H1["asignacion-tiempo<br/>solo admin"]
     G3 --> H2["carga-horas"]

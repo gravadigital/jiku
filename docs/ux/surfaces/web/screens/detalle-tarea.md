@@ -8,8 +8,8 @@ audiences:
   - equipo-interno
 fidelity: mid
 status: as-is-sin-validar
-version: "1.3"
-date: 2026-10-24
+version: "1.4"
+date: 2026-10-26
 ---
 
 # Pantalla: Detalle de tarea
@@ -36,7 +36,9 @@ date: 2026-10-24
 - A `/objectives/edit/{id}` · click en boton-editar (`objectives/[id]/page.tsx:23`)
 - A `/requirements/{requirementId}` · click en link-requisito (`ObjectiveDetails.tsx:118-120`)
 - A `/projects/{projectId}` · click en link-proyecto (`ObjectiveDetails.tsx:79`)
-- A `/docs/{id}` (`documento`) · click en una fila de `tabla-documentos` [REQ-016]
+- A `/docs/{id}` (`documento`) · click en una fila de `lista-documentos-card` [REQ-016; REQ-021]
+- `/docs?tarea={id}&origen=tarea` (`documentacion` filtrada) · click en `boton-ver-todos-documentos` [REQ-021 RF-16, RF-17]
+- O-11 Nuevo documento con la tarea, su proyecto y su cliente precargados · click en `boton-nuevo-documento-card` [REQ-021]
 
 **Salidas automáticas:**
 - A `/objectives/{id}` · tras guardar un comentario nuevo, la pantalla navega a sí misma (`CommentEditor.tsx:107`)
@@ -77,13 +79,14 @@ Nota [fuente: código-existente]: **`"Volver"` no vuelve a donde se venía.** Si
 | 28 | marca-identidad-automatica | badge | automatico | content | desktop | hidden_in_states: empty del historial, empty de comentarios | Marca que el autor mostrado es una identidad de servicio y no una persona |
 | 29 | marca-comentario-editado | badge | editado / editado-por-otro | content | desktop | **solo en comentarios con fecha de edición** | Indica que el comentario fue editado, y por quién si no fue su autor |
 | 30 | lista-adjuntos-comentario | list | — | content | desktop | visible_only_in_states: comentario en edición (con adjuntos) | Adjuntos del comentario que se está editando, con la opción de quitarlos |
-| 31 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados a la tarea [REQ-016 RF-18] |
-| 32 | tabla-documentos | table | light | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, ruta y fecha |
-| 33 | marca-documento-en-edicion | badge | — | content | desktop | solo en filas con lock vigente | Avisa que alguien lo está editando |
-| 34 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | No hay documentos vinculados |
-| 35 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
-| 36 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
-| 37 | boton-ver-mas-documentos | button | secondary-dismiss | input | desktop | visible solo cuando hay más documentos | Trae los siguientes |
+| 31 | card-documentacion | card | panel | content | desktop | hidden_in_states: loading; **no se renderiza con el módulo `not_installed`** | Documentos vinculados a esta tarea, con la cantidad [REQ-016 RF-18; REQ-021 RF-16, RF-17] |
+| 32 | boton-nuevo-documento-card | button | icono / disabled | input | desktop | state_overrides: documentación no disponible→disabled | Abre O-11 con la tarea, su proyecto y su cliente precargados |
+| 33 | boton-ver-todos-documentos | button | secondary-nav | navigation | desktop | oculto con 0 documentos y en documentación no disponible | Lleva a Documentación filtrada |
+| 34 | lista-documentos-card | list | filas compactas | content | desktop | hidden_in_states: loading, documentación no disponible; oculto sin documentos | Un documento por fila: título, fecha y temas, sin ruta |
+| 35 | temas-documento-card | chips | — | content | desktop | solo en filas con temas | Temas de la fila, o "Sin tema" |
+| 36 | vacio-documentos | empty-state | list | feedback | desktop | visible solo con 0 documentos | No hay documentos vinculados a esta tarea |
+| 37 | cargando-documentos | loader | inline | feedback | desktop | visible solo mientras carga la card | Carga de la card, independiente del resto |
+| 38 | aviso-documentacion-no-disponible | alert | warning | feedback | desktop | visible_only_in_states: documentación no disponible | El módulo está registrado pero no responde |
 
 **Origen:** `src/app/(loggedin)/objectives/[id]/page.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.tsx`, `src/features/objectives/components/ObjectiveDetails/ObjectiveDetails.module.scss`, `src/features/objectives/components/ObjectiveHistoryList/ObjectiveHistoryList.tsx`, `src/features/objectives/components/ObjectiveComment/ObjectiveComment.tsx`, `src/shared/components/ui/CommentEditor/CommentEditor.tsx`.
 
@@ -102,7 +105,7 @@ Notas de transcripción [fuente: código-existente]:
     - col 6/12: badge-estado (Estado), link-proyecto (Proyecto), Área, Visibilidad, Creado por *(con marca-identidad-automatica cuando el creador es una identidad de servicio)*, link-requisito (Requisito)
     - col 6/12: Fecha de inicio, Fecha de finalización estimada, Fecha de cierre, Última actualización, Horas trabajadas, lista-equipo (Equipo)
   - descripcion-tarea
-- card-documentacion (tabla-documentos con marca-documento-en-edicion, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*, boton-ver-mas-documentos) [REQ-016 RF-18]
+- card-documentacion (cabecera: título con la cantidad · boton-nuevo-documento-card · boton-ver-todos-documentos; lista-documentos-card con temas-documento-card, vacio-documentos *(sin documentos)*, cargando-documentos *(mientras carga)*, aviso-documentacion-no-disponible *(módulo caído)*) [REQ-016 RF-18; REQ-021 RF-16, RF-17]
 - titulo-historial
 - lista-historial *(con marca-identidad-automatica junto al autor de cada entrada de una identidad de servicio)*
 - titulo-comentarios
@@ -310,28 +313,40 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Annotation: **nueva con REQ-011.** Hasta acá los adjuntos de un comentario se elegían solo al escribirlo y después quedaban fijos: `lista-adjuntos-pendientes` cubre el alta y desaparece al guardar. En edición se muestran los adjuntos que el comentario ya tiene, se pueden quitar y se pueden sumar archivos propios con `boton-adjuntar-comentario` (RF-2, CA-3). Lo que se guarda es **el conjunto completo que debe quedar**, no un delta: si la escritura falla no se aplica ningún cambio, ni de texto ni de vínculos (CA-14). Quitar un adjunto **no borra el archivo** —queda subido y se puede volver a usar—, igual que en el alta (REQ-001 RF-8)
 
 ### card-documentacion
-- Texto/label: título `"Documentación"`
-- Icono: file
-- Asset: nada
-- Annotation: `Card` `panel`. **Nuevo con REQ-016.** Solo existe si el módulo de documentación está instalado; la web consulta su estado al iniciar, cada 60 s y ante una respuesta `module_unavailable` [REQ-016 RF-17, CA-25]. Pide al módulo los documentos con `taskId` de la tarea, filtrados por lo que la persona puede leer
-
-### tabla-documentos
-- Texto/label: columnas `"Documento"` · `"Ruta"` · `"Actualizado"`. La ruta es la carpeta del documento; la fecha, `DD/MM/AAAA`
+- Texto/label: título `"Documentación"` seguido de la cantidad (`"Documentación {n}"`; `"{n}+"` si el servicio no da total exacto)
 - Icono: nada
 - Asset: nada
-- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 10 filas; el resto con boton-ver-mas-documentos
+- Annotation: `Card` `panel`. Solo existe si el módulo de documentación está instalado [REQ-016 RF-17, CA-25]. Pide los 5 documentos más recientes con `taskId` de la ficha y el total. **REQ-021:** filas compactas en lugar de tabla y sin ruta, con el mismo formato que en proyecto y requisito [REQ-021 RF-17]
 
-### marca-documento-en-edicion
-- Texto/label: `"En edición"`
-- Icono: lock
+### boton-nuevo-documento-card
+- Texto/label: nombre accesible `"Nuevo documento en esta tarea"`
+- Icono: plus
 - Asset: nada
-- Annotation: `Badge` neutro junto al título; nombre accesible `"{persona} lo está editando"`
+- Annotation: botón solo icono en la cabecera de la card. Abre O-11 con la tarea, su proyecto y su cliente ya elegidos [REQ-021 Diseño de la web]
+
+### boton-ver-todos-documentos
+- Texto/label: `"Ver todos"`
+- Icono: chevron-right
+- Asset: nada
+- Annotation: `Button` `secondary-nav` en la cabecera de la card. Navega a `/docs?tarea={id}&origen=tarea`: Documentación con el filtro de esta tarea y `"Volver a la tarea"` [REQ-021 RF-17]
+
+### lista-documentos-card
+- Texto/label: por fila, el título del documento y la fecha de actualización a la derecha (`DD/MM/AAAA`, o `"—"` sin fecha)
+- Icono: file (en cada fila)
+- Asset: nada
+- Annotation: fila entera clickeable y enfocable (el título es un enlace a `/docs/{id}`). Orden: última actualización primero. Hasta 5 filas; el resto, con "Ver todos". Fecha en mono
+
+### temas-documento-card
+- Texto/label: un pill por tema; sin temas, `"Sin tema"` en texto secundario
+- Icono: nada
+- Asset: nada
+- Annotation: `Badge` `outline`, debajo del título de la fila
 
 ### vacio-documentos
 - Texto/label: `"No hay documentos vinculados a esta tarea."`
 - Icono: file
 - Asset: nada
-- Annotation: `EmptyState` `list`, **sin acción de alta**: los vínculos se escriben en el frontmatter del documento, no desde esta card
+- Annotation: `EmptyState` `list`. La acción de alta está en la cabecera de la card (`+`)
 
 ### cargando-documentos
 - Texto/label: `"Cargando documentos…"`
@@ -343,13 +358,7 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Texto/label: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
 - Icono: warning
 - Asset: nada
-- Annotation: mismo texto en las cinco pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca esta tarea sin documentos [REQ-016 CA-27]
-
-### boton-ver-mas-documentos
-- Texto/label: `"Ver más"`
-- Icono: nada
-- Asset: nada
-- Annotation: la consulta pagina por cursor; no hay total que mostrar
+- Annotation: mismo texto en todas las pantallas que muestran documentación. La card se mantiene visible para que el hueco no parezca una ficha sin documentos [REQ-016 CA-27; REQ-021 CA-26]
 
 ## Estados
 
@@ -405,7 +414,8 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - Mensaje: `"La documentación no está disponible en este momento. Probá de nuevo en unos minutos."`
 - Cambios:
   - aviso-documentacion-no-disponible: visible dentro de card-documentacion
-  - tabla-documentos y boton-ver-mas-documentos: ocultos
+  - lista-documentos-card y boton-ver-todos-documentos: ocultos
+  - boton-nuevo-documento-card: disabled
 - El resto de la pantalla no se ve afectado. Cuando el módulo vuelve, la card se recarga sola
 
 ### success
@@ -432,8 +442,9 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - `"Cancelar"` del comentario en edición · click → `handleCancel` descarta lo editado sin aviso (`ObjectiveComment.tsx:124`)
 - boton-guardar-comentario · click → guarda el comentario nuevo y navega a la ruta actual (`CommentEditor.tsx:107`)
 
-- **REQ-016 ·** fila de tabla-documentos · on click / `Enter` → navega a `/docs/{id}`
-- **REQ-016 ·** boton-ver-mas-documentos · on click → pide la página siguiente con el cursor
+- **REQ-016 ·** fila de lista-documentos-card · on click / `Enter` → navega a `/docs/{id}`
+- **REQ-021 ·** boton-nuevo-documento-card · on click → abre O-11 con la tarea, su proyecto y su cliente precargados
+- **REQ-021 ·** boton-ver-todos-documentos · on click → navega a `/docs?tarea={id}&origen=tarea`
 
 **Validaciones:**
 - comentario editado · no vacío → toast `"El comentario no puede estar vacío"` (`ObjectiveComment.tsx:50-52`)
@@ -501,3 +512,16 @@ El módulo declara un corte propio en 767px (`@include mobile { grid-template-co
 - **Sin el módulo, la card no existe; con el módulo caído, aparece con el aviso.** Mismo criterio y mismo microcopy que en las otras dos fichas [REQ-016 CA-25, CA-27].
 - **No se agregó componente al Design System.** Ver la `## Revisión UX` de REQ-016: el único tipo sin spec es `alert`, anotado como gap.
 
+### REQ-021 — Documentación sin carpetas (propuesta B) (2026-10-26)
+
+**Decisiones tomadas:**
+- **La card pasa de tabla a filas compactas, sin ruta.** Título, fecha y temas (o "Sin tema") por fila, como la card de la propuesta B; la ruta deja de mostrarse en todo el producto [REQ-021 decisión 2, decisión 7].
+- **La card ahora crea: "+" abre el alta con la tarea, su proyecto y su cliente precargados.** Revierte la decisión de REQ-016 ("la card lista y no crea"): con propiedades por campos, el alta puede dejar el vínculo hecho sin que nadie escriba frontmatter.
+- **"Ver todos" en lugar de "Ver más".** La card muestra los 5 más recientes y la cantidad; el listado completo vive en Documentación con el filtro de esta tarea, que además se puede afinar con otros filtros.
+- **Sin marca "En edición" en las filas.** El formato de la propuesta B no la lleva y la card es una puerta de entrada; la marca sigue en Documentación y en el documento.
+
+**Alternativas descartadas:**
+- Mantener la tabla con menos columnas: la card es angosta y la tabla desborda con títulos largos.
+
+**Preguntas abiertas:**
+- Ninguna.
