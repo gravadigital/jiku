@@ -200,3 +200,8 @@
   display: flex;
   flex-direction: column;
 }
+
+.errorActions {
+  display: flex;
+  gap: var(--spacing-sm);
+}

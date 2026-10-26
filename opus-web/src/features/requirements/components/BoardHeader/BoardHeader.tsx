@@ -16,6 +16,8 @@ interface BoardHeaderProps {
   isExternalUser?: boolean;
   currentUserId?: string;
   subscribers?: Subscriber[];
+  /** Estado no disponible o sin acceso (REQ-020 DD-8): solo el breadcrumb de 2 niveles. */
+  minimal?: boolean;
 }
 
 export function BoardHeader({
@@ -26,11 +28,17 @@ export function BoardHeader({
   isExternalUser = false,
   currentUserId = '',
   subscribers = [],
+  minimal = false,
 }: BoardHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentView = searchParams?.get('view') || 'list';
   const [copied, setCopied] = useState(false);
+
+  const crumbIsLink = minimal || requirementId !== undefined;
+  const showId = !minimal && requirementId !== undefined;
+  const showActions = !minimal && requirementId !== undefined;
+  const showToggles = !minimal && requirementId === undefined;
 
   const isSubscribed = subscribers.some((s) => s.id === currentUserId);
 
@@ -74,7 +82,7 @@ export function BoardHeader({
       <div className={styles.breadcrumb}>
         <span className={styles.projectName}>{projectName}</span>
         <span className={styles.separator}>›</span>
-        {requirementId !== undefined ? (
+        {crumbIsLink ? (
           <button
             type="button"
             className={styles.currentLink}
@@ -85,14 +93,14 @@ export function BoardHeader({
         ) : (
           <span className={styles.current}>Requisitos</span>
         )}
-        {requirementId !== undefined && (
+        {showId && (
           <>
             <span className={styles.separator}>›</span>
             <span className={styles.current}>#{requirementId}</span>
           </>
         )}
       </div>
-      {requirementId !== undefined && (
+      {showActions && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             type="button"
@@ -144,7 +152,7 @@ export function BoardHeader({
         </div>
       )}
 
-      {requirementId === undefined && (
+      {showToggles && (
         <div className={styles.viewToggles}>
           <button
             className={`${styles.toggleBtn} ${currentView === 'list' ? styles.active : ''}`}
