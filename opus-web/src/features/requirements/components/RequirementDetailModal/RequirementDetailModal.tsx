@@ -4,7 +4,11 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRequirement } from '../../hooks/useRequirement';
 import { useIsMobile } from '@/shared/hooks';
-import { Spinner } from '@/shared/components/ui';
+import { RefreshCw } from 'lucide-react';
+import { Spinner, Button } from '@/shared/components/ui';
+import type { ApiError } from '@/lib/axios';
+import { classifyRequirementError } from '../../utils/classifyRequirementError';
+import { RequirementUnavailable } from '../RequirementUnavailable';
 import { ModalTopbar } from './components/ModalTopbar';
 import { RequirementInfoPanel } from './components/RequirementInfoPanel';
 import { ActivityPanel } from './components/ActivityPanel';
@@ -20,7 +24,13 @@ export function RequirementDetailModal({
 }: RequirementDetailModalProps) {
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<ActiveTab>('detalle');
-  const { data: requirement, isLoading, isError } = useRequirement({ requirementId });
+  const {
+    data: requirement,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useRequirement({ requirementId });
   const { data: session } = useSession();
   const isExternalUser = session?.user?.roles?.includes('external-user') ?? false;
   const currentUserId = session?.user?.id ?? '';
@@ -44,8 +54,8 @@ export function RequirementDetailModal({
     );
   }
 
-  // ── Error ────────────────────────────────────────────────────────────────
-  if (isError || !requirement) {
+  // ── Error de sistema (red o 5xx): reintentable ───────────────────────────
+  if (isError && classifyRequirementError(error as unknown as ApiError) === 'system') {
     return (
       <div className={styles.overlay} data-testid="modal-overlay" onClick={handleOverlayClick}>
         <div className={styles.container}>
@@ -53,6 +63,27 @@ export function RequirementDetailModal({
             <p role="alert" className={styles.errorText}>
               Error al cargar el requisito. Intentá de nuevo más tarde.
             </p>
+            <div className={styles.errorActions}>
+              <Button variant="secondary" onClick={onClose}>
+                Cerrar
+              </Button>
+              <Button variant="primary" onClick={() => refetch()}>
+                <RefreshCw size={14} aria-hidden="true" /> Reintentar
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── No disponible o sin acceso (403/404 o sin datos) ─────────────────────
+  if (isError || !requirement) {
+    return (
+      <div className={styles.overlay} data-testid="modal-overlay" onClick={handleOverlayClick}>
+        <div className={styles.container}>
+          <div className={styles.centered}>
+            <RequirementUnavailable onBack={onClose} />
           </div>
         </div>
       </div>

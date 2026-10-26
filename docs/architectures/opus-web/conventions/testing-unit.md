@@ -205,9 +205,9 @@ No hay umbral configurado ni reporte publicado. Lo que **no** tiene ningún test
 | `features/auth/services/authApi.ts` | `presentInApi` y su tragado deliberado de errores |
 | `contexts/ProjectContext.tsx` | Incluido el throw fuera del provider |
 | `lib/axios.ts` | Los interceptores: la normalización a `ApiError` y el redirect del 401 |
-| `features/requirements/hooks/*` | Los seis hooks del módulo más grande |
+| `features/requirements/hooks/*` | Los seis hooks del módulo más grande, salvo `useRequirement`, con test desde S-093 |
 | `features/requirements/services/requirementsApi.ts` | — |
-| `RequirementDetailModal` | Los subcomponentes sí tienen; el contenedor y su rama mobile/desktop, no |
+| `RequirementDetailModal` | Los subcomponentes sí tienen; el contenedor solo en sus estados de excepción (S-093); la rama con datos mobile/desktop, no |
 | `CreateRequirementModal` | Tiene test, pero no cubre el submit con error |
 
 **El patrón:** lo que está bien cubierto son los componentes de presentación y los route handlers.

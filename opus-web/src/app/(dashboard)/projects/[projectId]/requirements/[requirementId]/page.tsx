@@ -3,7 +3,11 @@
 import { useParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useRequirement } from '@/features/requirements';
+import { BoardHeader } from '@/features/requirements/components/BoardHeader';
 import { RequirementDetailView } from '@/features/requirements/components/RequirementDetailView';
+import { RequirementUnavailable } from '@/features/requirements/components/RequirementUnavailable';
+import { classifyRequirementError } from '@/features/requirements/utils/classifyRequirementError';
+import type { ApiError } from '@/lib/axios';
 import { useProjects } from '@/features/projects';
 import { Spinner, Button } from '@/shared/components/ui';
 import styles from './page.module.scss';
@@ -29,7 +33,7 @@ export default function RequirementDetailPage() {
     );
   }
 
-  if (error) {
+  if (error && classifyRequirementError(error as unknown as ApiError) === 'system') {
     return (
       <div className={styles.centered}>
         <p className={styles.errorText}>Error al cargar el requisito</p>
@@ -46,16 +50,12 @@ export default function RequirementDetailPage() {
     );
   }
 
-  if (!requirement) {
+  // REQ-020 DD-7/DD-8: 403/404 y query sin datos son el mismo estado, sin "Reintentar".
+  if (error || !requirement) {
     return (
-      <div className={styles.centered}>
-        <p className={styles.errorText}>Requisito no encontrado</p>
-        <Button
-          variant="secondary"
-          onClick={() => router.push(`/projects/${projectId}/requirements`)}
-        >
-          Volver al listado
-        </Button>
+      <div className={styles.unavailable}>
+        <BoardHeader projectName={projectName} projectId={projectId} minimal />
+        <RequirementUnavailable onBack={() => router.push(`/projects/${projectId}/requirements`)} />
       </div>
     );
   }

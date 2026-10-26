@@ -72,4 +72,26 @@ describe('BoardHeader', () => {
       expect(screen.queryByText('Columnas')).not.toBeInTheDocument();
     });
   });
+
+  describe('S-093 — cabecera mínima', () => {
+    it('TS-15: breadcrumb de 2 niveles sin acciones ni toggles', () => {
+      render(<BoardHeader projectName="Proyecto Alpha" projectId={12} minimal />);
+      expect(screen.getByText('Proyecto Alpha')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Requisitos' })).toBeInTheDocument();
+      expect(screen.queryByText(/^#/)).toBeNull();
+      expect(screen.queryByRole('button', { name: /Copiar enlace/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Suscribirse/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Volver al board/ })).toBeNull();
+      expect(screen.queryByText('Lista')).toBeNull();
+      expect(screen.queryByText('Columnas')).toBeNull();
+      expect(screen.getAllByRole('button')).toHaveLength(1);
+    });
+
+    it('TS-16: "Requisitos" navega al tablero', async () => {
+      const user = userEvent.setup();
+      render(<BoardHeader projectName="Proyecto Alpha" projectId={12} minimal />);
+      await user.click(screen.getByRole('button', { name: 'Requisitos' }));
+      expect(mockPush).toHaveBeenCalledWith('/projects/12/requirements');
+    });
+  });
 });

@@ -18,3 +18,9 @@
   color: var(--color-error);
   margin: 0;
 }
+
+.unavailable {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
