@@ -1,0 +1,181 @@
+@use '@/styles' as *;
+
+.root {
+  position: relative;
+  width: 100%;
+}
+
+.field,
+.fieldDisabled {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-height: var(--input-height);
+  padding: 0 var(--space-2);
+  border-radius: var(--input-radius);
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-text);
+
+  &:focus-within {
+    border-color: var(--input-border-focus);
+    box-shadow: var(--input-focus-ring);
+  }
+}
+
+.fieldDisabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.searchIcon {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+
+.tokens {
+  display: contents;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.token {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-action);
+  border: 1px solid var(--input-border);
+  background-color: var(--bg-surface-sunken);
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+}
+
+.tokenText {
+  color: var(--text-primary);
+}
+
+.tokenRemove,
+.clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-action);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.clear {
+  margin-left: auto;
+}
+
+.input {
+  flex: 1 1 160px;
+  min-width: 120px;
+  height: calc(var(--input-height) - 2px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--text-body-default-family);
+  font-size: var(--text-body-default-size);
+
+  &::placeholder {
+    color: var(--text-disabled);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+// Se superpone al contenido, bajo el campo y del mismo ancho.
+.listbox {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--elevation-raised);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.group {
+  list-style: none;
+}
+
+.groupLabel {
+  display: block;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-13);
+  text-transform: uppercase;
+}
+
+.groupList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option,
+.optionActive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.optionActive {
+  background-color: var(--bg-surface-sunken);
+}
+
+.optionIcon {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+
+.optionLabel {
+  color: var(--text-primary);
+}
+
+.optionSecondary {
+  color: var(--text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.srOnly {
+  @include sr-only;
+}

@@ -44,8 +44,10 @@ export function DocsPanel({ scope }: DocsPanelProps) {
   const installed = status !== 'not_installed';
   const available = status === 'available';
 
+  // El contrato 1.3.0 acepta una lista de proyectos: el panel manda uno solo.
+  const filters = 'projectId' in scope ? { projectId: [scope.projectId] } : scope;
   const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDocuments(
-    { filters: scope, enabled: available }
+    { filters, enabled: available }
   );
 
   const documents = data?.pages.flatMap((page) => page.items) ?? [];

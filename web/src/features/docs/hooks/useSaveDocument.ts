@@ -16,6 +16,9 @@ export const useSaveDocument = (id: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['docs-document', id] });
       queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
+      // Listados y búsqueda de `/docs`.
+      queryClient.invalidateQueries({ queryKey: ['docs', 'documents'] });
+      queryClient.invalidateQueries({ queryKey: ['docs', 'search'] });
       // Por prefijo: un guardado cambia `updatedAt` en la carpeta del documento.
       queryClient.invalidateQueries({ queryKey: ['docs-folder-contents'] });
     },

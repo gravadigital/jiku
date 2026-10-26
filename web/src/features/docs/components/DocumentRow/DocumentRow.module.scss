@@ -1,0 +1,54 @@
+@use '@/styles' as *;
+
+.cell {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.titleLine {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+
+// Fila entera clickeable (gap del DS: `Table` no tiene click de fila). El <a> sigue siendo el
+// único elemento enfocable; su ::after cubre la fila, que es el contenedor posicionado.
+.link {
+  color: var(--text-primary);
+  font-weight: var(--text-table-data-weight);
+  text-decoration: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  &:hover {
+    color: var(--text-link);
+    text-decoration: underline;
+  }
+}
+
+.mono {
+  font-family: var(--fontStack-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+// Los controles de la fila van por encima del enlace extendido.
+.action {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+}
+
+.srOnly {
+  @include sr-only;
+}

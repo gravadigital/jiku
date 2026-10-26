@@ -7,11 +7,16 @@ import type {
   DocsDocumentPage,
   DocsIdResult,
   DocsLockGrant,
+  DocsRelationSuggestions,
+  DocsRelationsResult,
   DocsResult,
   DocsSearchResponse,
+  DocsSearchSuggestions,
   DocsWriteResult,
   DocumentsFilters,
+  SearchDocumentsParams,
   UpdateDocumentPayload,
+  UpdateRelationsPayload,
 } from '../types/docs.types';
 
 // Convención de errores (P-2): ninguna Server Action de docs lanza. Un error lanzado desde un
@@ -20,11 +25,19 @@ import type {
 // ellos (`document_not_found`, `module_unavailable`, `document_locked`, `version_conflict`).
 // Por eso devuelven `DocsResult<T>` y el hook re-lanza del lado del cliente (`unwrap`).
 
-// La api responde 400 `invalid_fields` a las claves no declaradas: se descartan las vacías.
+// La api responde 400 `invalid_fields` a las claves no declaradas: se descartan las vacías
+// (también las listas vacías) y se conserva `false` (`hasProject: false` es un filtro).
 const definedOnly = (filters: object): Record<string, unknown> =>
   Object.fromEntries(
-    Object.entries(filters).filter(([, value]) => value !== undefined && value !== '')
+    Object.entries(filters).filter(
+      ([, value]) =>
+        value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)
+    )
   );
+
+// La api espera la lista como parámetro repetido (`style: form, explode: true`); axios por
+// defecto manda `projectId[]=12`.
+const LIST_PARAMS = { indexes: null } as const;
 
 // En el cuerpo de una escritura `content` puede ser '' (documento vacío): solo se descartan
 // las claves `undefined` y el `message` en blanco.
@@ -41,7 +54,10 @@ export const listDocuments = async (
   filters: DocumentsFilters
 ): Promise<DocsResult<DocsDocumentPage>> =>
   toResult(async () => {
-    const response = await apiClient.get('/docs/documents', { params: definedOnly(filters) });
+    const response = await apiClient.get('/docs/documents', {
+      params: definedOnly(filters),
+      paramsSerializer: LIST_PARAMS,
+    });
     return response.data;
   });
 
@@ -67,14 +83,47 @@ export const getDocument = async (id: string): Promise<DocsResult<DocsDocumentDe
   });
 
 export const searchDocuments = async ({
-  q,
   limit = 50,
+  ...rest
+}: SearchDocumentsParams): Promise<DocsResult<DocsSearchResponse>> =>
+  toResult(async () => {
+    const response = await apiClient.get('/docs/search', {
+      params: definedOnly({ ...rest, limit }),
+      paramsSerializer: LIST_PARAMS,
+    });
+    return response.data;
+  });
+
+export const getDocsSuggestions = async ({
+  q,
+  clientId,
+  limit = 5,
 }: {
   q: string;
+  clientId?: number;
   limit?: number;
-}): Promise<DocsResult<DocsSearchResponse>> =>
+}): Promise<DocsResult<DocsSearchSuggestions>> =>
   toResult(async () => {
-    const response = await apiClient.get('/docs/search', { params: { q, limit } });
+    const response = await apiClient.get('/docs/suggestions', {
+      params: definedOnly({ q, clientId, limit }),
+    });
+    return response.data;
+  });
+
+export const getSuggestedRelations = async (
+  id: string
+): Promise<DocsResult<DocsRelationSuggestions>> =>
+  toResult(async () => {
+    const response = await apiClient.get(`/docs/documents/${id}/suggested-relations`);
+    return response.data;
+  });
+
+export const updateRelations = async (
+  id: string,
+  payload: UpdateRelationsPayload
+): Promise<DocsResult<DocsRelationsResult>> =>
+  toResult(async () => {
+    const response = await apiClient.post(`/docs/documents/${id}/relations`, bodyOf(payload));
     return response.data;
   });
 

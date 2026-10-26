@@ -2,12 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiClient } from '@/lib/axios';
 import {
   createDocument,
+  getDocsSuggestions,
   getDocument,
+  getSuggestedRelations,
   listDocuments,
   lockDocument,
   searchDocuments,
   unlockDocument,
   updateDocument,
+  updateRelations,
 } from './docsApi';
 
 vi.mock('@/lib/axios', () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
@@ -40,14 +43,15 @@ describe('listDocuments', () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: page });
 
     const result = await listDocuments({
-      projectId: 12,
+      projectId: [12],
       limit: 10,
       cursor: undefined,
       requirementId: undefined,
     });
 
     expect(apiClient.get).toHaveBeenCalledWith('/docs/documents', {
-      params: { projectId: 12, limit: 10 },
+      params: { projectId: [12], limit: 10 },
+      paramsSerializer: { indexes: null },
     });
     const params = vi.mocked(apiClient.get).mock.calls[0][1]?.params;
     expect(Object.keys(params as object)).toEqual(['projectId', 'limit']);
@@ -59,6 +63,7 @@ describe('listDocuments', () => {
     await listDocuments({ requirementId: 45, limit: 10, cursor: 'c2' });
     expect(apiClient.get).toHaveBeenCalledWith('/docs/documents', {
       params: { requirementId: 45, limit: 10, cursor: 'c2' },
+      paramsSerializer: { indexes: null },
     });
   });
 });
@@ -139,7 +144,7 @@ describe('lecturas no lanzan (P-2, S-081)', () => {
   it('listDocuments devuelve module_unavailable como dato', async () => {
     const error = { code: 'module_unavailable', message: 'x', status: 503 };
     vi.mocked(apiClient.get).mockRejectedValue(error);
-    await expect(listDocuments({ projectId: 1 })).resolves.toEqual({ ok: false, error });
+    await expect(listDocuments({ projectId: [1] })).resolves.toEqual({ ok: false, error });
   });
 });
 
@@ -246,6 +251,99 @@ describe('searchDocuments (TS-8)', () => {
     await expect(searchDocuments({ q: 'despliegue' })).resolves.toEqual({ ok: true, data });
     expect(apiClient.get).toHaveBeenCalledWith('/docs/search', {
       params: { q: 'despliegue', limit: 50 },
+      paramsSerializer: { indexes: null },
     });
+  });
+});
+
+const ID_B = '01J9Z3K8M2Q4R6T8V0W2Y4A6D0';
+
+describe('S-095: listas, sugerencias y relaciones', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('TS-1: listDocuments manda listas como parámetro repetido', async () => {
+    const page = { items: [], page: { limit: 20, returned: 0 } };
+    vi.mocked(apiClient.get).mockResolvedValue({ data: page });
+    const result = await listDocuments({
+      clientId: [4],
+      projectId: [12, 31],
+      sort: '-updatedAt',
+      limit: 20,
+      count: true,
+    });
+    expect(apiClient.get).toHaveBeenCalledWith('/docs/documents', {
+      params: { clientId: [4], projectId: [12, 31], sort: '-updatedAt', limit: 20, count: true },
+      paramsSerializer: { indexes: null },
+    });
+    expect(result).toEqual({ ok: true, data: page });
+  });
+
+  it('TS-2: listDocuments descarta vacíos y conserva false', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { items: [], page: {} } });
+    await listDocuments({
+      hasProject: false,
+      projectId: [],
+      topic: undefined,
+      person: [],
+      limit: 20,
+      count: true,
+    });
+    expect(apiClient.get).toHaveBeenCalledWith('/docs/documents', {
+      params: { hasProject: false, limit: 20, count: true },
+      paramsSerializer: { indexes: null },
+    });
+  });
+
+  it('TS-3: searchDocuments con filtros', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { items: [] } });
+    await searchDocuments({ q: 'arquitectura', clientId: [4], visibility: 'public', limit: 50 });
+    expect(apiClient.get).toHaveBeenCalledWith('/docs/search', {
+      params: { q: 'arquitectura', clientId: [4], visibility: 'public', limit: 50 },
+      paramsSerializer: { indexes: null },
+    });
+  });
+
+  it('TS-4: getDocsSuggestions', async () => {
+    const data = { projects: [], clients: [], persons: [], topics: [] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    await expect(getDocsSuggestions({ q: 'vid', clientId: 4 })).resolves.toEqual({
+      ok: true,
+      data,
+    });
+    expect(apiClient.get).toHaveBeenCalledWith('/docs/suggestions', {
+      params: { q: 'vid', clientId: 4, limit: 5 },
+    });
+  });
+
+  it('TS-5: getSuggestedRelations', async () => {
+    const data = { items: [{ projectId: 12, clientId: 4, score: 0.82, reason: 'x' }] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+    await expect(getSuggestedRelations(ID_B)).resolves.toEqual({ ok: true, data });
+    expect(apiClient.get).toHaveBeenCalledWith(`/docs/documents/${ID_B}/suggested-relations`);
+  });
+
+  it('TS-6: updateRelations éxito', async () => {
+    const data = {
+      id: ID_B,
+      version: 4,
+      relations: { clients: [4], projects: [12], requirements: [], tasks: [] },
+    };
+    vi.mocked(apiClient.post).mockResolvedValue({ data });
+    const payload = { baseVersion: 3, add: { projects: [12] } };
+    await expect(updateRelations(ID_B, payload)).resolves.toEqual({ ok: true, data });
+    expect(apiClient.post).toHaveBeenCalledWith(`/docs/documents/${ID_B}/relations`, payload);
+  });
+
+  it('TS-7: updateRelations conserva details del conflicto', async () => {
+    const error = {
+      code: 'version_conflict',
+      message: 'Version conflict',
+      status: 409,
+      details: { currentVersion: 5 },
+    };
+    vi.mocked(apiClient.post).mockRejectedValue(error);
+    await expect(
+      updateRelations(ID_B, { baseVersion: 3, add: { projects: [12] } })
+    ).resolves.toEqual({ ok: false, error });
   });
 });

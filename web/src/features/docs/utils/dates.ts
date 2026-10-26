@@ -11,3 +11,11 @@ export const formatTime = (iso: string): string => {
   const d = new Date(iso);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+/** `DD/MM/AAAA` con getters locales; vacío o inválido → `"—"`. */
+export const formatDay = (iso?: string | null): string => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
