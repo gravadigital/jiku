@@ -36,6 +36,10 @@ export interface CommandContext {
   caller: string;                      // el SERVICIO que publicó, del subject
   params: Record<string, string>;      // `clients.{id}.edit` deja { id: '7' }
   transaction: Transaction;            // abierta por el despachador
+  actor?: Actor;                       // sobre de identidad, si el publicador de confianza lo declaró
+  roles: readonly string[];            // roles de quien actúa (S-031)
+  callerClass: CallerClass;            // 'connector' | 'internal' | 'external' (S-091)
+  actorName?: string;                  // nombre humano para los eventos (S-070)
 }
 ```
 
@@ -48,7 +52,9 @@ transacción, así un payload inválido no consume una conexión del pool.
 // core/src/bus/dispatcher.ts
 const transaction = await sequelize.transaction();
 try {
-  const reply = await command.execute(validated.value, { caller, params, transaction });
+  const reply = await command.execute(validated.value, {
+    caller, params, transaction, actor, roles, actorName, callerClass,
+  });
 
   if (reply.status === 'success') await transaction.commit();
   else await transaction.rollback();
@@ -253,6 +259,12 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
   > **Sin actor no se evalúan las reglas derivadas del actor.** `resolveActor` devuelve `undefined`
   > en el canal exento (el publicador de confianza sin sobre) y ahí `ctx.roles` es `[]`: es la misma
   > decisión que S-030 tomó para la clase `connector`, *"el caller autoriza por su cuenta"*.
+  >
+  > **`ctx.callerClass` es la clase que la compuerta ya calculó** con `resolveCallerClass` (S-030), sin
+  > consulta nueva (con sobre, la de `actor.roles`; directo, la de `users.roles`; exento,
+  > `connector`). **Existe para que `resolveActor` elija el nivel del log de su rama externa**
+  > —`debug` para `connector` (jiku-docs y todo `internal-app`: es su camino normal, D-3 de REQ-020),
+  > `warn` para `internal` y `external`— **y no para autorizar** (S-091). Es obligatoria, como `roles`.
 - **No abre ni cierra transacciones.**
 - **No lanza.** Un error esperado es un `Reply` de falla; uno inesperado lo captura el despachador.
 - **No lee `process.env`.** Las constantes de negocio son constantes de módulo.

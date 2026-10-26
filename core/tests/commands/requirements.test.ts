@@ -3316,22 +3316,27 @@ describe('requirements — vinculación de archivos (S-003)', () => {
       conOnce.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
     });
 
-    it('TS-37: la rama externa loguea en warn sin filtrar el payload', async () => {
+    it('TS-37: la rama externa de un conector loguea en debug sin filtrar el payload', async () => {
+      // `EXTERNAL` tiene `roles: ['internal-app']` → clase `connector` → nivel `debug` (S-091).
       const f1 = await makeFile({ uploadedBy: EXTERNAL });
       const warn = sinon.spy(logger, 'warn');
+      const debug = sinon.spy(logger, 'debug');
 
       try {
         await dispatch(`requirements.${requirementId}.comment`, {
           author: UPLOADER_A, comment: 'secreto', fileIds: [f1.id],
         }, EXTERNAL);
 
-        warn.callCount.should.equal(1);
-        const message = String(warn.firstCall.args[0]);
+        const externos = debug.getCalls().filter((c) => String(c.args[0]).includes('caller externo'));
+        externos.length.should.equal(1);
+        const message = String(externos[0].args[0]);
         message.should.containEql(EXTERNAL);
         message.should.not.containEql('secreto');
         message.should.not.containEql(String(f1.id));
+        warn.called.should.be.false();
       } finally {
         warn.restore();
+        debug.restore();
       }
     });
   });

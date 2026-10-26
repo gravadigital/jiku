@@ -236,6 +236,8 @@ el suyo.
    `GET`/`HEAD` de `/p/docs/<algo>`; todo lo demás recibe el 404 genérico, antes de `validateToken`
    y del logger. Recíprocamente, fuera de ese host `/p/docs/*` también es 404.
 3. `cors()`: por eso `Access-Control-Allow-Origin: *` llega también a `/p/docs/*` (F-18).
+   **Resuelto por REQ-020 (S-091, 2026-10-26):** `app.use('/api', cors())`, en la misma posición;
+   `/p/docs/*` no emite CORS. Ver "Revisión: CORS solo bajo `/api`" al final.
 4. `app.use('/api/docs', docsWriteJson)` (768kb), `express.json()`, logger de requests con
    `ignoreRoute` para `/p/docs/*` (la URL lleva el token; esas rutas loguean su propia línea con el
    token enmascarado `jds_…`; no se loguea IP, User-Agent, título ni contenido).
@@ -408,6 +410,7 @@ Diferencias de infraestructura (no son DD pero cambiaron lo diseñado):
   `available` lo que otra ya marcó `unavailable`.
 - **`Access-Control-Allow-Origin: *` llega a `/p/docs/*`** (F-18): `cors()` corre antes del router
   público. No amplía la exposición (la ruta ya es pública y de solo lectura), pero está.
+  **Resuelto por REQ-020 (S-091):** `cors()` se monta solo en `/api`.
 - **Dos mapas de errores** (core y docs) con códigos superpuestos, a propósito.
 - **Infraestructura nueva**: un bucket KV, una plantilla y una regla de callout, una dependencia
   (`express-rate-limit`) y tres variables (`JIKU_PUBLIC_URL`, `API_TRUST_PROXY`,
@@ -635,6 +638,8 @@ una discrepancia de hasta 30 s (DD-5).
   [`lectura-por-link-compartido`](../flows/lectura-por-link-compartido.md)
 - Revisión: [REQ-019](../requests/REQ-019.actor-completo-hacia-jiku-docs-y-ajustes-del-portal-de-documentos.md)
   (DD-1 a DD-5) y S-089; D-11 de jiku-docs en `decisiones-integracion.md`
+- Revisión: [REQ-020](../requests/REQ-020.arreglos-chicos-de-pruebas-e2e-y-relevamiento-de-pantallas.md)
+  (F-18, DD-1, DD-2) y S-091
 - Operación del callout: `deploy/nats/auth-callout/README.md`
 - Documentos de jiku-docs (otro repositorio, `conectores/jiku-docs/docs/`):
   `decisiones-integracion.md`, `especificacion-v1.md` y `apis/` (contratos `jiku-docs-queries.yaml`
@@ -667,3 +672,22 @@ para jiku-docs un llamado sin `actor` es el propio servicio, que lee todo.
 `name`, `username` y `email` viajan ahora también a jiku-docs; ya viajaban a core por el mismo bus,
 jiku-docs solo los acepta del publicador de confianza (`JIKU_API_USER_ID`) y el embudo sigue sin
 loguear el `payload`.
+
+## Revisión: CORS solo bajo `/api` (REQ-020 / S-091, 2026-10-26)
+
+**`cors()` se monta solo en `/api`** (`app.use('/api', cors())`), en la misma posición: después de
+`publicHostOnly`, antes de `docsWriteJson` y de `validateToken`. Misma configuración: sin opciones.
+
+**Por qué:** F-18. El HTML de un link compartido era legible por JavaScript de cualquier origen que
+conociera el token; ahora el navegador lo bloquea. Abrir el link en una pestaña no cambia.
+
+**Qué responde cada lado:** `/p/docs/*` (y su preflight `OPTIONS`) no emite `Access-Control-*`. Todo
+`/api` queda igual que antes: el preflight lo responde `cors()` con 204 antes de `validateToken` y los
+401 llevan `Access-Control-Allow-Origin: *`. Lo blinda `api/tests/routes/cors.test.ts`.
+
+**Lo que no cambia:** la autenticación (`validateToken`, `config/public.ts`, `getRolesFromToken`), la
+cadena de `lib/public-routes/index.ts` y el contrato HTTP. Web y opus-web no dependen del CORS de
+`/api`: llaman desde el servidor ([ADR-009](ADR-009-token-confinado-al-servidor.md)).
+
+**Efecto para terceros:** un cliente de navegador que leyera `/p/docs/*` por JavaScript deja de poder
+hacerlo (nota de release, DD-10 de REQ-020).

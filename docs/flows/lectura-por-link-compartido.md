@@ -4,8 +4,8 @@ title: Lectura por link compartido — creación del link en la web y lectura an
 type: feature
 status: Draft
 created: 2026-10-24
-last_updated: 2026-10-25
-stories: [S-075, S-079, S-080, S-083, S-085, S-089]
+last_updated: 2026-10-26
+stories: [S-075, S-079, S-080, S-083, S-085, S-089, S-091]
 ---
 
 # Lectura por Link Compartido — Creación del Link en la Web y Lectura Anónima por el Host Público
@@ -13,8 +13,8 @@ stories: [S-075, S-079, S-080, S-083, S-085, S-089]
 **Tipo:** Feature
 **Status:** Draft
 **Creado:** 2026-10-24
-**Última actualización:** 2026-10-25
-**Stories:** S-075, S-079, S-080, S-083, S-085, S-089
+**Última actualización:** 2026-10-26
+**Stories:** S-075, S-079, S-080, S-083, S-085, S-089, S-091
 
 ## Descripción
 
@@ -298,8 +298,9 @@ documento si las incluye el link.
   cupo en una sola carga.
 - **El cupo es por réplica** (`MemoryStore`): con N réplicas el límite efectivo es 60·N por minuto.
 - **`HEAD /p/docs/{token}` llama a `shares.resolve`** y suma un acceso a la auditoría.
-- **CORS:** `cors()` corre antes del router público, así que `Access-Control-Allow-Origin: *` llega
-  también a `/p/docs/*`. No amplía la exposición (la ruta es pública), pero está.
+- **CORS:** sin cabeceras CORS; `cors()` está montado solo en `/api` (REQ-020, S-091). El HTML de un
+  link no es legible por JavaScript de otro origen aunque se conozca el token; abrirlo en una pestaña
+  no cambia. Un preflight `OPTIONS` tampoco lleva cabeceras CORS.
 - **En local las imágenes no cargan:** la CSP exige `https:` y el 302 apunta a MinIO por `http`.
 - **Configuración del host público:** `DOCS_PUBLIC_DOMAIN` tiene que ser un **host propio** (no el
   de la api) y el certificado SAN único requiere que el DNS exista primero. `JIKU_PUBLIC_URL` es
@@ -313,4 +314,4 @@ documento si las incluye el link.
 
 **Origen:** REQ-016 · stories S-075 (contrato y permisos del bus), S-079 (creación, listado y
 revocación en la api), S-080 (la ruta pública), S-083 (compartir desde web), S-085 (esta
-documentación) · REQ-019 · S-089 (`actor` completo en `shares.new`).
+documentación) · REQ-019 · S-089 (`actor` completo en `shares.new`) · REQ-020 · S-091 (sin CORS en `/p/docs/*`).

@@ -458,7 +458,7 @@ export class Dispatcher {
     const transaction = await sequelize.transaction();
     try {
       const reply = await command.execute(validated.value, {
-        caller, params, transaction, actor, roles, actorName,
+        caller, params, transaction, actor, roles, actorName, callerClass,
       });
 
       // LA ESCRITURA DE NOTIFICACIONES VA ACÁ, ANTES DEL COMMIT Y SIN try/catch PROPIO (REQ-015,
@@ -493,7 +493,7 @@ export class Dispatcher {
       // comportamiento en absoluto.
       if (reply.status === 'success' && reply.notifications?.length) {
         await writeNotifications(reply.notifications, {
-          caller, params, transaction, actor, roles, actorName,
+          caller, params, transaction, actor, roles, actorName, callerClass,
         });
       }
 

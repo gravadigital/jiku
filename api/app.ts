@@ -56,7 +56,11 @@ export function initialize(): Application {
   // DD-10: PRIMER middleware. En el host público la api no sirve nada que no sea /p/docs/*; va antes
   // de validateToken y del logger para que esos 404 no revelen la api ni ensucien el log.
   app.use(publicHostOnly);
-  app.use(cors());
+  // F-18 (REQ-020): CORS solo bajo /api. El HTML de un link compartido (/p/docs/*) no tiene que ser
+  // legible por JavaScript de otro origen aunque se conozca el token. Va en esta posición, antes de
+  // validateToken, para que el preflight de /api lo siga respondiendo cors() con 204 y los 401 lleven
+  // Access-Control-Allow-Origin como hasta ahora.
+  app.use('/api', cors());
   // Las escrituras de /docs llevan `content` inline de hasta 256 KiB (contrato de jiku-docs): el
   // límite por defecto de body-parser (100 kb) las rechazaría con 413 antes de llegar a la ruta.
   // Este parser va ANTES del global y, al dejar el body leído, el global lo saltea; el resto de la

@@ -8,6 +8,8 @@ import { getTrustedPublisherId } from '../config';
  *   si hay sobre                                -> el actor es ctx.actor.id
  *   si no, y ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> el actor es el declarado en el cuerpo
  *   en cualquier otro caso                      -> el actor es ctx.caller
+ *                                                  (loguea `debug` si ctx.callerClass es
+ *                                                  `connector`, `warn` en otro caso: S-091)
  *
  * LA ESCALERA ESTÁ COPIADA DEL CONTRATO, no reinventada: es la misma que declara
  * `components/schemas/Actor` en `docs/apis/core.yaml` y el docblock de `Actor` en el paquete.
@@ -63,8 +65,8 @@ export function resolveActor(
   if (ctx.actor) {
     // El claim que la api YA VERIFICÓ contra Zitadel, y que es MÁS FRESCO que la base.
     //
-    // NO LOGUEA NADA, y es parte del criterio: el `warn` de abajo es de la rama externa y solo de
-    // ahí. Un log acá pondría en rojo a `attachments.test.ts`, que afirma `warn.called === false`.
+    // NO LOGUEA NADA, y es parte del criterio: el log de abajo es de la rama externa y solo de
+    // ahí. Un log acá pondría en rojo a `attachments.test.ts`, que vigila `warn` y `debug`.
     return ctx.actor.id;
   }
 
@@ -75,16 +77,22 @@ export function resolveActor(
     return declaredActor;
   }
 
-  // `warn` y no `error`: la rama externa no es un fallo, es el caso raro de hoy (RF-11). Su
-  // ausencia haría que un CORE_TRUSTED_PUBLISHER_ID mal configurado se manifieste SOLO como
-  // `file_not_owned` en S-003, que parece un problema de permisos y no de configuración.
+  // Para un conector (clase `connector`, p. ej. jiku-docs) esta rama es el CAMINO NORMAL
+  // (D-3 de REQ-020), por eso `debug`: un `warn` por cada subida volvería ruido a la señal.
+  // `warn` queda para cualquier otra clase: un CORE_TRUSTED_PUBLISHER_ID mal configurado (que si
+  // no se manifestaría SOLO como `file_not_owned` en S-003, parecido a un problema de permisos)
+  // o una persona publicando directo al bus. No es `error`: no es un fallo (RF-11).
   //
   // Se loguea el `caller` —un identificador de servicio— pero NUNCA el payload: la convención
   // `logging` prohíbe loguear datos de negocio fuera de LOG_COMMANDS.
-  logger.warn(
+  const message =
     `[${component}] comando publicado por un caller externo: ${ctx.caller}. ` +
-    'El actor se resuelve del subject y se ignora lo declarado en el cuerpo.'
-  );
+    'El actor se resuelve del subject y se ignora lo declarado en el cuerpo.';
+  if (ctx.callerClass === 'connector') {
+    logger.debug(message);
+  } else {
+    logger.warn(message);
+  }
 
   return ctx.caller;
 }

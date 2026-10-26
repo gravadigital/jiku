@@ -67,7 +67,7 @@ Preocupaciones del catálogo que este servicio no tiene:
 | `cache` | no hay Redis ni cache de aplicación. Las lecturas van a PostgreSQL en cada request |
 | `queue` | no hay cola de trabajos. El bus es request/reply sincrónico, cubierto por `bus-commands` y `bus-modules` |
 | `observability` | no hay OpenTelemetry ni tracing distribuido. La observabilidad es el log de Winston |
-| `security` | no hay `helmet` y CORS está abierto (`app.ts`). Hay **rate limiting y cabeceras de seguridad solo en `/p/docs/*`** (60/min/IP por réplica; CSP, `noindex`, `no-store`), puestas a mano por `lib/utils/middlewares/public-docs.ts`. El resto de la api no tiene ninguno |
+| `security` | no hay `helmet` y CORS está abierto solo bajo `/api` (`app.ts`; `/p/docs/*` no emite CORS, REQ-020). Hay **rate limiting y cabeceras de seguridad solo en `/p/docs/*`** (60/min/IP por réplica; CSP, `noindex`, `no-store`), puestas a mano por `lib/utils/middlewares/public-docs.ts`. El resto de la api no tiene ninguno |
 
 ## Módulos
 

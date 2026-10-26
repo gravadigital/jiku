@@ -280,5 +280,6 @@ Importan porque condicionan qué se puede planificar sobre este servicio.
      (el intervalo del ping).
    - **El rate limit de `/p/docs/*` es por réplica** (`MemoryStore`): con N réplicas el tope
      efectivo es 60·N por minuto.
-   - **`Access-Control-Allow-Origin: *` llega también a `/p/docs/*`** (`cors()` corre antes del
-     router público). No amplía la exposición: la página ya es pública con el token (F-18).
+   - **`/p/docs/*` no emite cabeceras CORS** (REQ-020, S-091): `cors()` está montado solo en
+     `/api`, así que el HTML de un link no es legible por JavaScript de otro origen aunque se
+     conozca el token (F-18, resuelto).
