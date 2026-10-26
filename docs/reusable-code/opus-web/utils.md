@@ -103,3 +103,31 @@ function classifyDocumentError(error: Pick<ApiError, 'status'> | null | undefine
 ```ts
 const kind = classifyDocumentError(document.error as ApiError);
 ```
+
+---
+
+## classifyRequirementError
+
+**Location:** `opus-web/src/features/requirements/utils/classifyRequirementError.ts`
+
+**Description:** Classifies the error of loading a requirement (REQ-020 DD-7). `status` 403 or 404, or `code`
+`requirement_not_found` / `access_denied` → `not_found`; anything else → `system`: 5xx, a network failure (the
+interceptor turns it into `status: 500` / `unknown_error`) and `null` / `undefined`. Unlike
+`classifyDocumentError` there is no `unavailable` kind and it also looks at `code`. It does not tell "does
+not exist" from "no permission" on purpose: the api equates them.
+
+**Signature:**
+
+```ts
+type RequirementErrorKind = 'not_found' | 'system';
+function classifyRequirementError(error: Partial<Pick<ApiError, 'status' | 'code'>> | null | undefined): RequirementErrorKind;
+```
+
+**Usage:**
+
+```ts
+if (error && classifyRequirementError(error as unknown as ApiError) === 'system') { /* error + "Reintentar" */ }
+// useRequirement (REQ-020 DD-9): 403/404 are not retried
+retry: (failureCount, error) =>
+  classifyRequirementError(error as unknown as ApiError) === 'system' && failureCount < 1,
+```

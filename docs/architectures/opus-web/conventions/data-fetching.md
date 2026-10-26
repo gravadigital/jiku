@@ -97,12 +97,16 @@ necesita que el navegador arme el boundary del multipart (`attachmentsApi.ts:14-
 Un hook por archivo, en `features/{modulo}/hooks/`.
 
 ```ts
-// src/features/requirements/hooks/useRequirement.ts:9-15
+// src/features/requirements/hooks/useRequirement.ts:11-21
 export function useRequirement({ requirementId }: UseRequirementOptions) {
   return useQuery<RequirementDetail>({
     queryKey: ['requirement', requirementId],
     queryFn: () => requirementsApi.getById(requirementId),
     enabled: !!requirementId && requirementId > 0,
+    // REQ-020 DD-9: reintentar un 403/404 solo demora el aviso. Red y 5xx conservan un reintento
+    // (`failureCount < 1` equivale al `retry: 1` global de queryClient).
+    retry: (failureCount, error) =>
+      classifyRequirementError(error as unknown as ApiError) === 'system' && failureCount < 1,
   });
 }
 ```
@@ -116,6 +120,9 @@ export function useRequirement({ requirementId }: UseRequirementOptions) {
 - **`enabled` para evitar la query con un id inválido.** El patrón es `projectId > 0` o
   `!!requirementId && requirementId > 0`. Sin eso, la primera renderización dispara una query con
   `NaN` o `0`.
+- **No se cambia el `retry` global por hook salvo con un clasificador de dominio:** `useRequirement` no
+  reintenta 403/404 porque reintentar solo demora el aviso (REQ-020 DD-9); red y 5xx conservan un
+  reintento (`failureCount < 1` = el `retry: 1` global).
 
 ## Query keys
 
@@ -159,7 +166,8 @@ function makeQueryClient() {
 ```
 
 Qué significa en la práctica: los datos se consideran frescos 30 segundos; volver a la pestaña
-después de eso dispara un refetch. Las queries reintentan una vez; las mutaciones ninguna.
+después de eso dispara un refetch. Las queries reintentan una vez (la configuración que corre es la de `providers.tsx:20`); las mutaciones
+ninguna. Excepción: `useRequirement` no reintenta un 403/404.
 
 El cliente se crea una vez por proceso en el servidor y se memoiza en el navegador
 (`providers.tsx:31-41`), que es el patrón recomendado para no compartir cache entre requests en

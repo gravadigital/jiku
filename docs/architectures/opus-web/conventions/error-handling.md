@@ -126,14 +126,23 @@ existen.
 |---|---|---|---|---|
 | `/projects` | sí | sí | sí | sí |
 | `/projects/[id]/requirements` | sí | **no** | **no** | — |
-| `/projects/[id]/requirements/[reqId]` | sí | sí | sí (`not found`) | sí + "Volver al listado" |
-| `RequirementDetailModal` | sí | sí | — | **no** |
+| `/projects/[id]/requirements/[reqId]` | sí | sí | sí (no disponible o sin acceso: 403/404 o sin datos) | sí + "Volver al listado" (solo red/5xx) |
+| `RequirementDetailModal` | sí | sí | sí (no disponible o sin acceso) | sí + "Cerrar" (solo red/5xx) |
 | `Sidebar` | sí | sí | sí | sí |
 | `Header` *(código muerto)* | sí | sí | — | sí |
 | `MobileMenu` *(código muerto)* | sí | sí | — | sí |
 | `ActivityPanel` | — | — | sí | — |
 | `SubscribersList` | — | — | sí | — |
 | `UserSelector` | sí | **no** | sí | — |
+
+El detalle del requisito (página y modal) clasifica el error con `classifyRequirementError`
+(`features/requirements/utils/classifyRequirementError.ts`, REQ-020 DD-7): un 403/404, o los `code`
+`requirement_not_found` / `access_denied`, muestra `RequirementUnavailable` ("Volver al tablero", sin
+"Reintentar" y sin reintento automático); todo lo demás es error de sistema, con un reintento automático y
+"Reintentar". La query resuelta sin datos cae en el mismo estado que un 403/404. Es el mismo criterio que
+`classifyDocumentError`. Un 401 sigue resolviéndose en el interceptor. Citas: página
+`[requirementId]/page.tsx:36-51` (sistema) y `:54-60` (no disponible); modal
+`RequirementDetailModal.tsx:57-78` (sistema) y `:80-92` (no disponible).
 
 Los mensajes, verbatim:
 
@@ -146,7 +155,7 @@ Los mensajes, verbatim:
 | requisitos loading | "Cargando requisitos..." |
 | detalle loading | "Cargando requisito..." |
 | detalle error | "Error al cargar el requisito" |
-| detalle not found | "Requisito no encontrado" |
+| detalle / modal no disponible o sin acceso | "El requisito no está disponible o no tenés acceso" |
 | modal error | "Error al cargar el requisito. Intentá de nuevo más tarde." |
 | `Sidebar` empty | "No hay proyectos disponibles" |
 | `ActivityPanel` empty | "No hay actividad registrada" |
@@ -215,6 +224,8 @@ Estos son hallazgos, no propuestas.
 - **Las mutaciones de suscripción no avisan.** El error se refleja como la palabra "Error" dentro
   del botón (`ModalTopbar.tsx:118`) y el motivo en un `title` — que en un touch no se ve.
 - **`RequirementDetailModal` en error no ofrece reintentar**, a diferencia de la página de detalle.
+  **Resuelto (REQ-020 / S-093):** en red o 5xx el modal muestra "Reintentar" (`refetch()`) y "Cerrar"
+  (`RequirementDetailModal.tsx:57-78`).
 - **`UserSelector` no maneja error**: si `useProjectUsers` falla, muestra "Sin usuarios
   disponibles", igual que si la lista estuviera vacía (`UserSelector.tsx:68-70`).
 - **Sin `error.tsx` en ninguna ruta.** Un throw en el render de un client component sube hasta el

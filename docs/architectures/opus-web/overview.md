@@ -325,6 +325,11 @@ página `BoardHeader`, con botones y comportamiento casi iguales. El ancho del p
 558px en uno y 559px en el otro (`RequirementDetailModal.module.scss:56` vs
 `RequirementDetailView.module.scss:42`).
 
+Lo que **sí está compartido** es el estado "no disponible o sin acceso": `RequirementUnavailable` y
+`classifyRequirementError` los usan la página y el modal. La página lo acompaña con `BoardHeader` en modo
+`minimal` (solo el breadcrumb de dos niveles, sin `#{id}` ni acciones; `BoardHeader.tsx:20`, `:38-41`) y el
+modal lo cierra con `onClose`. El error de sistema (red/5xx) sigue duplicado en cada uno.
+
 ### El modal decide su layout con JS, no con CSS
 
 ```tsx

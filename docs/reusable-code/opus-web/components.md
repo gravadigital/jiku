@@ -193,3 +193,32 @@ interface DocumentAttachmentsProps { attachments?: DocsAttachment[]; documentId:
 ```tsx
 <DocumentAttachments documentId={doc.id} attachments={doc.attachments} />
 ```
+
+---
+
+## RequirementUnavailable
+
+**Location:** `opus-web/src/features/requirements/components/RequirementUnavailable/RequirementUnavailable.tsx`
+
+**Description:** State "requirement not available or no access", shared by the detail page and the O-01 modal.
+A `<section>` with a decorative (`aria-hidden`) `FileQuestion` icon, an `<h1>` "El requisito no está disponible o no
+tenés acceso", an explanation and a primary "Volver al tablero" button. No `role="alert"`, no "Reintentar",
+and it does not tell "does not exist" from "no permission". Desktop: centered column, max 480px; mobile:
+full-width, full-width button. It is the accepted design-system gap `empty-state` (`aviso-no-disponible`,
+REQ-020). It is not exported from the `features/requirements` barrel.
+
+**Interface:**
+
+```ts
+interface RequirementUnavailableProps { onBack: () => void }
+```
+
+**Usage:**
+
+```tsx
+// Page: minimal header + state
+<BoardHeader projectName={projectName} projectId={projectId} minimal />
+<RequirementUnavailable onBack={() => router.push(`/projects/${projectId}/requirements`)} />
+// Modal O-01: "Volver al tablero" closes the modal
+<RequirementUnavailable onBack={onClose} />
+```

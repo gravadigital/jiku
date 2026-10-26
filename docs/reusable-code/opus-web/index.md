@@ -3,11 +3,11 @@
 > Partial catalog. It was seeded by story S-007 with the reusable elements that story created;
 > it is **not** a full scan of the service. Run `/service-update-reusable-code opus-web` to complete it.
 
-**Last updated:** 2026-10-24 (S-084)
+**Last updated:** 2026-10-26 (S-093)
 
 ## Components
 
-Total: 6
+Total: 7
 
 - **AutomatedIdentityBadge** (`opus-web/src/shared/components/ui/AutomatedIdentityBadge/AutomatedIdentityBadge.tsx`) - Renders the `"Automático"` mark next to an author's name when that author is a service identity, and nothing at all otherwise. Owns the visibility condition and both approved strings.
 - **Badge** (`opus-web/src/shared/components/ui/Badge/Badge.tsx`) - Neutral or semantic pill built entirely from tokens. Since S-019 it also forwards `role` and `aria-label`, so a caller can give it a real accessible name.
@@ -15,6 +15,7 @@ Total: 6
 - **DocumentMarkdown** (`opus-web/src/features/docs/components/DocumentMarkdown/DocumentMarkdown.tsx`) - Read-only, safe markdown viewer: no raw HTML, frontmatter stripped, headings shifted one level, attachment links rewritten to the own proxy under the open document, links without destination (to other documents) shown as plain text.
 - **DocumentAttachments** (`opus-web/src/features/docs/components/DocumentAttachments/DocumentAttachments.tsx`) - Attachment list; each link points to `/api/docs/documents/{documentId}/attachments/{id}`, new tab.
 - **DocsSection** (`opus-web/src/features/docs/components/DocsSection/DocsSection.tsx`) - Collapsible "Documentación (n)" section for a project or a requirement; renders nothing when the module is not installed or there are no public documents; distinguishes "no access" (403 / `caller_not_authorized`) from "unavailable".
+- **RequirementUnavailable** (`opus-web/src/features/requirements/components/RequirementUnavailable/RequirementUnavailable.tsx`) - "Requirement not available or no access" state shared by the detail page and the O-01 modal: heading, explanation and a "Volver al tablero" button; no retry, and it does not tell "does not exist" from "no permission".
 
 ## Services
 
@@ -38,13 +39,14 @@ Total: 4
 
 ## Utils
 
-Total: 5
+Total: 6
 
 - **createDocsUrlTransform** (`opus-web/src/features/docs/utils/docsUrlTransform.ts`) - Factory of the `urlTransform` for markdown viewers: rewrites `/docs/attachments/{ULID}` (any host) to `/api/docs/documents/{documentId}/attachments/{ULID}`, blanks `/docs/{ULID}` links to other documents, keeps http(s)/mailto, blanks everything else.
 - **stripFrontmatter** (`opus-web/src/features/docs/utils/frontmatter.ts`) - Removes a leading YAML frontmatter block.
 - **formatDocDate** (`opus-web/src/features/docs/utils/dates.ts`) - `DD/MM/AAAA`, or `—` for an invalid date.
 - **withModuleInvalidation** (`opus-web/src/features/docs/utils/moduleInvalidation.ts`) - Wraps a query function: invalidates `['modules']` on `module_unavailable` and rethrows.
 - **classifyDocumentError** (`opus-web/src/features/docs/utils/classifyDocumentError.ts`) - Maps an `ApiError` status to `not_found` / `unavailable` / `system`.
+- **classifyRequirementError** (`opus-web/src/features/requirements/utils/classifyRequirementError.ts`) - Classifies a requirement load error as `not_found` (403/404 or `requirement_not_found` / `access_denied`) or `system` (everything else).
 
 ## Types
 
