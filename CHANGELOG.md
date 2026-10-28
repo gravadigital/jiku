@@ -69,6 +69,104 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-27
+
+### Added
+
+- **Optional documentation module, jiku-docs (REQ-016, REQ-019, REQ-021).** Jiku can talk to an
+  external documentation service, jiku-docs, which lives in its own repository. It is **optional**:
+  without it Jiku works exactly as before and neither frontend shows anything about documents. The
+  design is in [ADR-015](docs/adrs/ADR-015-modulos-opcionales-del-bus.md).
+  - **Discovery by registry.** Each module registers itself in the new `JIKU_MODULES` KV bucket
+    (contract: `docs/apis/jiku-modules.yaml`); the api watches it and reports the state through
+    `GET /api/modules` and `GET /api/opus/modules`. The api **reads documentation over the bus**,
+    the second exception to ADR-001.
+  - **30 new HTTP operations, all additive**, tagged `x-jiku-module: docs` in `docs/apis/api.yaml`
+    (92 in total): the module state, the internal `/api/docs/*` routes (documents, search with list
+    filters, versions, lock, attachments, relations to clients/projects/requirements/tasks and their
+    suggestions, topics, shared links), three read-only portal routes `/api/opus/docs/*` that only
+    ever serve `public` documents, and two public routes `GET /p/docs/*`.
+  - **`GET /p/docs/*` is the only route exempt from authentication.** Its own controls: it answers
+    only on an exclusive host (`DOCS_PUBLIC_DOMAIN`, 404 on any other), 60 requests/min/IP, a
+    256-bit token validated by jiku-docs, an indistinguishable 404 for any invalid link, and
+    read-only headers (CSP, `noindex`, `no-store`).
+  - **web:** documentation panel, viewer, history, editor with lock and attachments, search without
+    folders, sharing, and Documentation cards on project, requirement and task.
+  - **opus-web:** the client's public documents, with links between documents rendered as text and a
+    "no access" notice distinct from "module down".
+  - Every call to jiku-docs on behalf of a person carries the full `actor` (`id`, `roles`, and
+    `name`/`username`/`email` when the token has them), the same one core receives.
+- **New bus role `docs`** in the auth-callout (`rules.yaml`, `templates/docs.yaml`), and core accepts
+  `docs` in `SERVICE_ROLES`.
+- **`@jiku/nats-protocol`:** `MODULES_BUCKET`, `ModuleRecord`, `moduleCommandSubject`,
+  `moduleQuerySubject`, `modulePingSubject` and `generateUlid` (moved from core, implementation
+  unchanged).
+- **`users.list` exposes `roles` and `identityType` to the `connector` class only**
+  (`includableByClass` in `docs/apis/core-queries.yaml`). For `internal` and `external` callers they
+  still do not exist (`invalid_fields`, indistinguishable from an unknown name), and for no class
+  are they filterable, sortable or searchable.
+- **`GET /api/projects` includes each project's `client`** (`id` and `name`, `null` without client).
+- **Two optional variables:** `DOCS_PUBLIC_DOMAIN` and `API_TRUST_PROXY`. See the notes below.
+
+### Changed
+
+- **A body over the size limit answers `413` in JSON** (`code: payload_too_large`) on every route,
+  instead of the HTML page Express produced. The limit stays at 100 kb, except `POST`/`PUT` under
+  `/api/docs`, which accept 768 KiB.
+- **CORS headers are only sent under `/api`**, so the HTML of a shared link cannot be read by script
+  from another origin. Nothing under `/api` changes, preflight and 401s included.
+- **`PUT` is covered by the global authentication**, like the other four methods; the one existing
+  `PUT` (`/api/week-assigned-times`) already authenticated, so its behaviour is unchanged.
+- **core logs the normal path of a connector at `debug`** instead of `warn` (`callerClass` in
+  `CommandContext`), so a `warn` means something actually anomalous.
+
+### Fixed
+
+- **web:** each editable pill on the requirement detail announces its own attribute to screen
+  readers, and the task list no longer shows absurd due dates for an invalid finish date.
+- **opus-web:** a requirement that is internal or not accessible shows a clear "not available"
+  notice with a way back to the board, instead of a generic error with a "Retry" that can never
+  succeed.
+
+### Notes for existing installations
+
+The documentation module is optional. An installation that does not run jiku-docs only needs the
+`JIKU_MODULES` bucket and the auth-callout update; nothing breaks without the module.
+
+- **Create the `JIKU_MODULES` KV bucket.** Run `deploy/nats/create-modules-kv.sh` (idempotent;
+  needs `nsc`, `docker`, the credentials from `bootstrap.sh` and JetStream enabled in the account).
+  Without it the api logs an error and retries every 30 seconds, and the module reports as not
+  installed. `./local.sh up` creates it, and therefore **now requires `nsc`**; `./local.sh down -v`
+  deletes it.
+- **Update and restart the auth-callout.** New `docs` rule, which **must sit above
+  `internal-app`**, new `templates/docs.yaml`, and widened `connector` and `person-*` templates. If
+  the rule ends up below `internal-app`, the jiku-docs machine user is matched as `internal-app` and
+  the module cannot connect.
+- **Wider `internal-app` scope.** Because `connector.yaml` was widened, every `internal-app` machine
+  user can now call jiku-docs, which treats it as the `service` class and lets it read all
+  documentation. Every `internal-app` identity can also read everyone's `roles` through
+  `users.list`.
+- **Only if you install jiku-docs:**
+  - **jiku-docs 1.3.0 or later is required.** There is no runtime check: an older jiku-docs answers
+    `invalid_fields` (400) to the full `actor` and to the new list filters, and documentation stops
+    working in web and opus-web.
+  - Create the `docs` role in the roles project (`GESTION_ZITADEL_PROJECT_ID`) and the jiku-docs
+    machine user carrying both `internal-app` and `docs`, with Access Token Type JWT.
+  - **Deploy core before jiku-docs connects.** An older core drops the machine user's
+    authentication event.
+  - The bus policy is literal: it authorizes `jiku-docs-commands` and `jiku-docs-queries` only. A
+    module registered under another `serviceName` is rejected.
+- **Optional variables, empty by default:**
+  - `DOCS_PUBLIC_DOMAIN` — bare host for shared links, **distinct from** `api.<DOMAIN>`, `DOMAIN`
+    and `OPUS_DOMAIN`. Create the DNS record **before** setting it: the api certificate becomes a
+    single one for both hosts, so a host that does not resolve also breaks the api certificate's
+    issuance and renewal. Empty turns shared links off. `JIKU_PUBLIC_URL` is derived from it by the
+    composes (do not set it) and must match the one configured in jiku-docs.
+  - `API_TRUST_PROXY` — proxy hops in front of the api for the `/p/docs/*` rate limit; defaults to
+    `1` in the production compose. A malformed value stops the api at startup.
+- **Clients outside `/api` relying on CORS** stop receiving those headers.
+- No database migrations.
+
 ## [1.6.0] - 2026-09-25
 
 ### Changed
