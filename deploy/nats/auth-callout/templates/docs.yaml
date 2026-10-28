@@ -34,6 +34,14 @@ pub:
     - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES"
     - "$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES.>"
     - "$JS.FC.KV_JIKU_MODULES.>"
+    # Espacio KV del SDK (JIKU_KV): cada identidad lee y escribe SOLO sus claves,
+    # `{{instance}}.{{user_id}}.<clave>`. Las tres líneas son las que imprime
+    # RequiredKVPermissions de jiku-go. Nunca `$KV.JIKU_KV.>`, ni `DIRECT.GET.KV_JIKU_KV` pelado,
+    # ni `STREAM.MSG.GET.KV_JIKU_KV`: los dos últimos llevan la clave en el body y abren las claves
+    # de todos. Hay un test que fija esta lista.
+    - "$JS.API.STREAM.INFO.KV_JIKU_KV"
+    - "$KV.JIKU_KV.{{instance}}.{{user_id}}.>"
+    - "$JS.API.DIRECT.GET.KV_JIKU_KV.$KV.JIKU_KV.{{instance}}.{{user_id}}.>"
     # --- de servidor ---
     - "{{instance}}.docs-events.v1.>"
     - "{{instance}}.*.docs-notify.v1.>"

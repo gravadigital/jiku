@@ -179,6 +179,7 @@ Con S-075 hay tres streams en juego, y cada plantilla lleva solo lo que su rol h
 | `JIKU_EVENTS` | consume | consume | — |
 | `JIKU_DOCS_EVENTS` | **administra** (`STREAM.*`) y consume | consume | — |
 | `KV_JIKU_MODULES` | lee, observa y escribe solo `$KV.JIKU_MODULES.docs` | lee y observa | lee y observa |
+| `KV_JIKU_KV` | lee y escribe solo sus claves | lee y escribe solo sus claves | — |
 
 `KV_READ_WATCH` es el bloque de seis líneas de lectura y watch del registro, idéntico en las cuatro
 plantillas. Incluye `$JS.API.CONSUMER.CREATE.KV_JIKU_MODULES` **sin sufijo**: cuando el consumidor
@@ -232,6 +233,29 @@ y los conectores descubren qué está instalado. Lo **crea** `../create-modules-
 falla sin `--force`). **Escribe solo `docs`, y solo su clave** (`$KV.JIKU_MODULES.docs`): ninguna
 plantilla lleva `$KV.JIKU_MODULES.>`. **Lee y observa todo el mundo**: conectores, `docs` y las dos
 plantillas de persona. Los permisos son de este directorio; el bucket es infraestructura.
+
+## El espacio KV de los SDK (`JIKU_KV`)
+
+Es el bucket KV donde cada identidad guarda su estado con `Client.KV` (jiku-go) o `client.kv()`
+(jiku-ts); jiku-email-tickets guarda ahí sus mapas de tickets y de hilos. Es **un solo bucket para
+todas las identidades**: la identidad va en la clave, `{{instance}}.{{user_id}}.<clave>`, igual que
+en los subjects de request, y el SDK le agrega ese prefijo solo. Lo **crea**
+`../create-kv-space.sh`, que invoca `local.sh up`, con `allow_direct`, history 1 y sin TTL.
+
+`connector.yaml` y `docs.yaml` llevan las tres líneas que imprime `RequiredKVPermissions`, cada
+una acotada a la propia identidad:
+
+| Subject | Para qué |
+| --- | --- |
+| `$JS.API.STREAM.INFO.KV_JIKU_KV` | Bindear el bucket |
+| `$KV.JIKU_KV.{{instance}}.{{user_id}}.>` | `Put` y `Delete` (un delete es un write con header) |
+| `$JS.API.DIRECT.GET.KV_JIKU_KV.$KV.JIKU_KV.{{instance}}.{{user_id}}.>` | `Get`, con la clave en el subject |
+
+**Nunca** `$KV.JIKU_KV.>`, `$JS.API.DIRECT.GET.KV_JIKU_KV` pelado ni
+`$JS.API.STREAM.MSG.GET.KV_JIKU_KV`: los dos últimos llevan la clave en el body, ningún subject los
+acota, y cualquiera de los tres deja leer o pisar las claves de todas las identidades. Todo
+funcionaría igual, que es justamente el peligro. Las personas no tienen espacio KV. Hay un test
+que lo hace cumplir (TS-15).
 
 ## Los modos de fallo de un permiso que falta
 

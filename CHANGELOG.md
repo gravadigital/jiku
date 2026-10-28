@@ -69,6 +69,17 @@ OPUS_WEB_VERSION=dev
 
 ## [Unreleased]
 
+### Added
+
+- **Per-identity key-value space for connectors (`JIKU_KV`).** `internal-app` and `docs` can use
+  the jiku SDKs' key-value space (jiku-go `Client.KV`, jiku-ts `client.kv()`), which
+  jiku-email-tickets needs to start. Each identity reads and writes **only its own keys**
+  (`<instance>.<user id>.>`); persons get no access. The new `deploy/nats/create-kv-space.sh`
+  creates the bucket and `local.sh up` runs it. **On a server, run it once** before deploying a
+  connector that uses the space:
+  `cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-kv-space.sh`, then restart the
+  auth-callout so it reads the new templates.
+
 ## [1.7.0] - 2026-10-27
 
 ### Added

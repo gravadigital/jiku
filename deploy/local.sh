@@ -13,8 +13,8 @@
 #   2. ./service-user-key.sh api <key.json>   (and the same for core)
 #   3. generate the NATS identity in nats/creds/   (see nats/creds/README.md)
 #
-# `up` also needs `nsc` installed: it creates the JIKU_MODULES registry with a throwaway
-# administrative user (nats/create-modules-kv.sh).
+# `up` also needs `nsc` installed: it creates the JIKU_MODULES registry and the JIKU_KV space
+# with a throwaway administrative user (nats/create-modules-kv.sh, nats/create-kv-space.sh).
 #
 # The S3 storage is local and needs nothing prepared: `up` brings MinIO up and creates
 # the bucket. STORAGE_S3_ENDPOINT already comes pointed at it in .env.dist.
@@ -121,6 +121,9 @@ SQL
     # stops local.sh (set -e). Idempotent: a second `up` prints "Nothing to do".
     echo "==> module registry"
     ./nats/create-modules-kv.sh
+    # The SDKs' key-value space, same reasoning: a connector using it does not start without it.
+    echo "==> kv space"
+    ./nats/create-kv-space.sh
 
     if ! curl -s http://localhost:8222/jsz?streams=1 2>/dev/null | grep -q '"name": *"JIKU_EVENTS"'; then
       echo "" >&2

@@ -71,6 +71,16 @@ const KV_READ_WATCH = [
   '$JS.FC.KV_JIKU_MODULES.>',
 ];
 
+/**
+ * Espacio KV del SDK en JIKU_KV: cada identidad, SOLO sus claves (`{{instance}}.{{user_id}}.<clave>`).
+ * Son las tres líneas de RequiredKVPermissions de jiku-go / requiredKVPermissions de jiku-ts.
+ */
+const JIKU_KV_SPACE = [
+  '$JS.API.STREAM.INFO.KV_JIKU_KV',
+  '$KV.JIKU_KV.{{instance}}.{{user_id}}.>',
+  '$JS.API.DIRECT.GET.KV_JIKU_KV.$KV.JIKU_KV.{{instance}}.{{user_id}}.>',
+];
+
 const JIKU_EVENTS_CONSUMER = [
   '$JS.API.INFO',
   '$JS.API.STREAM.INFO.JIKU_EVENTS',
@@ -98,6 +108,7 @@ const EXPECTED_CONNECTOR = {
     ...JIKU_EVENTS_CONSUMER,
     ...JIKU_DOCS_EVENTS_CONSUMER,
     ...KV_READ_WATCH,
+    ...JIKU_KV_SPACE,
   ]),
   sub: ['{{instance}}.events.v1.>', '_INBOX.{{user_id_hash}}.>'],
 };
@@ -309,6 +320,34 @@ describe('bus/bus-policy-structure — política del bus para docs (S-075)', () 
         true,
         'H-P1: el reset del consumidor ordenado de nats.js (jsclient.js:590) crea sin sufijo; sin esta línea el watch muere en silencio',
       );
+    }
+  });
+  it('TS-15 · espacio KV (JIKU_KV) acotado a la propia identidad', () => {
+    // Cada una de estas abre las claves de TODAS las identidades: escribir (`$KV.JIKU_KV.>`) o
+    // leer con la clave en el body (DIRECT.GET pelado, STREAM.MSG.GET), que ningún subject acota.
+    const wide = [
+      '$KV.JIKU_KV.>',
+      '$KV.JIKU_KV.*',
+      '$KV.JIKU_KV.{{instance}}.>',
+      '$KV.JIKU_KV.{{instance}}.*.>',
+      '$JS.API.DIRECT.GET.KV_JIKU_KV',
+      '$JS.API.DIRECT.GET.KV_JIKU_KV.>',
+      '$JS.API.STREAM.MSG.GET.KV_JIKU_KV',
+      '$JS.API.CONSUMER.CREATE.KV_JIKU_KV.>',
+    ];
+    for (const name of allTemplateNames()) {
+      const t = load(name);
+      const lines = [...(t.pub?.allow ?? []), ...(t.sub?.allow ?? [])];
+      lines.filter((l) => wide.includes(l)).should.deepEqual([], `${name} alcanza claves de otras identidades`);
+      lines
+        .filter((l) => l.includes('JIKU_KV') && !JIKU_KV_SPACE.includes(l))
+        .should.deepEqual([], `${name}: JIKU_KV solo con las tres líneas acotadas a {{user_id}}`);
+    }
+    for (const name of PERSON_TEMPLATES) {
+      const pub = load(name).pub!.allow as string[];
+      pub
+        .filter((l) => l.includes('JIKU_KV'))
+        .should.deepEqual([], `${name}: las personas no tienen espacio KV`);
     }
   });
 });

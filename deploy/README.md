@@ -19,6 +19,7 @@ deploy/
     ├── enable-jetstream.sh   grants JetStream limits to an install that predates them
     ├── create-events-stream.sh   creates the JIKU_EVENTS domain-events stream
     ├── create-modules-kv.sh      creates the JIKU_MODULES module registry (KV)
+    ├── create-kv-space.sh        creates JIKU_KV, the SDKs' per-identity key-value space
     ├── events-test-consumer.sh   verification tool: consumes JIKU_EVENTS and validates it (S-067)
     ├── bus-policy-probe.sh       verification tool: checks a role's bus permissions on the real bus (S-075)
     ├── auth-callout/         rules.yaml + templates/ (access policy — see its README.md)
@@ -35,7 +36,7 @@ in `deploy/nats/creds/`, neither of them versioned.
 Six steps, all one-time except bringing the stack up.
 
 **Prerequisite:** `nsc` has to be installed, not only for the NATS identity (step 3) but also for
-`./local.sh up`, which creates the `JIKU_MODULES` registry with a throwaway administrative user
+`./local.sh up`, which creates the `JIKU_MODULES` registry and the `JIKU_KV` space with a throwaway administrative user
 (`curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh`).
 
 **On a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
@@ -108,6 +109,7 @@ cd nats
 ./enable-jetstream.sh           # only if bootstrap.sh predates the JetStream limits (see below)
 ./create-events-stream.sh       # creates JIKU_EVENTS, the domain events stream
 ./create-modules-kv.sh          # creates JIKU_MODULES, the optional-modules registry (KV)
+./create-kv-space.sh            # creates JIKU_KV, the SDKs' per-identity key-value space
 ```
 
 Details in [nats/creds/README.md](nats/creds/README.md). None of it is versioned, so **keep a
@@ -484,11 +486,12 @@ docker compose pull
 docker compose up -d
 cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-events-stream.sh && cd ..
 cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-modules-kv.sh && cd ..
+cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-kv-space.sh && cd ..
 ```
 
 Differences from the local environment:
 
-- The two `create-*` scripts talk to NATS through a throwaway `nats-box` container on the bus
+- The three `create-*` scripts talk to NATS through a throwaway `nats-box` container on the bus
   network, so they need the stack **up** and the network's name. `NATS_DOCKER_NETWORK` defaults to
   `jiku-local_jiku` (the local compose); the production compose (`name: jiku`) creates
   `jiku_jiku-bus` — check with `docker network ls | grep jiku-bus` if you renamed the project. Both
@@ -814,10 +817,12 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   Hub (`gravadigital/nats-zitadel-auth-callout`), and it ships **only the callout** — the NATS
   server is a compose service of its own. What is here is its configuration
   (`nats/auth-callout/`), mounted by path and read at startup.
-- **JetStream is enabled, but scoped to three things.** Commands and queries are still direct
+- **JetStream is enabled, but scoped to four things.** Commands and queries are still direct
   request/reply with no JetStream. JetStream backs `JIKU_EVENTS` (domain events, on
   `<instance>.events.v1.>`, created by `nats/create-events-stream.sh`), `KV_JIKU_MODULES` (the
-  optional-modules registry, created by `nats/create-modules-kv.sh`) and `JIKU_DOCS_EVENTS`
+  optional-modules registry, created by `nats/create-modules-kv.sh`), `KV_JIKU_KV` (the jiku SDKs'
+  per-identity key-value space, created by `nats/create-kv-space.sh`; each identity reads and writes
+  only its own `<instance>.<user id>.>` keys) and `JIKU_DOCS_EVENTS`
   (created and administered by jiku-docs itself, only when the module is installed — `docs.yaml`
   grants `$JS.API.STREAM.*.JIKU_DOCS_EVENTS` and nothing broader). See `nats/creds/README.md` for how JetStream is enabled. **Since S-063, `core` actually publishes
   into that stream** (post-commit domain events, starting with `requirement.created`): its
