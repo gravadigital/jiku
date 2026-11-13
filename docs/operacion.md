@@ -100,6 +100,7 @@ parcial: la api valida la autenticación y `JIKU_PUBLIC_URL`, core valida
 | `POSTGRESQL_READ_USER`, `POSTGRESQL_READ_PASSWORD` | core | Rol de solo lectura de las consultas | — |
 | `KEY_SYNC_ATTEMPS` | api | Reintentos de bajar las claves de Zitadel ante un `kid` desconocido | `3` en la imagen (sin default en el código) |
 | `JIKU_PUBLIC_URL` | api | Origen público de los links de documentación (sale de `DOCS_PUBLIC_DOMAIN`) | vacío: apagados |
+| `LOG_ACCESS_TOKEN` | web | Solo desarrollo: con `true` imprime en el log el access token completo (lo expone `deploy/docker-compose.local.yml`) | sin valor (apagado) |
 | `AUTH_BYPASS`, `DEV_USER_ID` | api | Solo desarrollo: entra como `admin` sin token. Prohibido con `NODE_ENV=production` | `false` |
 | `NATS_USER_ID` | api, core | Segmento de usuario de los subjects cuando no hay *service user* (modo `mock`) | `api` / `jiku-commands` |
 | `ZITADEL_SERVICE_USER_KEY_B64` o `ZITADEL_SERVICE_USER_KEY`, `ZITADEL_ISSUER_URL`, `ZITADEL_PROJECT_ID` | api, core | Key del *service user* (base64 o archivo), issuer y proyecto (los Compose las arman desde las de arriba) | — |

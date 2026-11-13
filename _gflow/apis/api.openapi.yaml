@@ -1199,10 +1199,10 @@ paths:
         - name: count
           in: query
           description: |
-            Con cualquier valor no vacío (incluido `false`), devuelve la cantidad de tareas que
-            satisfacen los mismos filtros en vez del listado; `page` y `limit` se ignoran. Solo
-            omitirlo devuelve el listado (a diferencia de `GET /requirements`, que compara con
-            `true`).
+            Solo admite `true` o `false` (otro valor es 400 `invalid_fields`), y los dos devuelven
+            la cantidad de tareas que satisfacen los mismos filtros en vez del listado; `page` y
+            `limit` se ignoran. Solo omitirlo devuelve el listado (a diferencia de
+            `GET /requirements`, que compara con `true`).
           schema: { type: boolean }
       responses:
         '200':
@@ -5055,7 +5055,7 @@ components:
       in: query
       description: |
         El esquema Joi lo acota a **30**, pero `parseLimit` usa **200** como fallback cuando el
-        valor no cumple sus condiciones (`lib/utils/parse-query-params.ts:41-43`). En la práctica
+        valor no cumple sus condiciones (`lib/utils/parse-query-params.ts:35-37`). En la práctica
         un valor mayor a 30 se rechaza antes con 400.
       schema: { type: integer, minimum: 1, maximum: 30, default: 200 }
     DateFromRequired:

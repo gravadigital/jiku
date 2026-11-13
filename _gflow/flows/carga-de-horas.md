@@ -13,8 +13,8 @@ La pantalla de carga envía horas o una ausencia; core resuelve la persona, apli
 | 1 | web → api | Carga horas de un día con minutos, proyecto y tarea o requisito | `POST /api/worked-times` | HOR-01 |
 | 2 | api → core | Publica el comando (`objectiveId` → `taskId`) con el sobre actor | `{instance}.{user-id}.jiku-commands.v1.worked-times.new` | ACC-10 |
 | 3 | core → PostgreSQL | Sin `personId`, usa la persona vinculada al usuario del actor; si no es suya y el actor no es `admin`, rechaza | `people` (`user_id` = actor) | HOR-02, HOR-03, HOR-E1, HOR-E2, GAR-48 |
-| 4 | core → core | Exige tarea o requisito, nunca los dos, y el día dentro de la **ventana de carga de horas** | — | INV-07, HOR-04, HOR-E9, GAR-09, GAR-45 |
-| 5 | core → PostgreSQL | Verifica proyecto, tarea y requisito, y que el requisito sea del proyecto | `projects`, `objectives`, `requirements` | INV-06, HOR-06, HOR-E8, GAR-08 |
+| 4 | core → PostgreSQL | Verifica proyecto, tarea y requisito, y que el requisito sea del proyecto (tarea o requisito, nunca los dos, ya lo exigió el esquema) | `projects`, `objectives`, `requirements` | INV-06, INV-07, HOR-06, HOR-E8, GAR-08, GAR-09 |
+| 5 | core → core | Exige el día dentro de la **ventana de carga de horas** | — | HOR-04, HOR-E9, GAR-45 |
 | 6 | core → PostgreSQL | Suma los minutos trabajados de la persona en ese día y compara con el **tope diario de minutos**, sin bloqueo | `worked_times` | INV-08, HOR-05, HOR-E11, GAR-10 |
 | 7 | core → PostgreSQL | Inserta y confirma | `worked_times`; `COMMIT` | GAR-27 |
 | 8 | web → api | Registra una ausencia; la api completa `personId` con la persona del usuario si falta | `POST /api/unworked-times` → `unworked-times.new` | HOR-02, HOR-07, HOR-E1 |
