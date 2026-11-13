@@ -1169,7 +1169,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
+        - name: limit
+          in: query
+          description: |
+            El esquema acepta de 1 a 200 (más es 400 `invalid_fields`). Sin `limit`, o con un valor
+            de 31 a 200, se usan 200 filas por página: solo un valor de 1 a 30 se respeta tal cual.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 200 }
         - name: search
           in: query
           description: Búsqueda parcial sobre el título
@@ -1194,9 +1199,10 @@ paths:
         - name: count
           in: query
           description: |
-            Si es `true`, devuelve la cantidad de tareas que satisfacen los mismos filtros en vez
-            del listado. `page` y `limit` se ignoran. Existía en el código antes de documentarse
-            acá; mismo contrato que `count` en `GET /requirements`.
+            Con cualquier valor no vacío (incluido `false`), devuelve la cantidad de tareas que
+            satisfacen los mismos filtros en vez del listado; `page` y `limit` se ignoran. Solo
+            omitirlo devuelve el listado (a diferencia de `GET /requirements`, que compara con
+            `true`).
           schema: { type: boolean }
       responses:
         '200':
@@ -4410,8 +4416,8 @@ paths:
                 fileIds:
                   $ref: '#/components/schemas/FileIds'
       responses:
-        '201':
-          description: Created
+        '200':
+          description: OK (el portal responde 200, no 201)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementActivity' }
@@ -4463,8 +4469,8 @@ paths:
               properties:
                 userId: { type: string, description: Id de usuario de Zitadel }
       responses:
-        '201':
-          description: Created
+        '200':
+          description: OK (el portal responde 200, no 201)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }

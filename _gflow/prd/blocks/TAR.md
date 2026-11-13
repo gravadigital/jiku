@@ -33,7 +33,7 @@ last_failure: TAR-E7
 | TAR-E1 | Alta o edición sin título, proyecto, área, estado o responsables, o con prioridad fuera de 0 a 5 | 400 `invalid_fields`; la pantalla muestra «Este campo es requerido», «Elegí un proyecto», «Elegí al menos un responsable» y «Revisá que no haya campos incompletos» | inicial |
 | TAR-E2 | El proyecto indicado no existe | 400 `project_not_found` | inicial |
 | TAR-E3 | Un responsable no existe, o la lista repite una persona | 400 `person_not_found` | inicial |
-| TAR-E4 | El requisito vinculado es de otro proyecto | 400 `requirement_project_mismatch` («Requirement does not belong to the specified project») | inicial |
+| TAR-E4 | El requisito vinculado no existe o es de otro proyecto (alta y edición) | 400 `requirement_project_mismatch` («Requirement does not belong to the specified project») | inicial |
 | TAR-E5 | Ver o editar una tarea que no existe | 400 `objective_not_found` | inicial |
 | TAR-E6 | Falla el cambio de estado o de fecha en el lugar | Se revierte y aparece el toast «Hubo un error al cambiar el estado» / «Hubo un error al cambiar la fecha de finalización» | inicial |
 | TAR-E7 | Falla el alta o la edición | Toast con el mensaje del error, o «Error al crear algunas tareas» / «Hubo un error al editar la tarea» | inicial |

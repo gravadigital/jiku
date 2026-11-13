@@ -52,6 +52,6 @@ last_failure: DOC-E25
 | DOC-E20 | Se libera una reserva de edición que quien la pide no tiene | 409 `lock_not_held` | inicial |
 | DOC-E21 | Se confirma un adjunto cuya subida jiku-docs no encuentra | 400 `upload_not_found` | inicial |
 | DOC-E22 | Se pide subir a un documento un adjunto de tipo no permitido o demasiado grande | 400 `attachment_type_not_allowed` / `attachment_too_large` | inicial |
-| DOC-E23 | Se comparte con un vencimiento fuera de los **vencimientos de links compartidos** | 400 `share_expiry_invalid` | inicial |
+| DOC-E23 | Se comparte con un vencimiento que no es futuro o que supera el máximo de los **vencimientos de links compartidos** (la api acepta cualquier fecha ISO; lo rechaza jiku-docs) | 400 `share_expiry_invalid` | inicial |
 | DOC-E24 | jiku-docs rechaza la operación porque la carpeta no está vacía | 409 `folder_not_empty` | inicial |
 | DOC-E25 | Una dependencia de jiku-docs no responde: su core, o el almacenamiento de adjuntos sin configurar | 503 `upstream_unavailable` / `attachments_not_configured`, con el código y el mensaje del módulo | inicial |

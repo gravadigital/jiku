@@ -28,5 +28,5 @@
 | tamaño de página del portal | 20 requisitos por estado | — | inicial |
 | intervalo de chequeo de módulos | 30 segundos | — | inicial |
 | duración de la reserva de edición | Entre 30 y 300 segundos (si no se indica, la que fija el módulo) | — | inicial |
-| vencimientos de links compartidos | 7, 15, 30 (por defecto), 90 o 180 días | — | inicial |
+| vencimientos de links compartidos | Un instante futuro, como máximo a 180 días (lo valida jiku-docs); la pantalla de Gestión interna ofrece 7, 15, 30 (por defecto), 90 o 180 días | — | inicial |
 | límite de pedidos de links públicos | 60 pedidos por minuto por dirección IP, por réplica de la api | — | inicial |
