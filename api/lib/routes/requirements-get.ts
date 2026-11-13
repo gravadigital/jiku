@@ -11,7 +11,7 @@ const router: Router = Router();
 
 // Los campos calculados que el listado sabe agregar bajo demanda. Es una LISTA, no un booleano,
 // aunque hoy tenga un solo miembro: es el mismo mecanismo (`include`, deny-by-default, un nombre
-// no declarado es `invalid_fields`) que el contrato de consultas del bus en `core-queries.yaml`.
+// no declarado es `invalid_fields`) que el contrato de consultas del bus en `core-queries.asyncapi.yaml`.
 // Alinear los dos nombres deja preparada una futura migracion de esta ruta al plano de consultas
 // como traduccion, no como rediseño.
 const INCLUDABLE_FIELDS = ['totalMinutes'];

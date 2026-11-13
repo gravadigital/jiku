@@ -13,7 +13,7 @@ import {
  * ES DENY-BY-DEFAULT (ADR-008) APLICADO A DATOS DE CONFIGURACIÓN. `system_settings` es una tabla de
  * configuración operativa del producto: una clave nueva agregada por SQL para un experimento NO
  * DEBE aparecer en un contrato público por el solo hecho de existir. La lista blanca es CERRADA y
- * está en el contrato (`docs/apis/core-queries.yaml`); una clave que exista en la tabla y no esté
+ * está en el contrato (`_gflow/apis/core-queries.asyncapi.yaml`); una clave que exista en la tabla y no esté
  * declarada NO EXISTE PARA ESTA API, y pedirla explícitamente devuelve `items: []`, no un error.
  *
  * `items: []` Y NO UN ERROR, y la diferencia es de contrato: un `invalid_fields` diría "esa clave es

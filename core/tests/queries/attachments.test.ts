@@ -986,7 +986,7 @@ describe('queries/attachments — el contrato del recurso (S-027)', () => {
 describe('queries/attachments — los gates de CA-17 (S-027, Task 7)', () => {
   const REPO_ROOT = join(__dirname, '..', '..', '..');
   const ENGINE = join(REPO_ROOT, 'core', 'src', 'queries', 'engine');
-  const SPEC_PATH = join(REPO_ROOT, 'docs', 'apis', 'core-queries.yaml');
+  const SPEC_PATH = join(REPO_ROOT, '_gflow', 'apis', 'core-queries.asyncapi.yaml');
 
   /** El yaml del contrato de consultas. Mismo patrón que `contract-spec.test.ts:25`. */
   function spec(): string {

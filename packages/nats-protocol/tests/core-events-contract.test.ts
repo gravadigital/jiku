@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { reload } from './helpers/reload';
 
 /**
- * Verificaciones DOCUMENTALES de `docs/apis/core-events.yaml` (REQ-014 / S-062).
+ * Verificaciones DOCUMENTALES de `_gflow/apis/core-events.asyncapi.yaml` (REQ-014 / S-062).
  *
  * Este archivo no importa ningún parser de YAML (ADR-005: el paquete no gana dependencias, ni de
  * runtime ni de test). Se lee el contrato como texto y se recorta con regex — mismo patrón que
@@ -14,9 +14,9 @@ import { reload } from './helpers/reload';
  * contrato es la fuente de verdad y `EVENT_TYPES` tiene que coincidir con él.
  */
 
-const CORE_EVENTS_YAML = path.join(__dirname, '../../../docs/apis/core-events.yaml');
-const CORE_YAML = path.join(__dirname, '../../../docs/apis/core.yaml');
-const CORE_QUERIES_YAML = path.join(__dirname, '../../../docs/apis/core-queries.yaml');
+const CORE_EVENTS_YAML = path.join(__dirname, '../../../_gflow/apis/core-events.asyncapi.yaml');
+const CORE_YAML = path.join(__dirname, '../../../_gflow/apis/core.asyncapi.yaml');
+const CORE_QUERIES_YAML = path.join(__dirname, '../../../_gflow/apis/core-queries.asyncapi.yaml');
 const ENV_DIST = path.join(__dirname, '../../../deploy/.env.dist');
 
 function readEventsContract(): string {
@@ -39,7 +39,7 @@ function channelNames(contract: string): string[] {
   return names;
 }
 
-describe('nats-protocol · docs/apis/core-events.yaml — CA-1: el archivo, AsyncAPI 2.6 y los 16 canales', () => {
+describe('nats-protocol · _gflow/apis/core-events.asyncapi.yaml — CA-1: el archivo, AsyncAPI 2.6 y los 16 canales', () => {
   it('TS-152: el archivo existe y es AsyncAPI 2.6', () => {
     fs.existsSync(CORE_EVENTS_YAML).should.be.true();
     const firstLine = readEventsContract().split('\n')[0];
@@ -116,7 +116,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-1: el archivo, Asyn
   });
 });
 
-describe('nats-protocol · docs/apis/core-events.yaml — CA-2: RequirementSnapshot', () => {
+describe('nats-protocol · _gflow/apis/core-events.asyncapi.yaml — CA-2: RequirementSnapshot', () => {
   const REQUIREMENT_FIELDS = [
     'id',
     'title',
@@ -201,7 +201,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-2: RequirementSnaps
   });
 });
 
-describe('nats-protocol · docs/apis/core-events.yaml — CA-3: TaskSnapshot', () => {
+describe('nats-protocol · _gflow/apis/core-events.asyncapi.yaml — CA-3: TaskSnapshot', () => {
   it('TS-160: TaskSnapshot tiene los 16 campos, con las dos formas de prioridad', () => {
     const contract = readEventsContract();
     const lines = contract.split('\n');
@@ -257,7 +257,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-3: TaskSnapshot', (
   });
 });
 
-describe('nats-protocol · docs/apis/core-events.yaml — CA-4: el sobre y sus componentes', () => {
+describe('nats-protocol · _gflow/apis/core-events.asyncapi.yaml — CA-4: el sobre y sus componentes', () => {
   it('TS-162: los ocho schemas del sobre están declarados, y DomainEvent.required tiene los 8 campos', () => {
     const contract = readEventsContract();
     [
@@ -333,7 +333,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-4: el sobre y sus c
   });
 });
 
-describe('nats-protocol · docs/apis/core-events.yaml — CA-5: la garantía de entrega', () => {
+describe('nats-protocol · _gflow/apis/core-events.asyncapi.yaml — CA-5: la garantía de entrega', () => {
   it('TS-167: la garantía de entrega está declarada con sus cinco afirmaciones', () => {
     const contract = readEventsContract();
     contract.should.containEql('at-least-once');
@@ -360,7 +360,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-5: la garantía de 
     contract.should.containEql('Remove or rename a field');
   });
 
-  it('TS-170: la nota cruzada simétrica está en core-events.yaml', () => {
+  it('TS-170: la nota cruzada simétrica está en core-events.asyncapi.yaml', () => {
     const contract = readEventsContract();
     contract.should.containEql('base`/`includable`');
     contract.should.containEql('truncatable');
@@ -368,7 +368,7 @@ describe('nats-protocol · docs/apis/core-events.yaml — CA-5: la garantía de 
   });
 });
 
-describe('nats-protocol · docs/apis/core.yaml — CA-6 y CA-7', () => {
+describe('nats-protocol · _gflow/apis/core.asyncapi.yaml — CA-6 y CA-7', () => {
   function readCoreYaml(): string {
     return fs.readFileSync(CORE_YAML, 'utf8');
   }
@@ -381,7 +381,7 @@ describe('nats-protocol · docs/apis/core.yaml — CA-6 y CA-7', () => {
     const block = core.slice(replyIdx, nextSchema === -1 ? core.length : nextSchema);
 
     block.should.containEql('events:');
-    block.should.containEql('$ref: \'../apis/core-events.yaml#/components/schemas/DomainEvent\'');
+    block.should.containEql('$ref: \'../apis/core-events.asyncapi.yaml#/components/schemas/DomainEvent\'');
     block.should.match(/required: \[status\]/);
   });
 
@@ -407,7 +407,7 @@ describe('nats-protocol · docs/apis/core.yaml — CA-6 y CA-7', () => {
 
   it('TS-174: el reemplazo dice las cuatro cosas, y la nota de sub.allow sigue intacta', () => {
     const core = readCoreYaml();
-    core.should.containEql('core-events.yaml');
+    core.should.containEql('core-events.asyncapi.yaml');
     /publishes?[\s\S]*REQ-014|REQ-014[\s\S]*publish/i.test(core).should.be.true();
     core.should.containEql('request/reply');
     core.should.containEql('events.auth');
@@ -417,10 +417,10 @@ describe('nats-protocol · docs/apis/core.yaml — CA-6 y CA-7', () => {
   });
 });
 
-describe('nats-protocol · docs/apis/core-queries.yaml — CA-8 (la mitad simétrica)', () => {
+describe('nats-protocol · _gflow/apis/core-queries.asyncapi.yaml — CA-8 (la mitad simétrica)', () => {
   it('TS-175: la nota cruzada está y no cambió el contrato', () => {
     const queries = fs.readFileSync(CORE_QUERIES_YAML, 'utf8');
-    queries.should.containEql('core-events.yaml');
+    queries.should.containEql('core-events.asyncapi.yaml');
     queries.should.containEql('truncatable');
     queries.should.containEql('totalMinutes');
 

@@ -39,7 +39,7 @@ export interface TasksEditPayload {
  * foreign key contra `users`: con sobre, `resolveActor` toma `actor.id` y el campo sería
  * redundante; sin sobre, sale del subject. Lo que sigue siendo obligatorio es que ALGUNA de
  * las dos fuentes produzca un actor — lo exige `execute()`, no Joi, porque Joi no ve el sobre
- * (lo extrae el despachador antes de validar). Ver docs/apis/core.yaml.
+ * (lo extrae el despachador antes de validar). Ver _gflow/apis/core.asyncapi.yaml.
  */
 const schema = joi.object({
   editor: joi.string().optional(),

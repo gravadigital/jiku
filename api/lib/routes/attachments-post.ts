@@ -72,7 +72,7 @@ async function requestUpload(req: Request, res: Response) {
   // La regla existe porque core devuelve solo `{ id }` y el contrato con los frontends es el
   // recurso completo; acá el dato que falta es la URL prefirmada, que NO ESTÁ EN LA BASE y no
   // es reconstruible desde afuera de core. Releer no la produciría: solo sumaría una query.
-  // Está registrada en `docs/apis/core.yaml` (`ReplyWithUploadTicket`).
+  // Está registrada en `_gflow/apis/core.asyncapi.yaml` (`ReplyWithUploadTicket`).
   return res.status(201).json(toUploadTicket(data));
 }
 

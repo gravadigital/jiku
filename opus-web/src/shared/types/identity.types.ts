@@ -2,7 +2,7 @@ export type IdentityType = 'person' | 'service';
 
 /**
  * Un usuario cuando aparece como AUTOR de algo: creador de un requisito, o autor de una
- * entrada de actividad. Espeja el schema `AuthorUser` de `docs/apis/api.yaml`.
+ * entrada de actividad. Espeja el schema `AuthorUser` de `_gflow/apis/api.openapi.yaml`.
  *
  * `identityType` es opcional a proposito: una api vieja no lo manda, y la condicion del
  * front es `=== 'service'`, asi que su ausencia NO marca nada. Falla del lado seguro: se

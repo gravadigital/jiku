@@ -398,7 +398,7 @@ describe('ObjectiveComment', () => {
 
   describe('Fechas serializadas por la api', () => {
     // `ObjectiveActivity.createdAt` esta tipado `Date` pero la api lo manda como string ISO
-    // (`createdAt: {type: string, format: date-time}` en docs/apis/api.yaml), y los tipos de
+    // (`createdAt: {type: string, format: date-time}` en _gflow/apis/api.openapi.yaml), y los tipos de
     // `web` estan escritos a mano: nada lo detecta en compilacion. El tooltip de la fecha lo
     // consumia sin envolver y rompia la pantalla entera con "getTime is not a function".
     it('renderiza el comentario cuando `date` llega como string ISO', () => {

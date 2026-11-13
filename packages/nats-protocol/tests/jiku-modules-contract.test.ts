@@ -6,13 +6,13 @@ import * as path from 'node:path';
 import { reload } from './helpers/reload';
 
 /**
- * Verificaciones DOCUMENTALES de `docs/apis/jiku-modules.yaml` (REQ-016 / S-077). Sin parser de
+ * Verificaciones DOCUMENTALES de `_gflow/apis/jiku-modules.asyncapi.yaml` (REQ-016 / S-077). Sin parser de
  * YAML (ADR-005): texto + regex. El contrato es la fuente de verdad; si discrepa del paquete, el
  * bug es del paquete.
  */
-const JIKU_MODULES_YAML = path.join(__dirname, '../../../docs/apis/jiku-modules.yaml');
+const JIKU_MODULES_YAML = path.join(__dirname, '../../../_gflow/apis/jiku-modules.asyncapi.yaml');
 
-describe('nats-protocol · docs/apis/jiku-modules.yaml — paridad con el paquete', () => {
+describe('nats-protocol · _gflow/apis/jiku-modules.asyncapi.yaml — paridad con el paquete', () => {
   const text = fs.readFileSync(JIKU_MODULES_YAML, 'utf8');
   const p = reload({});
 

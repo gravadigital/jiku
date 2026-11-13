@@ -9,7 +9,7 @@ import { assertContract } from '../helpers/events-contract';
 import { OBSERVED } from './catalog-contract.test';
 
 /**
- * Los 6 eventos de TAREA del catálogo, verificados contra `docs/apis/core-events.yaml` (S-067,
+ * Los 6 eventos de TAREA del catálogo, verificados contra `_gflow/apis/core-events.asyncapi.yaml` (S-067,
  * Task 4, CA-4). Cierra CA-4 junto con `catalog-contract.test.ts` (los 10 de requisito): el gate
  * de completitud de los 16 vive en `catalog-completeness.test.ts`, aparte, para no depender del
  * orden de carga de mocha entre este archivo y ese.
@@ -39,7 +39,7 @@ function verifyPublished(): DomainEvent[] {
   });
 }
 
-describe('events/catalog-contract-tasks — los 6 eventos de TAREA contra core-events.yaml (S-067)', () => {
+describe('events/catalog-contract-tasks — los 6 eventos de TAREA contra core-events.asyncapi.yaml (S-067)', () => {
   let projectId: number;
   let personA: number;
   let personB: number;

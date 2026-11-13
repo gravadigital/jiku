@@ -5,8 +5,22 @@ import path from 'path';
 import { PORTAL_DOC_FIELDS } from '../../lib/modules/docs/query';
 
 /**
+ * Lee el spec con cada respuesta de error referenciada en su forma de una línea. Desde la adopción
+ * de grava-workflow (#107) cada respuesta 4xx/5xx lleva su `x-failure` al lado del `$ref`, en forma
+ * de bloque (`'503':` / `$ref: …` / `x-failure: …`), porque el chequeo de la definición solo lo
+ * cuenta dentro de la respuesta. Las aserciones de este archivo se escribieron sobre la forma
+ * `'503': { $ref: '…' }`; esta función las mantiene sin reescribirlas una por una.
+ */
+function readSpec(specPath: string): string {
+  return readFileSync(specPath, 'utf8').replace(
+    /^( +)('\d{3}'):\n +\$ref: ('[^']+')\n +x-failure: [^\n]+$/gm,
+    '$1$2: { $ref: $3 }'
+  );
+}
+
+/**
  * Test de DOCUMENTACIÓN, no de código, y por eso vale la pena: CA-12 se enuncia sobre
- * `docs/apis/api.yaml` —no sobre el modelo compartido ni sobre el ENUM de PostgreSQL—, así que
+ * `_gflow/apis/api.openapi.yaml` —no sobre el modelo compartido ni sobre el ENUM de PostgreSQL—, así que
  * este es el único control que impide que alguien reponga un valor eliminado al editar el spec.
  *
  * NO USA UN PARSER DE YAML A PROPÓSITO: `js-yaml` no es dependencia declarada de la api (llega
@@ -16,16 +30,16 @@ import { PORTAL_DOC_FIELDS } from '../../lib/modules/docs/query';
  *
  * Vive en `tests/utils/` porque no necesita base de datos: corre con `npm run test:unit`.
  */
-describe('docs/apis/api.yaml — contrato de adjuntos', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — contrato de adjuntos', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
 
   /** Extrae los valores ACTIVOS del bloque `enum:` de un schema. Ignora los comentados. */
   function enumValuesOf(schemaName: string): string[] {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const lines = spec.split('\n');
 
     const schemaIndex = lines.findIndex((line) => line.trim() === `${schemaName}:`);
-    schemaIndex.should.be.above(-1, `no se encontró el schema ${schemaName} en api.yaml`);
+    schemaIndex.should.be.above(-1, `no se encontró el schema ${schemaName} en api.openapi.yaml`);
 
     const enumIndex = lines.findIndex((line, index) => index > schemaIndex && line.trim() === 'enum:');
     enumIndex.should.be.above(-1, `${schemaName} no declara un bloque enum`);
@@ -75,7 +89,7 @@ describe('docs/apis/api.yaml — contrato de adjuntos', () => {
 /**
  * Los tres modos de falla del bus en el spec (S-014, CA-11).
  *
- * `docs/apis/api.yaml` ya declara el desdoblamiento 503/504 en las 26 operaciones que publican
+ * `_gflow/apis/api.openapi.yaml` ya declara el desdoblamiento 503/504 en las 26 operaciones que publican
  * un comando. Lo que hace este describe es BLINDARLO: 26 operaciones es mucha superficie
  * mecánica, y un spec que documenta 503 donde el servicio devuelve 504 es peor que uno que no
  * documenta nada.
@@ -84,15 +98,15 @@ describe('docs/apis/api.yaml — contrato de adjuntos', () => {
  * están escritos en una sola línea y con formato uniforme, así que un `split('\n')` + `filter`
  * alcanza. No se agrega `js-yaml`.
  */
-describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — los modos de falla del bus (S-014)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
   const BUS_UNAVAILABLE_REF = "'503': { $ref: '#/components/responses/BusUnavailable' }";
   const GATEWAY_TIMEOUT_REF = "'504': { $ref: '#/components/responses/GatewayTimeout' }";
   const MODULE_UNAVAILABLE_REF = "'503': { $ref: '#/components/responses/ModuleUnavailable' }";
   const MODULE_GATEWAY_TIMEOUT_REF = "'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }";
 
   function specLines(): string[] {
-    return readFileSync(SPEC_PATH, 'utf8').split('\n');
+    return readSpec(SPEC_PATH).split('\n');
   }
 
   function countLinesWith(needle: string): number {
@@ -101,17 +115,18 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
 
   // TS-20: LA INVARIANTE Y EL ANCLA, en dos aserciones distintas y a propósito. La igualdad es
   // la regla —toda operación que puede dar 503 puede dar 504, porque las dos fallas son
-  // alcanzables desde el mismo `catch`—; el 28 es el estado de hoy (S-047: `api.yaml` ya
+  // alcanzables desde el mismo `catch`—; el 29 es el estado de hoy (S-047: `api.openapi.yaml` ya
   // documentaba los dos endpoints de edición de comentario con 503/504 antes de que el código
-  // los publicara por el bus — 26 + 2 = 28). Si mañana se agrega una operación que publica un
-  // comando, el número correcto pasa a 29 y este test tiene que fallar por la razón útil
+  // los publicara por el bus — 26 + 2 = 28; #107 sumó `PUT /week-assigned-times`, que publica
+  // `week-assigned-times.replace` y no los declaraba — 29). Si mañana se agrega una operación que
+  // publica un comando, el número correcto pasa a 30 y este test tiene que fallar por la razón útil
   // ("agregaste un 503 sin su 504"), no por un literal desactualizado.
   it('TS-20: toda operación con 503 declara también 504', () => {
     const busUnavailable = countLinesWith(BUS_UNAVAILABLE_REF);
     const gatewayTimeout = countLinesWith(GATEWAY_TIMEOUT_REF);
 
     busUnavailable.should.equal(gatewayTimeout);
-    busUnavailable.should.equal(28);
+    busUnavailable.should.equal(29);
   });
 
   // S-078 · TS-47: el par propio de las rutas de módulo (su texto no describe a core).
@@ -153,7 +168,7 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
     function componentBlock(name: string): string[] {
       const lines = specLines();
       const start = lines.findIndex((line) => line.trim() === `${name}:`);
-      start.should.be.above(-1, `no se encontró el componente ${name} en api.yaml`);
+      start.should.be.above(-1, `no se encontró el componente ${name} en api.openapi.yaml`);
 
       const indent = (lines[start].match(/^\s*/) as RegExpMatchArray)[0].length;
       const block: string[] = [];
@@ -204,18 +219,18 @@ describe('docs/apis/api.yaml — los modos de falla del bus (S-014)', () => {
 
 /**
  * Test de DOCUMENTACIÓN, no de código, y por eso vale la pena: CA-15 se enuncia sobre EL CONTRATO
- * —"`Actor` está descrito una sola vez, en `components/schemas/Actor` de `core.yaml`, y no
+ * —"`Actor` está descrito una sola vez, en `components/schemas/Actor` de `core.asyncapi.yaml`, y no
  * repetido en los 20 canales"—, así que este es el único control que impide que alguien borre la
  * nota del sobre al editar el spec por otra razón. El contenido ya está escrito: esto lo sostiene.
  *
  * Mismo molde que el bloque de arriba: se lee el archivo y se busca con expresiones regulares, sin
  * sumar un parser de YAML que no es dependencia declarada de la api.
  */
-describe('docs/apis/api.yaml — el sobre de identidad (S-029)', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — el sobre de identidad (S-029)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
 
-  it('declara la clave reservada `actor` con sus cinco campos y remite a core.yaml', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+  it('declara la clave reservada `actor` con sus cinco campos y remite a core.asyncapi.yaml', () => {
+    const spec = readSpec(SPEC_PATH);
 
     spec.should.match(/EL SOBRE DE IDENTIDAD/);
     spec.should.match(/\{ id, roles, name\?, username\?, email\? \}/);
@@ -224,7 +239,7 @@ describe('docs/apis/api.yaml — el sobre de identidad (S-029)', () => {
   });
 
   it('deja dicho que el sobre sale del claim y no de una lectura a `users`', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
 
     // Es la mitad exigente de CA-14, y la que un "arreglo" bienintencionado rompe primero.
     spec.should.match(/CON EL CLAIM YA VERIFICADO y no con una\n#\s+lectura a `users`/);
@@ -244,11 +259,11 @@ describe('docs/apis/api.yaml — el sobre de identidad (S-029)', () => {
  * Mismo molde que los bloques de arriba: se lee el archivo y se busca con expresiones regulares,
  * sin sumar un parser de YAML que no es dependencia declarada de la api.
  */
-describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — la api deja de autorizar (S-030)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
 
   it('TS-13: declara que `x-roles` cambió de significado y que NO se elimina del spec', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
 
     spec.should.match(/REQ-007 — LA API DEJA DE AUTORIZAR, Y `x-roles` CAMBIA DE SIGNIFICADO/);
     spec.should.match(/`x-roles` NO SE ELIMINA DE ESTE SPEC/);
@@ -257,7 +272,7 @@ describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
   });
 
   it('TS-14: declara el código nuevo, su status y la consecuencia de omitirlo', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
 
     spec.should.match(/UN CÓDIGO NUEVO EN `STATUS_BY_ERROR_CODE`: `access_denied` -> 403/);
     // La consecuencia es la mitad que importa: sin la entrada cae en el fallback de
@@ -266,7 +281,7 @@ describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
   });
 
   it('TS-15: sigue diciendo que las 28 rutas GET conservan el rol', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
 
     spec.should.match(/28 rutas `GET` los CONSERVAN/);
     // Y por qué: quitarles el rol sin que nadie lo aplique del otro lado abre la lectura.
@@ -274,14 +289,14 @@ describe('docs/apis/api.yaml — la api deja de autorizar (S-030)', () => {
   });
 });
 
-describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — contrato de módulos (S-077)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
 
   /** El bloque de un path de 2 espacios hasta el siguiente path (o divisor de sección). */
   function pathBlock(spec: string, name: string): string {
     const lines = spec.split('\n');
     const start = lines.findIndex((line) => line === `  ${name}:`);
-    start.should.be.above(-1, `api.yaml no declara ${name}`);
+    start.should.be.above(-1, `api.openapi.yaml no declara ${name}`);
     const out: string[] = [];
     for (let i = start + 1; i < lines.length; i += 1) {
       if (/^  \S/.test(lines[i]) || /^  # =/.test(lines[i]) || /^\S/.test(lines[i])) break;
@@ -291,7 +306,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   }
 
   it('S-077 · TS-58: /modules y /opus/modules declaran x-jiku-module y roles', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     ['/modules', '/opus/modules'].forEach((name) => {
       const block = pathBlock(spec, name);
       block.should.match(/x-jiku-module: docs/);
@@ -300,7 +315,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-078 · TS-46: las once rutas de documentación declaran x-jiku-module y roles', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const internal = ['/docs/documents', '/docs/documents/{id}', '/docs/documents/{id}/versions', '/docs/search',
       '/docs/documents/{id}/suggested-relations', '/docs/suggestions', '/docs/topics', '/docs/folders', '/docs/folders/{id}', '/docs/attachments/{id}'];
     const portal = ['/opus/docs/documents', '/opus/docs/documents/{id}',
@@ -320,7 +335,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-077 · TS-58: components de módulo', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const componentBlock = (name: string): string => {
       const start = spec.indexOf(`\n    ${name}:`);
       start.should.be.above(-1, `components no declara ${name}`);
@@ -335,7 +350,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-079 · TS-47: las trece rutas de escritura declaran el módulo, roles, 409 (solo donde el contrato de jiku-docs lo produce) y el par 503/504', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const ops: Array<[string, string, boolean]> = [
       ['/docs/documents', 'post', true], ['/docs/documents/{id}', 'put', true], ['/docs/documents/{id}', 'delete', true],
       ['/docs/documents/{id}/move', 'post', true], ['/docs/documents/{id}/restore', 'post', true],
@@ -363,7 +378,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-079 · TS-48: ModuleConflict y el encabezado', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const start = spec.indexOf('\n    ModuleConflict:');
     start.should.be.above(-1, 'components no declara ModuleConflict');
     const rest = spec.slice(start + 1);
@@ -390,7 +405,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   }
 
   it('S-080 · TS-30: las dos operaciones públicas', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     ['/p/docs/{token}', '/p/docs/{token}/attachments/{id}'].forEach((name) => {
       const whole = pathBlock(spec, name);
       whole.should.match(/servers:\n\s+- url: '\{publicUrl\}'/, name);
@@ -414,7 +429,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-080 · TS-31: componentes, encabezado e invariantes', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     ['PublicDocsNotFound', 'PublicDocsTooManyRequests', 'PublicDocsUnavailable'].forEach((name) => {
       const start = spec.indexOf(`\n    ${name}:`);
       start.should.be.above(-1, `components no declara ${name}`);
@@ -431,8 +446,8 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
     const count = (needle: string) => spec.split('\n').filter((l) => l.includes(needle)).length;
     count("'503': { $ref: '#/components/responses/ModuleUnavailable' }").should.equal(26); // S-094
     count("'504': { $ref: '#/components/responses/ModuleGatewayTimeout' }").should.equal(26);
-    count("'503': { $ref: '#/components/responses/BusUnavailable' }").should.equal(28);
-    count("'504': { $ref: '#/components/responses/GatewayTimeout' }").should.equal(28);
+    count("'503': { $ref: '#/components/responses/BusUnavailable' }").should.equal(29);
+    count("'504': { $ref: '#/components/responses/GatewayTimeout' }").should.equal(29);
   });
 
   const WRITES_413: Array<[string, string]> = [
@@ -445,7 +460,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   ];
 
   it('S-088 · TS-9 (CA-1): el encabezado coincide con las operaciones declaradas', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const operations = spec.split('\n').filter((l) => /^    (get|post|put|delete|patch):$/.test(l)).length;
     operations.should.equal(92); // S-094: + 3 rutas de documentación
     const header = /las (\d+) operaciones/.exec(spec);
@@ -455,7 +470,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-088 · TS-10/TS-11/TS-12 (CA-2): las diez escrituras declaran 413 y el componente PayloadTooLarge', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const line = "'413': { $ref: '#/components/responses/PayloadTooLarge' }";
     WRITES_413.forEach(([name, verb]) => {
       operation(spec, name, verb).should.containEql(line);
@@ -474,7 +489,7 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
   });
 
   it('S-088 · TS-13/TS-14 (CA-4): DELETE /docs/shares/{id} no declara 400', () => {
-    const spec = readFileSync(SPEC_PATH, 'utf8');
+    const spec = readSpec(SPEC_PATH);
     const block = operation(spec, '/docs/shares/{id}', 'delete');
     const codes = (block.match(/^\s+'(\d{3})':/gm) || []).map((l) => l.trim().slice(1, 4));
     codes.should.deepEqual(['200', '401', '403', '404', '500', '503', '504']);
@@ -484,20 +499,20 @@ describe('docs/apis/api.yaml — contrato de módulos (S-077)', () => {
 });
 
 /**
- * Test de DOCUMENTACIÓN (CA-4 y CA-5 de S-101 se enuncian sobre `docs/apis/api.yaml`): ata el
+ * Test de DOCUMENTACIÓN (CA-4 y CA-5 de S-101 se enuncian sobre `_gflow/apis/api.openapi.yaml`): ata el
  * contrato del portal a lo que las rutas piden de verdad (`PORTAL_DOC_FIELDS`) y fija que el
  * contrato de la web diga que es pass-through de jiku-docs 1.3.0 y que las identidades son el
  * `sub` de Zitadel, que fue lo que llevó a la web a comparar contra el uuid de Jiku.
  * Sin parser de YAML, como el resto del archivo.
  */
-describe('docs/apis/api.yaml — contrato de documentos 1.3.0 (S-101)', () => {
-  const SPEC_PATH = path.join(__dirname, '../../../docs/apis/api.yaml');
+describe('_gflow/apis/api.openapi.yaml — contrato de documentos 1.3.0 (S-101)', () => {
+  const SPEC_PATH = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
   const SUB = 'El `sub` de Zitadel (no el uuid de Jiku)';
 
   function pathBlock(spec: string, name: string): string {
     const lines = spec.split('\n');
     const start = lines.findIndex((line) => line === `  ${name}:`);
-    start.should.be.above(-1, `api.yaml no declara ${name}`);
+    start.should.be.above(-1, `api.openapi.yaml no declara ${name}`);
     const out: string[] = [];
     for (let i = start + 1; i < lines.length; i += 1) {
       if (/^  \S/.test(lines[i]) || /^  # =/.test(lines[i]) || /^\S/.test(lines[i])) break;
@@ -528,7 +543,7 @@ describe('docs/apis/api.yaml — contrato de documentos 1.3.0 (S-101)', () => {
     return found as string;
   };
 
-  const read = (): string => readFileSync(SPEC_PATH, 'utf8');
+  const read = (): string => readSpec(SPEC_PATH);
 
   it('S-101 · TS-1 (CA-4): DocsPortalDocument declara los campos del portal como requeridos', () => {
     const block = component(read(), 'DocsPortalDocument');

@@ -8,7 +8,7 @@ import { RESOURCE_NAMES } from '../../src/queries/resources';
 import { usersSpec } from '../../src/queries/users/users-spec';
 
 /**
- * `docs/apis/core-queries.yaml` — LA SPEC CONTRA EL CÓDIGO (S-028, Task 6).
+ * `_gflow/apis/core-queries.asyncapi.yaml` — LA SPEC CONTRA EL CÓDIGO (S-028, Task 6).
  *
  * EL DOCUMENTO ES LA FUENTE DE VERDAD y el código lo sigue, pero eso NO significa que el documento
  * pueda quedar desfasado sin que nadie se entere: el desfasaje más probable es el más barato de
@@ -20,8 +20,8 @@ import { usersSpec } from '../../src/queries/users/users-spec';
  * INDENTACIÓN de las claves de primer nivel de cada sección, que es lo que el documento promete.
  */
 
-const SPEC_PATH = join(__dirname, '..', '..', '..', 'docs', 'apis', 'core-queries.yaml');
-const COMMANDS_SPEC_PATH = join(__dirname, '..', '..', '..', 'docs', 'apis', 'core.yaml');
+const SPEC_PATH = join(__dirname, '..', '..', '..', '_gflow', 'apis', 'core-queries.asyncapi.yaml');
+const COMMANDS_SPEC_PATH = join(__dirname, '..', '..', '..', '_gflow', 'apis', 'core.asyncapi.yaml');
 
 function spec(): string {
   return readFileSync(SPEC_PATH, 'utf8');
@@ -41,8 +41,8 @@ function keysUnder(source: string, section: string): string[] {
   return [...block.matchAll(/^ {2}([A-Za-z][\w.{}-]*):/gm)].map(([, key]) => key);
 }
 
-describe('docs/apis/core-queries.yaml — la spec del contrato de consultas (S-028, Task 6)', () => {
-  it('TS-93 · existe y es AsyncAPI 2.6, igual que `core.yaml` (CA-15)', () => {
+describe('_gflow/apis/core-queries.asyncapi.yaml — la spec del contrato de consultas (S-028, Task 6)', () => {
+  it('TS-93 · existe y es AsyncAPI 2.6, igual que `core.asyncapi.yaml` (CA-15)', () => {
     // MISMO FORMATO Y POR EL MISMO MOTIVO: `core` no expone HTTP, y una spec OpenAPI tendría que
     // inventar rutas que no existen.
     spec().should.match(/^asyncapi: '2\.6\.0'/);
@@ -137,14 +137,14 @@ describe('docs/apis/core-queries.yaml — la spec del contrato de consultas (S-0
   });
 });
 
-describe('docs/apis/core.yaml — la nota de las consultas al día (S-028, CA-16)', () => {
+describe('_gflow/apis/core.asyncapi.yaml — la nota de las consultas al día (S-028, CA-16)', () => {
   it('TS-98 · ya no dice que el contrato de consultas no existe', () => {
     const source = readFileSync(COMMANDS_SPEC_PATH, 'utf8');
 
     source.should.not.containEql('todavía no tiene contrato definido');
     source.should.not.containEql('Until that story lands');
     source.should.not.containEql('core/src/queries/pending.ts` is deleted');
-    source.should.containEql('That contract now EXISTS and lives in `docs/apis/core-queries.yaml`');
+    source.should.containEql('That contract now EXISTS and lives in `_gflow/apis/core-queries.asyncapi.yaml`');
   });
 
   it('TS-98 · la frase que SE QUEDA sigue estando: el contrato de consultas es de otra spec', () => {

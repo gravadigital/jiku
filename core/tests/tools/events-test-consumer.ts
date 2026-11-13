@@ -7,7 +7,7 @@
  *   1. Los permisos del molde `deploy/nats/auth-callout/templates/connector.yaml` alcanzan
  *      (D-6: el lanzador `.sh` mintea su credencial con los MISMOS tres permisos).
  *   2. El transporte entrega subject, versión y payload completo tal como
- *      `docs/apis/core-events.yaml` los declara — lo único que un doble (`FakeEventPublisher`)
+ *      `_gflow/apis/core-events.asyncapi.yaml` los declara — lo único que un doble (`FakeEventPublisher`)
  *      no puede probar.
  *   3. La retención de 7 días se comporta como el contrato dice (CA-5, manual, ver el `usage`).
  *
@@ -48,7 +48,7 @@ HERRAMIENTA DE VERIFICACIÓN que vive en el repositorio — NO es el conector pr
 se desarrolla FUERA de Jiku (REQ-014).
 
 Crea (o re-usa) un durable JetStream con filter_subject = eventsStreamSubject(), valida
-CADA mensaje recibido contra docs/apis/core-events.yaml (el MISMO validador que usa la
+CADA mensaje recibido contra _gflow/apis/core-events.asyncapi.yaml (el MISMO validador que usa la
 suite de tests de core) y, al terminar, imprime un reporte de cobertura de los 16 tipos
 del catálogo.
 
@@ -74,7 +74,7 @@ UN ENTORNO DE PRUEBA, nunca en producción:
   # esperar 15 segundos (más que el max_age nuevo)
   ts-node events-test-consumer.ts --from-start --creds <...>
   # el consumidor NO recibe los eventos vencidos, y NO HAY FORMA DE SABER CUÁLES FUERON:
-  # es el comportamiento DECLARADO y esperado de docs/apis/core-events.yaml, no un bug.
+  # es el comportamiento DECLARADO y esperado de _gflow/apis/core-events.asyncapi.yaml, no un bug.
 `);
 }
 

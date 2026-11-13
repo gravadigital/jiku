@@ -16,7 +16,7 @@ const DESCRIPTION = 'Comandos de dominio de Jiku: la única vía de escritura a 
 
 /**
  * Los 23 endpoints, en el ORDEN DE REGISTRO de `src/commands/index.ts` (no el numerado del
- * contrato), COPIADOS del contrato (`docs/apis/core.yaml`:151-171), no recalculados con
+ * contrato), COPIADOS del contrato (`_gflow/apis/core.asyncapi.yaml`:151-171), no recalculados con
  * `endpointName`/`endpointSubject`. Recalcularlos verificaría que el paquete es consistente
  * consigo mismo; copiarlos verifica que el servicio expone lo que el contrato promete.
  */

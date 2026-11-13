@@ -157,7 +157,7 @@ function allowedFor(
  * DE DÓNDE SALE LA ENUMERACIÓN, Y POR QUÉ NO SE EDITA A MANO
  * ============================================================================================
  *
- * SALE DEL `x-roles` DE `docs/apis/api.yaml`, ENDPOINT POR ENDPOINT: es literalmente la lista que
+ * SALE DEL `x-roles` DE `_gflow/apis/api.openapi.yaml`, ENDPOINT POR ENDPOINT: es literalmente la lista que
  * `hasAnyRole` aplica hoy sobre HTTP. Traducirla en vez de escribirla de memoria es lo que hace
  * que la paridad sea VERIFICABLE en vez de declarada, y HAY UN TEST QUE LA VERIFICA CONTRA EL
  * SPEC (`tests/auth/role-map-parity.test.ts`). Si tocás una línea de estas listas sin tocar el
@@ -177,7 +177,7 @@ function allowedFor(
  * trece comandos que ninguna pantalla del portal usa. SE TRADUCE LA INTENCIÓN, NO LA DEUDA.
  *
  * POR QUÉ (c). `requirements.{id}.resolve` es el único comando que NINGUNA ruta HTTP publica
- * (`docs/apis/core.yaml`: "NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced"), así que no
+ * (`_gflow/apis/core.asyncapi.yaml`: "NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced"), así que no
  * tiene `x-roles` del que derivar. Se lo dan `admin` y `user` por dos razones convergentes: RF-1
  * del REQ dice que ellos publican los 20 comandos, y el canal es el gemelo semántico de
  * `requirements.{id}.edit`, cuyo `x-roles` es `[user, admin]`. Como ninguna ruta lo publica,
@@ -251,7 +251,7 @@ function allowedFor(
  * (nada), pero así este mapa es la TABLA COMPLETA de los roles que pueden conectar al bus, que es
  * lo que alguien va a leer para auditarlo.
  *
- * `queries: ALL` PARA LOS TRES ROLES DE PRODUCTO, y lo autoriza el contrato: `docs/apis/core.yaml`
+ * `queries: ALL` PARA LOS TRES ROLES DE PRODUCTO, y lo autoriza el contrato: `_gflow/apis/core.asyncapi.yaml`
  * dice que los roles de producto reciben TODAS las consultas. La consecuencia —una consulta futura
  * queda autorizada para esos tres sin tocar este mapa— ES la intención de "todas las consultas".
  *

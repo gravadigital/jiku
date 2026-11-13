@@ -6,7 +6,7 @@ import { ROLE_METHODS } from '../../src/authorize-caller';
 import { registry } from '../../src/commands';
 
 /**
- * LA PARIDAD DEL MAPA ROL → COMANDO CONTRA `docs/apis/api.yaml`.
+ * LA PARIDAD DEL MAPA ROL → COMANDO CONTRA `_gflow/apis/api.openapi.yaml`.
  *
  * ES LA MITIGACIÓN (c) DEL RIESGO CRÍTICO DE S-030, escrita como test: *"un test de paridad por
  * rol que recorra el mapa contra el `x-roles` del spec"*.
@@ -28,7 +28,7 @@ import { registry } from '../../src/commands';
  */
 
 /** El spec vive en la raíz del repo, no en `core/`. Ruta RELATIVA a `__dirname`, nunca absoluta. */
-const API_SPEC = path.join(__dirname, '../../../docs/apis/api.yaml');
+const API_SPEC = path.join(__dirname, '../../../_gflow/apis/api.openapi.yaml');
 
 /** Los tres roles de producto: los únicos cuya enumeración se deriva del spec. */
 const PRODUCT_ROLES = ['admin', 'user', 'external-user'] as const;
@@ -60,7 +60,7 @@ interface Publisher {
  * declare.
  *
  * `requirements.{id}.resolve` NO FIGURA ACÁ Y NO ES UN OLVIDO: no lo publica NINGUNA ruta HTTP
- * (`docs/apis/core.yaml`: "NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced"). Su ausencia
+ * (`_gflow/apis/core.asyncapi.yaml`: "NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced"). Su ausencia
  * total es lo que dispara la regla (c).
  *
  * ============================================================================================
@@ -83,7 +83,8 @@ const PUBLISHERS_FROM_CODE: readonly Publisher[] = [
   { command: 'attachments.{id}.delete', roles: null },
   // api/lib/routes/attachments-post.ts:56 — sin `hasAnyRole`
   { command: 'files.request-upload', roles: null },
-  // api/lib/routes/opus-attachments-post.ts:52 — hasAnyRole(['user','external-user'])
+  // api/lib/routes/opus-attachments-post.ts:65 — ya sin `hasAnyRole` (las rutas de escritura lo perdieron
+  // con REQ-007); el dato conserva los dos roles del portal, `user` y `external-user`
   { command: 'files.request-upload', roles: ['user', 'external-user'] },
   // api/lib/routes/attachments-download.ts:67 — sin `hasAnyRole`
   { command: 'files.{fileId}.request-download', roles: null },
@@ -91,7 +92,7 @@ const PUBLISHERS_FROM_CODE: readonly Publisher[] = [
   { command: 'files.{fileId}.request-download', roles: null },
   // api/lib/routes/files-preview.ts:38 — sin `hasAnyRole`
   { command: 'files.{fileId}.request-download', roles: null },
-  // api/lib/routes/opus-attachments-preview.ts:47 — hasAnyRole(['user','external-user'])
+  // api/lib/routes/opus-attachments-preview.ts:60 — hasAnyRole(['user','external-user'])
   { command: 'files.{fileId}.request-download', roles: ['user', 'external-user'] },
   // SECUNDARIO — api/lib/routes/opus-requirements-post.ts: la misma ruta que publica
   // `requirements.new` (y que el spec SÍ declara) publica después la suscripción del creador.
@@ -204,7 +205,7 @@ function mapped(role: ProductRole): readonly string[] {
   return allowed as readonly string[];
 }
 
-describe('authorize-caller — la paridad del mapa con `docs/apis/api.yaml` (S-030, CA-1/CA-3)', () => {
+describe('authorize-caller — la paridad del mapa con `_gflow/apis/api.openapi.yaml` (S-030, CA-1/CA-3)', () => {
   const publishers = [...readPublishersFromSpec(), ...PUBLISHERS_FROM_CODE];
   const commands = registry.patterns();
 

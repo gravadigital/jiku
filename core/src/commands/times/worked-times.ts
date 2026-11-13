@@ -21,7 +21,7 @@ export interface WorkedTimesNewPayload {
  * `taskId` es el nombre nuevo de `objectiveId`: la columna sigue siendo `objective_id`.
  *
  * `personId` ES OPCIONAL DESDE REQ-007 (S-031), y espeja `WorkedTimesNewPayload` de
- * `docs/apis/core.yaml`, que ya lo sacó de `required`. Cuando falta, core lo resuelve DESDE EL
+ * `_gflow/apis/core.asyncapi.yaml`, que ya lo sacó de `required`. Cuando falta, core lo resuelve DESDE EL
  * ACTOR (`people` con `user_id = actor`).
  *
  * LA NOTA QUE HABÍA ACÁ —«core no conoce al usuario final, así que es la api la que resuelve ese

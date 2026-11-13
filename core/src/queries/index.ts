@@ -71,8 +71,8 @@ import metaDescribe from './meta/meta-describe';
  * "todavía no tiene contrato definido"— ESTÁ ELIMINADO desde S-028: mientras quedara un endpoint sin
  * contrato el stub tenía que existir, y en cuanto no quedó ninguno tenía que dejar de existir.
  *
- * `docs/apis/core-queries.yaml` ES LA FUENTE DE VERDAD de este contrato, con el mismo criterio que
- * `core.yaml` para los comandos: ante discrepancia con el código, manda el documento.
+ * `_gflow/apis/core-queries.asyncapi.yaml` ES LA FUENTE DE VERDAD de este contrato, con el mismo criterio que
+ * `core.asyncapi.yaml` para los comandos: ante discrepancia con el código, manda el documento.
  */
 export const queryRegistry = new QueryRegistry().registerAll([
   clientsList,

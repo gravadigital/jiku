@@ -119,7 +119,7 @@ export const filesRequestUpload: Command<
     );
 
     // EXCEPCIÓN DECLARADA A ADR-002 ("las creaciones devuelven solo el id"), documentada en
-    // `ReplyWithUploadTicket` de `docs/apis/core.yaml`. No hay alternativa: la URL la genera
+    // `ReplyWithUploadTicket` de `_gflow/apis/core.asyncapi.yaml`. No hay alternativa: la URL la genera
     // `core`, es de un solo uso y de vida corta, y la api no puede reconstruirla releyendo la
     // base sin duplicar la política de la clave y montar su propio firmador de escritura —
     // que es justo lo que D-08 centraliza. Es una excepción, no un patrón nuevo: NO agregues

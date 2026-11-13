@@ -1,4 +1,4 @@
-// Verbatim de jiku-docs-queries.yaml 1.1.0 (components.schemas) vía docs/apis/api.yaml (Docs*). R-8 de REQ-016.
+// Verbatim de jiku-docs-queries.yaml 1.1.0 (components.schemas) vía _gflow/apis/api.openapi.yaml (Docs*). R-8 de REQ-016.
 // Las fechas son strings ISO (no Date).
 
 export interface DocsPageInfo {
@@ -141,7 +141,7 @@ export type SearchDocumentsParams = Omit<
   limit?: number;
 };
 
-// --- S-082: búsqueda y escritura (verbatim de docs/apis/api.yaml, Docs*) ---
+// --- S-082: búsqueda y escritura (verbatim de _gflow/apis/api.openapi.yaml, Docs*) ---
 
 export interface DocsSearchHit {
   documentId: string;
@@ -254,7 +254,7 @@ export interface UploadedDocAttachment {
   link: string;
 }
 
-// Links compartidos (S-083). Verbatim de `docs/apis/api.yaml` (DocsShare, DocsSharePage,
+// Links compartidos (S-083). Verbatim de `_gflow/apis/api.openapi.yaml` (DocsShare, DocsSharePage,
 // DocsShareCreated, DocsShareRevoked). Las fechas son `string` ISO.
 export interface DocsShare {
   id: string;
@@ -301,7 +301,7 @@ export interface CreateShareInput {
   acknowledgeSecretWarning?: boolean;
 }
 
-// --- Contrato 1.3.0: sugerencias del buscador y relaciones (verbatim de docs/apis/api.yaml) ---
+// --- Contrato 1.3.0: sugerencias del buscador y relaciones (verbatim de _gflow/apis/api.openapi.yaml) ---
 
 export interface DocsSuggestedProject {
   id: number;
@@ -380,7 +380,7 @@ export interface UpdateRelationsPayload {
   remove?: DocsRelationSet;
 }
 
-// --- S-096: historial de versiones y restauración (verbatim de docs/apis/api.yaml) ---
+// --- S-096: historial de versiones y restauración (verbatim de _gflow/apis/api.openapi.yaml) ---
 
 export interface DocsVersion {
   version: number;

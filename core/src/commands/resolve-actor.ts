@@ -12,7 +12,7 @@ import { getTrustedPublisherId } from '../config';
  *                                                  `connector`, `warn` en otro caso: S-091)
  *
  * LA ESCALERA ESTÁ COPIADA DEL CONTRATO, no reinventada: es la misma que declara
- * `components/schemas/Actor` en `docs/apis/core.yaml` y el docblock de `Actor` en el paquete.
+ * `components/schemas/Actor` en `_gflow/apis/core.asyncapi.yaml` y el docblock de `Actor` en el paquete.
  * Ante cualquier diferencia entre este comentario y el YAML, MANDA EL YAML.
  *
  * POR QUÉ LA DEL SOBRE VA PRIMERA (S-029): cuando el sobre viene, sus `roles` y su `id` salen del

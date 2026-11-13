@@ -6,10 +6,10 @@ asyncapi: '2.6.0'
 # WHY AsyncAPI AND NOT OpenAPI
 #   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
 #   request/reply over NATS. An OpenAPI spec would have to invent routes that do not exist. Same
-#   format and same reason as `docs/apis/core.yaml`, which is the contract of the 20 COMMANDS.
+#   format and same reason as `_gflow/apis/core.asyncapi.yaml`, which is the contract of the 20 COMMANDS.
 #
 # THIS FILE IS THE SOURCE OF TRUTH
-#   Where the code and this file disagree, the file wins — the same rule `core.yaml` states for
+#   Where the code and this file disagree, the file wins — the same rule `core.asyncapi.yaml` states for
 #   the commands.
 #
 #   It was written by reading the resource sheets in `core/src/queries/*/`, so it describes what
@@ -28,8 +28,8 @@ asyncapi: '2.6.0'
 #   That is the only mitigation of "the YAML and the sheets diverge", and it is cheap to run and
 #   expensive to reconstruct.
 #
-# CROSS-CUTTING NOTE WITH `core-events.yaml` (REQ-014)
-#   The `snapshot` of a domain event (`docs/apis/core-events.yaml`) DUPLICATES the shape of an
+# CROSS-CUTTING NOTE WITH `core-events.asyncapi.yaml` (REQ-014)
+#   The `snapshot` of a domain event (`_gflow/apis/core-events.asyncapi.yaml`) DUPLICATES the shape of an
 #   entity relative to this document's resource sheets, and the two are INDEPENDENT on purpose
 #   (R-7): the event's cut does not depend on this document's `base`/`includable` split — that
 #   split exists so `include` can skip expensive columns, and a connector has no reason to know
@@ -95,7 +95,7 @@ info:
 
     **The three product roles have `queries: ALL`**, so a NEW query is authorised for all three
     without touching `ROLE_METHODS` — and that consequence **is** the intent of "every query",
-    stated in `docs/apis/core.yaml`.
+    stated in `_gflow/apis/core.asyncapi.yaml`.
 
     ## The caller comes from the subject and only from the subject
 
@@ -231,7 +231,7 @@ servers:
 #   simply not in the registry.
 #
 # The `channels` below are named after the METHOD, not the full subject: the prefix is the same for
-# all of them and depends on the deployment. Same convention as `core.yaml`.
+# all of them and depends on the deployment. Same convention as `core.asyncapi.yaml`.
 
 channels:
 
@@ -243,6 +243,8 @@ channels:
     description: 'Paginated collection of actors. Whitelists: `#/x-resources/clients`.'
     publish:
       operationId: clientsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List actors
       tags:
         - name: clients
@@ -253,6 +255,8 @@ channels:
     description: 'One actor by id. Whitelists: `#/x-resources/clients`.'
     publish:
       operationId: clientsGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: Get one actor
       tags:
         - name: clients
@@ -267,6 +271,8 @@ channels:
     description: 'Paginated collection of projects. Whitelists: `#/x-resources/projects`.'
     publish:
       operationId: projectsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List projects
       tags:
         - name: projects
@@ -277,6 +283,8 @@ channels:
     description: 'One project by id. Whitelists: `#/x-resources/projects`.'
     publish:
       operationId: projectsGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: Get one project
       tags:
         - name: projects
@@ -302,6 +310,8 @@ channels:
       uses the `idx_requirements_tags_gin` index.
     publish:
       operationId: requirementsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, REQ-16]
+      x-origin: inicial
       summary: List requirements
       tags:
         - name: requirements
@@ -312,6 +322,8 @@ channels:
     description: 'One requirement by id. Whitelists: `#/x-resources/requirements`.'
     publish:
       operationId: requirementsGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12, REQ-16]
+      x-origin: inicial
       summary: Get one requirement
       tags:
         - name: requirements
@@ -330,6 +342,8 @@ channels:
       contract). So is `taskId` ← `objective_id` wherever it appears.
     publish:
       operationId: tasksList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, BUS-03]
+      x-origin: inicial
       summary: List tasks
       tags:
         - name: tasks
@@ -340,6 +354,8 @@ channels:
     description: 'One task by id. Whitelists: `#/x-resources/tasks`.'
     publish:
       operationId: tasksGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: Get one task
       tags:
         - name: tasks
@@ -363,6 +379,8 @@ channels:
       comment without its attachments is not a comment: the screen always shows them.
     publish:
       operationId: commentsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List comments
       tags:
         - name: comments
@@ -376,6 +394,8 @@ channels:
       `entityType` is MANDATORY here too, as a top-level key of the payload.
     publish:
       operationId: commentsGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: Get one comment
       tags:
         - name: comments
@@ -398,6 +418,8 @@ channels:
       the union would declare values that half the variants reject with `invalid_fields`.
     publish:
       operationId: activityList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List history entries
       tags:
         - name: activity
@@ -417,6 +439,8 @@ channels:
       the requirement.
     publish:
       operationId: subscriptionsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, SUS-06]
+      x-origin: inicial
       summary: List subscriptions
       tags:
         - name: subscriptions
@@ -443,6 +467,8 @@ channels:
       `task_comment` ↔ `objective_comment`, `task` ↔ `objective`.
     publish:
       operationId: attachmentsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List attachments
       tags:
         - name: attachments
@@ -462,6 +488,8 @@ channels:
       caller if it has a live link to something they can see, OR if they uploaded it themselves.
     publish:
       operationId: filesGet
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12, ADJ-07]
+      x-origin: inicial
       summary: Get one file
       tags:
         - name: files
@@ -476,6 +504,8 @@ channels:
     description: 'Paginated collection of people. Whitelists: `#/x-resources/people`.'
     publish:
       operationId: peopleList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List people
       tags:
         - name: people
@@ -516,6 +546,8 @@ channels:
       (`ILIKE` over `NULL` is never true), and neither does `q`.
     publish:
       operationId: usersList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, BUS-05, ACC-14, ACC-15]
+      x-origin: inicial
       summary: List users
       tags:
         - name: users
@@ -536,6 +568,8 @@ channels:
       "there is nothing here for you".
     publish:
       operationId: workedTimesList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List worked times
       tags:
         - name: worked-times
@@ -558,6 +592,8 @@ channels:
       `meta.describe` publishes them. That HTTP route is functionally replaced but **not removed**.
     publish:
       operationId: unworkedTimesList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List absences
       tags:
         - name: unworked-times
@@ -572,6 +608,8 @@ channels:
       **NO EXTERNAL ACCESS.** Capacity planning is not information of the client portal.
     publish:
       operationId: weekAssignedTimesList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12]
+      x-origin: inicial
       summary: List weekly assignments
       tags:
         - name: week-assigned-times
@@ -592,6 +630,8 @@ channels:
       projects they are permitted on — including other people's.
     publish:
       operationId: projectPermissionsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, PRY-09]
+      x-origin: inicial
       summary: List project permissions
       tags:
         - name: project-permissions
@@ -655,6 +695,8 @@ channels:
       Uses the **GIN** index `idx_requirements_tags_gin` created by S-021.
     publish:
       operationId: requirementsTags
+      x-requirements: [BUS-01, BUS-04, BUS-07, ACC-12, REQ-11]
+      x-origin: inicial
       summary: Existing tag pairs of a project
       tags:
         - name: requirements
@@ -712,6 +754,8 @@ channels:
       opaque to consumers without becoming administrable.
     publish:
       operationId: settingsList
+      x-requirements: [BUS-01, BUS-02, BUS-04, BUS-07, ACC-12, BUS-05]
+      x-origin: inicial
       summary: List the whitelisted configuration keys
       tags:
         - name: settings
@@ -779,6 +823,8 @@ channels:
       `unknown_command`.
     publish:
       operationId: metaDescribe
+      x-requirements: [BUS-01, BUS-07]
+      x-origin: inicial
       summary: Describe the contract
       tags:
         - name: meta
@@ -798,6 +844,13 @@ components:
       x-reply:
         $ref: '#/components/schemas/CollectionReply'
       x-error-codes: [invalid_fields, invalid_cursor, caller_not_authorized, unknown_caller, query_timeout, internal_error]
+      x-failures:
+        invalid_fields: [BUS-E1, BUS-E4]
+        invalid_cursor: BUS-E5
+        caller_not_authorized: ACC-E3
+        unknown_caller: BUS-E3
+        query_timeout: BUS-E6
+        internal_error: BUS-E8
 
     GetQuery:
       name: GetQuery
@@ -810,6 +863,13 @@ components:
       # The `*_not_found` of each resource is declared in its `#/x-resources/{name}` block. A `list`
       # NEVER answers one: a filter that matches nothing is an empty collection, not an absence.
       x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, query_timeout, internal_error, '{resource}_not_found']
+      x-failures:
+        invalid_fields: [BUS-E1, BUS-E4]
+        caller_not_authorized: ACC-E3
+        unknown_caller: BUS-E3
+        query_timeout: BUS-E6
+        internal_error: BUS-E8
+        '{resource}_not_found': BUS-E7
 
     TagsQuery:
       name: TagsQuery
@@ -820,6 +880,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/TagsReply'
       x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, query_timeout, internal_error]
+      x-failures:
+        invalid_fields: [BUS-E1, BUS-E4]
+        caller_not_authorized: ACC-E3
+        unknown_caller: BUS-E3
+        query_timeout: BUS-E6
+        internal_error: BUS-E8
 
     DescribeQuery:
       name: DescribeQuery
@@ -831,6 +897,11 @@ components:
         $ref: '#/components/schemas/DescribeReply'
       # NO `query_timeout`: it does not touch the database.
       x-error-codes: [invalid_fields, caller_not_authorized, unknown_caller, internal_error]
+      x-failures:
+        invalid_fields: [BUS-E1, BUS-E4]
+        caller_not_authorized: ACC-E3
+        unknown_caller: BUS-E3
+        internal_error: BUS-E8
 
   schemas:
 
@@ -983,7 +1054,7 @@ components:
       type: object
       description: |
         The envelope, **shared with the commands** and defined in `@jiku/nats-protocol`. See
-        `docs/apis/core.yaml` for the full description of each field.
+        `_gflow/apis/core.asyncapi.yaml` for the full description of each field.
 
         On a `failure` the envelope travels in the BODY; the `Nats-Service-Error` headers are added,
         never a replacement for it.
@@ -1158,7 +1229,7 @@ components:
       type: string
       description: |
         The error catalog of the query plane. **It is the SAME shared catalog** as the commands'
-        (`@jiku/nats-protocol`), not one per plane — which is why `docs/apis/core.yaml` also lists
+        (`@jiku/nats-protocol`), not one per plane — which is why `_gflow/apis/core.asyncapi.yaml` also lists
         the five codes REQ-006 added.
 
         | Code | Emitter | HTTP once a consumer exists |

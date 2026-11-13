@@ -10,7 +10,7 @@ import { assertContract } from '../helpers/events-contract';
 
 /**
  * Los 10 eventos de REQUISITO del catálogo, verificados de punta a punta contra
- * `docs/apis/core-events.yaml` (S-067, Task 3, CA-4). Es la mitad de la suite del catálogo: la
+ * `_gflow/apis/core-events.asyncapi.yaml` (S-067, Task 3, CA-4). Es la mitad de la suite del catálogo: la
  * Task 4 cierra con los 6 de tarea y el gate de completitud (TS-35).
  *
  * MUNDO MÍNIMO PROPIO (D-5): NO reusa los cinco mundos de fixtures de `tests/queries/` —esos
@@ -61,7 +61,7 @@ function verifyPublished(): DomainEvent[] {
   });
 }
 
-describe('events/catalog-contract — los 10 eventos de REQUISITO contra core-events.yaml (S-067)', () => {
+describe('events/catalog-contract — los 10 eventos de REQUISITO contra core-events.asyncapi.yaml (S-067)', () => {
   let projectId: number;
   let personA: number;
   let personB: number;

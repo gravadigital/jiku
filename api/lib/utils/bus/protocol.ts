@@ -87,7 +87,7 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   // emite EL DESPACHADOR de core y no un comando: los dos despachadores autorizan al caller
   // del subject contra los roles persistidos en `users.roles` antes de resolver el método y
   // antes de abrir la transacción (REQ-005, S-017). Por eso tampoco figura en el
-  // `x-error-codes` de ningún mensaje de `docs/apis/core.yaml`.
+  // `x-error-codes` de ningún mensaje de `_gflow/apis/core.asyncapi.yaml`.
   //
   // UN SOLO CÓDIGO PARA DOS SITUACIONES: "no hay fila en `users` para el caller" y "hay fila
   // pero ningún rol autoriza este método". `user_not_found` NO se reusa —está mapeado a 404,
@@ -140,7 +140,7 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
   activity_not_editable: 400,
 
   // `comment_not_found` es 400 y NO 404, por coherencia con `requirement_not_found` (arriba en
-  // este mismo mapa) y con lo que declara `api.yaml` para estos dos endpoints. HASTA S-047 la
+  // este mismo mapa) y con lo que declara `api.openapi.yaml` para estos dos endpoints. HASTA S-047 la
   // api lo resolvía localmente con 400 sin pasar por este mapa; al migrar la ruta a publicar
   // el comando, ese caso ahora lo emite core y sin esta entrada caería en el `|| 500` de abajo,
   // rompiendo un contrato que `web` ya maneja.

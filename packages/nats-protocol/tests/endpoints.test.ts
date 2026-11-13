@@ -5,7 +5,7 @@ import { reload } from './helpers/reload';
 /**
  * Los 20 patrones que registra `core/src/commands/index.ts`, con el par que micro necesita.
  *
- * La tabla es copia de `docs/apis/core.yaml` —el contrato—, NO un recálculo con las mismas
+ * La tabla es copia de `_gflow/apis/core.asyncapi.yaml` —el contrato—, NO un recálculo con las mismas
  * funciones que se están probando. Si se recalculara, el test pasaría con cualquier cambio a la
  * derivación, que es exactamente lo contrario de lo que se busca.
  */

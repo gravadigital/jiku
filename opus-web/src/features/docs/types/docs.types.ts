@@ -1,4 +1,4 @@
-// Proyección del portal de DocsDocument (docs/apis/api.yaml, jiku-docs 1.3.0) que devuelven
+// Proyección del portal de DocsDocument (_gflow/apis/api.openapi.yaml, jiku-docs 1.3.0) que devuelven
 // GET /api/opus/docs/documents y .../{id}: la api pide fields id, title, version, visibility,
 // createdAt, updatedAt; el detalle suma content/contentUrl y attachments. Sin ruta (path,
 // folderId, fileName): REQ-021 decisión 12. Las fechas viajan como string ISO. La UI usa solo

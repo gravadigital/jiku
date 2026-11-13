@@ -26,7 +26,7 @@ import weekAssignedTimesReplace from './times/week-assigned-times';
 /**
  * Registro único de comandos. Agregar uno nuevo es sumarlo a esta lista.
  *
- * Los patrones tienen que coincidir con `docs/apis/core.yaml`.
+ * Los patrones tienen que coincidir con `_gflow/apis/core.asyncapi.yaml`.
  */
 export const registry = new CommandRegistry().registerAll([
   clientsNew,

@@ -79,3 +79,4 @@ __pycache__/
 /local/
 # Registro interno del trabajo de publicacion. No va al repo publico.
 docs/publicacion/
+reports/

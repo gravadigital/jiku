@@ -769,7 +769,7 @@ describe('la compuerta de autorización · plano de consultas', () => {
     // LOS TRES DE S-028, que cierran el contrato. QUEDAN AUTORIZADOS SIN TOCAR `ROLE_METHODS`, y es
     // intencional: `admin`, `user` y `external-user` tienen `queries: ALL`, y la consecuencia —una
     // consulta nueva queda autorizada para los tres sin tocar el mapa— ES la intención de "todas las
-    // consultas" que declara `docs/apis/core.yaml`.
+    // consultas" que declara `_gflow/apis/core.asyncapi.yaml`.
     'requirements.tags',
     'settings.list',
     'meta.describe',

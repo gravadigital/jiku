@@ -62,7 +62,7 @@ router
       endDate: joi.date(),
       // Desde S-034 (CA-9): `documentacion`, `diseño` y `board_de_tareas` ya no validan
       // formato de URI acá — `core/src/commands/projects/properties.ts` ya lo hace
-      // (`docs/apis/core.yaml` lo documenta). La api solo valida que sean string.
+      // (`_gflow/apis/core.asyncapi.yaml` lo documenta). La api solo valida que sean string.
       keyValuePairs: joi.object({
         documentacion: joi.string().allow(null, ''),
         diseño: joi.string().allow(null, ''),

@@ -23,7 +23,7 @@ const PROTOCOL_PATTERN = /^v[0-9]+$/;
 
 /**
  * Valida el valor de la clave contra `ModuleRecord`. Campos extra se toleran
- * (`jiku-modules.yaml`: los lectores deben tolerar campos nuevos dentro de v1).
+ * (`jiku-modules.asyncapi.yaml`: los lectores deben tolerar campos nuevos dentro de v1).
  *
  * Validar `serviceName` ACÁ es la primera línea de defensa: un valor inválido nunca llega a
  * `modulePingSubject`, que lanzaría.

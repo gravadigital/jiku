@@ -30,7 +30,7 @@ import { workedTimesSpec } from './worked-times/worked-times-spec';
  * y `meta.describe` COMO SI FUERAN RECURSOS. No lo son: `requirements.tags` es una OPERACIÓN del
  * recurso `requirements` —no tiene conjunto base, ni incluibles, ni ordenables propios— y
  * `meta.describe` es el describidor. El conteo de ENDPOINTS sí cierra exacto en 23; el de recursos
- * es 16, y `docs/apis/core-queries.yaml` lo corrige.
+ * es 16, y `_gflow/apis/core-queries.asyncapi.yaml` lo corrige.
  *
  * NO SE INVENTAN ENTRADAS PARA LLEGAR A 18. Una entrada de `requirements.tags` en la descripción
  * quedaría con `base`, `filterable` y `sortable` vacíos, y CA-12 —"cada nombre declarado en

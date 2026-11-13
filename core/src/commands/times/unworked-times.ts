@@ -18,7 +18,7 @@ export interface UnworkedTimesNewPayload {
  * `personId` SIGUE SIENDO REQUERIDO ACÁ, Y ES A PROPÓSITO (S-031).
  *
  * En `worked-times.new` pasó a opcional porque REQ-007 lo pide explícitamente y el contrato del
- * bus ya lo declara así. EN AUSENCIAS NO: `UnworkedTimesNewPayload` de `docs/apis/core.yaml`
+ * bus ya lo declara así. EN AUSENCIAS NO: `UnworkedTimesNewPayload` de `_gflow/apis/core.asyncapi.yaml`
  * mantiene `required: [date, minutes, reason, personId]`, y CA-10 solo mudó la TITULARIDAD. La api
  * conserva su `resolvePersonId` para esta ruta. Hacerlo opcional «para que quede igual que en
  * horas» sería ampliar el contrato sin que ninguna CA lo pida.

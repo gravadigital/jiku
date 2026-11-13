@@ -146,7 +146,7 @@ export const requirementsResolve: Command<RequirementsResolvePayload, void> = {
       // `payload.comment ?? requirement.resolutionComment`.
       //
       // ESTE COMANDO NO ALCANZA POR SÍ SOLO: ninguna ruta HTTP lo publica hoy
-      // (docs/apis/core.yaml), así que la resolución real de producción entra por
+      // (_gflow/apis/core.asyncapi.yaml), así que la resolución real de producción entra por
       // `requirements.{id}.edit`, que declara lo mismo en su propia rama. Las dos declaraciones
       // son necesarias.
       const notifications: NotificationDeclaration[] = [

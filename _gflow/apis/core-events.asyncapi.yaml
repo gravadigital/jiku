@@ -5,7 +5,7 @@ asyncapi: '2.6.0'
 # WHY AsyncAPI AND NOT OpenAPI
 #   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus. An
 #   OpenAPI spec would have to invent routes that do not exist. Same format and same reason as
-#   `docs/apis/core.yaml` (the 23 commands) and `docs/apis/core-queries.yaml` (the 23 queries).
+#   `_gflow/apis/core.asyncapi.yaml` (the 23 commands) and `_gflow/apis/core-queries.asyncapi.yaml` (the 23 queries).
 #
 # THIS FILE IS THE SOURCE OF TRUTH
 #   Where the code and this file disagree, the file wins — the same rule the other two contracts
@@ -15,23 +15,23 @@ asyncapi: '2.6.0'
 #   already-shipped code).
 #
 # WHY `subscribe:` AND NOT `publish:`
-#   In `core.yaml` and `core-queries.yaml` the CALLER publishes and `core` attends
+#   In `core.asyncapi.yaml` and `core-queries.asyncapi.yaml` the CALLER publishes and `core` attends
 #   (`publish:` channels, from `core`'s point of view as the described application). HERE `core`
 #   is the EMITTER: AsyncAPI 2.6 declares operations from the perspective of the application
 #   described in the document, and the application described here is `core`, which PUBLISHES. So
 #   every one of the 16 channels below uses `subscribe:` — it says "core sends this", not
 #   "core receives this". A `publish:` here would claim the opposite of what is true.
 #
-# THE CROSS-CUTTING NOTE WITH `core-queries.yaml` (CA-8)
+# THE CROSS-CUTTING NOTE WITH `core-queries.asyncapi.yaml` (CA-8)
 #   The `snapshot` of an event DUPLICATES the shape of the entity relative to the read contract's
 #   resource sheet, and the duplication is deliberate and independent: the cut does NOT depend on
-#   `base`/`includable` from `core-queries.yaml` (R-7) — that distinction exists so `include` can
+#   `base`/`includable` from `core-queries.asyncapi.yaml` (R-7) — that distinction exists so `include` can
 #   skip expensive columns, and a connector has no reason to know it. Two concrete contrasts:
-#     - `description` is `truncatable` in `core-queries.yaml` (a read may ask for a shortened
+#     - `description` is `truncatable` in `core-queries.asyncapi.yaml` (a read may ask for a shortened
 #       value); in a `snapshot` it is ALWAYS COMPLETE, never truncated.
-#     - `totalMinutes` is a CALCULATED includable in `core-queries.yaml` (two subqueries over
+#     - `totalMinutes` is a CALCULATED includable in `core-queries.asyncapi.yaml` (two subqueries over
 #       `worked_times`); it does NOT travel in a `snapshot` — it is not a column of the entity.
-#   `core-queries.yaml` carries the symmetric half of this note in its own header.
+#   `core-queries.asyncapi.yaml` carries the symmetric half of this note in its own header.
 #
 # WHAT IS NOT HERE
 #   Only 16 channels — batch 1 (7 requirement events + 5 task events) and batch 2 (4 more:
@@ -81,7 +81,7 @@ info:
 
     The channels below are named after the `type` (`requirement.state.changed`), NOT the full
     subject: the `{instance}.events.{version}.` prefix is the same for all of them and depends on
-    the deployment. Same convention as `core.yaml` and `core-queries.yaml` use for their own
+    the deployment. Same convention as `core.asyncapi.yaml` and `core-queries.asyncapi.yaml` use for their own
     channel names.
 
     ## Versioning
@@ -106,8 +106,8 @@ info:
       loses the events published while it was down, with no way to know which ones. This is
       declared, expected behaviour, not an error condition.
     - **This stream is NOT a reconstructible source of state.** A connector that needs the full,
-      current state of an entity queries `docs/apis/core-events.yaml`'s sibling contract,
-      `docs/apis/core-queries.yaml` — the event stream only carries what changed, when it changed,
+      current state of an entity queries `_gflow/apis/core-events.asyncapi.yaml`'s sibling contract,
+      `_gflow/apis/core-queries.asyncapi.yaml` — the event stream only carries what changed, when it changed,
       and only for as long as retention allows.
 
     ## The window between the commit and the publish
@@ -144,11 +144,11 @@ info:
 
     Every field of the entity goes INSIDE `snapshot`; outside it there is only what is NOT the
     entity: `actor`, `entity`, `changes`, and `comment` on comment events. The cut does **not**
-    depend on `base`/`includable` from `core-queries.yaml` — see the note at the top of this file.
+    depend on `base`/`includable` from `core-queries.asyncapi.yaml` — see the note at the top of this file.
 
-    - **`description` travels COMPLETE, never truncated.** In `core-queries.yaml` it is
+    - **`description` travels COMPLETE, never truncated.** In `core-queries.asyncapi.yaml` it is
       `truncatable`; here it is not.
-    - **`totalMinutes` does NOT travel.** It is a CALCULATED includable in `core-queries.yaml`
+    - **`totalMinutes` does NOT travel.** It is a CALCULATED includable in `core-queries.asyncapi.yaml`
       (two subqueries over `worked_times`), not a column of the entity.
     - **`responsiblePersonIds` is the ordered list of ids** (the first is the lead), not the
       resolved `responsiblePersons` objects.
@@ -191,7 +191,7 @@ servers:
 # message.
 #
 # The channels below are named after the `type` (the tail of the subject), NOT the full subject —
-# same convention `core.yaml` and `core-queries.yaml` use for their own channel names.
+# same convention `core.asyncapi.yaml` and `core-queries.asyncapi.yaml` use for their own channel names.
 
 channels:
 
@@ -202,10 +202,12 @@ channels:
   requirement.created:
     description: |
       A requirement was created. Carries `recipients` (its subscriptors, empty unless the
-      creation request came with `subscriberUserIds` — see `requirements.new` in `core.yaml`,
+      creation request came with `subscriberUserIds` — see `requirements.new` in `core.asyncapi.yaml`,
       S-070 — in which case it reflects the subscriptors created in the same transaction).
     subscribe:
       operationId: requirementCreated
+      x-requirements: [BUS-10, BUS-11, REQ-01, REQ-03]
+      x-origin: inicial
       summary: Requirement created
       tags:
         - name: requirement
@@ -216,6 +218,8 @@ channels:
     description: 'The requirement''s `state` changed. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementStateChanged
+      x-requirements: [BUS-10, BUS-11, REQ-05, COM-04]
+      x-origin: inicial
       summary: Requirement state changed
       tags:
         - name: requirement
@@ -226,6 +230,8 @@ channels:
     description: 'One or more fields of the requirement changed (excluding a state transition, which is `requirement.state.changed`). Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementUpdated
+      x-requirements: [BUS-10, BUS-11, REQ-04, COM-04]
+      x-origin: inicial
       summary: Requirement updated
       tags:
         - name: requirement
@@ -236,6 +242,8 @@ channels:
     description: 'A comment was created on the requirement. Carries `comment` and `recipients`.'
     subscribe:
       operationId: requirementCommentCreated
+      x-requirements: [BUS-10, BUS-11, COM-01, COM-02]
+      x-origin: inicial
       summary: Requirement comment created
       tags:
         - name: requirement
@@ -246,6 +254,8 @@ channels:
     description: 'A comment on the requirement was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text) and `recipients`.'
     subscribe:
       operationId: requirementCommentEdited
+      x-requirements: [BUS-10, BUS-11, COM-03]
+      x-origin: inicial
       summary: Requirement comment edited
       tags:
         - name: requirement
@@ -256,6 +266,8 @@ channels:
     description: 'A subscriptor was added to the requirement. `recipients.subscriptors` already includes the new one.'
     subscribe:
       operationId: requirementSubscriptorAdded
+      x-requirements: [BUS-10, BUS-11, SUS-01, SUS-04]
+      x-origin: inicial
       summary: Requirement subscriptor added
       tags:
         - name: requirement
@@ -266,6 +278,8 @@ channels:
     description: 'A subscriptor was removed from the requirement. `recipients.subscriptors` no longer includes the one who left.'
     subscribe:
       operationId: requirementSubscriptorRemoved
+      x-requirements: [BUS-10, BUS-11, SUS-02]
+      x-origin: inicial
       summary: Requirement subscriptor removed
       tags:
         - name: requirement
@@ -276,6 +290,8 @@ channels:
     description: 'The requirement''s `responsiblePersonIds` changed. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementAssigned
+      x-requirements: [BUS-10, BUS-11, REQ-10]
+      x-origin: inicial
       summary: Requirement assigned
       tags:
         - name: requirement
@@ -286,6 +302,8 @@ channels:
     description: 'The requirement entered a resolved state. `changes` carries `resolutionType`, `resolutionConclusion` and `resolutionComment` — this is where those three fields become the fact, and they do NOT travel in `RequirementSnapshot`. Carries `recipients`.'
     subscribe:
       operationId: requirementResolved
+      x-requirements: [BUS-10, BUS-11, REQ-08, REQ-15]
+      x-origin: inicial
       summary: Requirement resolved
       tags:
         - name: requirement
@@ -296,6 +314,8 @@ channels:
     description: 'A previously resolved requirement was reopened. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementReopened
+      x-requirements: [BUS-10, BUS-11, REQ-09, REQ-15]
+      x-origin: inicial
       summary: Requirement reopened
       tags:
         - name: requirement
@@ -314,6 +334,8 @@ channels:
     description: 'A task was created.'
     subscribe:
       operationId: taskCreated
+      x-requirements: [BUS-10, BUS-11, TAR-01]
+      x-origin: inicial
       summary: Task created
       tags:
         - name: task
@@ -324,6 +346,8 @@ channels:
     description: 'The task''s `state` changed. Carries `changes`.'
     subscribe:
       operationId: taskStateChanged
+      x-requirements: [BUS-10, BUS-11, TAR-06, COM-05]
+      x-origin: inicial
       summary: Task state changed
       tags:
         - name: task
@@ -334,6 +358,8 @@ channels:
     description: 'One or more fields of the task changed (excluding a state transition, which is `task.state.changed`). Carries `changes`.'
     subscribe:
       operationId: taskUpdated
+      x-requirements: [BUS-10, BUS-11, TAR-05, COM-05]
+      x-origin: inicial
       summary: Task updated
       tags:
         - name: task
@@ -344,6 +370,8 @@ channels:
     description: 'A comment was created on the task. Carries `comment`.'
     subscribe:
       operationId: taskCommentCreated
+      x-requirements: [BUS-10, BUS-11, COM-01]
+      x-origin: inicial
       summary: Task comment created
       tags:
         - name: task
@@ -354,6 +382,8 @@ channels:
     description: 'A comment on the task was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text).'
     subscribe:
       operationId: taskCommentEdited
+      x-requirements: [BUS-10, BUS-11, COM-03]
+      x-origin: inicial
       summary: Task comment edited
       tags:
         - name: task
@@ -364,6 +394,8 @@ channels:
     description: 'The task''s `responsiblePersonIds` changed. Carries `changes`.'
     subscribe:
       operationId: taskAssigned
+      x-requirements: [BUS-10, BUS-11, TAR-04]
+      x-origin: inicial
       summary: Task assigned
       tags:
         - name: task
@@ -375,7 +407,7 @@ components:
   messages:
 
     # Grouped by payload shape, not one per channel — same organisational choice as
-    # `core-queries.yaml`'s `ListQuery`/`GetQuery`. Four shapes make explicit, at a glance, which
+    # `core-queries.asyncapi.yaml`'s `ListQuery`/`GetQuery`. Four shapes make explicit, at a glance, which
     # events carry `recipients` and which carry `comment` — the asymmetry most likely to be
     # implemented wrong. NO `x-reply` and NO `x-error-codes`: an event is fire-and-forget, there
     # is no reply and there are no error codes on this plane.
@@ -608,10 +640,10 @@ components:
       description: |
         The requirement, complete, as it travels in `DomainEvent.snapshot` of a requirement
         event. **This list is FIXED and declared here**: it is NOT derived from
-        `core-queries.yaml`'s resource sheet — adding or removing a field from this snapshot is a
+        `core-queries.asyncapi.yaml`'s resource sheet — adding or removing a field from this snapshot is a
         change of the EVENTS contract and, if it is a removal, requires `v2`.
 
-        **`description` travels COMPLETE, NEVER TRUNCATED.** In `core-queries.yaml` it is
+        **`description` travels COMPLETE, NEVER TRUNCATED.** In `core-queries.asyncapi.yaml` it is
         `truncatable`; here it is not.
 
         **`responsiblePersonIds` is the ordered list of ids — the FIRST is the lead** — not the
@@ -689,7 +721,7 @@ components:
         CONTRADICTS ADR-004 ON PURPOSE (a deliberate contradiction, R-D of REQ-014): the round
         trip between `priority` (5 enum values) and the `objectives.priority` column (0-5)
         collapses 5 into 4, so `priorityValue` is a transitional escape — same escape
-        `core-queries.yaml` already formalised for the same reason. `RequirementSnapshot` does
+        `core-queries.asyncapi.yaml` already formalised for the same reason. `RequirementSnapshot` does
         NOT need this escape because `requirements.priority` already migrated to an enum column;
         `objectives.priority` has not. The escape disappears when the web sends priority names,
         and retiring it is `/product-change-technical-definition` work, not this contract's.

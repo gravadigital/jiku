@@ -1,0 +1,9 @@
+# Vínculo del repositorio con Jiku y convenciones de git. Ver .claude/specs/jiku.md
+jiku:
+  project_id: 57
+  instance: dev
+  writes: true
+git:
+  platform: github
+  integration_branch: dev
+  production_branch: main

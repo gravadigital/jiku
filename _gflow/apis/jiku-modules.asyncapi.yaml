@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     Mecanismo mínimo para que Jiku descubra módulos opcionales (el primero es `docs`, servido por jiku-docs).
-    Pertenece al repositorio de Jiku (docs/apis/), no al de cada módulo.
+    Pertenece al repositorio de Jiku (_gflow/apis/), no al de cada módulo.
 
     Bucket KV de JetStream `JIKU_MODULES` (stream subyacente `KV_JIKU_MODULES`). Lo crea el despliegue
     base de Jiku de forma idempotente, aunque no haya módulos. Historial: 1 por clave. Sin TTL.
@@ -63,10 +63,15 @@ operations:
     action: send
     channel: { $ref: '#/channels/moduleRecord' }
     description: El módulo escribe su clave al arrancar. Rol `docs`, solo la clave `docs`.
+    x-requirements: [BUS-12, DOC-01]
+    x-origin: inicial
   watchModules:
     action: receive
     channel: { $ref: '#/channels/moduleRecord' }
     description: api, conectores y personas leen y observan el registro.
+    x-requirements: [BUS-12, DOC-01, DOC-02]
+    x-origin: inicial
+    x-failure: [DOC-E1, DOC-E2]
 
 components:
   messages:

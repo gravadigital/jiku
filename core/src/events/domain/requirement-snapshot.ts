@@ -9,14 +9,14 @@ import { EventRecipients, RequirementSnapshot } from '@jiku/nats-protocol';
  * FUNCIÓN PURA RESPECTO DEL BUS: no publica, no conoce el publicador. Recibe la fila y devuelve el
  * objeto — el emisor (`emit-events.ts`) es quien la usa dentro de `DomainEvent.snapshot`.
  *
- * LOS 15 CAMPOS SON LOS DEL CONTRATO, NI UNO MÁS (`docs/apis/core-events.yaml#/RequirementSnapshot`).
+ * LOS 15 CAMPOS SON LOS DEL CONTRATO, NI UNO MÁS (`_gflow/apis/core-events.asyncapi.yaml#/RequirementSnapshot`).
  * Deliberadamente afuera: `scope`, `technicalSolution`, `acceptanceCriteria` (texto largo interno,
  * sin uso para un conector), `resolutionType`/`resolutionConclusion`/`resolutionComment` (van en
  * `changes` de `requirement.resolved`, S-066), y `scheduledAt`/`inProgressAt`/`inReviewAt` (marcas
  * de transición — `finishedAt` es la única que un conector usa).
  *
  * LA DISCREPANCIA DE `tags`, RESUELTA CONTRA EL CONTRATO Y NO ADIVINADA. `RequirementSnapshot.tags`
- * está tipado `string[]` en `@jiku/nats-protocol`, y `docs/apis/core-events.yaml` (la fuente de
+ * está tipado `string[]` en `@jiku/nats-protocol`, y `_gflow/apis/core-events.asyncapi.yaml` (la fuente de
  * verdad) declara la propiedad como `type: array, items: { type: string }` — confirmado leyendo el
  * YAML antes de escribir esta función, como pide la Task 3. La columna del modelo, en cambio, es
  * `Array<{ key: string; value: string }> | null`. El contrato manda, así que la traducción proyecta

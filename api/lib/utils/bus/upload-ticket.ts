@@ -12,7 +12,7 @@ export interface UploadTicketReply {
 }
 
 /**
- * El `UploadTicket` del contrato HTTP (`docs/apis/api.yaml`).
+ * El `UploadTicket` del contrato HTTP (`_gflow/apis/api.openapi.yaml`).
  *
  * `uploadUrl` es una prefirmada de **PUT**, de un solo objeto y TTL corto (D-10): el
  * navegador la usa directo contra el storage. Ni la api ni el bus ven el byte.

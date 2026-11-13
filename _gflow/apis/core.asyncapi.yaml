@@ -42,7 +42,7 @@ info:
     their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
     of this spec, and that is permanent** — this file stays the contract of the commands.
 
-    **That contract now EXISTS and lives in `docs/apis/core-queries.yaml`** (AsyncAPI 2.6, same
+    **That contract now EXISTS and lives in `_gflow/apis/core-queries.asyncapi.yaml`** (AsyncAPI 2.6, same
     format, same "the document wins" rule), written by REQ-006: **23 endpoints over 16 resources**,
     all of them with a resource sheet. `nats micro info jiku-queries` lists the 23 with their own
     queue group, and none of them answers `unknown_command` — the transitional stub
@@ -68,7 +68,7 @@ info:
     **Who may send `actor`.** Only the trusted publisher (`CORE_TRUSTED_PUBLISHER_ID`, the api). A
     caller that is not the trusted publisher and sends `actor` is rejected with `invalid_fields`:
     for everyone else the identity **is** the second token of the subject, which the auth-callout
-    makes unforgeable. It is the same doctrine `core-queries.yaml` already states for the read
+    makes unforgeable. It is the same doctrine `core-queries.asyncapi.yaml` already states for the read
     plane.
 
     **The identity mirror.** When `actor` arrives, core writes `users` (`INSERT … ON CONFLICT DO
@@ -139,7 +139,7 @@ info:
     authoriser**: when a command arrives with an envelope, the map is consulted with the person's
     roles.
 
-    **The enumeration is derived from `x-roles` in `docs/apis/api.yaml`, endpoint by endpoint**, and
+    **The enumeration is derived from `x-roles` in `_gflow/apis/api.openapi.yaml`, endpoint by endpoint**, and
     a parity test verifies it against that spec. It is not written from memory, and it must not be
     edited by hand. Note that a route may publish **more than one command**: `x-bus-command`
     documents the 1:1 endpoint → command correspondence, so a secondary command (such as the
@@ -316,7 +316,7 @@ servers:
 # CORE PUBLISHES SINCE REQ-014, BUT ONLY ON THE EVENTS PLANE. Commands stay request/reply with NO
 # JetStream (D-3, and the title of ADR-002 still holds) — this section describes the identity
 # event, and nothing here changes about how the 23 commands are dispatched. The domain events
-# `core` now publishes have their OWN contract, `docs/apis/core-events.yaml`, and their OWN
+# `core` now publishes have their OWN contract, `_gflow/apis/core-events.asyncapi.yaml`, and their OWN
 # subject family: `{instance}.events.{version}.{entidad}.{acción}` — 5 segments, with its own
 # version (`NATS_EVENTS_VERSION`), distinct from this section's `{instance}.events.auth` (3
 # segments). The publish permission (`pub.allow`) for that family is configured separately from
@@ -405,6 +405,8 @@ channels:
     description: Actor creation.
     publish:
       operationId: clientsNew
+      x-requirements: [CLI-01, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Create an actor
       tags:
         - name: clients
@@ -420,6 +422,8 @@ channels:
           type: string
     publish:
       operationId: clientsEdit
+      x-requirements: [CLI-02, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Edit an actor
       tags:
         - name: clients
@@ -434,6 +438,8 @@ channels:
     description: Project creation.
     publish:
       operationId: projectsNew
+      x-requirements: [PRY-01, PRY-03, PRY-04, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Create a project
       tags:
         - name: projects
@@ -454,6 +460,8 @@ channels:
           type: string
     publish:
       operationId: projectsEdit
+      x-requirements: [PRY-02, PRY-03, PRY-04, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Edit a project
       tags:
         - name: projects
@@ -473,6 +481,8 @@ channels:
       `responsiblePersonIds` becomes the lead.
     publish:
       operationId: tasksNew
+      x-requirements: [TAR-01, TAR-03, TAR-04, TAR-07, ADJ-03, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Create a task
       tags:
         - name: tasks
@@ -498,6 +508,8 @@ channels:
           type: string
     publish:
       operationId: tasksEdit
+      x-requirements: [TAR-04, TAR-05, TAR-06, TAR-07, PRY-10, ADJ-03, COM-05, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Edit a task
       tags:
         - name: tasks
@@ -518,6 +530,8 @@ channels:
           type: string
     publish:
       operationId: tasksComment
+      x-requirements: [COM-01, ADJ-03, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Comment on a task
       tags:
         - name: tasks
@@ -548,6 +562,8 @@ channels:
           type: string
     publish:
       operationId: tasksCommentEdit
+      x-requirements: [COM-03, ADJ-03, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Edit a comment on a task
       tags:
         - name: tasks
@@ -581,6 +597,8 @@ channels:
       `subscriberUserIds` entry other than the creator.
     publish:
       operationId: requirementsNew
+      x-requirements: [REQ-01, REQ-02, REQ-03, REQ-10, REQ-11, SUS-04, ADJ-03, NOT-01, NOT-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Create a requirement
       tags:
         - name: requirements
@@ -647,6 +665,8 @@ channels:
       or a state change that is neither) notifies nothing.
     publish:
       operationId: requirementsEdit
+      x-requirements: [REQ-04, REQ-05, REQ-06, REQ-07, REQ-09, REQ-10, REQ-11, REQ-19, PRY-10, COM-04, ADJ-03, NOT-03, NOT-04, NOT-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Edit a requirement
       tags:
         - name: requirements
@@ -683,6 +703,8 @@ channels:
           type: string
     publish:
       operationId: requirementsResolve
+      x-requirements: [REQ-07, REQ-08, NOT-03, NOT-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Resolve a requirement
       tags:
         - name: requirements
@@ -706,6 +728,8 @@ channels:
           type: string
     publish:
       operationId: requirementsComment
+      x-requirements: [COM-01, COM-02, COM-08, ADJ-03, NOT-05, NOT-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Comment on a requirement
       tags:
         - name: requirements
@@ -734,6 +758,8 @@ channels:
           type: string
     publish:
       operationId: requirementsCommentEdit
+      x-requirements: [COM-03, ADJ-03, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Edit a comment on a requirement
       tags:
         - name: requirements
@@ -757,6 +783,8 @@ channels:
           type: string
     publish:
       operationId: requirementsSubscriptorsNew
+      x-requirements: [SUS-01, SUS-03, NOT-02, NOT-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Subscribe a user to a requirement
       tags:
         - name: requirements
@@ -782,6 +810,8 @@ channels:
           type: string
     publish:
       operationId: requirementsSubscriptorsDelete
+      x-requirements: [SUS-02, SUS-03, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09, BUS-10]
+      x-origin: inicial
       summary: Unsubscribe a user from a requirement
       tags:
         - name: requirements
@@ -822,6 +852,8 @@ channels:
       > never arrived now reaches the browser as an opaque `NoSuchKey` from S3.
     publish:
       operationId: filesRequestUpload
+      x-requirements: [ADJ-01, ADJ-02, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Request permission to upload a file
       tags:
         - name: files
@@ -875,6 +907,8 @@ channels:
           type: string
     publish:
       operationId: filesRequestDownload
+      x-requirements: [ADJ-06, ADJ-07, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Request permission to download a file
       tags:
         - name: files
@@ -907,6 +941,8 @@ channels:
           type: string
     publish:
       operationId: attachmentsDelete
+      x-requirements: [ADJ-08, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Unlink a file from an entity
       tags:
         - name: attachments
@@ -936,6 +972,8 @@ channels:
       > - **`personId` default** — see the schema: when absent it is resolved from the actor.
     publish:
       operationId: workedTimesNew
+      x-requirements: [HOR-01, HOR-02, HOR-03, HOR-04, HOR-05, HOR-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Log worked time
       tags:
         - name: times
@@ -961,6 +999,8 @@ channels:
           type: string
     publish:
       operationId: workedTimesDelete
+      x-requirements: [HOR-03, HOR-04, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Delete worked time
       tags:
         - name: times
@@ -975,6 +1015,8 @@ channels:
       unlike `worked-times.new`, which only counts worked time.
     publish:
       operationId: unworkedTimesNew
+      x-requirements: [HOR-02, HOR-03, HOR-07, HOR-08, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Record unworked time
       tags:
         - name: times
@@ -996,6 +1038,8 @@ channels:
           type: string
     publish:
       operationId: unworkedTimesDelete
+      x-requirements: [HOR-03, HOR-09, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Delete unworked time
       tags:
         - name: times
@@ -1037,6 +1081,8 @@ channels:
       - **Assignments with `minutes: 0` are discarded** — an empty grid cell is not a row.
     publish:
       operationId: weekAssignedTimesReplace
+      x-requirements: [ASI-02, ASI-05, ASI-06, ACC-11, ACC-12, ACC-14, BUS-06, BUS-08, BUS-09]
+      x-origin: inicial
       summary: Replace a full week of assignments
       tags:
         - name: times
@@ -1086,6 +1132,10 @@ components:
       # `|| 500` de `httpStatusFor` y el frontend lo trata como error de servidor en vez de
       # mostrar el mensaje. El síntoma no es un error de compilación.
       x-error-codes: [invalid_fields, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, CLI-E1]
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     ClientsEdit:
       name: ClientsEdit
@@ -1096,6 +1146,11 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
       x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, CLI-E1]
+        client_not_found: CLI-E3
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     ProjectsNew:
       name: ProjectsNew
@@ -1106,6 +1161,11 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, PRY-E1, PRY-E2]
+        client_not_found: PRY-E3
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     ProjectsEdit:
       name: ProjectsEdit
@@ -1116,6 +1176,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
       x-error-codes: [invalid_fields, project_not_found, client_not_found, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, PRY-E1, PRY-E2]
+        project_not_found: PRY-E4
+        client_not_found: PRY-E3
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     TasksNew:
       name: TasksNew
@@ -1163,6 +1229,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, COM-E1, ADJ-E4, ADJ-E5]
+        objective_not_found: COM-E3
+        file_not_owned: ADJ-E3
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     # REQ-011 — command 23. Edits return nothing (`commands.md`: "creations return only the id;
     # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
@@ -1255,6 +1327,12 @@ components:
         $ref: '#/components/schemas/ReplyEmpty'
       # REQ-012: invalid_state_transition removed — state transitions are free.
       x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5]
+        requirement_not_found: REQ-E5
+        resolution_required: REQ-E6
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     RequirementsComment:
       name: RequirementsComment
@@ -1265,6 +1343,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, COM-E1, ADJ-E4, ADJ-E5]
+        requirement_not_found: COM-E2
+        file_not_owned: ADJ-E3
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     # REQ-011 — command 22. Edits return nothing (`commands.md`: "creations return only the id;
     # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
@@ -1311,6 +1395,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithUploadTicket'
       x-error-codes: [invalid_fields, file_type_not_allowed, file_too_large, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, ADJ-E5]
+        file_type_not_allowed: ADJ-E2
+        file_too_large: ADJ-E1
+        internal_error: BUS-E8
+        access_denied: ACC-E4
 
     FilesRequestDownload:
       name: FilesRequestDownload
@@ -1324,6 +1414,10 @@ components:
       # `byte_status`. Se conserva en el catálogo de `ErrorCode` —no está cerrado y el paquete es
       # compartido (ADR-005)— y la api lo sigue mapeando a 404, pero ningún comando lo devuelve.
       x-error-codes: [file_not_found, internal_error, access_denied]
+      x-failures:
+        file_not_found: ADJ-E10
+        internal_error: BUS-E8
+        access_denied: [ACC-E4, ADJ-E9]
 
     AttachmentsDelete:
       name: AttachmentsDelete
@@ -1334,6 +1428,10 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyEmpty'
       x-error-codes: [invalid_fields, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5]
+        internal_error: BUS-E8
+        access_denied: [ACC-E4, ADJ-E9]
 
     WorkedTimesNew:
       name: WorkedTimesNew
@@ -1368,6 +1466,12 @@ components:
       x-reply:
         $ref: '#/components/schemas/ReplyWithId'
       x-error-codes: [invalid_fields, person_not_found, daily_limit_exceeded, internal_error, access_denied]
+      x-failures:
+        invalid_fields: [BUS-E1, ACC-E5, HOR-E12]
+        person_not_found: HOR-E1
+        daily_limit_exceeded: HOR-E11
+        internal_error: BUS-E8
+        access_denied: [ACC-E4, HOR-E3]
 
     EmptyBody:
       name: EmptyBody
@@ -1450,9 +1554,9 @@ components:
         events:
           type: array
           items:
-            $ref: '../apis/core-events.yaml#/components/schemas/DomainEvent'
+            $ref: '../apis/core-events.asyncapi.yaml#/components/schemas/DomainEvent'
           description: |
-            Domain events emitted by the command (REQ-014). Full contract: `core-events.yaml`.
+            Domain events emitted by the command (REQ-014). Full contract: `core-events.asyncapi.yaml`.
 
             **Optional, additive, and absent by default**: `success()` and `failure()` in
             `@jiku/nats-protocol` keep producing an envelope WITHOUT this key, so a `Reply`
@@ -1623,7 +1727,7 @@ components:
 
         > **REQ-006 adds five codes, and NONE of them is emitted by a command.** They belong to the
         > query plane (`jiku-queries`), whose contract lives in its own spec —
-        > `docs/apis/core-queries.yaml`. They are listed here because
+        > `_gflow/apis/core-queries.asyncapi.yaml`. They are listed here because
         > **`ErrorCode` is one shared catalog** in `@jiku/nats-protocol`, not one per plane.
         >
         > | Code | Emitter | HTTP (once a consumer exists) |
@@ -1673,7 +1777,7 @@ components:
         - unknown_command
         - caller_not_authorized
         # REQ-006 — the five codes of the query plane. NONE is emitted by a command; see the note
-        # above. Their contract lives in `docs/apis/core-queries.yaml`.
+        # above. Their contract lives in `_gflow/apis/core-queries.asyncapi.yaml`.
         - unknown_caller
         - query_timeout
         - invalid_cursor

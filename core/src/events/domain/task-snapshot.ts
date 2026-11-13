@@ -10,7 +10,7 @@ import { priorityFromNumber } from '../../commands/tasks/priority';
  * publicador.
  *
  * LOS 16 CAMPOS SON LOS DEL CONTRATO, NI UNO MÁS
- * (`docs/apis/core-events.yaml#/components/schemas/TaskSnapshot`, `additionalProperties: false`).
+ * (`_gflow/apis/core-events.asyncapi.yaml#/components/schemas/TaskSnapshot`, `additionalProperties: false`).
  * Deliberadamente afuera: `project`, `requirement` y `responsiblePersons` (objetos de relación —
  * van los ids), `comments`/`attachments` (colecciones), `subscriptors` (nunca: no hay
  * `recipients`, CA-3) y `totalMinutes` (calculado, dos subconsultas sobre `worked_times`).

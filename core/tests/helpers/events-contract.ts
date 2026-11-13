@@ -8,7 +8,7 @@ import { PublishedEvent } from './event-publisher';
 
 /**
  * El validador del contrato de eventos (S-067, CA-4): la pieza que compara lo que `core` EMITE
- * contra lo que `docs/apis/core-events.yaml` DECLARA. Hasta esta story, nadie lo hacía — los
+ * contra lo que `_gflow/apis/core-events.asyncapi.yaml` DECLARA. Hasta esta story, nadie lo hacía — los
  * tests de S-064/065/066 asertan formas escritas a mano, y si el YAML y el código se separan,
  * esos tests siguen verdes.
  *
@@ -22,7 +22,7 @@ import { PublishedEvent } from './event-publisher';
  *      obligatoriedad de campo (ver el comentario de `CHANNEL_SHAPES` más abajo).
  */
 
-const CONTRACT_PATH = path.join(__dirname, '../../../docs/apis/core-events.yaml');
+const CONTRACT_PATH = path.join(__dirname, '../../../_gflow/apis/core-events.asyncapi.yaml');
 
 /** La forma mínima del documento que este archivo necesita leer. */
 interface EventsContractDocument {
@@ -78,7 +78,7 @@ function toDraft07(node: unknown): unknown {
 }
 
 /**
- * Lee y adapta `docs/apis/core-events.yaml`. Cacheado: el archivo no cambia dentro de una corrida
+ * Lee y adapta `_gflow/apis/core-events.asyncapi.yaml`. Cacheado: el archivo no cambia dentro de una corrida
  * de la suite.
  *
  * RUTA RELATIVA DESDE `__dirname`, no desde el cwd de quien invoca mocha — es lo que hace que
@@ -93,7 +93,7 @@ export function loadEventsContract(): EventsContractDocument {
   if (!fs.existsSync(CONTRACT_PATH)) {
     throw new Error(
       `No se encontró el contrato de eventos en la ruta esperada: ${CONTRACT_PATH}. ` +
-        `¿Se movió docs/apis/core-events.yaml, o se está invocando mocha desde otro directorio?`
+        `¿Se movió _gflow/apis/core-events.asyncapi.yaml, o se está invocando mocha desde otro directorio?`
     );
   }
   const raw = yaml.load(fs.readFileSync(CONTRACT_PATH, 'utf-8')) as EventsContractDocument;
@@ -148,7 +148,7 @@ export interface ChannelShape {
   visibilityLevel: FieldPresence;
   changes: FieldPresence;
   /**
-   * La descripción del canal, CITADA VERBATIM de `docs/apis/core-events.yaml`. Va al lado de cada
+   * La descripción del canal, CITADA VERBATIM de `_gflow/apis/core-events.asyncapi.yaml`. Va al lado de cada
    * fila para que la divergencia entre esta tabla escrita a mano y el contrato se vea leyendo
    * (AC-8 de la Task 2) — no hay forma automática de comparar las dos, así que la cercanía visual
    * es la única defensa.
@@ -167,7 +167,7 @@ export interface ChannelShape {
  * schema igual. Por eso la aserción de presencia/ausencia va acá, aparte.
  *
  * ES LA ÚNICA TRANSCRIPCIÓN A MANO DE ESTE ARCHIVO, y se declara como tal: la alternativa —
- * agregar 16 schemas por canal a `core-events.yaml`— sería modificar el contrato de S-062 para
+ * agregar 16 schemas por canal a `core-events.asyncapi.yaml`— sería modificar el contrato de S-062 para
  * que la verificación sea más cómoda, la misma inversión de autoridad que el encabezado de ese
  * documento prohíbe. Si el contrato cambia la forma de un canal, ESTA TABLA es el lugar a
  * revisar primero.
@@ -262,13 +262,13 @@ function assertPresence(type: string, payload: object, field: string, expected: 
   const present = hasKey(payload, field);
   if (expected === 'requerido' && !present) {
     throw new Error(
-      `[${type}] CHANNEL_SHAPES espera "${field}" presente (según el catálogo de core-events.yaml) ` +
+      `[${type}] CHANNEL_SHAPES espera "${field}" presente (según el catálogo de core-events.asyncapi.yaml) ` +
         `y el evento publicado NO lo trae.`
     );
   }
   if (expected === 'ausente' && present) {
     throw new Error(
-      `[${type}] CHANNEL_SHAPES espera "${field}" AUSENTE (según el catálogo de core-events.yaml) ` +
+      `[${type}] CHANNEL_SHAPES espera "${field}" AUSENTE (según el catálogo de core-events.asyncapi.yaml) ` +
         `y el evento publicado SÍ lo trae.`
     );
   }
@@ -276,7 +276,7 @@ function assertPresence(type: string, payload: object, field: string, expected: 
 
 /**
  * La aserción de tres partes que TODO evento del catálogo tiene que pasar (CA-4): subject,
- * versión y payload completo contra `docs/apis/core-events.yaml`. Se corre en este orden, y cada
+ * versión y payload completo contra `_gflow/apis/core-events.asyncapi.yaml`. Se corre en este orden, y cada
  * mensaje de error nombra el `type` — es lo que hace que un fallo diga QUÉ evento del catálogo no
  * cumplió, en vez de un `false` opaco.
  *
@@ -308,7 +308,7 @@ export function assertContract(published: PublishedEvent): void {
     const errors = (validate.errors || [])
       .map((e) => `${e.instancePath || '/'} ${e.message}`)
       .join('; ');
-    throw new Error(`[${type}] no cumple el schema DomainEvent de core-events.yaml: ${errors}`);
+    throw new Error(`[${type}] no cumple el schema DomainEvent de core-events.asyncapi.yaml: ${errors}`);
   }
 
   const shape = CHANNEL_SHAPES[type];

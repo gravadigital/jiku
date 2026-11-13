@@ -457,7 +457,7 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
   });
 
   it('TS-89: el catálogo del paquete es EXACTAMENTE el enum del contrato', () => {
-    // `docs/apis/core.yaml` es la fuente de verdad del valor, y el paquete se le alinea. Este
+    // `_gflow/apis/core.asyncapi.yaml` es la fuente de verdad del valor, y el paquete se le alinea. Este
     // test es lo que impide que las dos listas se separen sin que nadie se entere.
     //
     // Se lee el archivo y se recorta el bloque a mano, SIN parser de YAML: el paquete no gana
@@ -466,7 +466,7 @@ describe('nats-protocol · la superficie pública y el envelope', () => {
     // ANTE UN FALLO ACÁ NO PEGAR LA LISTA NUEVA A CIEGAS: revisar cuál de los dos lados cambió.
     // Si cambió el contrato, manda el contrato. Si cambió el paquete sin que el contrato lo
     // declare, el cambio está mal.
-    const contrato = path.join(__dirname, '../../../docs/apis/core.yaml');
+    const contrato = path.join(__dirname, '../../../_gflow/apis/core.asyncapi.yaml');
     const lines = fs.readFileSync(contrato, 'utf8').split('\n');
 
     const schemaIdx = lines.findIndex((l) => l === '    ErrorCode:');

@@ -80,7 +80,7 @@ entorno de prueba, nunca en producción:
   # 3) esperar más de 10 segundos
 
   # 4) correr este script con --from-start: los eventos vencidos NO van a llegar, y NO HAY
-  #    FORMA DE SABER CUÁLES FUERON — comportamiento DECLARADO de core-events.yaml, no un bug.
+  #    FORMA DE SABER CUÁLES FUERON — comportamiento DECLARADO de core-events.asyncapi.yaml, no un bug.
   ./events-test-consumer.sh --from-start
 
   # 5) restaurar el max_age del stream a 7 días (repetir el paso 1 con --max-age 7d)

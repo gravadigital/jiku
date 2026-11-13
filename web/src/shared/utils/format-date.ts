@@ -1,6 +1,6 @@
 /**
  * Acepta `string` además de `Date` porque la api devuelve las fechas serializadas
- * (`createdAt: {type: string, format: date-time}` en docs/apis/api.yaml) y los tipos de dominio
+ * (`createdAt: {type: string, format: date-time}` en _gflow/apis/api.openapi.yaml) y los tipos de dominio
  * de `web` están escritos a mano: un campo tipado `Date` que en runtime es un string ISO no
  * falla en compilación. Recibirlo acá evita que cada llamador tenga que acordarse de envolver
  * en `new Date()` — olvidarlo tumbaba la pantalla entera con "getTime is not a function".

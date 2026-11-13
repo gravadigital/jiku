@@ -10,7 +10,7 @@
 # account, and every deployment has its own account. So, unlike create-events-stream.sh,
 # this script does not resolve NATS_INSTANCE.
 #
-# Contract (story S-075 + jiku-modules.yaml): history 1, no TTL, direct reads allowed,
+# Contract (story S-075 + jiku-modules.asyncapi.yaml): history 1, no TTL, direct reads allowed,
 # file storage, 1 replica. A KV bucket is a stream called KV_JIKU_MODULES; the script
 # compares those six fields of the stream config, not the output of `nats kv info`
 # (whose format belongs to the CLI, not to the server).

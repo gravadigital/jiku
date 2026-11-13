@@ -1,7 +1,7 @@
 /**
  * El contrato del bus, en código.
  *
- * La fuente de verdad es `docs/apis/core.yaml`: ante cualquier
+ * La fuente de verdad es `_gflow/apis/core.asyncapi.yaml`: ante cualquier
  * discrepancia, manda el documento. Este paquete es la única definición de subjects y
  * formatos, compartida por la api (que publica) y core (que atiende).
  */
@@ -185,7 +185,7 @@ export function eventsStreamSubject(): string {
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
 /**
  * Nombre del bucket KV de JetStream donde cada módulo opcional se registra (REQ-016 / S-077). El
- * stream subyacente es `KV_JIKU_MODULES`. Fuente de verdad: `docs/apis/jiku-modules.yaml`.
+ * stream subyacente es `KV_JIKU_MODULES`. Fuente de verdad: `_gflow/apis/jiku-modules.asyncapi.yaml`.
  *
  * El bucket lo crea el despliegue base, NO este paquete ni la api: la api lo abre con `bindOnly`.
  * Existe para que nadie escriba el literal `'JIKU_MODULES'`.
@@ -193,7 +193,7 @@ export function eventsStreamSubject(): string {
 export const MODULES_BUCKET = 'JIKU_MODULES';
 
 /**
- * Valor de una clave del bucket `JIKU_MODULES` (contrato: `docs/apis/jiku-modules.yaml`).
+ * Valor de una clave del bucket `JIKU_MODULES` (contrato: `_gflow/apis/jiku-modules.asyncapi.yaml`).
  *
  * Es el cable: `registeredAt` es un string ISO 8601 (no `Date`), igual que `occurredAt` en
  * `DomainEvent`. Los lectores DEBEN tolerar campos nuevos dentro de v1, por eso la interfaz no se
@@ -256,7 +256,7 @@ export function moduleQuerySubject(
 
 /**
  * Descubrimiento del framework micro de NATS: NO lleva instancia (no conoce la gramática de
- * Jiku). Es literalmente `pub $SRV.PING.{serviceName}-queries` de `jiku-modules.yaml`.
+ * Jiku). Es literalmente `pub $SRV.PING.{serviceName}-queries` de `jiku-modules.asyncapi.yaml`.
  */
 export function modulePingSubject(serviceName: string): string {
   assertModuleServiceName(serviceName);
@@ -477,7 +477,7 @@ export const ErrorCode = {
   // despachadores autorizan al caller del subject contra los roles persistidos ANTES de resolver
   // el método y ANTES de abrir la transacción. Por eso es el CUARTO de la familia de arriba —los
   // que no vienen de un comando— y por eso NO figura en el `x-error-codes` de ninguno de los 20
-  // mensajes de `docs/apis/core.yaml`: esa lista enumera lo que devuelve un `execute()`.
+  // mensajes de `_gflow/apis/core.asyncapi.yaml`: esa lista enumera lo que devuelve un `execute()`.
   //
   // UN SOLO CÓDIGO PARA DOS SITUACIONES, A PROPÓSITO: "no hay fila para el caller" y "hay fila
   // pero ningún rol autoriza este método" responden LO MISMO. Distinguirlas le diría a un caller
@@ -491,15 +491,15 @@ export const ErrorCode = {
   // recibe —su canal está exento de la compuerta—, y se mapea igual porque el mapa es DEL
   // SERVICIO, no del endpoint.
   //
-  // Los tres lugares de la convención: este archivo, el `enum` de `docs/apis/core.yaml` (ya
+  // Los tres lugares de la convención: este archivo, el `enum` de `_gflow/apis/core.asyncapi.yaml` (ya
   // escrito, y la fuente de verdad del valor) y ese mapa. Faltando el tercero, el código cae en
   // el `|| 500` de `httpStatusFor()` y el usuario ve un 500 genérico.
   CALLER_NOT_AUTHORIZED: 'caller_not_authorized',
 
   // REQ-006 agrega CINCO códigos y NINGUNO lo emite un comando: son del plano de consultas
-  // (`jiku-queries`), cuyo contrato vive en `docs/apis/core-queries.yaml`. Están acá, y no en un
+  // (`jiku-queries`), cuyo contrato vive en `_gflow/apis/core-queries.asyncapi.yaml`. Están acá, y no en un
   // catálogo aparte, porque `ErrorCode` es UN catálogo compartido, no uno por plano. Por eso
-  // tampoco figuran en el `x-error-codes` de ninguno de los 20 mensajes de `docs/apis/core.yaml`:
+  // tampoco figuran en el `x-error-codes` de ninguno de los 20 mensajes de `_gflow/apis/core.asyncapi.yaml`:
   // esa lista enumera lo que devuelve un `execute()`. Van pegados a CALLER_NOT_AUTHORIZED porque
   // comparten con él lo que los separa de los otros 26: no los emite un comando.
   //
@@ -588,7 +588,7 @@ export const ErrorCode = {
   // HOY NO LO EMITE NADIE. Su emisor llega en S-030 (core). Un código declarado sin emisor no
   // rompe nada; uno emitido sin declarar obliga al literal a mano.
   //
-  // LOS TRES LUGARES: este archivo, el `enum` de `docs/apis/core.yaml` (YA ESCRITO, y la fuente de
+  // LOS TRES LUGARES: este archivo, el `enum` de `_gflow/apis/core.asyncapi.yaml` (YA ESCRITO, y la fuente de
   // verdad del valor) y `STATUS_BY_ERROR_CODE` de `api/lib/utils/bus/protocol.ts` -> 403, que es
   // de S-030 (api). SIN EL TERCERO cae en el `|| 500` de httpStatusFor() y el frontend lo trata
   // como error de servidor en vez de mostrar el mensaje.
@@ -597,7 +597,7 @@ export const ErrorCode = {
   WORKED_TIME_NOT_FOUND: 'worked_time_not_found',
   UNWORKED_TIME_NOT_FOUND: 'unworked_time_not_found',
 
-  // Los cinco de archivos (REQ-001). El enum de `docs/apis/core.yaml` ya los declara: esto
+  // Los cinco de archivos (REQ-001). El enum de `_gflow/apis/core.asyncapi.yaml` ya los declara: esto
   // alinea el paquete con el contrato, que es la fuente de verdad.
   //
   // FILE_NOT_OWNED lo emite S-003 al vincular, no los comandos de storage de S-002. Se declara
@@ -620,7 +620,7 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 /**
  * El catálogo de los 16 eventos de dominio que `core` publica (REQ-014).
  *
- * FUENTE DE VERDAD: `docs/apis/core-events.yaml`. Los 16 valores de acá, los 16 nombres de canal
+ * FUENTE DE VERDAD: `_gflow/apis/core-events.asyncapi.yaml`. Los 16 valores de acá, los 16 nombres de canal
  * de ese contrato y los 16 sufijos de subject son LA MISMA LISTA — TS-155 en el contrato lo
  * verifica canal por canal, en el mismo orden.
  *
@@ -812,11 +812,11 @@ export interface AuthEvent {
 
 /**
  * El requisito completo, tal como viaja en `DomainEvent.snapshot` de un evento de requisito
- * (REQ-014). Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/RequirementSnapshot`.
+ * (REQ-014). Fuente de verdad: `_gflow/apis/core-events.asyncapi.yaml#/components/schemas/RequirementSnapshot`.
  *
  * La lista es FIJA y se declara en el contrato de eventos, no se deriva de la ficha de
  * `jiku-queries`: agregar o quitar un campo de acá es un cambio del contrato de eventos y, si es
- * una baja, exige `v2`. Que la cuenta cierre contra `requirements.base` de `core-queries.yaml`
+ * una baja, exige `v2`. Que la cuenta cierre contra `requirements.base` de `core-queries.asyncapi.yaml`
  * (12 campos) + `description` + `finishedAt` + `responsiblePersonIds` es una buena señal, no una
  * derivación: R-7 y CA-8 declaran las dos formas independientes a propósito.
  */
@@ -845,7 +845,7 @@ export interface RequirementSnapshot {
 
 /**
  * La tarea completa, tal como viaja en `DomainEvent.snapshot` de un evento de tarea (REQ-014).
- * Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/TaskSnapshot`.
+ * Fuente de verdad: `_gflow/apis/core-events.asyncapi.yaml#/components/schemas/TaskSnapshot`.
  *
  * Usa `task`, NUNCA `objective` (ADR-004): la entidad se llama `task` en el bus y `objectives`
  * en la base, y la traducción vive dentro del comando, no acá.

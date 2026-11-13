@@ -40,7 +40,7 @@ function loadUnworkedTime(req: Request, res: Response, next: NextFunction) {
  *   - compara **`created_at`**, no `date`
  *   - responde **`deadline_exceeded`**, un código que EMITE LA API y que por eso NO ESTÁ en
  *     `STATUS_BY_ERROR_CODE`: nunca llega por reply de core
- *   - `docs/apis/core.yaml` lo confirma del otro lado: `invalid_date_range` lo emite SOLO
+ *   - `_gflow/apis/core.asyncapi.yaml` lo confirma del otro lado: `invalid_date_range` lo emite SOLO
  *     `worked-times.{id}.delete`, NO `unworked-times.{id}.delete`
  *
  * Mudarla exigiría un código nuevo en el protocolo del bus, y core decidió explícitamente no
