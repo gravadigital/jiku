@@ -1,0 +1,376 @@
+template:
+  id: discovery-technical
+  name: Discovery - Technical Analysis
+  version: 4.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
+
+  description: |
+    Structure specification for the Technical Analysis, the third and last document of the
+    Discovery phase. It defines the general architecture of the solution: services, modules,
+    persistence, communication, auth, guarantees and key flows.
+
+    WHAT ENTERS: what crosses services, the language of each service, and what deviates from the
+    engineering defaults (.claude/specs/engineering.md). What happens inside a service (libraries,
+    structure, patterns) is not asked: the implementing agent researches the current official
+    practices and decides. The user may still fix anything they care about, as a technical decision.
+
+    PREDEFINED, NOT IN THIS DOCUMENT:
+    - Always a monorepo.
+    - Everything is containerized; the hosting is assumed to accept containers.
+    - Only what matters for development: environments, deployment and backups are operations.
+    - The API contract defaults (error shape, dates, pagination, versioning, identifiers) are fixed
+      by the engineering defaults. Business error codes are derived from the failure conditions.
+    - English identifiers for entities and attributes: translated once, in the schema phase.
+
+    HOW IT IS CONDUCTED: see .claude/specs/discovery.md. Almost everything is INFERRED from the
+    functional and domain analyses and presented already drafted; the user confirms or corrects.
+    Only choices between real alternatives, the language of each service and deviations from the
+    engineering defaults are asked from scratch. Default: the minimum number of services that meets
+    the requirements.
+
+    DOWNSTREAM CONTRACTS:
+    - The plan of /product-define and then /req-implement carry services, modules, persistence, communication, auth and
+      guarantees into _gflow/prd/architecture/, the key flows into _gflow/flows/, and the technical
+      decisions into _gflow/prd/decisions.md. Then it builds the skeleton of every service in the
+      language chosen here.
+
+    ID CONVENTIONS: decisions DEC-T01 …; modules are English kebab-case ids; everything else
+    references IDs of the functional and domain analyses.
+
+# Output specification
+output:
+  path: _gflow/discovery/technical-analysis.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - functional_analysis: string
+    - domain_analysis: string
+  section_ids:
+    - servicios
+    - modulos
+    - persistencia
+    - comunicacion
+    - autenticacion
+    - garantias
+    - flujos
+    - decisiones
+
+# Section definitions
+sections:
+
+  - id: servicios
+    title: Servicios
+    description: |
+      CLOSED VOCABULARY:
+      - Tipo: service (a process that runs), library (a package that is imported), frontend (an
+        app that serves surfaces).
+      - Expone: HTTP (REST API), NATS (request-reply or subject subscription), CLI (command line),
+        a combination, or "—". A library that ships a CLI is library + CLI. Who consumes each
+        interface goes in Comunicación.
+      - Lenguaje: the language or framework of the service, as the user names it (node, go,
+        nextjs, astro, flutter…). Always asked when there is more than one reasonable option; the
+        choice goes to Decisiones técnicas. Libraries are NOT asked: the implementing agent chooses
+        them from the current official practices, unless the user wants to fix one.
+
+      INFERRED with the minimum-services criterion: surfaces are served by a frontend (one app may
+      serve several surfaces); system processes run inside an existing service unless there is a
+      reason to split them. When there was more than one option, the choice goes to Decisiones
+      técnicas.
+    format: |
+      ## Servicios
+      | Servicio | Tipo | Lenguaje | Superficies | Expone |
+      |---|---|---|---|---|
+      | [id kebab-case] | [service / library / frontend] | [lenguaje o framework] | [superficies, o —] | [HTTP / NATS / CLI / combinación / —] |
+    example: |
+      ## Servicios
+      | Servicio | Tipo | Lenguaje | Superficies | Expone |
+      |---|---|---|---|---|
+      | api | service | node | — | HTTP |
+      | web | frontend | nextjs | Panel de administración, Reserva pública | — |
+
+  - id: modulos
+    title: Módulos
+    description: |
+      The bounded contexts, as modules inside each service. They are general architecture of the
+      solution, not information of a single service. RULES:
+      - Only services of type "service" have modules. A frontend does not: UX (screens) and its
+        convention define its structure.
+      - Every entity has exactly one owner module, which defines the entity and its structure.
+      - Every functional block is assigned to a module; a module may have several blocks.
+      - A module may have no entities (it only reacts).
+      - Inside a service, an interaction between modules goes through the owner module's
+        interface, and every interaction is justified by a requirement.
+      - Another service may write an entity only if it is declared in "Usado por" of
+        Persistencia.
+      - The module name is an English kebab-case technical id: it is the src/domain/{module}/
+        folder of the service.
+      - Inferred by the agent, grouping each entity with the blocks that write it. The user
+        confirms.
+    format: |
+      ## Módulos
+
+      ### [servicio]
+      | Módulo | Entidades | Bloques |
+      |---|---|---|
+      | [id en inglés] | [entidades, o —] | [prefijos de bloques] |
+
+      **Interacciones**
+      | De → A | Para qué | Requisito |
+      |---|---|---|
+      | [módulo → módulo] | [qué pide] | [IDs] |
+    example: |
+      ## Módulos
+
+      ### api
+      | Módulo | Entidades | Bloques |
+      |---|---|---|
+      | access | Cuenta de administrador | ACC |
+      | catalog | Profesional, Servicio, Asignación, Disponibilidad semanal, Bloqueo | CAT |
+      | scheduling | Turno, Evento de turno | AGE, RES, REP, CAN, AUS, RET |
+      | notifications | — | NOT |
+
+      **Interacciones**
+      | De → A | Para qué | Requisito |
+      |---|---|---|
+      | catalog → scheduling | Cancelar los turnos futuros de un profesional o servicio desactivado | CAT-02, CAT-05 |
+      | scheduling → catalog | Consultar disponibilidad, bloqueos y asignaciones | RES-06, RES-10 |
+      | scheduling → notifications | Avisar cada cambio de turno que notifica | NOT-01..06 |
+
+  - id: persistencia
+    title: Persistencia e infraestructura
+    description: |
+      Everything that stores or carries data outside the process: database, message bus, cache,
+      file storage. Only what is needed. RULES:
+      - One owner, which is a service. Other services may read or write, declared in "Usado por"
+        with what they do.
+      - "Para qué" cites the requirement or NFR that needs the component (the main database is the
+        exception: the entities justify it). If nobody can cite a requirement, it does not enter;
+        if the requirement goes away, so does the component.
+      - Technology without version: latest stable by default. A version only if the user asks for
+        it explicitly.
+      - The default database is PostgreSQL (engineering defaults). Another engine is a deviation
+        and goes to Decisiones técnicas.
+    format: |
+      ## Persistencia e infraestructura
+      | Componente | Tecnología | Dueño | Usado por | Para qué |
+      |---|---|---|---|---|
+      | [componente] | [tecnología] | [servicio] | [servicio (qué hace), o —] | [IDs, o "todas las entidades"] |
+    example: |
+      ## Persistencia e infraestructura
+      | Componente | Tecnología | Dueño | Usado por | Para qué |
+      |---|---|---|---|---|
+      | Base principal | PostgreSQL | api | — | Todas las entidades |
+
+  - id: comunicacion
+    title: Comunicación
+    description: |
+      Only what crosses a service: service ↔ service, and service ↔ external system (INT-XX and
+      providers). What happens between modules of one service is in Módulos. RULES:
+      - Protocolo, closed vocabulary: HTTP, NATS request-reply, NATS pub/sub, SSE, WebSocket, SMTP,
+        API externa.
+      - Mandatory provider: if a requirement uses a channel or an external service (email, SMS,
+        payments), the connection names the provider (api → Resend) or at least the protocol
+        (api → servidor SMTP).
+      - Tipo: sincrónica / asincrónica. How a delivery is guaranteed goes in Garantías.
+      - "Para qué" cites the requirement. Real time is just one more connection.
+      - Eventos, only if there is a bus between services: each event corresponds to a domain
+        transition. The payload is API design, derived later.
+    format: |
+      ## Comunicación
+      | De → A | Protocolo | Tipo | Para qué |
+      |---|---|---|---|
+      | [origen → destino] | [protocolo] | [sincrónica / asincrónica] | [IDs] |
+
+      **Eventos** (solo si hay bus entre servicios)
+      | Evento | Publica | Consume | Transición |
+      |---|---|---|---|
+      | [nombre] | [servicio] | [servicio] | [Entidad: ESTADO → ESTADO] |
+    example: |
+      ## Comunicación
+      | De → A | Protocolo | Tipo | Para qué |
+      |---|---|---|---|
+      | web → api | HTTP | sincrónica | Todas las lecturas y escrituras del panel y de la reserva pública |
+      | api → web | SSE | asincrónica | Agenda del día en tiempo real (AGE-12) |
+      | api → servidor SMTP | SMTP | asincrónica | Notificaciones (NOT-01..06) |
+
+  - id: autenticacion
+    title: Autenticación y autorización
+    description: |
+      Which actions each actor performs is already in the Actor column of the requirements. This
+      section defines which credentials exist, how each one travels, and the roles. Vocabulary of
+      OAuth 2.0 / OIDC (issuer, bearer, verifier), even when OAuth is not used. WHICH credentials
+      exist is the product's decision; HOW they are implemented (cookies, PKCE, hashing) follows the
+      engineering defaults and is not asked. Three tables, plus a fourth only if there is an external
+      identity provider:
+      1. Credenciales: what proves identity. Who issues it (a module, or the external provider), how
+         it is obtained, its life and renewal (citing the ACC parameters), how it is revoked (citing
+         requirements). Ask the user every choice with a real alternative (session length, one
+         session per device, revocation): each becomes a requirement of ACC or a technical decision.
+      2. Uso: for each credential, which role presents it, from where (surface or service), what it
+         passes through (a frontend that forwards it, a gateway) and which service verifies it.
+         Covers service-to-service calls and external systems calling the product.
+      3. Roles: which actors each role covers and what it allows, as a general posture in one line,
+         INCLUDING THE DATA SCOPE (which records the role reaches). Data scope is where security
+         holes usually appear: the user defines it.
+      4. Proveedores externos de identidad (only if any): protocol, roles, which data it provides,
+         how it links to the account entity.
+      "Sistema" has no credential: its processes run inside a service.
+    format: |
+      ## Autenticación y autorización
+
+      ### Credenciales
+      | ID | Credencial | Emisor | Se obtiene | Vida y renovación | Revocación |
+      |---|---|---|---|---|---|
+      | CRED-01 | [credencial] | [servicio.módulo o proveedor] | [cómo] | [duración y renovación] | [cómo y cuándo] |
+
+      ### Uso
+      | Credencial | Rol | Desde | Pasa por | Verifica |
+      |---|---|---|---|---|
+      | [CRED-XX o "ninguna"] | [rol] | [superficie o servicio] | [servicio que la reenvía, o —] | [servicio] |
+
+      ### Roles
+      | Rol | Actores | Permite |
+      |---|---|---|
+      | [rol] | [U-XX] | [postura general, con el alcance de datos] |
+    example: |
+      ## Autenticación y autorización
+
+      ### Credenciales
+      | ID | Credencial | Emisor | Se obtiene | Vida y renovación | Revocación |
+      |---|---|---|---|---|---|
+      | CRED-01 | Sesión del panel | api.access | Usuario y contraseña | Acceso de 15 min; refresh rotativo que vence tras la **inactividad máxima de sesión** | Cerrar sesión revoca el refresh (ACC-06) |
+      | CRED-02 | Token de cancelación | api.scheduling, al reservar | En el link de NOT-01, NOT-05, NOT-06 | Mientras el turno esté en RESERVADO y no haya empezado | Al usarse o al pasar a un estado terminal (CAN-04) |
+
+      ### Uso
+      | Credencial | Rol | Desde | Pasa por | Verifica |
+      |---|---|---|---|---|
+      | CRED-01 | admin | Panel de administración | web: la recibe en cookie y la reenvía | api |
+      | CRED-02 | — | Reserva pública, link del email | web: la reenvía | api |
+      | ninguna | anonymous | Reserva pública | web | api |
+
+      ### Roles
+      | Rol | Actores | Permite |
+      |---|---|---|
+      | admin | U-01 | Todas las operaciones del panel, sobre todos los datos |
+      | anonymous | U-02 | Catálogo público y reserva; con el token, solo su turno |
+
+  - id: garantias
+    title: Garantías
+    description: |
+      How what the functional and domain analyses require to always hold is achieved. ENTERS:
+      every invariant (INV-XX, no exceptions), every atomic sequence of the requirements, and
+      every delivery or concurrency requirement (retries, "only one succeeds"). RULES:
+      - Every invariant has a row.
+      - Prefer the strongest mechanism available: database constraint > transaction with lock >
+        application validation. Application or interface validation may complement, never be the
+        guarantee.
+      - "Dónde" is the responsible component or module: the database, or servicio.módulo.
+      - Proposed by the agent, confirmed by the user. Real alternatives go to Decisiones técnicas.
+    format: |
+      ## Garantías
+      | Regla | Mecanismo | Dónde |
+      |---|---|---|
+      | [INV-XX / ID del requisito + nombre] | [mecanismo] | [componente o servicio.módulo] |
+    example: |
+      ## Garantías
+      | Regla | Mecanismo | Dónde |
+      |---|---|---|
+      | INV-01 No superposición | Restricción de exclusión sobre profesional + rango horario | Base principal |
+      | INV-02 Tope de turnos activos | Verificación dentro de la transacción de reserva, con bloqueo por clave de identidad | api.scheduling |
+      | INV-03 Inactivo sin turnos futuros | La desactivación y la cancelación en cascada van en la misma transacción | api.catalog → api.scheduling |
+      | INV-04 Un sucesor por reprogramación | Restricción de unicidad sobre "turno original" | Base principal |
+      | INV-05 Historial inmutable | Tabla de solo inserción, sin permisos de modificación | Base principal |
+      | REP-02 Reprogramación atómica | Una sola transacción | api.scheduling |
+      | Reintento de email (NOT) | Tabla de notificaciones pendientes, procesada por api con reintentos | Base principal + api.notifications |
+
+  - id: flujos
+    title: Flujos clave
+    description: |
+      How the pieces of the design combine to fulfill a concrete operation: which module or
+      service calls which, what is validated and in which transaction. The only place where the
+      user sees the design working end to end, and so their way of validating it. Not the
+      interaction flow (screens, UX) nor the business sequence (a block requirement).
+
+      WHICH FLOWS: those that cross more than one module or service, or depend on a guarantee. A
+      simple CRUD adds nothing to validate.
+
+      EACH FLOW: a title with the requirement IDs it covers; a one- or two-line description of the
+      use case (who does what, which result they expect); numbered steps at module level
+      (servicio.módulo), referencing requirements, invariants, guarantees, notifications and
+      connections. No endpoints, no fields: that is API design. It is the skeleton of _gflow/flows/.
+    format: |
+      ## Flujos clave
+
+      ### [Nombre] ([IDs])
+      [Descripción del caso de uso, en una o dos líneas]
+
+      1. [origen] → [servicio.módulo]: [qué pasa] ([referencias])
+    example: |
+      ## Flujos clave
+
+      ### Reserva con "cualquiera" (RES-01, RES-11)
+      Un cliente reserva un turno sin elegir profesional; el sistema le asigna uno libre en el
+      horario elegido y le confirma por email.
+
+      1. web → api.scheduling: pide horarios libres → api.catalog: disponibilidad, bloqueos y asignaciones
+      2. web → api.scheduling: confirma → se asigna el profesional con menos turnos ese día (RES-11)
+      3. api.scheduling: transacción → INV-01 (restricción de exclusión) + INV-02 (tope por clave de identidad)
+         → si INV-01 falla: RES-E2 (otro profesional libre) o RES-E1 (aviso al cliente)
+      4. api.scheduling → api.notifications: NOT-01 → tabla de pendientes → servidor SMTP
+
+      ### Reprogramación (REP-02)
+      El administrador mueve un turno a otro horario; el turno original queda cancelado, el nuevo
+      queda reservado y el cliente recibe un solo aviso.
+
+      1. web → api.scheduling: reprograma un turno a un horario nuevo
+      2. api.scheduling: una sola transacción → cancela el original + crea el sucesor (INV-04)
+         → valida el sucesor con RES-03..09; INV-02 no se dispara en el paso intermedio (REP-04)
+      3. api.scheduling → api.notifications: solo NOT-05 (REP-06)
+
+  - id: decisiones
+    title: Decisiones técnicas
+    description: |
+      Same format as the functional decisions, Motivo included: only those with a real alternative, and
+      "Descartado" only lists alternatives that were actually presented to the user. ALWAYS includes the
+      language of each service and the CI/CD platform (GitLab or GitHub, with its registry): they
+      define what the walking skeleton builds. Deviations from the engineering defaults also go
+      here, naming the default as "Descartado".
+    format: |
+      ## Decisiones técnicas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-T01 | [tema] | [qué se eligió] | [la alternativa que no se hace] | [por qué, en una línea] | [servicios o IDs] |
+    example: |
+      ## Decisiones técnicas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-T01 | Frontends | Una sola app sirve las dos superficies | Una app por superficie | Comparten componentes y un solo deploy | web |
+      | DEC-T02 | Procesos automáticos | Corren dentro de api | Un worker aparte | El volumen es bajo y evita otro servicio | AUS, RET |
+      | DEC-T03 | Agenda en tiempo real | Server-Sent Events | Polling; WebSockets | Solo el servidor empuja cambios | AGE-12 |
+      | DEC-T04 | CI/CD | GitLab, con su registry de contenedores | GitHub Actions con GitHub Container Registry | Es la plataforma del equipo | todos los servicios |
+
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - Every functional block is assigned to exactly one module
+    - Every domain entity has exactly one owner module
+    - Every functional surface is served by a frontend
+    - Every invariant has a guarantee
+    - The CI/CD decision exists
+    - Every decision has its Motivo; the Decisión column states only what was chosen
+    - Every ID the flows and the other sections cite exists
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document
+    - Every channel or integration has its connection, with provider or protocol
+    - Every component except the main database cites a requirement
+    - Every event corresponds to a transition
+  final:  # before closing this document: the three documents together
+    - All mechanical checks over the three documents at once
+    - No contradictions, mismatched names or different values for the same thing across documents

@@ -1,0 +1,217 @@
+template:
+  id: discovery-db-schema
+  name: Discovery - Database Schema
+  version: 1.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
+
+  description: |
+    Structure specification for the database schema of one service, the last document of the
+    Discovery phase. One document per service that owns a database in the technical analysis
+    (Persistencia e infraestructura).
+
+    WHY IN DISCOVERY: the schema is the most expensive thing to change later (migrations over real
+    data) and every story inherits it. The user validates it here, in the one manual step;
+    /req-implement writes it, table by table, to _gflow/db-schemas/ without deciding anything.
+
+    HOW IT IS BUILT: almost entirely DERIVED, never invented:
+    - Tables, columns, obligatoriness, enum values, uniqueness, relationships and deletion policy
+      come from the domain analysis.
+    - Constraints come from the Garantías of the technical analysis.
+    - Technical tables and columns (outbox, token hashes) come from Persistencia and
+      Autenticación.
+    - Names, types, keys, audit columns and enums follow the schema conventions of
+      .claude/specs/database.md, which are the same in every product and never asked.
+    What cannot be derived is asked: a name with real alternatives, a new technical choice.
+
+    HOW IT IS REVIEWED: the whole document is ONE section with ONE confirmation. This is a
+    deliberate exception to "one confirmation per section": the user reviews the full schema at
+    once, because it is the point where they must take the time and pay attention.
+
+    TRACEABILITY (what the mechanical check reads): every table, column and enum value cites its
+    origin in a note:
+    - Table:  Note: 'Entidad: Turno — …'  or  Note: 'Técnica: … (NOT-E1)'
+    - Column: [note: 'Inicio']  — the attribute name exactly as in the domain analysis;
+              [note: 'Email del cliente · dato personal'] when it holds personal data;
+              [note: 'INV-02'] for a technical column, citing what needs it.
+              Primary key and audit columns carry no note.
+    - Enum value: booked [note: 'RESERVADO']  — the domain value it translates.
+
+    DOWNSTREAM CONTRACT: the plan distributes the DBML and the constraints table among its
+    requirements, and /req-implement writes them to _gflow/db-schemas/{service}.md; the API and the flows take their names from here (one translation
+    of every identifier, used by every artifact).
+
+# Output specification
+output:
+  path: _gflow/discovery/db-schema-{service}.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - service: string  # the owner service in the technical analysis
+    - technical_analysis: string
+    - domain_analysis: string
+  section_ids:
+    - schema  # the whole document is one section
+
+# Section definitions
+sections:
+
+  - id: base
+    title: Base
+    description: |
+      Which database this is, from Persistencia e infraestructura: owner service, engine (no
+      version, unless the user asked for one), and other services that read or write it.
+    format: |
+      ## Base
+      | Servicio dueño | Motor | Usada por |
+      |---|---|---|
+      | [servicio] | [motor] | [servicio (qué hace), o —] |
+    example: |
+      ## Base
+      | Servicio dueño | Motor | Usada por |
+      |---|---|---|
+      | api | PostgreSQL | — |
+
+  - id: decisiones
+    title: Decisiones del esquema
+    description: |
+      The schema decisions that depend on the product (see "Schema decisions" in
+      .claude/specs/database.md). These are ASKED, never assumed. Mandatory rows, each
+      with its value or an explicit "no aplica": Concurrencia, Multi-tenancy, Historial, Borrado.
+      Conditional rows: Moneda (only if some attribute is "dinero"), Tokens reenviados (only if a
+      token must be delivered again after its creation). "Descartado" lists only the alternatives
+      presented to the user.
+    format: |
+      ## Decisiones del esquema
+      | Decisión | Valor | Descartado |
+      |---|---|---|
+      | Concurrencia | [entidades con columna version, o "no aplica"] | [alternativa] |
+      | Multi-tenancy | [cómo, o "no aplica"] | [alternativa] |
+      | Historial | [qué historial y cómo, o "no aplica"] | [alternativa] |
+      | Borrado | [entidades con deleted_at, o "no aplica"] | [alternativa] |
+    example: |
+      ## Decisiones del esquema
+      | Decisión | Valor | Descartado |
+      |---|---|---|
+      | Concurrencia | No aplica: los conflictos se resuelven con bloqueos de fila (Garantías) | Columna version en turnos |
+      | Multi-tenancy | No aplica: un solo consultorio | — |
+      | Historial | Evento de turno, para los turnos; nada más | Auditoría por trigger en todas las tablas |
+      | Borrado | No aplica | deleted_at |
+      | Moneda | Una sola: pesos argentinos, sin columna de moneda | Columna price_currency |
+      | Tokens reenviados | El token de cancelación se guarda también cifrado, para armar el link del recordatorio | Un token nuevo en cada email |
+
+  - id: esquema
+    title: Esquema
+    description: |
+      The DBML: enums first, then tables, grouped by module of the technical analysis (a comment
+      line per module). Follow the schema conventions (names, primary key, audit columns, types,
+      foreign keys, deactivation, secrets). Every table, column and enum value cites its origin
+      (see TRACEABILITY).
+    format: |
+      ## Esquema
+
+      ```dbml
+      Enum {table_singular}_{column} {
+        {value} [note: '{VALOR DEL DOMINIO}']
+      }
+
+      // módulo {module}
+      Table {table} {
+        id uuid [pk, default: `uuidv7()`]
+        {column} {type} [not null, note: '{Atributo}']
+        created_at timestamptz [not null, default: `now()`]
+        updated_at timestamptz [not null, default: `now()`]
+        Note: 'Entidad: {Entidad} — {qué guarda}'
+      }
+      ```
+    example: |
+      ## Esquema
+
+      ```dbml
+      Enum appointment_status {
+        booked [note: 'RESERVADO']
+        attended [note: 'ATENDIDO']
+        no_show [note: 'AUSENTE']
+        cancelled [note: 'CANCELADO']
+      }
+
+      // módulo scheduling
+      Table appointments {
+        id uuid [pk, default: `uuidv7()`]
+        professional_id uuid [not null, ref: > professionals.id, note: 'Profesional']
+        starts_at timestamptz [not null, note: 'Inicio']
+        duration_minutes integer [not null, note: 'Duración']
+        ends_at timestamptz [not null, note: 'Fin']
+        client_email text [not null, note: 'Email del cliente · dato personal']
+        identity_key text [not null, note: 'Clave de identidad · dato personal']
+        status appointment_status [not null, default: 'booked', note: 'Estado']
+        cancel_token_hash text [null, unique, note: 'Token de cancelación']
+        created_at timestamptz [not null, default: `now()`]
+        updated_at timestamptz [not null, default: `now()`]
+        Note: 'Entidad: Turno — reserva de un horario con un profesional y un servicio'
+      }
+      ```
+
+  - id: restricciones
+    title: Restricciones que DBML no expresa
+    description: |
+      Every constraint DBML cannot express, one row each: exclusion constraints, partial unique
+      indexes, check constraints (including conditional obligatoriness: "solo si CANCELADO"),
+      database permissions and functions. "Garantía" cites the guarantee, invariant or attribute
+      rule it implements. These rows are the source of the SQL migrations.
+
+      Every guarantee of the technical analysis whose "Dónde" is this database has a row here, or
+      is expressed in the DBML (a unique column or index) with its ID in the note.
+    format: |
+      ## Restricciones que DBML no expresa
+      | Nombre | Tabla | Tipo | Definición | Garantía |
+      |---|---|---|---|---|
+      | [table_purpose] | [tabla] | [exclusión / único parcial / chequeo / permiso / función] | [definición] | [ID] |
+    example: |
+      ## Restricciones que DBML no expresa
+      | Nombre | Tabla | Tipo | Definición | Garantía |
+      |---|---|---|---|---|
+      | appointments_inv01_no_overlap | appointments | exclusión | `EXCLUDE USING gist (professional_id WITH =, tstzrange(starts_at, ends_at) WITH &&) WHERE (status <> 'cancelled')` | INV-01 |
+      | appointments_cancel_reason_required | appointments | chequeo | `cancellation_reason IS NOT NULL` si y solo si `status = 'cancelled'` | Motivo de cancelación (solo si CANCELADO) |
+
+  - id: derivados
+    title: Atributos derivados
+    description: |
+      Every derived attribute of the domain analysis, saying whether it is stored (and in which
+      column) or computed. It is stored only when a constraint, an index or a guarantee needs it.
+    format: |
+      ## Atributos derivados
+      | Entidad | Atributo | Se guarda | Por |
+      |---|---|---|---|
+      | [entidad] | [atributo] | [columna `x` / no: se calcula] | [ID que lo necesita, o —] |
+    example: |
+      ## Atributos derivados
+      | Entidad | Atributo | Se guarda | Por |
+      |---|---|---|---|
+      | Turno | Fin | columna `ends_at` | INV-01 |
+      | Turno | Clave de identidad | columna `identity_key` | INV-02 |
+
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - 'Every domain entity has a table whose note starts with "Entidad: {name}"'
+    - Every domain attribute has a column whose note is the attribute name, unless it is a
+      derived attribute computed (not stored) in "Atributos derivados"
+    - Every derived attribute of the domain appears in "Atributos derivados"
+    - Every domain enum value appears as the note of an enum value
+    - Every attribute marked as personal data has a column whose note says "dato personal"
+    - Every guarantee whose "Dónde" is the database has a row in the constraints table or its ID in
+      a DBML note
+    - Every reference points to an existing table
+    - The section Decisiones del esquema has the four mandatory rows, and Moneda if some attribute is "dinero"
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document
+    - The schema conventions are followed (names, types, keys, audit columns, foreign keys)
+    - No table, column or constraint lacks an origin in the domain, the technical analysis or the
+      conventions

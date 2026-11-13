@@ -1,0 +1,249 @@
+template:
+  id: discovery-domain
+  name: Discovery - Domain Analysis
+  version: 3.0
+
+  # This is a reference template (not executable)
+  usage: reference
+  used_by:
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
+
+  description: |
+    Structure specification for the Domain Analysis, the second document of the Discovery
+    phase. It defines the data of the product: glossary, entities, states and invariants.
+
+    WHAT IT HOLDS: definitions, not context. Bounded contexts are NOT here: they become modules
+    in the technical analysis. Domain events are NOT here: the technical analysis derives them
+    from the state transitions.
+
+    HOW IT IS CONDUCTED: see .claude/specs/discovery.md. The agent proposes from the functional
+    analysis; the user confirms or corrects. What the user adds that the functional analysis
+    lacks becomes a proposed addition to it.
+
+    RULES INHERITED FROM THE FUNCTIONAL ANALYSIS:
+    - Things that do not operate the system (in Turnero, the professional) are entities here,
+      not actors.
+    - Every actor that authenticates has an account entity here (in Turnero, Cuenta de
+      administrador), with its credentials.
+    - States live only here.
+    - Descriptive Spanish names for entities and attributes. The English identifier is derived
+      by the technical phase.
+    - Entity names match the ones the requirements use: the plan (grava.py plan-build) derives the
+      entities of each block by finding their names in its requirements.
+
+    DOWNSTREAM CONTRACTS:
+    - The plan of /product-define and then /req-implement carry entities, states and invariants into _gflow/prd/domain/.
+    - The technical phase assigns each entity to one owner module, derives events from the
+      transitions, and gives every invariant a guarantee.
+
+    ID CONVENTIONS: invariants INV-01 …; transitions reference requirement IDs of the functional
+    analysis.
+
+# Output specification
+output:
+  path: _gflow/discovery/domain-analysis.md
+  format: markdown
+  frontmatter:
+    - created: date
+    - last_updated: date
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - functional_analysis: string  # _gflow/discovery/functional-analysis.md
+  section_ids:
+    - glosario
+    - entidades
+    - estados
+    - invariantes
+
+# Section definitions
+sections:
+
+  - id: glosario
+    title: Glosario
+    description: |
+      ONLY terms that are not entities and that the requirements use with a precise meaning.
+      Entities are defined in their own section; repeating them here duplicates. No notes column:
+      if a term can be confused with another, the clarification goes in the definition.
+    format: |
+      ## Glosario
+      | Término | Definición |
+      |---|---|
+      | [término] | [definición precisa] |
+    example: |
+      ## Glosario
+      | Término | Definición |
+      |---|---|
+      | Clave de identidad | Email del cliente normalizado (ver atributo derivado de Turno). Gobierna el tope de turnos activos y la retención |
+      | Turno activo | Turno en estado RESERVADO |
+      | Canal de origen | Por dónde se originó un cambio en un turno: público, panel o sistema. El atributo Origen del turno usa solo los dos primeros, porque es el canal por el que se creó |
+      | "Cualquiera" | Opción de reserva sin profesional elegido; el sistema asigna uno al confirmar |
+
+  - id: entidades
+    title: Entidades
+    description: |
+      One subsection per entity. RULES:
+      - One table per entity, not an inline list.
+      - List every attribute a requirement uses or a user sees. Technical attributes (id,
+        creation date, modification date) are NOT listed: the technical phase adds them.
+      - Functional types in a closed, human vocabulary: texto, número, booleano, fecha, hora,
+        fecha y hora, duración, email, teléfono, dinero, enum, referencia. The technical type is
+        decided later.
+      - Enums list ALL their values and the default.
+      - "Obligatorio" is sí, no, or a condition ("solo si CANCELADO").
+      - "Dato personal" (sí / no) per attribute: anything that identifies a person or makes them
+        identifiable (name, email, phone, ID number, address, birth date, IP). Without it, every
+        later step decides on its own what to anonymize, log or export.
+      - Derived attributes: computed from others, with their rule.
+      - The deletion policy ("Baja") is mandatory: se elimina / se desactiva / nunca. Its
+        consequences are referenced to the requirement, not repeated.
+      - No "Notas": a rule is an attribute restriction, an invariant or a block requirement.
+    format: |
+      ## Entidades
+
+      ### [Entidad]
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | [atributo] | [tipo] | [sí / no / condición] | [restricciones, valores del enum y default] | [sí / no] |
+
+      **Atributos derivados** (solo si hay)
+      | Atributo | Regla de cálculo |
+      |---|---|
+
+      **Relaciones:** [con cardinalidad]
+
+      **Baja:** [se elimina / se desactiva / nunca, y sus consecuencias referenciadas]
+    example: |
+      ## Entidades
+
+      ### Turno
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | Profesional | referencia a Profesional | sí | activo al momento de reservar | no |
+      | Servicio | referencia a Servicio | sí | — | no |
+      | Inicio | fecha y hora | sí | alineado a la **granularidad de la grilla** | no |
+      | Duración | duración | sí | se copia del servicio al reservar; no cambia si cambia el servicio | no |
+      | Nombre del cliente | texto | sí | — | sí |
+      | Teléfono del cliente | teléfono | sí | — | sí |
+      | Email del cliente | email | sí | se guarda tal como lo escribió el cliente | sí |
+      | Estado | enum | sí | RESERVADO / ATENDIDO / AUSENTE / CANCELADO; default RESERVADO | no |
+      | Origen | enum | sí | canal por el que se creó: público / panel | no |
+      | Motivo de cancelación | texto | solo si CANCELADO | — | no |
+      | Token de cancelación | texto | sí | único por turno | no |
+      | Turno original | referencia a Turno | no | solo si viene de una reprogramación | no |
+
+      **Atributos derivados**
+      | Atributo | Regla de cálculo |
+      |---|---|
+      | Clave de identidad | Email del cliente en minúsculas, sin el sufijo `+alias` y sin puntos en la parte local. Igual para todos los dominios |
+
+      **Relaciones:** pertenece a un Profesional y a un Servicio; tiene muchos Eventos de turno;
+      puede referenciar a un Turno original.
+
+      **Baja:** nunca se elimina. Al cumplirse el **plazo de retención de datos del cliente** se
+      anonimizan sus datos personales (bloque RET).
+
+      ### Profesional
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | Nombre | texto | sí | — | no |
+      | Activo | booleano | sí | default: sí | no |
+
+      **Relaciones:** presta muchos Servicios (vía Asignación); tiene muchas Disponibilidades
+      semanales, muchos Bloqueos y muchos Turnos.
+
+      **Baja:** se desactiva, nunca se elimina. Al desactivarse se cancelan sus turnos futuros
+      (CAT-02).
+
+  - id: estados
+    title: Estados
+    description: |
+      For each stateful entity, two tables. RULES:
+      - Closed world: the allowed transitions are exactly the rows. Any other is forbidden,
+        including leaving a terminal state. There is no "forbidden" column.
+      - The meaning of each state is mandatory: it is a real definition (AUSENTE is "no se
+        presentó", not "llegó tarde").
+      - The type is declared even though it can be derived, so terminal states are visible at a
+        glance. Types: inicial (the entity is born in it; there may be several), intermedio (in
+        and out), terminal (no way out). Verification checks it matches the transitions.
+      - "Disparado por" holds the IDs of the requirements that cause each transition. The
+        condition lives in the requirement and is not repeated.
+      - "(creación)" is the origin of the transitions that create the entity.
+    format: |
+      ## Estados
+
+      ### [Entidad]
+
+      **Estados**
+      | Estado | Tipo | Significado |
+      |---|---|---|
+      | [ESTADO] | [inicial / intermedio / terminal] | [qué significa] |
+
+      **Transiciones**
+      | Desde | Hacia | Disparado por |
+      |---|---|---|
+      | (creación) | [ESTADO] | [IDs] |
+    example: |
+      ## Estados
+
+      ### Turno
+
+      **Estados**
+      | Estado | Tipo | Significado |
+      |---|---|---|
+      | RESERVADO | inicial | El turno está tomado y todavía no se resolvió |
+      | ATENDIDO | terminal | El cliente fue atendido |
+      | AUSENTE | terminal | El cliente no se presentó |
+      | CANCELADO | terminal | El turno se dio de baja, por cualquier vía |
+
+      **Transiciones**
+      | Desde | Hacia | Disparado por |
+      |---|---|---|
+      | (creación) | RESERVADO | RES-12, REP-02 |
+      | RESERVADO | ATENDIDO | AGE-13 |
+      | RESERVADO | AUSENTE | AGE-14 (manual), AUS-01 (automático) |
+      | RESERVADO | CANCELADO | AGE-15, CAN-01, CAT-02, REP-02 |
+
+  - id: invariantes
+    title: Invariantes
+    description: |
+      Rules about the DATA that must always hold, after any action. It is the same rule seen from
+      the other side: the requirement says what an action does; the invariant says what must be
+      true of the data always. The requirement covers the path someone thought of; the invariant
+      covers every path. It tells the technical phase what storage must guarantee, and QA what to
+      verify on every path.
+
+      CRITERION: it is an invariant if it involves more than one record or several blocks touch
+      it. A rule over one field of one record is an attribute restriction; interface behavior is a
+      requirement; "a terminal state never changes" is already the closed world of the states.
+
+      "Aplicada en" lists the requirements where the rule comes into play. The guarantee (the
+      mechanism) lives in the technical analysis.
+    format: |
+      ## Invariantes
+      | ID | Regla | Entidades | Aplicada en |
+      |---|---|---|---|
+      | INV-01 | [regla sobre los datos] | [entidades] | [IDs de requisitos] |
+    example: |
+      ## Invariantes
+      | ID | Regla | Entidades | Aplicada en |
+      |---|---|---|---|
+      | INV-01 | Dos turnos no cancelados del mismo profesional nunca se superponen en el tiempo | Turno | RES-02, RES-06, RES-E1, REP-03 |
+      | INV-02 | Un cliente nunca tiene más turnos en RESERVADO que el **tope de turnos activos por cliente** | Turno | RES-03, RES-09, REP-04 |
+      | INV-03 | Un profesional o un servicio inactivo no tiene turnos futuros en RESERVADO | Profesional, Servicio, Turno | CAT-02, CAT-05 |
+      | INV-04 | Un turno cancelado por una reprogramación tiene exactamente un turno sucesor | Turno | REP-02 |
+      | INV-05 | Un evento de turno nunca se modifica ni se borra | Evento de turno | AGE-20 |
+
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - Every ID in "Disparado por" and "Aplicada en" exists in the functional analysis
+    - The type of each state matches its transitions (inicial = reached from "(creación)";
+      terminal = no outgoing row)
+    - Every entity has its "Baja"
+    - Every bold parameter name exists in the functional Parámetros
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document (cross-checks against the functional analysis)
+    - Every entity the requirements name exists
+    - Every requirement that changes a state has its transition
+    - Every actor that authenticates has its account entity
+    - Attributes marked as personal data match the privacy NFR
