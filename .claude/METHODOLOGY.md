@@ -1,174 +1,115 @@
-# Grava Workflow
+# jiku flow
 
-Methodology for product, architecture, UX and code development on top of Claude Code.
+Methodology for building products with Claude Code, connected to Jiku (Grava's project and client
+management). The user defines; the model implements, tests and proves it.
 
-**Version:** see [`VERSION`](VERSION)
-**Update:** `/update-tools`
-**Detailed docs (Spanish):** see the [`docs/`](../docs/) folder of the product repository.
-
----
-
-## Usage contexts
-
-This methodology is used in two repository roles:
-
-| Role | Description | Typical `docs/` folders |
-|------|-------------|-------------------------|
-| **Product** | Centralizes all product and architecture documentation | `prd/`, `architectures/`, `requests/`, `stories/`, `apis/`, `db-schemas/`, `adrs/`, `flows/`, `ux/`, `design-system/{surface}/`, `references/` |
-| **Service** | Holds the code of one specific service | `story-plans/`, `reusable-code/` (+ `.claude/local-config.yaml` in multirepo) |
-
-In **monorepo** mode both roles coexist in a single repository. There, `.claude/local-config.yaml` is
-**not used** (and must not exist): service skills detect the monorepo from the repo structure (`docs/prd/`
-at the root) and resolve paths from defaults and service architecture manifests.
-In **multirepo** mode each service points to a separate product repository via relative paths in
-`.claude/local-config.yaml`, which is therefore **required**.
+**Version:** see [`VERSION`](VERSION) · **Update:** `/jflow-framework-update` · **Detailed docs:** the
+[`docs/`](https://github.com/gravadigital/jiku-flow/tree/main/docs) folder of the jiku flow repository.
 
 ---
 
-## Skill catalogue (33 skills)
+## The idea
 
-> All skills use the flat format `/<skill-name>` (no namespaces or colons).
+| Piece | Where | Owner |
+|---|---|---|
+| **Requirement and its specification** (who asked, priority, state; scope, proposal, acceptance criteria) | Jiku | Jiku |
+| **Product definition** (what is built, rules, why) | `_jflow/` of the product repo | the repo, in `dev` |
+| **Evidence** (each criterion → its test → result) | the MR/PR and a Jiku comment | the tests |
+| **Documentation for people** | `README.md`, `docs/`, `CHANGELOG.md` of the product | the repo |
+| **Engineering defaults** (how we always build, test, observe, version) | `.claude/specs/engineering.md` | jiku flow |
 
-### Product — discovery (optional, pre-initialization)
-- `/product-discovery-functional` — Decision-complete functional analysis + DDD-light domain analysis (`docs/discovery/analisis-funcional.md`, `analisis-dominio.md`).
-- `/product-discovery-technical` — Decision-complete technical analysis (`docs/discovery/analisis-tecnico.md`).
-
-### Product — initialization
-- `/product-initialize` — PRD: goals, requirements, feature groups. Transcribes from `docs/discovery/` when present.
-- `/product-initialize-technical` — Technical architecture, ADRs, APIs, schemas, initial flows. Transcribes from `docs/discovery/` when present.
-- `/product-create-backend-architecture <service>` — Backend manifest + conventions + overview.
-- `/product-create-frontend-architecture <service>` — Frontend manifest + conventions + overview.
-
-### Product — adopt existing project
-- `/product-analyze-service <path>` — Analyze an existing service repository.
-- `/product-consolidate-services` — Consolidate analyses into a complete PRD + ADRs + flows.
-
-### Product — requests
-- `/product-new-request` — Capture and clarify a functional requirement.
-- `/product-design-request REQ-XXX [--auto]` — Technical design and story split. Sets `ux_review` flag based on UI impact.
-- `/product-ux-request REQ-XXX [--auto]` — Infer + apply UX delta (screens, overlays, flows) when `ux_review: required`. Regenerates affected wireframes.
-- `/product-create-stories REQ-XXX [--auto]` — Formalize stories from the design (blocked while `ux_review: required`).
-- `/auto-new-request-from-fg <N>` — Auto-generate a REQ from a feature group.
-
-### Product — automation
-- `/auto-implement-request REQ-XXX` — Design → stories → planify → implement, end to end.
-- `/auto-implement-product ["filter"]` — Iterate the PRD feature groups end to end.
-
-### Product — UX & design system
-- `/product-ux-generate` — Bootstrap complete UX docs + mid-fidelity HTML wireframes + DS scaffold (per surface). Aborts once `docs/ux/` exists.
-- `/product-ux-add-surface <surface>` — Add one surface to an already bootstrapped product: product-map, user-flows, screens, wireframes and its own DS scaffold, without touching the existing surfaces.
-- `/product-ux-wireframes [surface1,surface2,...] [--no-interactive]` — Iterate on mid-fidelity wireframes and per-screen specs. Sole owner of the render contract. Optional CSV scopes the run to specific surfaces.
-- `/product-ux-audit [surface1,...]` — Read-only consistency check of the UX set: broken references, viewport/platform mismatches, DS wiring, stale wireframes.
-- `/product-ux-agent` — Interactive UX assistant with full UX context loaded.
-- `/product-design-system-update` — Interactive DS update with semver bump and CHANGELOG. The DS is per-surface, so the skill asks which surface to iterate.
-
-> **Brownfield:** UX is not generated with `/product-ux-generate` but surveyed from the code —
-> `/product-analyze-service` surveys each frontend into `docs/analysis/ux/{service}/` and
-> `/product-consolidate-services` transcribes it into `docs/ux/` + seeds the DS with the real values.
-
-### Product — administration
-- `/product-generate-flows` — Detect and generate cross-service flows.
-- `/product-change-technical-definition` — Modify technical definitions with impact analysis.
-- `/product-migrate-architecture [service]` — Migrate legacy architecture docs to `manifest.yaml` + conventions.
-
-### Product — advisory
-- `/product-architect` — Interactive, read-only architecture advisor. Loads full product context and reasons about decisions, patterns, large features and cross-service flows. Creates/modifies nothing; points to the skill that materializes each conclusion.
-
-### Service
-- `/service-setup-repo` — Configure repo. Creates `.claude/local-config.yaml` in **multirepo only**; in monorepo it is auto-detected (no config file).
-- `/service-update-reusable-code [service]` — Build/refresh the reusable code catalogue (per service in monorepo).
-- `/service-planify-story S-XXX [service] [--auto]` — Story Plan with tasks and test scenarios.
-- `/service-implement-story S-XXX [service] [--auto]` — Test-first implementation.
-- `/service-qa-review <story-plan> | <changed-files>` — Clean-context verification against the Story Plan. Runs forked with `Write`/`Edit` removed; invoked by `/service-implement-story` Step 5.5.
-- `/service-dev [service]` — Interactive developer mode with full service context.
-
-### Cross-cutting utilities
-- `/status` — Dashboard of requests, stories and next suggested action.
-- `/update-tools` — Pull the latest version of Grava Workflow.
+Jiku manages, the repository defines, evidence closes. What is still to build lives in the Jiku
+requirements; what is built, in the definition. Controlled input (a specification with identified
+acceptance criteria), controlled output (evidence verified by a clean-context verifier), free middle.
 
 ---
 
-## Typical workflows
+## Skills
 
-### New product
-0. *(optional)* `/product-discovery-functional` + `/product-discovery-technical` — front-loads the analysis so initialization becomes transcription.
-1. `/product-initialize`
-2. `/product-initialize-technical`
-3. `/product-create-backend-architecture <svc>` and/or `/product-create-frontend-architecture <svc>`
-4. *(optional)* `/product-ux-generate`
-5. `/service-setup-repo` (in each service)
+| Skill | Mode | What it does |
+|---|---|---|
+| `/jflow-product-discover` | Interactive, once | Discovery with the user, then the plan: the base requirement and one requirement per part, created in Jiku as drafts to specify before building |
+| `/jflow-product-scaffold {id}` | Technical questions first, then autonomous, once | Specifies the base requirement, then builds the base product on its branch `feat/{id}-base-product`: skeleton of every service, tests, CI, observability, the definition of what is built, guides |
+| `/jflow-product-brownfield [id]` | Autonomous, once | An existing product: definition surveyed from the code, repository brought to the minimum, ready to specify and implement; security bugs to Jiku, everything else to the adoption report (`docs/adopcion.md` in Spanish, `docs/adoption.md` otherwise) |
+| `/jflow-spec {id} [texto]` | Interactive | Specifies (or changes, or reopens) a Jiku requirement, challenging it against the definition; writes to Jiku only |
+| `/jflow-build {id}` | Autonomous | Implements a specification (new, resumed or reopened); done only when the verifier approves |
+| `/jflow-fix {id} {qué}` | Autonomous | Bug or small change that touches nothing documented, as a Jiku task |
+| `/jflow-status` | Read-only | The product's stage and the requirements by next action, crossing Jiku with git |
+| `/jflow-release` | One confirmation | CHANGELOG, merge `dev` → `main`, tag, note in Jiku |
+| `/jflow-framework-update` | — | Updates jiku flow |
 
-### Existing product (import)
-1. `/product-analyze-service <path>` (once per service — surveys the UI too, on frontends)
-2. `/product-consolidate-services` (also consolidates `docs/ux/` + seeds the DS when there was a UX survey)
-3. `/service-setup-repo` + `/service-update-reusable-code` (in each service)
+Subagent: `jflow-verifier-agent` — clean context, read-only; invoked by `/jflow-product-scaffold`, `/jflow-product-brownfield`,
+`/jflow-build` and `/jflow-fix`.
 
-### Day-to-day cycle
-1. `/product-new-request`
-2. `/product-design-request REQ-XXX` — sets `ux_review: required | not-applicable`
-3. `/product-ux-request REQ-XXX` — only when `ux_review: required`
-4. `/product-create-stories REQ-XXX`
-5. `/service-planify-story S-XXX`
-6. `/service-implement-story S-XXX`
+Every skill that works on a requirement checks git (`jflow.py git-check`) and the requirement's Jiku
+state at the start, and warns and asks when they are not the expected ones.
 
-Steps 2–6 can be collapsed with `/auto-implement-request REQ-XXX` (monorepo only).
+---
+
+## Flows
+
+**New product:** create the project in Jiku → `/jflow-product-discover` (discovery, plan, requirements in
+Jiku, as drafts) → `/jflow-product-scaffold {base}` → MR to `dev` → for each part, in order:
+`/jflow-spec {id}` → approval (En cola) → `/jflow-build {id}` → MR to `dev`.
+
+**Existing product:** `/jflow-product-brownfield` → MR → same cycle.
+
+**Functionality or improvement:** Jiku (Análisis) → a person moves it to Planificación →
+`/jflow-spec {id}` → approval (En cola) → `/jflow-build {id}` (Desarrollo) → the user reviews and
+merges the MR → deploy (Revisión) → Resuelto.
+
+**Changing a specification:** `/jflow-spec {id} {qué cambia}` (a merged requirement is reopened) →
+`/jflow-build {id}` adapts only the difference.
+
+**Bug or small change:** `/jflow-fix {id} {qué}` → MR.
+
+**Release:** `/jflow-release`.
 
 ---
 
 ## Resources
 
 | Resource | Location |
-|----------|----------|
-| Skills | `.claude/skills/<name>/SKILL.md` |
-| Specs | `.claude/specs/*.md` (4 shared specifications skills read) |
-| Agents | `.claude/agents/*.md` (1 agent: `ux-researcher`, for parametric fan-out) |
-| Templates | `.claude/templates/*.yaml` |
-| Conventions catalogue | `.claude/conventions/` (`index.md`, `manifest-schema.md`, 53 conventions across node / nextjs / golang / flutter) |
-| Wireframe renderer | `.claude/skills/product-ux-wireframes/scripts/` (`build_book.py` + `SCHEMA.md`, stdlib only) |
+|---|---|
+| Skills | `.claude/skills/{name}/SKILL.md` |
+| Verifier subagent | `.claude/agents/jflow-verifier-agent.md` |
+| Specs | `.claude/specs/` — `product-definition`, `requirement`, `engineering`, `database`, `jiku`, `discovery`, `functional-analysis` |
+| Templates | `.claude/templates/` — discovery templates, `AGENTS.md`, `service-AGENTS.md`; for people, by language: `es/` and `en/` (`base-requirement.md`, `README.md`, the operations guide, the adoption report) |
+| Scripts | `.claude/scripts/jflow.py` (everything deterministic), `check-discovery.py`, `migrate.sh`, `framework-update.sh` |
 | Hooks | `.claude/hooks/` (pre-compact + session-resume) |
-| Migrations | `.claude/migrations/` |
-| Scripts | `.claude/scripts/` (`migrate.sh`, `update-tools.sh`) |
-| Files index | `.claude/utils/index.md` |
 
 ---
 
-## Folder structure
+## Product repository
 
-### Product repository
 ```
-docs/
-├── discovery/             # functional/domain/technical analysis (optional, input to initialization)
-├── prd/                   # goals-and-context, requirements, feature-groups, architecture
-├── requests/              # REQ-XXX functional requests
-├── stories/               # S-XXX implementation stories
-├── flows/                 # cross-service interactions
-├── apis/                  # OpenAPI specs (English)
-├── db-schemas/            # DB schemas (English)
-├── adrs/                  # Architectural Decision Records
-├── architectures/         # per-service architecture (manifest.yaml + conventions + overview)
-├── ux/                    # UX docs (overview, audiences/, cross-surface-flows, gaps-as-is in brownfield)
-│   └── surfaces/{surface}/  # product-map, user-flows, screens/*.md, screens.json (IR), wireframes.html
-├── design-system/         # DS per surface — README.md (index) + {surface}/{foundations,tokens,components,patterns,guidelines}
-├── references/            # external references (third-party APIs, integrations)
-├── analysis/              # temporary analyses (import workflow): services/*.md + ux/{service}/ (frontend survey)
-└── changelog/             # technical change records
+AGENTS.md  CLAUDE.md        # agents (English)
+README.md  CHANGELOG.md     # people (product language)
+Makefile  docker-compose.yml  .env.example  CI
+services/{service}/         # code; each with AGENTS.md + CLAUDE.md
+docs/                       # people: the operations and integration guides (operacion.md / operations.md…)
+_jflow/                     # agents: the workflow's memory
+├── project.yaml            # Jiku project and instance, git platform and branches
+├── discovery/              # the original analysis (frozen history)
+├── prd/                    # product definition of what is built
+├── apis/                   # contracts (OpenAPI / AsyncAPI)
+├── db-schemas/             # database schemas
+├── flows/                  # operations across modules and services
+└── references/             # external systems
 ```
 
-### Service repository
-```
-docs/
-├── story-plans/           # task breakdowns for stories
-└── reusable-code/         # reusable code catalogue (English)
-
-.claude/
-└── local-config.yaml      # paths to product and service docs (committed)
-```
+Always a monorepo. Branches: `dev` (integration), `main` (production, tagged), `feat/{id}-{slug}`
+(`-2`… when reopened) and `fix/{id}-{slug}` from `dev`. The base product is built on `feat/{id}-base-product`, like any requirement.
 
 ---
 
 ## Languages
 
-| Document | Language |
-|----------|----------|
-| PRD, requests, stories, story plans, ADRs, flows, UX, DS | Spanish |
-| APIs (OpenAPI), DB schemas, reusable code, field/table names | English |
+| Content | Language |
+|---|---|
+| Skills, specs, templates, and the `AGENTS.md` / `CLAUDE.md` of each product (for agents) | English |
+| Messages to the user | The user's |
+| Documentation for people (`docs/`, `README.md`, `CHANGELOG.md`), Jiku, the discovery | The product language (`language` in `_jflow/project.yaml`, Spanish when unset) |
+| Commits, MR/PR text, branch names, test names | English |
+| `_jflow/` (except the discovery) | English structure, content in the product language |
+| Code, tables, columns, enums, API paths and fields | English |

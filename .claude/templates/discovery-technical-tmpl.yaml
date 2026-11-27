@@ -1,294 +1,381 @@
 template:
   id: discovery-technical
   name: Discovery - Technical Analysis
-  version: 2.0
+  version: 4.0
 
   # This is a reference template (not executable)
   usage: reference
   used_by:
-    - .claude/skills/product-discovery-technical/SKILL.md
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
 
   description: |
-    Structure specification for the Technical Analysis document, the third
-    artifact of the optional Discovery phase. Produced by the Technical Leader
-    from the functional + domain analyses.
+    Structure specification for the Technical Analysis, the third and last document of the
+    Discovery phase. It defines the general architecture of the solution: services, modules,
+    persistence, communication, auth, guarantees and key flows.
 
-    PURPOSE: A decision-complete, scope-limited technical "pre-architecture".
-    It front-loads the technology, service and communication decisions so that
-    /product-initialize-technical becomes transcription, not discovery.
+    LANGUAGE: the formats below show the Spanish structure (headings, columns, bold labels, fixed
+    values) with the Turnero examples. For any product language other than Spanish, write the same
+    structure with its English names (python3 .claude/scripts/jflow.py lang-terms), and the content
+    in the product language. See .claude/specs/language.md.
 
-    SCOPE LIMIT (state it in the doc): technologies, services, communication and
-    key flows ONLY. CI/CD, testing, observability, project structure and hosting
-    are deferred to a later iteration.
+    WHAT ENTERS: what crosses services, the language of each service, and what deviates from the
+    engineering defaults (.claude/specs/engineering.md). What happens inside a service (libraries,
+    structure, patterns) is not asked: the implementing agent researches the current official
+    practices and decides. The user may still fix anything they care about, as a technical decision.
 
-    KEY RULES:
-    - The service map MUST trace to the domain bounded contexts.
-    - Every technology choice carries a rationale ("Razón" column).
-    - Coverage is validated explicitly: every functional requirement appears in
-      the coverage table mapped to how it is covered, with an "N/M" headline.
-      No silent omissions — a deferred item is a named row.
+    PREDEFINED, NOT IN THIS DOCUMENT:
+    - Always a monorepo.
+    - Everything is containerized; the hosting is assumed to accept containers.
+    - Only what matters for development: environments, deployment and backups are operations.
+    - The API contract defaults (error shape, dates, pagination, versioning, identifiers) are fixed
+      by the engineering defaults. Business error codes are derived from the failure conditions.
+    - English identifiers for entities and attributes: translated once, in the schema phase.
 
-    DOWNSTREAM CONTRACT: /product-initialize-technical reads this to derive the
-    architecture document, ADRs, API specs and DB schemas instead of interviewing.
+    HOW IT IS CONDUCTED: see .claude/specs/discovery.md. Almost everything is INFERRED from the
+    functional and domain analyses and presented already drafted; the user confirms or corrects.
+    Only choices between real alternatives, the language of each service and deviations from the
+    engineering defaults are asked from scratch. Default: the minimum number of services that meets
+    the requirements.
+
+    DOWNSTREAM CONTRACTS:
+    - The plan of /jflow-product-discover and then /jflow-build carry services, modules, persistence, communication, auth and
+      guarantees into _jflow/prd/architecture/, the key flows into _jflow/flows/, and the technical
+      decisions into _jflow/prd/decisions.md. Then it builds the skeleton of every service in the
+      language chosen here.
+
+    ID CONVENTIONS: decisions DEC-T01 …; modules are English kebab-case ids; everything else
+    references IDs of the functional and domain analyses.
 
 # Output specification
 output:
-  path: docs/discovery/analisis-tecnico.md
+  path: _jflow/discovery/technical-analysis.md
   format: markdown
   frontmatter:
     - created: date
     - last_updated: date
-    - status: string  # "Análisis en progreso", "Análisis técnico cerrado"
-    - analisis_funcional: string
-    - analisis_dominio: string
-    - alcance: string  # explicit scope-limit line
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - functional_analysis: string
+    - domain_analysis: string
+  section_ids:
+    - servicios
+    - modulos
+    - persistencia
+    - comunicacion
+    - autenticacion
+    - garantias
+    - flujos
+    - decisiones
 
 # Section definitions
 sections:
 
-  - id: service-map
-    title: Service Map
+  - id: servicios
+    title: Servicios
     description: |
-      The set of services, derived from the domain bounded contexts, plus shared
-      infrastructure. Include a diagram, a services table, and an explicit note
-      of services eliminated/merged from naive proposals and why (a valuable
-      decision record).
+      CLOSED VOCABULARY:
+      - Tipo: service (a process that runs), library (a package that is imported), frontend (an
+        app that serves surfaces).
+      - Expone: HTTP (REST API), NATS (request-reply or subject subscription), CLI (command line),
+        a combination, or "—". A library that ships a CLI is library + CLI. Who consumes each
+        interface goes in Comunicación.
+      - Lenguaje: the language or framework of the service, as the user names it (node, go,
+        nextjs, astro, flutter…). Always asked when there is more than one reasonable option; the
+        choice goes to Decisiones técnicas. Libraries are NOT asked: the implementing agent chooses
+        them from the current official practices, unless the user wants to fix one.
 
+      INFERRED with the minimum-services criterion: surfaces are served by a frontend (one app may
+      serve several surfaces); system processes run inside an existing service unless there is a
+      reason to split them. When there was more than one option, the choice goes to Decisiones
+      técnicas.
     format: |
-      ## Mapa de Servicios
-
-      ```
-      [diagrama ASCII de servicios e infraestructura]
-      ```
-
-      ### Servicios
-
-      | # | Servicio | Responsabilidad |
-      |---|---|---|
-      | S1 | [servicio] | [responsabilidad] |
-
-      ### Infraestructura Compartida
-
-      | Componente | Rol |
-      |---|---|
-      | [componente] | [rol] |
-
-      ### Servicios eliminados / fusionados
-      - **[servicio]** — [por qué se eliminó o fusionó]
-
+      ## Servicios
+      | Servicio | Tipo | Lenguaje | Superficies | Expone |
+      |---|---|---|---|---|
+      | [id kebab-case] | [service / library / frontend] | [lenguaje o framework] | [superficies, o —] | [HTTP / NATS / CLI / combinación / —] |
     example: |
-      ## Mapa de Servicios
+      ## Servicios
+      | Servicio | Tipo | Lenguaje | Superficies | Expone |
+      |---|---|---|---|---|
+      | api | service | node | — | HTTP |
+      | web | frontend | nextjs | Panel de administración, Reserva pública | — |
 
-      ```
-      Frontend (S1) ──HTTP──> API + Draft Engine (S2) ──> Postgres
-                    └─sub──> NATS <──pub── S2
-                                  Image Worker (S4) ──poll──> Postgres ──> R2
-      ```
-
-      ### Servicios
-
-      | # | Servicio | Responsabilidad |
-      |---|---|---|
-      | S1 | Frontend Web | SSR de páginas públicas, CSR del modo solo, cliente NATS sub-only |
-      | S2 | API + Draft Engine | HTTP/REST, state machine del draft, único publisher a NATS |
-      | S4 | Image Worker | Poll sobre Postgres, render de cards, escribe en R2 |
-
-      ### Infraestructura Compartida
-
-      | Componente | Rol |
-      |---|---|
-      | NATS + JetStream | Pub/sub de eventos de draft + KV (estado, rate limit) |
-      | PostgreSQL 16+ | Base de datos principal |
-
-      ### Servicios eliminados / fusionados
-      - **Real-time Draft Service** — su lógica vive ahora dentro de S2 (evita un servicio extra).
-
-  - id: tech-per-service
-    title: Technology per Service
+  - id: modulos
+    title: Módulos
     description: |
-      For each service, the stack with a rationale for every choice. Add a
-      shared-components table for cross-service technologies.
-
+      The bounded contexts, as modules inside each service. They are general architecture of the
+      solution, not information of a single service. RULES:
+      - Only services of type "service" have modules. A frontend does not: UX (screens) and its
+        convention define its structure.
+      - Every entity has exactly one owner module, which defines the entity and its structure.
+      - Every functional block is assigned to a module; a module may have several blocks.
+      - A module may have no entities (it only reacts).
+      - Inside a service, an interaction between modules goes through the owner module's
+        interface, and every interaction is justified by a requirement.
+      - Another service may write an entity only if it is declared in "Usado por" of
+        Persistencia.
+      - The module name is an English kebab-case technical id: it is the src/domain/{module}/
+        folder of the service.
+      - Inferred by the agent, grouping each entity with the blocks that write it. The user
+        confirms.
     format: |
-      ## Tecnologías por Servicio
+      ## Módulos
 
-      ### [Servicio]
-
-      | Pieza | Tecnología | Razón |
+      ### [servicio]
+      | Módulo | Entidades | Bloques |
       |---|---|---|
-      | [pieza] | [tecnología] | [por qué] |
+      | [id en inglés] | [entidades, o —] | [prefijos de bloques] |
 
+      **Interacciones**
+      | De → A | Para qué | Requisito |
+      |---|---|---|
+      | [módulo → módulo] | [qué pide] | [IDs] |
     example: |
-      ## Tecnologías por Servicio
+      ## Módulos
 
-      ### S2 — API + Draft Engine
-
-      | Pieza | Tecnología | Razón |
+      ### api
+      | Módulo | Entidades | Bloques |
       |---|---|---|
-      | Runtime | Node.js 22 LTS | Shared types con el frontend |
-      | Framework | Fastify | Performance, schema-first |
-      | ORM | Drizzle | Type-safe, SQL-first |
+      | access | Cuenta de administrador | ACC |
+      | catalog | Profesional, Servicio, Asignación, Disponibilidad semanal, Bloqueo | CAT |
+      | scheduling | Turno, Evento de turno | AGE, RES, REP, CAN, AUS, RET |
+      | notifications | — | NOT |
 
-  - id: service-communication
-    title: Service Communication
+      **Interacciones**
+      | De → A | Para qué | Requisito |
+      |---|---|---|
+      | catalog → scheduling | Cancelar los turnos futuros de un profesional o servicio desactivado | CAT-02, CAT-05 |
+      | scheduling → catalog | Consultar disponibilidad, bloqueos y asignaciones | RES-06, RES-10 |
+      | scheduling → notifications | Avisar cada cambio de turno que notifica | NOT-01..06 |
+
+  - id: persistencia
+    title: Persistencia e infraestructura
     description: |
-      How services talk to each other and to external systems. Connections table,
-      narrative of patterns (sync/async/fan-out/job-queue), and messaging subjects
-      + accounts if a bus exists.
-
-    subsections:
-      - connections: De → A table with protocol, direction, nature
-      - communication-patterns: Narrative of the patterns used
-      - messaging-subjects: Subjects/publisher/subscriber/auth (only if a bus exists)
-
+      Everything that stores or carries data outside the process: database, message bus, cache,
+      file storage. Only what is needed. RULES:
+      - One owner, which is a service. Other services may read or write, declared in "Usado por"
+        with what they do.
+      - "Para qué" cites the requirement or NFR that needs the component (the main database is the
+        exception: the entities justify it). If nobody can cite a requirement, it does not enter;
+        if the requirement goes away, so does the component.
+      - Technology without version: latest stable by default. A version only if the user asks for
+        it explicitly.
+      - The default database is PostgreSQL (engineering defaults). Another engine is a deviation
+        and goes to Decisiones técnicas.
     format: |
-      ## Comunicación entre Servicios
+      ## Persistencia e infraestructura
+      | Componente | Tecnología | Dueño | Usado por | Para qué |
+      |---|---|---|---|---|
+      | [componente] | [tecnología] | [servicio] | [servicio (qué hace), o —] | [IDs, o "todas las entidades"] |
+    example: |
+      ## Persistencia e infraestructura
+      | Componente | Tecnología | Dueño | Usado por | Para qué |
+      |---|---|---|---|---|
+      | Base principal | PostgreSQL | api | — | Todas las entidades |
 
-      ### Conexiones
-
-      | De → A | Protocolo | Dirección | Naturaleza |
+  - id: comunicacion
+    title: Comunicación
+    description: |
+      Only what crosses a service: service ↔ service, and service ↔ external system (INT-XX and
+      providers). What happens between modules of one service is in Módulos. RULES:
+      - Protocolo, closed vocabulary: HTTP, NATS request-reply, NATS pub/sub, SSE, WebSocket, SMTP,
+        API externa.
+      - Mandatory provider: if a requirement uses a channel or an external service (email, SMS,
+        payments), the connection names the provider (api → Resend) or at least the protocol
+        (api → servidor SMTP).
+      - Tipo: sincrónica / asincrónica. How a delivery is guaranteed goes in Garantías.
+      - "Para qué" cites the requirement. Real time is just one more connection.
+      - Eventos, only if there is a bus between services: each event corresponds to a domain
+        transition. The payload is API design, derived later.
+    format: |
+      ## Comunicación
+      | De → A | Protocolo | Tipo | Para qué |
       |---|---|---|---|
-      | [a → b] | [protocolo] | [dirección] | [naturaleza] |
+      | [origen → destino] | [protocolo] | [sincrónica / asincrónica] | [IDs] |
 
-      ### Patrones
-      1. **[patrón]** — [descripción]
-
-      ### Subjects de mensajería
-      | Subject | Publica | Subscribe | Auth |
+      **Eventos** (solo si hay bus entre servicios)
+      | Evento | Publica | Consume | Transición |
       |---|---|---|---|
-      | [subject] | [quién] | [quién] | [auth] |
-
+      | [nombre] | [servicio] | [servicio] | [Entidad: ESTADO → ESTADO] |
     example: |
-      ## Comunicación entre Servicios
-
-      ### Conexiones
-
-      | De → A | Protocolo | Dirección | Naturaleza |
+      ## Comunicación
+      | De → A | Protocolo | Tipo | Para qué |
       |---|---|---|---|
-      | Frontend → API | HTTPS/REST | unidireccional | Todas las mutaciones |
-      | Frontend → NATS | WebSocket | sub-only | Eventos de draft en tiempo real |
+      | web → api | HTTP | sincrónica | Todas las lecturas y escrituras del panel y de la reserva pública |
+      | api → web | SSE | asincrónica | Agenda del día en tiempo real (AGE-12) |
+      | api → servidor SMTP | SMTP | asincrónica | Notificaciones (NOT-01..06) |
 
-      ### Patrones
-      1. **Síncrono request/response (HTTP)** — toda mutación es HTTP.
-      2. **Read-only fan-out (NATS sub)** — el browser nunca publica.
-
-  - id: tokens-and-auth
-    title: Tokens and Authentication
-    description: Authentication philosophy and per-context token model. Keep it concrete (token format, scope, storage, transport, lifetime).
-    format: |
-      ## Tokens y Autenticación
-
-      ### Filosofía
-      [enfoque general de identidad/auth]
-
-      ### [Token / contexto]
-      | Pieza | Definición |
-      |---|---|
-      | [aspecto] | [definición] |
-
-    example: |
-      ## Tokens y Autenticación
-
-      ### Filosofía
-      Sin sesión general de usuario. Producto anónimo y cookie-free. Las únicas
-      identidades server-side son per-sala y efímeras.
-
-      ### Token per-sala (modo draft)
-      | Pieza | Definición |
-      |---|---|
-      | Formato | ULID opaco (26 chars) |
-      | Storage cliente | localStorage indexado por código de sala |
-      | Duración | Vida de la sala + 10 min de gracia |
-
-  - id: key-flows
-    title: Key Flows
+  - id: autenticacion
+    title: Autenticación y autorización
     description: |
-      End-to-end sequence per major feature/journey, with concrete endpoints,
-      fields and the services involved. Field names must be internally consistent
-      — they become authoritative cross-service contracts (docs/flows/) downstream.
-
+      Which actions each actor performs is already in the Actor column of the requirements. This
+      section defines which credentials exist, how each one travels, and the roles. Vocabulary of
+      OAuth 2.0 / OIDC (issuer, bearer, verifier), even when OAuth is not used. WHICH credentials
+      exist is the product's decision; HOW they are implemented (cookies, PKCE, hashing) follows the
+      engineering defaults and is not asked. Three tables, plus a fourth only if there is an external
+      identity provider:
+      1. Credenciales: what proves identity. Who issues it (a module, or the external provider), how
+         it is obtained, its life and renewal (citing the ACC parameters), how it is revoked (citing
+         requirements). Ask the user every choice with a real alternative (session length, one
+         session per device, revocation): each becomes a requirement of ACC or a technical decision.
+      2. Uso: for each credential, which role presents it, from where (surface or service), what it
+         passes through (a frontend that forwards it, a gateway) and which service verifies it.
+         Covers service-to-service calls and external systems calling the product.
+      3. Roles: which actors each role covers and what it allows, as a general posture in one line,
+         INCLUDING THE DATA SCOPE (which records the role reaches). Data scope is where security
+         holes usually appear: the user defines it.
+      4. Proveedores externos de identidad (only if any): protocol, roles, which data it provides,
+         how it links to the account entity.
+      "Sistema" has no credential: its processes run inside a service.
     format: |
-      ## Flujos Clave
+      ## Autenticación y autorización
 
-      ### [Flujo]
-      ```
-      1. [Origen] → [endpoint] → [Servicio]
-                                 ↓ [qué hace]
-      2. ...
-      ```
+      ### Credenciales
+      | ID | Credencial | Emisor | Se obtiene | Vida y renovación | Revocación |
+      |---|---|---|---|---|---|
+      | CRED-01 | [credencial] | [servicio.módulo o proveedor] | [cómo] | [duración y renovación] | [cómo y cuándo] |
 
+      ### Uso
+      | Credencial | Rol | Desde | Pasa por | Verifica |
+      |---|---|---|---|---|
+      | [CRED-XX o "ninguna"] | [rol] | [superficie o servicio] | [servicio que la reenvía, o —] | [servicio] |
+
+      ### Roles
+      | Rol | Actores | Permite |
+      |---|---|---|
+      | [rol] | [U-XX] | [postura general, con el alcance de datos] |
     example: |
-      ## Flujos Clave
+      ## Autenticación y autorización
 
-      ### Modo solo — confirmación
-      ```
-      1. Browser → POST /teams (datos) → API (sin token)
-                                         ↓ valida, genera código, persiste card_status='pending'
-         Browser ← { code, urlCard } ← API
-      2. Image Worker: SELECT ... WHERE card_status='pending' FOR UPDATE SKIP LOCKED
-                       → render → upload R2 → UPDATE card_status='ready'
-      3. Browser → GET /teams/{code} (poll) → API → responde cuando ready
-      ```
+      ### Credenciales
+      | ID | Credencial | Emisor | Se obtiene | Vida y renovación | Revocación |
+      |---|---|---|---|---|---|
+      | CRED-01 | Sesión del panel | api.access | Usuario y contraseña | Acceso de 15 min; refresh rotativo que vence tras la **inactividad máxima de sesión** | Cerrar sesión revoca el refresh (ACC-06) |
+      | CRED-02 | Token de cancelación | api.scheduling, al reservar | En el link de NOT-01, NOT-05, NOT-06 | Mientras el turno esté en RESERVADO y no haya empezado | Al usarse o al pasar a un estado terminal (CAN-04) |
 
-  - id: coverage-validation
-    title: Coverage Validation
+      ### Uso
+      | Credencial | Rol | Desde | Pasa por | Verifica |
+      |---|---|---|---|---|
+      | CRED-01 | admin | Panel de administración | web: la recibe en cookie y la reenvía | api |
+      | CRED-02 | — | Reserva pública, link del email | web: la reenvía | api |
+      | ninguna | anonymous | Reserva pública | web | api |
+
+      ### Roles
+      | Rol | Actores | Permite |
+      |---|---|---|
+      | admin | U-01 | Todas las operaciones del panel, sobre todos los datos |
+      | anonymous | U-02 | Catálogo público y reserva; con el token, solo su turno |
+
+  - id: garantias
+    title: Garantías
     description: |
-      THE validation section. One row per functional requirement/feature from the
-      functional analysis, mapped to how it is covered (which service/mechanism).
-      Compute an explicit "N/M" headline. Any uncovered/deferred item is a row
-      marked as a gap with a reason — NEVER a silent omission. REQUIRED.
-
+      How what the functional and domain analyses require to always hold is achieved. ENTERS:
+      every invariant (INV-XX, no exceptions), every atomic sequence of the requirements, and
+      every delivery or concurrency requirement (retries, "only one succeeds"). RULES:
+      - Every invariant has a row.
+      - Prefer the strongest mechanism available: database constraint > transaction with lock >
+        application validation. Application or interface validation may complement, never be the
+        guarantee.
+      - "Dónde" is the responsible component or module: the database, or servicio.módulo.
+      - Proposed by the agent, confirmed by the user. Real alternatives go to Decisiones técnicas.
     format: |
-      ## Validación de Cobertura
-
-      **Cobertura: N/M requerimientos funcionales.**
-
-      | Categoría | Requerimiento | Cubierto por |
+      ## Garantías
+      | Regla | Mecanismo | Dónde |
       |---|---|---|
-      | [categoría] | [requerimiento] | [servicio/mecanismo, o "❌ Diferido — razón"] |
-
+      | [INV-XX / ID del requisito + nombre] | [mecanismo] | [componente o servicio.módulo] |
     example: |
-      ## Validación de Cobertura
-
-      **Cobertura: 35/36 requerimientos funcionales.**
-
-      | Categoría | Requerimiento | Cubierto por |
+      ## Garantías
+      | Regla | Mecanismo | Dónde |
       |---|---|---|
-      | Modo solo | Código único Crockford | API + UNIQUE constraint + reintento |
-      | Card | Generación <3s | Image Worker + Satori |
-      | Selector | Indicador de titularidad reciente | ❌ Diferido — requiere ingest de datos históricos |
+      | INV-01 No superposición | Restricción de exclusión sobre profesional + rango horario | Base principal |
+      | INV-02 Tope de turnos activos | Verificación dentro de la transacción de reserva, con bloqueo por clave de identidad | api.scheduling |
+      | INV-03 Inactivo sin turnos futuros | La desactivación y la cancelación en cascada van en la misma transacción | api.catalog → api.scheduling |
+      | INV-04 Un sucesor por reprogramación | Restricción de unicidad sobre "turno original" | Base principal |
+      | INV-05 Historial inmutable | Tabla de solo inserción, sin permisos de modificación | Base principal |
+      | REP-02 Reprogramación atómica | Una sola transacción | api.scheduling |
+      | Reintento de email (NOT) | Tabla de notificaciones pendientes, procesada por api con reintentos | Base principal + api.notifications |
 
-  - id: out-of-scope-operational
-    title: Out of Scope (Operational)
-    description: Operational decisions explicitly deferred to a later iteration (CI/CD, testing, observability, project structure, hosting, secrets).
+  - id: flujos
+    title: Flujos clave
+    description: |
+      How the pieces of the design combine to fulfill a concrete operation: which module or
+      service calls which, what is validated and in which transaction. The only place where the
+      user sees the design working end to end, and so their way of validating it. Not the
+      interaction flow (screens, UX) nor the business sequence (a block requirement).
+
+      WHICH FLOWS: those that cross more than one module or service, or depend on a guarantee. A
+      simple CRUD adds nothing to validate.
+
+      EACH FLOW: a title with the requirement IDs it covers; a one- or two-line description of the
+      use case (who does what, which result they expect); numbered steps at module level
+      (servicio.módulo), referencing requirements, invariants, guarantees, notifications and
+      connections. No endpoints, no fields: that is API design. It is the skeleton of _jflow/flows/.
     format: |
-      ## Decisiones Operativas Fuera de Alcance
+      ## Flujos clave
 
-      - [decisión diferida]
+      ### [Nombre] ([IDs])
+      [Descripción del caso de uso, en una o dos líneas]
 
+      1. [origen] → [servicio.módulo]: [qué pasa] ([referencias])
     example: |
-      ## Decisiones Operativas Fuera de Alcance
+      ## Flujos clave
 
-      - Estructura del proyecto (monorepo / multirepo).
-      - CI/CD y ambientes (staging / production / preview).
-      - Observabilidad (logs, métricas, traces, alertas).
-      - Testing strategy.
+      ### Reserva con "cualquiera" (RES-01, RES-11)
+      Un cliente reserva un turno sin elegir profesional; el sistema le asigna uno libre en el
+      horario elegido y le confirma por email.
 
-  - id: technical-decisions-summary
-    title: Technical Decisions Summary
-    description: A compact register of the technical decisions taken, for quick reference (mirrors the functional "Decisions Made" table).
+      1. web → api.scheduling: pide horarios libres → api.catalog: disponibilidad, bloqueos y asignaciones
+      2. web → api.scheduling: confirma → se asigna el profesional con menos turnos ese día (RES-11)
+      3. api.scheduling: transacción → INV-01 (restricción de exclusión) + INV-02 (tope por clave de identidad)
+         → si INV-01 falla: RES-E2 (otro profesional libre) o RES-E1 (aviso al cliente)
+      4. api.scheduling → api.notifications: NOT-01 → tabla de pendientes → servidor SMTP
+
+      ### Reprogramación (REP-02)
+      El administrador mueve un turno a otro horario; el turno original queda cancelado, el nuevo
+      queda reservado y el cliente recibe un solo aviso.
+
+      1. web → api.scheduling: reprograma un turno a un horario nuevo
+      2. api.scheduling: una sola transacción → cancela el original + crea el sucesor (INV-04)
+         → valida el sucesor con RES-03..09; INV-02 no se dispara en el paso intermedio (REP-04)
+      3. api.scheduling → api.notifications: solo NOT-05 (REP-06)
+
+  - id: decisiones
+    title: Decisiones técnicas
+    description: |
+      Same format as the functional decisions, Motivo included: only those with a real alternative, and
+      "Descartado" only lists alternatives that were actually presented to the user. ALWAYS includes the
+      language of each service and the CI/CD platform (GitLab or GitHub, with its registry): they
+      define what the walking skeleton builds. Deviations from the engineering defaults also go
+      here, naming the default as "Descartado".
     format: |
-      ## Resumen de Decisiones Técnicas
-
-      | # | Tema | Decisión |
-      |---|---|---|
-      | Arq-1 | [tema] | [decisión] |
-
+      ## Decisiones técnicas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-T01 | [tema] | [qué se eligió] | [la alternativa que no se hace] | [por qué, en una línea] | [servicios o IDs] |
     example: |
-      ## Resumen de Decisiones Técnicas
+      ## Decisiones técnicas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-T01 | Frontends | Una sola app sirve las dos superficies | Una app por superficie | Comparten componentes y un solo deploy | web |
+      | DEC-T02 | Procesos automáticos | Corren dentro de api | Un worker aparte | El volumen es bajo y evita otro servicio | AUS, RET |
+      | DEC-T03 | Agenda en tiempo real | Server-Sent Events | Polling; WebSockets | Solo el servidor empuja cambios | AGE-12 |
+      | DEC-T04 | CI/CD | GitLab, con su registry de contenedores | GitHub Actions con GitHub Container Registry | Es la plataforma del equipo | todos los servicios |
 
-      | # | Tema | Decisión |
-      |---|---|---|
-      | Arq-1 | Servicios | 3 servicios (Frontend, API+Draft Engine, Image Worker) + NATS + Postgres + R2 |
-      | Arq-2 | Real-time | Browser SUB directo a NATS; API único publisher |
-      | Arq-3 | Cola de cards | Postgres + FOR UPDATE SKIP LOCKED (sin NATS para esto) |
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - Every functional block is assigned to exactly one module
+    - Every domain entity has exactly one owner module
+    - Every functional surface is served by a frontend
+    - Every invariant has a guarantee
+    - The CI/CD decision exists
+    - Every decision has its Motivo; the Decisión column states only what was chosen
+    - Every ID the flows and the other sections cite exists
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document
+    - Every channel or integration has its connection, with provider or protocol
+    - Every component except the main database cites a requirement
+    - Every event corresponds to a transition
+  final:  # before closing this document: the three documents together
+    - All mechanical checks over the three documents at once
+    - No contradictions, mismatched names or different values for the same thing across documents

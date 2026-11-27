@@ -1,231 +1,254 @@
 template:
   id: discovery-domain
-  name: Discovery - Domain Analysis (DDD-light)
-  version: 2.0
+  name: Discovery - Domain Analysis
+  version: 3.0
 
   # This is a reference template (not executable)
   usage: reference
   used_by:
-    - .claude/skills/product-discovery-functional/SKILL.md
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
 
   description: |
-    Structure specification for the Domain Analysis document (DDD-light), the
-    second artifact of the optional Discovery phase. It is the BRIDGE between the
-    functional and the technical analysis.
+    Structure specification for the Domain Analysis, the second document of the Discovery
+    phase. It defines the data of the product: glossary, entities, states and invariants.
 
-    DDD-light means: ubiquitous language + entities (with types/enums) +
-    relationships + lifecycle/states + invariants/business rules + domain events
-    + bounded contexts. It deliberately omits the heavier DDD machinery
-    (aggregates, value objects, formal context maps).
+    LANGUAGE: the formats below show the Spanish structure (headings, columns, bold labels, fixed
+    values) with the Turnero examples. For any product language other than Spanish, write the same
+    structure with its English names (python3 .claude/scripts/jflow.py lang-terms), and the content
+    in the product language. See .claude/specs/language.md.
 
-    DOWNSTREAM CONTRACTS (both load-bearing):
-    1. The "Entities" section is a verbatim-reusable SUPERSET of the PRD
-       Domain Entities section (see prd-requirements-tmpl.yaml `domain-entities`).
-       Names, types and enum values defined here are transcribed as-is by
-       /product-initialize Step 3 — keep the same notation:
-       `campo (tipo, req/opt, constraint)`, `estado (enum: a/b/c, default: a)`.
-    2. The "Bounded Contexts" section maps each context to the service(s) it
-       becomes. This feeds the "Owns Entities" column of prd-architecture-tmpl.yaml
-       and is what linearizes /product-discovery-technical and
-       /product-initialize-technical. EVERY bounded context MUST name a service.
+    WHAT IT HOLDS: definitions, not context. Bounded contexts are NOT here: they become modules
+    in the technical analysis. Domain events are NOT here: the technical analysis derives them
+    from the state transitions.
+
+    HOW IT IS CONDUCTED: see .claude/specs/discovery.md. The agent proposes from the functional
+    analysis; the user confirms or corrects. What the user adds that the functional analysis
+    lacks becomes a proposed addition to it.
+
+    RULES INHERITED FROM THE FUNCTIONAL ANALYSIS:
+    - Things that do not operate the system (in Turnero, the professional) are entities here,
+      not actors.
+    - Every actor that authenticates has an account entity here (in Turnero, Cuenta de
+      administrador), with its credentials.
+    - States live only here.
+    - Descriptive names for entities and attributes, in the product language. The English
+      identifier is derived by the technical phase.
+    - Entity names match the ones the requirements use: the plan (jflow.py plan-build) derives the
+      entities of each block by finding their names in its requirements.
+
+    DOWNSTREAM CONTRACTS:
+    - The plan of /jflow-product-discover and then /jflow-build carry entities, states and invariants into _jflow/prd/domain/.
+    - The technical phase assigns each entity to one owner module, derives events from the
+      transitions, and gives every invariant a guarantee.
+
+    ID CONVENTIONS: invariants INV-01 …; transitions reference requirement IDs of the functional
+    analysis.
 
 # Output specification
 output:
-  path: docs/discovery/analisis-dominio.md
+  path: _jflow/discovery/domain-analysis.md
   format: markdown
   frontmatter:
     - created: date
     - last_updated: date
-    - status: string  # "Análisis en progreso", "Análisis de dominio cerrado"
-    - analisis_funcional: string  # path to docs/discovery/analisis-funcional.md
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - functional_analysis: string  # _jflow/discovery/functional-analysis.md
+  section_ids:
+    - glosario
+    - entidades
+    - estados
+    - invariantes
 
 # Section definitions
 sections:
 
-  - id: ubiquitous-language
-    title: Ubiquitous Language
+  - id: glosario
+    title: Glosario
     description: |
-      The shared glossary. Every term used in the entities, events and contexts
-      below must be defined here. This anchors the whole domain — the same word
-      must mean the same thing in the functional doc, the PRD and the code.
-
+      ONLY terms that are not entities and that the requirements use with a precise meaning.
+      Entities are defined in their own section; repeating them here duplicates. No notes column:
+      if a term can be confused with another, the clarification goes in the definition.
     format: |
-      ## Lenguaje Ubicuo
-
-      | Término | Definición | Notas |
-      |---|---|---|
-      | [término] | [definición precisa] | [alias / lo que NO es] |
-
+      ## Glosario
+      | Término | Definición |
+      |---|---|
+      | [término] | [definición precisa] |
     example: |
-      ## Lenguaje Ubicuo
+      ## Glosario
+      | Término | Definición |
+      |---|---|
+      | Clave de identidad | Email del cliente normalizado (ver atributo derivado de Turno). Gobierna el tope de turnos activos y la retención |
+      | Turno activo | Turno en estado RESERVADO |
+      | Canal de origen | Por dónde se originó un cambio en un turno: público, panel o sistema. El atributo Origen del turno usa solo los dos primeros, porque es el canal por el que se creó |
+      | "Cualquiera" | Opción de reserva sin profesional elegido; el sistema asigna uno al confirmar |
 
-      | Término | Definición | Notas |
-      |---|---|---|
-      | Equipo | Selección confirmada de 11 jugadores con una formación | Inmutable tras confirmar. No confundir con "Sala" |
-      | Sala | Espacio de draft en vivo para 2-8 participantes | Efímera; se cierra al terminar el draft |
-      | Pick | Selección de un jugador por un participante en su turno | Exclusivo dentro de una sala |
-
-  - id: entities
-    title: Entities
+  - id: entidades
+    title: Entidades
     description: |
-      The domain entities with attributes, types, enums, relationships and rules.
-      This is a SUPERSET of the PRD `domain-entities` section — use the SAME
-      notation so /product-initialize can transcribe it verbatim.
-
-      RULES:
-      - List only business entities, not technical infrastructure.
-      - Attributes with type + req/opt + constraints.
-      - Enums MUST list ALL valid values, with the default.
-      - Relationships with cardinality (belongs_to / has_many / references).
-      - Per-entity business rules in Notes.
-
-    per_entity_structure:
-      - name: Entity name (matches the ubiquitous language)
-      - key_attributes: "campo (tipo, req/opt, constraint), estado (enum: a/b/c, default: a)"
-      - relationships: belongs_to [Entity], has_many [Entity]
-      - notes: Business rules specific to this entity
-
+      One subsection per entity. RULES:
+      - One table per entity, not an inline list.
+      - List every attribute a requirement uses or a user sees. Technical attributes (id,
+        creation date, modification date) are NOT listed: the technical phase adds them.
+      - Functional types in a closed, human vocabulary: texto, número, booleano, fecha, hora,
+        fecha y hora, duración, email, teléfono, dinero, enum, referencia. The technical type is
+        decided later.
+      - Enums list ALL their values and the default.
+      - "Obligatorio" is sí, no, or a condition ("solo si CANCELADO").
+      - "Dato personal" (sí / no) per attribute: anything that identifies a person or makes them
+        identifiable (name, email, phone, ID number, address, birth date, IP). Without it, every
+        later step decides on its own what to anonymize, log or export.
+      - Derived attributes: computed from others, with their rule.
+      - The deletion policy ("Baja") is mandatory: se elimina / se desactiva / nunca. Its
+        consequences are referenced to the requirement, not repeated.
+      - No "Notas": a rule is an attribute restriction, an invariant or a block requirement.
     format: |
       ## Entidades
 
       ### [Entidad]
-      - **Atributos clave:** campo (tipo, req/opt), estado (enum: val1/val2, default: val1)
-      - **Relaciones:** belongs_to [Entidad], has_many [Entidad]
-      - **Notas:** [reglas de negocio propias de la entidad]
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | [atributo] | [tipo] | [sí / no / condición] | [restricciones, valores del enum y default] | [sí / no] |
 
+      **Atributos derivados** (solo si hay)
+      | Atributo | Regla de cálculo |
+      |---|---|
+
+      **Relaciones:** [con cardinalidad]
+
+      **Baja:** [se elimina / se desactiva / nunca, y sus consecuencias referenciadas]
     example: |
       ## Entidades
 
-      ### Equipo
-      - **Atributos clave:** codigo (string, req, único, Crockford Base32, 7 chars), nombre (string, opt, max: 24), formacion (enum: 4-4-2/4-3-3/4-2-3-1/3-5-2/3-4-3/5-3-2/5-4-1/4-5-1, req), modo_origen (enum: solo/draft, req), card_status (enum: pending/generating/ready, default: pending)
-      - **Relaciones:** has_many Seleccion (11), belongs_to Sala (opt, solo si modo_origen=draft)
-      - **Notas:** Inmutable tras confirmar. El código es único y permanente.
+      ### Turno
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | Profesional | referencia a Profesional | sí | activo al momento de reservar | no |
+      | Servicio | referencia a Servicio | sí | — | no |
+      | Inicio | fecha y hora | sí | alineado a la **granularidad de la grilla** | no |
+      | Duración | duración | sí | se copia del servicio al reservar; no cambia si cambia el servicio | no |
+      | Nombre del cliente | texto | sí | — | sí |
+      | Teléfono del cliente | teléfono | sí | — | sí |
+      | Email del cliente | email | sí | se guarda tal como lo escribió el cliente | sí |
+      | Estado | enum | sí | RESERVADO / ATENDIDO / AUSENTE / CANCELADO; default RESERVADO | no |
+      | Origen | enum | sí | canal por el que se creó: público / panel | no |
+      | Motivo de cancelación | texto | solo si CANCELADO | — | no |
+      | Token de cancelación | texto | sí | único por turno | no |
+      | Turno original | referencia a Turno | no | solo si viene de una reprogramación | no |
 
-      ### Participante
-      - **Atributos clave:** apodo (string, req, max: 24), seat_index (int, req), rol (enum: host/jugador/espectador, default: jugador), estado (enum: conectado/desconectado/abandono, default: conectado)
-      - **Relaciones:** belongs_to Sala
-      - **Notas:** Identificado por un token efímero por sala. Un espectador no tiene Equipo propio.
+      **Atributos derivados**
+      | Atributo | Regla de cálculo |
+      |---|---|
+      | Clave de identidad | Email del cliente en minúsculas, sin el sufijo `+alias` y sin puntos en la parte local. Igual para todos los dominios |
 
-  - id: lifecycle-and-states
-    title: Lifecycle and States
+      **Relaciones:** pertenece a un Profesional y a un Servicio; tiene muchos Eventos de turno;
+      puede referenciar a un Turno original.
+
+      **Baja:** nunca se elimina. Al cumplirse el **plazo de retención de datos del cliente** se
+      anonimizan sus datos personales (bloque RET).
+
+      ### Profesional
+      | Atributo | Tipo | Obligatorio | Restricciones | Dato personal |
+      |---|---|---|---|---|
+      | Nombre | texto | sí | — | no |
+      | Activo | booleano | sí | default: sí | no |
+
+      **Relaciones:** presta muchos Servicios (vía Asignación); tiene muchas Disponibilidades
+      semanales, muchos Bloqueos y muchos Turnos.
+
+      **Baja:** se desactiva, nunca se elimina. Al desactivarse se cancelan sus turnos futuros
+      (CAT-02).
+
+  - id: estados
+    title: Estados
     description: |
-      For each STATEFUL entity: its states, when each is reached, and which
-      transitions are allowed vs forbidden. Forbidden transitions are as
-      important as allowed ones — they become validation rules downstream.
-
+      For each stateful entity, two tables. RULES:
+      - Closed world: the allowed transitions are exactly the rows. Any other is forbidden,
+        including leaving a terminal state. There is no "forbidden" column.
+      - The meaning of each state is mandatory: it is a real definition (AUSENTE is "no se
+        presentó", not "llegó tarde").
+      - The type is declared even though it can be derived, so terminal states are visible at a
+        glance. Types: inicial (the entity is born in it; there may be several), intermedio (in
+        and out), terminal (no way out). Verification checks it matches the transitions.
+      - "Disparado por" holds the IDs of the requirements that cause each transition. The
+        condition lives in the requirement and is not repeated.
+      - "(creación)" is the origin of the transitions that create the entity.
     format: |
-      ## Ciclos de Vida y Estados
+      ## Estados
 
       ### [Entidad]
 
-      | Estado | Cuándo | Transiciones permitidas | Prohibidas |
-      |---|---|---|---|
-      | [estado] | [cuándo] | [→ estados] | [→ estados] |
+      **Estados**
+      | Estado | Tipo | Significado |
+      |---|---|---|
+      | [ESTADO] | [inicial / intermedio / terminal] | [qué significa] |
 
+      **Transiciones**
+      | Desde | Hacia | Disparado por |
+      |---|---|---|
+      | (creación) | [ESTADO] | [IDs] |
     example: |
-      ## Ciclos de Vida y Estados
+      ## Estados
 
-      ### Participante
+      ### Turno
 
-      | Estado | Cuándo | Transiciones permitidas | Prohibidas |
-      |---|---|---|---|
-      | conectado | Conexión activa | → desconectado | — |
-      | desconectado | Conexión caída dentro de la ventana | → conectado, → abandono | — |
-      | abandono | 3 turnos perdidos o salida explícita | (terminal) | → conectado |
+      **Estados**
+      | Estado | Tipo | Significado |
+      |---|---|---|
+      | RESERVADO | inicial | El turno está tomado y todavía no se resolvió |
+      | ATENDIDO | terminal | El cliente fue atendido |
+      | AUSENTE | terminal | El cliente no se presentó |
+      | CANCELADO | terminal | El turno se dio de baja, por cualquier vía |
 
-  - id: invariants-and-business-rules
-    title: Invariants and Business Rules
+      **Transiciones**
+      | Desde | Hacia | Disparado por |
+      |---|---|---|
+      | (creación) | RESERVADO | RES-12, REP-02 |
+      | RESERVADO | ATENDIDO | AGE-13 |
+      | RESERVADO | AUSENTE | AGE-14 (manual), AUS-01 (automático) |
+      | RESERVADO | CANCELADO | AGE-15, CAN-01, CAT-02, REP-02 |
+
+  - id: invariantes
+    title: Invariantes
     description: |
-      Rules that must ALWAYS hold across the domain, each tagged with the entity
-      or context it governs. These are implementation contracts — must be
-      specific enough to test.
+      Rules about the DATA that must always hold, after any action. It is the same rule seen from
+      the other side: the requirement says what an action does; the invariant says what must be
+      true of the data always. The requirement covers the path someone thought of; the invariant
+      covers every path. It tells the technical phase what storage must guarantee, and QA what to
+      verify on every path.
 
+      CRITERION: it is an invariant if it involves more than one record or several blocks touch
+      it. A rule over one field of one record is an attribute restriction; interface behavior is a
+      requirement; "a terminal state never changes" is already the closed world of the states.
+
+      "Aplicada en" lists the requirements where the rule comes into play. The guarantee (the
+      mechanism) lives in the technical analysis.
     format: |
-      ## Invariantes y Reglas de Negocio
-
-      1. **[Entidad/Contexto]** — [regla que siempre debe cumplirse]
-
-    example: |
-      ## Invariantes y Reglas de Negocio
-
-      1. **Equipo** — Un equipo confirmado es inmutable: ni la card ni la página pública cambian aunque el plantel real cambie.
-      2. **Sala** — Un país no se repite dentro de un mismo draft en modo "país al azar".
-      3. **Sala** — Una sala siempre tiene exactamente un host; si el host se va, se transfiere al participante más antiguo.
-
-  - id: domain-events
-    title: Domain Events
-    description: |
-      Significant state changes worth reacting to. These foreshadow the technical
-      phase's event/subject design, but do NOT decide transport here (no NATS/
-      Kafka/webhooks — that's /product-discovery-technical's job).
-
-    format: |
-      ## Eventos de Dominio
-
-      | Evento | Disparado por | Datos clave | Contexto |
+      ## Invariantes
+      | ID | Regla | Entidades | Aplicada en |
       |---|---|---|---|
-      | [evento] | [qué lo dispara] | [payload mínimo] | [bounded context] |
-
+      | INV-01 | [regla sobre los datos] | [entidades] | [IDs de requisitos] |
     example: |
-      ## Eventos de Dominio
-
-      | Evento | Disparado por | Datos clave | Contexto |
+      ## Invariantes
+      | ID | Regla | Entidades | Aplicada en |
       |---|---|---|---|
-      | EquipoConfirmado | Confirmar 11 en modo solo | codigo, formacion | Equipos |
-      | PickRealizado | Participante elige jugador en su turno | sala, participante, jugador | Draft |
-      | EquipoReportado | Click en "Reportar este equipo" | codigo, motivo | Moderación |
+      | INV-01 | Dos turnos no cancelados del mismo profesional nunca se superponen en el tiempo | Turno | RES-02, RES-06, RES-E1, REP-03 |
+      | INV-02 | Un cliente nunca tiene más turnos en RESERVADO que el **tope de turnos activos por cliente** | Turno | RES-03, RES-09, REP-04 |
+      | INV-03 | Un profesional o un servicio inactivo no tiene turnos futuros en RESERVADO | Profesional, Servicio, Turno | CAT-02, CAT-05 |
+      | INV-04 | Un turno cancelado por una reprogramación tiene exactamente un turno sucesor | Turno | REP-02 |
+      | INV-05 | Un evento de turno nunca se modifica ni se borra | Evento de turno | AGE-20 |
 
-  - id: bounded-contexts
-    title: Bounded Contexts
-    description: |
-      THE bridge section. Group entities into bounded contexts and name the
-      service(s) each context becomes. EVERY bounded context MUST name at least
-      one service — this is what lets the technical analysis map service↔entity
-      without re-deciding, and feeds the "Owns Entities" column of
-      prd-architecture-tmpl.yaml. Entities listed here must match the Entities
-      section names exactly. REQUIRED.
-
-    per_context_structure:
-      - name: Bounded context name
-      - entities_owned: List of entities (must match Entities section)
-      - responsibility: What this context is responsible for
-      - maps_to_service: Service(s) this context becomes (REQUIRED)
-      - relationships: Light note on upstream/downstream/shared with other contexts
-
-    format: |
-      ## Contextos Delimitados
-
-      | Contexto | Entidades | Responsabilidad | Servicio(s) |
-      |---|---|---|---|
-      | [contexto] | [entidades] | [responsabilidad] | [servicio(s)] |
-
-      **Relaciones entre contextos:** [notas upstream/downstream/shared]
-
-    example: |
-      ## Contextos Delimitados
-
-      | Contexto | Entidades | Responsabilidad | Servicio(s) |
-      |---|---|---|---|
-      | Equipos | Equipo, Seleccion | CRUD de equipos, generación de códigos | API Service |
-      | Draft | Sala, Participante, Pick | State machine del draft en vivo | API Service (Draft Engine) |
-      | Generación de Cards | Equipo (lectura) | Render de la card a imagen | Image Worker |
-
-      **Relaciones entre contextos:** Draft produce Equipos al cerrar; Generación de Cards consume Equipos (downstream, read-only).
-
-  - id: consistency-notes
-    title: Consistency Notes (optional)
-    description: |
-      Cross-references and detected ambiguities flagged for the team. Include only
-      if there are inconsistencies between the functional analysis and the domain
-      model worth surfacing (entity mentioned in a feature but not modeled, etc.).
-
-    format: |
-      ## Notas de Consistencia
-
-      - [inconsistencia detectada y cómo se resolvió / qué falta resolver]
-
-    example: |
-      ## Notas de Consistencia
-
-      - El "indicador de titularidad reciente" del análisis funcional implicaría datos
-        históricos de lineups que ninguna entidad modela aún → marcado como diferido.
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - Every ID in "Disparado por" and "Aplicada en" exists in the functional analysis
+    - The type of each state matches its transitions (inicial = reached from "(creación)";
+      terminal = no outgoing row)
+    - Every entity has its "Baja"
+    - Every bold parameter name exists in the functional Parámetros
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document (cross-checks against the functional analysis)
+    - Every entity the requirements name exists
+    - Every requirement that changes a state has its transition
+    - Every actor that authenticates has its account entity
+    - Attributes marked as personal data match the privacy NFR

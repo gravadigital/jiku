@@ -1,12 +1,15 @@
 # Functional Analysis
 
-How to extract and structure product knowledge. Read this before capturing
-requirements, requests, PRD sections or domain entities.
+How to extract and structure product knowledge from the user. Read this before defining a product
+(`/jflow-product-discover`) or specifying a requirement (`/jflow-spec`).
+
+Ask in the user's language; what is written to the discovery or to Jiku is in the product language
+([Language](language.md)). The examples below are in Spanish.
 
 ## Extract, Don't Generate
 
 The user knows the business, the client and the constraints. The job is to pull that
-knowledge out and structure it — not to write a PRD from training data.
+knowledge out and structure it — not to write a definition from training data.
 
 - When the user gives enough detail, draft the section. When they don't, ask before inventing.
 - Every section must be traceable to something the user said.
@@ -56,22 +59,9 @@ Miembro separada de Usuario. ¿Es así?"*
 
 ## Consistency Validation
 
-Cross-reference goals ↔ requirements ↔ feature groups and flag, never silently fix:
+Cross-reference what the user says against what is already defined, and flag — never silently fix:
 
-- Orphan goals (no requirement addresses them)
-- Orphan requirements (don't trace to any goal)
-- Entity inconsistencies (mentioned in capabilities but absent from Domain Entities)
-
-## Project Conventions
-
-**Complexity scale** (used when capturing requests):
-
-| Level | Meaning |
-|---|---|
-| Baja | 1 servicio, días |
-| Media | 2 servicios, ~1 semana |
-| Alta | 3+ servicios, semanas |
-
-**Feature groups**: each one delivers working, deployable functionality. Feature Group 1
-is the walking skeleton (infrastructure + minimal functionality). Sequence by what users
-can actually DO after it's complete.
+- A rule that contradicts an existing requirement, invariant or decision
+- An entity or attribute used but not defined
+- A requirement with no failure conditions where the failure checklist applies
+- Something the product declared out of scope

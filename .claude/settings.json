@@ -2,10 +2,12 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch"
+      "WebFetch",
+      "Bash(python3 .claude/scripts/jflow.py:*)",
+      "Bash(make:*)",
+      "Bash(git:*)"
     ],
-    "additionalDirectories": [
-    ]
+    "additionalDirectories": []
   },
   "hooks": {
     "PreCompact": [
@@ -15,6 +17,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/on-pre-compact.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/jflow-pre-compact.sh"
           }
         ]
       }
@@ -26,6 +32,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/on-session-resume.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/jflow-session-resume.sh"
           }
         ]
       }
