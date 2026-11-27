@@ -69,4 +69,4 @@ The best example of each kind of code: copy its shape when writing a new one.
 
 One line per mistake that showed up twice (in verification, in CI or in review).
 
-- (none yet)
+- `make typecheck` must pass on a clean checkout: anything only a Next build generates (`next-env.d.ts`, `.next/types`) is absent in CI, so declarations the code needs are versioned in `src/types/`.
