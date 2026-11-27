@@ -1,0 +1,10 @@
+# How this repository links to Jiku, its language and its git conventions. See .claude/specs/jiku.md and .claude/specs/language.md
+language: es
+jiku:
+  project_id: 57
+  instance: prod
+  writes: true
+git:
+  platform: github
+  integration_branch: dev
+  production_branch: main
