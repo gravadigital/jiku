@@ -78,6 +78,15 @@ describe('api HTTP — end to end against make up', () => {
     assert.ok(listed, 'the new project is listed');
   });
 
+  it('a visitor with a shared-document link gets the public page, with no token', async () => {
+    // Without the optional docs module in the local stack, every link answers the same generic
+    // page, whatever the cause: that page is the entry of the "Documento compartido" surface.
+    const response = await fetch(`${API_URL}/p/docs/not-a-real-token-${run}`);
+    assert.strictEqual(response.status, 404);
+    assert.match(response.headers.get('content-type') || '', /text\/html/);
+    assert.match(await response.text(), /Este link no está disponible/);
+  });
+
   it('an internal user lists requirements; a client user is refused', async () => {
     const asUser = await call(user, 'GET', '/requirements?limit=5');
     assert.strictEqual(asUser.status, 200);
