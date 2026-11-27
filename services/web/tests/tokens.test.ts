@@ -12,10 +12,6 @@ const indexScss = readFileSync(join(root, 'src/styles/index.scss'), 'utf8');
 const globalsScss = readFileSync(join(root, 'src/app/globals.scss'), 'utf8');
 const variablesScss = readFileSync(join(root, 'src/styles/_variables.scss'), 'utf8');
 const layoutTsx = readFileSync(join(root, 'src/app/layout.tsx'), 'utf8');
-const logoMd = readFileSync(
-  join(root, '../../docs/design-system/web/foundations/logo.md'),
-  'utf8'
-);
 const cardModuleScss = readFileSync(
   join(root, 'src/shared/components/ui/Card/Card.module.scss'),
   'utf8'
@@ -512,13 +508,6 @@ describe('Logo migrado a src/assets/ (S-052)', () => {
   it('TS-23: logoLayout ya no se referencia en ningún lado', () => {
     const hits = grep('logoLayout');
     expect(hits).toBe('');
-  });
-});
-
-describe('Ficha de logo del DS corregida (S-052)', () => {
-  it('TS-26: la ficha ya no dice que los archivos viven fuera del repositorio', () => {
-    expect(logoMd).not.toMatch(/no viven en este repositorio/);
-    expect(logoMd).toMatch(/web\/src\/assets\//);
   });
 });
 

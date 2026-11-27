@@ -13,8 +13,8 @@ interface TintedIconProps {
 // Default: color.brand.graphite, el tono normativo para íconos/estructura del DS.
 // El magenta descontinuado (dado de baja en S-060) nunca es un default aceptable — ver TS-20/TS-49.
 // (Referencia de hex evitada deliberadamente en este comentario: TS-19/TS-48 recorren
-// también comentarios de .tsx en el alcance ampliado del guardia — ver docs/design-system/
-// web/foundations/color.md para los valores exactos de cada token.)
+// también comentarios de .tsx en el alcance ampliado del guardia — los valores exactos de cada
+// token están en src/styles/_reference.scss.)
 export function TintedIcon({
   src,
   alt,

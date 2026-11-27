@@ -56,7 +56,7 @@ An npm workspace: one `npm install` from the root covers everything.
 | [deploy/](deploy/)                         | Server composes, NATS and auth-callout configuration, the local fake identity provider |
 | [\_jflow/](_jflow/)                        | The product definition and the contracts (`_jflow/apis/`), for agents |
 | [documentation/](documentation/)           | Using and running Jiku — the public documentation               |
-| [docs/](docs/)                             | Operations guide, adoption report and the design system              |
+| [docs/](docs/)                             | Operations guide and adoption report                                 |
 
 ## Cómo levantarlo
 
@@ -167,8 +167,7 @@ Start with its README: it maps how the parts fit together.
 | [known-limitations.md](documentation/known-limitations.md) | **read before adopting** |
 
 **[docs/](docs/)** — for the team that operates and builds Jiku, in Spanish: the operations guide
-([operacion.md](docs/operacion.md)), the adoption report ([adopcion.md](docs/adopcion.md)) and the
-design system of both frontends ([docs/design-system/](docs/design-system/)). The definition of
+([operacion.md](docs/operacion.md)) and the adoption report ([adopcion.md](docs/adopcion.md)). The definition of
 what is built, its rules and decisions live in [`_jflow/`](_jflow/), and every change is a
 requirement in Jiku (see [AGENTS.md](AGENTS.md)). The documents of the previous methodology were
 removed from `docs/`; they remain in git history.

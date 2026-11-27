@@ -1,8 +1,8 @@
 // Tier 3 — Component tokens
 //
-// Traduce intención -> propiedad de un componente concreto. Copiado verbatim de
-// docs/design-system/web/tokens/component.md (DS web v2.4.0), formato
-// {componente}.{variant}.{propiedad}.{estado}.
+// Traduce intención -> propiedad de un componente concreto, con el formato
+// {componente}.{variant}.{propiedad}.{estado}. Este archivo es la fuente de verdad de los
+// component tokens.
 //
 // Regla del tier: cada component token DEBE resolver a un semántico, no a un primitivo ni a
 // un hex. Cero referencias a _reference.scss, cero hexadecimales crudos.
@@ -213,9 +213,8 @@
   // Completado por S-055 (spec dropzone.md): texto secundario, icono 24px y borde de
   // hover/dragover en verde agua (border.focus).
   --dropzone-text: var(--text-secondary);
-  // dropzone.icon.size resuelve directo al primitivo icon.24 por definición normativa del DS
-  // (docs/design-system/web/tokens/component.md): el sistema no declara un tier semántico de
-  // tamaños de ícono, así que no hay un semántico intermedio que agregar aquí.
+  // dropzone.icon.size resuelve directo al primitivo icon.24: el sistema no declara un tier
+  // semántico de tamaños de ícono, así que no hay un semántico intermedio que agregar aquí.
   --dropzone-icon-size: var(--icon-24);
   --dropzone-hover-border: var(--border-focus);
 

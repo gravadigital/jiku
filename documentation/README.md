@@ -6,9 +6,8 @@ request work without access to the internal tool.
 This is the documentation for **using and running Jiku**. The definition of what is built — its
 rules, decisions, contracts, schema and flows — lives in [`_jflow/`](../_jflow/), written for the
 team and its agents. [`docs/`](../docs/) holds, in Spanish, the operations guide and the adoption
-report, plus the design system of both frontends (`docs/design-system/`). The documents of the
-previous methodology (architecture per service, conventions, stories, decision records) were
-removed; they remain in git history.
+report. The documents of the previous methodology (architecture per service, conventions,
+stories, decision records, design system) were removed; they remain in git history.
 
 | | |
 |---|---|

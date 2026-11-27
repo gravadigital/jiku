@@ -1,7 +1,6 @@
 // Tier 2 — Semantic tokens
 //
-// Traduce primitivo -> intención. Copiado verbatim de
-// docs/design-system/web/tokens/semantic.md (DS web v2.4.0).
+// Traduce primitivo -> intención. Este archivo es la fuente de verdad de los semánticos.
 //
 // Regla del tier: los componentes consumen semánticos, NUNCA primitivos. NO SE DEBE crear un
 // semántico que nombre apariencia (--bg-green): nombra rol (--bg-action-primary).
