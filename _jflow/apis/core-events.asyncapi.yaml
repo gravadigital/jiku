@@ -206,9 +206,11 @@ channels:
       S-070 — in which case it reflects the subscriptors created in the same transaction).
     subscribe:
       operationId: requirementCreated
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement created
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -216,9 +218,11 @@ channels:
     description: 'The requirement''s `state` changed. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementStateChanged
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement state changed
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -226,9 +230,11 @@ channels:
     description: 'One or more fields of the requirement changed (excluding a state transition, which is `requirement.state.changed`). Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementUpdated
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement updated
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -236,9 +242,11 @@ channels:
     description: 'A comment was created on the requirement. Carries `comment` and `recipients`.'
     subscribe:
       operationId: requirementCommentCreated
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement comment created
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementCommentEvent'
 
@@ -246,9 +254,11 @@ channels:
     description: 'A comment on the requirement was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text) and `recipients`.'
     subscribe:
       operationId: requirementCommentEdited
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement comment edited
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementCommentEvent'
 
@@ -256,9 +266,11 @@ channels:
     description: 'A subscriptor was added to the requirement. `recipients.subscriptors` already includes the new one.'
     subscribe:
       operationId: requirementSubscriptorAdded
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement subscriptor added
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -266,9 +278,11 @@ channels:
     description: 'A subscriptor was removed from the requirement. `recipients.subscriptors` no longer includes the one who left.'
     subscribe:
       operationId: requirementSubscriptorRemoved
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement subscriptor removed
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -276,9 +290,11 @@ channels:
     description: 'The requirement''s `responsiblePersonIds` changed. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementAssigned
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement assigned
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -286,9 +302,11 @@ channels:
     description: 'The requirement entered a resolved state. `changes` carries `resolutionType`, `resolutionConclusion` and `resolutionComment` — this is where those three fields become the fact, and they do NOT travel in `RequirementSnapshot`. Carries `recipients`.'
     subscribe:
       operationId: requirementResolved
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement resolved
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -296,9 +314,11 @@ channels:
     description: 'A previously resolved requirement was reopened. Carries `changes` and `recipients`.'
     subscribe:
       operationId: requirementReopened
+      x-requirements: [CON-15]
+      x-origin: 'initial'
       summary: Requirement reopened
       tags:
-        - name: requirement
+        - name: core.requirements
       message:
         $ref: '#/components/messages/RequirementEvent'
 
@@ -314,9 +334,11 @@ channels:
     description: 'A task was created.'
     subscribe:
       operationId: taskCreated
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task created
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskEvent'
 
@@ -324,9 +346,11 @@ channels:
     description: 'The task''s `state` changed. Carries `changes`.'
     subscribe:
       operationId: taskStateChanged
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task state changed
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskEvent'
 
@@ -334,9 +358,11 @@ channels:
     description: 'One or more fields of the task changed (excluding a state transition, which is `task.state.changed`). Carries `changes`.'
     subscribe:
       operationId: taskUpdated
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task updated
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskEvent'
 
@@ -344,9 +370,11 @@ channels:
     description: 'A comment was created on the task. Carries `comment`.'
     subscribe:
       operationId: taskCommentCreated
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task comment created
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskCommentEvent'
 
@@ -354,9 +382,11 @@ channels:
     description: 'A comment on the task was edited. `changes` carries only `editedAt`/`editedBy` — there is no `from` of the text. Carries `comment` (the current, complete text).'
     subscribe:
       operationId: taskCommentEdited
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task comment edited
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskCommentEvent'
 
@@ -364,9 +394,11 @@ channels:
     description: 'The task''s `responsiblePersonIds` changed. Carries `changes`.'
     subscribe:
       operationId: taskAssigned
+      x-requirements: [CON-15, TAR-30]
+      x-origin: 'initial'
       summary: Task assigned
       tags:
-        - name: task
+        - name: core.tasks
       message:
         $ref: '#/components/messages/TaskEvent'
 

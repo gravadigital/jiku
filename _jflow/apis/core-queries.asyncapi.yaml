@@ -243,9 +243,13 @@ channels:
     description: 'Paginated collection of actors. Whitelists: `#/x-resources/clients`.'
     publish:
       operationId: clientsList
+      x-requirements: [CLI-09, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List actors
       tags:
-        - name: clients
+        - name: core.clients
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -253,9 +257,13 @@ channels:
     description: 'One actor by id. Whitelists: `#/x-resources/clients`.'
     publish:
       operationId: clientsGet
+      x-requirements: [CLI-09, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one actor
       tags:
-        - name: clients
+        - name: core.clients
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -267,9 +275,13 @@ channels:
     description: 'Paginated collection of projects. Whitelists: `#/x-resources/projects`.'
     publish:
       operationId: projectsList
+      x-requirements: [PRY-03, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List projects
       tags:
-        - name: projects
+        - name: core.projects
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -277,9 +289,13 @@ channels:
     description: 'One project by id. Whitelists: `#/x-resources/projects`.'
     publish:
       operationId: projectsGet
+      x-requirements: [PRY-05, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one project
       tags:
-        - name: projects
+        - name: core.projects
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -302,9 +318,13 @@ channels:
       uses the `idx_requirements_tags_gin` index.
     publish:
       operationId: requirementsList
+      x-requirements: [REQ-22, REQ-19, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List requirements
       tags:
-        - name: requirements
+        - name: core.requirements
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -312,9 +332,13 @@ channels:
     description: 'One requirement by id. Whitelists: `#/x-resources/requirements`.'
     publish:
       operationId: requirementsGet
+      x-requirements: [REQ-26, REQ-19, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one requirement
       tags:
-        - name: requirements
+        - name: core.requirements
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -330,9 +354,13 @@ channels:
       contract). So is `taskId` ← `objective_id` wherever it appears.
     publish:
       operationId: tasksList
+      x-requirements: [TAR-16, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List tasks
       tags:
-        - name: tasks
+        - name: core.tasks
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -340,9 +368,13 @@ channels:
     description: 'One task by id. Whitelists: `#/x-resources/tasks`.'
     publish:
       operationId: tasksGet
+      x-requirements: [TAR-22, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one task
       tags:
-        - name: tasks
+        - name: core.tasks
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -363,9 +395,14 @@ channels:
       comment without its attachments is not a comment: the screen always shows them.
     publish:
       operationId: commentsList
+      x-requirements: [REQ-20, TAR-14, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List comments
       tags:
-        - name: comments
+        - name: core.requirements
+        - name: core.tasks
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -376,9 +413,14 @@ channels:
       `entityType` is MANDATORY here too, as a top-level key of the payload.
     publish:
       operationId: commentsGet
+      x-requirements: [REQ-20, TAR-14, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one comment
       tags:
-        - name: comments
+        - name: core.requirements
+        - name: core.tasks
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -398,9 +440,14 @@ channels:
       the union would declare values that half the variants reject with `invalid_fields`.
     publish:
       operationId: activityList
+      x-requirements: [REQ-14, TAR-12, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List history entries
       tags:
-        - name: activity
+        - name: core.requirements
+        - name: core.tasks
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -417,9 +464,13 @@ channels:
       the requirement.
     publish:
       operationId: subscriptionsList
+      x-requirements: [REQ-05, POR-14, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List subscriptions
       tags:
-        - name: subscriptions
+        - name: core.requirements
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -443,9 +494,13 @@ channels:
       `task_comment` ↔ `objective_comment`, `task` ↔ `objective`.
     publish:
       operationId: attachmentsList
+      x-requirements: [ARC-16, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List attachments
       tags:
-        - name: attachments
+        - name: core.files
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -462,9 +517,13 @@ channels:
       caller if it has a live link to something they can see, OR if they uploaded it themselves.
     publish:
       operationId: filesGet
+      x-requirements: [ARC-19, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Get one file
       tags:
-        - name: files
+        - name: core.files
       message:
         $ref: '#/components/messages/GetQuery'
 
@@ -476,9 +535,13 @@ channels:
     description: 'Paginated collection of people. Whitelists: `#/x-resources/people`.'
     publish:
       operationId: peopleList
+      x-requirements: [PER-01, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List people
       tags:
-        - name: people
+        - name: core.people
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -516,9 +579,13 @@ channels:
       (`ILIKE` over `NULL` is never true), and neither does `q`.
     publish:
       operationId: usersList
+      x-requirements: [ACC-18, CON-14, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List users
       tags:
-        - name: users
+        - name: core.identity
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -536,9 +603,13 @@ channels:
       "there is nothing here for you".
     publish:
       operationId: workedTimesList
+      x-requirements: [HOR-07, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List worked times
       tags:
-        - name: worked-times
+        - name: core.times
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -558,9 +629,13 @@ channels:
       `meta.describe` publishes them. That HTTP route is functionally replaced but **not removed**.
     publish:
       operationId: unworkedTimesList
+      x-requirements: [AUS-07, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List absences
       tags:
-        - name: unworked-times
+        - name: core.times
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -572,9 +647,13 @@ channels:
       **NO EXTERNAL ACCESS.** Capacity planning is not information of the client portal.
     publish:
       operationId: weekAssignedTimesList
+      x-requirements: [ASG-01, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List weekly assignments
       tags:
-        - name: week-assigned-times
+        - name: core.times
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -592,9 +671,13 @@ channels:
       projects they are permitted on — including other people's.
     publish:
       operationId: projectPermissionsList
+      x-requirements: [PRY-17, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List project permissions
       tags:
-        - name: project-permissions
+        - name: core.projects
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -655,9 +738,13 @@ channels:
       Uses the **GIN** index `idx_requirements_tags_gin` created by S-021.
     publish:
       operationId: requirementsTags
+      x-requirements: [REQ-29, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
       summary: Existing tag pairs of a project
       tags:
-        - name: requirements
+        - name: core.requirements
       message:
         $ref: '#/components/messages/TagsQuery'
 
@@ -712,9 +799,13 @@ channels:
       opaque to consumers without becoming administrable.
     publish:
       operationId: settingsList
+      x-requirements: [HOR-19, ARC-04, CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
       summary: List the whitelisted configuration keys
       tags:
-        - name: settings
+        - name: core.settings
       message:
         $ref: '#/components/messages/ListQuery'
 
@@ -779,9 +870,13 @@ channels:
       `unknown_command`.
     publish:
       operationId: metaDescribe
+      x-requirements: [CON-04, CON-12, CON-13]
+      x-origin: 'initial'
+      x-roles: [internal-app, admin, user, external-user]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E14]
       summary: Describe the contract
       tags:
-        - name: meta
+        - name: system
       message:
         $ref: '#/components/messages/DescribeQuery'
 

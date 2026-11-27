@@ -63,10 +63,19 @@ operations:
     action: send
     channel: { $ref: '#/channels/moduleRecord' }
     description: El módulo escribe su clave al arrancar. Rol `docs`, solo la clave `docs`.
+    tags:
+      - name: system
+    x-requirements: [DOC-01]
+    x-origin: 'initial'
+    x-roles: [docs]
   watchModules:
     action: receive
     channel: { $ref: '#/channels/moduleRecord' }
     description: api, conectores y personas leen y observan el registro.
+    tags:
+      - name: system
+    x-requirements: [DOC-01, DOC-02, CON-16]
+    x-origin: 'initial'
 
 components:
   messages:

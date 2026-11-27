@@ -122,28 +122,26 @@ servers:
     description: Red interna del compose (es como lo consumen `web` y `opus-web`)
 
 tags:
-  - name: clients
-    description: Actores. Se llaman "actores" en la UI y `clients` en la base
-  - name: projects
-    description: Proyectos
-  - name: requirements
+  - name: api.access
+    description: Ingreso y sesión, presentación de la identidad ante la api
+  - name: api.clients
+    description: Clientes («actores» en la UI, `clients` en la base)
+  - name: api.projects
+    description: Proyectos, sus personas y la lista de personas
+  - name: api.requirements
     description: Requisitos
-  - name: objectives
+  - name: api.tasks
     description: Tareas. `objective` en HTTP y en la base, `task` en el bus
-  - name: worked-times
-    description: Horas trabajadas y sus reportes
-  - name: unworked-times
-    description: Horas no trabajadas (ausencias)
-  - name: week-assigned-times
-    description: Asignación semanal de tiempo
-  - name: attachments
-    description: Adjuntos. Autorizan por entidad, no por rol
-  - name: docs
-    description: "Documentación: rutas respaldadas por el módulo opcional jiku-docs"
-  - name: opus
-    description: Portal de clientes. Superficie de `opus-web`, acotada por permiso de proyecto
-  - name: other
-    description: Personas, settings y el present de auth
+  - name: api.times
+    description: Horas trabajadas, ausencias, asignación semanal y horas por día
+  - name: api.files
+    description: Archivos y adjuntos. Autorizan por entidad, no por rol
+  - name: api.docs
+    description: Documentación (módulo opcional jiku-docs) y estado de los módulos
+  - name: api.portal
+    description: Superficie del Portal de clientes (`/opus`)
+  - name: api.public-docs
+    description: Documentos compartidos por link, sin autenticación
 
 security:
   - bearerAuth: []
@@ -156,7 +154,10 @@ paths:
 
   /clients:
     get:
-      tags: [clients]
+      operationId: listClients
+      tags: [api.clients]
+      x-requirements: [CLI-09, CLI-02]
+      x-origin: 'initial'
       summary: Lista todos los actores
       description: Con sus proyectos, ordenados por nombre. Sin chequeo de rol.
       responses:
@@ -175,9 +176,17 @@ paths:
                           type: array
                           items: { $ref: '#/components/schemas/Project' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     post:
-      tags: [clients]
+      operationId: createClient
+      tags: [api.clients]
+      x-requirements: [CLI-06, CLI-11, CLI-12]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Crea un actor
       description: |
         Publica `clients.new` y devuelve el actor leído de la base. Sin chequeo de rol.
@@ -201,16 +210,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Client' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: CLI-E3
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: CLI-E11
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: CLI-E11
 
   /clients/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
     get:
-      tags: [clients]
+      operationId: getClient
+      tags: [api.clients]
+      x-requirements: [CLI-09]
+      x-origin: 'initial'
       summary: Detalle de un actor
       description: |
         Responde **400** `client_not_found` cuando no existe, no 404: es el comportamiento
@@ -222,15 +244,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Client' }
         '400':
+          x-failure: CLI-E4
           description: El actor no existe
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: client_not_found, message: Client not found }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CLI-E5
     patch:
-      tags: [clients]
+      operationId: updateClient
+      tags: [api.clients]
+      x-requirements: [CLI-07, CLI-08, CLI-11, CLI-12]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Edita un actor
       description: Publica `clients.{id}.edit`. Devuelve un acuse, no el recurso.
       x-bus-command: clients.{id}.edit
@@ -251,14 +282,27 @@ paths:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
               example: { code: client_updated, message: Client Updated }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [CLI-E3, CLI-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CLI-E5
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: CLI-E11
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: CLI-E11
 
   /clients/{clientId}/projects:
     get:
-      tags: [clients]
+      operationId: listClientProjects
+      tags: [api.clients]
+      x-requirements: [CLI-10]
+      x-origin: 'initial'
       summary: Proyectos de un actor
       x-roles: [user, admin]
       parameters:
@@ -284,15 +328,24 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Project' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: CLI-E9
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: CLI-E8
         '404':
+          x-failure: CLI-E10
           description: El actor no existe
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: client_not_found, message: Client not found }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   # ==========================================================================
   # projects
@@ -300,7 +353,10 @@ paths:
 
   /projects:
     get:
-      tags: [projects]
+      operationId: listProjects
+      tags: [api.projects]
+      x-requirements: [PRY-03, PRY-04, PRY-05]
+      x-origin: 'initial'
       summary: Lista proyectos
       description: |
         Incluye el creador y el cliente. Los `null` de `keyValuePairs` se devuelven como string vacío, porque
@@ -350,10 +406,20 @@ paths:
                             id: { type: integer }
                             name: { type: string }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: PRY-E7
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PRY-E8
     post:
-      tags: [projects]
+      operationId: createProject
+      tags: [api.projects]
+      x-requirements: [PRY-06, PRY-07, PRY-08, PRY-09, PRY-10, PRY-14, PRY-15]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Crea un proyecto
       description: |
         Publica `projects.new`. `keyValuePairs` (objeto plano) se traduce a `properties` (lista de
@@ -371,16 +437,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Project' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [PRY-E2, PRY-E3, PRY-E5]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: PRY-E10
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: PRY-E10
 
   /projects/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
     get:
-      tags: [projects]
+      operationId: getProject
+      tags: [api.projects]
+      x-requirements: [PRY-05]
+      x-origin: 'initial'
       summary: Detalle de un proyecto
       description: |
         Responde **400** `project_not_found` cuando no existe, no 404.
@@ -399,15 +478,24 @@ paths:
                     properties:
                       creator: { $ref: '#/components/schemas/AuthorUser' }
         '400':
+          x-failure: PRY-E6
           description: El proyecto no existe
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: project_not_found, message: Project not found }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PRY-E8
     patch:
-      tags: [projects]
+      operationId: updateProject
+      tags: [api.projects]
+      x-requirements: [PRY-09, PRY-10, PRY-11, PRY-12, PRY-14, PRY-15]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Edita un proyecto
       description: |
         Publica `projects.{id}.edit`.
@@ -434,18 +522,30 @@ paths:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
               example: { code: project_updated, message: Project Updated }
         '400':
+          x-failure: [PRY-E2, PRY-E4, PRY-E5, PRY-E6]
           description: Validación fallida, o `project_not_found` desde core
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PRY-E8
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: PRY-E10
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: PRY-E10
 
   /projects/{projid}/persons:
     get:
-      tags: [projects]
+      operationId: listProjectPersons
+      tags: [api.projects]
+      x-requirements: [PER-03]
+      x-origin: 'initial'
       summary: Personas de un proyecto
       x-roles: [user, admin]
       parameters:
@@ -459,13 +559,24 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/PersonSummary' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: PER-E1
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: PER-E2
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E3
 
   /projects/objectives-summary:
     get:
-      tags: [projects]
+      operationId: getObjectivesSummaryByProject
+      tags: [api.tasks]
+      x-requirements: [TAR-23, TAR-28]
+      x-origin: 'initial'
       summary: Resumen de tareas por proyecto
       description: |
         Agregación de tareas por proyecto. Devuelve `[]` cuando no hay datos. Sin chequeo de rol.
@@ -482,7 +593,11 @@ paths:
                     Fila de resumen por proyecto con sus tareas agregadas. La forma exacta la arma
                     el handler; ver `lib/routes/projects-objectives-summary-get.ts`.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   # ==========================================================================
   # requirements
@@ -490,7 +605,10 @@ paths:
 
   /requirements:
     get:
-      tags: [requirements]
+      operationId: listRequirements
+      tags: [api.requirements]
+      x-requirements: [REQ-22, REQ-23, REQ-24, REQ-34]
+      x-origin: 'initial'
       summary: Lista requisitos
       x-roles: [user, admin]
       parameters:
@@ -567,11 +685,22 @@ paths:
                   - type: integer
                     description: Cantidad de requisitos que satisfacen los filtros. Solo con `count=true`.
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: REQ-E1
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: [REQ-E15, REQ-E16]
     post:
-      tags: [requirements]
+      operationId: createRequirement
+      tags: [api.requirements]
+      x-requirements: [REQ-01, REQ-02, REQ-03, REQ-04, REQ-05, REQ-32, REQ-33, REQ-35, REQ-38]
+      x-origin: 'initial'
       summary: Crea un requisito
       description: |
         Publica `requirements.new` y rearma la respuesta con proyecto y responsables.
@@ -624,16 +753,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementWithRelations' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [REQ-E1, REQ-E4, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [REQ-E13, ARC-E7, ACC-E6]
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: [REQ-E2, REQ-E5]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /requirements/report:
     get:
-      tags: [requirements]
+      operationId: getRequirementsReport
+      tags: [api.requirements]
+      x-requirements: [REQ-30, REQ-31, REQ-34]
+      x-origin: 'initial'
       summary: Reporte de requisitos
       description: |
         Devuelve `creator` embebido —un `AuthorUser`— además del `createdBy` crudo. `createdBy`
@@ -696,13 +842,24 @@ paths:
                         id: { type: integer }
                         name: { type: string }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: REQ-E1
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /requirements/tags/suggestions:
     get:
-      tags: [requirements]
+      operationId: listRequirementTagSuggestions
+      tags: [api.requirements]
+      x-requirements: [REQ-29, REQ-34]
+      x-origin: 'initial'
       summary: Sugerencias de tags de un proyecto
       description: |
         Claves y valores distintos usados en los tags de los requisitos del proyecto. Se resuelve
@@ -726,15 +883,26 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Tag' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: REQ-E1
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /requirements/{reqid}:
     parameters:
       - $ref: '#/components/parameters/ReqIdPath'
     get:
-      tags: [requirements]
+      operationId: getRequirement
+      tags: [api.requirements]
+      x-requirements: [REQ-26, REQ-34]
+      x-origin: 'initial'
       summary: Detalle de un requisito
       x-roles: [user, admin]
       responses:
@@ -744,11 +912,22 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementWithRelations' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: REQ-E11
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: REQ-E15
     patch:
-      tags: [requirements]
+      operationId: updateRequirement
+      tags: [api.requirements]
+      x-requirements: [REQ-06, REQ-07, REQ-08, REQ-09, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-32, REQ-33, REQ-38]
+      x-origin: 'initial'
       summary: Edita un requisito
       description: |
         Publica `requirements.{id}.edit` y rearma la respuesta.
@@ -814,6 +993,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementWithRelations' }
         '400':
+          x-failure: [REQ-E1, REQ-E4, REQ-E6, REQ-E10, REQ-E14, ARC-E5, ARC-E6]
           description: |
             Validación fallida, `resolution_required`, o un código de core traducido a 400.
           content:
@@ -825,15 +1005,30 @@ paths:
                     code: resolution_required
                     message: Se requiere tipo y conclusión para resolver una incidencia
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [REQ-E12, ARC-E7]
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: REQ-E15
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /requirements/{reqid}/comments:
     post:
-      tags: [requirements]
+      operationId: createRequirementComment
+      tags: [api.requirements]
+      x-requirements: [REQ-20, REQ-33, REQ-36, REQ-38]
+      x-origin: 'initial'
       summary: Comenta un requisito
       description: Publica `requirements.{id}.comment`. No notifica.
       x-roles: [user, admin]
@@ -861,16 +1056,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementActivity' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [REQ-E1, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [REQ-E13, ARC-E7, ACC-E6]
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: REQ-E15
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /requirements/{reqid}/worked-hours:
     get:
-      tags: [requirements]
+      operationId: getRequirementWorkedHours
+      tags: [api.requirements]
+      x-requirements: [REQ-28, REQ-34]
+      x-origin: 'initial'
       summary: Horas trabajadas imputadas a un requisito
       x-roles: [user, admin]
       parameters:
@@ -908,9 +1120,17 @@ paths:
                         lastName: { type: string }
                         minutes: { type: integer }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: REQ-E11
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: REQ-E15
 
   # ==========================================================================
   # objectives — tareas
@@ -918,7 +1138,10 @@ paths:
 
   /objectives:
     get:
-      tags: [objectives]
+      operationId: listObjectives
+      tags: [api.tasks]
+      x-requirements: [TAR-16, TAR-17, TAR-18, TAR-19, TAR-20, TAR-28]
+      x-origin: 'initial'
       summary: Lista tareas
       description: |
         Cada tarea trae los minutos trabajados en tres formas: `workedMinutes` (total),
@@ -967,10 +1190,20 @@ paths:
                   - type: integer
                     description: Cantidad de tareas que satisfacen los filtros. Solo con `count=true`.
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: TAR-E1
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: TAR-E12
     post:
-      tags: [objectives]
+      operationId: createObjective
+      tags: [api.tasks]
+      x-requirements: [TAR-01, TAR-02, TAR-03, TAR-04, TAR-05, TAR-13, TAR-27, TAR-28, TAR-30]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Crea una tarea
       description: |
         Publica `tasks.new`. Traducciones al bus: `personIds` → `responsiblePersonIds`,
@@ -1022,21 +1255,33 @@ paths:
                         type: array
                         items: { type: integer }
         '400':
+          x-failure: [TAR-E1, TAR-E2, TAR-E3, TAR-E4, TAR-E5, TAR-E6, ARC-E5, ARC-E6]
           description: |
             Validación fallida, o `project_not_found` / `person_not_found` desde core.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /objectives/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
     get:
-      tags: [objectives]
+      operationId: getObjective
+      tags: [api.tasks]
+      x-requirements: [TAR-22, TAR-28]
+      x-origin: 'initial'
       summary: Detalle de una tarea
       description: Con los minutos trabajados agregados. Responde **400** cuando no existe.
       responses:
@@ -1046,15 +1291,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ObjectiveWithWorkedTime' }
         '400':
+          x-failure: TAR-E7
           description: La tarea no existe
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: objective_not_found, message: Objective not found }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: TAR-E12
     patch:
-      tags: [objectives]
+      operationId: updateObjective
+      tags: [api.tasks]
+      x-requirements: [TAR-07, TAR-08, TAR-09, TAR-10, TAR-11, TAR-12, TAR-13, TAR-27, TAR-28, TAR-30]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Edita una tarea
       description: Publica `tasks.{id}.edit`, con las mismas traducciones que el alta.
       x-bus-command: tasks.{id}.edit
@@ -1085,14 +1339,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [TAR-E1, TAR-E2, TAR-E5, TAR-E6, TAR-E7, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: TAR-E12
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /objectives/{id}/comments:
     post:
-      tags: [objectives]
+      operationId: createObjectiveComment
+      tags: [api.tasks]
+      x-requirements: [TAR-14, TAR-27, TAR-28, TAR-30]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Comenta una tarea
       description: Publica `tasks.{id}.comment`.
       x-bus-command: tasks.{id}.comment
@@ -1119,14 +1387,27 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ObjectiveActivity' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [TAR-E1, TAR-E7, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: TAR-E12
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /objectives/{id}/comment/{cid}:
     patch:
-      tags: [objectives]
+      operationId: updateObjectiveComment
+      tags: [api.tasks]
+      x-requirements: [TAR-15, TAR-27, TAR-28]
+      x-origin: 'initial'
       summary: Edita un comentario de una tarea
       description: |
         Publica `tasks.{id}.comment.{cid}.edit`. Valida autoría (o rol `admin`) en `core`.
@@ -1157,24 +1438,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
+          x-failure: [TAR-E1, TAR-E7, TAR-E8, TAR-E9, ARC-E5, ARC-E6]
           description: Validación fallida, la tarea o el comentario no existen, o la actividad no es un comentario editable
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: [TAR-E10, TAR-E11, ARC-E7]
           description: No es el autor del comentario ni tiene rol admin, o algún fileId no le pertenece
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: comment_not_owned, message: Access denied }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: TAR-E12
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /requirements/{reqid}/comments/{cid}:
     patch:
-      tags: [requirements]
+      operationId: updateRequirementComment
+      tags: [api.requirements]
+      x-requirements: [REQ-21, REQ-34]
+      x-origin: 'initial'
       summary: Edita un comentario de un requisito
       description: |
         Publica `requirements.{id}.comment.{cid}.edit`. Valida autoría (o rol `admin`) en `core`.
@@ -1205,20 +1499,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
+          x-failure: [REQ-E1, REQ-E8, REQ-E9, REQ-E10, ARC-E5, ARC-E6]
           description: Validación fallida, el requisito o el comentario no existen, o la actividad no es un comentario editable
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: [REQ-E7, REQ-E11, ARC-E7]
           description: No es el autor del comentario ni tiene rol admin, o algún fileId no le pertenece
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: comment_not_owned, message: Access denied }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: REQ-E15
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   # ==========================================================================
   # worked-times
@@ -1226,7 +1530,10 @@ paths:
 
   /worked-times:
     get:
-      tags: [worked-times]
+      operationId: listWorkedTimes
+      tags: [api.times]
+      x-requirements: [HOR-07]
+      x-origin: 'initial'
       summary: Horas trabajadas de una persona en un día
       x-roles: [user, admin]
       parameters:
@@ -1247,11 +1554,22 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     post:
-      tags: [worked-times]
+      operationId: createWorkedTime
+      tags: [api.times]
+      x-requirements: [HOR-01, HOR-02, HOR-03, HOR-04, HOR-05, HOR-11]
+      x-origin: 'initial'
       summary: Carga horas trabajadas
       description: |
         Publica `worked-times.new` (`objectiveId` viaja como `taskId`).
@@ -1322,6 +1640,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
         '400':
+          x-failure: [HOR-E1, HOR-E3, HOR-E4, HOR-E5, HOR-E6, HOR-E7, HOR-E8, HOR-E9, HOR-E10]
           description: |
             Forma del input (la valida la api), o un rechazo de `core`: ventana de fechas
             (`invalid_date_range`), exclusión tarea/requisito (`invalid_fields`), actor sin Persona
@@ -1340,7 +1659,10 @@ paths:
                     message: 'Minutos disponibles: 120'
                     remainingMinutes: 120
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: [HOR-E2, HOR-E14]
           description: |
             Sin rol (lo corta `hasAnyRole` **en la api**, sin publicar), o intento de cargar horas
             de otra persona sin ser `admin` (lo rechaza **`core`** con C-41 y llega por reply)
@@ -1349,12 +1671,21 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: access_denied, message: Solo podés cargar tus propias horas }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /worked-times/{id}:
     delete:
-      tags: [worked-times]
+      operationId: deleteWorkedTime
+      tags: [api.times]
+      x-requirements: [HOR-06]
+      x-origin: 'initial'
       summary: Borra un registro de horas
       description: |
         Publica `worked-times.{id}.delete`.
@@ -1387,6 +1718,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
+          x-failure: HOR-E13
           description: |
             Fuera de la ventana de fechas — **llega del reply de `core`** (`invalid_date_range`),
             no lo emite la api
@@ -1394,7 +1726,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: [HOR-E12, HOR-E14]
           description: |
             Sin rol (lo corta la api), o el registro es de otra Persona — esto último **llega del
             reply de `core`** (`access_denied`)
@@ -1403,6 +1738,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: access_denied, message: Solo podés eliminar tus propios registros }
         '404':
+          x-failure: HOR-E11
           description: |
             El registro no existe. **Lo sigue dando la api** (`loadWorkedTime`): `core` responde
             `worked_time_not_found`, que el mapa del servicio traduce a **400**
@@ -1411,12 +1747,21 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: worked_time_not_found, message: Registro no encontrado }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /worked-times/person-objectives:
     get:
-      tags: [worked-times]
+      operationId: listPersonObjectivesForTimeEntry
+      tags: [api.times]
+      x-requirements: [HOR-10]
+      x-origin: 'initial'
       summary: Tareas imputables por una persona
       description: |
         Tareas activas, más las que la persona tocó en los últimos 7 días. Es la lista que ofrece
@@ -1436,13 +1781,24 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/ObjectiveSummary' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /worked-times/person-requirements:
     get:
-      tags: [worked-times]
+      operationId: listPersonRequirementsForTimeEntry
+      tags: [api.times]
+      x-requirements: [HOR-10]
+      x-origin: 'initial'
       summary: Requisitos imputables por una persona
       x-roles: [user, admin]
       parameters:
@@ -1459,13 +1815,24 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/RequirementSummary' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /worked-times/report/by-person:
     get:
-      tags: [worked-times]
+      operationId: getWorkedTimesReportByPerson
+      tags: [api.times]
+      x-requirements: [HOR-14]
+      x-origin: 'initial'
       summary: Reporte de horas agrupado por persona
       x-roles: [user, admin]
       parameters:
@@ -1478,13 +1845,24 @@ paths:
             application/json:
               schema: { type: object }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E15
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /worked-times/report/by-project:
     get:
-      tags: [worked-times]
+      operationId: getWorkedTimesReportByProject
+      tags: [api.times]
+      x-requirements: [HOR-15]
+      x-origin: 'initial'
       summary: Reporte de horas agrupado por proyecto
       x-roles: [user, admin]
       parameters:
@@ -1497,13 +1875,24 @@ paths:
             application/json:
               schema: { type: object }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E15
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /worked-times/report/by-project/{projid}:
     get:
-      tags: [worked-times]
+      operationId: getProjectWorkedMinutes
+      tags: [api.times]
+      x-requirements: [HOR-18]
+      x-origin: 'initial'
       summary: Reporte de horas de un proyecto
       x-roles: [user, admin]
       parameters:
@@ -1517,10 +1906,20 @@ paths:
             application/json:
               schema: { type: object }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E15
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: HOR-E16
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   # ==========================================================================
   # unworked-times
@@ -1528,7 +1927,10 @@ paths:
 
   /unworked-times:
     get:
-      tags: [unworked-times]
+      operationId: listUnworkedTimes
+      tags: [api.times]
+      x-requirements: [AUS-07]
+      x-origin: 'initial'
       summary: Horas no trabajadas de una persona en un día
       description: Sin chequeo de rol.
       parameters:
@@ -1549,10 +1951,20 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/UnworkedTime' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: AUS-E5
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     post:
-      tags: [unworked-times]
+      operationId: createUnworkedTime
+      tags: [api.times]
+      x-requirements: [AUS-01, AUS-02, AUS-03, AUS-04, AUS-05]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Registra horas no trabajadas
       description: |
         Publica `unworked-times.new`. Sin chequeo de rol en la api.
@@ -1597,6 +2009,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UnworkedTime' }
         '400':
+          x-failure: [AUS-E1, AUS-E2, AUS-E4, AUS-E5]
           description: |
             Forma del input (la valida la api), o un rechazo de `core`: `person_not_found` o
             `daily_limit_exceeded`
@@ -1604,7 +2017,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: AUS-E3
           description: |
             La ausencia es de otra Persona y el actor no es `admin`. **Llega del reply de `core`**
             (`access_denied`)
@@ -1613,12 +2029,22 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: access_denied, message: Solo podés cargar tus propias ausencias }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /unworked-times/{id}:
     delete:
-      tags: [unworked-times]
+      operationId: deleteUnworkedTime
+      tags: [api.times]
+      x-requirements: [AUS-06]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Borra un registro de horas no trabajadas
       description: |
         Publica `unworked-times.{id}.delete`.
@@ -1654,6 +2080,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
+          x-failure: AUS-E7
           description: |
             Fuera del deadline de creación. **Lo emite la api** (`deadline_exceeded`), que corta
             sin publicar — no llega del reply de `core`
@@ -1664,7 +2091,10 @@ paths:
                 code: deadline_exceeded
                 message: Solo se pueden eliminar registros creados en los últimos 10 días
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: AUS-E8
           description: |
             El registro es de otra Persona. **Llega del reply de `core`** (`access_denied`)
           content:
@@ -1672,6 +2102,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: access_denied, message: Solo podés eliminar tus propios registros }
         '404':
+          x-failure: AUS-E6
           description: |
             El registro no existe. **Lo sigue dando la api** (`loadUnworkedTime`): `core` responde
             `unworked_time_not_found`, que el mapa del servicio traduce a **400**
@@ -1682,12 +2113,21 @@ paths:
                 code: unworked_time_not_found
                 message: Registro de tiempo no trabajado no encontrado
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /unworked-times/reasons:
     get:
-      tags: [unworked-times]
+      operationId: listUnworkedTimeReasons
+      tags: [api.times]
+      x-requirements: [AUS-03]
+      x-origin: 'initial'
       summary: Motivos de horas no trabajadas
       description: El enum, para poblar el selector. Sin chequeo de rol.
       responses:
@@ -1699,11 +2139,18 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/UnworkedReason' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /unworked-times/report:
     get:
-      tags: [unworked-times]
+      operationId: getUnworkedTimesReport
+      tags: [api.times]
+      x-requirements: [AUS-08]
+      x-origin: 'initial'
       summary: Reporte de horas no trabajadas de una persona
       description: Sin chequeo de rol.
       parameters:
@@ -1726,8 +2173,14 @@ paths:
             application/json:
               schema: { type: object }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: HOR-E15
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   # ==========================================================================
   # week-assigned-times
@@ -1735,7 +2188,10 @@ paths:
 
   /week-assigned-times:
     get:
-      tags: [week-assigned-times]
+      operationId: getWeekAssignedTimes
+      tags: [api.times]
+      x-requirements: [ASG-01]
+      x-origin: 'initial'
       summary: Asignación semanal
       description: |
         Devuelve las asignaciones de la semana más las personas habilitadas que deben cargar
@@ -1765,11 +2221,22 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/ProjectSummary' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: ASG-E7
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ASG-E7
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     put:
-      tags: [week-assigned-times]
+      operationId: replaceWeekAssignedTimes
+      tags: [api.times]
+      x-requirements: [ASG-05, ASG-06, ASG-07]
+      x-origin: 'initial'
       summary: Reemplaza la asignación de una semana
       description: |
         Reemplaza la semana completa de la grilla proyecto x persona. **El contrato HTTP no
@@ -1836,14 +2303,21 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/WeekAssignedTime' }
         '400':
+          x-failure: [ASG-E2, ASG-E3, ASG-E4, ASG-E5, ASG-E6]
           description: Validación fallida, o semana pasada
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: invalid_date_range, message: No se pueden modificar semanas pasadas }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ASG-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
 
   # ==========================================================================
   # attachments
@@ -1851,7 +2325,10 @@ paths:
 
   /attachments:
     get:
-      tags: [attachments]
+      operationId: listAttachments
+      tags: [api.files]
+      x-requirements: [ARC-16, ARC-20, ARC-21]
+      x-origin: 'initial'
       summary: Lista adjuntos de una entidad
       description: |
         **Sin `hasAnyRole`.** Autoriza por entidad con `canUserViewEntity`, que restringe a
@@ -1876,11 +2353,23 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Attachment' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: ARC-E8
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ARC-E12
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     post:
-      tags: [attachments]
+      operationId: requestFileUpload
+      tags: [api.files]
+      x-requirements: [ARC-01, ARC-02, ARC-03, ARC-04, ARC-05, ARC-06, ARC-07]
+      x-origin: 'initial'
+      x-roles: [admin, user, external-user]
       summary: Pide permiso para subir un archivo
       description: |
         **Pide permiso de subida. NO recibe el binario** (REQ-001, S-004).
@@ -1929,6 +2418,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UploadTicket' }
         '400':
+          x-failure: [ARC-E1, ARC-E2, ARC-E3]
           description: Tipo no permitido, tamaño excedido o campos inválidos
           content:
             application/json:
@@ -1939,15 +2429,26 @@ paths:
                 fileTooLarge:
                   value: { code: file_too_large, message: File exceeds the configured maximum size }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /attachments/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
     get:
-      tags: [attachments]
+      operationId: getAttachment
+      tags: [api.files]
+      x-requirements: [ARC-17, ARC-20, ARC-21]
+      x-origin: 'initial'
       summary: Metadatos de un adjunto
       description: |
         Recibe el id **del vínculo** (D-16), que se preserva a través de la migración de REQ-001
@@ -1961,11 +2462,23 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Attachment' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ARC-E12
         '404': { $ref: '#/components/responses/NotFound' }
+        x-error-404:
+          x-failure: ARC-E10
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     delete:
-      tags: [attachments]
+      operationId: unlinkAttachment
+      tags: [api.files]
+      x-requirements: [ARC-12, ARC-24]
+      x-origin: 'initial'
+      x-roles: [admin, user]
       summary: Desvincula un archivo de una entidad
       description: |
         **Borra solo el vínculo; el archivo se retiene** (REQ-001 D-04, S-004). Es un cambio de
@@ -1984,15 +2497,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ARC-E14
         '404': { $ref: '#/components/responses/NotFound' }
+        x-error-404:
+          x-failure: ARC-E10
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /attachments/{id}/download:
     get:
-      tags: [attachments]
+      operationId: downloadAttachment
+      tags: [api.files]
+      x-requirements: [ARC-18, ARC-20, ARC-21, ARC-30]
+      x-origin: 'initial'
+      x-roles: [admin, user, external-user]
       summary: Descarga un adjunto
       description: |
         **Responde 302, no el binario** (REQ-001, S-005).
@@ -2028,15 +2557,31 @@ paths:
               description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
         # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ARC-E12
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
+        x-error-404:
+          x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /attachments/{id}/preview:
     get:
-      tags: [attachments]
+      operationId: previewAttachment
+      tags: [api.files]
+      x-requirements: [ARC-18, ARC-20, ARC-21, ARC-30]
+      x-origin: 'initial'
+      x-roles: [admin, user, external-user]
       summary: Previsualiza un adjunto
       description: |
         **Responde 302, no el binario** (REQ-001, S-005). Idéntico a `/download` salvo que publica
@@ -2065,15 +2610,31 @@ paths:
               description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
         # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ARC-E12
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
+        x-error-404:
+          x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /files/{id}/preview:
     get:
-      tags: [attachments]
+      operationId: previewFile
+      tags: [api.files]
+      x-requirements: [ARC-19, ARC-20, ARC-22]
+      x-origin: 'initial'
+      x-roles: [admin, user, external-user]
       summary: Previsualiza un archivo SIN vínculo
       description: |
         **Camino nuevo de REQ-001 (S-005), y es lo que hace coherente al modelo consigo mismo.**
@@ -2123,10 +2684,20 @@ paths:
               schema: { type: string }
               description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
+        x-error-404:
+          x-failure: ARC-E11
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   # ==========================================================================
   # docs — módulo de documentación (jiku-docs, REQ-016 / S-078, S-079)
@@ -2134,7 +2705,10 @@ paths:
 
   /docs/documents:
     get:
-      tags: [docs]
+      operationId: listDocuments
+      tags: [api.docs]
+      x-requirements: [DOC-03, DOC-05, DOC-06]
+      x-origin: 'initial'
       summary: Lista documentos
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2182,14 +2756,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsDocumentPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        x-error-404:
+          x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
     post:
-      tags: [docs]
+      operationId: createDocument
+      tags: [api.docs]
+      x-requirements: [DOC-03, DOC-07, DOC-10]
+      x-origin: 'initial'
       summary: Crea un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2222,18 +2813,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: [DOC-E8, DOC-E9]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}:
     get:
-      tags: [docs]
+      operationId: getDocument
+      tags: [api.docs]
+      x-requirements: [DOC-03, DOC-08]
+      x-origin: 'initial'
       summary: Detalle de un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2259,14 +2871,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsDocumentDetail' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
     put:
-      tags: [docs]
+      operationId: updateDocument
+      tags: [api.docs]
+      x-requirements: [DOC-03, DOC-10]
+      x-origin: 'initial'
       summary: Edita un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2296,16 +2925,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: [DOC-E8, DOC-E9]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
     delete:
-      tags: [docs]
+      operationId: deleteDocument
+      tags: [api.docs]
+      x-requirements: [DOC-03, DOC-10]
+      x-origin: 'initial'
       summary: Borra un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2321,17 +2971,36 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsIdResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/versions:
     get:
-      tags: [docs]
+      operationId: listDocumentVersions
+      tags: [api.docs]
+      x-requirements: [DOC-11]
+      x-origin: 'initial'
       summary: Versiones de un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2348,16 +3017,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsVersionPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/search:
     get:
-      tags: [docs]
+      operationId: searchDocuments
+      tags: [api.docs]
+      x-requirements: [DOC-04]
+      x-origin: 'initial'
       summary: Busca en los documentos
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2390,16 +3076,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsSearchResponse' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        x-error-404:
+          x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/topics:
     get:
-      tags: [docs]
+      operationId: listDocTopics
+      tags: [api.docs]
+      x-requirements: [DOC-04]
+      x-origin: 'initial'
       summary: Lista temas
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2416,16 +3119,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsTopicPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        x-error-404:
+          x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/folders:
     get:
-      tags: [docs]
+      operationId: listDocFolders
+      tags: [api.docs]
+      x-requirements: [DOC-05, DOC-07]
+      x-origin: 'initial'
       summary: Lista carpetas
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2443,16 +3163,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsFolderPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        x-error-404:
+          x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/folders/{id}:
     get:
-      tags: [docs]
+      operationId: getDocFolder
+      tags: [api.docs]
+      x-requirements: [DOC-05]
+      x-origin: 'initial'
       summary: Detalle de una carpeta
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2467,15 +3204,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsFolder' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/attachments/{id}:
     get:
-      tags: [docs]
+      operationId: downloadDocAttachment
+      tags: [api.docs]
+      x-requirements: [DOC-13]
+      x-origin: 'initial'
       summary: Descarga un adjunto de un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2499,15 +3251,30 @@ paths:
             X-Content-Type-Options:
               schema: { type: string, enum: [nosniff] }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/move:
     post:
-      tags: [docs]
+      operationId: moveDocument
+      tags: [api.docs]
+      x-requirements: [DOC-10]
+      x-origin: 'initial'
       summary: Mueve o renombra un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2535,18 +3302,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E9
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/restore:
     post:
-      tags: [docs]
+      operationId: restoreDocumentVersion
+      tags: [api.docs]
+      x-requirements: [DOC-11]
+      x-origin: 'initial'
       summary: Restaura una versión
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2572,18 +3360,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E9
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/relations:
     post:
-      tags: [docs]
+      operationId: updateDocumentRelations
+      tags: [api.docs]
+      x-requirements: [DOC-10, DOC-12]
+      x-origin: 'initial'
       summary: Agrega o quita relaciones de un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2619,18 +3428,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsRelationsResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E9
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/suggested-relations:
     get:
-      tags: [docs]
+      operationId: listSuggestedDocumentRelations
+      tags: [api.docs]
+      x-requirements: [DOC-12]
+      x-origin: 'initial'
       summary: Relaciones sugeridas para un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2648,16 +3478,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsRelationSuggestions' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/suggestions:
     get:
-      tags: [docs]
+      operationId: listDocSuggestions
+      tags: [api.docs]
+      x-requirements: [DOC-04]
+      x-origin: 'initial'
       summary: Sugerencias del buscador de documentación
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2685,16 +3532,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsSearchSuggestions' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotInstalled' }
+        x-error-404:
+          x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/lock:
     post:
-      tags: [docs]
+      operationId: lockDocument
+      tags: [api.docs]
+      x-requirements: [DOC-09]
+      x-origin: 'initial'
       summary: Toma o renueva el lock de edición
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2721,18 +3585,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsLock' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: DOC-E6
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/unlock:
     post:
-      tags: [docs]
+      operationId: unlockDocument
+      tags: [api.docs]
+      x-requirements: [DOC-09]
+      x-origin: 'initial'
       summary: Libera el lock de edición
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2757,18 +3642,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsIdResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: DOC-E6
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/attachments:
     post:
-      tags: [docs]
+      operationId: requestDocAttachmentUpload
+      tags: [api.docs]
+      x-requirements: [DOC-13]
+      x-origin: 'initial'
       summary: Pide la subida de un adjunto
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2798,18 +3704,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsAttachmentUpload' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E14
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/attachments/{id}/confirm:
     post:
-      tags: [docs]
+      operationId: confirmDocAttachmentUpload
+      tags: [api.docs]
+      x-requirements: [DOC-13]
+      x-origin: 'initial'
       summary: Confirma la subida de un adjunto
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2824,17 +3751,36 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsAttachmentConfirm' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E14
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/documents/{id}/shares:
     get:
-      tags: [docs]
+      operationId: listDocumentShares
+      tags: [api.docs]
+      x-requirements: [DOC-15]
+      x-origin: 'initial'
       summary: Lista los links compartidos de un documento
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2852,14 +3798,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsSharePage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E10
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
     post:
-      tags: [docs]
+      operationId: createDocumentShare
+      tags: [api.docs]
+      x-requirements: [DOC-14]
+      x-origin: 'initial'
       summary: Crea un link compartido
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2891,18 +3854,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsShareCreated' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: [DOC-E12, DOC-E13]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7, DOC-E13]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4, DOC-E11]
         '409': { $ref: '#/components/responses/ModuleConflict' }
+        x-error-409:
+          x-failure: [DOC-E5, DOC-E6]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        x-error-413:
+          x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /docs/shares/{id}:
     delete:
-      tags: [docs]
+      operationId: revokeDocumentShare
+      tags: [api.docs]
+      x-requirements: [DOC-15]
+      x-origin: 'initial'
       summary: Revoca un link compartido
       x-jiku-module: docs
       x-roles: [admin, user]
@@ -2917,11 +3901,23 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsShareRevoked' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [DOC-E3, DOC-E7]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   # ==========================================================================
   # docs — links compartidos, ruta pública (REQ-016 / S-080)
@@ -2935,7 +3931,10 @@ paths:
         variables:
           publicUrl: { default: 'http://127.0.0.1:3100', description: Valor de JIKU_PUBLIC_URL }
     get:
-      tags: [docs]
+      operationId: getSharedDocument
+      tags: [api.public-docs]
+      x-requirements: [DOC-20, DOC-21, DOC-22]
+      x-origin: 'initial'
       summary: Página pública de un link compartido
       security: []
       x-jiku-module: docs
@@ -2952,8 +3951,14 @@ paths:
             text/html:
               schema: { type: string }
         '404': { $ref: '#/components/responses/PublicDocsNotFound' }
+        x-error-404:
+          x-failure: DOC-E20
         '429': { $ref: '#/components/responses/PublicDocsTooManyRequests' }
+        x-error-429:
+          x-failure: DOC-E21
         '503': { $ref: '#/components/responses/PublicDocsUnavailable' }
+        x-error-503:
+          x-failure: DOC-E21
 
   /p/docs/{token}/attachments/{id}:
     servers:
@@ -2962,7 +3967,10 @@ paths:
         variables:
           publicUrl: { default: 'http://127.0.0.1:3100', description: Valor de JIKU_PUBLIC_URL }
     get:
-      tags: [docs]
+      operationId: getSharedDocumentAttachment
+      tags: [api.public-docs]
+      x-requirements: [DOC-20, DOC-21, DOC-22]
+      x-origin: 'initial'
       summary: Adjunto de un link compartido
       security: []
       x-jiku-module: docs
@@ -2979,8 +3987,14 @@ paths:
               description: URL prefirmada de corta duración
               schema: { type: string, format: uri }
         '404': { $ref: '#/components/responses/PublicDocsNotFound' }
+        x-error-404:
+          x-failure: DOC-E20
         '429': { $ref: '#/components/responses/PublicDocsTooManyRequests' }
+        x-error-429:
+          x-failure: DOC-E21
         '503': { $ref: '#/components/responses/PublicDocsUnavailable' }
+        x-error-503:
+          x-failure: DOC-E21
 
   # ==========================================================================
   # opus — portal de clientes
@@ -2988,7 +4002,10 @@ paths:
 
   /opus/projects:
     get:
-      tags: [opus]
+      operationId: listPortalProjects
+      tags: [api.portal]
+      x-requirements: [POR-01, POR-02, POR-03]
+      x-origin: 'initial'
       summary: Proyectos visibles en el portal
       description: |
         Solo proyectos con `status: activo`. Un `external-user` ve **únicamente** los concedidos
@@ -3007,12 +4024,21 @@ paths:
                     id: { type: integer }
                     name: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: POR-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /opus/projects/{projid}/requirements:
     get:
-      tags: [opus]
+      operationId: listPortalProjectRequirements
+      tags: [api.portal]
+      x-requirements: [POR-02, POR-04, POR-05, POR-06]
+      x-origin: 'initial'
       summary: Requisitos de un proyecto en el portal
       description: |
         **Devuelve solo requisitos con `visibilityLevel: 'public'`**, para todo rol —
@@ -3057,14 +4083,27 @@ paths:
                       properties:
                         creator: { $ref: '#/components/schemas/AuthorUser' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: POR-E17
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E2]
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: POR-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: POR-E17
 
   /opus/projects/{projid}/users:
     get:
-      tags: [opus]
+      operationId: listPortalProjectUsers
+      tags: [api.portal]
+      x-requirements: [POR-12]
+      x-origin: 'initial'
       summary: Usuarios de un proyecto
       description: Para elegir a quién suscribir a un requisito.
       x-roles: [user, external-user]
@@ -3079,13 +4118,24 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E2]
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: POR-E3
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /opus/requirements:
     post:
-      tags: [opus]
+      operationId: createPortalRequirement
+      tags: [api.portal]
+      x-requirements: [POR-10, POR-11, POR-12, POR-17, REQ-38]
+      x-origin: 'initial'
       summary: Crea un requisito desde el portal
       description: |
         Usa el **mismo comando** que la ruta interna (`requirements.new`); lo que cambia es el rol
@@ -3129,18 +4179,35 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Requirement' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [POR-E8, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E10, ARC-E7]
         '404': { $ref: '#/components/responses/ProjectNotFound' }
+        x-error-404:
+          x-failure: [POR-E9, POR-E11]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/requirements/{reqid}:
     parameters:
       - $ref: '#/components/parameters/ReqIdPath'
     get:
-      tags: [opus]
+      operationId: getPortalRequirement
+      tags: [api.portal]
+      x-requirements: [POR-05, POR-07, POR-08]
+      x-origin: 'initial'
       summary: Detalle de un requisito en el portal
       description: |
         **Responde 404 `requirement_not_found` si el requisito es `internal`**, para todo rol.
@@ -3170,11 +4237,22 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementWithRelations' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E5]
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: POR-E4
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
     patch:
-      tags: [opus]
+      operationId: updatePortalRequirement
+      tags: [api.portal]
+      x-requirements: [POR-16]
+      x-origin: 'initial'
       summary: Cambia estado o prioridad de un requisito
       description: |
         Publica `requirements.{id}.edit` con solo esos dos campos.
@@ -3203,16 +4281,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: REQ-E1
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E14]
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: POR-E4
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/requirements/{reqid}/comments:
     post:
-      tags: [opus]
+      operationId: createPortalRequirementComment
+      tags: [api.portal]
+      x-requirements: [POR-13, POR-17, REQ-38]
+      x-origin: 'initial'
       summary: Comenta un requisito desde el portal
       description: |
         Publica `requirements.{id}.comment`. **Sin `visibilityLevel`**: un comentario del portal
@@ -3242,16 +4337,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RequirementActivity' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [REQ-E1, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E13, ARC-E7]
         '404': { $ref: '#/components/responses/RequirementNotFound' }
+        x-error-404:
+          x-failure: POR-E12
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/requirements/{reqid}/subscriptors:
     post:
-      tags: [opus]
+      operationId: subscribeToRequirement
+      tags: [api.portal]
+      x-requirements: [POR-14, POR-15, POR-17]
+      x-origin: 'initial'
       summary: Suscribe un usuario a un requisito
       description: |
         Publica `requirements.{id}.subscriptors.new`. Valida que el usuario a suscribir exista y
@@ -3278,24 +4390,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
+          x-failure: POR-E15
           description: Validación fallida, o `already_subscribed` desde core
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ACC-E2, POR-E15, CON-E9]
         '404':
+          x-failure: [POR-E12, POR-E15]
           description: El requisito o el usuario no existen
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/requirements/{reqid}/subscriptors/{userId}:
     delete:
-      tags: [opus]
+      operationId: unsubscribeFromRequirement
+      tags: [api.portal]
+      x-requirements: [POR-14]
+      x-origin: 'initial'
       summary: Desuscribe un usuario de un requisito
       description: |
         Publica `requirements.{id}.subscriptors.{userId}.delete`. **Un `external-user` solo puede
@@ -3320,24 +4447,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403':
+          x-failure: [POR-E16, CON-E9]
           description: Intento de desuscribir a otro usuario, o sin permiso sobre el proyecto
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404':
+          x-failure: [POR-E12, POR-E16]
           description: El requisito o la suscripción no existen
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: subscription_not_found, message: Subscription not found }
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: CON-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/attachments:
     post:
-      tags: [opus]
+      operationId: requestPortalFileUpload
+      tags: [api.portal]
+      x-requirements: [ARC-01, ARC-02, ARC-04, ARC-26]
+      x-origin: 'initial'
       summary: Pide permiso para subir un archivo desde el portal
       description: |
         Como `POST /api/attachments`, con el mismo cambio de REQ-001 (S-004): **JSON, un archivo
@@ -3364,15 +4504,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UploadTicket' }
         '400': { $ref: '#/components/responses/InvalidFields' }
+        x-error-400:
+          x-failure: [ARC-E1, ARC-E2, ARC-E3]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/attachments/{id}/preview:
     get:
-      tags: [opus]
+      operationId: previewPortalAttachment
+      tags: [api.portal]
+      x-requirements: [ARC-18, ARC-21, ARC-23]
+      x-origin: 'initial'
       summary: Previsualiza un adjunto desde el portal
       description: |
         **Responde 302, no el binario** (REQ-001, S-005). Autoriza, resuelve el `file_id` y
@@ -3393,15 +4548,30 @@ paths:
               description: URL pre-firmada de `GetObject`, con el `Content-Disposition` firmado.
         # '200' con application/octet-stream - ELIMINADO: el byte no pasa por la api
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: [ARC-E12, ARC-E13]
         '404': { $ref: '#/components/responses/AttachmentNotAvailable' }
+        x-error-404:
+          x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: ARC-E4
         '503': { $ref: '#/components/responses/BusUnavailable' }
+        x-error-503:
+          x-failure: REQ-E17
         '504': { $ref: '#/components/responses/GatewayTimeout' }
+        x-error-504:
+          x-failure: REQ-E17
 
   /opus/docs/documents:
     get:
-      tags: [opus]
+      operationId: listPortalDocuments
+      tags: [api.portal]
+      x-requirements: [DOC-17, DOC-19]
+      x-origin: 'initial'
       summary: Lista documentos públicos (portal)
       x-jiku-module: docs
       x-roles: [external-user, admin, user]
@@ -3427,16 +4597,33 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsPortalDocumentPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
+        x-error-400:
+          x-failure: DOC-E16
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: [ACC-E2, DOC-E18]
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E17]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /opus/docs/documents/{id}:
     get:
-      tags: [opus]
+      operationId: getPortalDocument
+      tags: [api.portal]
+      x-requirements: [DOC-18, DOC-19]
+      x-origin: 'initial'
       summary: Detalle de un documento público (portal)
       x-jiku-module: docs
       x-roles: [external-user, admin, user]
@@ -3456,15 +4643,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DocsPortalDocument' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: ACC-E2
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4, DOC-E19]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /opus/docs/documents/{documentId}/attachments/{id}:
     get:
-      tags: [opus]
+      operationId: downloadPortalDocumentAttachment
+      tags: [api.portal]
+      x-requirements: [DOC-18, DOC-19]
+      x-origin: 'initial'
       summary: Descarga un adjunto de un documento público (portal)
       x-jiku-module: docs
       x-roles: [external-user, admin, user]
@@ -3491,15 +4693,30 @@ paths:
             X-Content-Type-Options:
               schema: { type: string, enum: [nosniff] }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/ModuleForbidden' }
+        x-error-403:
+          x-failure: ACC-E2
         '404': { $ref: '#/components/responses/ModuleNotFound' }
+        x-error-404:
+          x-failure: [DOC-E1, DOC-E4, DOC-E19]
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
+        x-error-503:
+          x-failure: DOC-E2
         '504': { $ref: '#/components/responses/ModuleGatewayTimeout' }
+        x-error-504:
+          x-failure: DOC-E15
 
   /opus/modules:
     get:
-      tags: [opus]
+      operationId: getPortalModules
+      tags: [api.portal]
+      x-requirements: [DOC-01, DOC-02]
+      x-origin: 'initial'
       summary: Estado de los módulos opcionales (portal)
       x-jiku-module: docs
       x-roles: [admin, user, external-user]
@@ -3526,8 +4743,14 @@ paths:
                 available:
                   value: [{ module: docs, status: available, features: { sharing: true } }]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   # ==========================================================================
   # other
@@ -3535,7 +4758,10 @@ paths:
 
   /modules:
     get:
-      tags: [other]
+      operationId: getModules
+      tags: [api.docs]
+      x-requirements: [DOC-01, DOC-02, ACC-14]
+      x-origin: 'initial'
       summary: Estado de los módulos opcionales
       x-jiku-module: docs
       x-roles: [admin, user, external-user]
@@ -3559,12 +4785,21 @@ paths:
                 available:
                   value: [{ module: docs, status: available, features: { sharing: true } }]
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /persons:
     get:
-      tags: [other]
+      operationId: listPersons
+      tags: [api.projects]
+      x-requirements: [PER-01, PER-02]
+      x-origin: 'initial'
       summary: Lista personas
       description: Sin chequeo de rol.
       responses:
@@ -3576,11 +4811,18 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Person' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /settings/hours-per-day:
     get:
-      tags: [other]
+      operationId: getHoursPerDay
+      tags: [api.times]
+      x-requirements: [HOR-19]
+      x-origin: 'initial'
       summary: Horas por día configuradas
       description: Del registro correspondiente de `system_settings`.
       x-roles: [admin, user]
@@ -3594,12 +4836,21 @@ paths:
                 properties:
                   hoursPerDay: { type: number }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
         '403': { $ref: '#/components/responses/AccessDenied' }
+        x-error-403:
+          x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
+        x-error-500:
+          x-failure: PER-E4
 
   /auth/present:
     post:
-      tags: [other]
+      operationId: presentIdentity
+      tags: [api.access]
+      x-requirements: [ACC-04, ACC-15, ACC-16]
+      x-origin: 'initial'
       summary: Presenta al usuario (PROVISORIO — no-op)
       description: |
         **Hoy no hace nada: responde `200 {}` sin tocar la base.**
@@ -3636,6 +4887,8 @@ paths:
             application/json:
               schema: { type: object }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        x-error-401:
+          x-failure: ACC-E1
 
 # ============================================================================
 # components
@@ -3645,6 +4898,7 @@ components:
 
   securitySchemes:
     bearerAuth:
+      x-credential: [CRED-01, CRED-02]
       type: http
       scheme: bearer
       bearerFormat: JWT
@@ -3725,6 +4979,7 @@ components:
 
   responses:
     Unauthorized:
+      x-failure: ACC-E1
       # REQ-007 (S-034): `- ELIMINADO` el ejemplo `userNotFound`. El `sub` ya NO tiene que estar
       # en `users`: `req.user` se arma del claim. Queda una sola causa de 401.
       description: Sin token o token inválido
@@ -3735,24 +4990,28 @@ components:
             unauthorized:
               value: { code: unauthorized, message: Unauthorized }
     AccessDenied:
+      x-failure: ACC-E2
       description: Autenticado, pero el rol o el permiso de proyecto no alcanzan
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: access_denied, message: Access denied }
     InvalidFields:
+      x-failure: [CLI-E3, PRY-E2, REQ-E1, TAR-E1, HOR-E10, AUS-E5, ASG-E6, ARC-E1]
       description: Validación de Joi fallida. Devuelve **solo el primer** error
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: invalid_fields, message: 'Invalid field - "title" is required' }
     NotFound:
+      x-failure: ARC-E10
       description: No existe
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: not_found, message: Not found }
     AttachmentNotAvailable:
+      x-failure: [ARC-E10, ARC-E11]
       description: |
         No existe o no está disponible (REQ-001, S-005). Tres causas distinguibles por el `code`:
 
@@ -3778,18 +5037,21 @@ components:
             fileNotAvailable:
               value: { code: file_not_available, message: El archivo no está disponible }
     ProjectNotFound:
+      x-failure: [REQ-E2, PER-E2, HOR-E16, POR-E3, POR-E9]
       description: El proyecto no existe
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: project_not_found, message: Project not found }
     RequirementNotFound:
+      x-failure: [REQ-E3, POR-E4, POR-E12]
       description: El requisito no existe
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: requirement_not_found, message: Requirement not found }
     ModuleNotInstalled:
+      x-failure: DOC-E1
       description: |
         El módulo opcional no está instalado (`requireModule`). También es lo que ve el cliente con
         un módulo `incompatible`.
@@ -3798,6 +5060,7 @@ components:
           schema: { $ref: '#/components/schemas/ModuleError' }
           example: { code: module_not_installed, message: El módulo docs no está instalado }
     ModuleUnavailable:
+      x-failure: DOC-E2
       description: |
         El módulo está instalado pero no responde (`requireModule`, o `no responders` en un llamado).
         También es el `upstream_unavailable` de jiku-docs (su core no responde) y
@@ -3813,6 +5076,7 @@ components:
             attachmentsNotConfigured:
               value: { code: attachments_not_configured, message: Los adjuntos no están configurados }
     ModuleGatewayTimeout:
+      x-failure: DOC-E15
       description: |
         Una consulta o comando a jiku-docs no respondió a tiempo: `gateway_timeout` si no hubo reply
         dentro de `NATS_QUERY_TIMEOUT_MS` (10 s para consultas) o `NATS_REQUEST_TIMEOUT_MS` (5 s para
@@ -3829,6 +5093,7 @@ components:
             queryTimeout:
               value: { code: query_timeout, message: La consulta tardó demasiado }
     ModuleBadRequest:
+      x-failure: [DOC-E8, DOC-E9, DOC-E10, DOC-E12, DOC-E13, DOC-E14, DOC-E16]
       description: |
         Validación de Joi (`invalid_fields`, primer error, incluye un parámetro no declarado) o
         entrada rechazada por jiku-docs (`invalid_cursor`, `semantic_search_not_configured`). Las reglas
@@ -3851,6 +5116,7 @@ components:
             secretWarningNotAcknowledged:
               value: { code: secret_warning_not_acknowledged, message: El documento tiene una posible credencial }
     ModuleForbidden:
+      x-failure: [DOC-E3, DOC-E7, DOC-E13, DOC-E18]
       description: Rol insuficiente (`access_denied`) o permiso que niega jiku-docs (`permission_denied`)
       content:
         application/json:
@@ -3865,6 +5131,7 @@ components:
             callerNotAuthorized:
               value: { code: caller_not_authorized, message: El caller no está autorizado }
     ModuleNotFound:
+      x-failure: [DOC-E1, DOC-E4, DOC-E11, DOC-E17, DOC-E19]
       description: |
         Módulo no instalado, o recurso inexistente / no visible para la persona. jiku-docs no distingue
         "no existe" de "no podés verlo", y un id mal formado responde igual que uno inexistente.
@@ -3889,6 +5156,7 @@ components:
             requirementNotFound:
               value: { code: requirement_not_found, message: Requirement not found }
     ModuleConflict:
+      x-failure: [DOC-E5, DOC-E6]
       description: |
         Conflicto de escritura en jiku-docs, con su `code` SIN traducir y `details` verbatim (DD-7).
         `version_conflict` trae `details.currentVersion`; `document_locked`, `details.holder`, `details.via` y
@@ -3906,24 +5174,28 @@ components:
             alreadyExists:
               value: { code: already_exists, message: Ya existe }
     PublicDocsNotFound:
+      x-failure: DOC-E20
       description: |
         Página "Este link no está disponible" ("Puede que haya vencido o que lo hayan revocado. Pedile un link nuevo a quien te lo compartió."), **idéntica para cualquier causa** (mismo status, mismas cabeceras y mismo cuerpo): token inexistente, vencido o revocado, token mal formado, `JIKU_PUBLIC_URL` sin configurar, host distinto, módulo no instalado, cualquier error de jiku-docs, y cualquier otro path en el host público. No revela si el link existió. Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
       content:
         text/html:
           schema: { type: string }
     PublicDocsTooManyRequests:
+      x-failure: DOC-E21
       description: |
         Página "Demasiados intentos" ("Esperá un minuto y volvé a intentar."): más de 60 pedidos por minuto desde la misma IP sobre `/p/docs/*` (límite en memoria, por réplica). Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
       content:
         text/html:
           schema: { type: string }
     PublicDocsUnavailable:
+      x-failure: DOC-E21
       description: |
         Página "El documento no está disponible en este momento" ("Probá de nuevo en unos minutos."): el módulo no responde, el bus no contestó a tiempo o falló la descarga del `htmlUrl`. A diferencia de `ModuleUnavailable`, no es JSON. Lleva las cinco cabeceras de solo lectura: `Content-Security-Policy: default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
       content:
         text/html:
           schema: { type: string }
     PayloadTooLarge:
+      x-failure: DOC-E8
       description: |
         El cuerpo JSON supera el límite de la ruta (768 KiB en las escrituras de `/docs`, `DOCS_WRITE_BODY_LIMIT`).
         Lo responde el manejador de errores de `app.ts` a partir del error de body-parser (`entity.too.large`),
@@ -3933,12 +5205,14 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: payload_too_large, message: El cuerpo de la solicitud supera el límite permitido }
     InternalError:
+      x-failure: PER-E4
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: internal_error, message: Internal error }
     BusUnavailable:
+      x-failure: [CLI-E11, PRY-E10, REQ-E17]
       description: |
         **No hay ningún suscriptor del subject:** el server contesta *"no responders"* **en
         milisegundos**, no al vencer el timeout. Es la señal de un problema de **despliegue**.
@@ -3954,6 +5228,7 @@ components:
             code: service_unavailable
             message: El servicio no está disponible en este momento
     GatewayTimeout:
+      x-failure: [CLI-E11, PRY-E10, REQ-E17]
       description: |
         **La respuesta no llegó dentro de `NATS_REQUEST_TIMEOUT_MS`** (default 5000 ms). Había
         alguien escuchando y no contestó a tiempo: es la señal de un problema de **performance**,
