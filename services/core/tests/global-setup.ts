@@ -3,9 +3,26 @@
  * Acá se crea el esquema una vez para toda la corrida y se apaga el contenedor al final.
  */
 import { execFileSync } from 'child_process';
+import path from 'path';
 import { DB_CONTAINER } from './setup-env';
 
+
+/**
+ * The schema the tests run on is the one the migrations build (services/api/db-upgrade: the
+ * baseline on an empty database, then every migration), the same as an installation. The
+ * models' `sync()` that `initializeDb()` runs afterwards only creates what the migrations lack.
+ */
+function migrate(): void {
+  execFileSync('npm', ['run', '--silent', 'upgrade-db'], {
+    cwd: path.join(__dirname, '..', '..', 'api'),
+    env: process.env,
+    stdio: ['ignore', 'ignore', 'inherit'],
+    timeout: 180000,
+  });
+}
+
 export async function mochaGlobalSetup(): Promise<void> {
+  migrate();
   // La misma validación de arranque que corre `src/index.ts`. Los comandos de `files`
   // resuelven la identidad contra `CORE_TRUSTED_PUBLISHER_ID`, que `.env.test` provee: sin
   // esta llamada `getTrustedPublisherId()` lanzaría y la causa quedaría lejos del síntoma.
@@ -52,7 +69,11 @@ export async function mochaGlobalSetup(): Promise<void> {
 }
 
 export async function mochaGlobalTeardown(): Promise<void> {
-  if (process.env.CI === 'true' || process.env.KEEP_DB === 'true') {
+  if (
+    process.env.CI === 'true' ||
+    process.env.TEST_DATABASE === 'external' ||
+    process.env.KEEP_DB === 'true'
+  ) {
     return;
   }
   try {

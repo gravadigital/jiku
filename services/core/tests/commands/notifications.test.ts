@@ -14,6 +14,7 @@ import { CommandRegistry } from '../../src/commands/registry';
 import { Command, CommandContext } from '../../src/commands/types';
 import { getTrustedPublisherId } from '../../src/config';
 import { fakePublisher } from '../helpers/dispatch';
+import { duplicateSubscriptorRows } from '../helpers/duplicate-subscriptors';
 
 /**
  * Los 33 escenarios de S-071 (REQ-015): el registro de tipos, las cuatro reglas de filtrado, el
@@ -419,14 +420,19 @@ describe('notifications (S-071)', () => {
     });
 
     it('TS-11 · un userId duplicado produce UNA sola fila', async () => {
-      await RequirementSubscriptor.bulkCreate([
-        { requirementId: R412, userId: U2 },
-        { requirementId: R412, userId: U2 },
-      ]);
-
-      await dispatchDoble({
-        notifications: [{ type: 'requirement.created', entity: { type: 'requirement', id: R412, projectId: P1 } }],
-      }, { actor: { id: U1, roles: ['user'] } });
+      // El esquema de las migraciones tiene UNIQUE (requirement_id, user_id): dos filas iguales
+      // ya no se pueden guardar. El `userId` repetido se le da a la lectura de suscriptores
+      // (ver `duplicateSubscriptorRows`), y la regla 3 sigue siendo la que deduplica.
+      await RequirementSubscriptor.create({ requirementId: R412, userId: U2 });
+      const duplicated = duplicateSubscriptorRows(U2);
+      try {
+        await dispatchDoble({
+          notifications: [{ type: 'requirement.created', entity: { type: 'requirement', id: R412, projectId: P1 } }],
+        }, { actor: { id: U1, roles: ['user'] } });
+        duplicated.called.should.be.true();
+      } finally {
+        duplicated.restore();
+      }
 
       const rows = await allRows();
       rows.length.should.equal(1);

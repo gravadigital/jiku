@@ -103,7 +103,11 @@ export const FILE_ORPHAN_THEIRS_NAME = 'huerfano-ajeno.pdf';
 export const FILE_ONLY_FOREIGN_NAME = 'solo-ajeno.pdf';
 /** Su único vínculo tiene `deleted_at`: vuelve a la rama (B). */
 export const FILE_UNLINKED_AGAIN_NAME = 'desvinculado.pdf';
-/** CA-10: `retention_status = 'purged'`. */
+/**
+ * CA-10: un archivo NO retenido (`retention_status` distinto de `active`). Es `deleted`, un valor
+ * real del ENUM `retention_status` del esquema de las migraciones (`active`,
+ * `scheduled_for_deletion`, `deleted`); el `sync()` lo creaba como texto libre y aceptaba `purged`.
+ */
 export const FILE_PURGED_NAME = 'purgado.pdf';
 /** Vínculo vivo a `TASK_INTERNAL`: permitida pero interna. */
 export const FILE_INTERNAL_TASK_NAME = 'de-tarea-interna.pdf';
@@ -174,7 +178,7 @@ const FILE_SEEDS: FileSeed[] = [
   { name: FILE_ONLY_FOREIGN_NAME, uploadedBy: Q_EXTERNAL },
   { name: FILE_UNLINKED_AGAIN_NAME, uploadedBy: Q_EXTERNAL },
   // S-061 · CA-13 (TS-115a): con checksum, para poder filtrar por él y comprobar que no aparece.
-  { name: FILE_PURGED_NAME, uploadedBy: CREATOR, retentionStatus: 'purged', checksum: FILE_PURGED_CHECKSUM },
+  { name: FILE_PURGED_NAME, uploadedBy: CREATOR, retentionStatus: 'deleted', checksum: FILE_PURGED_CHECKSUM },
   { name: FILE_INTERNAL_TASK_NAME, uploadedBy: CREATOR },
   // S-061 · CA-4, CA-5, CA-6: un segundo checksum de CREATOR y uno de OTRO uploader.
   { name: FILE_SECOND_NAME, uploadedBy: CREATOR, checksum: FILE_SECOND_CHECKSUM },

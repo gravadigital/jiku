@@ -101,7 +101,9 @@ function startDatabase(): void {
   console.log(`[tests] PostgreSQL en localhost:${port}`);
 }
 
-if (process.env.CI !== 'true') {
+// The database is given from outside in CI and when `make test-integration` brings up the
+// `postgres-test` service of the root docker-compose.yml (TEST_DATABASE=external).
+if (process.env.CI !== 'true' && process.env.TEST_DATABASE !== 'external') {
   startDatabase();
   process.env.POSTGRESQL_HOST = '127.0.0.1';
   process.env.POSTGRESQL_DB = 'gestionTest';

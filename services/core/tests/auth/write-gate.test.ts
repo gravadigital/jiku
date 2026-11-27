@@ -17,6 +17,7 @@ import {
   RequirementActivity,
   RequirementSubscriptor,
   RetentionStatus,
+  UnworkedTime,
   User,
   UserProjectPermission,
 } from '@jiku/models';
@@ -140,6 +141,8 @@ describe('S-030 · la compuerta de escritura', () => {
     await ObjectiveActivity.destroy({ where: {} });
     await Requirement.destroy({ where: {} });
     await Objective.destroy({ where: {} });
+    // TS-59 deja una ausencia: `unworked_times.person_id → people.id` es ON DELETE RESTRICT.
+    await UnworkedTime.destroy({ where: {} });
     await Person.destroy({ where: {} });
     await Client.destroy({ where: {} });
     await Project.destroy({ where: {} });

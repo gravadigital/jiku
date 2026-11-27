@@ -80,6 +80,9 @@ describe('PATCH /api/objectives/:id/comment/:cid', () => {
   after(() => {
     return Attachment.destroy({where: {}, force: true})
       .then(() => File.destroy({where: {}, force: true}))
+      // Antes que los usuarios: `objective_activity.changed_by` es NOT NULL con una FK ON DELETE
+      // SET NULL, así que borrar un usuario con actividad viva falla.
+      .then(() => ObjectiveActivity.destroy({where: {}}))
       .then(() => Objective.destroy({where: {}}))
       .then(() => {
         return Project.destroy({where: {}});

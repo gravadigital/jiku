@@ -9,6 +9,7 @@ import * as path from 'path';
 import logger from '../../src/logger';
 import { getTrustedPublisherId } from '../../src/config';
 import { dispatch, fakePublisher } from '../helpers/dispatch';
+import { duplicateSubscriptorRows } from '../helpers/duplicate-subscriptors';
 import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
 
 const CREATOR = 'zitadel-sub-reqs';
@@ -1155,12 +1156,19 @@ describe('requirements', () => {
         const requirement = await Requirement.create({
           title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
         });
+        // El esquema de las migraciones tiene UNIQUE (requirement_id, user_id): la segunda fila
+        // ya no se puede guardar. El `userId` repetido se le da a la lectura de suscriptores (ver
+        // `duplicateSubscriptorRows`), y `resolveRecipients()` corre entero sobre ella.
         await RequirementSubscriptor.create({ requirementId: requirement.id, userId: OTHER_USER });
-        await RequirementSubscriptor.create({ requirementId: requirement.id, userId: OTHER_USER });
-
-        await dispatch(`requirements.${requirement.id}.edit`, {
-          editor: CREATOR, state: 'desarrollo',
-        });
+        const duplicated = duplicateSubscriptorRows(OTHER_USER);
+        try {
+          await dispatch(`requirements.${requirement.id}.edit`, {
+            editor: CREATOR, state: 'desarrollo',
+          });
+          duplicated.called.should.be.true();
+        } finally {
+          duplicated.restore();
+        }
 
         const event = ev('requirement.state.changed');
         event.recipients!.subscriptors.length.should.equal(2);

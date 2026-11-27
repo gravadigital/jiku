@@ -4,7 +4,7 @@ import { ErrorCode, NatsError } from 'nats';
 import { start } from '../mocks/app';
 import request from 'supertest';
 import { Application } from 'express';
-import { Attachment, File, Objective, Person, Project, ProjectPerson, Requirement, RequirementActivity, RequirementSubscriptor, User } from '@jiku/models';
+import { Attachment, File, Objective, Person, PersonRequirement, Project, ProjectPerson, Requirement, RequirementActivity, RequirementSubscriptor, User } from '@jiku/models';
 import { fakeBus } from '../mocks/bus';
 
 describe('POST /api/requirements', () => {
@@ -48,6 +48,8 @@ describe('POST /api/requirements', () => {
   after(() => {
     return RequirementActivity.destroy({ where: {} })
       .then(() => RequirementSubscriptor.destroy({ where: {} }))
+      // Las FK de `people_requirements` no borran en cascada: los responsables van primero.
+      .then(() => PersonRequirement.destroy({ where: {} }))
       .then(() => Requirement.destroy({ where: {} }))
       .then(() => Attachment.destroy({ where: {}, force: true }))
       .then(() => File.destroy({ where: {}, force: true }))

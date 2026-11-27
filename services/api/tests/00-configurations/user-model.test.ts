@@ -18,13 +18,10 @@ import { allModels, IdentityType, User } from '@jiku/models';
  * siembra de `User` que ya existen en `services/api/tests/` y `services/core/tests/` pasan sin una línea de
  * cambio (CA-13).
  *
- * LO QUE NO PRUEBA: el ENUM nativo. El esquema de esta suite lo construye `sequelize.sync()`,
- * no las migraciones (ADR-013, su límite declarado), así que acá `identity_type` es un
- * `VARCHAR(255)` sin CHECK. La verificación de que la migración crea el tipo nativo
- * `identity_type` con sus dos valores es del plan de `api`, contra una base migrada. Por la
- * misma razón NO hay ningún escenario que afirme que un `identityType` inválido es rechazado:
- * contra `sync()` ese `INSERT` pasa, y el test fallaría por el límite de ADR-013 y no por un
- * bug del producto. La validación del valor vive en el consumidor del evento (S-016).
+ * EL ESQUEMA: la suite corre sobre el que construyen las migraciones (tests/global-setup.ts),
+ * y `sync()` corre después solo para crear lo que falte. Ahí `identity_type` es el ENUM nativo
+ * de la migración, con sus dos valores; TS-11 lo fija. La validación del valor que llega del
+ * proveedor de identidad vive en el consumidor del evento (S-016).
  *
  * El valor real del archivo es TS-11: fijar como contrato que NO existe ningún tipo enum
  * `%identity%`. Esa aserción es la que rompe el día que alguien "arregle" el modelo a
@@ -225,15 +222,36 @@ describe('S-015 - User gana roles e identityType', () => {
      * para que `sync()` NO cree ningún tipo: si creara uno, se llamaría
      * `enum_users_identity_type` y sería distinto del `identity_type` que crea la migración.
      * Esta aserción es la que rompe si alguien cambia el modelo a `DataType.ENUM`.
+     *
+     * La suite corre sobre el esquema de las migraciones, y `sync()` corre DESPUÉS sobre él:
+     * el único tipo `%identity%` que puede haber es el nativo de la migración (`identity_type`,
+     * más el `_identity_type` de arreglo que PostgreSQL crea con todo tipo), con sus dos valores,
+     * y es el que usa la columna. Un `enum_users_identity_type` aparecería al lado.
      */
     it('TS-11: sync() no crea enum_users_identity_type: el modelo es STRING a propósito', () => {
       return sequelize
         .query<{ typname: string }>(
-          `SELECT typname FROM pg_type WHERE typname LIKE '%identity%'`,
+          `SELECT typname FROM pg_type WHERE typname LIKE '%identity%' ORDER BY typname`,
           { type: QueryTypes.SELECT }
         )
         .then((rows) => {
-          rows.should.have.length(0);
+          rows.map((row) => row.typname).should.be.eql(['_identity_type', 'identity_type']);
+          return sequelize.query<{ udt_name: string }>(
+            `SELECT udt_name FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'identity_type'`,
+            { type: QueryTypes.SELECT }
+          );
+        })
+        .then((rows) => {
+          rows.should.have.length(1);
+          rows[0].udt_name.should.be.equal('identity_type');
+          return sequelize.query<{ label: string }>(
+            'SELECT unnest(enum_range(NULL::identity_type))::text AS label',
+            { type: QueryTypes.SELECT }
+          );
+        })
+        .then((rows) => {
+          rows.map((row) => row.label).should.be.eql(['person', 'service']);
         });
     });
   });

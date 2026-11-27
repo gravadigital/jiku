@@ -15,6 +15,7 @@ import { useDocsList } from './useDocsList';
 import { useDocsSuggestions } from './useDocsSuggestions';
 import { useDocsTextSearch } from './useDocsTextSearch';
 import { useSuggestedRelations } from './useSuggestedRelations';
+import type { DocumentsFilters } from '../types/docs.types';
 
 vi.mock('../services/docsApi', () => ({
   listDocuments: vi.fn(),
@@ -42,7 +43,7 @@ const pageOf = (cursor?: string, total = 45) => ({
   },
 });
 
-const FILTERS = { clientId: [4], sort: '-updatedAt', limit: 20, count: true } as const;
+const FILTERS: DocumentsFilters = { clientId: [4], sort: '-updatedAt', limit: 20, count: true };
 
 describe('useDocsList', () => {
   beforeEach(() => vi.clearAllMocks());

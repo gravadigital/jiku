@@ -5,6 +5,20 @@ import request from 'supertest';
 import { Application } from 'express';
 import { Client, IdentityType, Project, User } from '@jiku/models';
 
+/** Pasa `users.identity_type` a VARCHAR, para poder sembrar un valor que el ENUM no tiene. */
+const IDENTITY_TYPE_AS_VARCHAR = `
+  ALTER TABLE users
+    ALTER COLUMN identity_type DROP DEFAULT,
+    ALTER COLUMN identity_type TYPE varchar(255),
+    ALTER COLUMN identity_type SET DEFAULT 'person'`;
+
+/** Devuelve `users.identity_type` al ENUM nativo de la migración, con su default. */
+const IDENTITY_TYPE_AS_ENUM = `
+  ALTER TABLE users
+    ALTER COLUMN identity_type DROP DEFAULT,
+    ALTER COLUMN identity_type TYPE identity_type USING identity_type::identity_type,
+    ALTER COLUMN identity_type SET DEFAULT 'person'::identity_type`;
+
 describe('GET /api/projects/:id', () => {
   let application: Application;
 
@@ -64,9 +78,11 @@ describe('GET /api/projects/:id', () => {
           email: 'sintipo@mail.com',
         });
       })
-      // El esquema de test lo crea `sync()`, donde `identity_type` es un VARCHAR sin CHECK
-      // (divergencia deliberada documentada en docs/db-schemas/jiku.md). Eso es lo que permite
-      // sembrar un valor invalido sin pelear con el ENUM nativo de produccion.
+      // El esquema de test es el de las migraciones, donde `identity_type` es el ENUM nativo
+      // `identity_type`: un valor que el ENUM no conoce no se puede sembrar. Para TS-11 se
+      // recrea a mano el escenario de un valor inesperado pasando la columna a VARCHAR (el tipo
+      // con que la declara el modelo); el `after` la devuelve al ENUM, con su default.
+      .then(() => User.sequelize!.query(IDENTITY_TYPE_AS_VARCHAR))
       .then(() => {
         return User.create({
           id: 'zitadel-sub-raro',
@@ -103,6 +119,7 @@ describe('GET /api/projects/:id', () => {
       .then(() => {
         return User.destroy({ where: {} });
       })
+      .then(() => User.sequelize!.query(IDENTITY_TYPE_AS_ENUM))
       .then(() => {
         return Client.destroy({ where: {} });
       });

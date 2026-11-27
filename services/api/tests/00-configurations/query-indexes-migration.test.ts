@@ -9,11 +9,12 @@ import { sequelize } from '../../lib/models';
 /**
  * S-021: los 18 índices compuestos que la paginación keyset de REQ-006 necesita.
  *
- * **Es el primer test de una migración del producto**, y conviene decir por qué se puede acá y
- * no se pudo antes: una migración de SOLO ÍNDICES no depende del estado de los datos. El
- * esquema que deja `sequelize.sync()` tiene las mismas tablas y columnas que producción, así
- * que el DDL de `CREATE INDEX` que se ejecuta es idéntico. El archivo aplica la migración **a
- * mano** (`migration.up(...)`), no corre `upgrade-db` y no toca `sequelize_meta`.
+ * **Es el primer test de una migración del producto.** La suite corre sobre el esquema que
+ * construyen las migraciones (tests/global-setup.ts), así que esta ya está aplicada: el `before`
+ * raíz recrea a mano el escenario previo (su propio `down`, más dos índices preexistentes que se
+ * sacan a propósito, ver ahí) y el `after` raíz deja la base exactamente como la encontró. El
+ * archivo aplica la migración **a mano** (`migration.up(...)`), no corre `upgrade-db` y no toca
+ * `sequelize_meta`.
  *
  * LO QUE PRUEBA: que la migración crea los 18 índices con el nombre, las columnas, el orden y
  * la dirección exactos que declara `docs/db-schemas/jiku.md`; que el GIN de `tags` es GIN; que
@@ -21,19 +22,9 @@ import { sequelize } from '../../lib/models';
  * (CA-11); que el bloque `DO $$` de `user_project_permissions` resuelve por CATÁLOGO y no por
  * nombre, o sea que NO crea el duplicado cuando ya hay un índice cuya primera columna es
  * `user_id` (CA-8); que `up()` dos veces seguidas no rompe (CA-14); que el `down()` **no borra
- * nada que existiera antes** (CA-13); y que los tres `EXPLAIN` de la story se resuelven por el
- * índice esperado.
- *
- * LO QUE NO PRUEBA: que los índices PREEXISTENTES de CA-10 sigan ahí. En esta base **no existe
- * ninguno** —`attachments(entity_type, entity_id)`, `projects(client_id)`,
- * `files(uploaded_by, byte_status)` y el cuarto que el relevamiento encontró,
- * `idx_worked_times_requirement_id`— porque los creó una migración y `sync()` no los reproduce.
- * Es el límite declarado de ADR-013: el esquema de la suite lo construye `sync()`, no las
- * migraciones, y son dos fuentes de verdad. Lo único que se puede afirmar acá es la mitad
- * verificable: que esta migración **no los nombra en ninguna sentencia y no crea nada nuevo**
- * sobre `attachments` ni sobre `files`. La otra mitad —que existen, con idéntico `indexdef`,
- * antes y después de aplicar contra una base migrada— es una REVISIÓN a mano, y su evidencia
- * está en `docs/changelog/2026-08-24-indices-compuestos-para-el-keyset.md`.
+ * nada que existiera antes** (CA-13), incluidos los índices preexistentes de CA-10 sobre
+ * `attachments` y `files`, que en la base migrada existen; y que los tres `EXPLAIN` de la story
+ * se resuelven por el índice esperado.
  *
  * TAMPOCO PRUEBA TIEMPOS. `EXPLAIN`, no `EXPLAIN ANALYZE`: el plan, no el reloj. Un test de
  * duración es ruidoso y depende del tamaño del entorno.
@@ -105,6 +96,12 @@ const PREEXISTING_INDEX_NAMES = [
   'idx_files_uploader_byte_status',
   'idx_attachments_entity',
 ];
+
+/**
+ * Los dos índices que la base migrada ya tiene y que este archivo saca para armar sus
+ * escenarios (ver el `before` raíz); el `after` raíz los recrea con su `indexdef` exacto.
+ */
+const PRESERVED_INDEXES = ['uk_user_project_permissions', 'idx_worked_times_requirement_id'];
 
 interface IndexRow {
   tablename: string;
@@ -211,15 +208,52 @@ function explain(sql: string): Promise<PlanNode[]> {
 }
 
 describe('S-021: migración de índices del keyset (20260824_02_query_indexes)', () => {
-  /** El catálogo tal como estaba ANTES de que este archivo aplicara nada. */
+  /** El catálogo del escenario previo a la migración, armado en el `before` de abajo. */
   let baseline: IndexRow[] = [];
+  /** El catálogo de la base migrada, tal como la encontró este archivo: el `after` la restaura. */
+  let migrated: IndexRow[] = [];
 
   before(function () {
     this.timeout(30000);
     return initDb()
       .then(() => catalog())
       .then((rows) => {
+        migrated = rows;
+        // El escenario previo a la migración, armado a mano sobre la base migrada:
+        //   - su propio `down` saca los índices que ella crea;
+        //   - `uk_user_project_permissions` (de 20260529_07) se dropea para que la tabla quede
+        //     sin ningún índice sobre `user_id`, el caso en que el DO $$ de CA-8 tiene que crear
+        //     el suyo (TS-11, TS-21). El caso contrario lo fabrica TS-12 con su propio índice;
+        //   - `idx_worked_times_requirement_id` (de 20260626_01) se dropea para que el `up` lo
+        //     cree y se pueda verificar que el `down` no lo saca (TS-17).
+        PRESERVED_INDEXES.forEach((name) => {
+          if (!indexByName(rows, name)) {
+            throw new Error(`la base migrada no tiene ${name}`);
+          }
+        });
+        return down();
+      })
+      .then(() => sequelize.query(
+        PRESERVED_INDEXES.map((name) => `DROP INDEX IF EXISTS ${name};`).join('\n')
+      ))
+      .then(() => catalog())
+      .then((rows) => {
         baseline = rows;
+      });
+  });
+
+  after(function () {
+    this.timeout(30000);
+    // Deja la base como la encontró: los dos índices previos con su definición exacta, y la
+    // migración aplicada encima de ellos, como en una instalación.
+    return revert()
+      .then(() => sequelize.query(
+        PRESERVED_INDEXES.map((name) => `${indexByName(migrated, name)!.indexdef};`).join('\n')
+      ))
+      .then(() => up())
+      .then(() => catalog())
+      .then((rows) => {
+        rows.should.be.eql(migrated);
       });
   });
 
@@ -433,8 +467,8 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
     });
 
     it('TS-11: sin índice previo sobre user_id, la migración lo crea', () => {
-      // En esta base el modelo no declara la constraint única, así que `sync()` deja la tabla
-      // sin ningún índice sobre `user_id` y el DO $$ tiene que crearlo.
+      // En el escenario del `before` raíz la tabla no tiene ningún índice sobre `user_id`
+      // (se sacó `uk_user_project_permissions`), así que el DO $$ tiene que crearlo.
       const row = indexByName(rows, 'idx_user_project_permissions_user_id');
       (row === undefined).should.be.false();
       indexColumns((row as IndexRow).indexdef).should.be.eql(['user_id']);
@@ -572,8 +606,8 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
       //     `requirement_id`, así que en toda base MIGRADA ya existe. Si el `down` lo dropeara,
       //     borraría un índice preexistente y ahí sí violaría CA-13 ("de los mismos nombres que
       //     creó, y ninguno más").
-      //   - En ESTA base, construida por `sync()`, el modelo no declara `indexes`, así que el
-      //     índice no está y el `up` sí lo crea. Como el `down` no lo dropea, queda uno de más.
+      //   - En el escenario de ESTE archivo el `before` raíz lo sacó, así que el índice no está
+      //     y el `up` sí lo crea. Como el `down` no lo dropea, queda uno de más.
       // La garantía real de CA-13 es la del test anterior (no se pierde nada). Acá se fija que
       // el excedente es EXACTAMENTE ese índice y ninguno otro: si mañana el `down` se olvidara
       // de otro nombre, este assert lo ve.
@@ -585,8 +619,8 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
     });
 
     it('el down no borra ninguno de los índices preexistentes de CA-10', () => {
-      // En esta base ninguno de los tres de CA-10 existe (ADR-013), así que lo verificable acá
-      // es que el catálogo de `attachments` y `files` no perdió NI GANÓ nada.
+      // Los de CA-10 viven en `attachments`, `files` y `projects`: el catálogo de las dos
+      // primeras no perdió NI GANÓ nada (el de `projects` lo cubre el test anterior).
       ['attachments', 'files'].forEach((table) => {
         const previous = before_.filter((row) => row.tablename === table);
         const current = after_.filter((row) => row.tablename === table);

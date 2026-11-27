@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { initDb } from '../mocks/app';
 import { sequelize } from '../../lib/models';
-import { User, NotificationOutbox } from '@jiku/models';
+import { User } from '@jiku/models';
 
 /**
  * S-069: la migración `20260917_01_notification_outbox` — la contraparte, del lado de la
@@ -20,15 +20,14 @@ import { User, NotificationOutbox } from '@jiku/models';
  *
  * LA DIFERENCIA CON S-021, Y EL PUNTO QUE MÁS CUIDADO PIDE ACÁ:
  *
- *   - `notification_outbox` YA EXISTE en la base de la suite: el modelo está registrado desde
- *     `ca8bd7b`, así que `sequelize.sync()` la crea. El `up` de la migración chocaría con una
- *     tabla existente. SALIDA ELEGIDA: dropear `notification_outbox` en el `before` de este
- *     archivo, aplicar la migración, correr los escenarios, y en el `after` dropear la versión
- *     migrada y RECREARLA con `sync()` (`NotificationOutbox.sync()`). Es necesario porque Mocha
- *     ordena los archivos alfabéticamente dentro del directorio y
- *     `notification-outbox-migration` corre ANTES que `notification-outbox-model`: si este
- *     archivo dejara la tabla borrada, aquel fallaría. Verificado corriendo la suite completa
- *     (TS-23), no solo este archivo aislado.
+ *   - `notification_outbox` YA EXISTE en la base de la suite: la suite corre sobre el esquema
+ *     de las migraciones, donde esta ya está aplicada. El `up` chocaría con la tabla y con las
+ *     tres claves ya sembradas. SALIDA ELEGIDA: en el `before` de este archivo se recrea el
+ *     estado previo a la migración con su propio `down` (y se dropean las tres tablas muertas
+ *     que el `down` recrea), se corren los escenarios, y en el `after` se vuelve a aplicar el
+ *     `up`, partiendo del estado previo. Es necesario porque Mocha ordena los archivos
+ *     alfabéticamente dentro del directorio y `notification-outbox-migration` corre ANTES que
+ *     `notification-outbox-model`: si este archivo dejara la tabla borrada, aquel fallaría.
  *
  *   - Las tres tablas muertas, al revés, YA NO EXISTEN en la base de la suite: sus tres modelos
  *     salieron del barrel de `@jiku/models` en el commit anterior de esta misma story, así que
@@ -147,21 +146,28 @@ describe('S-069: migración de la cola de salida (20260917_01_notification_outbo
         objectivesBaseline = Object.keys(objectives as any).sort();
         requirementsBaseline = Object.keys(requirements as any).sort();
       })
-      // sync() ya creó notification_outbox (el modelo está registrado desde ca8bd7b). Se
-      // dropea para que el createTable del up no choque con una tabla existente.
-      .then(() => sequelize.getQueryInterface().dropTable('notification_outbox'));
+      // La base de la suite es la de las migraciones: esta migración YA está aplicada. Se
+      // recrea a mano el estado previo a ella con su propio `down` (sin `notification_outbox`,
+      // sin las tres claves sembradas en `system_settings`), y se dropean las tres tablas
+      // muertas que el `down` recrea: es el escenario para el que están escritos los
+      // `describe` de abajo, que las crean ellos mismos cuando las necesitan (TS-12, TS-13).
+      .then(() => down())
+      .then(() => dropDeadTablesIfAny());
   });
 
   after(function () {
     this.timeout(30000);
-    // Deja la base como la encontró: por si algún describe no llegó a revertir, y recrea
-    // notification_outbox con sync() para que notification-outbox-model.test.ts (que corre
-    // después, alfabéticamente) la encuentre.
+    // Deja la base como la encontró, o sea con la migración aplicada: por si algún describe no
+    // llegó a revertir, se parte del estado previo (sin la tabla, sin las tres claves) y se
+    // vuelve a aplicar el `up`, para que notification-outbox-model.test.ts (que corre después,
+    // alfabéticamente) encuentre la tabla tal como la deja la migración.
     return dropDeadTablesIfAny()
+      .then(() => sequelize.query('DROP TABLE IF EXISTS notification_outbox'))
       .then(() => sequelize.query(
-        'DROP TABLE IF EXISTS notification_outbox'
+        'DELETE FROM system_settings WHERE key IN (:keys)',
+        { replacements: { keys: SEEDED_KEYS } }
       ))
-      .then(() => NotificationOutbox.sync());
+      .then(() => up());
   });
 
   describe('el archivo de la migración', () => {

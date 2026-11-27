@@ -1,0 +1,37 @@
+[
+  {
+    "sub": "300000000000000001",
+    "username": "admin",
+    "name": "Ana Admin",
+    "email": "admin@jiku.test",
+    "roles": ["admin"]
+  },
+  {
+    "sub": "300000000000000002",
+    "username": "user",
+    "name": "Uriel Usuario",
+    "email": "user@jiku.test",
+    "roles": ["user"]
+  },
+  {
+    "sub": "300000000000000003",
+    "username": "external",
+    "name": "Elena Externa",
+    "email": "external@jiku.test",
+    "roles": ["external-user"]
+  },
+  {
+    "sub": "300000000000000101",
+    "username": "jiku-api",
+    "name": "jiku-api",
+    "roles": ["internal-app"],
+    "machine": true
+  },
+  {
+    "sub": "300000000000000102",
+    "username": "jiku-core",
+    "name": "jiku-core",
+    "roles": ["core"],
+    "machine": true
+  }
+]

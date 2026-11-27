@@ -12,7 +12,7 @@
     "test:unit": "mocha \"tests/utils/**/*.test.ts\"",
     "test:coverage": "nyc mocha \"tests/**/*.test.ts\"",
     "generate-api-doc": "api-doc -f ./lib -o ./doc.md",
-    "upgrade-db": "sequelize-cli db:migrate --config ./db-upgrade/config.js --migrations-path ./db-upgrade/migrations/",
+    "upgrade-db": "node ./db-upgrade/baseline.js && sequelize-cli db:migrate --config ./db-upgrade/config.js --migrations-path ./db-upgrade/migrations/",
     "built-start": "npm run upgrade-db && node ./dist/bin",
     "lint": "eslint ./lib"
   },

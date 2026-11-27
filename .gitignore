@@ -23,6 +23,7 @@ coverage/
 .env.*
 .env_*
 !.env.dist
+!.env.example
 !.env.defaults
 !.env.test
 *.env.bak
