@@ -96,7 +96,7 @@ Servers use `deploy/docker-compose.yml` + `deploy/.env` (real Zitadel, S3, SMTP)
 | Documentation for people | `README.md`, `CHANGELOG.md`, `docs/`: the operations guide and, with external integrators, the integration guide (`operacion.md`, `integracion.md` when the product language is Spanish; `operations.md`, `integration.md` otherwise) |
 | Code | `services/{service}/`, shared packages in `packages/` |
 | Server deployment (composes, NATS identity, auth-callout policy) | `deploy/` |
-| Older internal docs (architecture per service, ADRs, stories, history) | `docs/` (Spanish); public docs in `documentation/` |
+| Design system of both frontends (tokens, foundations, components) | `docs/design-system/` (Spanish); public docs in `documentation/` |
 | Test reports | `reports/` (not versioned) |
 
 To load only the part of the definition a task touches:

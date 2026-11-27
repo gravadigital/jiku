@@ -42,7 +42,7 @@ test-integration: test-db
 # real tokens of the fake identity provider.
 test-e2e:
 	@mkdir -p $(JUNIT)
-	MOCHA_FILE=$(JUNIT)/core-e2e.xml npx mocha --no-config -r ts-node/register --timeout 30000 "e2e/**/*.e2e.ts" $(REPORTERS)
+	NATS_URL=nats://localhost:$${NATS_PORT:-4222} MOCHA_FILE=$(JUNIT)/core-e2e.xml npx mocha --no-config -r ts-node/register --timeout 30000 "e2e/**/*.e2e.ts" $(REPORTERS)
 
 test-perf:
 	@echo "core test-perf: no NFR is verified by a performance test yet"

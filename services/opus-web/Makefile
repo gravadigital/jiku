@@ -31,7 +31,7 @@ test-integration:
 test-e2e:
 	@mkdir -p $(JUNIT) $(ROOT)/reports/playwright
 	docker run --rm --network host --ipc host --user $$(id -u):$$(id -g) -e HOME=/tmp \
-		-e PLAYWRIGHT_JUNIT_OUTPUT_NAME=/repo/reports/junit/opus-web-e2e.xml \
+		-e PLAYWRIGHT_JUNIT_OUTPUT_NAME=/repo/reports/junit/opus-web-e2e.xml -e DATABASE_PORT \
 		-v $(ROOT):/repo -w /repo/services/opus-web $(PLAYWRIGHT_IMAGE) \
 		npx playwright test
 

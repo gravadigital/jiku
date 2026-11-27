@@ -4,7 +4,7 @@
  * VIVE ACÁ Y NO ADENTRO DE `worked-times.ts` porque LA APLICAN DOS COMANDOS —el alta y el
  * borrado— sobre DOS REPRESENTACIONES DISTINTAS de la fecha: el alta compara el string del
  * payload, el borrado compara el `Date` que vuelve de la base (`worked_times.date` es TIMESTAMP,
- * `unworked_times.date` es DATE — rareza #4 de `docs/db-schemas/jiku.md`). Dos copias de una regla
+ * `unworked_times.date` es DATE — ver `_jflow/db-schemas/jiku.md`). Dos copias de una regla
  * de calendario divergen, y el síntoma sería que se puede borrar lo que no se podría haber
  * cargado.
  *

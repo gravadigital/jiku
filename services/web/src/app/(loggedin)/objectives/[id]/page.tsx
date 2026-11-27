@@ -15,7 +15,7 @@ export default async function ObjectiveDetail({
     <>
       {/*
         "Volver" no vuelve a donde se venía: siempre va a la misma tarea por proyecto,
-        sin importar por dónde se entró (docs/ux/surfaces/web/screens/detalle-tarea.md).
+        sin importar por dónde se entró.
         Ese destino fijo es exactamente el rol de `parent` en variant breadcrumb.
       */}
       <ViewHeader

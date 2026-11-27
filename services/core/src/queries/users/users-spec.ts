@@ -106,7 +106,7 @@ const FILTERABLE: Record<string, FilterableSpec> = {
 /**
  * Lo ordenable: dos nombres, LOS DOS SIN ÍNDICE.
  *
- * `docs/db-schemas/jiku.md` dice de `users` *"sin índices: los dos accesos son por PK"*, y se
+ * el `docs/db-schemas/jiku.md` de la metodología anterior (historial de git) dice de `users` *"sin índices: los dos accesos son por PK"*, y se
  * declaran igual A PROPÓSITO: es una tabla de DECENAS DE FILAS, poblada a mano. Un Seq Scan + Sort
  * sobre esa escala está tres órdenes de magnitud por debajo del statement_timeout de 8000 ms. La
  * regla del keyset existe para `objectives` y `objective_activity`, que tienen millares.

@@ -22,7 +22,7 @@ export enum IdentityType {
  * `retentionStatus` de `File`: declararlo ENUM haría que `sync()` cree el tipo con la
  * convención de nombre de Sequelize (`enum_users_identity_type`), distinto del `identity_type`
  * que crea la migración, y las dos fuentes del esquema divergirían sin que ningún test lo vea.
- * El precedente está documentado en `docs/db-schemas/jiku.md` (`byte_status` /
+ * El precedente está documentado en `_jflow/db-schemas/jiku.md` (`byte_status` /
  * `retention_status`).
  */
 @Table({

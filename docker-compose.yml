@@ -162,8 +162,8 @@ services:
       nats-identity:
         condition: service_completed_successfully
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "${NATS_PORT:-4222}:4222"
+      - "${NATS_MONITOR_PORT:-8222}:8222"
     volumes:
       - ./deploy/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - nats-creds:/etc/nats/creds:ro

@@ -26,7 +26,7 @@ import {
 /**
  * LOS ENUMS DE `type` SON camelCase Y DISTINTOS POR ENTIDAD.
  *
- * Es la INCONSISTENCIA 7 del esquema (`docs/db-schemas/jiku.md`): el resto de los enums del
+ * Es una inconsistencia del esquema (`_jflow/db-schemas/jiku.md`): el resto de los enums del
  * producto son snake_case y estos dos no. Se copian LITERALES del DBML porque son valores de una
  * columna `ENUM` de PostgreSQL: un valor mal escrito no falla al compilar, falla en la base.
  *

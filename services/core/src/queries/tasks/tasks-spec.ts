@@ -215,7 +215,7 @@ const FILTERABLE: Record<string, FilterableSpec> = {
   priorityValue: { column: 'priority', kind: 'integer' },
   visibilityLevel: { column: 'visibility_level', kind: 'enum', enum: 'visibilityLevel' },
   createdBy: { column: 'created_by', kind: 'string' },
-  // Filtrable y NO ordenable: la columna es VARCHAR (`docs/db-schemas/jiku.md`, inconsistencia 1).
+  // Filtrable y NO ordenable: la columna es VARCHAR (`_jflow/db-schemas/jiku.md`).
   estimatedFinishDate: { column: 'estimated_finish_date', kind: 'string' },
   // No vive en `objectives`: se resuelve con una subconsulta sobre `people_objectives`. No mira
   // `active`, igual que la relación `responsiblePersons` desde S-074 — las dos lecturas del mismo
@@ -235,7 +235,7 @@ const FILTERABLE: Record<string, FilterableSpec> = {
 /**
  * Lo ordenable.
  *
- * ⚠️ DISCREPANCIA REGISTRADA, NO RESUELTA ACÁ: `docs/db-schemas/jiku.md` fija que un campo se
+ * ⚠️ DISCREPANCIA REGISTRADA, NO RESUELTA ACÁ: el `docs/db-schemas/jiku.md` de la metodología anterior (historial de git) fija que un campo se
  * declara ordenable SOLO si tiene índice compuesto terminado en `id`, y S-021 entregó tres
  * —`(project_id, created_at, id)`, `(priority, created_at, id)` y `(state, created_at, id)`—, así
  * que `title`, `finishedAt` y `updatedAt` quedan declarados ordenables SIN índice propio. La

@@ -13,7 +13,7 @@ import { getTrustedPublisherId } from '../../src/config';
  *
  * LA CAUSA NO ESTABA EN `core`. El access token de Zitadel **no trae los claims de perfil**
  * (`name`, `preferred_username`, `email`) — verificado decodificando un token real, y es lo que
- * ya documentan `docs/flows/sincronizacion-de-identidades.md:157` y REQ-005. La api arma el sobre
+ * ya documentan `_jflow/flows/sincronizacion-de-identidades.md` y REQ-005. La api arma el sobre
  * EXCLUSIVAMENTE de ese token (`services/api/lib/utils/bus/actor.ts`), así que el sobre llega con `id` y
  * `roles` y sin un solo campo de perfil, y `resolveEventActor` caía hasta su último escalón.
  *

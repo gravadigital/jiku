@@ -451,14 +451,14 @@ off**, which invalidates the signature independently of the host.
 
 The browser ends up knowing the bucket's address — on every upload and on every read, since the
 `302` sends it there directly. That is a deliberate exception, recorded as D-23 in
-[ADR-009](../docs/adrs/ADR-009-token-confinado-al-servidor.md).
+the token-on-the-server decision ([_jflow/prd/decisions.md](../_jflow/prd/decisions.md)).
 
 What keeps it narrow is **how** it gets there:
 
 - It arrives **inside the `uploadUrl` and the `Location` of the `302`** — both already absolute
   URLs, produced by core's signature and returned in the api's responses.
 - It is **never** a `NEXT_PUBLIC_*` variable. Nothing about the bucket is baked into the frontend
-  images: one image still serves every environment, which is the part of ADR-009 that matters most.
+  images: one image still serves every environment, which is the part of the token-on-the-server decision that matters most (DEC-T22 in `_jflow/prd/decisions.md`).
 - The access token still never reaches the browser.
 
 **Do not add a `NEXT_PUBLIC_*` for the bucket** to "make it easier" for the frontend. The frontend
@@ -624,7 +624,7 @@ That is no longer true for `admin`/`user`: they can publish a command straight a
 their own token, and it executes exactly as if it had come from `web`.
 
 **`external-user` is unaffected — it still cannot write, and it gained nothing.** Per REQ-007 it
-keeps writing exclusively through the portal, over HTTP. This is a **security change** (ADR-007:
+keeps writing exclusively through the portal, over HTTP. This is a **security change** (DEC-T10:
 *"a change to `rules.yaml` MUST be treated as a security change: it is what defines who can write
 to the product"*), and the widening applies to exactly two roles, not three.
 
@@ -841,5 +841,5 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   the two permissions it already has are the whole of what a publisher needs. A consumer is the
   one that talks to `$JS.API`, and `templates/connector.yaml` grants it **scoped to
   `JIKU_EVENTS`** — never `$JS.API.>`, which is full JetStream administration over the account
-  (deleting, purging and reconfiguring any stream). The ADR-002 rule against `core` publishing is superseded by this,
+  (deleting, purging and reconfiguring any stream). The DEC-T02 rule against `core` publishing is superseded by this,
   though the ADR document itself is updated only at REQ-014's documentary close (S-068).

@@ -103,7 +103,7 @@ const FILTERABLE: Record<string, FilterableSpec> = {
  * Lo ordenable: cuatro nombres, y TRES DE ELLOS SIN ÍNDICE COMPUESTO.
  *
  * La regla del esquema dice que un campo se declara ordenable SOLO si tiene índice terminado en
- * `id` (`docs/db-schemas/jiku.md`, "Los índices del keyset"). `people` NO TIENE
+ * `id` (`_jflow/db-schemas/jiku.md`). `people` NO TIENE
  * `(last_name, first_name, id)` ni `(init_date, id)`, y se declaran igual A PROPÓSITO:
  *
  *   `people` son LAS PERSONAS DEL EQUIPO: decenas de filas, no miles. Un Seq Scan + Sort sobre esa

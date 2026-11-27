@@ -18,7 +18,7 @@ export const PUBLIC_DOCS_HEADERS: Record<string, string> = {
 };
 
 /**
- * Páginas de excepción (`docs/ux/cross-surface-flows.md`, Flujo 5). Idénticas para cualquier causa:
+ * Páginas de excepción (bloque DOC de `_jflow/prd/blocks/DOC.md`). Idénticas para cualquier causa:
  * no revelan si un link existió, venció o fue revocado. Sin datos del pedido ni marca de producto.
  */
 export const PUBLIC_NOTICES = {

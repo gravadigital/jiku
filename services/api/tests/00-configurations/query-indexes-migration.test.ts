@@ -17,7 +17,7 @@ import { sequelize } from '../../lib/models';
  * `sequelize_meta`.
  *
  * LO QUE PRUEBA: que la migración crea los 18 índices con el nombre, las columnas, el orden y
- * la dirección exactos que declara `docs/db-schemas/jiku.md`; que el GIN de `tags` es GIN; que
+ * la dirección exactos que declara el `docs/db-schemas/jiku.md` de la metodología anterior (historial de git); que el GIN de `tags` es GIN; que
  * todo índice que sostiene un orden termina en `id` en la dirección de la columna anterior
  * (CA-11); que el bloque `DO $$` de `user_project_permissions` resuelve por CATÁLOGO y no por
  * nombre, o sea que NO crea el duplicado cuando ya hay un índice cuya primera columna es
@@ -287,7 +287,7 @@ describe('S-021: migración de índices del keyset (20260824_02_query_indexes)',
       // `20260923_01_default_sort_indexes.js` y `20260923_02_tasks_search_trgm.js` (rendimiento del
       // plano de queries: índices del sort por defecto y trigramas para `q`). Que rompa es el punto — obliga a mirar si
       // la migración nueva era la que se quería. Al tocarlo, actualizá también el "Cantidad" de
-      // `docs/db-schemas/jiku.md`.
+      // el `docs/db-schemas/jiku.md` de la metodología anterior (historial de git).
       const migrations = readdirSync(MIGRATIONS_DIR);
       migrations.filter((name) => name.includes('query_indexes')).should.be.eql([
         '20260824_02_query_indexes.js',

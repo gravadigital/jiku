@@ -14,11 +14,11 @@ shows its users are in the product language (`language` in `_jflow/project.yaml`
 | Concern | Choice | Version | Why |
 |---|---|---|---|
 | Language and runtime | TypeScript on Node | TS 5.9.3, Node 24 (`node:24.12-alpine3.23`) | — |
-| UI framework | Next.js App Router, `output: 'standalone'`; React | 16.1.1; 19.2 | One api for both frontends (ADR-006) |
-| Authentication | next-auth (Auth.js v5) as a server-side OIDC client of Zitadel (code + PKCE), JWT session cookie | 5.0.0-beta.32 | The token stays on the server (ADR-009); identity provider ADR-007 |
-| Data fetching | TanStack Query in the browser → `'use server'` functions in `features/*/services/` → server-only axios client (`src/lib/axios.ts`) | 5.90; axios 1.13 | ADR-011, ADR-009 (no `NEXT_PUBLIC_*`) |
+| UI framework | Next.js App Router, `output: 'standalone'`; React | 16.1.1; 19.2 | One api for both frontends (DEC-T09) |
+| Authentication | next-auth (Auth.js v5) as a server-side OIDC client of Zitadel (code + PKCE), JWT session cookie | 5.0.0-beta.32 | Meant to keep the token on the server, but today it reaches the browser through the session (#630); identity provider DEC-T10 |
+| Data fetching | TanStack Query in the browser → `'use server'` functions in `features/*/services/` → server-only axios client (`src/lib/axios.ts`) | 5.90; axios 1.13 | DEC-T33, DEC-T22 (no `NEXT_PUBLIC_*`) |
 | Forms and validation | yup | 1.7 | — |
-| Styles | Sass with CSS Modules, own components in `src/shared/components/ui`, no UI library | 1.97 | ADR-010 |
+| Styles | Sass with CSS Modules, own components in `src/shared/components/ui`, no UI library | 1.97 | DEC-T32 |
 | Unit tests | vitest + jsdom + Testing Library | 4.0 | — |
 | End-to-end tests | Playwright, in its official Docker image `mcr.microsoft.com/playwright:v1.65.1-noble` | 1.65.1 | Runs with only Docker, against `make up` |
 | Lint | ESLint 9 flat config + `eslint-config-next` | 9; 16.1.1 | — |

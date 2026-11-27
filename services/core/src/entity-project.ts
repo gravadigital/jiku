@@ -205,7 +205,7 @@ type EntitySource =
 export interface CommandEntity {
   /**
    * Tipo fijo, o `'polymorphic'` cuando LA FILA MISMA dice de qué entidad es: `attachments` no
-   * tiene claves foráneas hacia las entidades (`docs/db-schemas/jiku.md`), así que su
+   * tiene claves foráneas hacia las entidades (`_jflow/db-schemas/jiku.md`), así que su
    * `entity_type` se lee de la fila y no se puede declarar acá.
    */
   readonly entityType: AttachmentEntityType | 'polymorphic';
@@ -387,7 +387,7 @@ async function hasProjectPermission(userId: string, projectId: number): Promise<
 /**
  * EL POLIMÓRFICO DE `attachments.{id}.delete`: el tipo y el id salen DE LA FILA.
  *
- * `attachments` NO TIENE CLAVES FORÁNEAS hacia las entidades (`docs/db-schemas/jiku.md`), así que
+ * `attachments` NO TIENE CLAVES FORÁNEAS hacia las entidades (`_jflow/db-schemas/jiku.md`), así que
  * la resolución es un `switch` sobre `entity_type` —el de `ENTITY_PROJECT_RESOLVERS`— y no un
  * `include`. Es exactamente lo que hace `attachments-delete.ts` en la api, que llama a
  * `canUserAccessEntity(user, roles, attachment.entityType, attachment.entityId)`.

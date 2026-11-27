@@ -19,7 +19,7 @@ openapi: 3.0.3
 #   Los response schemas se derivan de lo que el handler arma leyendo los modelos Sequelize. Donde
 #   la respuesta es una fila con sus relaciones, se describe la forma observada; no hay DTOs en el
 #   código contra los que validarla. Los `$ref` a entidades reflejan las columnas del modelo
-#   compartido (`@jiku/models`), documentadas en docs/db-schemas/jiku.md.
+#   compartido (`@jiku/models`), documentadas en _jflow/db-schemas/jiku.md.
 #
 # AUTENTICACIÓN: SE APLICA GLOBAL, NO POR RUTA
 #   `services/api/app.ts` instala `validateToken` para TODO path excepto las exenciones de
@@ -5892,7 +5892,7 @@ components:
           description: |
             **`null` para una identidad de servicio.** Un machine user de Zitadel no tiene
             dirección de correo —`userinfo` no devuelve el claim—, así que la fila espejada de
-            `users` la deja vacía. Ver la nota de `users.email` en `docs/db-schemas/jiku.md`.
+            `users` la deja vacía. Ver la nota de `users.email` en `_jflow/db-schemas/jiku.md`.
 
             **Para una persona nunca es `null`**: el consumidor del evento descarta un evento de
             persona sin email, así que esa fila no llega a existir.

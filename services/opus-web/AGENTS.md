@@ -15,11 +15,11 @@ shows its users are in the product language (`language` in `_jflow/project.yaml`
 | Concern | Choice | Version | Why |
 |---|---|---|---|
 | Language and runtime | TypeScript on Node | TS 5.9.3, Node 24 (`node:24.12-alpine3.23`) | — |
-| UI framework | Next.js App Router, `output: 'standalone'`; React | 16.1.1; 19 | A separate frontend on the same api (ADR-006) |
-| Authentication | next-auth (Auth.js v5) as an OIDC public client of Zitadel (code + PKCE), JWT session cookie | 5.0.0-beta.32 | Token kept on the server (ADR-009); identity provider ADR-007 |
-| Data fetching | TanStack Query → same-origin `/api/opus/*` catch-all route handler that adds the bearer and forwards to the api | 5.90; axios 1.13 | ADR-011, ADR-009 |
+| UI framework | Next.js App Router, `output: 'standalone'`; React | 16.1.1; 19 | A separate frontend on the same api (DEC-T09) |
+| Authentication | next-auth (Auth.js v5) as an OIDC public client of Zitadel (code + PKCE), JWT session cookie | 5.0.0-beta.32 | Meant to keep the token on the server, but today the session hands it to the browser, which attaches it itself (#630); identity provider DEC-T10 |
+| Data fetching | TanStack Query → same-origin `/api/opus/*` catch-all route handler that adds the bearer and forwards to the api | 5.90; axios 1.13 | DEC-T33 |
 | Markdown, dates, icons | react-markdown, date-fns, lucide-react | 10.1, 4.1, 0.563 | — |
-| Styles | Sass with CSS Modules, own components, no UI library | 1.97 | ADR-010 |
+| Styles | Sass with CSS Modules, own components, no UI library | 1.97 | DEC-T32 |
 | Unit tests | vitest + jsdom + Testing Library | 4.0 | — |
 | End-to-end tests | Playwright, in its official Docker image `mcr.microsoft.com/playwright:v1.65.1-noble` | 1.65.1 | Runs with only Docker, against `make up` |
 | Lint | ESLint 9 flat config + `eslint-config-next` + prettier | 9; 16.1.1 | — |

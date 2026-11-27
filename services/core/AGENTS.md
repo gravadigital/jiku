@@ -16,15 +16,15 @@ shows its users are in the product language (`language` in `_jflow/project.yaml`
 | Concern | Choice | Version | Why |
 |---|---|---|---|
 | Language and runtime | TypeScript (strict, decorators, CommonJS) on Node | TS 5.9.3, Node 24 (`node:24.12-alpine3.23`) | Shared with the api and the packages |
-| Transport | `nats` micro services (`nc.services.add`), subjects from `@jiku/nats-protocol` | 2.29.3 | Commands as request/reply without JetStream (ADR-002); domain events on JetStream `JIKU_EVENTS` (ADR-014) |
-| Bus identity | Machine-user token from `@jiku/zitadel-auth`, permissions minted by the auth-callout from `deploy/nats/auth-callout/` | — | ADR-007. Only the api's machine user (`CORE_TRUSTED_PUBLISHER_ID`) may send the `actor` envelope |
-| Authorization | Role → method map, deny by default (`src/authorize-caller.ts`), per-project gate for external users (`src/entity-project.ts`) | — | ADR-008 |
+| Transport | `nats` micro services (`nc.services.add`), subjects from `@jiku/nats-protocol` | 2.29.3 | Commands as request/reply without JetStream (DEC-T02); domain events on JetStream `JIKU_EVENTS` (DEC-T04) |
+| Bus identity | Machine-user token from `@jiku/zitadel-auth`, permissions minted by the auth-callout from `deploy/nats/auth-callout/` | — | DEC-T10. Only the api's machine user (`CORE_TRUSTED_PUBLISHER_ID`) may send the `actor` envelope |
+| Authorization | Role → method map, deny by default (`src/authorize-caller.ts`), per-project gate for external users (`src/entity-project.ts`) | — | DEC-T13 |
 | Validation | Joi, one schema per command (`src/commands/validate.ts`), unknown keys rejected | 18 | — |
-| Persistence | Sequelize + sequelize-typescript + `pg`, models from `@jiku/models`; a second, model-less read-only connection for queries (`src/models/read.ts`) | 6.37, 2.1.6, 8.x | Every command runs inside the dispatcher's transaction (ADR-003); models shared with the api (ADR-005); read/write split (ADR-001) |
+| Persistence | Sequelize + sequelize-typescript + `pg`, models from `@jiku/models`; a second, model-less read-only connection for queries (`src/models/read.ts`) | 6.37, 2.1.6, 8.x | Every command runs inside the dispatcher's transaction (DEC-T03); models shared with the api (DEC-T08); read/write split (DEC-T01) |
 | Storage | `@aws-sdk/client-s3` + `s3-request-presigner`: presigned PUT/GET only, any S3-compatible endpoint | 3.995 | Files never cross the services |
 | Mail | nodemailer, from the `notification_outbox` table | 7.0 | Transactional outbox: the row is written in the command's transaction |
 | Logging | winston (text, files in production), `QUERY_TIMING` / `LOG_COMMANDS` switches | 3.19 | No OpenTelemetry yet (see `docs/operacion.md`) |
-| Tests | mocha + ts-node, should, sinon, ajv (contract checks against `_jflow/apis/`) | 11.7.5 | Against a real PostgreSQL (ADR-013) |
+| Tests | mocha + ts-node, should, sinon, ajv (contract checks against `_jflow/apis/`) | 11.7.5 | Against a real PostgreSQL (DEC-T28) |
 | Lint | ESLint 9, root `eslint.config.base.js` | 9 | — |
 
 Chosen from the official documentation current when the service was created. Before adding or

@@ -16,7 +16,7 @@ import { sequelize } from '../../lib/models';
  * que la migracion haya hecho nada. O sea que la suite entera pasaria **aunque la migracion
  * estuviera vacia o mal escrita**, y en produccion el INSERT fallaria contra el NOT NULL.
  *
- * Es exactamente el riesgo que `docs/db-schemas/jiku.md` declara como el mas serio del esquema
+ * Es exactamente el riesgo que el `docs/db-schemas/jiku.md` de la metodología anterior (historial de git) declara como el mas serio del esquema
  * (NFR-R07) —dos fuentes de verdad para la misma estructura— y el unico lugar donde se puede
  * cerrar es aca: aplicando la migracion A MANO y mirando el catalogo, con el precedente de
  * `query-indexes-migration.test.ts`.

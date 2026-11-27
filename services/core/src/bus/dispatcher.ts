@@ -216,7 +216,7 @@ export class Dispatcher {
       //
       // POR QUÉ HACE FALTA: el access token de Zitadel NO TRAE los claims de perfil (`name`,
       // `preferred_username`, `email`) —verificado sobre un token real, y ya documentado en
-      // `docs/flows/sincronizacion-de-identidades.md`—, y la api arma el sobre exclusivamente de
+      // `_jflow/flows/sincronizacion-de-identidades.md`—, y la api arma el sobre exclusivamente de
       // ese token. Así que el sobre llega con `id` y `roles` y NADA MÁS, y el `actor.name` de los
       // 16 eventos de dominio salía con el `sub` de Zitadel en vez del nombre de la persona.
       //

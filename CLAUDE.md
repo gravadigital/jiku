@@ -44,8 +44,8 @@ requirements:
 python3 .claude/scripts/jflow.py release-info     # requirements merged in dev that main lacks
 ```
 
-Work from before the adoption is tracked in `docs/requests/` and `docs/stories/` (`status:
-Completed`). `/jflow-release` runs this whole cut with jiku flow.
+`/jflow-release` runs this whole cut with jiku flow. (The requests and stories of the previous
+methodology were removed from `docs/`; they remain in git history.)
 
 If `dev` is ahead but carries unfinished work, the cut is `main` — and **say so to the user**,
 do not resolve it silently. If `origin/main` is behind `main`, report that too, but **do not
@@ -64,11 +64,11 @@ git diff --stat v<last>..HEAD
 
 Sources, richest first:
 
-1. `docs/changelog/*.md` — per-story publication entries. The best thing available: they carry
-   the old contract against the new one, the deployment procedures and the decisions.
-2. `docs/requests/REQ-*.md` — the request and its rationale.
-3. `docs/stories/S-*.md` — the acceptance criteria.
-4. The commit bodies.
+1. The Jiku requirement of each change (`python3 .claude/scripts/jflow.py jiku fetch {id}`): the
+   request, its specification and acceptance criteria, and the closing comment of `/jflow-build`.
+2. The changes to the definition in `_jflow/` (`git diff v<last>..HEAD -- _jflow/`): decisions
+   added or reverted, contracts, schema.
+3. The commit bodies.
 
 And always review these diffs, because they are the ones that produce entries nobody wrote in
 any document:
@@ -158,8 +158,8 @@ On the cut branch, with the CHANGELOG, the ten version files and whatever you to
 README / `documentation/`.
 
 **Never `git add -A` or `git add .` here.** The repository root deliberately carries untracked
-analysis documents — the inputs a REQ was captured from, which `docs/requests/` references as
-"must not be deleted" — and a blanket add would commit them. Stage the release files by name:
+analysis documents — the inputs a requirement was captured from, which must not be deleted —
+and a blanket add would commit them. Stage the release files by name:
 
 ```sh
 git add CHANGELOG.md README.md documentation/ \

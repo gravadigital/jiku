@@ -331,7 +331,7 @@ servers:
 # NATS SERVER's log, never as a failure of `subscribe()`.
 #
 # The event's contract (payload, guards, field mapping) is documented in
-# `docs/flows/sincronizacion-de-identidades.md`, not in `channels` below: it is not a
+# `_jflow/flows/sincronizacion-de-identidades.md`, not in `channels` below: it is not a
 # request/reply channel and modelling it as one would be wrong.
 #
 # The `channels` below are named after the COMMAND, not the full subject: the prefix is the same
@@ -1100,7 +1100,7 @@ channels:
 
       **Why it exists.** `PUT /api/week-assigned-times` was **the only domain write that did not
       go through core**: the api ran it with the ORM (`destroy` + `bulkCreate` in a transaction of
-      its own) and `docs/flows/asignacion-semanal.md` documented it apart for that reason —
+      its own) and the old `docs/flows/asignacion-semanal.md` documented it apart for that reason —
       *"core: **does not take part**"*. REQ-007 needs C-36 and C-38 enforced by the writer, and
       there was nowhere to put them. **This channel is that place.**
 

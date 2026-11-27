@@ -16,13 +16,13 @@ shows its users are in the product language (`language` in `_jflow/project.yaml`
 | Language and runtime | TypeScript (strict, CommonJS) on Node | TS 5.9.3, Node 24 (`node:24.12-alpine3.23`) | Shared with core and the packages |
 | HTTP | Express | 5.2.1 | — |
 | Validation | Joi, one schema per route (`lib/utils/validate-body-fields.ts`, `validate-query-params.ts`) | 18 | — |
-| Persistence | Sequelize + sequelize-typescript + `pg`, models from `@jiku/models` | 6.37, 2.1.6, 8.x | Models shared with core (ADR-005). Read-only DB role: the read/write split is enforced by the database (ADR-001) |
+| Persistence | Sequelize + sequelize-typescript + `pg`, models from `@jiku/models` | 6.37, 2.1.6, 8.x | Models shared with core (DEC-T08). Read-only DB role: the read/write split is enforced by the database (DEC-T01) |
 | Migrations | sequelize-cli, run at startup (`npm run upgrade-db`: `db-upgrade/baseline.js` + `db-upgrade/migrations/`) | 6.6 | The api owns the schema; it migrates with `POSTGRESQL_MIGRATION_USER` |
-| Authentication | `jsonwebtoken` + JWKS fetched from `${IDENTITY_URL}/oauth/v2/keys`; deny by default (`config/public.ts`) | 9.0.3 | Zitadel tokens (ADR-007); authorization deny-by-default (ADR-008) |
-| Bus | `nats` request/reply, subjects from `@jiku/nats-protocol`, machine-user token from `@jiku/zitadel-auth` | 2.29.3 | Commands are NATS request/reply, without JetStream (ADR-002); optional modules discovered in KV `JIKU_MODULES` (ADR-015) |
+| Authentication | `jsonwebtoken` + JWKS fetched from `${IDENTITY_URL}/oauth/v2/keys`; deny by default (`config/public.ts`) | 9.0.3 | Zitadel tokens (DEC-T10); authorization deny-by-default (DEC-T13) |
+| Bus | `nats` request/reply, subjects from `@jiku/nats-protocol`, machine-user token from `@jiku/zitadel-auth` | 2.29.3 | Commands are NATS request/reply, without JetStream (DEC-T02); optional modules discovered in KV `JIKU_MODULES` (DEC-T19) |
 | Rate limit | express-rate-limit, only on `/p/docs/*` | 8.7 | — |
 | Logging | winston + express-winston (text, files in production) | 3.19, 4.2.0 | No OpenTelemetry yet (see `docs/operacion.md`) |
-| Tests | mocha + ts-node, should, supertest, sinon, nock, mockery | 11.7.5 | Against a real PostgreSQL (ADR-013) |
+| Tests | mocha + ts-node, should, supertest, sinon, nock, mockery | 11.7.5 | Against a real PostgreSQL (DEC-T28) |
 | Lint | ESLint 9, root `eslint.config.base.js` | 9 | — |
 
 Chosen from the official documentation current when the service was created. Before adding or
