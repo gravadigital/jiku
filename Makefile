@@ -43,6 +43,7 @@ dev:
 	$(COMPOSE) up --build --watch $(S)
 
 migrate:
+	$(COMPOSE) build api
 	$(COMPOSE) run --rm migrate
 
 build:

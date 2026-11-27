@@ -1,6 +1,11 @@
 # Deploy
 
-How to run Jiku: on a development machine and on a server.
+How to run Jiku on a server, and on a development machine against a real Zitadel.
+
+**For local development you do not need this file:** `make up` from the repository root runs the
+whole product with only Docker, with local stand-ins for the identity provider, the docs module,
+S3 and SMTP, and no credentials (see the root README). What follows is for the composes under
+`deploy/`.
 
 ```
 deploy/
@@ -26,8 +31,9 @@ deploy/
     └── creds/                NATS identity — NOT versioned
 ```
 
-**Nothing needed to run the stack lives outside `deploy/`.** Secrets go in `deploy/.env` and
-in `deploy/nats/creds/`, neither of them versioned.
+**Nothing needed to run these composes lives outside `deploy/`.** Secrets go in `deploy/.env` and
+in `deploy/nats/creds/`, neither of them versioned. (The root `docker-compose.yml`, the local stack
+of `make up`, reuses `deploy/nats/` scripts and the callout's rules, and needs no secrets.)
 
 ---
 
@@ -39,7 +45,7 @@ Six steps, all one-time except bringing the stack up.
 `./local.sh up`, which creates the `JIKU_MODULES` registry and the `JIKU_KV` space with a throwaway administrative user
 (`curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh`).
 
-**On a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
+**With `docker-compose.local.yml` on a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
 a MinIO of its own, `local.sh` creates the bucket, and `.env.dist` already comes pointed at it with
 CORS configured — there is nothing to fill in and nothing to configure in a provider's console.
 Read those two steps when the installation uses a real bucket (a server, or a local stack pointed
