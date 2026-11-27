@@ -804,6 +804,9 @@ traffic locally, read core's log (`bus-inspect.sh tail`), which prints every com
 
 ## Without external dependencies
 
+> **It does not start as documented today** (see B-17 in `docs/adopcion.md`): use `make up` from
+> the repository root for a local stack with no external dependencies.
+
 `docker-compose.dev.yml` brings the stack up with the callout's `mock` IdP, with no Zitadel and
 no network. Tokens have the form `mock:<sub>:<username>:<roles>`.
 

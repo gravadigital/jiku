@@ -11,7 +11,7 @@
 | Definición | 14 bloques (260 requisitos, 194 condiciones de falla), 16 entidades, 92 operaciones HTTP + 23 comandos + 23 consultas + 16 eventos, 18 invariantes, 34 garantías, 49 decisiones (16 de producto, 33 técnicas), 13 NFR, 16 flujos |
 | Listo para especificar e implementar | Sí: el repositorio cumple el mínimo (M1–M9), verificado |
 | Correcciones hechas en la adopción | 10 |
-| Cargado en Jiku | 13 incidencias de seguridad (los números se completan al cargarlas) |
+| Cargado en Jiku | 13 incidencias de seguridad: #626 a #638 |
 | En este informe | 24 bugs, 5 comportamientos a confirmar, 17 defaults sugeridos, 12 otras mejoras |
 | Cobertura por ID | 0/505 (los tests anteriores no llevan IDs; los nuevos los van a llevar) |
 
@@ -57,19 +57,19 @@ ningún test fallaba en la línea de base.
 
 | # | Título | Por qué |
 |---|---|---|
-| — | La api acepta tokens de cualquier proyecto de la instancia de Zitadel | Valida la firma sin emisor ni audiencia y toma los roles del claim general: un usuario de otro proyecto u organización con un rol del mismo nombre entra con ese rol (ACC-16) |
-| — | Lecturas de la api sin chequeo de rol | Clientes, proyectos, objetivos, personas y ausencias con su reporte (con motivos de salud) los lee cualquier token válido, incluso un usuario de cliente o uno sin rol (CLI-09, PRY-05, PER-01, TAR-28, AUS-07, AUS-08) |
-| — | El cliente ve adjuntos, comentarios y tareas internos | El chequeo de permiso por entidad ignora la visibilidad (ARC-21) |
-| — | El cliente escribe por las rutas internas | Comenta requisitos internos y crea requisitos con cualquier estado y visibilidad por las rutas del gestor (REQ-35, REQ-36) |
-| — | El access token llega al JavaScript del navegador | En web y en el portal, contra ADR-009: un XSS puede robarlo (ACC-17) |
-| — | Subida de archivos sin tope real, con SVG e inline | La URL firmada no limita el tamaño real, se aceptan `.svg` y las descargas se sirven inline: un SVG con script se ejecuta al abrirlo (ARC-05) |
-| — | Inyección SQL en el filtro por etiqueta de requisitos | `GET /api/requirements?tag=` arma SQL con el valor sin escapar la comilla (REQ-E16) |
-| — | `LOG_ACCESS_TOKEN` imprime el token completo | Variable de depuración marcada «Sacar antes de mergear» que deja el token en los logs de web |
-| — | Parámetros de ruta sin codificar en los handlers de Next | Un id con `..` codificado podría llevar el token del usuario a otra ruta de la api (sin verificar en ejecución) |
-| — | Descarga de claves por pedido con un `kid` desconocido | Cada token con `kid` desconocido dispara hasta `KEY_SYNC_ATTEMPS` descargas del JWKS: amplificación sin autenticarse |
-| — | Documento público del portal sin chequeo de proyecto | Abrir un documento público o su adjunto por id no verifica el permiso sobre el proyecto (DOC-19). A confirmar si es a propósito |
-| — | `deploy/bus-inspect.sh` pasa el token por la línea de comandos | `--token "$TOKEN"` deja el bearer visible en `ps` y en el historial de la shell |
-| — | Cerrar sesión no termina la sesión en el proveedor de identidad | El próximo ingreso es automático con la sesión que quedó viva en Zitadel. A confirmar si es a propósito |
+| #626 | La api acepta tokens de cualquier proyecto de la instancia de Zitadel | Valida la firma sin emisor ni audiencia y toma los roles del claim general: un usuario de otro proyecto u organización con un rol del mismo nombre entra con ese rol (ACC-16) |
+| #627 | Lecturas de la api sin chequeo de rol | Clientes, proyectos, objetivos, personas y ausencias con su reporte (con motivos de salud) los lee cualquier token válido, incluso un usuario de cliente o uno sin rol (CLI-09, PRY-05, PER-01, TAR-28, AUS-07, AUS-08) |
+| #628 | El cliente ve adjuntos, comentarios y tareas internos | El chequeo de permiso por entidad ignora la visibilidad (ARC-21) |
+| #629 | El cliente escribe por las rutas internas | Comenta requisitos internos y crea requisitos con cualquier estado y visibilidad por las rutas del gestor (REQ-35, REQ-36) |
+| #630 | El access token llega al JavaScript del navegador | En web y en el portal, contra ADR-009: un XSS puede robarlo (ACC-17) |
+| #631 | Subida de archivos sin tope real, con SVG e inline | La URL firmada no limita el tamaño real, se aceptan `.svg` y las descargas se sirven inline: un SVG con script se ejecuta al abrirlo (ARC-05) |
+| #632 | Inyección SQL en el filtro por etiqueta de requisitos | `GET /api/requirements?tag=` arma SQL con el valor sin escapar la comilla (REQ-E16) |
+| #633 | `LOG_ACCESS_TOKEN` imprime el token completo | Variable de depuración marcada «Sacar antes de mergear» que deja el token en los logs de web |
+| #634 | Parámetros de ruta sin codificar en los handlers de Next | Un id con `..` codificado podría llevar el token del usuario a otra ruta de la api (sin verificar en ejecución) |
+| #635 | Descarga de claves por pedido con un `kid` desconocido | Cada token con `kid` desconocido dispara hasta `KEY_SYNC_ATTEMPS` descargas del JWKS: amplificación sin autenticarse |
+| #636 | Documento público del portal sin chequeo de proyecto | Abrir un documento público o su adjunto por id no verifica el permiso sobre el proyecto (DOC-19). A confirmar si es a propósito |
+| #637 | `deploy/bus-inspect.sh` pasa el token por la línea de comandos | `--token "$TOKEN"` deja el bearer visible en `ps` y en el historial de la shell |
+| #638 | Cerrar sesión no termina la sesión en el proveedor de identidad | El próximo ingreso es automático con la sesión que quedó viva en Zitadel. A confirmar si es a propósito |
 
 ## Bugs sospechados
 
