@@ -242,10 +242,9 @@ services:
 
   # The api owns the schema: the baseline and the migrations, as the owner of the database.
   migrate:
-    build:
-      context: .
-      dockerfile: services/api/Dockerfile
+    # The image the `api` service builds (Compose builds before it creates any container).
     image: jiku-api:local
+    pull_policy: never
     command: ["npm", "run", "upgrade-db"]
     depends_on:
       postgres:
@@ -355,6 +354,12 @@ services:
     volumes:
       - nats-creds:/nats-creds:ro
       - idp-keys:/idp-keys:ro
+    # Ready when it answers HTTP: any /api route without a token is a 401. `make up` waits for it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/projects').then((r) => process.exit(r.status === 401 ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
     restart: unless-stopped
 
   web:
@@ -384,6 +389,12 @@ services:
       API_URL: http://api:3000/
     ports:
       - "3000:3000"
+    # Ready when the login page answers. `make up` waits for it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
     restart: unless-stopped
 
   opus-web:
@@ -413,6 +424,12 @@ services:
       API_URL: http://api:3000/
     ports:
       - "3001:3000"
+    # Ready when the login page answers. `make up` waits for it.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
     restart: unless-stopped
 
 volumes:

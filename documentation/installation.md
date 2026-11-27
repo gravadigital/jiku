@@ -24,10 +24,14 @@ from the repository root: see the README.
 
 ## Development
 
+The entry point is `make` (root `Makefile`): `make up` runs the whole product locally with only
+Docker, and `make check` runs lint, typecheck and every test level. The npm scripts still work on
+their own:
+
 ```sh
 npm install     # compiles the shared packages under packages/ too
 npm run build
-npm test
+npm test        # without `make`, the api and core suites start their own PostgreSQL container
 ```
 
 A fresh clone works with a single `npm install`: a `postinstall` hook builds `packages/*`, which

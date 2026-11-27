@@ -6,8 +6,10 @@ the code.
 
 ## Getting set up
 
-You need **Node.js 24** (see [`.nvmrc`](.nvmrc)) and **Docker**. Docker is not optional
-for development: the `api` and `core` test suites start an ephemeral PostgreSQL container.
+You need **Docker** to run the product, and **Node.js 24** (see [`.nvmrc`](.nvmrc)) for the
+checks. Everything runs through `make` (the root `Makefile`; `S={service}` limits a target to one
+service). The `api` and `core` integration suites run against the `postgres-test` service of the
+root `docker-compose.yml`, which `make test-integration` brings up.
 
 ```sh
 git clone https://github.com/gravadigital/jiku.git
@@ -22,16 +24,18 @@ that do not point at the real cause.
 From the repository root:
 
 ```sh
-npm run build   # compiles the shared packages, then api and core
-npm test        # runs the test suites of all four projects
-npm run lint
+make up          # the whole product locally, with only Docker and no credentials
+make check       # lint + typecheck + every test level (unit, integration, end to end)
+make test-unit   # or test-integration, test-e2e: one level
 ```
 
-Each project can also be worked on individually with `npm run <script> --workspace <name>`,
-where the names are `@jiku/api`, `@jiku/core`, `web` and `opus-web`.
+Locally, `make up` replaces the external systems with stand-ins (a fake identity provider,
+a fake docs module, MinIO and Mailpit): see the README for the URLs and the test users. Each
+project can also be worked on individually with `npm run <script> --workspace <name>`, where
+the names are `@jiku/api`, `@jiku/core`, `web` and `opus-web`.
 
-To run the whole stack, see [deploy/README.md](deploy/README.md). Note that a first start
-requires NATS credentials and Zitadel service users that are not in the repository.
+To deploy on a server, see [deploy/README.md](deploy/README.md): a server needs the NATS
+identity and the Zitadel service users, which are not in the repository.
 
 ## How the pieces fit
 
@@ -107,7 +111,8 @@ Two environment variables help while iterating on `api` and `core`:
 - Explain in the description what problem the change solves. If it fixes a bug, say how it
   reproduced.
 - Update `CHANGELOG.md` under `[Unreleased]` for anything a user would notice.
-- Make sure `npm run build`, `npm test` and `npm run lint` pass. CI runs all three.
+- Make sure `make check` passes. CI runs `make lint typecheck` and `make test-unit test-integration`;
+  the end-to-end level runs only locally.
 
 If you are planning something large, open an issue first so we can talk about the approach
 before you write it.
