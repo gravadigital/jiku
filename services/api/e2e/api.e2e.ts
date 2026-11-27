@@ -11,6 +11,11 @@ import assert from 'assert';
 
 const API_URL = (process.env.API_URL || 'http://localhost:3100').replace(/\/$/, '');
 const IDP_URL = (process.env.IDP_URL || 'http://localhost:9400').replace(/\/$/, '');
+// The public shared-document pages answer only on the host of the api's JIKU_PUBLIC_URL
+// (docker-compose.yml: http://127.0.0.1:3100); on any other host they are the generic 404.
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'http://127.0.0.1:3100').replace(/\/$/, '');
+// The one link the fake jiku-docs module of the local stack resolves (deploy/test/fake-docs).
+const SHARE_TOKEN = process.env.FAKE_DOCS_SHARE_TOKEN || 'jds_e2e-shared-document-00000000000000000000000';
 
 async function tokenOf(user: string): Promise<string> {
   const response = await fetch(`${IDP_URL}/test/token?user=${user}`);
@@ -78,13 +83,37 @@ describe('api HTTP — end to end against make up', () => {
     assert.ok(listed, 'the new project is listed');
   });
 
-  it('a visitor with a shared-document link gets the public page, with no token', async () => {
-    // Without the optional docs module in the local stack, every link answers the same generic
-    // page, whatever the cause: that page is the entry of the "Documento compartido" surface.
-    const response = await fetch(`${API_URL}/p/docs/not-a-real-token-${run}`);
+  it('a visitor with an unknown shared-document link gets the generic page, with no token', async () => {
+    // Every cause (unknown, expired or revoked link) answers the same generic page. A well-formed
+    // token the docs module does not know, on the public host.
+    const unknown = `jds_unknown-${run}`.padEnd(47, '0').slice(0, 47);
+    const response = await fetch(`${PUBLIC_URL}/p/docs/${unknown}`);
     assert.strictEqual(response.status, 404);
     assert.match(response.headers.get('content-type') || '', /text\/html/);
     assert.match(await response.text(), /Este link no está disponible/);
+  });
+
+  it('a visitor opens a valid shared-document link and sees the document, with no token', async function () {
+    // The api discovers the module through the JIKU_MODULES watch and checks it with a ping (and
+    // re-checks every 30 s): right after `make up` it may still be `not_installed`. Poll, do not
+    // sleep blindly. Every attempt counts against the 60/min rate limit of /p/docs, hence 3 s.
+    this.timeout(75000);
+    const deadline = Date.now() + 60000;
+    let status = 0;
+    let type = '';
+    let page = '';
+    for (;;) {
+      const response = await fetch(`${PUBLIC_URL}/p/docs/${SHARE_TOKEN}`);
+      status = response.status;
+      type = response.headers.get('content-type') || '';
+      page = await response.text();
+      if (status === 200 || Date.now() > deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+    assert.strictEqual(status, 200, `GET /p/docs/{token} answered ${status}: ${page.slice(0, 200)}`);
+    assert.match(type, /text\/html/);
+    assert.match(page, /<title>Documento compartido de prueba<\/title>/);
+    assert.match(page, /Contenido servido por el módulo jiku-docs falso/);
   });
 
   it('an internal user lists requirements; a client user is refused', async () => {

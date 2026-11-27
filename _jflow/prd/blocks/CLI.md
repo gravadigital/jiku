@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Listado, alta y edición de clientes («actores» en el gestor), su estado derivado de sus proyectos y la consulta de sus proyectos
 entities: [Cliente, Proyecto]
 last_requirement: CLI-13
-last_failure: CLI-E13
+last_failure: CLI-E14
 ---
 
 # CLI — Clientes
@@ -43,6 +43,7 @@ last_failure: CLI-E13
 | CLI-E11 | Alta o edición sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
 | CLI-E12 | La api rechaza el alta o la edición | Aviso con el mensaje del error o, sin mensaje, «Hubo un error al crear el actor» / «Hubo un error al editar el actor» | initial |
 | CLI-E13 | Falla la lectura del actor al abrir «Editar actor» | La pantalla queda en «Cargando...» sin salir | initial |
+| CLI-E14 | Falla inesperada al leer los clientes o sus proyectos, o al ejecutar el alta o la edición en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» | initial |
 
 ## Examples
 - CLI-02: un actor con un proyecto `finalizado` y otro `analisis` es «Activo»; uno con proyectos `inactivo` y `cancelado`, o sin proyectos, es «Inactivo».

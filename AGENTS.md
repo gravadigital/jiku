@@ -58,6 +58,9 @@ variables, none is needed):
 - **Storage**: MinIO (`http://localhost:9000`, console `:9001`), bucket created by `storage-setup`;
   presigned URLs use `storage.localhost` so the browser and core resolve the same host.
 - **Mail**: Mailpit (`http://localhost:8025`) receives every notification.
+- **Docs module**: `deploy/test/fake-docs` stands in for the optional jiku-docs module: it connects
+  as the `docs` identity, registers in `JIKU_MODULES` and answers empty lists, plus one shared link
+  (`jds_e2e-shared-document-00000000000000000000000`, on `http://127.0.0.1:3100/p/docs/…`).
 - **Bus**: NATS (`4222`, monitoring `8222`) in operator mode, its identity generated into a volume by
   `nats-identity`, plus the auth-callout image `gravadigital/nats-zitadel-auth-callout:1.0.0`.
 - **Database**: `migrate` builds the schema from an empty database (`services/api/db-upgrade/baseline.js`,

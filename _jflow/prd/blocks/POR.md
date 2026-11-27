@@ -5,7 +5,7 @@ surfaces: [Portal de clientes]
 covers: Lo que un usuario de cliente y un miembro del equipo hacen en el portal sobre los requisitos públicos de los proyectos a los que acceden - listarlos por estado, ver el detalle, crearlos, comentarlos, suscribirse y cambiar estado y prioridad
 entities: [Proyecto, Permiso de proyecto, Requisito, Actividad de requisito, Usuario, Archivo, Adjunto]
 last_requirement: POR-17
-last_failure: POR-E17
+last_failure: POR-E20
 ---
 
 # POR — Portal de clientes
@@ -51,6 +51,9 @@ last_failure: POR-E17
 | POR-E15 | Se suscribe a un usuario que no existe, sin permiso sobre el proyecto o ya suscripto | 404 `user_not_found` «User not found» / 403 `no_permission` «User does not have permission for this project» / 400 `already_subscribed` «User is already subscribed to this requirement» | initial |
 | POR-E16 | Se desuscribe a otro usuario, o a uno que no está suscripto | 403 `access_denied` «Access denied» / 404 `subscription_not_found` «Subscription not found» | initial |
 | POR-E17 | La lista de requisitos recibe parámetros fuera de lo previsto: la api no los valida | Un `limit` mayor que 20 se acepta; un `sort` que no es un campo del requisito responde 500 `internal_error` «Internal server error» | initial |
+| POR-E18 | Falla inesperada al leer proyectos, requisitos o usuarios del portal, o al ejecutar el alta, el cambio, el comentario o la suscripción en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» / «Internal server error» | initial |
+| POR-E19 | Alta, cambio de estado o prioridad, comentario, suscripción o desuscripción desde el portal sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
+| POR-E20 | Un pedido del portal trae en el cuerpo un campo faltante, de más o fuera de su formato o lista: alta, cambio de estado o prioridad, comentario o suscripción (la lista de requisitos de un proyecto valida el cuerpo y no la query) | 400 `invalid_fields` «Invalid field - {detalle}» | initial |
 
 ## Examples
 - POR-11: en «Nuevo requisito» se completa título y descripción, prioridad Alta y no se toca «Tipo»: el requisito queda con tipo `otro`, prioridad `alta`, estado `analisis` y visibilidad `public`.

@@ -21,6 +21,7 @@ lo que existe:
 | NATS | `GET http://<nats>:8222/healthz` | Healthcheck de Compose en local; el puerto de monitoreo 8222 también da `/varz`, `/connz`, `/jsz` |
 | MinIO (local) | `GET /minio/health/live` | Healthcheck de Compose en local |
 | Proveedor de identidad de prueba (local) | `GET http://localhost:9400/health` | `HEALTHCHECK` de su imagen |
+| Módulo de documentación de prueba (local) | No tiene | Que el contenedor `fake-docs` esté corriendo; la api lo ve como módulo `docs` disponible (logs `[modules]`) |
 
 En local, `docker compose ps` muestra el estado de cada contenedor y `make up` espera a que los que
 tienen healthcheck estén sanos. En el servidor, `deploy/docker-compose.yml` no declara

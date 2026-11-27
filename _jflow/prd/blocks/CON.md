@@ -5,7 +5,7 @@ surfaces: []
 covers: Lo que un conector externo y las personas con acceso al bus pueden hacer publicando directo comandos y consultas, cómo core identifica y autoriza a quien publica, el sobre de identidad del publicador de confianza, los eventos de dominio y el espacio de datos propio del conector
 entities: [Usuario, Permiso de proyecto]
 last_requirement: CON-20
-last_failure: CON-E14
+last_failure: CON-E15
 ---
 
 # CON — Conectores por el bus
@@ -51,3 +51,4 @@ last_failure: CON-E14
 | CON-E12 | Consulta que la base cancela por tardar demasiado | `query_timeout` «La consulta tardó demasiado y la base la canceló. Acotá el filtro o pedí menos items por página» | initial |
 | CON-E13 | Consulta con un campo, filtro, orden o relación que no existe o que la clase del caller no tiene | `invalid_fields` con los nombres permitidos en `errorDetails.allowed` | initial |
 | CON-E14 | No se pueden leer los roles del caller (por ejemplo, la base no responde) | `internal_error` «Internal error»: el método no se ejecuta | initial |
+| CON-E15 | Falla inesperada al ejecutar un comando o una consulta (por ejemplo, la base rechaza una escritura): la transacción se deshace | `internal_error` «Internal error»: el método no tiene efecto | initial |

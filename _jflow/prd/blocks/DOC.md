@@ -5,7 +5,7 @@ surfaces: [Gestor interno, Portal de clientes, Documento compartido]
 covers: Documentos en markdown del módulo opcional de documentación - búsqueda, alta, edición con reserva y versiones, relaciones, adjuntos y links públicos desde el gestor, lectura de los documentos públicos en el portal y lectura anónima por link compartido
 entities: [Proyecto, Cliente, Requisito, Tarea, Persona, Permiso de proyecto]
 last_requirement: DOC-22
-last_failure: DOC-E21
+last_failure: DOC-E25
 ---
 
 # DOC — Documentación
@@ -60,6 +60,10 @@ last_failure: DOC-E21
 | DOC-E19 | En el portal se abre un documento que no es `public`, o un adjunto que no es de ese documento | 404 `document_not_found` «Documento no encontrado» / 404 `attachment_not_found` «Adjunto no encontrado»; la pantalla muestra «Este documento no existe o no está compartido con vos.» | initial |
 | DOC-E20 | El token del link no tiene la forma esperada, no existe, venció o fue revocado, el adjunto no es del documento o el módulo no está instalado | 404 con la página «Este link no está disponible» / «Puede que haya vencido o que lo hayan revocado. Pedile un link nuevo a quien te lo compartió.», igual para cualquier causa | initial |
 | DOC-E21 | Se superan los pedidos por minuto, o el módulo no está disponible o no responde | 429 «Demasiados intentos» / «Esperá un minuto y volvé a intentar.» · 503 «El documento no está disponible en este momento» / «Probá de nuevo en unos minutos.» | initial |
+| DOC-E22 | Un parámetro o campo del pedido falta, sobra o no cumple su formato (lo valida la api o jiku-docs), o el cursor de paginación no es válido | 400 `invalid_fields` «Invalid field - {detalle}» / 400 `invalid_cursor` con el mensaje del módulo | initial |
+| DOC-E23 | jiku-docs rechaza la escritura: el nombre de archivo no es válido, el checksum no coincide con el contenido, o la subida que se confirma no existe | 400 `file_name_invalid` / `checksum_mismatch` / `upload_not_found`, con el mensaje del módulo | initial |
+| DOC-E24 | Se crea un documento, adjunto o link con un id que ya existe (por ejemplo, al reintentar después de un 504), o se mueve un documento a una ruta ocupada | 409 `already_exists` con el mensaje del módulo | initial |
+| DOC-E25 | Falla inesperada en la api o en jiku-docs (por ejemplo, la base no responde, o el módulo devuelve un código que la api no traduce) | 500 `internal_error` «Internal error» (o el `code` del módulo sin traducir) | initial |
 
 ## Examples
 - DOC-14: un link creado el 2026-11-27 con vencimiento de 30 días vence el 2026-12-27; a partir de entonces `/p/docs/{token}` responde la página de DOC-E20.

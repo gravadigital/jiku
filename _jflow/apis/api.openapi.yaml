@@ -180,7 +180,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: CLI-E14
     post:
       operationId: createClient
       tags: [api.clients]
@@ -217,7 +217,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: CLI-E14
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: CLI-E11
@@ -255,7 +255,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CLI-E5
+          x-failure: [CLI-E5, CLI-E14]
     patch:
       operationId: updateClient
       tags: [api.clients]
@@ -289,7 +289,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CLI-E5
+          x-failure: [CLI-E5, CLI-E14]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: CLI-E11
@@ -345,7 +345,7 @@ paths:
               example: { code: client_not_found, message: Client not found }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: CLI-E14
 
   # ==========================================================================
   # projects
@@ -413,7 +413,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PRY-E8
+          x-failure: [PRY-E8, PRY-E13]
     post:
       operationId: createProject
       tags: [api.projects]
@@ -444,7 +444,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: PRY-E13
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: PRY-E10
@@ -489,7 +489,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PRY-E8
+          x-failure: [PRY-E8, PRY-E13]
     patch:
       operationId: updateProject
       tags: [api.projects]
@@ -532,7 +532,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PRY-E8
+          x-failure: [PRY-E8, PRY-E13]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: PRY-E10
@@ -569,7 +569,7 @@ paths:
           x-failure: PER-E2
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E3
+          x-failure: [PER-E3, PER-E4]
 
   /projects/objectives-summary:
     get:
@@ -597,7 +597,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: TAR-E13
 
   # ==========================================================================
   # requirements
@@ -695,7 +695,7 @@ paths:
           x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: [REQ-E15, REQ-E16]
+          x-failure: [REQ-E15, REQ-E16, REQ-E18]
     post:
       operationId: createRequirement
       tags: [api.requirements]
@@ -766,7 +766,7 @@ paths:
           x-failure: [REQ-E2, REQ-E5]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: REQ-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: REQ-E17
@@ -852,7 +852,7 @@ paths:
           x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: REQ-E18
 
   /requirements/tags/suggestions:
     get:
@@ -893,7 +893,7 @@ paths:
           x-failure: REQ-E11
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: REQ-E18
 
   /requirements/{reqid}:
     parameters:
@@ -922,7 +922,7 @@ paths:
           x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: REQ-E15
+          x-failure: [REQ-E15, REQ-E18]
     patch:
       operationId: updateRequirement
       tags: [api.requirements]
@@ -1015,7 +1015,7 @@ paths:
           x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: REQ-E15
+          x-failure: [REQ-E15, REQ-E18]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: REQ-E17
@@ -1069,7 +1069,7 @@ paths:
           x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: REQ-E15
+          x-failure: [REQ-E15, REQ-E18]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: REQ-E17
@@ -1130,7 +1130,7 @@ paths:
           x-failure: REQ-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: REQ-E15
+          x-failure: [REQ-E15, REQ-E18]
 
   # ==========================================================================
   # objectives — tareas
@@ -1197,7 +1197,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: TAR-E12
+          x-failure: [TAR-E12, TAR-E13]
     post:
       operationId: createObjective
       tags: [api.tasks]
@@ -1266,13 +1266,13 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: TAR-E13
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
 
   /objectives/{id}:
     parameters:
@@ -1302,7 +1302,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: TAR-E12
+          x-failure: [TAR-E12, TAR-E13]
     patch:
       operationId: updateObjective
       tags: [api.tasks]
@@ -1346,13 +1346,13 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: TAR-E12
+          x-failure: [TAR-E12, TAR-E13]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
 
   /objectives/{id}/comments:
     post:
@@ -1394,13 +1394,13 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: TAR-E12
+          x-failure: [TAR-E12, TAR-E13]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
 
   /objectives/{id}/comment/{cid}:
     patch:
@@ -1455,13 +1455,13 @@ paths:
               example: { code: comment_not_owned, message: Access denied }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: TAR-E12
+          x-failure: [TAR-E12, TAR-E13]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: TAR-E14
 
   /requirements/{reqid}/comments/{cid}:
     patch:
@@ -1516,7 +1516,7 @@ paths:
               example: { code: comment_not_owned, message: Access denied }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: REQ-E15
+          x-failure: [REQ-E15, REQ-E18]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
           x-failure: REQ-E17
@@ -1555,7 +1555,7 @@ paths:
                 items: { $ref: '#/components/schemas/WorkedTimeWithRelations' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: HOR-E10
+          x-failure: HOR-E21
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -1564,7 +1564,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
     post:
       operationId: createWorkedTime
       tags: [api.times]
@@ -1672,13 +1672,13 @@ paths:
               example: { code: access_denied, message: Solo podés cargar tus propias horas }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: HOR-E19
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: HOR-E20
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: HOR-E20
 
   /worked-times/{id}:
     delete:
@@ -1748,13 +1748,13 @@ paths:
               example: { code: worked_time_not_found, message: Registro no encontrado }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: HOR-E19
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: HOR-E20
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: HOR-E20
 
   /worked-times/person-objectives:
     get:
@@ -1782,7 +1782,7 @@ paths:
                 items: { $ref: '#/components/schemas/ObjectiveSummary' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: HOR-E10
+          x-failure: HOR-E21
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -1791,7 +1791,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   /worked-times/person-requirements:
     get:
@@ -1816,7 +1816,7 @@ paths:
                 items: { $ref: '#/components/schemas/RequirementSummary' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: HOR-E10
+          x-failure: HOR-E21
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -1825,7 +1825,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   /worked-times/report/by-person:
     get:
@@ -1855,7 +1855,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   /worked-times/report/by-project:
     get:
@@ -1885,7 +1885,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   /worked-times/report/by-project/{projid}:
     get:
@@ -1919,7 +1919,7 @@ paths:
           x-failure: HOR-E16
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   # ==========================================================================
   # unworked-times
@@ -1952,13 +1952,13 @@ paths:
                 items: { $ref: '#/components/schemas/UnworkedTime' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: AUS-E5
+          x-failure: AUS-E12
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: AUS-E10
     post:
       operationId: createUnworkedTime
       tags: [api.times]
@@ -2030,13 +2030,13 @@ paths:
               example: { code: access_denied, message: Solo podés cargar tus propias ausencias }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: AUS-E10
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: AUS-E11
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: AUS-E11
 
   /unworked-times/{id}:
     delete:
@@ -2114,13 +2114,13 @@ paths:
                 message: Registro de tiempo no trabajado no encontrado
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: AUS-E10
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: AUS-E11
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: AUS-E11
 
   /unworked-times/reasons:
     get:
@@ -2143,7 +2143,7 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: AUS-E10
 
   /unworked-times/report:
     get:
@@ -2174,13 +2174,13 @@ paths:
               schema: { type: object }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: HOR-E15
+          x-failure: AUS-E12
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: AUS-E10
 
   # ==========================================================================
   # week-assigned-times
@@ -2231,7 +2231,7 @@ paths:
           x-failure: ASG-E7
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: ASG-E9
     put:
       operationId: replaceWeekAssignedTimes
       tags: [api.times]
@@ -2317,7 +2317,7 @@ paths:
           x-failure: ASG-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: ASG-E9
 
   # ==========================================================================
   # attachments
@@ -2363,7 +2363,7 @@ paths:
           x-failure: ARC-E12
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: ARC-E15
     post:
       operationId: requestFileUpload
       tags: [api.files]
@@ -2433,13 +2433,13 @@ paths:
           x-failure: ACC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /attachments/{id}:
     parameters:
@@ -2472,7 +2472,7 @@ paths:
           x-failure: ARC-E10
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: ARC-E15
     delete:
       operationId: unlinkAttachment
       tags: [api.files]
@@ -2507,13 +2507,13 @@ paths:
           x-failure: ARC-E10
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: ARC-E15
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /attachments/{id}/download:
     get:
@@ -2567,13 +2567,13 @@ paths:
           x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /attachments/{id}/preview:
     get:
@@ -2620,13 +2620,13 @@ paths:
           x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /files/{id}/preview:
     get:
@@ -2691,13 +2691,13 @@ paths:
           x-failure: ARC-E11
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   # ==========================================================================
   # docs — módulo de documentación (jiku-docs, REQ-016 / S-078, S-079)
@@ -2757,7 +2757,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsDocumentPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: [DOC-E10, DOC-E22]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -2769,7 +2769,7 @@ paths:
           x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -2814,7 +2814,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: [DOC-E8, DOC-E9]
+          x-failure: [DOC-E8, DOC-E9, DOC-E22, DOC-E23]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -2826,13 +2826,13 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
         x-error-409:
-          x-failure: [DOC-E5, DOC-E6]
+          x-failure: DOC-E24
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         x-error-413:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -2872,7 +2872,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsDocumentDetail' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -2884,7 +2884,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -2926,7 +2926,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: [DOC-E8, DOC-E9]
+          x-failure: [DOC-E8, DOC-E9, DOC-E22, DOC-E23]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -2944,7 +2944,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -2972,7 +2972,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsIdResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -2987,7 +2987,7 @@ paths:
           x-failure: [DOC-E5, DOC-E6]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3018,7 +3018,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsVersionPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3030,7 +3030,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3077,7 +3077,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsSearchResponse' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3089,7 +3089,7 @@ paths:
           x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3120,7 +3120,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsTopicPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3132,7 +3132,7 @@ paths:
           x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3164,7 +3164,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsFolderPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3176,7 +3176,7 @@ paths:
           x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3214,7 +3214,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3261,7 +3261,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3303,7 +3303,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E9
+          x-failure: [DOC-E22, DOC-E23]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3315,13 +3315,13 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
         x-error-409:
-          x-failure: [DOC-E5, DOC-E6]
+          x-failure: [DOC-E5, DOC-E6, DOC-E24]
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         x-error-413:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3361,7 +3361,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsWriteResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E9
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3379,7 +3379,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3429,7 +3429,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsRelationsResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E9
+          x-failure: [DOC-E9, DOC-E22]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3447,7 +3447,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3479,7 +3479,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsRelationSuggestions' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3491,7 +3491,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3533,7 +3533,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsSearchSuggestions' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3545,7 +3545,7 @@ paths:
           x-failure: DOC-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3586,7 +3586,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsLock' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3604,7 +3604,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3643,7 +3643,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsIdResult' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3661,7 +3661,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3705,7 +3705,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsAttachmentUpload' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E14
+          x-failure: [DOC-E14, DOC-E22]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3717,13 +3717,13 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '409': { $ref: '#/components/responses/ModuleConflict' }
         x-error-409:
-          x-failure: [DOC-E5, DOC-E6]
+          x-failure: DOC-E24
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         x-error-413:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3752,7 +3752,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsAttachmentConfirm' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E14
+          x-failure: [DOC-E22, DOC-E23]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3767,7 +3767,7 @@ paths:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3799,7 +3799,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsSharePage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E10
+          x-failure: DOC-E22
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3811,7 +3811,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3855,7 +3855,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsShareCreated' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: [DOC-E12, DOC-E13]
+          x-failure: [DOC-E12, DOC-E13, DOC-E22]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -3867,13 +3867,13 @@ paths:
           x-failure: [DOC-E1, DOC-E4, DOC-E11]
         '409': { $ref: '#/components/responses/ModuleConflict' }
         x-error-409:
-          x-failure: [DOC-E5, DOC-E6]
+          x-failure: DOC-E24
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         x-error-413:
           x-failure: DOC-E8
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -3911,7 +3911,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -4031,7 +4031,7 @@ paths:
           x-failure: POR-E1
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: POR-E18
 
   /opus/projects/{projid}/requirements:
     get:
@@ -4084,7 +4084,7 @@ paths:
                         creator: { $ref: '#/components/schemas/AuthorUser' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: POR-E17
+          x-failure: POR-E20
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -4096,7 +4096,7 @@ paths:
           x-failure: POR-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: POR-E17
+          x-failure: [POR-E17, POR-E18]
 
   /opus/projects/{projid}/users:
     get:
@@ -4128,7 +4128,7 @@ paths:
           x-failure: POR-E3
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: POR-E18
 
   /opus/requirements:
     post:
@@ -4180,7 +4180,7 @@ paths:
               schema: { $ref: '#/components/schemas/Requirement' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: [POR-E8, REQ-E10, ARC-E5, ARC-E6]
+          x-failure: [POR-E8, POR-E20, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -4192,13 +4192,13 @@ paths:
           x-failure: [POR-E9, POR-E11]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: POR-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: POR-E19
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: POR-E19
 
   /opus/requirements/{reqid}:
     parameters:
@@ -4247,7 +4247,7 @@ paths:
           x-failure: POR-E4
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: POR-E18
     patch:
       operationId: updatePortalRequirement
       tags: [api.portal]
@@ -4282,7 +4282,7 @@ paths:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: REQ-E1
+          x-failure: POR-E20
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -4294,13 +4294,13 @@ paths:
           x-failure: POR-E4
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: POR-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: POR-E19
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: POR-E19
 
   /opus/requirements/{reqid}/comments:
     post:
@@ -4338,7 +4338,7 @@ paths:
               schema: { $ref: '#/components/schemas/RequirementActivity' }
         '400': { $ref: '#/components/responses/InvalidFields' }
         x-error-400:
-          x-failure: [REQ-E1, REQ-E10, ARC-E5, ARC-E6]
+          x-failure: [POR-E20, REQ-E10, ARC-E5, ARC-E6]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -4350,13 +4350,13 @@ paths:
           x-failure: POR-E12
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: POR-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: POR-E19
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: POR-E19
 
   /opus/requirements/{reqid}/subscriptors:
     post:
@@ -4390,7 +4390,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Acknowledgement' }
         '400':
-          x-failure: POR-E15
+          x-failure: [POR-E15, POR-E20]
           description: Validación fallida, o `already_subscribed` desde core
           content:
             application/json:
@@ -4409,13 +4409,13 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: POR-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: POR-E19
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: POR-E19
 
   /opus/requirements/{reqid}/subscriptors/{userId}:
     delete:
@@ -4464,13 +4464,13 @@ paths:
               example: { code: subscription_not_found, message: Subscription not found }
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: CON-E14
+          x-failure: POR-E18
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: POR-E19
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: POR-E19
 
   /opus/attachments:
     post:
@@ -4514,13 +4514,13 @@ paths:
           x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /opus/attachments/{id}/preview:
     get:
@@ -4558,13 +4558,13 @@ paths:
           x-failure: [ARC-E10, ARC-E11]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: ARC-E4
+          x-failure: [ARC-E4, ARC-E15]
         '503': { $ref: '#/components/responses/BusUnavailable' }
         x-error-503:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
         '504': { $ref: '#/components/responses/GatewayTimeout' }
         x-error-504:
-          x-failure: REQ-E17
+          x-failure: ARC-E16
 
   /opus/docs/documents:
     get:
@@ -4598,7 +4598,7 @@ paths:
               schema: { $ref: '#/components/schemas/DocsPortalDocumentPage' }
         '400': { $ref: '#/components/responses/ModuleBadRequest' }
         x-error-400:
-          x-failure: DOC-E16
+          x-failure: [DOC-E16, DOC-E22]
         '401': { $ref: '#/components/responses/Unauthorized' }
         x-error-401:
           x-failure: ACC-E1
@@ -4610,7 +4610,7 @@ paths:
           x-failure: [DOC-E1, DOC-E17]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -4653,7 +4653,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4, DOC-E19]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -4703,7 +4703,7 @@ paths:
           x-failure: [DOC-E1, DOC-E4, DOC-E19]
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
         '503': { $ref: '#/components/responses/ModuleUnavailable' }
         x-error-503:
           x-failure: DOC-E2
@@ -4750,7 +4750,7 @@ paths:
           x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
 
   # ==========================================================================
   # other
@@ -4792,7 +4792,7 @@ paths:
           x-failure: ACC-E2
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: DOC-E25
 
   /persons:
     get:
@@ -4843,7 +4843,7 @@ paths:
           x-failure: HOR-E14
         '500': { $ref: '#/components/responses/InternalError' }
         x-error-500:
-          x-failure: PER-E4
+          x-failure: HOR-E19
 
   /auth/present:
     post:
@@ -4990,14 +4990,14 @@ components:
             unauthorized:
               value: { code: unauthorized, message: Unauthorized }
     AccessDenied:
-      x-failure: ACC-E2
+      x-failure: [ACC-E2, ACC-E6, ARC-E7, ARC-E12, ARC-E13, ARC-E14, ASG-E1, ASG-E7, CLI-E8, CON-E9, HOR-E14, PER-E1, POR-E1, POR-E2, POR-E5, POR-E10, POR-E13, POR-E14, POR-E15, REQ-E11, REQ-E12, REQ-E13]
       description: Autenticado, pero el rol o el permiso de proyecto no alcanzan
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: access_denied, message: Access denied }
     InvalidFields:
-      x-failure: [CLI-E3, PRY-E2, REQ-E1, TAR-E1, HOR-E10, AUS-E5, ASG-E6, ARC-E1]
+      x-failure: [ARC-E1, ARC-E2, ARC-E3, ARC-E5, ARC-E6, ARC-E8, ASG-E7, AUS-E12, CLI-E3, CLI-E6, CLI-E9, HOR-E15, HOR-E21, POR-E8, POR-E20, PRY-E2, PRY-E3, PRY-E5, PRY-E7, REQ-E1, REQ-E4, REQ-E10, TAR-E1, TAR-E2, TAR-E5, TAR-E6, TAR-E7]
       description: Validación de Joi fallida. Devuelve **solo el primer** error
       content:
         application/json:
@@ -5037,14 +5037,14 @@ components:
             fileNotAvailable:
               value: { code: file_not_available, message: El archivo no está disponible }
     ProjectNotFound:
-      x-failure: [REQ-E2, PER-E2, HOR-E16, POR-E3, POR-E9]
+      x-failure: [HOR-E16, PER-E2, POR-E3, POR-E9, POR-E11, REQ-E2, REQ-E5]
       description: El proyecto no existe
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: project_not_found, message: Project not found }
     RequirementNotFound:
-      x-failure: [REQ-E3, POR-E4, POR-E12]
+      x-failure: [POR-E4, POR-E12, REQ-E3]
       description: El requisito no existe
       content:
         application/json:
@@ -5093,7 +5093,7 @@ components:
             queryTimeout:
               value: { code: query_timeout, message: La consulta tardó demasiado }
     ModuleBadRequest:
-      x-failure: [DOC-E8, DOC-E9, DOC-E10, DOC-E12, DOC-E13, DOC-E14, DOC-E16]
+      x-failure: [DOC-E8, DOC-E9, DOC-E10, DOC-E12, DOC-E13, DOC-E14, DOC-E16, DOC-E22, DOC-E23]
       description: |
         Validación de Joi (`invalid_fields`, primer error, incluye un parámetro no declarado) o
         entrada rechazada por jiku-docs (`invalid_cursor`, `semantic_search_not_configured`). Las reglas
@@ -5116,7 +5116,7 @@ components:
             secretWarningNotAcknowledged:
               value: { code: secret_warning_not_acknowledged, message: El documento tiene una posible credencial }
     ModuleForbidden:
-      x-failure: [DOC-E3, DOC-E7, DOC-E13, DOC-E18]
+      x-failure: [ACC-E2, DOC-E3, DOC-E7, DOC-E13, DOC-E18]
       description: Rol insuficiente (`access_denied`) o permiso que niega jiku-docs (`permission_denied`)
       content:
         application/json:
@@ -5156,7 +5156,7 @@ components:
             requirementNotFound:
               value: { code: requirement_not_found, message: Requirement not found }
     ModuleConflict:
-      x-failure: [DOC-E5, DOC-E6]
+      x-failure: [DOC-E5, DOC-E6, DOC-E24]
       description: |
         Conflicto de escritura en jiku-docs, con su `code` SIN traducir y `details` verbatim (DD-7).
         `version_conflict` trae `details.currentVersion`; `document_locked`, `details.holder`, `details.via` y
@@ -5205,14 +5205,14 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: payload_too_large, message: El cuerpo de la solicitud supera el límite permitido }
     InternalError:
-      x-failure: PER-E4
+      x-failure: [ARC-E4, ARC-E15, ASG-E9, AUS-E10, CLI-E5, CLI-E14, DOC-E25, HOR-E19, PER-E3, PER-E4, POR-E17, POR-E18, PRY-E8, PRY-E13, REQ-E15, REQ-E16, REQ-E18, TAR-E12, TAR-E13]
       description: Error inesperado. El detalle va al log, no a la respuesta
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { code: internal_error, message: Internal error }
     BusUnavailable:
-      x-failure: [CLI-E11, PRY-E10, REQ-E17]
+      x-failure: [ARC-E16, AUS-E11, CLI-E11, HOR-E20, POR-E19, PRY-E10, REQ-E17, TAR-E14]
       description: |
         **No hay ningún suscriptor del subject:** el server contesta *"no responders"* **en
         milisegundos**, no al vencer el timeout. Es la señal de un problema de **despliegue**.
@@ -5228,7 +5228,7 @@ components:
             code: service_unavailable
             message: El servicio no está disponible en este momento
     GatewayTimeout:
-      x-failure: [CLI-E11, PRY-E10, REQ-E17]
+      x-failure: [ARC-E16, AUS-E11, CLI-E11, HOR-E20, POR-E19, PRY-E10, REQ-E17, TAR-E14]
       description: |
         **La respuesta no llegó dentro de `NATS_REQUEST_TIMEOUT_MS`** (default 5000 ms). Había
         alguien escuchando y no contestó a tiempo: es la señal de un problema de **performance**,

@@ -12,12 +12,15 @@ will spend the time.
 | **Docker** | for the stack, and for the `api` and `core` test suites, which start an ephemeral PostgreSQL |
 | **An OIDC identity provider** | Jiku does not manage users. Zitadel is what it is built against. |
 | **`nsc`** | the NATS CLI. Needed for the NATS identity and also by `./local.sh up`, which creates the module registry |
-| **A database dump** | the migrations cannot build the schema from empty — see below |
 
-That last one is the sharpest edge in adopting Jiku today, and it is worth knowing before you
-start: the 95 migrations under `services/api/db-upgrade/migrations/` assume an existing schema and only
-alter it. Against an empty database the api fails to start. See
-[known-limitations.md](known-limitations.md).
+**The schema builds from an empty database.** `npm run upgrade-db` (which the api runs at
+startup, and `make migrate` runs locally) first applies `services/api/db-upgrade/baseline.js`: on an
+empty database it creates the schema the first 94 migrations had reached and records them as
+applied; then the later migrations run as usual. On a database that already has the schema it does
+nothing. A dump (`DUMP_FILE`) is only needed to bring existing data.
+
+To run the whole product locally with no identity provider, `nsc` or dump at all, use `make up`
+from the repository root: see the README.
 
 ## Development
 

@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Registro y borrado de ausencias por persona y día con su motivo, el tope diario compartido con las horas trabajadas y la consulta y el reporte de ausencias
 entities: [Ausencia, Horas trabajadas, Persona]
 last_requirement: AUS-10
-last_failure: AUS-E9
+last_failure: AUS-E12
 ---
 
 # AUS — Ausencias
@@ -36,6 +36,9 @@ last_failure: AUS-E9
 | AUS-E7 | Se borra una ausencia creada hace más de 10 días | 400 `deadline_exceeded` «Solo se pueden eliminar registros creados en los últimos 10 días» | initial |
 | AUS-E8 | Alguien sin rol `admin` borra una ausencia de otra persona | 403 `access_denied` «Solo podés eliminar tus propios registros» | initial |
 | AUS-E9 | Dos registros simultáneos de la misma persona y día superan juntos el tope diario | Los dos se guardan: el tope se verifica antes de insertar y sin bloqueo | initial |
+| AUS-E10 | Falla inesperada al leer ausencias, sus motivos o el reporte, o al ejecutar el registro o el borrado en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» | initial |
+| AUS-E11 | Registro o borrado de una ausencia sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
+| AUS-E12 | La lista o el reporte de ausencias se piden sin `personId` (entero mayor que 0), o sin sus fechas (`date`, o `dateFrom` y `dateTo`) con la forma `YYYY-MM-DD` | 400 `invalid_fields` «Invalid field - {detalle}» | initial |
 
 ## Examples
 - AUS-04: la persona tiene 900 minutos trabajados y 300 de ausencia el 2026-11-20; registrar otra ausencia de 300 responde AUS-E4 con «Minutos disponibles: 240».

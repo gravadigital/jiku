@@ -33,5 +33,12 @@
     "name": "jiku-core",
     "roles": ["core"],
     "machine": true
+  },
+  {
+    "sub": "300000000000000103",
+    "username": "jiku-docs",
+    "name": "jiku-docs",
+    "roles": ["docs"],
+    "machine": true
   }
 ]

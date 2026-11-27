@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Alta, edición, estados y resolución de requisitos por el equipo interno, con responsables, etiquetas, comentarios, reporte y horas trabajadas por requisito
 entities: [Requisito, Actividad de requisito, Proyecto, Persona, Usuario, Tarea, Horas trabajadas, Archivo, Adjunto]
 last_requirement: REQ-38
-last_failure: REQ-E17
+last_failure: REQ-E18
 ---
 
 # REQ — Requisitos
@@ -72,6 +72,7 @@ last_failure: REQ-E17
 | REQ-E15 | Id de requisito no numérico, o `priority` del listado fuera del enum | 500 `internal_error` "Internal error" | initial |
 | REQ-E16 | Filtro `tag` cuyo valor contiene comilla simple: se incrusta sin parametrizar en la consulta | Altera la consulta SQL; si queda inválida, 500 `internal_error` "Internal error" | initial |
 | REQ-E17 | El bus no responde a tiempo, o no está disponible | 504 `gateway_timeout` "La operación tardó demasiado" / 503 `service_unavailable` "El servicio no está disponible en este momento" | initial |
+| REQ-E18 | Falla inesperada al leer requisitos, su reporte, las sugerencias de etiquetas o las horas trabajadas, o al ejecutar el alta, la edición o un comentario en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» («Internal server error» si falla la lectura previa al alta) | initial |
 
 ## Examples
 - REQ-09/REQ-10: un requisito en `analisis` pasa a `desarrollo` el 03/03 (registra `inProgressAt` = 03/03), vuelve a `planificacion` el 05/03 (registra `scheduledAt` = 05/03) y regresa a `desarrollo` el 10/03: `inProgressAt` sigue siendo 03/03.

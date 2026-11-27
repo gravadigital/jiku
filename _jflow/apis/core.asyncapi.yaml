@@ -408,7 +408,7 @@ channels:
       x-requirements: [CLI-06, CLI-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [CLI-E3, CLI-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [CLI-E3, CLI-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Create an actor
       tags:
         - name: core.clients
@@ -427,7 +427,7 @@ channels:
       x-requirements: [CLI-07, CLI-08, CLI-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [CLI-E3, CLI-E6, CLI-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [CLI-E3, CLI-E6, CLI-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Edit an actor
       tags:
         - name: core.clients
@@ -445,7 +445,7 @@ channels:
       x-requirements: [PRY-06, PRY-07, PRY-08, PRY-09, PRY-10, PRY-14, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [PRY-E2, PRY-E3, PRY-E5, PRY-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [PRY-E2, PRY-E3, PRY-E5, PRY-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Create a project
       tags:
         - name: core.projects
@@ -469,7 +469,7 @@ channels:
       x-requirements: [PRY-09, PRY-10, PRY-11, PRY-14, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [PRY-E4, PRY-E5, PRY-E6, PRY-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [PRY-E4, PRY-E5, PRY-E6, PRY-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Edit a project
       tags:
         - name: core.projects
@@ -492,7 +492,7 @@ channels:
       x-requirements: [TAR-01, TAR-02, TAR-03, TAR-04, TAR-05, TAR-13, TAR-27, TAR-30, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [TAR-E1, TAR-E2, TAR-E3, TAR-E4, TAR-E5, TAR-E6, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [TAR-E1, TAR-E2, TAR-E3, TAR-E4, TAR-E5, TAR-E6, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Create a task
       tags:
         - name: core.tasks
@@ -521,7 +521,7 @@ channels:
       x-requirements: [TAR-07, TAR-08, TAR-09, TAR-10, TAR-11, TAR-12, TAR-13, TAR-27, TAR-30, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [TAR-E1, TAR-E2, TAR-E5, TAR-E6, TAR-E7, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [TAR-E1, TAR-E2, TAR-E5, TAR-E6, TAR-E7, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Edit a task
       tags:
         - name: core.tasks
@@ -545,7 +545,7 @@ channels:
       x-requirements: [TAR-14, TAR-27, TAR-30, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [TAR-E1, TAR-E7, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [TAR-E1, TAR-E7, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Comment on a task
       tags:
         - name: core.tasks
@@ -579,7 +579,7 @@ channels:
       x-requirements: [TAR-15, TAR-27, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [TAR-E7, TAR-E8, TAR-E9, TAR-E10, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [TAR-E7, TAR-E8, TAR-E9, TAR-E10, TAR-E11, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Edit a comment on a task
       tags:
         - name: core.tasks
@@ -616,7 +616,7 @@ channels:
       x-requirements: [REQ-01, REQ-02, REQ-04, REQ-05, REQ-32, REQ-33, REQ-35, REQ-38, POR-10, POR-11, CON-09, CON-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [REQ-E1, REQ-E2, REQ-E4, REQ-E5, REQ-E10, REQ-E13, CON-E9, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [REQ-E1, REQ-E2, REQ-E4, REQ-E5, REQ-E10, REQ-E13, CON-E9, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Create a requirement
       tags:
         - name: core.requirements
@@ -686,7 +686,7 @@ channels:
       x-requirements: [REQ-06, REQ-07, REQ-08, REQ-09, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-32, REQ-33, REQ-38, POR-16, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [REQ-E1, REQ-E3, REQ-E4, REQ-E6, REQ-E10, REQ-E12, REQ-E14, POR-E14, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [REQ-E1, REQ-E3, REQ-E4, REQ-E6, REQ-E10, REQ-E12, REQ-E14, POR-E14, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Edit a requirement
       tags:
         - name: core.requirements
@@ -726,7 +726,7 @@ channels:
       x-requirements: [REQ-11, REQ-12, NOT-03, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [REQ-E3, REQ-E6, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [REQ-E3, REQ-E6, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Resolve a requirement
       tags:
         - name: core.requirements
@@ -753,7 +753,7 @@ channels:
       x-requirements: [REQ-20, REQ-33, REQ-36, REQ-38, POR-13, CON-09, CON-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [REQ-E1, REQ-E3, REQ-E10, REQ-E13, POR-E12, POR-E13, CON-E9, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [REQ-E1, REQ-E3, REQ-E10, REQ-E13, POR-E12, POR-E13, CON-E9, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Comment on a requirement
       tags:
         - name: core.requirements
@@ -785,7 +785,7 @@ channels:
       x-requirements: [REQ-21, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [REQ-E3, REQ-E7, REQ-E8, REQ-E9, REQ-E10, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [REQ-E3, REQ-E7, REQ-E8, REQ-E9, REQ-E10, ARC-E5, ARC-E6, ARC-E7, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Edit a comment on a requirement
       tags:
         - name: core.requirements
@@ -812,7 +812,7 @@ channels:
       x-requirements: [POR-14, POR-15, NOT-02, CON-09, CON-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, user, external-user]
-      x-failure: [POR-E15, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [POR-E15, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Subscribe a user to a requirement
       tags:
         - name: core.requirements
@@ -841,7 +841,7 @@ channels:
       x-requirements: [POR-14, CON-09, CON-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, external-user]
-      x-failure: [POR-E16, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [POR-E16, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Unsubscribe a user from a requirement
       tags:
         - name: core.requirements
@@ -885,7 +885,7 @@ channels:
       x-requirements: [ARC-01, ARC-02, ARC-04, ARC-05, ARC-06, ARC-07, CON-09, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [ARC-E1, ARC-E2, ARC-E3, ARC-E4, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E6]
+      x-failure: [ARC-E1, ARC-E2, ARC-E3, ARC-E4, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15, CON-E6]
       summary: Request permission to upload a file
       tags:
         - name: core.files
@@ -942,7 +942,7 @@ channels:
       x-requirements: [ARC-18, ARC-19, ARC-20, ARC-21, ARC-22, ARC-30, CON-09, CON-11, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [ARC-E11, ARC-E13, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [ARC-E11, ARC-E13, CON-E9, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Request permission to download a file
       tags:
         - name: core.files
@@ -978,7 +978,7 @@ channels:
       x-requirements: [ARC-12, ARC-24, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [ARC-E10, ARC-E14, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [ARC-E10, ARC-E14, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Unlink a file from an entity
       tags:
         - name: core.files
@@ -1011,7 +1011,7 @@ channels:
       x-requirements: [HOR-01, HOR-02, HOR-03, HOR-04, HOR-05, HOR-11, CON-18, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [HOR-E1, HOR-E2, HOR-E3, HOR-E4, HOR-E5, HOR-E6, HOR-E7, HOR-E8, HOR-E9, HOR-E10, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [HOR-E1, HOR-E2, HOR-E3, HOR-E4, HOR-E5, HOR-E6, HOR-E7, HOR-E8, HOR-E9, HOR-E10, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Log worked time
       tags:
         - name: core.times
@@ -1040,7 +1040,7 @@ channels:
       x-requirements: [HOR-06, CON-18, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [HOR-E11, HOR-E12, HOR-E13, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [HOR-E11, HOR-E12, HOR-E13, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Delete worked time
       tags:
         - name: core.times
@@ -1058,7 +1058,7 @@ channels:
       x-requirements: [AUS-01, AUS-02, AUS-03, AUS-04, AUS-05, CON-18, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [AUS-E1, AUS-E2, AUS-E3, AUS-E4, AUS-E5, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [AUS-E1, AUS-E2, AUS-E3, AUS-E4, AUS-E5, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Record unworked time
       tags:
         - name: core.times
@@ -1083,7 +1083,7 @@ channels:
       x-requirements: [AUS-06, CON-18, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user]
-      x-failure: [AUS-E6, AUS-E7, AUS-E8, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [AUS-E6, AUS-E7, AUS-E8, CON-E10, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Delete unworked time
       tags:
         - name: core.times
@@ -1128,7 +1128,7 @@ channels:
       x-requirements: [ASG-05, ASG-06, ASG-07, CON-04, CON-20]
       x-origin: 'initial'
       x-roles: [internal-app, admin]
-      x-failure: [ASG-E1, ASG-E2, ASG-E3, ASG-E4, ASG-E5, ASG-E6, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14]
+      x-failure: [ASG-E1, ASG-E2, ASG-E3, ASG-E4, ASG-E5, ASG-E6, CON-E2, CON-E4, CON-E5, CON-E7, CON-E14, CON-E15]
       summary: Replace a full week of assignments
       tags:
         - name: core.times

@@ -246,7 +246,7 @@ channels:
       x-requirements: [CLI-09, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List actors
       tags:
         - name: core.clients
@@ -260,7 +260,7 @@ channels:
       x-requirements: [CLI-09, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one actor
       tags:
         - name: core.clients
@@ -278,7 +278,7 @@ channels:
       x-requirements: [PRY-03, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List projects
       tags:
         - name: core.projects
@@ -292,7 +292,7 @@ channels:
       x-requirements: [PRY-05, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one project
       tags:
         - name: core.projects
@@ -321,7 +321,7 @@ channels:
       x-requirements: [REQ-22, REQ-19, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List requirements
       tags:
         - name: core.requirements
@@ -335,7 +335,7 @@ channels:
       x-requirements: [REQ-26, REQ-19, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one requirement
       tags:
         - name: core.requirements
@@ -357,7 +357,7 @@ channels:
       x-requirements: [TAR-16, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List tasks
       tags:
         - name: core.tasks
@@ -371,7 +371,7 @@ channels:
       x-requirements: [TAR-22, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one task
       tags:
         - name: core.tasks
@@ -398,7 +398,7 @@ channels:
       x-requirements: [REQ-20, TAR-14, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List comments
       tags:
         - name: core.requirements
@@ -416,7 +416,7 @@ channels:
       x-requirements: [REQ-20, TAR-14, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one comment
       tags:
         - name: core.requirements
@@ -443,7 +443,7 @@ channels:
       x-requirements: [REQ-14, TAR-12, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List history entries
       tags:
         - name: core.requirements
@@ -467,7 +467,7 @@ channels:
       x-requirements: [REQ-05, POR-14, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List subscriptions
       tags:
         - name: core.requirements
@@ -497,7 +497,7 @@ channels:
       x-requirements: [ARC-16, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List attachments
       tags:
         - name: core.files
@@ -520,7 +520,7 @@ channels:
       x-requirements: [ARC-19, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Get one file
       tags:
         - name: core.files
@@ -538,7 +538,7 @@ channels:
       x-requirements: [PER-01, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List people
       tags:
         - name: core.people
@@ -582,7 +582,7 @@ channels:
       x-requirements: [ACC-18, CON-14, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List users
       tags:
         - name: core.identity
@@ -606,7 +606,7 @@ channels:
       x-requirements: [HOR-07, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List worked times
       tags:
         - name: core.times
@@ -632,7 +632,7 @@ channels:
       x-requirements: [AUS-07, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List absences
       tags:
         - name: core.times
@@ -650,7 +650,7 @@ channels:
       x-requirements: [ASG-01, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List weekly assignments
       tags:
         - name: core.times
@@ -674,7 +674,7 @@ channels:
       x-requirements: [PRY-17, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List project permissions
       tags:
         - name: core.projects
@@ -741,7 +741,7 @@ channels:
       x-requirements: [REQ-29, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: Existing tag pairs of a project
       tags:
         - name: core.requirements
@@ -802,7 +802,7 @@ channels:
       x-requirements: [HOR-19, ARC-04, CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E11, CON-E12, CON-E13, CON-E14, CON-E15]
       summary: List the whitelisted configuration keys
       tags:
         - name: core.settings
@@ -873,7 +873,7 @@ channels:
       x-requirements: [CON-04, CON-12, CON-13]
       x-origin: 'initial'
       x-roles: [internal-app, admin, user, external-user]
-      x-failure: [CON-E2, CON-E3, CON-E7, CON-E14]
+      x-failure: [CON-E2, CON-E3, CON-E7, CON-E14, CON-E15]
       summary: Describe the contract
       tags:
         - name: system

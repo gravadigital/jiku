@@ -8,12 +8,12 @@
 
 | | |
 |---|---|
-| Definición | 14 bloques (260 requisitos, 172 condiciones de falla), 16 entidades, 92 operaciones HTTP + 23 comandos + 23 consultas + 16 eventos, 18 invariantes, 34 garantías, 48 decisiones (15 de producto, 33 técnicas), 13 NFR, 16 flujos |
+| Definición | 14 bloques (260 requisitos, 194 condiciones de falla), 16 entidades, 92 operaciones HTTP + 23 comandos + 23 consultas + 16 eventos, 18 invariantes, 34 garantías, 49 decisiones (16 de producto, 33 técnicas), 13 NFR, 16 flujos |
 | Listo para especificar e implementar | Sí: el repositorio cumple el mínimo (M1–M9), verificado |
 | Correcciones hechas en la adopción | 10 |
-| Cargado en Jiku | 11 incidencias de seguridad (los números se completan al cargarlas) |
-| En este informe | 24 bugs, 6 comportamientos a confirmar, 17 defaults sugeridos, 12 otras mejoras |
-| Cobertura por ID | 0/483 (los tests anteriores no llevan IDs; los nuevos los van a llevar) |
+| Cargado en Jiku | 13 incidencias de seguridad (los números se completan al cargarlas) |
+| En este informe | 24 bugs, 5 comportamientos a confirmar, 17 defaults sugeridos, 12 otras mejoras |
+| Cobertura por ID | 0/505 (los tests anteriores no llevan IDs; los nuevos los van a llevar) |
 
 ## Línea de base
 
@@ -44,14 +44,14 @@ ningún test fallaba en la línea de base.
 |---|---|---|
 | M1 | `api`, `core`, `web` y `opus-web` pasaron a `services/{servicio}/` (con su historia). Se actualizaron los workspaces, el lockfile, los cuatro Dockerfiles, los composes de `deploy/`, los workflows, `scripts/set-version.sh`, los scripts de NATS, los tests que leen archivos del repositorio y las guías. El texto histórico (`CHANGELOG.md` y los documentos de la metodología anterior en `docs/`) conserva las rutas viejas | Build, lint y tests con los mismos números que la línea de base |
 | M8 | Los contratos pasaron de `docs/apis/` a `_jflow/apis/` (`api.openapi.yaml`, `core.asyncapi.yaml`, `core-queries.asyncapi.yaml`, `core-events.asyncapi.yaml`, `jiku-modules.asyncapi.yaml`), con las extensiones de jiku flow (`operationId`, módulos, requisitos, fallas, credenciales) sin cambiar nada del cable | Los tests de contrato pasan; `jflow.py def-check` |
-| M5 | Las migraciones nunca construyeron el esquema desde una base vacía: la primera modifica `objectives`, que ninguna crea, y las instalaciones arrancaban de un dump. Se agregó la base: `services/api/db-upgrade/baseline/schema.sql` (el esquema, sin datos, después de las 94 migraciones que tenía el dump) y `baseline.js`, que `upgrade-db` corre antes de las migraciones: en una base vacía crea ese esquema y registra esas 94; en una base existente no hace nada | Base vacía → 108 migraciones registradas; una segunda corrida no cambia nada; `make up` |
+| M5 | Las migraciones nunca construyeron el esquema desde una base vacía: la primera modifica `objectives`, que ninguna crea, y las instalaciones arrancaban de un dump. Se agregó la base: `services/api/db-upgrade/baseline/schema.sql` (el esquema, sin datos, después de las 94 migraciones que tenía el dump) y `baseline.js`, que `upgrade-db` corre antes de las migraciones: en una base vacía crea ese esquema y registra esas 94; en una base existente no hace nada | Base vacía → 108 migraciones registradas; una segunda corrida no cambia nada; `make up`. `documentation/` y `deploy/.env.dist` dejan de pedir un dump |
 | M6 | Los tests de integración de api y core corren sobre el esquema que construyen las migraciones (antes, sobre `sequelize.sync()`; decidido en la adopción), en el servicio `postgres-test` de Compose. Se ajustaron solo tests: orden de limpieza (las FK reales no borran en cascada), datos de prueba válidos para el esquema real (un enum, un índice único) y cinco tests cuya premisa era el esquema de `sync()`, reescritos con la misma intención | `make test-integration`: api 1460 y core 2171 pasan |
 | M2, M3 | `Makefile` en la raíz y en cada servicio con todos los objetivos. Reportes JUnit en `reports/junit/{servicio}-{nivel}.xml` | `make check` |
-| M4 | `.env.example` con cada variable y valores seguros; `.gitignore` lo deja entrar | `jflow.py conformance` |
+| M4 | `.env.example` con cada variable y valores seguros (las opcionales y de diagnóstico, comentadas); `.gitignore` lo deja entrar. `documentation/configuration.md` suma las variables que no listaba | `jflow.py conformance` |
 | M5 | `docker-compose.yml` en la raíz: el producto completo con solo Docker, sin credenciales. La identidad la da un proveedor falso (`deploy/test/fake-idp`) con los mismos endpoints y claims que Zitadel; S3 es MinIO, SMTP es Mailpit; la identidad de NATS y el estado de JetStream los generan los scripts de `deploy/nats/` dentro de contenedores; corre el auth-callout real (1.0.0). Los composes de servidor no cambiaron salvo las rutas | `docker compose down -v` y `make up` desde cero; cada servicio responde |
 | M7 | Los jobs de chequeo del CI (`ci.yml` y los de test de `release.yml` y `dev-images.yml`) corren `make lint typecheck` y `make test-unit test-integration` | `jflow.py conformance` |
 | M6 | `make typecheck` de web usa `tsconfig.typecheck.json`, con los tipos de vitest: los 167 errores de los tests pasan a 0. Un test se tipó mejor (`useDocsSearchHooks.test.tsx`, mismos valores) | `make typecheck` |
-| M9 | Un test end to end por entrada, contra `make up` y con identidad real: api por HTTP (escribe por el bus y lee), core por NATS (a través del auth-callout), el documento compartido, el gestor interno y el portal con Playwright | `make test-e2e` |
+| M9 | Un test end to end por entrada, contra `make up` y con identidad real: api por HTTP (escribe por el bus y lee), core por NATS (a través del auth-callout), el documento compartido (un visitante abre un link válido y ve el documento), el gestor interno y el portal con Playwright. jiku-docs, que vive en otro repositorio, se reemplaza en local por un módulo falso (`deploy/test/fake-docs`) que se registra en el bus como el real | `make test-e2e` |
 
 ## Cargado en Jiku
 
@@ -68,6 +68,8 @@ ningún test fallaba en la línea de base.
 | — | Parámetros de ruta sin codificar en los handlers de Next | Un id con `..` codificado podría llevar el token del usuario a otra ruta de la api (sin verificar en ejecución) |
 | — | Descarga de claves por pedido con un `kid` desconocido | Cada token con `kid` desconocido dispara hasta `KEY_SYNC_ATTEMPS` descargas del JWKS: amplificación sin autenticarse |
 | — | Documento público del portal sin chequeo de proyecto | Abrir un documento público o su adjunto por id no verifica el permiso sobre el proyecto (DOC-19). A confirmar si es a propósito |
+| — | `deploy/bus-inspect.sh` pasa el token por la línea de comandos | `--token "$TOKEN"` deja el bearer visible en `ps` y en el historial de la shell |
+| — | Cerrar sesión no termina la sesión en el proveedor de identidad | El próximo ingreso es automático con la sesión que quedó viva en Zitadel. A confirmar si es a propósito |
 
 ## Bugs sospechados
 
@@ -87,138 +89,137 @@ No son de seguridad, así que no se cargaron en Jiku. La definición los documen
 - **Dónde:** TAR-E2.
 - **Gravedad sugerida:** media.
 
-### B-03 Editar una tarea borra su descripción y su fecha estimada
-
-- **Qué pasa:** `PATCH /objectives` vacía la descripción y la fecha estimada cuando no vienen en el pedido.
-- **Por qué parece un error:** una edición parcial borra datos que no tocó.
-- **Dónde:** TAR-08.
-- **Gravedad sugerida:** media.
-
-### B-04 Los enlaces libres del proyecto siempre fallan
+### B-03 Los enlaces libres del proyecto siempre fallan
 
 - **Qué pasa:** los pares clave/valor libres del formulario de proyecto los rechaza la api (400) al crear y core (`invalid_fields`) al editar.
 - **Por qué parece un error:** el formulario los ofrece.
 - **Dónde:** PRY.
 - **Gravedad sugerida:** baja.
 
-### B-05 Quitar el cliente de un proyecto no lo desvincula
+### B-04 Quitar el cliente de un proyecto no lo desvincula
 
 - **Qué pasa:** en la edición de proyecto, vaciar el cliente no cambia nada.
 - **Dónde:** PRY.
 - **Gravedad sugerida:** baja.
 
-### B-06 Las horas aceptan una tarea de otro proyecto
+### B-05 Las horas aceptan una tarea de otro proyecto
 
 - **Qué pasa:** al cargar horas trabajadas no se valida que la tarea pertenezca al proyecto (se confirmó como error en la adopción).
 - **Dónde:** HOR; `services/core/src/commands/times/worked-times.ts`.
 - **Gravedad sugerida:** media: ensucia los reportes de horas.
 
-### B-07 El tope diario de minutos se puede superar con cargas simultáneas
+### B-06 El tope diario de minutos se puede superar con cargas simultáneas
 
 - **Qué pasa:** el tope de 1440 minutos por día se chequea y se inserta en la misma transacción, sin lock: dos cargas en paralelo lo superan.
 - **Dónde:** GAR-03, GAR-04; `worked-times.ts:163-179`, `unworked-times.ts:66-91`.
 - **Gravedad sugerida:** baja.
 
-### B-08 El selector de días de horas ofrece días que no se pueden cargar
+### B-07 El selector de días de horas ofrece días que no se pueden cargar
 
 - **Qué pasa:** muestra los últimos 8 días hábiles; los lunes y martes el más viejo queda fuera de la ventana de 10 días y la carga falla.
 - **Dónde:** HOR.
 - **Gravedad sugerida:** baja.
 
-### B-09 La ventana de borrado de ausencias usa otra hora que la de horas
+### B-08 La ventana de borrado de ausencias usa otra hora que la de horas
 
 - **Qué pasa:** el plazo de 10 días para borrar una ausencia cuenta desde su creación en la hora local del servidor; el de horas trabajadas cuenta desde la fecha del registro en UTC.
 - **Dónde:** AUS, HOR.
 - **Gravedad sugerida:** baja.
 
-### B-10 El orden de los resueltos en el portal nunca se aplica
+### B-09 El orden de los resueltos en el portal nunca se aplica
 
 - **Qué pasa:** el portal manda `state[]`, así que el orden por fecha de resolución que la api aplica a los resueltos no se activa.
 - **Dónde:** POR-06.
 - **Gravedad sugerida:** baja.
 
-### B-11 La api responde 500 con un `sort` inválido en el portal
+### B-10 La api responde 500 con un `sort` inválido en el portal
 
 - **Qué pasa:** `GET /opus/projects/{projid}/requirements` valida el cuerpo en vez de la query: `sort` llega sin validar al orden (un nombre de columna inexistente da 500) y `limit` no tiene tope.
 - **Dónde:** POR; `opus-projects-projid-requirements-get.ts`.
 - **Gravedad sugerida:** baja.
 
-### B-12 Filtros de objetivos que no hacen lo que dicen
+### B-11 Filtros de objetivos que no hacen lo que dicen
 
 - **Qué pasa:** en `GET /objectives`, un `limit` mayor a 30 devuelve hasta 200 filas (a confirmar, ver abajo), `count=false` devuelve igual el total y el filtro `visibilityLevel` se acepta pero no se aplica.
 - **Dónde:** TAR.
 - **Gravedad sugerida:** baja.
 
-### B-13 Las rutas desconocidas responden HTML
+### B-12 Las rutas desconocidas responden HTML
 
 - **Qué pasa:** el manejador JSON de 404 de la api tiene la aridad equivocada y nunca corre: una ruta desconocida da el 404 HTML de Express. Un `:id` no numérico llega a la base y da 500.
 - **Dónde:** `services/api/app.ts`.
 - **Gravedad sugerida:** baja.
 
-### B-14 Escrituras confirmadas que responden 500
+### B-13 Escrituras confirmadas que responden 500
 
 - **Qué pasa:** los handlers que releen después de un comando exitoso no atrapan errores: si la lectura falla, el usuario ve un 500 aunque la escritura ya se hizo, y puede reintentarla y duplicarla. Además los comandos no son idempotentes y la respuesta espera la publicación en JetStream, que puede pasar el timeout de 5 s de la api.
 - **Dónde:** CON; `services/core/src/bus/dispatcher.ts`.
 - **Gravedad sugerida:** media.
 
-### B-15 Core queda sordo después de un corte de NATS
+### B-14 Core queda sordo después de un corte de NATS
 
 - **Qué pasa:** el cliente de NATS usa 10 reintentos de reconexión y no maneja el cierre: tras un corte de unos 20 s el proceso sigue vivo pero ya no atiende.
 - **Dónde:** `services/core/src/bus/host.ts`.
 - **Gravedad sugerida:** media.
 
-### B-16 Core no arranca con los composes de servidor
+### B-15 Core no arranca con los composes de servidor
 
 - **Qué pasa:** la imagen corre con `NODE_ENV=production`, el logger exige `LOGGER_*_PATH` y `deploy/docker-compose.yml` y `.dev.yml` no las pasan.
 - **Dónde:** `deploy/docker-compose.yml`, `services/core/src/logger`.
 - **Gravedad sugerida:** alta si se despliega con esos composes tal como están.
 
-### B-17 Sin `KEY_SYNC_ATTEMPS` la api rechaza todos los tokens
+### B-16 Sin `KEY_SYNC_ATTEMPS` la api rechaza todos los tokens
 
 - **Qué pasa:** la variable no tiene default en el código; vacía, ningún token valida (la documentación dice que solo apaga el reintento). Y el camino de error de `getKey` puede colgarse si la lista de claves no llega.
 - **Dónde:** `services/api/lib/utils/auth-helper.ts`.
 - **Gravedad sugerida:** baja (la imagen trae el default en `.env.defaults`).
 
-### B-18 Composes y versiones fijadas que no funcionan
+### B-17 Composes y versiones fijadas que no funcionan
 
 - **Qué pasa:** `deploy/.env.dist` fija `AUTH_CALLOUT_VERSION=0.1.0`, que rechaza el `rules.yaml` del repositorio (pide un campo `type`); `docker-compose.local.yml` usa una imagen de MinIO que ya no existe; `docker-compose.dev.yml` no arranca como se documenta (modo `mock` que api y core no pueden usar, sin creds ni MinIO); `NATS_EVENTS_VERSION` no llega a ningún contenedor; `api/run-ci-tests.sh` construye con el contexto equivocado.
 - **Dónde:** `deploy/`.
 - **Gravedad sugerida:** media.
 
-### B-19 web: los errores del formulario de requisito no se muestran
+### B-18 web: los errores del formulario de requisito no se muestran
 
 - **Qué pasa:** los mensajes de validación se calculan y se descartan (`const [, setErrors]`).
 - **Dónde:** `services/web`, formulario de requisitos.
 - **Gravedad sugerida:** media.
 
-### B-20 web: un 401 de la api no lleva al login
+### B-19 web: un 401 de la api no lleva al login
 
 - **Qué pasa:** la redirección está en código que solo corre en el servidor; en el navegador la sesión vencida no lleva a `/login` (contra ADR-009).
 - **Dónde:** `services/web/src/lib/axios.ts:54-59`.
 - **Gravedad sugerida:** media.
 
-### B-21 web y portal: errores tragados o cargas infinitas
+### B-20 web y portal: errores tragados o cargas infinitas
 
 - **Qué pasa:** `/projects/[id]` y `/clients/edit/[id]` quedan cargando para siempre si falla la api; las vistas de objetivos por proyecto y por responsable muestran una página vacía ante un error; el tablero del portal muestra columnas vacías ante 403/5xx sin aviso; las acciones de servidor de web pierden el código de error en producción.
 - **Dónde:** `services/web`, `services/opus-web`.
 - **Gravedad sugerida:** baja.
 
-### B-22 Portal: links profundos que se pierden al entrar
+### B-21 Portal: links profundos que se pierden al entrar
 
 - **Qué pasa:** el login no conserva la URL de destino: el link de un mail de notificación no lleva al requisito después de iniciar sesión.
 - **Dónde:** ACC, NOT; `services/opus-web`.
 - **Gravedad sugerida:** media: afecta a las notificaciones.
 
-### B-23 Portal: detalles de la interfaz
+### B-22 Portal: detalles de la interfaz
 
 - **Qué pasa:** la tarjeta del kanban oculta estado y prioridad si el requisito no tiene descripción; el nombre y tamaño de un adjunto probablemente se ven como «Archivo adjunto» (el HEAD sigue el 302 al bucket); el modal de alta puede mandar `projectId` 0; «Abrir» dice que abre otra pestaña y navega en la misma; la validación previa de archivos usa otra lista de extensiones (agrega ppt/pptx, saca svg/txt/csv).
 - **Dónde:** `services/opus-web`.
 - **Gravedad sugerida:** baja.
 
-### B-24 Variables y comentarios que no corresponden al código
+### B-23 Variables y comentarios que no corresponden al código
 
 - **Qué pasa:** los composes pasan `LAST_WEEK_MISSING_HOURS_ENABLED`, `CURRENT_WEEK_MISSING_HOURS_ENABLED` y `CONSOLIDATED_HOURS_REMINDER_ENABLED`, que ningún código lee; comentarios desactualizados (`protocol.ts:94-111`, `authorize-caller.ts:77` cita `templates/api.yaml`, que no existe; `recipients.ts:69` dice que no hay índice único de suscriptores, y lo hay); `core/README.md` dice 20 comandos y 6 consultas (son 23 y 23); la documentación dice 95 migraciones (son 108); `docs/flows/adjuntos.md` describe una subida que ya no existe.
 - **Dónde:** varios.
+- **Gravedad sugerida:** baja.
+
+### B-24 web: la barra de filtros de Proyectos se corta a 1280 px
+
+- **Qué pasa:** en `/projects` del gestor, con una ventana de 1280 px de ancho, la fila de búsqueda y filtros desborda en horizontal y el botón «Nuevo proyecto» queda cortado en el borde.
+- **Dónde:** PRY; `services/web`, página de proyectos (lo mostró la captura del test end to end).
 - **Gravedad sugerida:** baja.
 
 ## Comportamientos a confirmar
@@ -233,7 +234,6 @@ definición los documenta tal cual, sin decisión. Al especificar algo que los t
 | Un miembro del equipo (`user`) lee las horas trabajadas de cualquier persona | Si el equipo debe ver las horas de todos | HOR-07 |
 | En el portal, suscribir acepta a cualquier usuario con permiso en el proyecto, no solo a uno mismo | Si el cliente puede suscribir a sus compañeros | POR-15 |
 | El autor de un comentario recibe la notificación de su propio comentario por el canal directo | El código lo tolera con un comentario; no hay decisión registrada | NOT |
-| El cierre de sesión no termina la sesión en el proveedor de identidad: el próximo login es automático | Si es aceptable | ACC |
 
 ## Defaults de jiku flow que el producto no sigue
 
@@ -258,7 +258,7 @@ existente es opcional: si se decide mantener uno a propósito, queda como decisi
 | Listas con cursor (`limit` + `cursor` → `{ items, nextCursor }`) | `limit` + `skip` y respuestas sin envoltorio en muchas rutas | Solo en operaciones nuevas | — |
 | Convenciones del esquema (`text` + CHECK, `timestamptz`, `{nombre}_minutes`, enums `{tabla}_{columna}` en inglés, `[pii]` en comentarios, `updated_at` por trigger, FK indexadas) | `varchar(n)`, algunas fechas sin zona y como texto, enums con nombre de Sequelize y valores en castellano, sin comentarios, FK duplicadas y sin índice | Solo en tablas nuevas; limpiar FK e índices duplicados | Medio |
 | Formato del código (`make fmt`) | 1405 archivos sin el formato de prettier | Correr `make fmt` una vez, en un commit aparte | Bajo |
-| Nombres de tests con el ID que prueban | Ningún test lleva IDs (cobertura 0/483) | Agregarlos a medida que el trabajo nuevo los toque | — |
+| Nombres de tests con el ID que prueban | Ningún test lleva IDs (cobertura 0/505) | Agregarlos a medida que el trabajo nuevo los toque | — |
 
 ## Otras mejoras sugeridas
 
@@ -273,7 +273,7 @@ existente es opcional: si se decide mantener uno a propósito, queda como decisi
 | Un `actor` y un índice de búsqueda para las ausencias (`unworked_times.reason`) | Son datos de salud: hoy no hay registro de quién los lee | Medio |
 | Reintentos del envío de notificaciones por fila | Un error de base en un lote reenvía el lote entero y las filas que llegan al máximo se borran sin rastro | Bajo |
 | Pool de escritura de core separado del de notificaciones | El ciclo de notificaciones mantiene una transacción abierta mientras manda mails | Bajo |
-| `deploy/bus-inspect.sh` sin el token en la línea de comandos | Queda en el historial y en `ps` | Bajo |
+| Limpiar los datos que dejan los tests end to end | Cada corrida agrega clientes, proyectos y permisos a la base de `make up`; con el tiempo el portal lista varios proyectos «Portal e2e …» | Bajo |
 | Credenciales locales de `local/*-su.json` con permisos 600, y revocar la del rol `bus-observer` que ya no existe | Son claves reales en la máquina de desarrollo | Bajo |
 | Documentación vieja de `docs/` (metodología anterior) | La definición pasó a `_jflow/`; `docs/` conserva rutas y datos desactualizados | Bajo |
 

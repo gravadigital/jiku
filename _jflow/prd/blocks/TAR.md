@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Alta, edición, estados, comentarios y actividad de las tareas de un proyecto, y sus vistas en tabla, por proyecto y por responsable
 entities: [Tarea, Actividad de tarea, Proyecto, Persona, Requisito, Horas trabajadas, Archivo, Adjunto]
 last_requirement: TAR-30
-last_failure: TAR-E12
+last_failure: TAR-E14
 ---
 
 # TAR — Tareas
@@ -59,6 +59,8 @@ last_failure: TAR-E12
 | TAR-E10 | Editar un comentario ajeno sin ser `admin` | 403 `comment_not_owned` "Solo el autor del comentario puede editarlo" | initial |
 | TAR-E11 | Crear, editar o comentar con un rol que core no autoriza (p. ej. `external-user`); editar un comentario sin rol `user` ni `admin` | 403 `caller_not_authorized` "El caller no está autorizado a ejecutar este método" / 403 `access_denied` "Access denied" | initial |
 | TAR-E12 | Orden por un campo inexistente o id de tarea no numérico | 500 `internal_error` "Internal error" | initial |
+| TAR-E13 | Falla inesperada al leer tareas o el resumen de tareas por proyecto, o al ejecutar el alta, la edición o un comentario en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» | initial |
+| TAR-E14 | Alta, edición, comentario o edición de comentario de una tarea sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
 
 ## Examples
 - TAR-05: el gestor manda prioridad 5: se guarda 5 y se lee como 5; en el bus viaja como `urgente`, igual que el 4.

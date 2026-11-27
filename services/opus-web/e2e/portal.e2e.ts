@@ -79,8 +79,10 @@ test('a client user signs in and sees the projects they have access to', async (
   await expect(page).toHaveURL(/idp\.localhost:9400\/oauth\/v2\/authorize/);
   await page.locator('a[data-user="external"]').click();
 
-  await expect(page).toHaveURL(/localhost:3001\/projects/);
+  // /projects redirects to the requirements of the first project the user can see.
+  await expect(page).toHaveURL(/localhost:3001\/projects\/\d+\/requirements/);
   await expect(page.getByText(projectName)).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await page.screenshot({ path: '../../reports/screenshots/adoption/opus-web-projects.png', fullPage: true });
   expect(errors, errors.join('\n')).toEqual([]);
 });

@@ -5,7 +5,7 @@ surfaces: [Gestor interno, Portal de clientes]
 covers: Subir archivos directo al almacenamiento con un link firmado, vincularlos a requisitos, tareas y comentarios, verlos, descargarlos y desvincularlos
 entities: [Archivo, Adjunto, Configuración del sistema, Requisito, Actividad de requisito, Tarea, Actividad de tarea, Proyecto, Permiso de proyecto, Usuario]
 last_requirement: ARC-30
-last_failure: ARC-E14
+last_failure: ARC-E16
 ---
 
 # ARC — Archivos y adjuntos
@@ -61,6 +61,8 @@ last_failure: ARC-E14
 | ARC-E12 | Un `external-user` sin permiso sobre la entidad lista, consulta, ve o descarga un adjunto | 403 `access_denied` "You do not have permission to view attachments of this entity" / "…to view this attachment" / "…to preview this attachment" / "…to download this attachment" | initial |
 | ARC-E13 | Un `external-user` ve por id un archivo que no alcanza; un `admin` sin rol `user` usa la ruta de adjuntos del portal | 403 `access_denied` "No tenés permiso sobre esta entidad" / 403 `access_denied` "Access denied" | initial |
 | ARC-E14 | Desvincular sin permiso sobre la entidad (`external-user`, o usuario interno ajeno a la tarea) / un `external-user` con permiso intenta desvincular | 403 `access_denied` "No tenés permiso para desvincular este archivo" / 403 `caller_not_authorized` "El caller no está autorizado a ejecutar este método" | initial |
+| ARC-E15 | Falla inesperada al listar, consultar, descargar, ver o desvincular un adjunto, o al pedir el permiso de subida (por ejemplo, la base no responde, o core devuelve un error interno) | 500 `internal_error` «Failed to list attachments» / «Failed to get attachment» / «Failed to download attachment» / «Failed to preview attachment» / «Failed to delete attachment», o «Internal error» si lo devuelve core | initial |
+| ARC-E16 | Permiso de subida, descarga, vista de un archivo o desvinculación sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
 
 ## Examples
 - ARC-04: `informe.PDF` con `application/pdf` y 2 MB se acepta; `informe.pdf` declarado como `application/zip` se rechaza (ARC-E3); `foto.heic` con `image/jpeg` se rechaza por la extensión.

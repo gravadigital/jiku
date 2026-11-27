@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Listado con filtros, alta, edición y detalle de proyectos con su cliente, estado, tipo, fechas y propiedades
 entities: [Proyecto, Cliente, Usuario, Permiso de proyecto]
 last_requirement: PRY-17
-last_failure: PRY-E12
+last_failure: PRY-E13
 ---
 
 # PRY — Proyectos
@@ -46,6 +46,7 @@ last_failure: PRY-E12
 | PRY-E10 | Alta o edición sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
 | PRY-E11 | La api rechaza el alta o la edición | «Hubo un error al crear el proyecto» / «Hubo un error al editar el proyecto»; el listado que falla muestra el mensaje del error | initial |
 | PRY-E12 | Falla la lectura del proyecto al abrir el detalle | La pantalla queda en «Cargando...» sin salir | initial |
+| PRY-E13 | Falla inesperada al leer los proyectos, o al ejecutar el alta o la edición en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» | initial |
 
 ## Examples
 - PRY-04: `limit=20` trae hasta 20 proyectos; sin `limit`, hasta 200; `limit=50` responde 400.

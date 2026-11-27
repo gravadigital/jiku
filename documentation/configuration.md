@@ -19,7 +19,7 @@ blank by design** — see [Shared documentation links](#shared-documentation-lin
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`, one each |
 | `API_SERVICE_USER_KEY_B64`, `CORE_SERVICE_USER_KEY_B64` | the machine-user keys each service uses to reach the bus — `deploy/service-user-key.sh` |
 | `CORE_TRUSTED_PUBLISHER_ID` | the `sub` of the api's machine user. **`core` refuses to start without it** — see below |
-| `DUMP_FILE` | a `.sql` holding the schema — see [installation.md](installation.md) |
+| `DUMP_FILE` | optional: a `.sql` with existing data to load the first time; the schema itself is built by the migrations — see [installation.md](installation.md) |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | the mail server notifications go out through — see below |
 
 Two more are not in that list but must not keep their defaults on a server:
@@ -152,11 +152,25 @@ goes with the module is in the
 
 ## Two that change behaviour
 
-`AUTH_BYPASS` skips token validation for local work. **It is ignored when `NODE_ENV=production`**,
-so it cannot be left on by accident in a deployment.
+`AUTH_BYPASS` skips token validation for local work. **The api refuses to start with it when
+`NODE_ENV=production`** (the images), so it cannot be left on by accident in a deployment.
 
 `LOG_COMMANDS` makes core print every command and reply. Off by default because the payloads
 carry business data.
+
+## Optional variables
+
+| Variable | Service | What it does | Default |
+|---|---|---|---|
+| `DEV_USER_ID` | api | the user `AUTH_BYPASS` enters as (with role `admin`) | — |
+| `API_TRUST_PROXY` | api | proxy hops to trust for the client address (`1` behind the ingress) | empty |
+| `NATS_USER_ID` | api | identity on the bus when there is no machine-user key (tests) | `api` |
+| `ZITADEL_SERVICE_USER_KEY` / `ZITADEL_SERVICE_USER_KEY_B64` | api, core | the machine-user key, as a file path or as base64 JSON | — |
+| `IDENTITY_ISSUER` | api, core | issuer of the machine-user token when `ZITADEL_ISSUER_URL` is unset | — |
+| `QUERY_TIMING`, `QUERY_TIMING_SQL`, `QUERY_TIMING_LOOP_MS` | core | one `[timing]` log line per message (and its SQL), and the `Jiku-Timing` reply header | `false`, `false`, `30000` |
+| `EXTERNAL_LINKS` | web | shortcuts to the team's tools in the navigation: JSON `[{"tool":"github","href":"https://…","label":"Código"}]`; without it the block is hidden | — |
+| `APP_NAME`, `APP_DESCRIPTION` | web | page title and description | `Jiku`, `Gestión de proyectos` |
+| `LOG_ACCESS_TOKEN` | web | debugging only: prints the full access token to the logs — never on a server | `false` |
 
 ## Reference
 

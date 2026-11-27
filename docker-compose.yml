@@ -218,6 +218,28 @@ services:
       - nats-creds:/etc/nats-creds:ro
     restart: unless-stopped
 
+  # Stand-in for the optional jiku-docs module (deploy/test/fake-docs): machine user `jiku-docs`
+  # (role `docs`), registered in JIKU_MODULES, answers `shares.resolve` for one fixed test token.
+  fake-docs:
+    build: ./deploy/test/fake-docs
+    depends_on:
+      nats-setup:
+        condition: service_completed_successfully
+      fake-idp:
+        condition: service_healthy
+      auth-callout:
+        condition: service_started
+    environment:
+      NATS_URL: nats://nats:4222
+      NATS_CREDS: /nats-creds/sentinel-client.creds
+      NATS_INSTANCE: ${NATS_INSTANCE:-local}
+      ZITADEL_ISSUER_URL: http://fake-idp:9400
+      ZITADEL_SERVICE_USER_KEY: /idp-keys/jiku-docs.json
+    volumes:
+      - nats-creds:/nats-creds:ro
+      - idp-keys:/idp-keys:ro
+    restart: unless-stopped
+
   # The api owns the schema: the baseline and the migrations, as the owner of the database.
   migrate:
     build:

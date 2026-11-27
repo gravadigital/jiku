@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Grilla semanal persona × proyecto con el porcentaje de capacidad asignado, su conversión a minutos y el reemplazo de la semana completa por el administrador
 entities: [Asignación semanal, Persona, Proyecto, Configuración del sistema]
 last_requirement: ASG-11
-last_failure: ASG-E8
+last_failure: ASG-E9
 ---
 
 # ASG — Asignación semanal
@@ -36,6 +36,7 @@ last_failure: ASG-E8
 | ASG-E6 | Falta la semana o la lista de asignaciones, o alguna asignación tiene minutos negativos o le falta persona o proyecto | 400 `invalid_fields` «Invalid field - {detalle}» | initial |
 | ASG-E7 | La semana se consulta sin rol `user` ni `admin`, o sin la fecha de inicio | 403 `access_denied` «Access denied» / 400 `invalid_fields` «Invalid field - {detalle}» | initial |
 | ASG-E8 | No se pueden cargar las asignaciones o las **horas por día** | La pantalla avisa «Error al cargar las asignaciones de tiempo» y muestra «No se pudieron cargar las asignaciones. Intentá de nuevo más tarde.»; si falla el guardado avisa el mensaje recibido o «Error al guardar los cambios» | initial |
+| ASG-E9 | Falla inesperada al leer la semana o al ejecutar el guardado en core (por ejemplo, la base no responde) | 500 `internal_error` «Internal error» | initial |
 
 ## Examples
 - ASG-03 / ASG-05: con **horas por día** = 6 la capacidad semanal es 30 h (1800 minutos). Asignar 50 % guarda 900 minutos (15 h); 33,3 % guarda 599 minutos y la celda muestra 10,0 h.

@@ -5,7 +5,7 @@ surfaces: [Gestor interno]
 covers: Carga y borrado de horas trabajadas por persona y día imputadas a proyecto, requisito o tarea, con ventana de carga y tope diario, y los reportes de horas por persona y por proyecto
 entities: [Horas trabajadas, Ausencia, Persona, Proyecto, Requisito, Tarea, Configuración del sistema]
 last_requirement: HOR-20
-last_failure: HOR-E18
+last_failure: HOR-E21
 ---
 
 # HOR — Horas trabajadas
@@ -55,6 +55,9 @@ last_failure: HOR-E18
 | HOR-E16 | El total por proyecto se pide para un proyecto que no existe | 404 `project_not_found` «Project not found» | initial |
 | HOR-E17 | Un usuario sin rol `admin` cuya Persona no se encuentra por su usuario abre la pantalla de carga | La pantalla consulta con persona 0, no muestra cargas y «Cargar horas» queda deshabilitado, sin aviso | initial |
 | HOR-E18 | Dos cargas simultáneas de la misma persona y día superan juntas el tope diario | Las dos se guardan: el tope se verifica antes de insertar y sin bloqueo | initial |
+| HOR-E19 | Falla inesperada al leer horas, reportes o las **horas por día**, o al ejecutar la carga o el borrado en core (por ejemplo, la base no responde, o el total por proyecto se pide con un id de proyecto no numérico) | 500 `internal_error` «Internal error» («Internal server error» si falla la lectura del proyecto) | initial |
+| HOR-E20 | Carga o borrado de horas sin respuesta de core: nadie atiende el comando, o la respuesta no llega a tiempo | 503 `service_unavailable` «El servicio no está disponible en este momento» (no se hizo); 504 `gateway_timeout` «La operación tardó demasiado» (pudo haberse hecho) | initial |
+| HOR-E21 | Las horas de una persona en un día, o sus tareas o requisitos para cargar horas, se piden sin `personId` entero, o las horas del día sin `date` en formato ISO | 400 `invalid_fields` «Invalid field - {detalle}» | initial |
 
 ## Examples
 - HOR-03: hoy es 2026-11-27 (UTC). Se aceptan fechas del 2026-11-17 al 2026-11-27; el 2026-11-16 y el 2026-11-28 se rechazan (HOR-E7).

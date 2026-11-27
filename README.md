@@ -82,8 +82,9 @@ make logs    # sigue los logs (S=api para uno solo)
 `make up` arranca, sin ninguna credencial, todo lo que el producto necesita: PostgreSQL con el
 esquema que arman las migraciones (`migrate` corre el baseline y las migraciones de
 `services/api/db-upgrade/`), NATS con su identidad generada y el auth-callout, un proveedor de
-identidad de prueba en lugar de Zitadel (`deploy/test/fake-idp`), MinIO en lugar de S3 y Mailpit
-en lugar del SMTP real.
+identidad de prueba en lugar de Zitadel (`deploy/test/fake-idp`), un módulo de documentación de
+prueba en lugar de jiku-docs (`deploy/test/fake-docs`: sin documentos, salvo un link compartido de
+prueba), MinIO en lugar de S3 y Mailpit en lugar del SMTP real.
 
 ### Usuarios de prueba
 
