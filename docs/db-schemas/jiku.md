@@ -135,7 +135,7 @@ Espejo del proveedor de identidad. **No la escribe el producto.**
   bajo "Migración y backfill (REQ-001, S-001)".
 - **Los dos valores están en inglés**, contra la convención *"ENUM con valores en español (son los
   que viajan al front)"*. Dos razones, y la segunda es la que sostiene la excepción por sí sola:
-  **no tienen que viajar al front** —el schema `User` de `docs/apis/api.yaml` **no** los declara, y
+  **no tienen que viajar al front** —el schema `User` de `_jflow/apis/api.openapi.yaml` **no** los declara, y
   la omisión es deliberada: ese schema es alcanzable por `external-user`— y **no los elige el
   producto**: son el `type` de `deploy/nats/auth-callout/rules.yaml`, un contrato con un componente
   externo. Traducirlos obligaría a un mapa `person→persona` en el consumidor del evento, que es un
@@ -1139,7 +1139,7 @@ Ninguna es un bug con síntoma hoy, pero condicionan cualquier cambio en estas t
 
 | Documento | Contenido |
 |---|---|
-| [../apis/api.yaml](../apis/api.yaml) | Contrato HTTP de `api` — cómo se exponen estas entidades |
-| [../apis/core.yaml](../apis/core.yaml) | Contrato del bus — los comandos que escriben estas tablas |
+| [../../_jflow/apis/api.openapi.yaml](../../_jflow/apis/api.openapi.yaml) | Contrato HTTP de `api` — cómo se exponen estas entidades |
+| [../../_jflow/apis/core.asyncapi.yaml](../../_jflow/apis/core.asyncapi.yaml) | Contrato del bus — los comandos que escriben estas tablas |
 | [../architectures/api/conventions/orm.md](../architectures/api/conventions/orm.md) | Cómo se accede a la base desde `api` |
 | [../analysis/services/api.md](../analysis/services/api.md) | Análisis de importación de `api` |

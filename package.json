@@ -9,10 +9,10 @@
   },
   "workspaces": [
     "packages/*",
-    "api",
-    "core",
-    "web",
-    "opus-web"
+    "services/api",
+    "services/core",
+    "services/web",
+    "services/opus-web"
   ],
   "scripts": {
     "postinstall": "npm run build:packages",

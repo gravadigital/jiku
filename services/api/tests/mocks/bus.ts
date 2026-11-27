@@ -1,0 +1,401 @@
+import { ErrorCode, NatsError } from 'nats';
+import { Bus, ModuleKv, ModuleKvEntry, ModuleKvWatch, ModuleTarget } from '../../lib/utils/bus';
+import {
+  Reply,
+  commandSubject,
+  moduleCommandSubject,
+  moduleQuerySubject,
+} from '../../lib/utils/bus/protocol';
+
+export interface SentCommand {
+  command: string;
+  payload: any;
+}
+
+export interface SentModuleCall {
+  kind: 'query' | 'command';
+  method: string;
+  subject: string;
+  payload: any;
+}
+
+interface FakeKvEntry extends ModuleKvEntry {
+  key: string;
+}
+
+interface FakeWatcher {
+  key: string;
+  onEntry: (entry: ModuleKvEntry) => Promise<void> | void;
+  resolveClosed: () => void;
+}
+
+/**
+ * User id del service user en los tests. Es un `sub` de Zitadel de mentira: nada lo
+ * valida acá, porque el callout no participa. Solo tiene que ser un token válido de
+ * subject NATS.
+ *
+ * TIENE QUE COINCIDIR CON `CORE_TRUSTED_PUBLISHER_ID` (ver abajo): es el `caller` que core
+ * lee del subject para decidir si el comando llegó por el canal de la api.
+ */
+const TEST_USER_ID = '000000000000000001';
+
+/**
+ * Doble del bus para los tests.
+ *
+ * Registra qué comandos publicó la api y, por defecto, **los ejecuta contra core** con la
+ * misma base de datos. Eso permite que un test verifique las tres cosas a la vez:
+ *
+ *   - qué comando se publicó y con qué payload
+ *   - que la api traduce la respuesta al mismo HTTP que antes del split
+ *   - que la escritura efectivamente ocurrió
+ *
+ * Con `reply()` o `failWith()` se corta la ejecución real y se devuelve lo que el test
+ * indique, para poder cubrir los caminos de error sin fabricar el estado que los provoca.
+ *
+ * Core vive en otro paquete del monorepo (`../../core`), así que se carga de forma
+ * perezosa: si no está instalado, el doble sigue funcionando en modo respuestas fijas.
+ */
+export class FakeBus implements Bus {
+  readonly sent: SentCommand[] = [];
+  private replies = new Map<string, Reply>();
+  private defaultReply: Reply | null = null;
+  private failure: Error | null = null;
+  private dispatcher: ((subject: string, payload: unknown) => Promise<Reply>) | null = null;
+  private dispatcherLoaded = false;
+
+  // --- Módulos (REQ-016) ---
+  readonly moduleSent: SentModuleCall[] = [];
+  /** serviceNames pingueados, en orden. */
+  readonly pings: string[] = [];
+  private moduleReplies = new Map<string, Reply>();
+  private moduleDefaultReply: Reply | null = null;
+  private moduleFailure: Error | null = null;
+  private pingConfig = new Map<string, { responds: boolean; delayMs?: number }>();
+  private kvStore = new Map<string, FakeKvEntry>();
+  private kvFailure: Error | null = null;
+  private watchers: FakeWatcher[] = [];
+
+  /** Respuesta fija para un comando; evita ejecutarlo contra core. */
+  reply(command: string, reply: Reply): this {
+    this.replies.set(command, reply);
+    return this;
+  }
+
+  /** Respuesta fija para cualquier comando sin respuesta propia. */
+  replyDefault(reply: Reply): this {
+    this.defaultReply = reply;
+    return this;
+  }
+
+  /** Simula una falla cualquiera del bus, con el error que el test le pase. */
+  failWith(error: Error): this {
+    this.failure = error;
+    return this;
+  }
+
+  /**
+   * Simula que NO HAY NINGÚN SUSCRIPTOR del subject: el server contesta `no responders` en
+   * milisegundos, no al vencer el timeout. Es la señal de un problema de DESPLIEGUE, y la
+   * api la traduce a 503 `service_unavailable`.
+   *
+   * Existe para que ningún test tenga que construir el `NatsError` a mano: así la forma
+   * exacta del error queda definida en UN solo lugar, y un test no puede simular la falla
+   * con un `Error` pelado que el `catch` de la api ya no lee como esta causa.
+   */
+  failWithNoResponders(): this {
+    return this.failWith(NatsError.errorForCode(ErrorCode.NoResponders));
+  }
+
+  /**
+   * Simula que LA RESPUESTA NO LLEGÓ A TIEMPO. Es un problema de PERFORMANCE, y la api lo
+   * traduce a 504 `gateway_timeout`.
+   *
+   * Es la única señal que toma esa rama: un `new Error('timeout')` NO es un timeout para el
+   * `catch` de `sendCommand`, porque la discriminación se hace sobre la señal del cliente
+   * NATS y no sobre el texto del mensaje.
+   */
+  failWithTimeout(): this {
+    return this.failWith(NatsError.errorForCode(ErrorCode.Timeout));
+  }
+
+  reset(): this {
+    this.moduleSent.length = 0;
+    this.pings.length = 0;
+    this.moduleReplies.clear();
+    this.moduleDefaultReply = null;
+    this.moduleFailure = null;
+    this.pingConfig.clear();
+    this.kvStore.clear();
+    this.kvFailure = null;
+    this.kvCloseWatchers();
+    this.sent.length = 0;
+    this.replies.clear();
+    this.defaultReply = null;
+    this.failure = null;
+    return this;
+  }
+
+  get last(): SentCommand | undefined {
+    return this.sent[this.sent.length - 1];
+  }
+
+  async request<T = any>(command: string, payload: unknown): Promise<Reply<T>> {
+    this.sent.push({ command, payload });
+
+    if (this.failure) {
+      throw this.failure;
+    }
+
+    const fixed = this.replies.get(command) ?? this.defaultReply;
+    if (fixed) {
+      return fixed as Reply<T>;
+    }
+
+    const dispatch = this.loadDispatcher();
+    if (!dispatch) {
+      return { status: 'success' } as Reply<T>;
+    }
+
+    // El subject completo, como lo armaría la api: se arma con la misma función que usa
+    // el bus real, así que el formato no puede divergir del protocolo. El user id es uno
+    // de prueba — a core solo le importa que el segmento esté.
+    return dispatch(commandSubject(command, TEST_USER_ID), payload) as Promise<Reply<T>>;
+  }
+
+  /**
+   * Las consultas no se pueden despachar: todavía no hay contrato de consultas, así que no
+   * existe el dispatcher contra el que ejecutarlas.
+   *
+   * Rechazar explícitamente nombrando la razón es lo honesto. La alternativa —dejar el
+   * método sin implementar— haría que los tests fallaran con un `TypeError` opaco en vez de
+   * por la razón real, y el diagnóstico se vuelve caro.
+   *
+   * Rechaza ANTES de registrar en `sent`: nada se publicó, así que anotarlo sería mentir, y
+   * además ensuciaría el registro que otros tests cuentan.
+   */
+  async query<T = any>(query: string, _payload: unknown): Promise<Reply<T>> {
+    throw new Error(
+      `FakeBus.query('${query}'): todavía no hay contrato de consultas, así que no hay nada que despachar`
+    );
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Módulos. `await fakeBus.kvPut(...)` deja el registro asentado: espera a los watchers.
+  // ---------------------------------------------------------------------------------------
+
+  get lastModule(): SentModuleCall | undefined {
+    return this.moduleSent[this.moduleSent.length - 1];
+  }
+
+  get kvWatcherCount(): number {
+    return this.watchers.length;
+  }
+
+  /** Respuesta fija de un método de módulo. */
+  moduleReply(method: string, reply: Reply): this {
+    this.moduleReplies.set(method, reply);
+    return this;
+  }
+
+  moduleReplyDefault(reply: Reply): this {
+    this.moduleDefaultReply = reply;
+    return this;
+  }
+
+  moduleFailWith(error: Error): this {
+    this.moduleFailure = error;
+    return this;
+  }
+
+  moduleFailWithNoResponders(): this {
+    return this.moduleFailWith(NatsError.errorForCode(ErrorCode.NoResponders));
+  }
+
+  moduleFailWithTimeout(): this {
+    return this.moduleFailWith(NatsError.errorForCode(ErrorCode.Timeout));
+  }
+
+  /** Si el ping a `serviceName` responde; `delayMs` lo resuelve vía `setTimeout` (fake timers). */
+  pingResponds(serviceName: string, responds: boolean, delayMs?: number): this {
+    this.pingConfig.set(serviceName, { responds, delayMs });
+    return this;
+  }
+
+  /** Objeto → JSON.stringify; string → tal cual. */
+  async kvPut(key: string, value: unknown): Promise<void> {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    await this.kvWrite({ key, operation: 'PUT', value: text });
+  }
+
+  async kvDelete(key: string): Promise<void> {
+    await this.kvWrite({ key, operation: 'DEL', value: '' });
+  }
+
+  async kvPurge(key: string): Promise<void> {
+    await this.kvWrite({ key, operation: 'PURGE', value: '' });
+  }
+
+  /** `openModuleKv()` y `get()` rechazan con ese error. */
+  kvFailWith(error: Error): this {
+    this.kvFailure = error;
+    return this;
+  }
+
+  kvHeal(): this {
+    this.kvFailure = null;
+    return this;
+  }
+
+  /** Termina los watches: resuelve sus `closed`. */
+  kvCloseWatchers(): void {
+    const closing = this.watchers;
+    this.watchers = [];
+    closing.forEach((watcher) => watcher.resolveClosed());
+  }
+
+  private async kvWrite(entry: FakeKvEntry): Promise<void> {
+    this.kvStore.set(entry.key, entry);
+    const targets = this.watchers.filter((watcher) => watcher.key === entry.key);
+    await Promise.all(
+      targets.map((watcher) => watcher.onEntry({ operation: entry.operation, value: entry.value }))
+    );
+  }
+
+  async queryModule<T = any>(target: ModuleTarget, method: string, payload: unknown): Promise<Reply<T>> {
+    return this.moduleCall<T>('query', target, method, payload);
+  }
+
+  async commandModule<T = any>(target: ModuleTarget, method: string, payload: unknown): Promise<Reply<T>> {
+    return this.moduleCall<T>('command', target, method, payload);
+  }
+
+  private async moduleCall<T>(
+    kind: 'query' | 'command',
+    target: ModuleTarget,
+    method: string,
+    payload: unknown
+  ): Promise<Reply<T>> {
+    // El subject lo arma la MISMA función que usa el bus real: CA-8 se verifica sobre el
+    // formato del protocolo.
+    const subject = (kind === 'query' ? moduleQuerySubject : moduleCommandSubject)(
+      target.serviceName,
+      target.protocol,
+      method,
+      TEST_USER_ID
+    );
+    this.moduleSent.push({ kind, method, subject, payload });
+
+    if (this.moduleFailure) {
+      throw this.moduleFailure;
+    }
+
+    const fixed = this.moduleReplies.get(method) ?? this.moduleDefaultReply;
+    if (!fixed) {
+      throw new Error(`FakeBus.${kind}Module('${method}'): sin respuesta configurada`);
+    }
+    return fixed as Reply<T>;
+  }
+
+  async pingModule(serviceName: string, _timeoutMs: number): Promise<boolean> {
+    this.pings.push(serviceName);
+    const config = this.pingConfig.get(serviceName) ?? { responds: false };
+    if (config.delayMs) {
+      await new Promise<void>((resolve) => setTimeout(resolve, config.delayMs));
+    }
+    return config.responds;
+  }
+
+  async openModuleKv(): Promise<ModuleKv> {
+    if (this.kvFailure) {
+      throw this.kvFailure;
+    }
+
+    return {
+      get: async (key: string) => {
+        if (this.kvFailure) {
+          throw this.kvFailure;
+        }
+        const entry = this.kvStore.get(key);
+        return entry ? { operation: entry.operation, value: entry.value } : null;
+      },
+      watch: async (key, onEntry): Promise<ModuleKvWatch> => {
+        let resolveClosed!: () => void;
+        const closed = new Promise<void>((resolve) => {
+          resolveClosed = resolve;
+        });
+        const watcher: FakeWatcher = { key, onEntry, resolveClosed };
+        this.watchers.push(watcher);
+
+        // Como el `include` por default de nats.js: primero el valor vigente.
+        const current = this.kvStore.get(key);
+        if (current) {
+          await onEntry({ operation: current.operation, value: current.value });
+        }
+
+        return {
+          closed,
+          stop: () => {
+            this.watchers = this.watchers.filter((w) => w !== watcher);
+            resolveClosed();
+          },
+        };
+      },
+    };
+  }
+
+  private loadDispatcher() {
+    if (this.dispatcherLoaded) {
+      return this.dispatcher;
+    }
+    this.dispatcherLoaded = true;
+
+    try {
+      /* eslint-disable @typescript-eslint/no-var-requires */
+      const { Dispatcher } = require('../../../core/src/bus/dispatcher');
+      const { registry } = require('../../../core/src/commands');
+      const { loadConfig } = require('../../../core/src/config');
+      // EL MISMO DOBLE QUE `services/core/tests/helpers/dispatch.ts`, no una copia (AC-6 de la Task 1 de
+      // S-063): `Dispatcher` ahora exige un `EventPublisher` por constructor, y este `FakeBus`
+      // ejecuta core de verdad (ADR-013) — sin este doble, la suite de la api publicaría a un
+      // NATS que no existe, o peor, un `TypeError` de firma caería en el `catch` de abajo y se
+      // vería como "core no disponible" en vez de como el error de firma que en realidad es.
+      const { FakeEventPublisher } = require('../../../core/tests/helpers/event-publisher');
+      /* eslint-enable @typescript-eslint/no-var-requires */
+
+      // MISMO ASSERT DE ARRANQUE QUE `services/core/src/index.ts`, y no es opcional: `resolveActor`
+      // compara el `caller` del subject contra `CORE_TRUSTED_PUBLISHER_ID` para decidir si el
+      // comando llegó por el canal de la api —donde el actor es el que declara el cuerpo— o
+      // por el del bus directo. Sin la llamada, `getTrustedPublisherId()` LANZA y todo comando
+      // que resuelva actor (`files.request-upload` y los seis de vinculación) sale
+      // `internal_error`, con la causa muy lejos del síntoma.
+      //
+      // El valor se fija acá y no en `.env.test` porque tiene que ser EXACTAMENTE el
+      // `TEST_USER_ID` con el que este doble arma el subject: son las dos mitades de la misma
+      // convención y separarlas las deja divergir en silencio.
+      process.env.CORE_TRUSTED_PUBLISHER_ID = TEST_USER_ID;
+      loadConfig();
+
+      const instance = new Dispatcher(registry, new FakeEventPublisher());
+      this.dispatcher = (subject: string, payload: unknown) =>
+        instance.dispatch(subject, payload);
+    } catch (error: any) {
+      // core no disponible: los tests que dependan de la escritura real fallarán con un
+      // mensaje claro, en vez de pasar en falso.
+      //
+      // EL `catch` IMPRIME LA CAUSA, Y NO ES COSMÉTICO. Tragarla convierte dos modos de fallo
+      // MUY distintos en el mismo síntoma mudo: "core no está instalado" (legítimo, el doble
+      // sigue sirviendo en modo respuestas fijas) y "core SÍ está pero su arranque rechazó"
+      // —que es lo que pasa cuando `loadConfig()` suma un assert nuevo y `.env.test` de la api
+      // no lo acompaña—. En el segundo caso el degradado silencioso deja `{status:'success'}`
+      // sin `data` para TODO comando, así que cada ruta de escritura se cuelga esperando un id
+      // que no llega, y la suite entera muere por timeout a 60s por test, con el error real
+      // a varias capas de distancia de su síntoma.
+      console.error(`[FakeBus] core no disponible, se despacha con respuestas fijas: ${error?.message}`);
+      this.dispatcher = null;
+    }
+
+    return this.dispatcher;
+  }
+}
+
+export const fakeBus = new FakeBus();

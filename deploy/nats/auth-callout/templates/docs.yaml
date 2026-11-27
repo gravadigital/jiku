@@ -2,7 +2,7 @@
 #
 # INCLUYE TODO `connector.yaml`: llama a core, consume JIKU_EVENTS y su indexer consume su propio
 # stream JIKU_DOCS_EVENTS (H-P2). El callout no tiene includes, así que las líneas se repiten; el
-# test core/tests/bus/bus-policy-structure.test.ts exige `docs ⊇ connector` y evita que diverjan.
+# test services/core/tests/bus/bus-policy-structure.test.ts exige `docs ⊇ connector` y evita que diverjan.
 
 pub:
   allow:

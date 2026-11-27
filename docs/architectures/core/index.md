@@ -19,8 +19,8 @@ tokens**; sí lee roles, y solo en el plano de consultas. Desde REQ-016 reconoce
 |---|---|
 | [overview.md](./overview.md) | La decisión de ser el único escritor, la transacción del despachador, estructura, módulos, reglas que viven acá, limitaciones |
 | [manifest.yaml](./manifest.yaml) | Declaración de convenciones y módulos |
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante discrepancia con el código, manda el documento |
-| [`docs/apis/core-queries.yaml`](../../apis/core-queries.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio |
+| [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante discrepancia con el código, manda el documento |
+| [`_jflow/apis/core-queries.asyncapi.yaml`](../../../_jflow/apis/core-queries.asyncapi.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida con `api` |
 | [`docs/flows/consulta-por-el-bus.md`](../../flows/consulta-por-el-bus.md) | El recorrido completo de una consulta, de la publicación al cursor |
 | [`docs/flows/sincronizacion-de-identidades.md`](../../flows/sincronizacion-de-identidades.md) | De dónde sale `identity_type`: `matched_role` y `SERVICE_ROLES` (`internal-app`, `core`, `docs`) |
@@ -100,6 +100,6 @@ vive en `src/queries/`.
 | `times` | 5 | `commands/times/` | Tope diario compartido entre horas trabajadas y ausencias |
 | `attachments` | 1 | `commands/attachments/` | Borrado lógico del vínculo; el archivo lo retiene `files` |
 | `files` | 2 | `commands/files/` | Firma PUT y GET contra S3. La api **no** tiene credenciales de S3 |
-| **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico que no conoce ningún recurso, más una ficha por recurso: las cinco listas blancas como DATO. Contrato: `docs/apis/core-queries.yaml` |
-| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), que el despachador emite post-commit. No confundir con `src/events/auth/`, el plano **entrante** (el consumidor del evento de autenticación). Contrato: `docs/apis/core-events.yaml`. `src/events/auth/identity-type.ts` fija `SERVICE_ROLES = ['internal-app', 'core', 'docs']` (REQ-016) |
+| **`queries`** | — | **`src/queries/`** | **23 endpoints sobre 16 recursos.** Un motor genérico que no conoce ningún recurso, más una ficha por recurso: las cinco listas blancas como DATO. Contrato: `_jflow/apis/core-queries.asyncapi.yaml` |
+| **`events`** | — | **`src/events/domain/`** | **16 constructores puros de eventos de dominio** (REQ-014), que el despachador emite post-commit. No confundir con `src/events/auth/`, el plano **entrante** (el consumidor del evento de autenticación). Contrato: `_jflow/apis/core-events.asyncapi.yaml`. `src/events/auth/identity-type.ts` fija `SERVICE_ROLES = ['internal-app', 'core', 'docs']` (REQ-016) |
 | **`notifications`** | — | **`src/notifications/`** | Plano de ejecución completo (REQ-015): registro de tipos, reglas de destinatarios, plantillas y proceso periódico de envío. Escribe desde fuera del despachador; ver `scheduled-worker` |

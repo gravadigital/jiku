@@ -180,7 +180,7 @@ de la columna es la verificación, no la fuente.
 
 Agregar un comando son tres pasos: el archivo bajo `src/commands/<entidad>/`, el registro en
 `src/commands/index.ts`, y sus tests en `tests/commands/`. El `pattern` tiene que coincidir con el
-subject de [`docs/apis/core.yaml`](../../apis/core.yaml).
+subject de [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml).
 
 ### El plano de consultas
 
@@ -411,8 +411,8 @@ llamen (`core/src/bus/consumer.ts:44-46`).
 
 | Documento | Contenido |
 |---|---|
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
-| [`docs/apis/core-queries.yaml`](../../apis/core-queries.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio. `meta.describe` es su reflejo en datos |
+| [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) | Contrato AsyncAPI de los **23 comandos**. **Es la fuente de verdad**: ante una discrepancia con el código, manda el documento |
+| [`_jflow/apis/core-queries.asyncapi.yaml`](../../../_jflow/apis/core-queries.asyncapi.yaml) | Contrato AsyncAPI de las **23 consultas sobre 16 recursos**, con las cinco listas blancas por recurso. **Es la fuente de verdad** con el mismo criterio. `meta.describe` es su reflejo en datos |
 | [`docs/flows/consulta-por-el-bus.md`](../../flows/consulta-por-el-bus.md) | El recorrido completo de una consulta, de la publicación al cursor |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida |
 | [`docs/architectures/api/`](../api/) | El otro lado de la decisión: quien lee y publica |

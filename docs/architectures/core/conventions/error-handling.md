@@ -120,7 +120,7 @@ return failure(ErrorCode.PROJECT_NOT_FOUND, 'Project not found');
   > `worked-times.{id}.delete`, con la misma ventana sobre la fecha del registro. La regla vivía en
   > la api hasta REQ-007. **Las ausencias no lo emiten**: no ganaron la ventana.
 - **El catálogo no está cerrado**, y así lo declara el contrato. Un código nuevo va en el paquete,
-  en `docs/apis/core.yaml` y en el mapa a HTTP de la api: **los tres**, o el usuario ve un 500.
+  en `_jflow/apis/core.asyncapi.yaml` y en el mapa a HTTP de la api: **los tres**, o el usuario ve un 500.
 
 ## Los mensajes llegan al usuario final
 
@@ -160,7 +160,7 @@ solución es extender `Reply`, no otro mensaje parseable.
 - Un comando **nunca lanza** para señalar un error esperado: devuelve `failure(...)`.
 - `success()` y `failure()` se construyen con los helpers de `@jiku/nats-protocol`, nunca a mano.
 - Se usa la **constante** `ErrorCode.X`, no el literal.
-- Un código nuevo se agrega en tres lugares: el paquete, `docs/apis/core.yaml`, y el mapa a HTTP de
+- Un código nuevo se agrega en tres lugares: el paquete, `_jflow/apis/core.asyncapi.yaml`, y el mapa a HTTP de
   la api.
 - El detalle de un error inesperado va al log; el mensaje que cruza el bus es genérico.
 - Los mensajes nuevos van en **español** y no llevan datos internos.

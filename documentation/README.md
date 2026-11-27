@@ -95,7 +95,7 @@ there is no reply at all to translate.
 
 ## Going further
 
-- The bus contract, command by command: [`docs/apis/core.yaml`](../docs/apis/core.yaml)
+- The bus contract, command by command: [`_jflow/apis/core.asyncapi.yaml`](../_jflow/apis/core.asyncapi.yaml)
   (AsyncAPI). It is the source of truth for anything crossing the bus.
 - Per-service architecture and conventions: [`docs/architectures/`](../docs/architectures/).
 - Running and operating a deployment: [`deploy/README.md`](../deploy/README.md).

@@ -37,7 +37,7 @@ agrupar", rompés esto sin enterarte.
 `docs`. Por eso `docs` va **arriba** de `internal-app`: con `docs` primero cae en `docs.yaml`; con
 `docs` debajo cae en `connector.yaml` y el servicio **reinicia en loop** al suscribirse a
 `jiku-docs-*` (violación de suscripción asíncrona, ver más abajo). El orden lo fija
-[`core/tests/bus/bus-policy-structure.test.ts`](../../../core/tests/bus/bus-policy-structure.test.ts).
+[`services/core/tests/bus/bus-policy-structure.test.ts`](../../../services/core/tests/bus/bus-policy-structure.test.ts).
 
 ## La gramática de los subjects
 
@@ -104,7 +104,7 @@ por ping. Lo da el registro, no el ping.
 
 **La plantilla es el transporte; el recorte fino es de `core`.** La plantilla abre el prefijo de
 comandos entero: qué método puede ejecutar cada rol lo decide el mapa rol → método de
-[`core/src/authorize-caller.ts`](../../../core/src/authorize-caller.ts), que enumera una lista
+[`services/core/src/authorize-caller.ts`](../../../services/core/src/authorize-caller.ts), que enumera una lista
 distinta para `admin` que para `user`. **Un rol nuevo con acceso al bus se declara en los dos
 lugares.**
 
@@ -122,7 +122,7 @@ defensas independientes.
 
 **Sus 6 `envelopeCommands` no son una excepción.** En el mapa de core `external-user` tiene seis
 comandos por el canal del *sobre*, pero ese canal no sale de su conexión: el sobre `actor` solo lo
-puede declarar el publicador de confianza ([`core/src/bus/actor.ts`](../../../core/src/bus/actor.ts)),
+puede declarar el publicador de confianza ([`services/core/src/bus/actor.ts`](../../../services/core/src/bus/actor.ts)),
 o sea la api. Son los comandos que la api publica **por** la persona cuando entra por HTTP al
 portal.
 
@@ -211,7 +211,7 @@ la política de subjects literales (D-8 de REQ-014 / ADR-008): todos los consumi
 son internos, sin corte por visibilidad. Una `v2` sí costaría su propia línea.
 
 Hay un test que lo hace cumplir:
-[`core/tests/bus/events-structure.test.ts`](../../../core/tests/bus/events-structure.test.ts).
+[`services/core/tests/bus/events-structure.test.ts`](../../../services/core/tests/bus/events-structure.test.ts).
 
 ## El inbox, y el error más caro de diagnosticar
 

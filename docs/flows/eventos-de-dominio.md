@@ -35,7 +35,7 @@ antes de REQ-014, y es **entrante** (`core` lo consume, no lo publica).
    lector que espere la garantía "exactly-once" de un mensaje transaccional está leyendo el
    contrato equivocado.
 3. El catálogo de 16 eventos, su sobre y sus dos `snapshot` son un **contrato versionado aparte**
-   (`docs/apis/core-events.yaml`, S-062), independiente del protocolo de comandos/consultas — con
+   (`_jflow/apis/core-events.asyncapi.yaml`, S-062), independiente del protocolo de comandos/consultas — con
    su **propia** variable de versión (`NATS_EVENTS_VERSION`), que puede subir a `v2` sin que los
    23 comandos se enteren.
 
@@ -52,7 +52,7 @@ de permisos de un conector y el consumidor de prueba— ya está cerrado al escr
 | `core` · `bus/emit-events.ts` | Completa cada evento (`eventId`, `occurredAt`, `version`, `correlationId`), arma el subject con `eventSubject()` y publica. Nunca lanza | Ensamblador del sobre |
 | NATS / JetStream (stream `JIKU_EVENTS`) | Persiste el evento publicado, con `max_age` 7 días (S-061) | Transporte y almacenamiento |
 | Conector externo (fuera de Jiku) | Se suscribe con un durable propio y su `filter_subject`, deduplica por `eventId` | Consumidor |
-| `docs/apis/core-events.yaml` | El contrato: 16 canales, el sobre `DomainEvent`, los dos `snapshot` | Fuente de verdad (no ejecuta) |
+| `_jflow/apis/core-events.asyncapi.yaml` | El contrato: 16 canales, el sobre `DomainEvent`, los dos `snapshot` | Fuente de verdad (no ejecuta) |
 
 **Quién NO participa:** la **api** — recibe `events` en el `Reply` de `bus.js`/`protocol.ts` igual
 que cualquier otro campo, y **lo ignora**: no reenvía, no traduce, no expone un endpoint HTTP para
@@ -199,7 +199,7 @@ events-test-consumer.ts`, S-067).
   mano.
 - **Deduplica por `eventId`** (un ULID): la entrega es **at-least-once**, así que un redelivery
   es un valor legítimo del protocolo, no una anomalía.
-- Valida subject, `version` y payload completo contra `docs/apis/core-events.yaml` — el molde de
+- Valida subject, `version` y payload completo contra `_jflow/apis/core-events.asyncapi.yaml` — el molde de
   permisos que un conector real necesita es `deploy/nats/auth-callout/templates/connector.yaml`
   (S-067): `sub.allow` sobre `{instance}.events.v1.>` (la excepción declarada a la política de
   subjects literales, D-8 de S-067 / ADR-008 regla 2), `pub.allow` sobre los subjects de
@@ -256,7 +256,7 @@ que pueden declarar más de uno en el mismo lote, siempre con el mismo `correlat
 
 ## La forma del sobre y los dos `snapshot`
 
-El sobre (`DomainEvent`, `docs/apis/core-events.yaml#/components/schemas/DomainEvent`) es
+El sobre (`DomainEvent`, `_jflow/apis/core-events.asyncapi.yaml#/components/schemas/DomainEvent`) es
 `additionalProperties: false`: todo lo que no sea `actor`, `entity`, `snapshot`, `changes`,
 `recipients`, `comment` o `visibilityLevel` **hace fallar la validación**, incluidos campos que
 otro documento del producto sí muestre en la raíz — **manda el contrato de eventos**, no un
@@ -269,7 +269,7 @@ REQ-014) — y quedan deliberadamente **fuera** del snapshot: las relaciones (`p
 `totalMinutes` (calculado, no es columna), los textos internos largos (`scope`,
 `technicalSolution`, `acceptanceCriteria`), y las marcas de transición que no sean `finishedAt`
 (`scheduledAt`, `inProgressAt`, `inReviewAt`). El detalle campo por campo es del contrato
-(`docs/apis/core-events.yaml`); este flujo documenta el recorrido, no la forma.
+(`_jflow/apis/core-events.asyncapi.yaml`); este flujo documenta el recorrido, no la forma.
 
 ## `recipients`: a quién avisar, y por qué `email` puede ser `null`
 
@@ -296,7 +296,7 @@ REQ-014) — y quedan deliberadamente **fuera** del snapshot: las relaciones (`p
 
 **Los tres modos comparten una raíz:** la publicación es **best-effort, sin outbox**. No hay una
 cuarta causa de pérdida además de estas — si un evento del catálogo no llega y ninguna de las tres
-aplica, la sospecha correcta es una divergencia entre el código y `docs/apis/core-events.yaml`
+aplica, la sospecha correcta es una divergencia entre el código y `_jflow/apis/core-events.asyncapi.yaml`
 (la verificación que S-067 cierra).
 
 ## Resultado
@@ -330,7 +330,7 @@ con permiso, hasta que expire su retención de 7 días.
 - **No hay métrica de lag ni de eventos perdidos.** El único rastro de una pérdida por publish
   fallido es la línea de `stdout` del paso 4.
 - **El stream NO es una fuente reconstruible de estado.** Un conector que necesite el estado
-  completo y actual de una entidad consulta `docs/apis/core-queries.yaml` — el stream de eventos
+  completo y actual de una entidad consulta `_jflow/apis/core-queries.asyncapi.yaml` — el stream de eventos
   solo lleva lo que cambió, cuándo cambió, y solo mientras la retención alcance.
 
 ## Notas

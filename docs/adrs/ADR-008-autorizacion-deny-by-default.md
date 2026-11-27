@@ -166,5 +166,5 @@ nombre inexistente, sin un 403 que confirme que existe.
 
 La restricción es un **dato de la ficha**, nunca una rama en el handler, y sin clase resuelta no se
 suma nada (falla cerrado). Referencias: `core/src/queries/engine/spec.ts` (`resolveForClass`),
-`core/src/queries/users/users-spec.ts`, [`docs/apis/core-queries.yaml`](../apis/core-queries.yaml),
+`core/src/queries/users/users-spec.ts`, [`_jflow/apis/core-queries.asyncapi.yaml`](../../_jflow/apis/core-queries.asyncapi.yaml),
 [REQ-017](../requests/REQ-017.roles-de-usuarios-para-conectores-y-cierre-de-brechas-de-docs.md).

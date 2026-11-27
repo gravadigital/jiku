@@ -51,7 +51,7 @@ change belongs in `core`.
 ## The protocol is the contract
 
 The subjects, request and reply formats and the list of commands live in
-[docs/apis/core.yaml](docs/apis/core.yaml). When the code and
+[_jflow/apis/core.asyncapi.yaml](_jflow/apis/core.asyncapi.yaml). When the code and
 that document disagree, the document wins — fix the code, or change the document
 deliberately as part of your PR.
 
@@ -61,10 +61,10 @@ migration.
 
 ### Adding a command to core
 
-1. Create the file under `core/src/commands/<entity>/`, implementing the `Command`
+1. Create the file under `services/core/src/commands/<entity>/`, implementing the `Command`
    interface.
-2. Register it in `core/src/commands/index.ts`.
-3. Write its tests in `core/tests/commands/`.
+2. Register it in `services/core/src/commands/index.ts`.
+3. Write its tests in `services/core/tests/commands/`.
 
 The `pattern` has to match the subject in the protocol document. Variable segments go in
 braces: `clients.{id}.edit`.

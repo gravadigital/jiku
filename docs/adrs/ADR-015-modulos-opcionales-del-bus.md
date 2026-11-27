@@ -40,7 +40,7 @@ en la lectura de dominio) y la primera ruta pública HTML. Este es el DD-17 de R
 
 Un módulo opcional se **anuncia** escribiendo su propia clave en el bucket KV de JetStream
 `JIKU_MODULES` (stream subyacente `KV_JIKU_MODULES`). El primer módulo es `docs`. El contrato es
-[`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml), propiedad de Jiku y compartido con
+[`_jflow/apis/jiku-modules.asyncapi.yaml`](../../_jflow/apis/jiku-modules.asyncapi.yaml), propiedad de Jiku y compartido con
 jiku-docs. El valor de la clave es un `ModuleRecord` (`@jiku/nats-protocol`):
 
 | Campo | Regla (`api/lib/modules/registry.ts`, `parseRecord`) |
@@ -460,7 +460,7 @@ Diferencias de infraestructura (no son DD pero cambiaron lo diseñado):
 
 ## Divergencias con el contrato `jiku-modules.yaml`
 
-El contrato [`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml) declara qué permisos del
+El contrato [`_jflow/apis/jiku-modules.asyncapi.yaml`](../../_jflow/apis/jiku-modules.asyncapi.yaml) declara qué permisos del
 callout bastan para leer y observar el registro. Lo implementado difiere en tres puntos; en ningún
 caso se corrige el contrato desde esta story.
 
@@ -517,12 +517,12 @@ para correrlos con el stack levantado.
 - **R-5 de REQ-017 — El 413 JSON vale para toda la api y solo lo declaran las nueve escrituras de
   `/docs/*`.** `payloadTooLargeHandler` (al final de la cadena de `api/app.ts`) atiende el
   `entity.too.large` de cualquier parser —el de `/api/docs` con 768 KiB y el global con 100 kb—, pero
-  el resto de las operaciones de `docs/apis/api.yaml` no declara `413`. Desfase previo del contrato;
+  el resto de las operaciones de `_jflow/apis/api.openapi.yaml` no declara `413`. Desfase previo del contrato;
   story de seguimiento.
 
 ### Discrepancias reportadas
 
-Se reportan; **no se corrigen en esta story** (las reglas de la story mandan que `docs/apis/*.yaml`
+Se reportan; **no se corrigen en esta story** (las reglas de la story mandan que `_jflow/apis/*.yaml`
 sea la fuente de verdad y que la discrepancia sea un bug a reportar).
 
 - **F-20 — Cuerpo del 401.** [ADR-009](ADR-009-token-confinado-al-servidor.md) fija
@@ -530,7 +530,7 @@ sea la fuente de verdad y que la discrepancia sea un bug a reportar).
   handlers nuevos, y tres handlers de opus-web (catch-all, `files/[id]/preview`,
   `docs/attachments/[id]`) ya la usan. `web` usa `{error}` en todos. El status 401 —lo que el ADR
   protege— se cumple igual. Se resuelve con `/product-change-technical-definition`, no acá.
-- **Auditoría de `docs/apis/api.yaml` contra `api/lib/routes` y `api/lib/public-routes`**
+- **Auditoría de `_jflow/apis/api.openapi.yaml` contra `api/lib/routes` y `api/lib/public-routes`**
   (27 operaciones `x-jiku-module: docs`): método, path, roles y presencia de archivo coinciden en
   las 27. Bugs encontrados:
   - **B-1 (F-12).** El encabezado de `api.yaml` dice "los 88 endpoints" y el archivo declara **89**
@@ -551,7 +551,7 @@ sea la fuente de verdad y que la discrepancia sea un bug a reportar).
     **Resuelto por REQ-017 (S-088):** `payloadTooLargeHandler`, al final de la cadena de `api/app.ts`,
     responde `413 { "code": "payload_too_large", … }`, y las nueve escrituras de `/docs/*` declaran
     `413` (`PayloadTooLarge`). El resto de las rutas: pendiente R-5.
-  - **B-4 (documentos relacionados, fuera de `docs/apis/`).** `docs/prd/architecture.md` decía "los
+  - **B-4 (documentos relacionados, fuera de `_jflow/apis/`).** `docs/prd/architecture.md` decía "los
     61 endpoints"; el conteo real es 89 (se corrige en esta story). `documentation/api-reference.md` y
     `README.md` dicen 62 (F-33): se actualizan en la release.
     **Resuelto por REQ-017 (S-088):** los tres documentos dicen 89, y `api-reference.md` lista las 89
@@ -631,8 +631,8 @@ una discrepancia de hasta 30 s (DD-5).
   `/p/docs/*`), [ADR-009](ADR-009-token-confinado-al-servidor.md) (discrepancia F-20),
   [ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md) (`JIKU_DOCS_EVENTS` es de jiku-docs, no de
   Jiku)
-- Contratos: [`docs/apis/api.yaml`](../apis/api.yaml),
-  [`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml)
+- Contratos: [`_jflow/apis/api.openapi.yaml`](../../_jflow/apis/api.openapi.yaml),
+  [`_jflow/apis/jiku-modules.asyncapi.yaml`](../../_jflow/apis/jiku-modules.asyncapi.yaml)
 - Flujos: [`descubrimiento-de-modulos`](../flows/descubrimiento-de-modulos.md),
   [`documentos-desde-la-web`](../flows/documentos-desde-la-web.md),
   [`lectura-por-link-compartido`](../flows/lectura-por-link-compartido.md)

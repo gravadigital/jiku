@@ -292,7 +292,7 @@ La asimetría **no está justificada en el código**. Para un comando nuevo, seg
 ## Reglas
 
 - Un comando nuevo son tres pasos: el archivo, el registro en `commands/index.ts`, y sus tests.
-- El `pattern` coincide con el subject de `docs/apis/core.yaml`. Ante discrepancia, manda el
+- El `pattern` coincide con el subject de `_jflow/apis/core.asyncapi.yaml`. Ante discrepancia, manda el
   documento.
 - **Toda escritura pasa `{ transaction: ctx.transaction }`.** Sin excepción.
 - Un comando nunca llama a `commit` ni `rollback`.

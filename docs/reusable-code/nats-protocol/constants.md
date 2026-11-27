@@ -58,7 +58,7 @@ requirement.
 `docs/architectures/core/conventions/error-handling.md`:
 
 1. this file (the constant),
-2. the `errorCode` `enum` of `docs/apis/core.yaml`,
+2. the `errorCode` `enum` of `_jflow/apis/core.asyncapi.yaml`,
 3. the `STATUS_BY_ERROR_CODE` map of `api/lib/utils/bus/protocol.ts`, with its HTTP status.
 
 Without the third one the code falls through the `|| 500` of `httpStatusFor()` and the user sees a
@@ -71,7 +71,7 @@ has **no caller**, so none of those five can reach an HTTP response; a map today
 that has to be maintained. The third change belongs to the requirement that migrates the `GET`
 routes. For any code that **does** have an HTTP consumer, all three steps apply as written.
 
-**The source of truth for the value is `docs/apis/core.yaml`, not this file.** The first lines of
+**The source of truth for the value is `_jflow/apis/core.asyncapi.yaml`, not this file.** The first lines of
 `src/index.ts` say so explicitly: on any discrepancy, the document wins. A new code is not chosen
 from the package — it is copied from the contract.
 
@@ -117,7 +117,7 @@ says— *"for any code that does have an HTTP consumer, all three steps apply as
 | `access_denied` | core's write gate, external mode only (S-030) | **403** |
 
 The three places for this one, and who closes each: the package (this file's constant, done in
-S-030 `packages/nats-protocol`), the `enum` of `docs/apis/core.yaml` (already written) and
+S-030 `packages/nats-protocol`), the `enum` of `_jflow/apis/core.asyncapi.yaml` (already written) and
 `STATUS_BY_ERROR_CODE` of `api/lib/utils/bus/protocol.ts` -> **403** (S-030 `api`). Without the
 third it falls through the `|| 500` and the frontend treats it as a server error instead of showing
 the message.
@@ -189,7 +189,7 @@ eventSubject('requirement.created'); // 'dev.events.v1.requirement.created'
 
 **Description:** The catalog of the **16** domain events `core` publishes, as a frozen object
 (`as const`) with a derived union type `EventType`. Same `as const` + derived-type pattern as
-`ErrorCode`/`ErrorCodeValue`. **Source of truth is the contract**, `docs/apis/core-events.yaml` —
+`ErrorCode`/`ErrorCodeValue`. **Source of truth is the contract**, `_jflow/apis/core-events.asyncapi.yaml` —
 this constant, the contract's 16 channel names and its `EventType` enum are the SAME list, in the
 SAME order; a test (`TS-155`) verifies the three never diverge.
 
@@ -225,7 +225,7 @@ post-commit emitter is S-063, and the constructors of each event batch are S-064
 
 **Description:** Name of the JetStream KV bucket where optional modules register (REQ-016). The
 underlying stream is `KV_JIKU_MODULES`. Created by the base deployment; the api opens it with
-`bindOnly`. Source of truth: `docs/apis/jiku-modules.yaml`.
+`bindOnly`. Source of truth: `_jflow/apis/jiku-modules.asyncapi.yaml`.
 
 **Signature:**
 ```ts

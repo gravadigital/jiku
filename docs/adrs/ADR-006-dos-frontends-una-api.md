@@ -188,7 +188,7 @@ porque la frontera efectiva es el permiso por proyecto, que ya existe.
 
 ## Referencias
 
-- Superficie del portal: [`docs/apis/api.yaml`](../apis/api.yaml) (los 12 endpoints `/api/opus/*`)
+- Superficie del portal: [`_jflow/apis/api.openapi.yaml`](../../_jflow/apis/api.openapi.yaml) (los 12 endpoints `/api/opus/*`)
 - Aislamiento: `user_project_permissions` en [`docs/db-schemas/jiku.md`](../db-schemas/jiku.md)
 - Arquitectura: [`docs/prd/architecture.md`](../prd/architecture.md)
 - ADRs relacionados: [ADR-008](ADR-008-autorizacion-deny-by-default.md), [ADR-009](ADR-009-token-confinado-al-servidor.md)

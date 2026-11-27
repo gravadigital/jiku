@@ -63,6 +63,6 @@ cuando hace falta, `utils/`. El barrel `index.ts` es su superficie pública.
 |---|---|
 | [../../analysis/services/web.md](../../analysis/services/web.md) | Análisis de importación |
 | [../../analysis/ux/web/index.md](../../analysis/ux/web/index.md) | Relevamiento UX de la interfaz actual |
-| [../../apis/core.yaml](../../apis/core.yaml) | Contrato de `core` |
-| [../../apis/api.yaml](../../apis/api.yaml) | Contrato HTTP de `api` (rutas `/modules` y `/docs/*` con `x-jiku-module: docs`) |
+| [../../../_jflow/apis/core.asyncapi.yaml](../../../_jflow/apis/core.asyncapi.yaml) | Contrato de `core` |
+| [../../../_jflow/apis/api.openapi.yaml](../../../_jflow/apis/api.openapi.yaml) | Contrato HTTP de `api` (rutas `/modules` y `/docs/*` con `x-jiku-module: docs`) |
 | [../../adrs/ADR-015-modulos-opcionales-del-bus.md](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus (estado del módulo, excepción de lectura de la api) |

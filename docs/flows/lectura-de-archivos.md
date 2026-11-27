@@ -266,7 +266,7 @@ S3 lo devuelve sin que nadie proxee el byte**.
 
 **Timeout:** 5000 ms ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)).
 
-**Ref:** `docs/apis/core.yaml` — canal `files.{fileId}.request-download`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — canal `files.{fileId}.request-download`
 
 ---
 

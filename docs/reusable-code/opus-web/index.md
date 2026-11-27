@@ -56,7 +56,7 @@ Total: 7
 - **UploadTicketInput** (`opus-web/src/features/attachments/types/attachment.types.ts`) - What the client declares to ask for a ticket: `fileName`, `mimeType`, `fileSize`, `checksum`.
 - **UploadedFile** (`opus-web/src/features/attachments/types/attachment.types.ts`) - Result of a finished upload: `fileId` plus the three metadata fields read from the browser `File`.
 - **IdentityType** (`opus-web/src/shared/types/identity.types.ts`) - Whether an identity is a person or an automated service: `'person' | 'service'`. Mirrors the api enum; the two values are in English because they come from the auth-callout rules, not from the product.
-- **AuthorUser** (`opus-web/src/shared/types/identity.types.ts`) - A user as the **author** of something. Mirrors the `AuthorUser` schema of `docs/apis/api.yaml`: `id`, `name`, `email` and an optional `identityType`. It is not the subscriber selector type.
+- **AuthorUser** (`opus-web/src/shared/types/identity.types.ts`) - A user as the **author** of something. Mirrors the `AuthorUser` schema of `_jflow/apis/api.openapi.yaml`: `id`, `name`, `email` and an optional `identityType`. It is not the subscriber selector type.
 - **DocsDocument** (`opus-web/src/features/docs/types/docs.types.ts`) - Verbatim of the `DocsDocument` contract (`api.yaml`); also `DocsDocumentPage`, `DocsAttachment`, `ModuleEntry`, `ModuleStatus`, `DocsListScope`.
 - **ULID_PATTERN** (`opus-web/src/features/docs/constants/docs.constants.ts`) - Single place for the ULID regex used by the viewer and the attachments handler.
 

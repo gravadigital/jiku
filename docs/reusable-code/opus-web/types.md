@@ -91,7 +91,7 @@ import type { IdentityType } from '@/shared/types';
 **Location:** `opus-web/src/shared/types/identity.types.ts`
 
 **Description:** A user when it appears as the **author** of something: the creator of a requirement,
-or the author of an activity entry. Mirrors the `AuthorUser` schema of `docs/apis/api.yaml`.
+or the author of an activity entry. Mirrors the `AuthorUser` schema of `_jflow/apis/api.openapi.yaml`.
 
 `identityType` is optional on purpose: an older api does not send it, and the front's condition is
 `=== 'service'`, so its absence marks nothing. It fails on the safe side — a mark is lost, a person

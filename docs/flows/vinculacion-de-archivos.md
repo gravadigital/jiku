@@ -203,7 +203,7 @@ entidad sí existe.
 > clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
 > api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
 > arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
-> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+> antes de autorizar. Contrato: `components/schemas/Actor` de `_jflow/apis/core.asyncapi.yaml`.
 >
 > **La titularidad no cambia de valor.** `resolveActor` pasa a devolver `actor.id` en vez de
 > `payload.creator`, pero los dos salen del mismo token: es el mismo string, así que la regla de
@@ -214,7 +214,7 @@ draft.
 
 **Timeout:** 5000 ms ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)).
 
-**Ref:** `docs/apis/core.yaml` — `RequirementsNewPayload`, `FileIds`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — `RequirementsNewPayload`, `FileIds`
 
 ---
 
@@ -334,7 +334,7 @@ VALUES ('requirement', 412, 1234);
    - **Request:** sin payload propio más allá de los campos de auditoría del comando
 4. **[`core`]** Borra la fila de `attachments`. **No toca `files` ni el bucket**
    - **Reply:** `success()` — **vacío, sin `data`**. Lo declara el contrato
-     (`docs/apis/core.yaml`, `x-reply: ReplyEmpty`) y es lo que hacen los otros tres borrados del
+     (`_jflow/apis/core.asyncapi.yaml`, `x-reply: ReplyEmpty`) y es lo que hacen los otros tres borrados del
      servicio: las creaciones devuelven `{ id }`, las ediciones y los borrados no devuelven nada.
      La `api` no necesita el id de vuelta — ya lo tiene, es el de su propia URL
    - **Errores:** `invalid_fields` (vínculo inexistente o id mal formado), `internal_error`
@@ -348,7 +348,7 @@ VALUES ('requirement', 412, 1234);
 > afuera dejaría a la `api` escribiendo `attachments` por otra puerta, reabriendo la excepción que
 > este rediseño cierra.
 
-**Ref:** `docs/apis/core.yaml` — canal `attachments.{id}.delete`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — canal `attachments.{id}.delete`
 
 ## Manejo de Errores
 

@@ -93,7 +93,7 @@ initDate: joi.date().default(() => new Date()),
 ```
 
 Los defaults del contrato se declaran en el esquema, no en el `execute`. Así el valor efectivo es
-visible en un solo lugar y coincide con lo documentado en `docs/apis/core.yaml`.
+visible en un solo lugar y coincide con lo documentado en `_jflow/apis/core.asyncapi.yaml`.
 
 **Ojo con la asimetría new/edit**: el esquema de creación lleva `.default()`, el de edición **no**.
 En una edición, un campo ausente se deja como estaba; un default lo sobrescribiría.
@@ -192,7 +192,7 @@ manda de más es una discrepancia de contrato y tiene que verse. Hay un test que
 - Las reglas entre campos del payload van en el esquema (`oxor`, `and`, `with`); las que dependen
   de la base, en `execute`.
 - No agregues `.unknown(true)`: un campo de más es una discrepancia de contrato.
-- El esquema tiene que coincidir con `docs/apis/core.yaml`. Ante discrepancia, manda el documento.
+- El esquema tiene que coincidir con `_jflow/apis/core.asyncapi.yaml`. Ante discrepancia, manda el documento.
 
 ## Integración con otras convenciones
 

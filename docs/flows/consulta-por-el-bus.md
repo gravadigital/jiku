@@ -96,7 +96,7 @@ el molde `list`/`get`.
 | `requirements.tags` | Los pasos 1-5, pero **arma su propio SQL**: es un agregado que COLAPSA filas y devuelve una lista sin paginar, así que no hay keyset, ni cursor, ni presupuesto de bytes (pasos 6 y 7). Sí usa el mismo ejecutor, para que un `statement_timeout` siga siendo `query_timeout`, y el mismo recorte de la ficha de `requirements` |
 | `meta.describe` | Los pasos 1-4 y nada más: **no toca la base**. Se deriva de estructuras en memoria —las mismas fichas que validan— y es la única consulta del contrato que no depende de PostgreSQL. Tampoco pasa por el paso 5: describe el CONTRATO, no los datos, es idéntica para todas las personas (internas y externas) y un conector ve además los incluibles que una ficha declara para su clase (S-086) |
 
-**El contrato del plano de consultas es [`docs/apis/core-queries.yaml`](../apis/core-queries.yaml)**,
+**El contrato del plano de consultas es [`_jflow/apis/core-queries.asyncapi.yaml`](../../_jflow/apis/core-queries.asyncapi.yaml)**,
 y `meta.describe` es su reflejo en datos: compararlos es una verificación mecánica de que el código y
 la spec no divergieron.
 
@@ -264,7 +264,7 @@ sequenceDiagram
 **Timeout del caller:** `NATS_QUERY_TIMEOUT_MS` = **10000 ms**, propio del cliente de consultas
 (`api/lib/utils/bus/index.ts`, S-014), separado del de comandos.
 
-**Ref:** `docs/apis/core-queries.yaml` (creado por S-028), `deploy/.env:59-66,140-144`
+**Ref:** `_jflow/apis/core-queries.asyncapi.yaml` (creado por S-028), `deploy/.env:59-66,140-144`
 
 ---
 
@@ -375,7 +375,7 @@ validación como en la ejecución (`runList`/`runGet`), con la misma clase que r
 **La misma estructura que valida es la que `meta.describe` proyecta** (S-028): la descripción del
 contrato **no puede desactualizarse** porque no hay una segunda copia.
 
-**Ref:** `docs/apis/core-queries.yaml`, `core/src/queries/<recurso>/`,
+**Ref:** `_jflow/apis/core-queries.asyncapi.yaml`, `core/src/queries/<recurso>/`,
 `core/src/queries/engine/spec.ts` (`resolveForClass`)
 
 ---
@@ -528,7 +528,7 @@ ADR-004, ADR-005
 - `page.total` **solo** si se pidió `count`. Es **exacto**, no estimado. `count: "only"` devuelve
   `total` con `items: []` **sin ejecutar la consulta de filas**.
 
-**Ref:** `docs/apis/core.yaml` (schema `Reply`), `docs/apis/core-queries.yaml`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` (schema `Reply`), `_jflow/apis/core-queries.asyncapi.yaml`
 
 ---
 

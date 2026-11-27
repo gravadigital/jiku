@@ -432,7 +432,7 @@ Restante, fuera del alcance de REQ-013:
 
 ### Contrato con la api
 
-- **Los tipos de `features/docs/types/` se copian a mano del contrato** (`docs/apis/api.yaml`,
+- **Los tipos de `features/docs/types/` se copian a mano del contrato** (`_jflow/apis/api.openapi.yaml`,
   R-8 del REQ), como el resto del servicio: si la api cambia, se descubre en runtime.
 - **Los tipos de dominio están escritos a mano** en `features/*/types/` y no derivan de
   `@jiku/models`. Pueden divergir del esquema real sin fallar en compilación.

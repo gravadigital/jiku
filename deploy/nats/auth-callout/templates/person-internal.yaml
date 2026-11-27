@@ -1,7 +1,7 @@
 # Personas con rol `admin` o `user`: consultas Y comandos. Ver README.md.
 #
 # Abre el prefijo de comandos ENTERO: qué método puede ejecutar cada rol lo recorta el mapa
-# de core (`core/src/authorize-caller.ts`), que distingue `admin` de `user`. La plantilla no.
+# de core (`services/core/src/authorize-caller.ts`), que distingue `admin` de `user`. La plantilla no.
 
 pub:
   allow:

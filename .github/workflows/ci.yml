@@ -31,7 +31,7 @@ jobs:
     # The api and core tests run against a real database. Outside CI they start it
     # themselves in Docker; here the pipeline provides it, and `CI=true` — which
     # Actions sets on its own — makes them use it instead of starting a container.
-    # These values have to match api/.env.test and core/.env.test.
+    # These values have to match services/api/.env.test and services/core/.env.test.
     services:
       postgres:
         image: postgres:15.4-alpine3.18

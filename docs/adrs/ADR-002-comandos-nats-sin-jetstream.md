@@ -185,7 +185,7 @@ inalcanzable desde la red de ingress por diseño.
 
 ## Referencias
 
-- Contrato completo: [`docs/apis/core.yaml`](../apis/core.yaml) (AsyncAPI 2.6, 17 comandos, 21 códigos de error)
+- Contrato completo: [`_jflow/apis/core.asyncapi.yaml`](../../_jflow/apis/core.asyncapi.yaml) (AsyncAPI 2.6, 17 comandos, 21 códigos de error)
 - Arquitectura: [`docs/prd/architecture.md`](../prd/architecture.md)
 - Feature group que lo revisa: **FG-3** en [`docs/prd/feature-groups.md`](../prd/feature-groups.md)
 - ADRs relacionados: [ADR-001](ADR-001-separacion-lectura-escritura.md), [ADR-003](ADR-003-transaccion-del-despachador.md), [ADR-007](ADR-007-identidad-zitadel-auth-callout.md), [ADR-014](ADR-014-jetstream-para-eventos-de-dominio.md) (JetStream, pero para el plano de eventos, no el de comandos)

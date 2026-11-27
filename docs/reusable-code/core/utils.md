@@ -786,7 +786,7 @@ const actor = resolveEventActor(actorId, ctx.actor); // ctx.actor is `Actor | un
 committed `Requirement` row into the events contract's shapes.
 
 `requirementToSnapshot(requirement, responsiblePersonIds)` projects to `RequirementSnapshot`:
-**exactly** the 15 fields the contract declares (`docs/apis/core-events.yaml`), never `scope`,
+**exactly** the 15 fields the contract declares (`_jflow/apis/core-events.asyncapi.yaml`), never `scope`,
 `technicalSolution`, `acceptanceCriteria`, the three `resolution*` fields or the three transition
 marks. `estimatedFinishDate` is `DATEONLY` and **already a string** — never call `.toISOString()`
 on it. `createdAt`/`updatedAt` **are** `Date` and are serialised; `finishedAt` too, only when not

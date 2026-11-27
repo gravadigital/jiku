@@ -248,7 +248,7 @@ Si un archivo de un lote falla, la api **borra del bucket los ya subidos**.
     sin fijar `inboxPrefix` al conectar, las respuestas nunca llegarían.
   - **Core no publica nada en este plano**: solo responde el `Reply` de la request. Desde REQ-014,
     `core` sí publica **eventos de dominio**, en un plano distinto —fire-and-forget, con
-    JetStream— hacia cualquier conector externo suscripto (ver `docs/apis/core-events.yaml`).
+    JetStream— hacia cualquier conector externo suscripto (ver `_jflow/apis/core-events.asyncapi.yaml`).
 
 - **`api` → módulo opcional `jiku-docs`** (NATS request/reply, **síncrono**, REQ-016)
   - Un servicio que **no es core**, descubierto en runtime por el registro KV `JIKU_MODULES`
@@ -459,10 +459,10 @@ pantalla espera a la más lenta.
 |---|---|
 | [`docs/adrs/`](../adrs/) | Las decisiones arquitectónicas con su contexto y sus consecuencias |
 | [`docs/architectures/{servicio}/`](../architectures/) | Manifest, overview y convenciones custom de cada servicio |
-| [`docs/apis/api.yaml`](../apis/api.yaml) | OpenAPI 3.0 — las 92 operaciones HTTP |
-| [`docs/apis/jiku-modules.yaml`](../apis/jiku-modules.yaml) | AsyncAPI 3.0 — contrato del registro de módulos opcionales `JIKU_MODULES`, compartido con jiku-docs |
+| [`_jflow/apis/api.openapi.yaml`](../../_jflow/apis/api.openapi.yaml) | OpenAPI 3.0 — las 92 operaciones HTTP |
+| [`_jflow/apis/jiku-modules.asyncapi.yaml`](../../_jflow/apis/jiku-modules.asyncapi.yaml) | AsyncAPI 3.0 — contrato del registro de módulos opcionales `JIKU_MODULES`, compartido con jiku-docs |
 | [`docs/adrs/ADR-015-modulos-opcionales-del-bus.md`](../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus: registro, lectura por el bus y la ruta pública `/p/docs/*` |
-| [`docs/apis/core.yaml`](../apis/core.yaml) | AsyncAPI 2.6 — los 17 comandos del bus |
+| [`_jflow/apis/core.asyncapi.yaml`](../../_jflow/apis/core.asyncapi.yaml) | AsyncAPI 2.6 — los 17 comandos del bus |
 | [`docs/db-schemas/jiku.md`](../db-schemas/jiku.md) | Las 28 entidades, diagrama ER y DBML |
 | [`docs/flows/`](../flows/) | Los flujos cross-service completos |
 | [`docs/ux/`](../ux/) | Documentación UX relevada desde el código |

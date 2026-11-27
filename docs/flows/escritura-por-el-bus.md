@@ -377,7 +377,7 @@ directa y el mismo comando publicado por la api producen los mismos dos efectos 
 detalle completo de la notificación (el registro de tipos, las reglas de destinatarios, el payload
 congelado) es de la convención [`scheduled-worker`](../architectures/core/conventions/scheduled-worker.md)
 y el detalle completo del evento (el sobre, el catálogo de tipos, el mecanismo R-A/R-B) es del
-contrato de eventos (`docs/apis/core-events.yaml`, S-062) y de la story S-063 — acá solo se
+contrato de eventos (`_jflow/apis/core-events.asyncapi.yaml`, S-062) y de la story S-063 — acá solo se
 documenta que el paso 5 tiene tres efectos, con dos momentos distintos.
 
 ### Paso 6: La persona recibe el reply

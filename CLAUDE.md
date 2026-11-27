@@ -70,10 +70,10 @@ any document:
 ```sh
 git diff v<last>..HEAD -- deploy/.env.dist                   # new/renamed variables
 git diff v<last>..HEAD -- packages/nats-protocol/src/          # the bus contract
-git diff v<last>..HEAD -- docs/apis/                           # HTTP and bus contracts
-git diff --stat v<last>..HEAD -- api/db-upgrade/migrations/    # migrations
+git diff v<last>..HEAD -- _jflow/apis/                           # HTTP and bus contracts
+git diff --stat v<last>..HEAD -- services/api/db-upgrade/migrations/    # migrations
 git diff v<last>..HEAD -- deploy/nats/auth-callout/            # roles and permissions
-git diff v<last>..HEAD -- api/lib/routes/ api/config/public.ts
+git diff v<last>..HEAD -- services/api/lib/routes/ services/api/config/public.ts
 git diff v<last>..HEAD --diff-filter=D --name-only             # what was deleted
 ```
 
@@ -125,7 +125,7 @@ Review and update where it applies:
 - **[documentation/](documentation/)** — the public docs. `configuration.md` is the one that
   goes stale most often, because environment variables change in nearly every release. Also
   review `features.md`, `installation.md`, `api-reference.md` and `known-limitations.md`.
-- `docs/apis/*.yaml` are the source of truth for the contracts: where the code and the
+- `_jflow/apis/*.yaml` are the source of truth for the contracts: where the code and the
   document disagree, the document wins — and that is a bug to report, not something to
   "fix" in the yaml during a release.
 
@@ -157,8 +157,8 @@ analysis documents — the inputs a REQ was captured from, which `docs/requests/
 
 ```sh
 git add CHANGELOG.md README.md documentation/ \
-        package.json package-lock.json api/package.json core/package.json \
-        web/package.json opus-web/package.json packages/*/package.json \
+        package.json package-lock.json services/api/package.json services/core/package.json \
+        services/web/package.json services/opus-web/package.json packages/*/package.json \
         deploy/.env.dist
 git status --porcelain          # confirm nothing unintended is staged
 git commit -m "chore(release): X.Y.Z"

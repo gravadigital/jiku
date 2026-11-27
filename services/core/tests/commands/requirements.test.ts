@@ -1,0 +1,3632 @@
+import 'mocha';
+import 'should';
+import sinon from 'sinon';
+import { Op } from 'sequelize';
+import { Attachment, ByteStatus, File, Objective, ObjectiveActivity, Person, PersonObjective, PersonRequirement, Project, Requirement, RequirementActivity, RequirementState, RequirementSubscriptor, RetentionStatus, User } from '@jiku/models';
+import { DomainEvent, ErrorCode, RequirementSnapshot } from '@jiku/nats-protocol';
+import * as fs from 'fs';
+import * as path from 'path';
+import logger from '../../src/logger';
+import { getTrustedPublisherId } from '../../src/config';
+import { dispatch, fakePublisher } from '../helpers/dispatch';
+import { installS3Double, uninstallS3Double } from '../helpers/s3-double';
+
+const CREATOR = 'zitadel-sub-reqs';
+const OTHER_USER = 'zitadel-sub-reqs-2';
+const ADMIN_ID_REQS = 'zitadel-sub-reqs-admin';
+// S-070: usuario que NO existe en `users` — sin fila creada a propósito. Ejercita CA-4
+// (`user_not_found` + rollback completo) en `requirements.new` con `subscriberUserIds`.
+const GHOST_USER = 'zitadel-sub-reqs-fantasma';
+
+/**
+ * `CORE_TRUSTED_PUBLISHER_ID` de `.env.test`: el `caller` que ejercita la rama de la api, y desde
+ * S-017 TAMBIÉN el default de `dispatch()` — la compuerta de autorización rechazaría cualquier
+ * otro default por no tener fila en `users`. Se sigue pasando explícito donde el test afirma
+ * sobre la rama confiable. Mismos nombres que en `files.test.ts`, para que los dos archivos
+ * hablen el mismo idioma.
+ */
+const TRUSTED = 'api-service-user-sub';
+const EXTERNAL = 'servicio-externo-sub';
+const EXTERNAL_B = 'servicio-externo-b-sub';
+const UPLOADER_A = 'zitadel-user-a';
+const UPLOADER_B = 'zitadel-user-b';
+const ADMIN = 'zitadel-admin';
+
+/**
+ * Los cinco `entityType` de draft que S-001 dejó sin ninguna fila. El modelo todavía los
+ * declara —retirarlos del ENUM de PostgreSQL no es soportado sin recrear el tipo— pero
+ * ninguna escritura de S-003 los usa, y TS-2 / TS-35 lo verifican.
+ */
+const DRAFT_TYPES = [
+  'requirement_draft', 'objective_draft', 'comment_draft', 'comment', 'stage',
+];
+
+/**
+ * `ev(type)` de la tabla de Test Scenarios de S-064: el elemento de `fakePublisher.published`
+ * cuyo `payload.type === type`. Lanza si no lo encuentra, para que el mensaje de falla del test
+ * diga "no se publicó tal evento" en vez de un `undefined` opaco más abajo.
+ */
+function ev(type: string): DomainEvent<RequirementSnapshot> {
+  const found = fakePublisher.published.find((p) => (p.payload as { type: string }).type === type);
+  if (!found) {
+    throw new Error(`No se publicó ningún evento de tipo "${type}"`);
+  }
+  return found.payload as DomainEvent<RequirementSnapshot>;
+}
+
+describe('requirements', () => {
+  let projectId: number;
+  let personA: number;
+  let personB: number;
+
+  before(async () => {
+    await User.create({
+      id: CREATOR, name: 'Creador', username: 'creador-reqs', email: 'reqs@mail.com',
+    });
+    await User.create({
+      id: OTHER_USER, name: 'Otro', username: 'otro-reqs', email: 'otro-reqs@mail.com',
+    });
+    // SIN `roles` en la fila: el rol admin de estos tests viaja SIEMPRE por el sobre de
+    // identidad (`actor: { id: ADMIN_ID_REQS, roles: ['admin'] }`), nunca por `users.roles` —
+    // es la única forma de que `ctx.roles` sea realmente `['admin']` (REQ-011, CA-4).
+    await User.create({
+      id: ADMIN_ID_REQS, name: 'Admin', username: 'admin-reqs', email: 'admin-reqs@mail.com',
+    });
+    const project = await Project.create({
+      name: 'Proyecto Reqs', code: 'REQS', status: 'activo', type: 'comercial',
+      description: 'x', initDate: new Date(), createdBy: CREATOR,
+    });
+    projectId = project.id;
+    const a = await Person.create({
+      firstName: 'Ana', lastName: 'R', enabled: true, initDate: new Date('2026-01-01'),
+    });
+    const b = await Person.create({
+      firstName: 'Beto', lastName: 'R', enabled: true, initDate: new Date('2026-01-01'),
+    });
+    personA = a.id;
+    personB = b.id;
+  });
+
+  after(async () => {
+    await RequirementActivity.destroy({ where: {} });
+    await RequirementSubscriptor.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
+    await Requirement.destroy({ where: {} });
+    await Person.destroy({ where: {} });
+    await Project.destroy({ where: {} });
+    await User.destroy({ where: {} });
+  });
+
+  afterEach(async () => {
+    await RequirementActivity.destroy({ where: {} });
+    await RequirementSubscriptor.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
+    await Requirement.destroy({ where: {} });
+  });
+
+  // S-066: a partir de esta story, un `edit` que SOLO reemplaza responsables también publica
+  // (`requirement.assigned`). `fakePublisher` es un SINGLETON DE MÓDULO compartido por todo
+  // `dispatch()` (ADR-013) — sin este reset en el `describe` de más afuera, una publicación de
+  // un test se filtra al siguiente y el fallo depende del orden de ejecución de la suite
+  // (mismo patrón que `tasks.test.ts` puso en S-065).
+  beforeEach(() => {
+    fakePublisher.reset();
+  });
+
+  describe('requirements.new', () => {
+    it('crea un requisito con los defaults', async () => {
+      const reply = await dispatch<{ id: number }>('requirements.new', {
+        creator: CREATOR, title: 'Un requisito', description: 'Detalle', projectId,
+      });
+
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(reply.data!.id);
+      requirement!.title.should.equal('Un requisito');
+      requirement!.state.should.equal('analisis');
+      requirement!.priority.should.equal('sin_prioridad');
+      requirement!.visibilityLevel.should.equal('public');
+      requirement!.createdBy.should.equal(CREATOR);
+    });
+
+    it('asigna responsables y deja líder al primero', async () => {
+      const reply = await dispatch<{ id: number }>('requirements.new', {
+        creator: CREATOR, title: 'Con responsables', description: 'x', projectId,
+        responsiblePersonIds: [personA, personB],
+      });
+
+      const links = await PersonRequirement.findAll({
+        where: { requirementId: reply.data!.id },
+      });
+      links.length.should.equal(2);
+      links.find((l) => l.personId === personA)!.isLeader!.should.be.true();
+      (links.find((l) => l.personId === personB)!.isLeader === null).should.be.true();
+    });
+
+    it('guarda tags', async () => {
+      const reply = await dispatch<{ id: number }>('requirements.new', {
+        creator: CREATOR, title: 'Con tags', description: 'x', projectId,
+        tags: [{ key: 'origen', value: 'mail' }],
+      });
+      const requirement = await Requirement.findByPk(reply.data!.id);
+      requirement!.tags![0].key.should.equal('origen');
+    });
+
+    it('falla si el proyecto no existe', async () => {
+      const reply = await dispatch('requirements.new', {
+        creator: CREATOR, title: 'x', description: 'y', projectId: 999999,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('project_not_found');
+    });
+
+    it('falla si un responsable no existe', async () => {
+      const reply = await dispatch('requirements.new', {
+        creator: CREATOR, title: 'x', description: 'y', projectId,
+        responsiblePersonIds: [999999],
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_responsible_person');
+      (await Requirement.count()).should.equal(0);
+    });
+
+    it('falla sin description', async () => {
+      const reply = await dispatch('requirements.new', {
+        creator: CREATOR, title: 'x', projectId,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('falla sin creator y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch('requirements.new', {
+        title: 'x', description: 'y', projectId,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, creator es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>('requirements.new', {
+        title: 'Con sobre', description: 'x', projectId,
+        actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(reply.data!.id);
+      // El `createdBy` sale de `actor.id`, no de un `creator` que nunca se mandó.
+      requirement!.createdBy.should.equal(CREATOR);
+    });
+
+    /**
+     * `requirement.created` de punta a punta (CA-1, CA-8, CA-9 de S-063). Entra por
+     * `dispatch()` real, así que ejercita el mecanismo COMPLETO: comando -> despachador ->
+     * commit -> emisor -> `fakePublisher`. `fakePublisher` es el MISMO doble que usa TODO
+     * `dispatch()` de este archivo (CA-10): se resetea en cada test para no arrastrar
+     * publicaciones de un test al siguiente.
+     */
+    describe('requirement.created — de punta a punta (S-063)', () => {
+      // `fakePublisher` es GLOBAL a todo `tests/helpers/dispatch.ts` (CA-10: el mismo doble para
+      // TODO `dispatch()` del archivo). Se resetea ANTES de cada test y no solo después: otros
+      // `it()` de este mismo archivo —fuera de este describe— también pasan por `dispatch()` y
+      // dejan publicaciones acumuladas si algún `requirements.new` anterior declaró el evento.
+      beforeEach(() => {
+        fakePublisher.reset();
+      });
+
+      it('TS-1, TS-2, TS-3, TS-4 · publica DESPUÉS del commit, con el subject y los 8 campos', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        (await Requirement.findByPk(reply.data!.id))!.should.be.ok();
+
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        const event = payload as DomainEvent<RequirementSnapshot>;
+
+        subject.should.equal(`dev.events.v1.requirement.created`);
+        event.eventId.should.be.a.String().and.not.empty();
+        event.type.should.equal('requirement.created');
+        event.version.should.equal('v1');
+        Date.parse(event.occurredAt).should.not.be.NaN();
+        event.correlationId.should.be.a.String().and.not.empty();
+        event.actor.id.should.equal(CREATOR);
+        event.entity.should.deepEqual({
+          type: 'requirement', id: reply.data!.id, projectId,
+        });
+      });
+
+      it('TS-5 (variante con el comando real) · fileIds inválidos -> failure y CERO publicaciones', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'x', description: 'y', projectId,
+          fileIds: [999999],
+        });
+
+        reply.status.should.equal('failure');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-24, TS-25 · el snapshot trae los 15 campos, con los defaults aplicados', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          type: 'funcionalidad', priority: 'media', responsiblePersonIds: [personA, personB],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot;
+
+        Object.keys(snapshot).sort().should.deepEqual(
+          ['createdAt', 'createdBy', 'description', 'estimatedFinishDate', 'finishedAt', 'id',
+            'priority', 'projectId', 'responsiblePersonIds', 'state', 'tags', 'title', 'type',
+            'updatedAt', 'visibilityLevel'].sort()
+        );
+        snapshot.state.should.equal('analisis');
+        snapshot.visibilityLevel.should.equal('public');
+        snapshot.priority.should.equal('media');
+        snapshot.type!.should.equal('funcionalidad');
+        snapshot.createdBy.should.equal(CREATOR);
+        snapshot.projectId.should.equal(projectId);
+        (snapshot.finishedAt === null).should.be.true();
+        (reply.data!.id).should.be.a.Number();
+      });
+
+      it('TS-26 · description viaja completo (5000 caracteres), nunca truncado', async () => {
+        const description = 'A'.repeat(5000);
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description, projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { description: string };
+        snapshot.description.length.should.equal(5000);
+        snapshot.description.should.equal(description);
+      });
+
+      it('TS-27 · responsiblePersonIds conserva el ORDEN del payload, no ascendente', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          responsiblePersonIds: [personB, personA],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { responsiblePersonIds: number[] };
+        snapshot.responsiblePersonIds.should.deepEqual([personB, personA]);
+      });
+
+      it('TS-28 · sin responsables, la lista es [] y no null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds.should.deepEqual([]);
+      });
+
+      it('TS-29 · type ausente viaja como null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ((event.snapshot as { type: unknown }).type === null).should.be.true();
+      });
+
+      it('TS-30 · estimatedFinishDate viaja como YYYY-MM-DD, sin hora', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          estimatedFinishDate: '2026-12-31',
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { estimatedFinishDate: string };
+        snapshot.estimatedFinishDate.should.equal('2026-12-31');
+        snapshot.estimatedFinishDate.length.should.equal(10);
+      });
+
+      it('TS-31 · createdAt/updatedAt viajan como ISO 8601 string, no Date', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { createdAt: unknown; updatedAt: unknown };
+        (typeof snapshot.createdAt).should.equal('string');
+        (snapshot.createdAt as string).should.match(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+        (typeof snapshot.updatedAt).should.equal('string');
+      });
+
+      it('TS-32 · tags respeta la forma "key:value" acordada contra el contrato', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          tags: [{ key: 'area', value: 'backend' }],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        const snapshot = event.snapshot as { tags: string[] };
+        Array.isArray(snapshot.tags).should.be.true();
+        snapshot.tags.should.deepEqual(['area:backend']);
+      });
+
+      it('TS-33 · tags ausente viaja como [], no null', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        (event.snapshot as { tags: unknown[] }).tags.should.deepEqual([]);
+      });
+
+      it('TS-34 · el evento NO trae la clave changes (ausente, no undefined)', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ('changes' in event).should.be.false();
+      });
+
+      it('TS-35 · recipients va SIEMPRE, con subscriptors: [] cuando no hay suscriptores', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.recipients!.should.deepEqual({
+          subscriptors: [], responsiblePersonIds: [personA, personB],
+        });
+      });
+
+      // S-070: renombrado de "TS-37 · requirements.new no crea suscriptores hoy" — desde esta
+      // story el comando SÍ los crea (ver el describe de más abajo). El nombre anterior afirmaba
+      // lo contrario de lo que el servicio hace ahora; el assert no cambia, porque este caso
+      // puntual (sin el campo) sigue comportándose igual (CA-2). Pasa a ser TS-9 de la tabla de
+      // Test Scenarios de S-070.
+      it('TS-9 (ex TS-37) · sin subscriberUserIds, recipients.subscriptors sigue siendo []', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.recipients!.subscriptors.should.deepEqual([]);
+      });
+
+      it('TS-39 · actor.name sale del sobre de identidad cuando el comando llega por la api', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: { id: CREATOR, roles: ['admin'], name: 'Lautaro Alvarez' },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.actor.should.deepEqual({ id: CREATOR, name: 'Lautaro Alvarez' });
+      });
+
+      it('TS-40 · actor.name cae a email cuando el sobre no trae name', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: { id: CREATOR, roles: ['admin'], email: 'lautaro@grava.digital' },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        event.actor.name!.should.equal('lautaro@grava.digital');
+      });
+
+      it('TS-42 · actor.email NUNCA viaja, ni serializado', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          title: 'T', description: 'D', projectId,
+          actor: {
+            id: CREATOR, roles: ['admin'], name: 'Lautaro Alvarez', email: 'lautaro@grava.digital',
+          },
+        });
+
+        const event = fakePublisher.published[0].payload as DomainEvent<RequirementSnapshot>;
+        ('email' in event.actor).should.be.false();
+        JSON.stringify(event.actor).should.not.containEql('lautaro@grava.digital');
+      });
+
+      it('TS-54 · LOG_COMMANDS=true no filtra el email de un suscriptor al log', async () => {
+        const infoSpy = sinon.spy(logger, 'info');
+        process.env.LOG_COMMANDS = 'true';
+
+        let messages: string[];
+        try {
+          await dispatch<{ id: number }>('requirements.new', {
+            title: 'T', description: 'D', projectId,
+            actor: { id: CREATOR, roles: ['admin'], email: 'lautaro@grava.digital' },
+          });
+          messages = infoSpy.getCalls().map((call) => String(call.args[0]));
+        } finally {
+          delete process.env.LOG_COMMANDS;
+          infoSpy.restore();
+        }
+
+        messages.some((m) => m.includes('lautaro@grava.digital')).should.be.false();
+      });
+    });
+
+    /**
+     * S-070: `requirements.new` acepta suscriptores. Test Scenarios TS-1 a TS-13 del Story Plan
+     * `S-070.core.requirements-new-acepta-suscriptores.md`. Entra por `dispatch()` real (ADR-013
+     * / ADR-003): comando -> despachador -> transacción -> commit/rollback. `fakePublisher` se
+     * resetea en su propio `beforeEach` porque es GLOBAL a todo `dispatch()` del archivo.
+     */
+    describe('requirements.new — suscriptores (S-070)', () => {
+      beforeEach(() => {
+        fakePublisher.reset();
+      });
+
+      it('TS-1 · alta con dos suscriptores crea el requisito y las dos filas', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER],
+        });
+
+        reply.status.should.equal('success');
+        reply.data!.id.should.be.a.Number();
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(2);
+        rows.map((r) => r.userId).sort().should.deepEqual([CREATOR, OTHER_USER].sort());
+      });
+
+      it('TS-2 · las tres suscripciones del escenario de la story (creador + dos explícitos)', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER, ADMIN_ID_REQS],
+        });
+
+        reply.status.should.equal('success');
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(3);
+        new Set(rows.map((r) => r.userId)).should.deepEqual(
+          new Set([CREATOR, OTHER_USER, ADMIN_ID_REQS])
+        );
+      });
+
+      it('TS-3 · el requisito y las suscripciones son de la MISMA transacción (commit conjunto)', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Exportar a XLSX', description: 'Hoy solo CSV', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER],
+        });
+
+        const requirement = await Requirement.findByPk(reply.data!.id);
+        const subscriptors = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        requirement!.should.be.ok();
+        subscriptors.length.should.equal(2);
+      });
+
+      it('TS-4 · un id repetido NO es error: se colapsa antes de insertar', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [OTHER_USER, OTHER_USER],
+        });
+
+        reply.status.should.equal('success');
+        const count = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        count.should.equal(1);
+      });
+
+      it('TS-5 · deduplicación con varios repetidos y mezcla', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [CREATOR, OTHER_USER, CREATOR, OTHER_USER, CREATOR],
+        });
+
+        reply.status.should.equal('success');
+        const rows = await RequirementSubscriptor.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        rows.length.should.equal(2);
+        new Set(rows.map((r) => r.userId)).should.deepEqual(new Set([CREATOR, OTHER_USER]));
+      });
+
+      it('TS-6 · userId inexistente -> user_not_found', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [OTHER_USER, GHOST_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('user_not_found');
+      });
+
+      it('TS-7 · el fallo hace rollback completo: no queda ni el requisito ni ninguna suscripción', async () => {
+        const before = await Requirement.count();
+
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'Fantasma', description: 'D', projectId,
+          responsiblePersonIds: [personA], subscriberUserIds: [OTHER_USER, GHOST_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('user_not_found');
+        (await Requirement.count()).should.equal(before);
+        ((await Requirement.findOne({ where: { title: 'Fantasma' } })) === null).should.be.true();
+        (await RequirementSubscriptor.count()).should.equal(0);
+        (await PersonRequirement.count()).should.equal(0);
+      });
+
+      it('TS-8 · recipients.subscriptors del evento YA refleja los suscriptores recién creados', async () => {
+        await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          responsiblePersonIds: [personA, personB], subscriberUserIds: [OTHER_USER],
+        });
+
+        const event = ev('requirement.created');
+        event.recipients!.subscriptors.length.should.equal(1);
+        event.recipients!.subscriptors[0].should.deepEqual({
+          userId: OTHER_USER, name: 'Otro', email: 'otro-reqs@mail.com',
+        });
+        event.recipients!.responsiblePersonIds.should.deepEqual([personA, personB]);
+      });
+
+      it('TS-10 · sin el campo, el alta se comporta exactamente igual que antes', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'Sin suscriptores', description: 'D', projectId,
+          responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        const requirement = await Requirement.findByPk(reply.data!.id);
+        requirement!.title.should.equal('Sin suscriptores');
+        const links = await PersonRequirement.findAll({
+          where: { requirementId: reply.data!.id },
+        });
+        links.length.should.equal(2);
+        links.find((l) => l.personId === personA)!.isLeader!.should.be.true();
+        const subs = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        subs.should.equal(0);
+      });
+
+      it('TS-11 · subscriberUserIds: [] (array vacío explícito) no rompe ni inserta nada', async () => {
+        const reply = await dispatch<{ id: number }>('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [],
+        });
+
+        reply.status.should.equal('success');
+        const count = await RequirementSubscriptor.count({
+          where: { requirementId: reply.data!.id },
+        });
+        count.should.equal(0);
+      });
+
+      it('TS-12 · un campo desconocido sigue siendo rechazado (el esquema no se abrió)', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIdz: [OTHER_USER],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_fields');
+      });
+
+      it('TS-13 · tipo inválido en el array lo ataja Joi, antes de la transacción', async () => {
+        const reply = await dispatch('requirements.new', {
+          creator: CREATOR, title: 'T', description: 'D', projectId,
+          subscriberUserIds: [123],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_fields');
+      });
+    });
+  });
+
+  describe('requirements.{id}.edit', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Original', description: 'Descripción original', projectId,
+        createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+    });
+
+    it('edita solo los campos presentes', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.edit`, {
+        editor: CREATOR, title: 'Editado',
+      });
+      reply.status.should.equal('success');
+
+      const requirement = await Requirement.findByPk(requirementId);
+      requirement!.title.should.equal('Editado');
+      requirement!.description.should.equal('Descripción original');
+    });
+
+    it('registra actividad de title, description y state', async () => {
+      await dispatch(`requirements.${requirementId}.edit`, {
+        editor: CREATOR, title: 'Nuevo', state: 'planificacion',
+      });
+
+      const activities = await RequirementActivity.findAll({
+        where: { requirementId },
+      });
+      const types = activities.map((a) => a.typeOfActivity).sort();
+      types.should.deepEqual(['state', 'title']);
+      activities.forEach((a) => a.changedBy.should.equal(CREATOR));
+    });
+
+    it('completa las marcas de tiempo al cambiar de estado', async () => {
+      // Fixture propio, NO el `requirementId` del `beforeEach` compartido (que sigue en
+      // `analisis` a propósito para los demás tests de este describe). Desde REQ-012 (S-049)
+      // las transiciones son libres, así que `analisis -> desarrollo` también sería válido; se
+      // mantiene `en_cola -> desarrollo` porque es el caso más simple, sin relación con ninguna
+      // restricción de secuencia.
+      const requirement = await Requirement.create({
+        title: 'En cola', description: 'x', projectId, createdBy: CREATOR,
+        state: 'en_cola',
+      });
+      await dispatch(`requirements.${requirement.id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      const updated = await Requirement.findByPk(requirement.id);
+      (updated!.inProgressAt === null).should.be.false();
+    });
+
+    it('reemplaza los responsables', async () => {
+      await PersonRequirement.create({
+        personId: personA, requirementId, isLeader: true,
+      });
+
+      const reply = await dispatch(`requirements.${requirementId}.edit`, {
+        editor: CREATOR, responsiblePersonIds: [personB],
+      });
+      reply.status.should.equal('success');
+
+      const links = await PersonRequirement.findAll({ where: { requirementId } });
+      links.length.should.equal(1);
+      links[0].personId.should.equal(personB);
+    });
+
+    it('falla sin editor y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.edit`, { title: 'x' });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, editor es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.edit`, {
+        title: 'Editado con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+
+      const activities = await RequirementActivity.findAll({ where: { requirementId } });
+      // El `changedBy` de la actividad sale de `actor.id`, no de un `editor` que nunca se mandó.
+      activities.forEach((a) => a.changedBy.should.equal(CREATOR));
+    });
+
+    it('falla si el requisito no existe', async () => {
+      const reply = await dispatch('requirements.999999.edit', {
+        editor: CREATOR, title: 'x',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('requirement_not_found');
+    });
+  });
+
+  /**
+   * `requirements.{id}.edit` — los eventos de dominio de S-064 (CA-1 a CA-4, CA-9, CA-13 a
+   * CA-16). Entra por `dispatch()` real (ADR-013): comando -> despachador -> commit -> emisor ->
+   * `fakePublisher`. `reset()` en `beforeEach` porque `fakePublisher` es GLOBAL a todo
+   * `dispatch()` del archivo (ADR-013).
+   */
+  describe('requirements.{id}.edit — eventos de dominio (S-064)', () => {
+    beforeEach(() => {
+      fakePublisher.reset();
+    });
+
+    describe('requirement.state.changed (CA-1, CA-15)', () => {
+      it('TS-1, TS-2, TS-3, TS-4 · emite con el subject del contrato y los 8 campos del sobre', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo',
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        subject.should.equal('dev.events.v1.requirement.state.changed');
+        const event = payload as DomainEvent<RequirementSnapshot>;
+        event.type.should.equal('requirement.state.changed');
+        event.changes!.should.deepEqual({ state: { from: 'planificacion', to: 'desarrollo' } });
+        (event.snapshot as { state: string }).state.should.equal('desarrollo');
+        event.eventId.should.match(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+        event.version.should.equal('v1');
+        Date.parse(event.occurredAt).should.not.be.NaN();
+        event.correlationId.should.be.a.String().and.not.empty();
+        event.actor.id.should.equal(CREATOR);
+        event.entity.should.deepEqual({ type: 'requirement', id: requirement.id, projectId });
+      });
+
+      it('TS-5 · un edit que no cambia el estado no emite state.changed', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'analisis',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'analisis',
+        });
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-6 · retroceso de estado: emite normalmente, sin validar progresión', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'analisis' });
+        const changes = ev('requirement.state.changed').changes as { state: { from: string; to: string } };
+        changes.state.should.deepEqual({ from: 'resuelto', to: 'analisis' });
+      });
+
+      it('TS-7 · desde cancelado hacia adelante: también emite', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'cancelado',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+        const changes = ev('requirement.state.changed').changes as { state: { from: string; to: string } };
+        changes.state.should.deepEqual({ from: 'cancelado', to: 'desarrollo' });
+      });
+
+      it('TS-8 · un edit que falla no emite nada', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [999999],
+        });
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_responsible_person');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-9 · un edit sobre un requisito inexistente no emite nada', async () => {
+        const reply = await dispatch('requirements.999999.edit', {
+          editor: CREATOR, state: 'desarrollo',
+        });
+        reply.errorCode!.should.equal('requirement_not_found');
+        fakePublisher.published.length.should.equal(0);
+      });
+    });
+
+    describe('requirement.updated (CA-2)', () => {
+      let requirementId: number;
+
+      beforeEach(async () => {
+        const requirement = await Requirement.create({
+          title: 'Exportar a XLSX', description: 'D', projectId, createdBy: CREATOR,
+        });
+        requirementId = requirement.id;
+      });
+
+      it('TS-10 · cambiar solo el título emite updated con solo title', async () => {
+        await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, title: 'Exportar el reporte de horas a XLSX',
+        });
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.updated');
+        event.changes!.should.deepEqual({
+          title: { from: 'Exportar a XLSX', to: 'Exportar el reporte de horas a XLSX' },
+        });
+        ('description' in event.changes!).should.be.false();
+      });
+
+      it('TS-11 · cambiar solo la descripción emite updated con solo description', async () => {
+        await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, description: 'texto nuevo',
+        });
+        const event = ev('requirement.updated');
+        event.changes!.should.deepEqual({ description: { from: 'D', to: 'texto nuevo' } });
+        ('title' in event.changes!).should.be.false();
+      });
+
+      it('TS-12, TS-13 · cambiar los dos emite UN updated con los dos, y el snapshot refleja los nuevos', async () => {
+        await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, title: 'T2', description: 'D2',
+        });
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.updated');
+        Object.keys(event.changes!).sort().should.deepEqual(['description', 'title']);
+        (event.snapshot as { title: string; description: string }).title.should.equal('T2');
+        (event.snapshot as { title: string; description: string }).description.should.equal('D2');
+      });
+
+      it('TS-14 · priority no emite ningún evento', async () => {
+        const reply = await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, priority: 'alta',
+        });
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+        (await Requirement.findByPk(requirementId))!.priority.should.equal('alta');
+      });
+
+      it('TS-15 · type, tags, scope, technicalSolution y acceptanceCriteria no emiten nada', async () => {
+        const reply = await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, type: 'mejora', tags: [{ key: 'area', value: 'backend' }],
+          scope: 's', technicalSolution: 't', acceptanceCriteria: 'a',
+        });
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-16 · estimatedFinishDate y visibilityLevel tampoco emiten', async () => {
+        const reply = await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, estimatedFinishDate: '2026-12-31', visibilityLevel: 'internal',
+        });
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-17 · un payload vacío no emite nada y no rompe', async () => {
+        const reply = await dispatch(`requirements.${requirementId}.edit`, { editor: CREATOR });
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-18 · título + estado en el mismo edit: dos eventos, mismo correlationId, orden fijo', async () => {
+        await Requirement.update({ state: 'planificacion' }, { where: { id: requirementId } });
+        await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, title: 'T2', state: 'desarrollo',
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.state.changed', 'requirement.updated']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.correlationId.should.equal(second.correlationId);
+        first.eventId.should.not.equal(second.eventId);
+      });
+
+      it('TS-19 · description viaja completa, nunca truncada (5000 caracteres)', async () => {
+        await Requirement.update(
+          { description: 'A'.repeat(5000) },
+          { where: { id: requirementId } }
+        );
+        await dispatch(`requirements.${requirementId}.edit`, {
+          editor: CREATOR, description: 'B'.repeat(5000),
+        });
+        const event = ev('requirement.updated');
+        const changes = event.changes as { description: { from: string; to: string } };
+        changes.description.from.length.should.equal(5000);
+        changes.description.to.length.should.equal(5000);
+        (event.snapshot as { description: string }).description.should.equal('B'.repeat(5000));
+      });
+    });
+
+    describe('requirement.resolved por edit (CA-3, CA-14)', () => {
+      it('TS-20 · entrar a resuelto por edit emite DOS eventos con el mismo correlationId', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'incidencia', state: 'revision',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+          resolutionType: 'error_interno', resolutionConclusion: 'se corrigió',
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.state.changed', 'requirement.resolved']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.correlationId.should.equal(second.correlationId);
+        first.eventId.should.not.equal(second.eventId);
+      });
+
+      it('TS-21, TS-22 · changes de resolved lleva estado/resolución/finishedAt, y el snapshot coincide', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'incidencia', state: 'revision',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+          resolutionType: 'error_interno', resolutionConclusion: 'se corrigió',
+        });
+
+        const event = ev('requirement.resolved');
+        const changes = event.changes as {
+          state: { from: string; to: string }; resolutionType: string;
+          resolutionConclusion: string; finishedAt: string;
+        };
+        changes.state.should.deepEqual({ from: 'revision', to: 'resuelto' });
+        changes.resolutionType.should.equal('error_interno');
+        changes.resolutionConclusion.should.equal('se corrigió');
+        changes.finishedAt.should.match(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+        (event.snapshot as { state: string; finishedAt: string }).state.should.equal('resuelto');
+        (event.snapshot as { finishedAt: string }).finishedAt.should.equal(changes.finishedAt);
+      });
+
+      it('TS-23 · tipo no-incidencia sin campos de resolución: evento válido, no un failure', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'funcionalidad', state: 'revision',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+        });
+        reply.status.should.equal('success');
+        const event = ev('requirement.resolved');
+        const changes = event.changes as { resolutionType: unknown; resolutionConclusion: unknown };
+        (changes.resolutionType === null).should.be.true();
+        (changes.resolutionConclusion === null).should.be.true();
+      });
+
+      it('TS-24 · los tres campos de resolución no están en el snapshot', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'incidencia', state: 'revision',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+          resolutionType: 'error_interno', resolutionConclusion: 'x',
+        });
+        const snapshot = ev('requirement.resolved').snapshot as unknown as Record<string, unknown>;
+        ('resolutionType' in snapshot).should.be.false();
+        ('resolutionConclusion' in snapshot).should.be.false();
+        ('resolutionComment' in snapshot).should.be.false();
+      });
+
+      it('TS-33 · incidencia a resuelto por edit sin campos de resolución: falla y NO emite', async () => {
+        // El equivalente por `.resolve` ya está probado (línea 1148 del Story Plan); ESTE es el
+        // canal por el que la resolución REALMENTE llega (comentario de requirements-edit.ts:46-47)
+        // y no tenía cobertura propia.
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'incidencia', state: 'revision',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto',
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('resolution_required');
+        fakePublisher.published.length.should.equal(0);
+        (await Requirement.findByPk(requirement.id))!.state.should.equal('revision');
+      });
+
+      it('TS-37 · resolución y reemplazo de responsables en el mismo edit', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          type: 'funcionalidad', state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'resuelto', responsiblePersonIds: [personA, personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const payloads = fakePublisher.published.map((p) => p.payload as DomainEvent<RequirementSnapshot>);
+        payloads.map((p) => p.type).should.deepEqual([
+          'requirement.state.changed', 'requirement.resolved', 'requirement.assigned',
+        ]);
+        // Los tres eventos comparten el mismo correlationId, el mismo snapshot y el mismo
+        // recipients (R-8, D-7): es lo que se rompería si `assigned` resolviera su propio
+        // snapshot/recipients en un bloque `if` aparte.
+        new Set(payloads.map((p) => p.correlationId)).size.should.equal(1);
+        payloads.forEach((p) => {
+          (p.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+            .should.deepEqual([personA, personB]);
+          (p.snapshot as { state: string }).state.should.equal('resuelto');
+        });
+      });
+    });
+
+    describe('requirement.reopened (CA-4)', () => {
+      it('TS-28, TS-29 · salir de resuelto a un estado no terminal emite dos eventos con resolutionCleared', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+          state: 'resuelto', resolutionType: 'error_interno', resolutionConclusion: 'x',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo',
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.state.changed', 'requirement.reopened']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.correlationId.should.equal(second.correlationId);
+        ev('requirement.reopened').changes!.should.deepEqual({
+          state: { from: 'resuelto', to: 'desarrollo' }, resolutionCleared: true,
+        });
+      });
+
+      it('TS-30 · finishedAt refleja la última resolución, inProgressAt la primera entrada a desarrollo', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'analisis',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+        const afterFirstDev = (await Requirement.findByPk(requirement.id))!.inProgressAt!.getTime();
+
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'resuelto' });
+        const firstFinishedAt = (await Requirement.findByPk(requirement.id))!.finishedAt!.getTime();
+
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+        fakePublisher.reset();
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'resuelto' });
+
+        const final = await Requirement.findByPk(requirement.id);
+        final!.inProgressAt!.getTime().should.equal(afterFirstDev);
+        final!.finishedAt!.getTime().should.be.above(firstFinishedAt);
+        const event = ev('requirement.resolved');
+        (event.snapshot as { finishedAt: string }).finishedAt.should.equal(
+          final!.finishedAt!.toISOString()
+        );
+      });
+
+      it('TS-31 · de resuelto a cancelado es state.changed y NO reopened', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'cancelado' });
+
+        fakePublisher.published.length.should.equal(1);
+        (fakePublisher.published[0].payload as { type: string }).type.should.equal(
+          'requirement.state.changed'
+        );
+        fakePublisher.published.some(
+          (p) => (p.payload as { type: string }).type === 'requirement.reopened'
+        ).should.be.false();
+      });
+
+      it('TS-32 · reabrir con un resolutionComment explícito: gana el payload y sigue emitiendo reopened', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', resolutionComment: 'se reabre por pedido del cliente',
+        });
+
+        (ev('requirement.reopened').changes as { resolutionCleared: boolean })
+          .resolutionCleared.should.equal(true);
+        const row = await Requirement.findByPk(requirement.id);
+        row!.resolutionComment!.should.equal('se reabre por pedido del cliente');
+        (row!.resolutionType === null).should.be.true();
+      });
+
+      it('TS-38 · reapertura y reemplazo de responsables en el mismo edit', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const payloads = fakePublisher.published.map((p) => p.payload as DomainEvent<RequirementSnapshot>);
+        payloads.map((p) => p.type).should.deepEqual([
+          'requirement.state.changed', 'requirement.reopened', 'requirement.assigned',
+        ]);
+        new Set(payloads.map((p) => p.correlationId)).size.should.equal(1);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number }).added
+          .should.deepEqual([personB]);
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([personA]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
+      });
+    });
+
+    describe('recipients y actor transversales sobre edit (CA-9, CA-13, CA-16)', () => {
+      it('TS-64 · los dos eventos de un edit compuesto llevan el mismo recipients', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await RequirementSubscriptor.create({ requirementId: requirement.id, userId: OTHER_USER });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, title: 'T2', state: 'desarrollo',
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.recipients!.should.deepEqual(second.recipients!);
+        first.recipients!.responsiblePersonIds.should.deepEqual([personA, personB]);
+      });
+
+      it('TS-67 · requisito sin suscriptores: lista vacía, no error', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo',
+        });
+        reply.status.should.equal('success');
+        ev('requirement.state.changed').recipients!.subscriptors.should.deepEqual([]);
+      });
+
+      it('TS-68 · filas duplicadas para el mismo userId viajan tal cual, sin deduplicar', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await RequirementSubscriptor.create({ requirementId: requirement.id, userId: OTHER_USER });
+        await RequirementSubscriptor.create({ requirementId: requirement.id, userId: OTHER_USER });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo',
+        });
+
+        const event = ev('requirement.state.changed');
+        event.recipients!.subscriptors.length.should.equal(2);
+        event.recipients!.subscriptors.forEach((s) => s.userId.should.equal(OTHER_USER));
+      });
+
+      it('TS-69 · responsiblePersonIds conserva el orden del payload cuando el comando lo trae', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, title: 'T2', responsiblePersonIds: [personB, personA],
+        });
+
+        const event = ev('requirement.updated');
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds.should.deepEqual(
+          [personB, personA]
+        );
+        event.recipients!.responsiblePersonIds.should.deepEqual([personB, personA]);
+
+        // S-066: el mismo edit ahora TAMBIÉN emite requirement.assigned — el requisito no tenía
+        // responsables previos, así que `added` lleva los dos (ordenados asc por el diff) y
+        // `removed` queda vacío. `leaderId` es `to[0]` = personB.
+        fakePublisher.published.length.should.equal(2);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number })
+          .added.should.deepEqual([personA, personB].sort((a, b) => a - b));
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
+      });
+
+      it('TS-70 · sin lista en el payload, el líder queda primero', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+
+        const event = ev('requirement.state.changed');
+        const ids = (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds;
+        ids[0].should.equal(personB);
+        ids.length.should.equal(2);
+      });
+
+      it('TS-71 · sin responsables, lista vacía y no null', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+
+        const event = ev('requirement.state.changed');
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds.should.deepEqual([]);
+        event.recipients!.responsiblePersonIds.should.deepEqual([]);
+      });
+
+      it('TS-72 · una Persona sin Usuario vinculado viaja igual en responsiblePersonIds', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        // `personA` no tiene fila en `users` asociada en este fixture.
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, state: 'desarrollo' });
+
+        const event = ev('requirement.state.changed');
+        event.recipients!.responsiblePersonIds.should.containEql(personA);
+        event.recipients!.subscriptors.map((s) => s.userId).should.not.containEql(String(personA));
+      });
+
+      it('TS-73 · actor.name sale del sobre cuando viene con name', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          title: 'T2', actor: { id: ADMIN_ID_REQS, roles: ['admin'], name: 'Lautaro Alvarez' },
+        });
+        ev('requirement.updated').actor.should.deepEqual({
+          id: ADMIN_ID_REQS, name: 'Lautaro Alvarez',
+        });
+      });
+
+      it('TS-74 · fallback a email cuando el sobre no trae name', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          title: 'T2', actor: { id: ADMIN_ID_REQS, roles: ['admin'], email: 'admin@x.com' },
+        });
+        ev('requirement.updated').actor.should.deepEqual({ id: ADMIN_ID_REQS, name: 'admin@x.com' });
+      });
+
+      it('TS-75 · fallback al id sin sobre', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, { editor: CREATOR, title: 'T2' });
+        ev('requirement.updated').actor.should.deepEqual({ id: CREATOR, name: CREATOR });
+      });
+
+      it('TS-76 · actor.email nunca viaja', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'planificacion',
+        });
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          title: 'T2', actor: { id: ADMIN_ID_REQS, roles: ['admin'], email: 'admin@x.com' },
+        });
+        ('email' in ev('requirement.updated').actor).should.be.false();
+      });
+    });
+
+    /**
+     * `requirement.assigned` (S-066, CA-1, CA-5, D-1 a D-7). Solo dos personas de fixture
+     * (`personA`, `personB`) alcanzan para cubrir los 10 escenarios: los TS del Story Plan que
+     * usan tres ids en el ejemplo (7, 3, 9) se adaptan a dos sin perder lo que cada uno prueba.
+     */
+    describe('requirement.assigned (CA-1, CA-5)', () => {
+      it('TS-15 · un edit que SOLO reemplaza responsables emite exactamente un evento', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(1);
+        const { subject, payload } = fakePublisher.published[0];
+        subject.should.equal('dev.events.v1.requirement.assigned');
+        (payload as DomainEvent).changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA], to: [personA, personB] },
+          added: [personB],
+          removed: [],
+          leaderId: personA,
+        });
+      });
+
+      it('TS-16 · el snapshot lleva la lista NUEVA, no la vieja', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        const event = ev('requirement.assigned');
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+          .should.deepEqual([personA, personB]);
+        event.recipients!.responsiblePersonIds.should.deepEqual([personA, personB]);
+      });
+
+      it('TS-17 · estado y responsables en el mismo edit: dos eventos, un correlationId', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', responsiblePersonIds: [personA, personB],
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.state.changed', 'requirement.assigned']);
+        const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+        first.correlationId.should.equal(second.correlationId);
+        first.snapshot.should.deepEqual(second.snapshot);
+        first.recipients!.should.deepEqual(second.recipients!);
+      });
+
+      it('TS-18 · título y responsables: updated + assigned', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, title: 'Nuevo título', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(2);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual(['requirement.updated', 'requirement.assigned']);
+        const assigned = ev('requirement.assigned');
+        (assigned.changes as { added: number[]; removed: number[]; leaderId: number }).added
+          .should.deepEqual([personB]);
+        (assigned.changes as { removed: number[] }).removed.should.deepEqual([personA]);
+        (assigned.changes as { leaderId: number }).leaderId.should.equal(personB);
+      });
+
+      it('TS-19 · cambio de líder por reordenamiento (CA-5)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personB, personA],
+        });
+
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.assigned');
+        (event.changes as { added: number[] }).added.should.deepEqual([]);
+        (event.changes as { removed: number[] }).removed.should.deepEqual([]);
+        (event.changes as { leaderId: number }).leaderId.should.equal(personB);
+
+        const links = await PersonRequirement.findAll({ where: { requirementId: requirement.id } });
+        links.find((l) => l.personId === personB)!.isLeader!.should.be.true();
+        (links.find((l) => l.personId === personA)!.isLeader === true).should.be.false();
+      });
+
+      it('TS-20 · misma lista, mismo orden: NO emite (D-5)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, personB],
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+        ('events' in reply).should.be.false();
+      });
+
+      it('TS-21 · un edit sin responsiblePersonIds no emite assigned', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, priority: 'alta',
+        });
+
+        reply.status.should.equal('success');
+        fakePublisher.published.length.should.equal(0);
+      });
+
+      it('TS-22 · responsiblePersonIds: [] desasigna a todos', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+        await PersonRequirement.create({ personId: personB, requirementId: requirement.id, isLeader: null });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [],
+        });
+
+        fakePublisher.published.length.should.equal(1);
+        const event = ev('requirement.assigned');
+        event.changes!.should.deepEqual({
+          responsiblePersonIds: { from: [personA, personB], to: [] },
+          added: [],
+          removed: [personA, personB].sort((a, b) => a - b),
+          leaderId: null,
+        });
+        (event.snapshot as { responsiblePersonIds: number[] }).responsiblePersonIds
+          .should.deepEqual([]);
+      });
+
+      it('TS-23 · persona inexistente: falla y NO emite', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        const reply = await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, responsiblePersonIds: [personA, 999999],
+        });
+
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal('invalid_responsible_person');
+        fakePublisher.published.length.should.equal(0);
+        const links = await PersonRequirement.findAll({ where: { requirementId: requirement.id } });
+        links.length.should.equal(1);
+        links[0].personId.should.equal(personA);
+      });
+
+      it('TS-24 · assigned va ÚLTIMO del lote (D-6)', async () => {
+        const requirement = await Requirement.create({
+          title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'revision',
+        });
+        await PersonRequirement.create({ personId: personA, requirementId: requirement.id, isLeader: true });
+
+        await dispatch(`requirements.${requirement.id}.edit`, {
+          editor: CREATOR, state: 'desarrollo', title: 'T2', responsiblePersonIds: [personB],
+        });
+
+        fakePublisher.published.length.should.equal(3);
+        const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+        types.should.deepEqual([
+          'requirement.state.changed', 'requirement.updated', 'requirement.assigned',
+        ]);
+      });
+    });
+  });
+
+  describe('requirements.{id}.resolve', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Para resolver', description: 'x', projectId, createdBy: CREATOR,
+        state: 'desarrollo',
+      });
+      requirementId = requirement.id;
+    });
+
+    it('resuelve y guarda el motivo', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        editor: CREATOR, type: 'error_interno', conclusion: 'Se corrigió',
+        comment: 'Un comentario',
+      });
+
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(requirementId);
+      requirement!.state.should.equal('resuelto');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Se corrigió');
+      requirement!.resolutionComment!.should.equal('Un comentario');
+      (requirement!.finishedAt === null).should.be.false();
+    });
+
+    it('registra la actividad del cambio de estado', async () => {
+      // El fixture es `type: 'otro'` (no `incidencia`): desde REQ-012 la conclusión es opcional
+      // para ese tipo, así que mandarla acá no afirma nada sobre la obligatoriedad de la regla.
+      await dispatch(`requirements.${requirementId}.resolve`, {
+        editor: CREATOR, type: 'otro', conclusion: 'Resuelto',
+      });
+
+      const activity = await RequirementActivity.findOne({
+        where: { requirementId, typeOfActivity: 'state' },
+      });
+      activity!.previousValue.should.equal('desarrollo');
+      activity!.newValue.should.equal('resuelto');
+    });
+
+    it('exige conclusión para resolver una incidencia', async () => {
+      const incidencia = await Requirement.create({
+        title: 'Incidencia', description: 'x', projectId, createdBy: CREATOR,
+        type: 'incidencia', state: 'desarrollo',
+      });
+
+      const reply = await dispatch(`requirements.${incidencia.id}.resolve`, {
+        editor: CREATOR, type: 'error_interno',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+
+      const unchanged = await Requirement.findByPk(incidencia.id);
+      unchanged!.state.should.equal('desarrollo');
+    });
+
+    it('TS-7 · resuelve una funcionalidad sin tipo ni conclusión (REQ-012: acotado a incidencia)', async () => {
+      const funcionalidad = await Requirement.create({
+        title: 'Funcionalidad', description: 'x', projectId, createdBy: CREATOR,
+        type: 'funcionalidad', state: 'resuelto',
+      });
+
+      const reply = await dispatch(`requirements.${funcionalidad.id}.resolve`, {
+        editor: CREATOR, type: 'otro', conclusion: 'Rehecho',
+      });
+      reply.status.should.equal('success');
+
+      const updated = await Requirement.findByPk(funcionalidad.id);
+      updated!.resolutionConclusion!.should.equal('Rehecho');
+    });
+
+    it('falla sin type', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        editor: CREATOR,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('falla sin editor y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        type: 'otro', conclusion: 'Resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, editor es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.resolve`, {
+        type: 'otro', conclusion: 'Resuelto con sobre',
+        actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+
+      const activity = await RequirementActivity.findOne({
+        where: { requirementId, typeOfActivity: 'state' },
+      });
+      // El `changedBy` sale de `actor.id`, no de un `editor` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
+    });
+  });
+
+  /** `requirements.{id}.resolve` — los eventos de dominio de S-064 (D-8, CA-3). */
+  describe('requirements.{id}.resolve — eventos de dominio (S-064)', () => {
+    beforeEach(() => {
+      fakePublisher.reset();
+    });
+
+    it('TS-25 · emite los mismos dos eventos que edit, con el mismo correlationId', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        type: 'funcionalidad', state: 'desarrollo',
+      });
+      const reply = await dispatch(`requirements.${requirement.id}.resolve`, {
+        editor: CREATOR, type: 'otro', conclusion: 'listo',
+      });
+
+      reply.status.should.equal('success');
+      fakePublisher.published.length.should.equal(2);
+      const types = fakePublisher.published.map((p) => (p.payload as { type: string }).type);
+      types.should.deepEqual(['requirement.state.changed', 'requirement.resolved']);
+      const [first, second] = fakePublisher.published.map((p) => p.payload as DomainEvent);
+      first.correlationId.should.equal(second.correlationId);
+
+      const resolved = ev('requirement.resolved');
+      const changes = resolved.changes as {
+        state: { from: string; to: string }; resolutionType: string;
+      };
+      changes.state.should.deepEqual({ from: 'desarrollo', to: 'resuelto' });
+      changes.resolutionType.should.equal('otro');
+    });
+
+    it('TS-26 · re-resolver algo ya resuelto no emite nada', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', projectId, createdBy: CREATOR, state: 'resuelto',
+      });
+      const reply = await dispatch(`requirements.${requirement.id}.resolve`, {
+        editor: CREATOR, type: 'otro', conclusion: 'de nuevo',
+      });
+      reply.status.should.equal('success');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-27 · un resolve que falla la regla de incidencia no emite nada', async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        type: 'incidencia', state: 'desarrollo',
+      });
+      const reply = await dispatch(`requirements.${requirement.id}.resolve`, {
+        editor: CREATOR, type: 'error_interno',
+      });
+      reply.errorCode!.should.equal('resolution_required');
+      fakePublisher.published.length.should.equal(0);
+    });
+  });
+
+  describe('el workflow de estados sin secuencia (S-049)', () => {
+    /** Crea un requisito ya en `state`, opcionalmente con `type`. Reduce la repetición de las
+     * celdas de la tabla — cada test sigue siendo legible por separado. */
+    async function createRequirement(
+      state: string,
+      type?: string | null
+    ): Promise<number> {
+      const requirement = await Requirement.create({
+        title: 'Workflow', description: 'x', projectId, createdBy: CREATOR,
+        state, type: type === undefined ? undefined : type,
+      });
+      return requirement.id;
+    }
+
+    /** Crea un requisito ya resuelto, con sus datos de resolución y sus marcas cargadas. Es el
+     * fixture de la REAPERTURA: los tests de S-049 necesitan una fila que YA pasó por el ciclo. */
+    async function createResolvedRequirement(overrides: Record<string, unknown> = {}): Promise<number> {
+      const requirement = await Requirement.create({
+        title: 'Resuelto', description: 'x', projectId, createdBy: CREATOR,
+        state: 'resuelto', type: 'incidencia',
+        resolutionType: 'error_interno',
+        resolutionConclusion: 'Conclusión',
+        resolutionComment: 'Comentario',
+        ...overrides,
+      });
+      return requirement.id;
+    }
+
+    it('TS-1 · salto hacia adelante salteando un paso, en una funcionalidad', async () => {
+      const id = await createRequirement('planificacion', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+    });
+
+    it('TS-2 · salto de dos pasos (analisis -> desarrollo)', async () => {
+      const id = await createRequirement('analisis', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+    });
+
+    it('TS-3 · transición hacia atrás', async () => {
+      const id = await createRequirement('revision');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'analisis',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('analisis');
+    });
+
+    it('TS-4 · resuelto deja de ser terminal', async () => {
+      const id = await createRequirement('resuelto');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+    });
+
+    it('TS-5 · cancelado deja de ser terminal', async () => {
+      const id = await createRequirement('cancelado');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'en_cola',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('en_cola');
+    });
+
+    it('TS-6 · cancelado -> resuelto en una funcionalidad, sin resolución', async () => {
+      const id = await createRequirement('cancelado', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-8 · resolver una funcionalidad sin tipo ni conclusión, por .edit', async () => {
+      const id = await createRequirement('revision', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+    });
+
+    it('TS-9 · resolver una mejora sin tipo ni conclusión', async () => {
+      const id = await createRequirement('revision', 'mejora');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-10 · resolver un otro sin tipo ni conclusión', async () => {
+      const id = await createRequirement('revision', 'otro');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-11 · resolver un requisito sin type (NULL) sin resolución', async () => {
+      const id = await createRequirement('revision', null);
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+    });
+
+    it('TS-12 · resolver una incidencia con tipo y conclusión, por .edit', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+        resolutionType: 'error_interno', resolutionConclusion: 'Se corrigió el cálculo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Se corrigió el cálculo');
+    });
+
+    it('TS-13 · resolver una incidencia con la conclusión ya almacenada, sin mandarla en el payload', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      await Requirement.update(
+        { resolutionType: 'error_interno', resolutionConclusion: 'Conclusión previa' },
+        { where: { id } }
+      );
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.resolutionConclusion!.should.equal('Conclusión previa');
+    });
+
+    it('TS-14 · rechazo de incidencia sin resolución, por .edit, sin escribir nada', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (await RequirementActivity.count({ where: { requirementId: id } })).should.equal(0);
+    });
+
+    it('TS-15 · rechazo de incidencia sin resolución, por .resolve', async () => {
+      const id = await createRequirement('desarrollo', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.resolve`, {
+        editor: CREATOR, type: 'error_interno',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+    });
+
+    it('TS-16 · rechazo de incidencia con solo resolutionType, sin conclusión, por .edit', async () => {
+      const id = await createRequirement('revision', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto', resolutionType: 'otro',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+    });
+
+    it('TS-17 · rechazo de incidencia con solo resolutionConclusion, sin tipo, por .edit', async () => {
+      const id = await createRequirement('revision', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto', resolutionConclusion: 'x',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+    });
+
+    it('TS-18 · el tipo se lee de la fila: una incidencia no esquiva la regla declarándose funcionalidad', async () => {
+      const id = await createRequirement('revision', 'incidencia');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, type: 'funcionalidad', state: 'resuelto',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('resolution_required');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.type!.should.equal('incidencia');
+    });
+
+    it('TS-19 · el tipo se lee de la fila: una funcionalidad no gana la regla declarándose incidencia', async () => {
+      const id = await createRequirement('revision', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, type: 'incidencia', state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('resuelto');
+      requirement!.type!.should.equal('incidencia');
+    });
+
+    it('TS-20 · limpieza de los tres datos de resolución al salir de resuelto', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+      (requirement!.resolutionComment === null).should.be.true();
+    });
+
+    it('TS-21 · la limpieza no ocurre al pasar de resuelto a cancelado (destino terminal)', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'cancelado',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('cancelado');
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
+    });
+
+    it('TS-22 · la limpieza no ocurre en una edición que no cambia el estado', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, title: 'Nuevo título',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.resolutionType!.should.equal('error_interno');
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
+    });
+
+    it('TS-23 · un valor de resolución explícito en el mismo payload que saca de resuelto gana sobre la limpieza', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo', resolutionComment: 'Nota de reapertura',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.state.should.equal('desarrollo');
+      (requirement!.resolutionType === null).should.be.true();
+      (requirement!.resolutionConclusion === null).should.be.true();
+      requirement!.resolutionComment!.should.equal('Nota de reapertura');
+    });
+
+    it('TS-24 · inProgressAt conserva la primera fecha al reentrar a desarrollo', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createResolvedRequirement({ inProgressAt: originalDate });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.inProgressAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-25 · finishedAt se reescribe al reentrar a resuelto', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo', 'funcionalidad');
+      await Requirement.update({ finishedAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.finishedAt!.getTime().should.be.above(originalDate.getTime());
+    });
+
+    it('TS-26 · finishedAt no se toca al salir de resuelto', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createResolvedRequirement({ finishedAt: originalDate });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.finishedAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-27 · scheduledAt sigue siendo write-once', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo');
+      await Requirement.update({ scheduledAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'planificacion',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.scheduledAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-28 · inReviewAt sigue siendo write-once', async () => {
+      const originalDate = new Date('2026-01-01T10:00:00Z');
+      const id = await createRequirement('desarrollo');
+      await Requirement.update({ inReviewAt: originalDate }, { where: { id } });
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'revision',
+      });
+      reply.status.should.equal('success');
+      const requirement = await Requirement.findByPk(id);
+      requirement!.inReviewAt!.toISOString().should.equal(originalDate.toISOString());
+    });
+
+    it('TS-29 · la actividad de tipo state se sigue registrando en un salto que antes se rechazaba', async () => {
+      const id = await createRequirement('analisis', 'funcionalidad');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findOne({
+        where: { requirementId: id, typeOfActivity: 'state' },
+      });
+      activity!.previousValue.should.equal('analisis');
+      activity!.newValue.should.equal('desarrollo');
+      activity!.changedBy.should.equal(CREATOR);
+      activity!.visibilityLevel.should.equal('public');
+    });
+
+    it('TS-30 · un edit que manda el mismo estado no registra actividad ni dispara la limpieza', async () => {
+      const id = await createResolvedRequirement();
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'resuelto',
+      });
+      reply.status.should.equal('success');
+      const stateActivity = await RequirementActivity.findOne({
+        where: { requirementId: id, typeOfActivity: 'state' },
+      });
+      (stateActivity === null).should.be.true();
+      const requirement = await Requirement.findByPk(id);
+      requirement!.resolutionConclusion!.should.equal('Conclusión');
+    });
+
+    it('TS-31 · el requisito inexistente sigue fallando antes de cualquier regla', async () => {
+      const reply = await dispatch('requirements.999999.edit', {
+        editor: CREATOR, state: 'desarrollo',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('requirement_not_found');
+    });
+
+    it('TS-32 · un state fuera del enum sigue siendo invalid_fields', async () => {
+      const id = await createRequirement('analisis');
+      const reply = await dispatch(`requirements.${id}.edit`, {
+        editor: CREATOR, state: 'inventado',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    describe('invalid_state_transition quedó sin emisor (S-049)', () => {
+      it('TS-33 · sigue definido en el catálogo del protocolo', () => {
+        ErrorCode.INVALID_STATE_TRANSITION.should.equal('invalid_state_transition');
+      });
+
+      it('TS-34 · ningún archivo de services/core/src/ lo emite', () => {
+        const srcDir = path.join(__dirname, '../../src');
+        const offenders: string[] = [];
+
+        function walk(dir: string): void {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              walk(full);
+            } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+              const content = fs.readFileSync(full, 'utf-8');
+              if (content.includes('invalid_state_transition') || content.includes('INVALID_STATE_TRANSITION')) {
+                offenders.push(full);
+              }
+            }
+          }
+        }
+
+        walk(srcDir);
+        offenders.should.deepEqual([]);
+      });
+
+      it('TS-35 · el archivo state-transitions.ts ya no existe', () => {
+        const removedPath = path.join(__dirname, '../../src/commands/requirements/state-transitions.ts');
+        fs.existsSync(removedPath).should.be.false();
+      });
+    });
+
+    it('TS-36 · los siete estados son alcanzables desde los siete (barrido completo)', async () => {
+      const states = Object.values(RequirementState);
+      for (const from of states) {
+        for (const to of states) {
+          if (from === to) continue;
+          const id = await createRequirement(from, 'funcionalidad');
+          const reply = await dispatch(`requirements.${id}.edit`, { editor: CREATOR, state: to });
+          reply.status.should.equal('success', `${from} -> ${to} debería aceptarse`);
+          const requirement = await Requirement.findByPk(id);
+          requirement!.state.should.equal(to, `${from} -> ${to} no quedó escrito`);
+        }
+      }
+    });
+
+    describe('regresión de autorización (CA-13, CA-14)', () => {
+      const WF_EXTERNAL = 'sub-s049-externo';
+
+      before(async () => {
+        // Fila real en `users` con el rol `external-user`: sin fila, `dispatch()` cae en el
+        // mismo `caller_not_authorized` pero por "sin fila", que no es lo que este test afirma
+        // (queda cubierto igual, pero la intención es "el ROL no alcanza").
+        await User.create({
+          id: WF_EXTERNAL, name: 'Externo', username: 's049-externo',
+          email: 's049-externo@test.local', roles: ['external-user'],
+        });
+      });
+
+      after(async () => {
+        await User.destroy({ where: { id: WF_EXTERNAL } });
+      });
+
+      it('TS-37 · external-user sigue sin poder publicar requirements.edit (regresión de autorización)', async () => {
+        const id = await createRequirement('analisis', 'funcionalidad');
+        const reply = await dispatch(
+          `requirements.${id}.edit`,
+          { editor: WF_EXTERNAL, state: 'desarrollo' },
+          WF_EXTERNAL
+        );
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal(ErrorCode.CALLER_NOT_AUTHORIZED);
+        const requirement = await Requirement.findByPk(id);
+        requirement!.state.should.equal('analisis');
+      });
+
+      it('TS-38 · access_denied se evalúa antes que cualquier regla de resolución', async () => {
+        // `MIX` — roles `['user','external-user']` — pasa la compuerta de rol (unión) pero cae
+        // en clase `external` por precedencia, así que el chequeo de entidad SÍ se ejecuta. Sin
+        // fila en `UserProjectPermission` para el proyecto de este requisito, la respuesta tiene
+        // que ser `access_denied`, no `resolution_required`, aunque la incidencia no tenga
+        // resolución cargada.
+        const MIX = 'sub-s049-mixto';
+        await User.create({
+          id: MIX, name: 'Mixto', username: 's049-mixto',
+          email: 's049-mixto@test.local', roles: ['user', 'external-user'],
+        });
+        try {
+          const id = await createRequirement('desarrollo', 'incidencia');
+          const reply = await dispatch(
+            `requirements.${id}.edit`,
+            { editor: MIX, state: 'resuelto' },
+            MIX
+          );
+          reply.status.should.equal('failure');
+          reply.errorCode!.should.equal(ErrorCode.ACCESS_DENIED);
+        } finally {
+          await User.destroy({ where: { id: MIX } });
+        }
+      });
+    });
+  });
+
+  describe('requirements.{id}.comment', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Para comentar', description: 'x', projectId, createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+    });
+
+    it('crea el comentario con visibilidad interna por defecto', async () => {
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'Un comentario',
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(reply.data!.id);
+      activity!.typeOfActivity.should.equal('comment');
+      activity!.newValue.should.equal('Un comentario');
+      activity!.visibilityLevel.should.equal('internal');
+    });
+
+    it('falla si el requisito no existe', async () => {
+      const reply = await dispatch('requirements.999999.comment', {
+        author: CREATOR, comment: 'x',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('requirement_not_found');
+    });
+
+    it('falla sin author y sin sobre: ninguna fuente resuelve el actor', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment`, { comment: 'x' });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('invalid_fields');
+    });
+
+    it('con sobre, author es redundante: no hace falta mandarlo', async () => {
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        comment: 'Con sobre', actor: { id: CREATOR, roles: ['user'] },
+      });
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(reply.data!.id);
+      // El `changedBy` sale de `actor.id`, no de un `author` que nunca se mandó.
+      activity!.changedBy.should.equal(CREATOR);
+    });
+  });
+
+  /** `requirements.{id}.comment` — el evento `requirement.comment.created` de S-064 (CA-5, CA-7). */
+  describe('requirements.{id}.comment — eventos de dominio (S-064)', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'T', description: 'D', projectId, createdBy: CREATOR,
+        visibilityLevel: 'public',
+      });
+      requirementId = requirement.id;
+      fakePublisher.reset();
+    });
+
+    afterEach(async () => {
+      await Attachment.destroy({ where: {}, force: true });
+      await File.destroy({ where: {} });
+    });
+
+    it('TS-33 · emite el evento con el subject del contrato', async () => {
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'El cliente pidió adelantar la entrega al 15.',
+      });
+      reply.status.should.equal('success');
+      fakePublisher.published.length.should.equal(1);
+      fakePublisher.published[0].subject.should.equal('dev.events.v1.requirement.comment.created');
+    });
+
+    it('TS-34 · comment va fuera de changes, con los tres campos del contrato', async () => {
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'El cliente pidió adelantar la entrega al 15.',
+      });
+      const event = ev('requirement.comment.created');
+      event.comment!.should.deepEqual({
+        id: reply.data!.id, body: 'El cliente pidió adelantar la entrega al 15.', fileIds: [],
+      });
+      ('changes' in event).should.be.false();
+    });
+
+    it('TS-35 · visibilityLevel de la raíz es del comentario; el del snapshot, del requisito', async () => {
+      await dispatch(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'x', visibilityLevel: 'internal',
+      });
+      const event = ev('requirement.comment.created');
+      event.visibilityLevel!.should.equal('internal');
+      (event.snapshot as { visibilityLevel: string }).visibilityLevel.should.equal('public');
+    });
+
+    it('TS-36 · el default de visibilidad del comando llega al evento', async () => {
+      await dispatch(`requirements.${requirementId}.comment`, { author: CREATOR, comment: 'x' });
+      ev('requirement.comment.created').visibilityLevel!.should.equal('internal');
+    });
+
+    it('TS-37 · internal y public viajan por el MISMO subject, con el body completo', async () => {
+      await dispatch(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'comentario interno', visibilityLevel: 'internal',
+      });
+      await dispatch(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'comentario público', visibilityLevel: 'public',
+      });
+      fakePublisher.published.length.should.equal(2);
+      fakePublisher.published.forEach((p) => {
+        p.subject.should.equal('dev.events.v1.requirement.comment.created');
+      });
+      const bodies = fakePublisher.published.map(
+        (p) => (p.payload as DomainEvent).comment!.body
+      );
+      bodies.should.deepEqual(['comentario interno', 'comentario público']);
+    });
+
+    it('TS-38 · fileIds trae el conjunto vinculado', async () => {
+      const file = await File.create({
+        fileName: 'a.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      await dispatch(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'x', fileIds: [file.id],
+      });
+      ev('requirement.comment.created').comment!.fileIds.should.deepEqual([file.id]);
+    });
+
+    it('TS-39 · un comentario cuyo vínculo de archivo falla no emite nada', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: CREATOR, comment: 'x', fileIds: [999999],
+      });
+      reply.status.should.equal('failure');
+      fakePublisher.published.length.should.equal(0);
+      (await RequirementActivity.count({ where: { requirementId } })).should.equal(0);
+    });
+
+    it('TS-40 · un comentario sobre un requisito inexistente no emite nada', async () => {
+      const reply = await dispatch('requirements.999999.comment', {
+        author: CREATOR, comment: 'x',
+      });
+      reply.errorCode!.should.equal('requirement_not_found');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-65 · lleva recipients con los suscriptores del requisito', async () => {
+      await RequirementSubscriptor.create({ requirementId, userId: OTHER_USER });
+      await dispatch(`requirements.${requirementId}.comment`, { author: CREATOR, comment: 'x' });
+      ev('requirement.comment.created').recipients!.subscriptors.length.should.equal(1);
+    });
+  });
+
+  /** REQ-011 (S-046): `requirements.{id}.comment.{cid}.edit` — comandos 22/23. */
+  describe('requirements.{id}.comment.{cid}.edit', () => {
+    let requirementId: number;
+    let cid: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Para editar comentario', description: 'x', projectId, createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+
+      // Fixture con el MODELO, no despachando el comando de alta: más rápido, no depende de
+      // otro comando, y deja explícito el estado inicial que el test afirma.
+      const activity = await RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+      cid = activity.id;
+    });
+
+    it('TS-1: el autor edita el texto de su comentario', async () => {
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'texto editado' }
+      );
+
+      reply.status.should.equal('success');
+      (reply.data === undefined).should.be.true();
+
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto editado');
+      (activity!.editedBy as string).should.equal(CREATOR);
+      (activity!.editedAt instanceof Date).should.be.true();
+      activity!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-3: `editedAt` se pisa en cada edición y no hay tope de cantidad', async () => {
+      const r1 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v1',
+      });
+      const first = await RequirementActivity.findByPk(cid);
+
+      const r2 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v2',
+      });
+      const second = await RequirementActivity.findByPk(cid);
+
+      const r3 = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'v3',
+      });
+      const third = await RequirementActivity.findByPk(cid);
+
+      [r1, r2, r3].forEach((r) => r.status.should.equal('success'));
+      third!.newValue.should.equal('v3');
+      (third!.editedAt!.getTime() >= second!.editedAt!.getTime()).should.be.true();
+      (second!.editedAt!.getTime() >= first!.editedAt!.getTime()).should.be.true();
+    });
+
+    it('TS-4: el comando NO escribe `previous_value`', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo',
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.previousValue.should.equal('');
+      activity!.newValue.should.equal('nuevo');
+    });
+
+    it('TS-5: el admin edita un comentario ajeno — editedBy es el admin, changedBy no se toca', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'editado por admin', actor: { id: ADMIN_ID_REQS, roles: ['admin'] },
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('editado por admin');
+      (activity!.editedBy as string).should.equal(ADMIN_ID_REQS);
+      activity!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-7: rechazo por falta de autoría, sin rol admin', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'x', actor: { id: OTHER_USER, roles: ['user'] },
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+      (activity!.editedAt === null).should.be.true();
+      (activity!.editedBy === null).should.be.true();
+    });
+
+    it('TS-9: en el canal exento (`ctx.roles === []`) un no-autor es rechazado', async () => {
+      // Canal exento: caller = publicador confiable (el default de `dispatch()`), SIN clave
+      // `actor` en el payload. `[]` no habilita la excepción de admin.
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: OTHER_USER, comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-10: rechazo sobre una actividad que no es comentario', async () => {
+      const stateActivity = await RequirementActivity.create({
+        typeOfActivity: 'state',
+        previousValue: 'backlog',
+        newValue: 'activo',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${stateActivity.id}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.ACTIVITY_NOT_EDITABLE);
+      const reread = await RequirementActivity.findByPk(stateActivity.id);
+      reread!.newValue.should.equal('activo');
+      (reread!.editedAt === null).should.be.true();
+    });
+
+    it('TS-12: el chequeo de tipo corre ANTES que el de autoría', async () => {
+      const stateActivity = await RequirementActivity.create({
+        typeOfActivity: 'state',
+        previousValue: 'backlog',
+        newValue: 'activo',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+
+      // Ni autor ni admin, y tampoco es comentario: si el orden estuviera invertido,
+      // respondería `comment_not_owned`.
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${stateActivity.id}.edit`,
+        { comment: 'x', actor: { id: OTHER_USER, roles: ['user'] } }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.ACTIVITY_NOT_EDITABLE);
+    });
+
+    it('TS-13: `visibilityLevel` en el payload se rechaza', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x', visibilityLevel: 'public',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.visibilityLevel.should.equal('internal');
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-15: cualquier campo desconocido se rechaza', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'x', attachmentIds: [1],
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-16: falla sin `comment` (campo requerido)', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR,
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-17: falla sin actor resoluble', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'x',
+      });
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-18: comentario inexistente', async () => {
+      const before = await RequirementActivity.count();
+
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.999999.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+      (await RequirementActivity.count()).should.equal(before);
+    });
+
+    it('TS-20: el comentario existe pero pertenece a OTRO requisito', async () => {
+      const otherRequirement = await Requirement.create({
+        title: 'Otro requisito', description: 'x', projectId, createdBy: CREATOR,
+      });
+
+      const reply = await dispatch(
+        `requirements.${otherRequirement.id}.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-22: el requisito del subject no existe', async () => {
+      const reply = await dispatch(
+        `requirements.999999.comment.${cid}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+
+      reply.status.should.equal('failure');
+      // El comando va directo al par (id, requirementId): un requisito inexistente no tiene
+      // ningún comentario que coincida con ese par, así que responde `comment_not_found`.
+      reply.errorCode!.should.equal(ErrorCode.COMMENT_NOT_FOUND);
+    });
+
+    it('TS-25 (parcial, ver suite de adjuntos): con `fileIds` ausente el comando igual escribe el texto', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'solo texto',
+      });
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(cid);
+      activity!.newValue.should.equal('solo texto');
+    });
+  });
+
+  /** `requirements.{id}.comment.{cid}.edit` — `requirement.comment.edited` de S-064 (CA-6, CA-7). */
+  describe('requirements.{id}.comment.{cid}.edit — eventos de dominio (S-064)', () => {
+    let requirementId: number;
+    let cid: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Para editar comentario', description: 'x', projectId, createdBy: CREATOR,
+        visibilityLevel: 'public',
+      });
+      requirementId = requirement.id;
+
+      const activity = await RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: CREATOR,
+      });
+      cid = activity.id;
+      fakePublisher.reset();
+    });
+
+    afterEach(async () => {
+      await Attachment.destroy({ where: {}, force: true });
+      await File.destroy({ where: {} });
+    });
+
+    it('TS-41 · emite el evento con el texto ACTUAL', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'texto nuevo',
+      });
+      reply.status.should.equal('success');
+      fakePublisher.published.length.should.equal(1);
+      fakePublisher.published[0].subject.should.equal('dev.events.v1.requirement.comment.edited');
+      ev('requirement.comment.edited').comment!.body.should.equal('texto nuevo');
+    });
+
+    it('TS-42 · no hay from del texto en ninguna parte', async () => {
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'texto nuevo',
+      });
+      const event = ev('requirement.comment.edited');
+      JSON.stringify(event).should.not.containEql('texto original');
+      ('body' in event.changes!).should.be.false();
+    });
+
+    it('TS-43 · changes lleva SOLO editedAt y editedBy, iguales a la fila', async () => {
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'texto nuevo',
+      });
+      const event = ev('requirement.comment.edited');
+      const changes = event.changes as { editedAt: string; editedBy: string };
+      Object.keys(changes).sort().should.deepEqual(['editedAt', 'editedBy']);
+      changes.editedBy.should.equal(CREATOR);
+      const row = await RequirementActivity.findByPk(cid);
+      changes.editedAt.should.equal(row!.editedAt!.toISOString());
+    });
+
+    it('TS-44 · visibilityLevel nunca aparece en changes; sí en la raíz', async () => {
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'texto nuevo',
+      });
+      const event = ev('requirement.comment.edited');
+      ('visibilityLevel' in event.changes!).should.be.false();
+      event.visibilityLevel!.should.equal('internal');
+    });
+
+    it('TS-45 · fileIds es el conjunto completo que queda, no un delta', async () => {
+      const fileA = await File.create({
+        fileName: 'a.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      const fileB = await File.create({
+        fileName: 'b.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      await Attachment.create({ entityType: 'requirement_comment', entityId: cid, fileId: fileA.id });
+      await Attachment.create({ entityType: 'requirement_comment', entityId: cid, fileId: fileB.id });
+
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo', fileIds: [fileA.id],
+      });
+
+      ev('requirement.comment.edited').comment!.fileIds.should.deepEqual([fileA.id]);
+    });
+
+    it('TS-46 · fileIds ausente en el payload igual trae el conjunto vigente', async () => {
+      const fileA = await File.create({
+        fileName: 'a.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      await Attachment.create({ entityType: 'requirement_comment', entityId: cid, fileId: fileA.id });
+
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo',
+      });
+
+      ev('requirement.comment.edited').comment!.fileIds.should.deepEqual([fileA.id]);
+    });
+
+    it('TS-47 · un vínculo con borrado lógico no cuenta', async () => {
+      const fileA = await File.create({
+        fileName: 'a.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      const fileB = await File.create({
+        fileName: 'b.pdf', fileSize: 100, mimeType: 'application/pdf',
+        storageKey: `k/${Math.random().toString(36).slice(2)}`, storageBucket: 'b',
+        storageRegion: 'us-east-1', uploadedBy: CREATOR,
+        byteStatus: ByteStatus.Uploaded, retentionStatus: RetentionStatus.Active,
+      });
+      await Attachment.create({ entityType: 'requirement_comment', entityId: cid, fileId: fileA.id });
+      await Attachment.create({
+        entityType: 'requirement_comment', entityId: cid, fileId: fileB.id, deletedAt: new Date(),
+      });
+
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo',
+      });
+
+      ev('requirement.comment.edited').comment!.fileIds.should.deepEqual([fileA.id]);
+    });
+
+    it('TS-48 · el snapshot es del requisito, no del comentario', async () => {
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: CREATOR, comment: 'nuevo',
+      });
+      const event = ev('requirement.comment.edited');
+      (event.snapshot as { id: number; title: string }).id.should.equal(requirementId);
+      (event.snapshot as { title: string }).title.should.equal('Para editar comentario');
+      event.entity.should.deepEqual({ type: 'requirement', id: requirementId, projectId });
+    });
+
+    it('TS-49 · un admin que edita: el evento sale con el admin, la autoría original intacta', async () => {
+      await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        comment: 'editado por admin', actor: { id: ADMIN_ID_REQS, roles: ['admin'] },
+      });
+      const event = ev('requirement.comment.edited');
+      event.actor.id.should.equal(ADMIN_ID_REQS);
+      (event.changes as { editedBy: string }).editedBy.should.equal(ADMIN_ID_REQS);
+      const row = await RequirementActivity.findByPk(cid);
+      row!.changedBy.should.equal(CREATOR);
+    });
+
+    it('TS-50 · editar una actividad que no es comentario no emite nada', async () => {
+      const stateActivity = await RequirementActivity.create({
+        typeOfActivity: 'state', previousValue: 'a', newValue: 'b',
+        visibilityLevel: 'internal', requirementId, changedBy: CREATOR,
+      });
+      const reply = await dispatch(
+        `requirements.${requirementId}.comment.${stateActivity.id}.edit`,
+        { editor: CREATOR, comment: 'x' }
+      );
+      reply.errorCode!.should.equal('activity_not_editable');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-51 · un no-autor sin rol admin no emite nada', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${cid}.edit`, {
+        editor: OTHER_USER, comment: 'x',
+      });
+      reply.errorCode!.should.equal('comment_not_owned');
+      fakePublisher.published.length.should.equal(0);
+    });
+  });
+
+  describe('requirements.{id}.subscriptors', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Con suscriptores', description: 'x', projectId, createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+    });
+
+    it('suscribe a un usuario', async () => {
+      const reply = await dispatch<{ id: number }>(
+        `requirements.${requirementId}.subscriptors.new`,
+        { userId: OTHER_USER }
+      );
+
+      reply.status.should.equal('success');
+      const subscription = await RequirementSubscriptor.findByPk(reply.data!.id);
+      subscription!.userId.should.equal(OTHER_USER);
+    });
+
+    it('falla si ya está suscripto', async () => {
+      await dispatch(`requirements.${requirementId}.subscriptors.new`, { userId: OTHER_USER });
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: OTHER_USER,
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('already_subscribed');
+    });
+
+    it('falla si el usuario no existe', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: 'inexistente',
+      });
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('user_not_found');
+    });
+
+    it('desuscribe', async () => {
+      await RequirementSubscriptor.create({ requirementId, userId: OTHER_USER });
+
+      const reply = await dispatch(
+        `requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`,
+        {}
+      );
+
+      reply.status.should.equal('success');
+      (await RequirementSubscriptor.count({ where: { requirementId } })).should.equal(0);
+    });
+
+    it('falla al desuscribir algo que no existe', async () => {
+      const reply = await dispatch(
+        `requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`,
+        {}
+      );
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal('subscription_not_found');
+    });
+  });
+
+  /**
+   * `requirements.{id}.subscriptors.new` / `.delete` — `requirement.subscriptor.added`/
+   * `.removed` de S-064 (CA-8, CA-9).
+   */
+  describe('requirements.{id}.subscriptors — eventos de dominio (S-064)', () => {
+    let requirementId: number;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'Con suscriptores', description: 'x', projectId, createdBy: CREATOR,
+      });
+      requirementId = requirement.id;
+      fakePublisher.reset();
+    });
+
+    it('TS-52, TS-53, TS-54 · un alta emite el evento, con subject y changes.userId, sin actor.name', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: OTHER_USER,
+      });
+      reply.status.should.equal('success');
+      fakePublisher.published.length.should.equal(1);
+      fakePublisher.published[0].subject.should.equal('dev.events.v1.requirement.subscriptor.added');
+      const event = ev('requirement.subscriptor.added');
+      event.changes!.should.deepEqual({ userId: OTHER_USER });
+      ('name' in event.actor).should.be.false();
+      event.actor.id.should.be.a.String().and.not.empty();
+    });
+
+    it('TS-55 · recipients ya incluye al suscriptor nuevo', async () => {
+      await dispatch(`requirements.${requirementId}.subscriptors.new`, { userId: OTHER_USER });
+      ev('requirement.subscriptor.added').recipients!.subscriptors
+        .map((s) => s.userId).should.deepEqual([OTHER_USER]);
+    });
+
+    it('TS-56 · una baja emite .removed y recipients ya NO lo incluye', async () => {
+      await RequirementSubscriptor.create({ requirementId, userId: OTHER_USER });
+      await RequirementSubscriptor.create({ requirementId, userId: ADMIN_ID_REQS });
+      fakePublisher.reset();
+
+      await dispatch(`requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`, {});
+
+      fakePublisher.published[0].subject.should.equal('dev.events.v1.requirement.subscriptor.removed');
+      const event = ev('requirement.subscriptor.removed');
+      event.changes!.should.deepEqual({ userId: OTHER_USER });
+      event.recipients!.subscriptors.map((s) => s.userId).should.deepEqual([ADMIN_ID_REQS]);
+    });
+
+    it('TS-57 · la baja del último suscriptor deja la lista vacía', async () => {
+      await RequirementSubscriptor.create({ requirementId, userId: OTHER_USER });
+      fakePublisher.reset();
+
+      await dispatch(`requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`, {});
+
+      ev('requirement.subscriptor.removed').recipients!.subscriptors.should.deepEqual([]);
+    });
+
+    it('TS-58 · .removed trae entity.projectId y el snapshot del requisito', async () => {
+      await RequirementSubscriptor.create({ requirementId, userId: OTHER_USER });
+      fakePublisher.reset();
+
+      await dispatch(`requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`, {});
+
+      const event = ev('requirement.subscriptor.removed');
+      event.entity.should.deepEqual({ type: 'requirement', id: requirementId, projectId });
+      (event.snapshot as { id: number }).id.should.equal(requirementId);
+    });
+
+    it('TS-59 · el actor sale del sobre cuando viene, sin name aunque el sobre lo traiga', async () => {
+      // ROL `user`, NO `admin`: `requirements.{id}.subscriptors.new` es uno de los dos comandos
+      // que `admin` NO alcanza por ningún canal (`authorize-caller.ts`, decisión de S-042/otra
+      // story previa, fuera del alcance de S-064) — solo `user`/`external-user` lo alcanzan por
+      // el sobre. El punto del test (actor del sobre, sin `name`) es el mismo con cualquier rol
+      // autorizado.
+      await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: OTHER_USER, actor: { id: OTHER_USER, roles: ['user'], name: 'Otro Nombre' },
+      });
+      const event = ev('requirement.subscriptor.added');
+      event.actor.id.should.equal(OTHER_USER);
+      ('name' in event.actor).should.be.false();
+    });
+
+    it('TS-60 · sin sobre, el actor es el caller del subject y el comando no falla', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: OTHER_USER,
+      });
+      reply.status.should.equal('success');
+      ev('requirement.subscriptor.added').actor.id.should.equal(getTrustedPublisherId());
+    });
+
+    it('TS-61 · una suscripción duplicada no emite nada', async () => {
+      await dispatch(`requirements.${requirementId}.subscriptors.new`, { userId: OTHER_USER });
+      fakePublisher.reset();
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: OTHER_USER,
+      });
+      reply.errorCode!.should.equal('already_subscribed');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-62 · una baja inexistente no emite nada', async () => {
+      const reply = await dispatch(
+        `requirements.${requirementId}.subscriptors.${OTHER_USER}.delete`, {}
+      );
+      reply.errorCode!.should.equal('subscription_not_found');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-63 · un alta con un usuario inexistente no emite nada', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.subscriptors.new`, {
+        userId: 'no-existe',
+      });
+      reply.errorCode!.should.equal('user_not_found');
+      fakePublisher.published.length.should.equal(0);
+    });
+
+    it('TS-66 · identidad de servicio sin correo ⇒ email: null, presente y no omitida', async () => {
+      await User.create({ id: 'svc-1', name: 'Svc', username: 'svc-1', email: null });
+      await RequirementSubscriptor.create({ requirementId, userId: 'svc-1' });
+      fakePublisher.reset();
+
+      await dispatch(`requirements.${requirementId}.subscriptors.new`, { userId: OTHER_USER });
+
+      const event = ev('requirement.subscriptor.added');
+      const svc = event.recipients!.subscriptors.find((s) => s.userId === 'svc-1');
+      svc!.should.deepEqual({ userId: 'svc-1', name: 'Svc', email: null });
+
+      await RequirementSubscriptor.destroy({ where: { userId: 'svc-1' } });
+      await User.destroy({ where: { id: 'svc-1' } });
+    });
+  });
+});
+
+/**
+ * S-003: `fileIds`, titularidad y el vínculo contra la entidad ya existente.
+ *
+ * Todo entra por `dispatch()` (ADR-013), que es lo único que ejercita el comportamiento
+ * transaccional: el test que importa de la titularidad no es que devuelva `file_not_owned`,
+ * es que NO QUEDE la entidad.
+ *
+ * EL `caller` SE PASA SIEMPRE EXPLÍCITO: el default de `dispatch()` (`'api'`) NO coincide con
+ * `CORE_TRUSTED_PUBLISHER_ID` a propósito, así que un test que se lo olvide cae en la rama
+ * externa, pasa en verde y no prueba lo que dice probar.
+ */
+describe('requirements — vinculación de archivos (S-003)', () => {
+  let projectId: number;
+  let personId: number;
+  let requirementId: number;
+  let fileSeq = 0;
+
+  /** Un `File` de fixture, con los campos que cada test quiera pisar. */
+  async function makeFile(overrides: Record<string, unknown> = {}): Promise<File> {
+    fileSeq += 1;
+    return File.create({
+      fileName: 'informe.pdf',
+      fileSize: 4194304,
+      mimeType: 'application/pdf',
+      storageKey: `grava-gestion/f/fixture-${fileSeq}.pdf`,
+      storageBucket: 'test-bucket',
+      storageRegion: 'us-east-1',
+      byteStatus: ByteStatus.Pending,
+      uploadedBy: UPLOADER_A,
+      retentionStatus: RetentionStatus.Active,
+      ...overrides,
+    });
+  }
+
+  /** Payload mínimo válido de `requirements.new`, con lo que cada test agregue. */
+  function newReq(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      creator: UPLOADER_A, title: 'Req', description: 'd', projectId, ...overrides,
+    };
+  }
+
+  before(async () => {
+    // `roles` desde S-017, y SOLO para los dos callers externos: la compuerta de autorización lee
+    // esta lista, y `internal-app` —el rol de conector— autoriza todo comando, incluidos los tres
+    // subjects de requisitos que este archivo ejercita por la rama externa. Los dos son conectores
+    // que NO son la api: sus `sub` no coinciden con `CORE_TRUSTED_PUBLISHER_ID`, que es lo que los
+    // manda por la rama externa de `resolveActor`.
+    //
+    // `ADMIN` NO lleva roles a propósito: acá es un autor DECLARADO EN EL CUERPO, nunca un
+    // `caller`, y darle `['admin']` sugeriría que su rol influye en algo — lo contrario de lo que
+    // afirma `TS-13: sin excepción por rol`.
+    const ROLES_BY_ID: Record<string, string[]> = {
+      [EXTERNAL]: ['internal-app'],
+      [EXTERNAL_B]: ['internal-app'],
+    };
+    for (const [id, username] of [
+      [UPLOADER_A, 'uploader-a-s3'], [UPLOADER_B, 'uploader-b-s3'],
+      [ADMIN, 'admin-s3'], [EXTERNAL, 'externo-s3'], [EXTERNAL_B, 'externo-b-s3'],
+      [TRUSTED, 'api-su-s3'],
+    ] as [string, string][]) {
+      await User.create({
+        id, name: id, username, email: `${username}@test.local`,
+        ...(ROLES_BY_ID[id] ? { roles: ROLES_BY_ID[id] } : {}),
+      });
+    }
+    const project = await Project.create({
+      name: 'Proyecto Files', code: 'FILES', status: 'activo', type: 'comercial',
+      description: 'x', initDate: new Date(), createdBy: UPLOADER_A,
+    });
+    projectId = project.id;
+    const person = await Person.create({
+      firstName: 'Ana', lastName: 'F', enabled: true, initDate: new Date('2026-01-01'),
+    });
+    personId = person.id;
+  });
+
+  after(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {} });
+    await ObjectiveActivity.destroy({ where: {} });
+    await PersonObjective.destroy({ where: {} });
+    await Objective.destroy({ where: {} });
+    await RequirementActivity.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
+    await Requirement.destroy({ where: {} });
+    await Person.destroy({ where: {} });
+    await Project.destroy({ where: {} });
+    await User.destroy({ where: {} });
+  });
+
+  beforeEach(async () => {
+    const requirement = await Requirement.create({
+      title: 'Para comentar', description: 'x', projectId, createdBy: UPLOADER_A,
+    });
+    requirementId = requirement.id;
+    // SEGUNDO describe de nivel superior (fuera del `describe('requirements', ...)` de arriba):
+    // necesita su PROPIO reset del singleton `fakePublisher` para la misma garantía de
+    // ADR-013 ("no depender del orden de ejecución entre archivos/bloques de test").
+    fakePublisher.reset();
+  });
+
+  afterEach(async () => {
+    await Attachment.destroy({ where: {}, force: true });
+    await File.destroy({ where: {} });
+    await ObjectiveActivity.destroy({ where: {} });
+    await PersonObjective.destroy({ where: {} });
+    await Objective.destroy({ where: {} });
+    await RequirementActivity.destroy({ where: {} });
+    await PersonRequirement.destroy({ where: {} });
+    await Requirement.destroy({ where: {} });
+  });
+
+  describe('requirements.new', () => {
+    it('TS-1: vincula tres archivos propios al requisito creado', async () => {
+      const [f1, f2, f3] = [await makeFile(), await makeFile(), await makeFile()];
+
+      const reply = await dispatch<{ id: number }>(
+        'requirements.new', newReq({ fileIds: [f1.id, f2.id, f3.id] }), TRUSTED
+      );
+
+      reply.status.should.equal('success');
+      (await Requirement.findByPk(reply.data!.id))!.should.be.ok();
+      const links = await Attachment.findAll({
+        where: { entityType: 'requirement', entityId: reply.data!.id },
+      });
+      links.length.should.equal(3);
+      links.map((a) => a.fileId).sort().should.deepEqual([f1.id, f2.id, f3.id].sort());
+    });
+
+    it('TS-2: el vínculo se crea por INSERT, sin ningún entityType de draft', async () => {
+      const f1 = await makeFile();
+
+      const reply = await dispatch<{ id: number }>(
+        'requirements.new', newReq({ fileIds: [f1.id] }), TRUSTED
+      );
+
+      reply.status.should.equal('success');
+      (await Attachment.count({ where: { entityType: { [Op.in]: DRAFT_TYPES } } }))
+        .should.equal(0);
+      const link = await Attachment.findOne({ where: { fileId: f1.id } });
+      // El vínculo nació después del archivo: es un INSERT nuevo, no un reanclaje del draft.
+      link!.createdAt.getTime().should.be.aboveOrEqual(f1.createdAt.getTime());
+    });
+
+    it('TS-3: `attachmentScope` ya no se acepta', async () => {
+      const f1 = await makeFile();
+
+      const reply = await dispatch(
+        'requirements.new',
+        newReq({ fileIds: [f1.id], attachmentScope: 'project' }),
+        TRUSTED
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      (await Requirement.count({ where: { title: 'Req' } })).should.equal(0);
+    });
+
+    it('TS-4: `attachmentIds` ya no se acepta', async () => {
+      const reply = await dispatch(
+        'requirements.new', newReq({ attachmentIds: [1] }), TRUSTED
+      );
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-5: si un fileId falla, no queda ni el requisito ni un solo vínculo', async () => {
+      const [f1, f2] = [await makeFile(), await makeFile()];
+
+      const reply = await dispatch(
+        'requirements.new', newReq({ fileIds: [f1.id, f2.id, 999999] }), TRUSTED
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      (await Requirement.count({ where: { title: 'Req' } })).should.equal(0);
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-6: los File sobreviven al rollback, sin vínculo y sin el UPDATE', async () => {
+      const [f1, f2] = [await makeFile(), await makeFile()];
+
+      await dispatch('requirements.new', newReq({ fileIds: [f1.id, f2.id, 999999] }), TRUSTED);
+
+      for (const file of [f1, f2]) {
+        const alive = await File.findByPk(file.id);
+        alive!.should.be.ok();
+        // El UPDATE de byte_status revirtió con el resto de la transacción.
+        alive!.byteStatus.should.equal(ByteStatus.Pending);
+      }
+      (await Attachment.count({ where: { fileId: { [Op.in]: [f1.id, f2.id] } } })).should.equal(0);
+    });
+
+    it('TS-7: byte_status pasa a uploaded al vincular con éxito', async () => {
+      const [f1, f2] = [await makeFile(), await makeFile()];
+
+      const reply = await dispatch(
+        'requirements.new', newReq({ fileIds: [f1.id, f2.id] }), TRUSTED
+      );
+
+      reply.status.should.equal('success');
+      for (const file of [f1, f2]) {
+        (await File.findByPk(file.id))!.byteStatus.should.equal(ByteStatus.Uploaded);
+      }
+    });
+
+    it('TS-8: un File ya uploaded que se vincula de nuevo sigue uploaded', async () => {
+      const f1 = await makeFile({ byteStatus: ByteStatus.Uploaded });
+
+      const reply = await dispatch('requirements.new', newReq({ fileIds: [f1.id] }), TRUSTED);
+
+      reply.status.should.equal('success');
+      (await File.findByPk(f1.id))!.byteStatus.should.equal(ByteStatus.Uploaded);
+    });
+
+    it('TS-14: un fileId inexistente da invalid_fields, no file_not_owned', async () => {
+      const reply = await dispatch('requirements.new', newReq({ fileIds: [999999] }), TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      reply.errorCode!.should.not.equal(ErrorCode.FILE_NOT_OWNED);
+      (await Requirement.count({ where: { title: 'Req' } })).should.equal(0);
+    });
+
+    it('TS-15: un fileId con retention_status no active da invalid_fields', async () => {
+      const f1 = await makeFile({ retentionStatus: RetentionStatus.ScheduledForDeletion });
+
+      const reply = await dispatch('requirements.new', newReq({ fileIds: [f1.id] }), TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      (await Requirement.count({ where: { title: 'Req' } })).should.equal(0);
+    });
+
+    it('TS-16: ajeno Y retirado da invalid_fields — la vida se chequea primero', async () => {
+      const f1 = await makeFile({
+        retentionStatus: RetentionStatus.Deleted, uploadedBy: UPLOADER_B,
+      });
+
+      const reply = await dispatch('requirements.new', newReq({ fileIds: [f1.id] }), TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-17: 11 fileIds los rechaza Joi sin tocar la base', async () => {
+      const reply = await dispatch(
+        'requirements.new',
+        newReq({ fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
+        TRUSTED
+      );
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      reply.errorMessage!.should.match(/items/);
+      (await Requirement.count({ where: { title: 'Req' } })).should.equal(0);
+    });
+
+    it('TS-18: exactamente 10 fileIds se aceptan — el límite es inclusivo', async () => {
+      const files = [];
+      for (let i = 0; i < 10; i += 1) {
+        files.push(await makeFile());
+      }
+
+      const reply = await dispatch<{ id: number }>(
+        'requirements.new', newReq({ fileIds: files.map((f) => f.id) }), TRUSTED
+      );
+
+      reply.status.should.equal('success');
+      (await Attachment.count({
+        where: { entityType: 'requirement', entityId: reply.data!.id },
+      })).should.equal(10);
+    });
+
+    it('TS-20: un fileId no entero o <= 0 lo rechaza Joi', async () => {
+      for (const fileIds of [[0], ['abc']]) {
+        const reply = await dispatch('requirements.new', newReq({ fileIds }), TRUSTED);
+        reply.status.should.equal('failure');
+        reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      }
+    });
+
+    it('TS-21: `fileIds` ausente no rompe nada y no toca `files`', async () => {
+      const f1 = await makeFile();
+
+      const reply = await dispatch('requirements.new', newReq(), TRUSTED);
+
+      reply.status.should.equal('success');
+      (await Attachment.count()).should.equal(0);
+      (await File.findByPk(f1.id))!.byteStatus.should.equal(ByteStatus.Pending);
+    });
+
+    it('TS-38: un fileId repetido se deduplica en un solo vínculo', async () => {
+      const f1 = await makeFile();
+
+      const reply = await dispatch<{ id: number }>(
+        'requirements.new', newReq({ fileIds: [f1.id, f1.id] }), TRUSTED
+      );
+
+      reply.status.should.equal('success');
+      (await Attachment.count({ where: { fileId: f1.id } })).should.equal(1);
+    });
+
+    it('TS-36: subir y vincular por el mismo canal da titularidad verdadera', async () => {
+      const s3 = installS3Double();
+      try {
+        const upload = await dispatch<{ id: number }>('files.request-upload', {
+          uploader: UPLOADER_A, fileName: 'x.pdf', mimeType: 'application/pdf', fileSize: 100,
+        }, TRUSTED);
+        upload.status.should.equal('success');
+
+        const reply = await dispatch<{ id: number }>(
+          'requirements.new', newReq({ fileIds: [upload.data!.id] }), TRUSTED
+        );
+
+        // `resolveActor` es LA MISMA función en los dos comandos: si divergieran, este
+        // vínculo sería imposible de crear.
+        reply.status.should.equal('success');
+        (await Attachment.count({ where: { fileId: upload.data!.id } })).should.equal(1);
+      } finally {
+        uninstallS3Double();
+        void s3;
+      }
+    });
+  });
+
+  describe('requirements.{id}.comment — las cuatro combinaciones de titularidad', () => {
+    /** Cuenta los comentarios del requisito del test: lo que NO tiene que quedar. */
+    function comments(): Promise<number> {
+      return RequirementActivity.count({
+        where: { requirementId, typeOfActivity: 'comment' },
+      });
+    }
+
+    it('TS-34: vincula el archivo al comentario ya creado', async () => {
+      const f1 = await makeFile();
+
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [f1.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const links = await Attachment.findAll({ where: { fileId: f1.id } });
+      links.length.should.equal(1);
+      links[0].entityType.should.equal('requirement_comment');
+      links[0].entityId!.should.equal(reply.data!.id);
+    });
+
+    it('TS-9: web↔web — el usuario B no vincula un archivo de A', async () => {
+      const f1 = await makeFile({ uploadedBy: UPLOADER_A });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_B, comment: 'hola', fileIds: [f1.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      // Lo que importa: NO QUEDA EL COMENTARIO.
+      (await comments()).should.equal(0);
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-10: web→externo — el externo no vincula un archivo de una persona', async () => {
+      const f1 = await makeFile({ uploadedBy: UPLOADER_A });
+
+      // El `author` declarado coincide con el `uploaded_by`, pero se IGNORA: por la rama
+      // externa el actor es el `caller`.
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [f1.id],
+      }, EXTERNAL);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      (await comments()).should.equal(0);
+    });
+
+    it('TS-11: externo↔externo — el servicio B no vincula un archivo del A', async () => {
+      const f1 = await makeFile({ uploadedBy: EXTERNAL });
+
+      // El `author` declarado es un usuario real (`changed_by` tiene FK contra `users`) pero
+      // ajeno al `caller`: por la rama externa se IGNORA para la titularidad, que es
+      // justamente lo que este test verifica.
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [f1.id],
+      }, EXTERNAL_B);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      (await comments()).should.equal(0);
+    });
+
+    it('TS-12: el servicio externo SÍ vincula lo que él mismo subió', async () => {
+      const f1 = await makeFile({ uploadedBy: EXTERNAL });
+
+      // El `author` declarado es OTRO usuario, y se ignora: el actor es el `caller`, que es
+      // quien subió el archivo. Por eso el vínculo se crea.
+      const reply = await dispatch<{ id: number }>(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [f1.id],
+      }, EXTERNAL);
+
+      reply.status.should.equal('success');
+      const link = await Attachment.findOne({ where: { fileId: f1.id } });
+      link!.entityType.should.equal('requirement_comment');
+      link!.entityId!.should.equal(reply.data!.id);
+    });
+
+    it('TS-13: sin excepción por rol — el admin tampoco vincula lo ajeno', async () => {
+      const f1 = await makeFile({ uploadedBy: UPLOADER_A });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: ADMIN, comment: 'hola', fileIds: [f1.id],
+      }, TRUSTED);
+
+      // Idéntico a TS-9: no hay ninguna rama de código que consulte rol.
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      (await comments()).should.equal(0);
+    });
+
+    it('TS-12 (S-034): con sobre y rol admin RESUELTO, sigue sin excepción por rol', async () => {
+      // Distinto del test anterior: acá el ACTOR RESUELTO (no solo un campo declarado en el
+      // cuerpo) lleva `roles: ['admin']` de verdad, vía el sobre de identidad (S-029/S-030).
+      // `resolveActor` devuelve `ctx.actor.id` (ADMIN) y `ctx.roles` es realmente `['admin']` —
+      // es la evidencia que TS-12 del Story Plan pide: ni siquiera con el rol admin RESUELTO
+      // hay una rama que lo consulte para la titularidad.
+      const f1 = await makeFile({ uploadedBy: UPLOADER_A });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment`, {
+        author: ADMIN, comment: 'hola', fileIds: [f1.id], actor: { id: ADMIN, roles: ['admin'] },
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      (await comments()).should.equal(0);
+    });
+
+    it('TS-4/TS-19: rechaza `attachmentIds` y 11 `fileIds`', async () => {
+      const conAttachments = await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', attachmentIds: [1],
+      }, TRUSTED);
+      conAttachments.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+
+      const conOnce = await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      }, TRUSTED);
+      conOnce.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+
+    it('TS-37: la rama externa de un conector loguea en debug sin filtrar el payload', async () => {
+      // `EXTERNAL` tiene `roles: ['internal-app']` → clase `connector` → nivel `debug` (S-091).
+      const f1 = await makeFile({ uploadedBy: EXTERNAL });
+      const warn = sinon.spy(logger, 'warn');
+      const debug = sinon.spy(logger, 'debug');
+
+      try {
+        await dispatch(`requirements.${requirementId}.comment`, {
+          author: UPLOADER_A, comment: 'secreto', fileIds: [f1.id],
+        }, EXTERNAL);
+
+        const externos = debug.getCalls().filter((c) => String(c.args[0]).includes('caller externo'));
+        externos.length.should.equal(1);
+        const message = String(externos[0].args[0]);
+        message.should.containEql(EXTERNAL);
+        message.should.not.containEql('secreto');
+        message.should.not.containEql(String(f1.id));
+        warn.called.should.be.false();
+      } finally {
+        warn.restore();
+        debug.restore();
+      }
+    });
+  });
+
+  /** REQ-011 (S-046): adjuntos de `requirements.{id}.comment.{cid}.edit`, vía `syncFileLinks`. */
+  describe('requirements.{id}.comment.{cid}.edit — adjuntos (conjunto completo)', () => {
+    let editCid: number;
+
+    beforeEach(async () => {
+      const activity = await RequirementActivity.create({
+        typeOfActivity: 'comment',
+        previousValue: '',
+        newValue: 'texto original',
+        visibilityLevel: 'internal',
+        requirementId,
+        changedBy: UPLOADER_A,
+      });
+      editCid = activity.id;
+    });
+
+    function links(): Promise<Attachment[]> {
+      return Attachment.findAll({
+        where: { entityType: 'requirement_comment', entityId: editCid }, order: [['id', 'ASC']],
+      });
+    }
+
+    it('TS-23: agrega uno nuevo y quita uno existente en la misma edición', async () => {
+      const f1 = await makeFile();
+      const f2 = await makeFile();
+      const f3 = await makeFile();
+      const seeded = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con adjuntos iniciales', fileIds: [f1.id, f2.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+      const before = await links();
+      const originalOfF1 = before.find((a) => a.fileId === f1.id)!;
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con adjuntos', fileIds: [f1.id, f3.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.map((a) => a.fileId).sort().should.deepEqual([f1.id, f3.id].sort());
+      // El vínculo de f1 CONSERVA su fila original: mismo id, mismo createdAt.
+      const nowOfF1 = after.find((a) => a.fileId === f1.id)!;
+      nowOfF1.id.should.equal(originalOfF1.id);
+      nowOfF1.createdAt.getTime().should.equal(originalOfF1.createdAt.getTime());
+      const f3File = await File.findByPk(f3.id);
+      f3File!.byteStatus.should.equal(ByteStatus.Uploaded);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('con adjuntos');
+      (activity!.editedAt === null).should.be.false();
+    });
+
+    it('TS-25: `fileIds` ausente no toca los vínculos', async () => {
+      const f1 = await makeFile();
+      const seeded = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'con un adjunto', fileIds: [f1.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+      const before = await links();
+      before.length.should.equal(1);
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'solo texto',
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('solo texto');
+      // `fileIds` ausente (no `[]`): el vínculo previo SIGUE EXISTIENDO, misma fila.
+      const after = await links();
+      after.length.should.equal(1);
+      after[0].id.should.equal(before[0].id);
+      after[0].fileId!.should.equal(f1.id);
+    });
+
+    it('TS-26: la titularidad se valida solo sobre los ids NUEVOS', async () => {
+      const fB = await makeFile({ uploadedBy: UPLOADER_B });
+      const fA = await makeFile({ uploadedBy: UPLOADER_A });
+      // Vínculo previo a un archivo ajeno, armado A MANO en el fixture: ningún comando puede
+      // crearlo (la titularidad se lo impediría). Existe para probar que la revalidación NO
+      // ocurre sobre lo que ya estaba vinculado — es la asimetría deliberada de
+      // `link-files.ts` (titularidad solo sobre los ids nuevos del conjunto).
+      await Attachment.create({ entityType: 'requirement_comment', entityId: editCid, fileId: fB.id });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [fB.id, fA.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.map((a) => a.fileId).sort().should.deepEqual([fA.id, fB.id].sort());
+    });
+
+    it('TS-27: un `fileId` nuevo ajeno se rechaza y NO deja escritura parcial', async () => {
+      const fX = await makeFile({ uploadedBy: UPLOADER_B });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'texto nuevo', fileIds: [fX.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
+      (activity!.editedAt === null).should.be.true();
+      (activity!.editedBy === null).should.be.true();
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-28: sin excepción por rol — el admin tampoco vincula lo ajeno', async () => {
+      const fX = await makeFile({ uploadedBy: UPLOADER_B });
+      const adminActivity = await RequirementActivity.create({
+        typeOfActivity: 'comment', previousValue: '', newValue: 'original admin',
+        visibilityLevel: 'internal', requirementId, changedBy: ADMIN,
+      });
+
+      const reply = await dispatch(`requirements.${requirementId}.comment.${adminActivity.id}.edit`, {
+        comment: 'x', fileIds: [fX.id], actor: { id: ADMIN, roles: ['admin'] },
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      const reread = await RequirementActivity.findByPk(adminActivity.id);
+      reread!.newValue.should.equal('original admin');
+      (await Attachment.count()).should.equal(0);
+    });
+
+    it('TS-29: más de 10 `fileIds` se rechaza antes de la transacción', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
+    });
+
+    it('TS-30: un `fileId` inexistente da `invalid_fields`, no `file_not_owned`', async () => {
+      const reply = await dispatch(`requirements.${requirementId}.comment.${editCid}.edit`, {
+        editor: UPLOADER_A, comment: 'x', fileIds: [999999],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+      const activity = await RequirementActivity.findByPk(editCid);
+      activity!.newValue.should.equal('texto original');
+    });
+  });
+
+  describe('requirements.{id}.edit — conjunto completo', () => {
+    let editId: number;
+    let f1: File;
+    let f2: File;
+    let f3: File;
+
+    beforeEach(async () => {
+      const requirement = await Requirement.create({
+        title: 'viejo', description: 'x', projectId, createdBy: UPLOADER_A,
+      });
+      editId = requirement.id;
+      [f1, f2, f3] = [await makeFile(), await makeFile(), await makeFile()];
+      // Se vinculan por el propio comando, para que las filas nazcan como en producción.
+      const seeded = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [f1.id, f2.id, f3.id],
+      }, TRUSTED);
+      seeded.status.should.equal('success');
+    });
+
+    function links(): Promise<Attachment[]> {
+      return Attachment.findAll({
+        where: { entityType: 'requirement', entityId: editId }, order: [['id', 'ASC']],
+      });
+    }
+
+    it('TS-24: conserva los declarados y borra el resto', async () => {
+      const reply = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [f1.id, f2.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const remaining = await links();
+      remaining.length.should.equal(2);
+      remaining.map((a) => a.fileId).sort().should.deepEqual([f1.id, f2.id].sort());
+      (await Attachment.count({ where: { fileId: f3.id } })).should.equal(0);
+    });
+
+    it('TS-25: el File del vínculo borrado se conserva intacto', async () => {
+      const before = await File.findByPk(f3.id);
+
+      await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [f1.id, f2.id],
+      }, TRUSTED);
+
+      const after = await File.findByPk(f3.id);
+      after!.should.be.ok();
+      after!.retentionStatus.should.equal(RetentionStatus.Active);
+      after!.byteStatus.should.equal(before!.byteStatus);
+    });
+
+    it('TS-26: agregar uno nuevo no recrea los que ya estaban', async () => {
+      const f4 = await makeFile();
+      const before = await links();
+      const originalOfF1 = before.find((a) => a.fileId === f1.id)!;
+
+      const reply = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [f1.id, f2.id, f3.id, f4.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.length.should.equal(4);
+      const nowOfF1 = after.find((a) => a.fileId === f1.id)!;
+      nowOfF1.id.should.equal(originalOfF1.id);
+      nowOfF1.createdAt.getTime().should.equal(originalOfF1.createdAt.getTime());
+    });
+
+    it('TS-27: `fileIds` ausente no toca los vínculos', async () => {
+      const before = await links();
+
+      const reply = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, title: 'nuevo',
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      const after = await links();
+      after.map((a) => a.id).should.deepEqual(before.map((a) => a.id));
+    });
+
+    it('TS-28: `fileIds: []` desvincula todo y conserva los File', async () => {
+      const reply = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [],
+      }, TRUSTED);
+
+      reply.status.should.equal('success');
+      (await links()).length.should.equal(0);
+      for (const file of [f1, f2, f3]) {
+        (await File.findByPk(file.id))!.should.be.ok();
+      }
+    });
+
+    it('TS-29: un archivo ajeno descarta también el resto de la edición', async () => {
+      const ajeno = await makeFile({ uploadedBy: UPLOADER_B });
+
+      const reply = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, title: 'nuevo', fileIds: [ajeno.id],
+      }, TRUSTED);
+
+      reply.status.should.equal('failure');
+      reply.errorCode!.should.equal(ErrorCode.FILE_NOT_OWNED);
+      // El rollback descartó también el cambio de título.
+      (await Requirement.findByPk(editId))!.title.should.equal('viejo');
+      (await links()).length.should.equal(3);
+    });
+
+    it('TS-4/TS-19: rechaza `attachmentIds` y 11 `fileIds`', async () => {
+      const conAttachments = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, attachmentIds: [1],
+      }, TRUSTED);
+      conAttachments.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+
+      const conOnce = await dispatch(`requirements.${editId}.edit`, {
+        editor: UPLOADER_A, fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      }, TRUSTED);
+      conOnce.errorCode!.should.equal(ErrorCode.INVALID_FIELDS);
+    });
+  });
+
+  describe('regresión transversal', () => {
+    it('TS-35: ninguna entidad de tipo draft se escribe nunca', async () => {
+      const f1 = await makeFile();
+      await dispatch('requirements.new', newReq({ fileIds: [f1.id] }), TRUSTED);
+
+      const f2 = await makeFile();
+      await dispatch(`requirements.${requirementId}.comment`, {
+        author: UPLOADER_A, comment: 'hola', fileIds: [f2.id],
+      }, TRUSTED);
+
+      const f3 = await makeFile();
+      await dispatch('tasks.new', {
+        creator: UPLOADER_A, title: 'T', projectId, responsiblePersonIds: [personId],
+        fileIds: [f3.id],
+      }, TRUSTED);
+
+      (await Attachment.count({ where: { entityType: { [Op.in]: DRAFT_TYPES } } }))
+        .should.equal(0);
+      (await Attachment.count()).should.equal(3);
+    });
+  });
+});

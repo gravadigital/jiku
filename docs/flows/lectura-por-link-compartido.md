@@ -145,7 +145,7 @@ api los registra.
 `secret_warning_not_acknowledged`: la web pide confirmación y, si la persona acepta, reenvía la
 misma solicitud con `acknowledgeSecretWarning: true`.
 
-**Ref:** `docs/apis/api.yaml` (`POST /docs/documents/{id}/shares`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`POST /docs/documents/{id}/shares`)
 
 ---
 
@@ -163,7 +163,7 @@ misma solicitud con `acknowledgeSecretWarning: true`.
   revokedAt }`. No comprueba `features.sharing`: revocar un link existente tiene que seguir siendo
   posible aunque la instalación deje de publicar links.
 
-**Ref:** `docs/apis/api.yaml` (`GET /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /docs/documents/{id}/shares`, `DELETE /docs/shares/{id}`)
 
 ---
 
@@ -255,7 +255,7 @@ aplicación, sin marca. **Status 200, `text/html`.**
 y que `{id}` sea ULID. Consulta `shares.attachment { token, attachmentId, client }`, sin `actor`, y
 responde **302** a `downloadUrl` con `X-Content-Type-Options: nosniff` y las cinco cabeceras.
 
-**Ref:** `docs/apis/api.yaml` (`GET /p/docs/{token}`, `GET /p/docs/{token}/attachments/{id}`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /p/docs/{token}`, `GET /p/docs/{token}/attachments/{id}`)
 
 ## Manejo de Errores
 

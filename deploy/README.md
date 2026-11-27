@@ -583,7 +583,7 @@ every hour, unclipped.
 
 That is a real widening over what `external-publisher` granted (nine write subjects, zero
 queries), and it is deliberate. **If you need a narrower connector, it is a new role**, with its
-own template here and its own entry in `core/src/authorize-caller.ts` — not a variant of this one.
+own template here and its own entry in `services/core/src/authorize-caller.ts` — not a variant of this one.
 
 **It also gets the documentation plane.** `internal-app` additionally publishes docs commands and
 queries under its id (`{instance}.{user-id}.jiku-docs-commands.v1.>`,
@@ -643,7 +643,7 @@ the registry, not by ping.
 **Publishing under the commands prefix is the transport permission, not the authorisation.** The
 template opens the whole `jiku-commands.v1` prefix for `admin`/`user`; which of those commands each
 role may actually execute is decided by core's role → method map
-(`core/src/authorize-caller.ts`), which enumerates a different command list for `admin` than for
+(`services/core/src/authorize-caller.ts`), which enumerates a different command list for `admin` than for
 `user`.
 
 **`external-user` cannot publish a command, and two layers say so independently.** Either one is

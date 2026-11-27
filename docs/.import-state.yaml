@@ -109,7 +109,7 @@ import:
         analysis: docs/analysis/services/api.md
         architecture: docs/architectures/api/
         ux_survey: null      # no aplica: es un backend
-        api_spec: docs/apis/api.yaml
+        api_spec: _jflow/apis/api.openapi.yaml
         db_schema: docs/db-schemas/jiku.md
 
       notes: |
@@ -169,11 +169,11 @@ import:
         analysis: docs/analysis/services/core.md
         architecture: docs/architectures/core/
         ux_survey: null      # no aplica: es un backend
-        api_spec: docs/apis/core.yaml
+        api_spec: _jflow/apis/core.asyncapi.yaml
         db_schema: docs/db-schemas/jiku.md
 
       notes: |
-        `docs/apis/core.yaml` (AsyncAPI 2.6) ya existía y se VERIFICÓ contra el código en este
+        `_jflow/apis/core.asyncapi.yaml` (AsyncAPI 2.6) ya existía y se VERIFICÓ contra el código en este
         análisis: los 17 channels coinciden con los 17 comandos registrados, y también los
         `required`, los defaults, los enums y los 21 códigos de error. No se regeneró.
         Es AsyncAPI y no OpenAPI porque core no expone HTTP: una spec OpenAPI tendría que

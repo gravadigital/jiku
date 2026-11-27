@@ -1,12 +1,12 @@
 # HTTP API reference
 
 The 92 endpoints the API serves, generated from the route definitions. For the bus contract
-behind the writes, see [`docs/apis/core.yaml`](../docs/apis/core.yaml).
+behind the writes, see [`_jflow/apis/core.asyncapi.yaml`](../_jflow/apis/core.asyncapi.yaml).
 
 ## How authentication works
 
-**Authentication is applied globally per HTTP method, not per route.** `api/app.ts` installs
-`validateToken` for every path _except_ an explicit exemption list in `api/config/public.ts`,
+**Authentication is applied globally per HTTP method, not per route.** `services/api/app.ts` installs
+`validateToken` for every path _except_ an explicit exemption list in `services/api/config/public.ts`,
 built as a negative-lookahead regex. It is deny-by-default, which is the right shape, but it
 means a route file can look unprotected while being covered.
 
@@ -19,7 +19,7 @@ there makes an endpoint reachable without credentials, so only something with it
 documented access control belongs on it.
 
 The exemption interface covers `GET`, `PATCH`, `POST`, `PUT` and `DELETE`. A new method has to
-be added both in `api/config/public.ts` and in `api/app.ts`.
+be added both in `services/api/config/public.ts` and in `services/api/app.ts`.
 
 The token must be a JWT from the configured identity provider, sent as
 `Authorization: Bearer <token>`. There is no query-parameter fallback.
@@ -248,7 +248,7 @@ internal with no way to unsubscribe.
 ## Public endpoints
 
 The shared documentation links. They are mounted at the root, not under `/api`, and need no
-token: they are the only entry in the exemption list of `api/config/public.ts`, and they carry
+token: they are the only entry in the exemption list of `services/api/config/public.ts`, and they carry
 their own controls. They answer only on the exclusive public host (`JIKU_PUBLIC_URL`; any other
 host gets `404`), are rate limited to 60 requests per minute per IP, and the 256-bit token is
 validated by jiku-docs against its hash. Any invalid link answers an indistinguishable `404`,
@@ -282,7 +282,7 @@ them directly to the user. Both are tracked in
 The tables above are derived from the route definitions. To check them against the code:
 
 ```sh
-grep -rhoE "\.(get|post|patch|put|delete)\(\s*'[^']+'" api/lib/routes/*.ts api/lib/public-routes/*.ts | sort
+grep -rhoE "\.(get|post|patch|put|delete)\(\s*'[^']+'" services/api/lib/routes/*.ts services/api/lib/public-routes/*.ts | sort
 ```
 
 Note that four routes put the path on the following line, so a single-line regex undercounts

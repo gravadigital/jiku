@@ -2,7 +2,7 @@
 
 > Documento temporal del flujo de importación. Lo consume `/product-consolidate-services`
 > para armar el PRD. La documentación definitiva vive en
-> [`docs/architectures/api/`](../../architectures/api/), [`docs/apis/api.yaml`](../../apis/api.yaml)
+> [`docs/architectures/api/`](../../architectures/api/), [`_jflow/apis/api.openapi.yaml`](../../../_jflow/apis/api.openapi.yaml)
 > y [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md).
 
 ## Identificación
@@ -253,7 +253,7 @@ Interacciones cross-service leídas del código. Se consolidan en `docs/flows/` 
 | `unworked-times.{id}.delete` | `unworked-times-id-delete.ts:70` | `DELETE /api/unworked-times/:id` |
 
 El contrato completo de los 17 comandos que sirve core está en
-[`docs/apis/core.yaml`](../../apis/core.yaml) (AsyncAPI 2.6).
+[`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) (AsyncAPI 2.6).
 
 ### api → Zitadel (HTTP)
 
@@ -338,6 +338,6 @@ Del propio repositorio (`documentation/known-limitations.md`), verificadas en el
 | Documento | Contenido |
 |---|---|
 | [`docs/architectures/api/`](../../architectures/api/) | Manifest, overview, índice y 12 convenciones custom |
-| [`docs/apis/api.yaml`](../../apis/api.yaml) | OpenAPI 3.0 — los 61 endpoints |
+| [`_jflow/apis/api.openapi.yaml`](../../../_jflow/apis/api.openapi.yaml) | OpenAPI 3.0 — los 61 endpoints |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Las 28 entidades, diagrama ER y DBML |
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | AsyncAPI del bus — el otro lado de cada comando |
+| [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) | AsyncAPI del bus — el otro lado de cada comando |

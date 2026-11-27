@@ -100,7 +100,7 @@ sequenceDiagram
   ```
 - Un apagado normal **no** borra la clave: desinstalar es explícito (`jiku-docs module deregister`).
 
-**Ref:** `docs/apis/jiku-modules.yaml`
+**Ref:** `_jflow/apis/jiku-modules.asyncapi.yaml`
 
 ---
 
@@ -232,7 +232,7 @@ Los frontends:
   invalidan `['modules']` y vuelven a consultar sin esperar los 60 s.
 - Ocultan la documentación con `not_installed`; con `unavailable` muestran un aviso.
 
-**Ref:** `docs/apis/api.yaml` (`GET /modules`, `GET /opus/modules`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /modules`, `GET /opus/modules`)
 
 ## Manejo de Errores
 
@@ -277,7 +277,7 @@ más hasta 60 s (consulta del frontend).
 - **Las personas no tienen ping:** una persona con token propio (jiku-go) puede leer y observar el
   registro, pero no se le concedió `$SRV.PING`, así que no puede distinguir `unavailable` de
   `available`. Solo la api calcula ese estado.
-- **Contrato:** `docs/apis/jiku-modules.yaml` declara el permiso de lectura como
+- **Contrato:** `_jflow/apis/jiku-modules.asyncapi.yaml` declara el permiso de lectura como
   `...DIRECT.GET.KV_JIKU_MODULES.$KV.JIKU_MODULES.>`; las plantillas conceden el superconjunto
   `$JS.API.DIRECT.GET.KV_JIKU_MODULES.>` (solo lectura).
 - **Lo que el ping no dice:** `available` significa que el servicio micro `*-queries` respondió al

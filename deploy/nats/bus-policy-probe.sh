@@ -17,7 +17,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-CORE_DIR="../../core"
+CORE_DIR="../../services/core"
 NATS_CONTAINER="${NATS_CONTAINER:-jiku-local-nats}"
 PROFILE=""
 KEY=""

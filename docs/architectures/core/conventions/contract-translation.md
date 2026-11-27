@@ -203,8 +203,8 @@ apareciera nunca**, un bug silencioso porque `items: []` es indistinguible de "n
 2. Si el nombre del producto difiere del de la columna, la traducción va en un helper del módulo
    (como `properties.ts` o `priority.ts`), no repetida en cada comando.
 3. El helper devuelve `undefined` cuando el campo está ausente, para no romper la edición parcial.
-4. **Documentalo en la spec del plano que corresponda**: `docs/apis/core.yaml` si es un campo de un
-   comando, **`docs/apis/core-queries.yaml`** si es de una ficha de consulta. Una traducción
+4. **Documentalo en la spec del plano que corresponda**: `_jflow/apis/core.asyncapi.yaml` si es un campo de un
+   comando, **`_jflow/apis/core-queries.asyncapi.yaml`** si es de una ficha de consulta. Una traducción
    indocumentada es un bug esperando: quien lea la base no va a encontrar el nombre del contrato.
 5. Si la traducción es transitoria, el comentario dice **cuándo desaparece**.
 
@@ -216,8 +216,8 @@ apareciera nunca**, un bug silencioso porque `items: []` es indistinguible de "n
 - Un campo cuyo nombre difiere entre el bus y la base **no puede ir por `pickPresent`**: se agrega a
   mano al objeto de cambios, con `hasOwnProperty`.
 - No renombres los modelos de `@jiku/models`: los comparte `api`.
-- Toda traducción está documentada en la spec de su plano: `docs/apis/core.yaml` para los comandos,
-  `docs/apis/core-queries.yaml` para las consultas.
+- Toda traducción está documentada en la spec de su plano: `_jflow/apis/core.asyncapi.yaml` para los comandos,
+  `_jflow/apis/core-queries.asyncapi.yaml` para las consultas.
 - **Ninguna traducción se filtra a `@jiku/models`**: el paquete describe la base tal como es, y lo
   comparten los dos servicios. Vale para las de escritura y para las de lectura por igual.
 - Una traducción de LECTURA vive en la ficha del recurso, no en el archivo del endpoint: fuera de la

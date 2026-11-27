@@ -136,7 +136,7 @@ correcta a largo plazo** y está registrada como pregunta abierta 12 y en FG-6.
 - El contrato refleja exactamente el almacenamiento
 
 **Cons:**
-- El vocabulario del producto nunca llega al contrato: quien lee `docs/apis/core.yaml` ve
+- El vocabulario del producto nunca llega al contrato: quien lee `_jflow/apis/core.asyncapi.yaml` ve
   `objectives` y tiene que saber que se llaman tareas
 - La deuda de vocabulario se congela
 
@@ -161,7 +161,7 @@ el código de core.
 
 ## Referencias
 
-- Contrato: [`docs/apis/core.yaml`](../apis/core.yaml)
+- Contrato: [`_jflow/apis/core.asyncapi.yaml`](../../_jflow/apis/core.asyncapi.yaml)
 - Esquema: [`docs/db-schemas/jiku.md`](../db-schemas/jiku.md)
 - Vocabulario del producto: [`docs/prd/goals-and-context.md`](../prd/goals-and-context.md)
 - Feature group que lo revisa: **FG-6** en [`docs/prd/feature-groups.md`](../prd/feature-groups.md)

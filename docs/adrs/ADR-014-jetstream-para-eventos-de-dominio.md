@@ -81,7 +81,7 @@ que ningún plano se entere del otro.
   declarado y esperado, no una condición de error.
 
 **Este stream no es una fuente reconstruible de estado.** Un conector que necesite el estado
-completo y actual de una entidad consulta `docs/apis/core-queries.yaml` — el stream de eventos solo
+completo y actual de una entidad consulta `_jflow/apis/core-queries.asyncapi.yaml` — el stream de eventos solo
 lleva lo que cambió, cuándo cambió, y solo mientras la retención lo permita.
 
 ### La ventana entre el commit y el publish
@@ -124,11 +124,11 @@ Verificado contra `deploy/nats/create-events-stream.sh`, que crea y verifica el 
 mismos valores (`--retention limits --max-age 7d --storage file`, subject
 `$INSTANCE.events.$EVENTS_VERSION.>`).
 
-### `docs/apis/core-events.yaml` es la fuente de verdad
+### `_jflow/apis/core-events.asyncapi.yaml` es la fuente de verdad
 
 Este ADR documenta retroactivamente una decisión ya tomada e implementada. Todo su contenido
 técnico —la gramática, el versionado, las garantías, la ventana— está declarado primero en
-`docs/apis/core-events.yaml`, escrito **antes** que el código emisor (al revés que los otros dos
+`_jflow/apis/core-events.asyncapi.yaml`, escrito **antes** que el código emisor (al revés que los otros dos
 contratos del servicio, que se escribieron leyendo código ya en producción). **Ante una
 discrepancia entre el código y ese contrato, manda el contrato** — la misma regla que ADR-004 ya
 declara para `core.yaml` y `core-queries.yaml`.
@@ -147,7 +147,7 @@ declara para `core.yaml` y `core-queries.yaml`.
   ([ADR-003](ADR-003-transaccion-del-despachador.md)).
 - `version` en el sobre del evento **DEBE** salir de `EVENTS_VERSION` (`@jiku/nats-protocol`) y
   **NUNCA** ser un literal `'v1'` escrito a mano: un `v2` futuro no tiene que tocar el emisor.
-- Ante una discrepancia entre el código y `docs/apis/core-events.yaml`, **manda el documento**.
+- Ante una discrepancia entre el código y `_jflow/apis/core-events.asyncapi.yaml`, **manda el documento**.
 - Un comando **NO DEBE** publicar directamente: declara eventos en `Reply.events` y es el
   despachador quien los emite ([ADR-003](ADR-003-transaccion-del-despachador.md); convención
   `bus-publisher`).
@@ -268,7 +268,7 @@ Dos alternativas menores, de convención más que de arquitectura del stream:
 
 ## Referencias
 
-- Contrato completo: [`docs/apis/core-events.yaml`](../apis/core-events.yaml) (AsyncAPI 2.6, 16
+- Contrato completo: [`_jflow/apis/core-events.asyncapi.yaml`](../../_jflow/apis/core-events.asyncapi.yaml) (AsyncAPI 2.6, 16
   eventos)
 - Flujo de punta a punta: [`docs/flows/eventos-de-dominio.md`](../flows/eventos-de-dominio.md)
 - Feature group que desbloquea: **FG-2** en

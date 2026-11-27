@@ -124,7 +124,7 @@ Authorization: Bearer {accessToken}   ← inyectado en el servidor (Server Actio
 `date` (string, format date, req) · `minutes` (integer, min 1, req) · `projectId` (integer, req) ·
 `objectiveId` (integer, nullable) · `requirementId` (integer, nullable) · `personId` (integer, opt)
 
-**Ref:** `docs/apis/api.yaml` — `POST /worked-times`, `x-bus-command: worked-times.new`
+**Ref:** `_jflow/apis/api.openapi.yaml` — `POST /worked-times`, `x-bus-command: worked-times.new`
 
 ---
 
@@ -170,7 +170,7 @@ req) · `minutes` (integer, min 1, req) · `projectId` (integer, req) ·
 > clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
 > api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
 > arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
-> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+> antes de autorizar. Contrato: `components/schemas/Actor` de `_jflow/apis/core.asyncapi.yaml`.
 
 > **`personId` es opcional en el bus desde S-031.** Cuando no viaja, `core` lo resuelve **desde el
 > actor** (`SELECT id FROM people WHERE user_id = {actor}`). La nota que decía *"core no puede
@@ -181,7 +181,7 @@ req) · `minutes` (integer, min 1, req) · `projectId` (integer, req) ·
 
 **Timeout:** `NATS_REQUEST_TIMEOUT_MS` (default 5000 ms)
 
-**Ref:** `docs/apis/core.yaml` — canal `worked-times.new`, `WorkedTimesNewPayload`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — canal `worked-times.new`, `WorkedTimesNewPayload`
 
 ---
 
@@ -251,7 +251,7 @@ relaciones, así que la api **relee la base**
 { ...WorkedTimeWithRelations }   ← con proyecto, persona y tarea/requisito resueltos
 ```
 
-**Ref:** `docs/apis/api.yaml` — schema `WorkedTimeWithRelations`
+**Ref:** `_jflow/apis/api.openapi.yaml` — schema `WorkedTimeWithRelations`
 
 ---
 

@@ -273,7 +273,7 @@ interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
 
 **Location:** `packages/nats-protocol/src/index.ts`
 
-**Description:** Value stored under a key of the `JIKU_MODULES` bucket (`docs/apis/jiku-modules.yaml`).
+**Description:** Value stored under a key of the `JIKU_MODULES` bucket (`_jflow/apis/jiku-modules.asyncapi.yaml`).
 Type only; the package does not validate it. Readers must validate it and tolerate new fields within v1.
 
 **Signature:**

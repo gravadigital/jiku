@@ -115,7 +115,7 @@ byte no pasa ni por `opus-web` ni por la `api` ni por el bus.
 
 **La validación autoritativa es de `core`**, con la política de `system_settings` leída en caliente.
 
-**Ref:** [`subida-de-archivos`](subida-de-archivos.md) · `docs/apis/api.yaml` — `UploadTicket`
+**Ref:** [`subida-de-archivos`](subida-de-archivos.md) · `_jflow/apis/api.openapi.yaml` — `UploadTicket`
 
 ---
 
@@ -229,7 +229,7 @@ verificada en lote contra `users`) · `fileIds` (`FileIds`, integer[], `maxItems
 > clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
 > api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
 > arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
-> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+> antes de autorizar. Contrato: `components/schemas/Actor` de `_jflow/apis/core.asyncapi.yaml`.
 
 > **`attachmentIds` pasó a `fileIds`, y `attachmentScope` desapareció del payload:** existía solo
 > para elegir el anclaje del draft, y no hay draft. El tope de 10 archivos deja de ser un límite de
@@ -239,7 +239,7 @@ verificada en lote contra `users`) · `fileIds` (`FileIds`, integer[], `maxItems
 > la api**, no a la persona. Core confía en este campo sin verificarlo: la única defensa es la
 > política del auth-callout ([ADR-007](../adrs/ADR-007-identidad-zitadel-auth-callout.md)).
 
-**Ref:** `docs/apis/core.yaml` — canal `requirements.new`, `RequirementsNewPayload`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — canal `requirements.new`, `RequirementsNewPayload`
 
 ---
 

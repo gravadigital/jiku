@@ -58,7 +58,7 @@ export default class User extends Model {
    * NOT NULL. Ver `20260825_01_users_email_nullable.js`, que tiene el argumento completo.
    *
    * PARA UNA PERSONA SIGUE SIENDO OBLIGATORIO, pero eso NO lo enforcea esta columna: lo enforcea
-   * el esquema Joi de `core/src/events/dispatcher.ts`, que exige `email` salvo con
+   * el esquema Joi de `services/core/src/events/dispatcher.ts`, que exige `email` salvo con
    * `identity_type === 'service'`. La restricción es condicional y la columna no puede
    * expresarla — una CHECK podría, y se descartó: dejaría la regla en dos lugares, y el que
    * decide cuándo puede faltar es el consumidor del evento.

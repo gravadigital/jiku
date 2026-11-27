@@ -106,7 +106,7 @@ Interpolado con el id del recurso, siguiendo la gramática del protocolo:
 | Acción | `tasks.{id}.comment` |
 
 Los 13 comandos que publica hoy la api están en el overview; el contrato completo de los 17 que
-sirve core, en [`docs/apis/core.yaml`](../../../apis/core.yaml).
+sirve core, en [`_jflow/apis/core.asyncapi.yaml`](../../../../_jflow/apis/core.asyncapi.yaml).
 
 ### El usuario que actúa
 

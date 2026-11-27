@@ -22,7 +22,7 @@ You also need two service users in the identity provider, each with a JSON key.
 
 ## The migrations cannot build the schema from scratch
 
-The 95 migrations under `api/db-upgrade/migrations/` all assume an existing schema. The
+The 95 migrations under `services/api/db-upgrade/migrations/` all assume an existing schema. The
 earliest one modifies the `objectives` table, and **no migration creates it**. Against an
 empty database the API fails on startup:
 
@@ -127,7 +127,7 @@ being copied or forwarded. The only control is its lifetime, `download-url-ttl-s
 Attachment ids are still sequential integers, but enumerating them no longer reveals
 anything: every endpoint requires a bearer token, so an unauthenticated caller gets `401`
 before any id reaches the database. The only authentication
-exemption in `api/config/public.ts` is `GET /p/docs/`, the shared documentation links, and it
+exemption in `services/api/config/public.ts` is `GET /p/docs/`, the shared documentation links, and it
 carries its own controls: a host of its own, a rate limit, a 256-bit token and a `404` that does
 not reveal whether a link ever existed. Everything else needs a token — visibility level only
 governs what an **authenticated** user can see, not whether a file can be fetched anonymously.

@@ -3,9 +3,9 @@ import 'should';
 import { reload } from './helpers/reload';
 
 /**
- * Los 20 patrones que registra `core/src/commands/index.ts`, con el par que micro necesita.
+ * Los 20 patrones que registra `services/core/src/commands/index.ts`, con el par que micro necesita.
  *
- * La tabla es copia de `docs/apis/core.yaml` —el contrato—, NO un recálculo con las mismas
+ * La tabla es copia de `_jflow/apis/core.asyncapi.yaml` —el contrato—, NO un recálculo con las mismas
  * funciones que se están probando. Si se recalculara, el test pasaría con cualquier cambio a la
  * derivación, que es exactamente lo contrario de lo que se busca.
  */
@@ -176,7 +176,7 @@ describe('nats-protocol · methodFromSubject', () => {
   });
 
   it('TS-36: ida y vuelta commandSubject() -> methodFromSubject() sobre los 20 patrones', () => {
-    // Es lo que garantiza que `core/src/bus/dispatcher.ts` siga resolviendo sin tocarse.
+    // Es lo que garantiza que `services/core/src/bus/dispatcher.ts` siga resolviendo sin tocarse.
     const methods = PATTERNS.map((pattern) =>
       pattern
         .split('.')

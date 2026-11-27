@@ -15,7 +15,7 @@ will spend the time.
 | **A database dump** | the migrations cannot build the schema from empty — see below |
 
 That last one is the sharpest edge in adopting Jiku today, and it is worth knowing before you
-start: the 95 migrations under `api/db-upgrade/migrations/` assume an existing schema and only
+start: the 95 migrations under `services/api/db-upgrade/migrations/` assume an existing schema and only
 alter it. Against an empty database the api fails to start. See
 [known-limitations.md](known-limitations.md).
 

@@ -275,7 +275,7 @@ consolidación: si la API no las replica, son validaciones solo de UI.
 | Tipo de entidad de adjunto | `project`, `objective`, `stage`, `requirement_draft`, `comment_draft`, `objective_comment`, `requirement_comment`, `objective_comment_draft`, `requirement_comment_draft` |
 
 Nota terminológica: la UI dice **"Actores"** donde la API y la base dicen `clients`, y
-**"Tareas"** donde dicen `objectives`. Esto ya está registrado en `docs/apis/core.yaml`.
+**"Tareas"** donde dicen `objectives`. Esto ya está registrado en `_jflow/apis/core.asyncapi.yaml`.
 
 ## Configuración
 

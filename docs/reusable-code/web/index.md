@@ -176,5 +176,5 @@ Total: 15
 - **ModuleState / ModuleStatus** (`web/src/features/docs/types/module.types.ts`) - Response of `GET /modules`.
 - **DocsShare / DocsSharePage / DocsShareCreated / DocsShareRevoked / ShareExpiryDays / CreateShareInput** (`web/src/features/docs/types/docs.types.ts`) - Shared-link contract verbatim from `api.yaml` plus the input of `createShare` (days instead of a date).
 - **DocsDocument, DocsDocumentDetail, DocsDocumentPage, DocumentsFilters…** (`web/src/features/docs/types/docs.types.ts`) - Verbatim from `jiku-docs-queries.yaml` 1.1.0; dates as ISO strings.
-- **DocsResult, DocsError, DocsFolder, DocsSearchHit, DocsWriteResult, DocsLockGrant, FolderTrail, RootFolders…** (`web/src/features/docs/types/docs.types.ts`) - Write/folder/search contract types of S-082, verbatim from `docs/apis/api.yaml`; `ApiError.details?` added in `lib/axios.ts`.
+- **DocsResult, DocsError, DocsFolder, DocsSearchHit, DocsWriteResult, DocsLockGrant, FolderTrail, RootFolders…** (`web/src/features/docs/types/docs.types.ts`) - Write/folder/search contract types of S-082, verbatim from `_jflow/apis/api.openapi.yaml`; `ApiError.details?` added in `lib/axios.ts`.
 - **ApiError.details** (`web/src/lib/axios.ts`) - Optional `details` copied by the interceptor only when the api sends it (`holder`, `expiresAt`, `currentVersion`).

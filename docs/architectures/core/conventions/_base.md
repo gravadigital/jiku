@@ -118,7 +118,7 @@ core/src/
 - `strict: true` no se apaga.
 - Un comando nuevo son tres pasos: el archivo, el registro en `commands/index.ts`, y sus tests.
   Los tres o ninguno.
-- El `pattern` de un comando tiene que coincidir con el subject de `docs/apis/core.yaml`. Ante una
+- El `pattern` de un comando tiene que coincidir con el subject de `_jflow/apis/core.asyncapi.yaml`. Ante una
   discrepancia, **manda el documento**.
 - Un comando nunca abre ni cierra transacciones. Ver [`commands`](./commands.md).
 - Un comando nunca lee `process.env`. La configuración se lee al arrancar

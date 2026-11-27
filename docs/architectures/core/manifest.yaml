@@ -67,7 +67,7 @@ conventions:
 #
 # `queries` son 23 endpoints sobre 16 recursos, servidos por un MOTOR GENÉRICO más una ficha por
 # recurso: la ficha es un DATO —las cinco listas blancas del recurso— y el motor sabe cómo servirla.
-# Su contrato es `docs/apis/core-queries.yaml`.
+# Su contrato es `_jflow/apis/core-queries.asyncapi.yaml`.
 modules:
   - clients
   - projects

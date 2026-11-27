@@ -1,0 +1,2534 @@
+asyncapi: '2.6.0'
+
+# Messaging contract of `core` — the 23 commands it serves over NATS as the `jiku-commands` micro
+# service.
+#
+# REQ-007 — WRITES OPEN TO PEOPLE, AND THE RULES MOVE HERE
+#   Three things change in this contract and they are called out inline as "REQ-007":
+#     1. Every message accepts a reserved top-level key `actor` (see `components/schemas/Actor`),
+#        extracted by the dispatcher BEFORE validation. Only the trusted publisher may send it.
+#     2. `week-assigned-times.replace` is the 21st command: the weekly assignment grid stops being
+#        the only domain write that does not go through core.
+#     3. Rules that used to live in the api now live here: the submission window, who may log time
+#        for someone else, the requirement state workflow and the mandatory conclusion.
+#
+# REQ-011 — COMMENT EDITING
+#   Commands 22 and 23 (`requirements.{id}.comment.{cid}.edit`, `tasks.{id}.comment.{cid}.edit`)
+#   join the role -> method map's shared constant, which grows from 18 to 20 enumerated commands
+#   for `admin` and `user`, in both columns.
+#
+# WHY AsyncAPI AND NOT OpenAPI
+#   Core exposes no HTTP: no port, no endpoints, no verbs. Its only interface is the bus, with
+#   request/reply over NATS. An OpenAPI spec would have to invent routes that do not exist.
+#
+# THIS FILE IS THE SOURCE OF TRUTH
+#   Everything that travels over the bus is answered by core, so this spec is the whole
+#   contract. Where the code and this file disagree, the file wins.
+#
+#   It was written by reading the Joi schemas in `services/core/src/commands/`, so it describes what
+#   core actually accepts. Three points where an earlier prose version of this protocol said
+#   otherwise are called out inline as "Corrected": in all three the code was right.
+
+info:
+  title: Jiku core — NATS command contract
+  version: 1.0.0
+  description: |
+    `core` is the only service that writes to Jiku's database. It serves commands published by
+    the api over NATS, validates the business rules and writes.
+
+    **One process, two logical services on the bus.** Since REQ-004 the `core` process registers
+    **two NATS micro services over a single connection**: `jiku-commands`, the 23 write commands
+    this spec describes, and `jiku-queries`, the read endpoints, with their own queue group and
+    their own read-only connection to PostgreSQL. **The contract of `jiku-queries` is OUT OF SCOPE
+    of this spec, and that is permanent** — this file stays the contract of the commands.
+
+    **That contract now EXISTS and lives in `_jflow/apis/core-queries.asyncapi.yaml`** (AsyncAPI 2.6, same
+    format, same "the document wins" rule), written by REQ-006: **23 endpoints over 16 resources**,
+    all of them with a resource sheet. `nats micro info jiku-queries` lists the 23 with their own
+    queue group, and none of them answers `unknown_command` — the transitional stub
+    (`services/core/src/queries/pending.ts`) was deleted by the last story of that requirement.
+
+    > **16 resources, not 18.** The "18" this file carried came from counting the sections of the
+    > *Recursos* chapter of the analysis document, which counted `requirements.tags` and
+    > `meta.describe` as if they were resources. They are not: the first is an OPERATION of
+    > `requirements` and the second is the describer. The ENDPOINT count is exact at 23.
+
+    **What REQ-006 changes IN THIS FILE** is only what is shared with the commands: the `Reply`
+    envelope gains the optional `errorDetails`, and `ErrorCode` gains five codes that **no command
+    emits**. Both changes are additive; the 20 commands are unchanged.
+
+    **What REQ-007 changes in this file.** Every message accepts the reserved key `actor`
+    (`components/schemas/Actor`), the 21st command appears (`week-assigned-times.replace`), and
+    several channels gain business rules that used to be enforced by the api. `ErrorCode` gains
+    `access_denied`. **The `actor` key is described ONCE, here and in `Actor` — it is not repeated
+    on the 21 channels**, because it belongs to the transport and not to the domain: the
+    dispatcher extracts it before `registry.resolve()` and before `sequelize.transaction()`, so
+    the Joi schema of each command never sees it.
+
+    **Who may send `actor`.** Only the trusted publisher (`CORE_TRUSTED_PUBLISHER_ID`, the api). A
+    caller that is not the trusted publisher and sends `actor` is rejected with `invalid_fields`:
+    for everyone else the identity **is** the second token of the subject, which the auth-callout
+    makes unforgeable. It is the same doctrine `core-queries.yaml` already states for the read
+    plane.
+
+    **The identity mirror.** When `actor` arrives, core writes `users` (`INSERT … ON CONFLICT DO
+    UPDATE` over `name`, `username`, `email`, `roles`, `identity_type`) **in its own transaction
+    and BEFORE authorising**, so the row that authorises a direct bus caller is written by the
+    same claim that authorises the api's caller. `actor.id` and `actor.roles` are mandatory;
+    missing profile fields log a warning and do **not** reject the command.
+
+    **Both services are discoverable.** `$SRV.PING` / `INFO` / `STATS` report, per endpoint,
+    request count, mean latency and last error. One caveat worth knowing before building a
+    dashboard: **`num_errors` stays at 0 by design of the library** — `respondError()` does not
+    increment it — so failures are measured by logs and by `errorCode`, never by that metric.
+
+    **Pattern: request/reply, no JetStream.** Every message is answered on the spot. There is
+    no queue, no retry and no persistence: if core is down, the api's request times out and
+    the operation did not happen.
+
+    **Core does not authenticate users, but since REQ-005 it DOES know about roles.** It still
+    trusts the `creator` / `author` / `editor` that travels in the body **inside the api's
+    channel** — but that trust **no longer rests entirely on the bus access policy**. There is now
+    a second plane:
+
+    **Authorisation gate on the caller (REQ-005).** Both dispatchers — commands and queries —
+    check the caller of the subject **before resolving the method and before opening the
+    transaction**:
+
+    ```
+    caller == CORE_TRUSTED_PUBLISHER_ID  -> passes WITHOUT touching the database
+    otherwise                            -> User.findByPk(caller)
+                                              no row                        -> caller_not_authorized
+                                              row, no role allows the method -> caller_not_authorized
+    ```
+
+    The map of role → method is closed and **deny-by-default** (ADR-008): `internal-app` — **the
+    connector role** — gets **every command and every query**; the product roles (`admin`, `user`,
+    `external-user`) get **every query**; anything absent from the map authorises nothing.
+
+    **Since REQ-007 / S-030 the product roles DO authorise commands, and the map distinguishes two
+    channels.** Until that story it said "no command" for all three, because the business rules
+    that depend on the end user lived in the api and had nowhere to live on the writer's side.
+
+    | Role | Commands published DIRECTLY to the bus | Commands published WITH AN ENVELOPE |
+    |---|---|---|
+    | `internal-app` | all | all |
+    | `admin` | the 20 enumerated | the same 20 |
+    | `user` | the same 20 as `admin` | those 20 + `requirements.{id}.subscriptors.new` |
+    | `external-user` | **none** | the 6 the portal reaches over HTTP |
+    | `core` · `bus-observer` | none | none |
+    | unknown role | none | none |
+
+    **Why the two channels are not the same list, and why only one role declares the difference.**
+    An `external-user` **does not write over the bus** (REQ-007 §20): its callout template gives it
+    no publish permission, and this map is the *second, independent* defence in case that template
+    were ever wrong. But it **does write through the portal** — six opus endpoints declare
+    `external-user` and publish a command — and since S-029 that write arrives here inside an
+    envelope carrying `actor.roles`. With a single list you have to choose between breaking the
+    portal and opening the bus. With two, you don't.
+
+    **A command a person reaches ONLY because the api publishes it on their behalf goes in the
+    envelope column, not the direct one.** `user` reaches
+    `requirements.{id}.subscriptors.new` solely as the secondary command of
+    `POST /api/opus/requirements`; the subscription endpoint itself is `external-user` only. Putting
+    it in the direct column would let any `user` on the bus subscribe anyone to any requirement —
+    more than their HTTP surface allows. This story migrates rules; it does not invent them.
+
+    **The role that decides is the ACTOR's, not the publisher's.** `internal-app` is still exempt
+    as a **publisher** — that is what lets it send the envelope — but it is **no longer the
+    authoriser**: when a command arrives with an envelope, the map is consulted with the person's
+    roles.
+
+    **The enumeration is derived from `x-roles` in `_jflow/apis/api.openapi.yaml`, endpoint by endpoint**, and
+    a parity test verifies it against that spec. It is not written from memory, and it must not be
+    edited by hand. Note that a route may publish **more than one command**: `x-bus-command`
+    documents the 1:1 endpoint → command correspondence, so a secondary command (such as the
+    subscription `POST /api/opus/requirements` publishes after creating the requirement) does not
+    appear in the spec at all and is declared as data in that test.
+
+    `week-assigned-times.replace` **is** in the map since S-032, and it is the only command
+    enumerated for **`admin` alone** (C-38). It is NOT in the list of 20 that `admin` and `user`
+    share on purpose — that constant is shared so the two roles cannot diverge, so putting the
+    21st command there would hand it to `user` too. `PUT /api/week-assigned-times` is the only
+    route of the product with `x-roles: [admin]` on its own, and that is why it is the only
+    command that breaks the symmetry.
+
+    > **`external-publisher` was removed.** It enumerated the 9 subjects of a callout template of
+    > its own, for the channel REQ-001 RF-11 defined — an outside service that uploads files and
+    > links them without going through the api. **The role never existed in Zitadel**, so the
+    > channel was never used and the two enumerations were dead configuration kept in sync by
+    > hand. The capability survives — an outside service now carries `internal-app` — but its
+    > size changed: **from 9 enumerated write subjects to both planes in full**, plus the
+    > `connector` caller class, which applies **no row-level trimming** to reads. A narrower
+    > connector is a new role, with its own template and its own entry in the map.
+
+    **Why the api's channel is exempt, and why it is not a shortcut.** Without the exemption there
+    is a **silent total write outage**: if the api connects to the bus before core is subscribed,
+    its authentication event is lost (core NATS, no retry, no record), the api stays connected and
+    functional **without a row in `users`**, and core refuses **all 23 commands** with a 403 — until
+    the api reconnects, which with a hot-renewed ~1 h token may not happen for days. The api also
+    already authorises by role before publishing (`hasAnyRole`), so consulting `users.roles` for its
+    service user would be authorising the same thing twice from two sources, with the worse of the
+    two deciding. The exemption reuses the very constant and branch that `resolveActor` already has.
+
+    > **REQ-007 — the two paragraphs that used to be here are DEROGATED, and this is the change
+    > that gives the requirement its name.**
+    >
+    > They read: *"Product roles authorise no command on purpose. Core does not hold the business
+    > rules that depend on the end user — the worked-hours window, who may charge hours to someone
+    > else, the frozen past weeks of assignment. They live in the api"*; and *"People CAN now
+    > connect to the bus (REQ-005), but **only to read**"*.
+    >
+    > **Both are now false, and in this order:**
+    >
+    > 1. **The three rules moved here** (S-031, S-032). The window and the charge-to-others rule
+    >    live in `worked-times.new`; the frozen past week lives in the 21st command,
+    >    `week-assigned-times.replace`, which had to be created because there was nowhere to put
+    >    it. The requirement state workflow (S-033) joined them, and it was never in the api
+    >    either — it lived only in `web`.
+    > 2. **The role -> method map enumerates commands for `admin` and `user`** (S-030), instead of
+    >    saying "no command". It is still deny-by-default: no match, no authorisation, and an
+    >    unknown role authorises nothing. `external-user` still gets **no command at all**.
+    > 3. **`templates/person.yaml` was split** (S-035) into `person-internal.yaml` — queries **and**
+    >    commands — and `person-external.yaml`, which keeps exactly today's permissions. Adding
+    >    commands to the shared template would have given them to `external-user` too.
+    >
+    > **The acting user still travels in the body for the api's channel**, now as the reserved
+    > `actor` key rather than scattered across `creator`/`author`/`editor`/`uploader` — the subject
+    > identifies the api, not the person. **For every other channel the identity IS the subject**,
+    > and sending `actor` from a non-trusted caller is `invalid_fields`.
+
+    **The transaction belongs to the dispatcher**: commit if the reply is `success`, rollback
+    in any other case.
+
+    ## REQ-001 — files, ownership and the storage
+
+    **Core is the single owner of the storage.** With the `files` module it stops consuming only
+    "PostgreSQL, NATS, Zitadel" and gains an S3 client that signs PUT and GET. **The api keeps no
+    S3 credentials**, so it cannot reach an object core did not sign for it — a guarantee of
+    infrastructure, not of discipline, the same kind ADR-001 achieved for database writes.
+
+    **Ownership of a file is resolved per channel (`resolveActor`).** `CommandContext.caller` is
+    the SERVICE that published, taken from the subject; for the api it is a single service user
+    shared by every person. So neither comparison works on its own: `uploaded_by == caller`
+    breaks the web, and `uploaded_by == payload.author` does not satisfy RF-14. The resolution is:
+
+    ```
+    resolveActor(ctx, payload):
+      if ctx.caller == CORE_TRUSTED_PUBLISHER_ID   (the api's service user, from config)
+         -> the actor is payload.author / creator / editor / uploader
+            (the api ALREADY authenticated that person against Zitadel by JWT)
+      else
+         -> the actor is ctx.caller
+            (an external publisher has no person behind it: its identity IS the subject's,
+             vouched by the auth-callout and unforgeable. Whatever it declares is IGNORED)
+    ```
+
+    And then, uniform across both channels:
+    `if File.uploaded_by != resolveActor(ctx, payload) -> failure(file_not_owned)`.
+
+    - **`files.request-upload` and the eight domain commands MUST use the same function.** If
+      uploading and linking resolved identity differently, nobody could link what they uploaded.
+      (REQ-011 grows the count from six to eight: `requirements.{id}.comment.{cid}.edit` and
+      `tasks.{id}.comment.{cid}.edit` resolve their `fileIds` with the same `syncFileLinks`.)
+    - **No exception by role** (RF-13): core knows nothing about roles, so the rule is uniform by
+      construction — there is nowhere to put the exception even if one wanted to.
+    - **What is still not covered:** inside the api's channel, core keeps trusting the `author` in
+      the body (D-24). Someone holding the api's service user could link files as anybody. This
+      design does not close that hole — it **narrows it to the api's channel**; the external
+      publisher, which is the new actor, is fully covered.
+    - **`CORE_TRUSTED_PUBLISHER_ID` is configuration, not a literal**, and **core MUST fail to
+      start without it**: an empty default would send every `caller` down the external branch and
+      break the web silently. The external branch should log at `warn`, since today it is the rare
+      case.
+  license:
+    name: Apache-2.0
+  contact:
+    name: Grava Digital
+
+defaultContentType: application/json
+
+servers:
+  dev:
+    url: nats://localhost:4222
+    protocol: nats
+    description: |
+      Development instance. `NATS_INSTANCE=dev`.
+
+      Authentication has two layers: the sentinel creds (`NATS_CREDS`) grant no permissions on
+      their own — it is the Zitadel service user token that triggers the auth-callout, which
+      reads the role and mints the subject permissions for that connection.
+  prod:
+    url: nats://nats:4222
+    protocol: nats
+    description: Production instance. `NATS_INSTANCE=prod`.
+
+# ---------------------------------------------------------------------------
+# Subject grammar
+# ---------------------------------------------------------------------------
+#
+#   {instance}.{user-id}.{svc}.{version}.{method}
+#   dev.323332022539911171.jiku-commands.v1.clients.new
+#
+#   instance   deployment: dev / prod              (NATS_INSTANCE)
+#   user-id    WHO publishes: the token's `sub`, RAW
+#   svc        jiku-commands                       (NATS_COMMAND_SERVICE)
+#              jiku-queries                        (NATS_QUERY_SERVICE)
+#   version    protocol version: `v1`              (NATS_PROTOCOL_VERSION)
+#   method     clients.new, requirements.{id}.edit, ...
+#
+# THE GRAMMAR DID NOT CHANGE — the set of values of the `{svc}` token went from one to two.
+#
+# Core registers the group `{instance}.*.{svc}.{version}` per service and subscribes one endpoint
+# per method, with queue group `jiku-commands` for the commands and `jiku-queries` for the
+# queries. The wildcard covers any caller and several replicas share the messages between them.
+#
+# WHY THE SEPARATION LIVES IN `{svc}` AND NOT NESTED UNDER THE COMMANDS SERVICE. The commands
+# subscription used to be `{instance}.*.{svc}.v1.>`, and that `>` would also swallow the queries
+# if they shared the `{svc}` token. Two different queue groups over overlapping subjects means the
+# message is delivered to BOTH subscriptions and TWO replies reach the same inbox; a plain
+# `request()` returns the first and DISCARDS THE SECOND SILENTLY. Sharing the process does not
+# avoid it: the overlap is in the subject. With a distinct `{svc}` the problem cannot happen,
+# because subject tokens are compared whole.
+#
+# ---------------------------------------------------------------------------
+# THE EVENT SUBJECT DOES NOT FOLLOW THIS GRAMMAR, AND THAT IS CORRECT (REQ-005)
+# ---------------------------------------------------------------------------
+#
+#   {instance}.events.auth                          3 segments, fire-and-forget, NO reply
+#   {instance}.{user-id}.{svc}.{version}.{method}    5+ segments, request/reply
+#
+# DO NOT "FIX" IT into the grammar above. It is a different shape because it is a different
+# pattern:
+#   - There is no reply. The publisher (`auth-callout`, credential `callout-events`) does not
+#     wait for anything, and there is nothing to ack: `CALLOUT_EVENTS_STREAM` is deliberately
+#     left undefined, so the message is plain core NATS, not JetStream.
+#   - There is no caller in the subject. The identity travels in the payload (`id` = the Zitadel
+#     `sub`), because the event is ABOUT an identity rather than published BY one on its behalf.
+#   - It is NOT a micro endpoint. Micro is request/reply and every endpoint must answer;
+#     `respond()` on a message without a reply subject is a silent no-op that also pollutes the
+#     `$SRV` counters. Core consumes it with a FLAT subscription plus a queue group, in
+#     `src/bus/host.ts`, and `registerService()` is untouched.
+#   - It has its own dispatcher (`src/events/`), not a branch of the command one: no `Reply`, no
+#     caller in the subject, total-replacement update semantics, and no `status` to decide the
+#     transaction. Four `if`s make a different dispatcher.
+#
+# CORE PUBLISHES SINCE REQ-014, BUT ONLY ON THE EVENTS PLANE. Commands stay request/reply with NO
+# JetStream (D-3, and the title of ADR-002 still holds) — this section describes the identity
+# event, and nothing here changes about how the 23 commands are dispatched. The domain events
+# `core` now publishes have their OWN contract, `_jflow/apis/core-events.asyncapi.yaml`, and their OWN
+# subject family: `{instance}.events.{version}.{entidad}.{acción}` — 5 segments, with its own
+# version (`NATS_EVENTS_VERSION`), distinct from this section's `{instance}.events.auth` (3
+# segments). The publish permission (`pub.allow`) for that family is configured separately from
+# this section's subscription permission, and its wildcard MUST carry the version
+# (`{instance}.events.v1.>`) so it does not swallow `events.auth`.
+#
+# THE SUBSCRIPTION PERMISSION IS THE LITERAL SUBJECT in `templates/core.yaml` `sub.allow` — never
+# `{{instance}}.events.>`. Deny-by-default applies on the bus too (ADR-008): a future event MUST
+# require a new line there, so no consumer starts receiving a new event type just because someone
+# added it to the namespace. WITHOUT THAT LINE core starts, serves the 23 commands, logs that it
+# subscribed, and receives nothing — the permissions violation is asynchronous and lands in the
+# NATS SERVER's log, never as a failure of `subscribe()`.
+#
+# The event's contract (payload, guards, field mapping) is documented in
+# `docs/flows/sincronizacion-de-identidades.md`, not in `channels` below: it is not a
+# request/reply channel and modelling it as one would be wrong.
+#
+# The `channels` below are named after the COMMAND, not the full subject: the prefix is the same
+# for all of them and depends on the environment.
+#
+# EVERY CHANNEL IS A MICRO ENDPOINT. The endpoint name and subject are DERIVED from the command
+# pattern by `endpointName()` / `endpointSubject()` of `@jiku/nats-protocol` — nothing is written
+# by hand, so adding a command to the registry registers it as an endpoint too — which is exactly
+# how command 21 got its endpoint in S-032, without a line of `bus/`. This is the table
+# `nats micro info jiku-commands` shows:
+#
+#   #   command pattern                                    endpoint subject                      endpoint name
+#   1   clients.new                                        clients.new                           clients-new
+#   2   clients.{id}.edit                                  clients.*.edit                        clients-edit
+#   3   projects.new                                       projects.new                          projects-new
+#   4   projects.{id}.edit                                 projects.*.edit                       projects-edit
+#   5   tasks.new                                          tasks.new                             tasks-new
+#   6   tasks.{id}.edit                                    tasks.*.edit                          tasks-edit
+#   7   tasks.{id}.comment                                 tasks.*.comment                       tasks-comment
+#   8   requirements.new                                   requirements.new                      requirements-new
+#   9   requirements.{id}.edit                             requirements.*.edit                   requirements-edit
+#   10  requirements.{id}.resolve                          requirements.*.resolve                requirements-resolve
+#   11  requirements.{id}.comment                          requirements.*.comment                requirements-comment
+#   12  requirements.{id}.subscriptors.new                 requirements.*.subscriptors.new        requirements-subscriptors-new
+#   13  requirements.{id}.subscriptors.{userId}.delete     requirements.*.subscriptors.*.delete   requirements-subscriptors-delete
+#   14  attachments.{id}.delete                            attachments.*.delete                  attachments-delete
+#   15  files.request-upload                               files.request-upload                  files-request-upload
+#   16  files.{fileId}.request-download                    files.*.request-download              files-request-download
+#   17  worked-times.new                                   worked-times.new                      worked-times-new
+#   18  worked-times.{id}.delete                           worked-times.*.delete                 worked-times-delete
+#   19  unworked-times.new                                 unworked-times.new                    unworked-times-new
+#   20  unworked-times.{id}.delete                         unworked-times.*.delete               unworked-times-delete
+#   21  week-assigned-times.replace                        week-assigned-times.replace           week-assigned-times-replace
+#   22  requirements.{id}.comment.{cid}.edit               requirements.*.comment.*.edit         requirements-comment-edit
+#   23  tasks.{id}.comment.{cid}.edit                      tasks.*.comment.*.edit                tasks-comment-edit
+#
+# Two shape rules the derivation respects, and why:
+#   - THE NAME CARRIES NO DOTS. Micro validates the endpoint name against /^[-\w]+$/; the subject,
+#     with its dots and `*`, travels separately in `opts.subject`.
+#   - `{param}` BECOMES `*`. A subject token cannot carry braces, and the dispatcher already
+#     extracts the params from the full subject with the segment registry — it does not need them
+#     from the endpoint.
+#
+# COMMAND 21 IS THE ONLY ONE WHOSE NAME AND SUBJECT BOTH EQUAL THE PATTERN, because no segment of
+# it is a `{param}`: there is no `*` to introduce and no dot to strip.
+#
+# NO TWO ENDPOINTS MAY MATCH THE SAME SUBJECT: that would put two replies on one inbox. The 23
+# above do not overlap, and the reason is structural rather than luck — the registry matches BY
+# SEGMENT COUNT, and those sharing a length differ in their first or last literal token. But the
+# design does not rest on that manual check: `registerService()` keeps a Set of subjects and FAILS
+# THE STARTUP on a duplicate, naming the service and the subject.
+#
+# ON A `failure`, THE ENVELOPE TRAVELS IN THE BODY, and the `Nats-Service-Error` /
+# `Nats-Service-Error-Code` headers are ADDED — never a replacement for the body. The `500` of
+# `respondError` is the MICRO TRANSPORT status, not the HTTP one: the status the person sees is
+# decided by the api's `httpStatusFor` over the `errorCode` OF THE BODY.
+#
+# THE user-id IDENTIFIES THE SERVICE, NOT THE PERSON. The api uses a single service user for
+# everybody; the end user travels in the body.
+#
+# The reply inbox uses the HASHED user id: `_INBOX.<sha256 base32, 16 chars, lowercase>`. The
+# client MUST set that prefix when connecting, or the replies never arrive.
+
+channels:
+
+  # -------------------------------------------------------------------------
+  # clients
+  # -------------------------------------------------------------------------
+
+  clients.new:
+    description: Actor creation.
+    publish:
+      operationId: clientsNew
+      summary: Create an actor
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/ClientsNew'
+
+  clients.{id}.edit:
+    description: Partial edit of an actor.
+    parameters:
+      id:
+        description: Actor id (`clients.id`).
+        schema:
+          type: string
+    publish:
+      operationId: clientsEdit
+      summary: Edit an actor
+      tags:
+        - name: clients
+      message:
+        $ref: '#/components/messages/ClientsEdit'
+
+  # -------------------------------------------------------------------------
+  # projects
+  # -------------------------------------------------------------------------
+
+  projects.new:
+    description: Project creation.
+    publish:
+      operationId: projectsNew
+      summary: Create a project
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/ProjectsNew'
+
+  projects.{id}.edit:
+    description: |
+      Partial edit of a project.
+
+      **Difference from the previous api:** `PATCH /projects/:id` required almost every field and
+      cleared `endDate` when it was absent. Here an absent field is left as it was, which is what
+      the protocol defines.
+    parameters:
+      id:
+        description: Project id (`projects.id`).
+        schema:
+          type: string
+    publish:
+      operationId: projectsEdit
+      summary: Edit a project
+      tags:
+        - name: projects
+      message:
+        $ref: '#/components/messages/ProjectsEdit'
+
+  # -------------------------------------------------------------------------
+  # tasks  (the table is `objectives`; the protocol calls them tasks)
+  # -------------------------------------------------------------------------
+
+  tasks.new:
+    description: |
+      Task creation.
+
+      Validates the project, the existence of ALL the responsible people and, if
+      `requirementId` is present, that the requirement belongs to the same project. The first of
+      `responsiblePersonIds` becomes the lead.
+    publish:
+      operationId: tasksNew
+      summary: Create a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksNew'
+
+  tasks.{id}.edit:
+    description: |
+      Partial edit of a task, with an activity log.
+
+      Six fields leave a trace in `objective_activities`: `title`, `estimatedFinishDate`,
+      `state`, `area`, `priority`, `description`. The log is computed BEFORE writing, because it
+      needs the previous value. Going to empty is not logged, except for `estimatedFinishDate`.
+
+      Each activity's visibility is automatic: `state`, `title` and `description` are `public`;
+      the rest, `internal`.
+
+      `responsiblePersonIds` is a full replacement.
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksEdit
+      summary: Edit a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksEdit'
+
+  tasks.{id}.comment:
+    description: |
+      Comment on a task. Stored as an `ObjectiveActivity` of type `comment`.
+
+      **Difference from the previous api:** it did not check that the task existed, so commenting
+      on a nonexistent id failed on the foreign key with a 500. Here it is validated and the
+      reply is `objective_not_found`.
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksComment
+      summary: Comment on a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksComment'
+
+  tasks.{id}.comment.{cid}.edit:
+    description: |
+      Edit a task's comment. Only the `ObjectiveActivity`'s author or an `admin` may edit; the
+      entry must be a `comment` (`activity_not_editable` otherwise).
+
+      **REQ-011.** Migrates `PATCH /objectives/{id}/comment/{cid}`, which used to write with the
+      ORM directly, bypassing the bus (ADR-001's fourth, undeclared exception). This channel
+      closes it: the api publishes instead of writing.
+
+      `visibilityLevel` is immutable once the comment exists and is rejected with `invalid_fields`
+      if sent. `fileIds` is the COMPLETE set that must end up linked, resolved with
+      `syncFileLinks` — same semantics as `requirements.{id}.edit`. Does not notify (no
+      notification channel exists in the product yet).
+    parameters:
+      id:
+        description: Task id (`objectives.id`).
+        schema:
+          type: string
+      cid:
+        description: Comment id (`objective_activities.id`).
+        schema:
+          type: string
+    publish:
+      operationId: tasksCommentEdit
+      summary: Edit a comment on a task
+      tags:
+        - name: tasks
+      message:
+        $ref: '#/components/messages/TasksCommentEdit'
+
+  # -------------------------------------------------------------------------
+  # requirements
+  # -------------------------------------------------------------------------
+
+  requirements.new:
+    description: |
+      Requirement creation.
+
+      **Files are linked, not confirmed from a draft** (REQ-001, S-003). `fileIds` carries ids of
+      `files` that already exist on their own; the command creates the requirement and then, in
+      the same transaction, validates ownership and inserts one `attachments` row per file. The
+      requirement and its links commit together or not at all.
+
+      Validation is deliberately **late** (after creating the entity) and that is safe: the
+      dispatcher's rollback discards everything, which is the pattern
+      `requirements-new.ts:116-121` already uses.
+
+      **Subscribers are created in the same transaction too** (S-070). `subscriberUserIds`
+      carries ids of `users` that already exist on their own; the command validates each one
+      exists, deduplicates, and inserts one `requirement_subscriptors` row per id, in the same
+      transaction as the requirement. Optional and additive: a client that does not send it
+      behaves exactly as before.
+
+      **REQ-015:** declares a `requirement.created` notification; core enqueues one row per
+      `subscriberUserIds` entry other than the creator.
+    publish:
+      operationId: requirementsNew
+      summary: Create a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsNew'
+
+  requirements.{id}.edit:
+    description: |
+      Partial edit of a requirement, with an activity log.
+
+      The activity log is computed by the model's `@BeforeUpdate` hook, which fills `activityLog`
+      and —when the state changes— sets the transition timestamps (`scheduledAt`,
+      `inProgressAt`, ...). The command persists what the hook left behind. **This is a different
+      mechanism from `tasks.{id}.edit`**, which computes it in the command.
+
+      `fileIds` is the COMPLETE set that must end up linked: the ones that were not there get a
+      new `attachments` row, and the ones no longer present have their **link** deleted — the
+      file itself is always retained (REQ-001 D-04, S-003).
+
+      `responsiblePersonIds` is a full replacement.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    x-req-012-state-workflow: |
+      **REQ-012 — state transitions are free, by product decision.** `x-req-007-state-workflow`
+      (the transition table REQ-007/S-033 introduced) is DEROGATED here, not forgotten: C-15 goes
+      back to having no sequence on the server. **Every value of the `requirement_state` enum is
+      reachable from every other value**, forward or backward, including the two that used to be
+      terminal (`resuelto`, `cancelado` can both be left and re-entered).
+
+      `invalid_state_transition` is **no longer emitted** by this command (kept in
+      `@jiku/nats-protocol`'s catalog without an emitter — same policy already applied to
+      `invalid_attachment_id`, see the catalog note in this file).
+
+      **What survives from C-17 (resolution requirements) — acotado again to `incidencia`.** A
+      transition into `resuelto` requires `resolutionType` and `resolutionConclusion` **only when
+      `requirement.type === 'incidencia'`**; for `funcionalidad`, `mejora` and `otro` both fields
+      stay always optional. `type` is read from the ROW, not from the payload — a caller declaring
+      itself a different type in the same request does not bypass the rule. If the payload omits
+      `resolutionConclusion`/`resolutionType` but the row already has one stored, the stored value
+      is accepted. Missing both, for an `incidencia`: `resolution_required`, and the dispatcher's
+      rollback leaves nothing written (ADR-003).
+
+      **New: leaving `resuelto` clears the resolution.** When the transition moves the requirement
+      OUT of `resuelto` into a non-terminal state, `resolutionType`, `resolutionConclusion` and
+      `resolutionComment` are set to `null` in the SAME update — the state change and the cleanup
+      are atomic by construction, not two writes.
+
+      **Timestamps, asymmetric on purpose.** `scheduledAt`, `inProgressAt` and `inReviewAt` stay
+      write-once (the FIRST entry into each state). `finishedAt` is the exception: it is rewritten
+      on every entry into `resuelto`, so it always reflects the LAST resolution, not the first —
+      see `packages/models/src/requirement.model.ts`.
+
+      **This does not touch authorization.** The role -> method map and the dispatcher's entity
+      check are unrelated planes and neither changes because of this note.
+
+      **REQ-015:** this command declares notifications on the two resolution transitions —
+      `requirement.resolved` when the state enters `resuelto`, `requirement.reopened` when it
+      leaves `resuelto` towards a non-terminal state. **This is the channel through which
+      resolution actually arrives**, since no HTTP route publishes
+      `requirements.{id}.resolve`. Any other field change (`title`, `description`, `priority`,
+      or a state change that is neither) notifies nothing.
+    publish:
+      operationId: requirementsEdit
+      summary: Edit a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsEdit'
+
+  requirements.{id}.resolve:
+    description: |
+      Resolve a requirement: moves it to `resuelto` and stores the reason.
+
+      **REQ-012 — C-17 is acotado again to `incidencia`.** REQ-007 (S-033) had widened it to
+      "every type, not just `incidencia`"; that widening is DEROGATED here. Only a requirement of
+      type `incidencia` requires a resolution type and a conclusion to enter `resuelto` —
+      `resolution_required` otherwise. For `funcionalidad`, `mejora` and `otro` both fields stay
+      always optional. If the conclusion is missing from the payload but the one already stored on
+      the requirement exists, the stored value is accepted (unchanged by this request).
+
+      > **NO HTTP ROUTE PUBLISHES IT — but the rule IS enforced.** It is implemented and tested,
+      > and resolution still comes in through `requirements.{id}.edit`, which accepts
+      > `resolutionType`, `resolutionConclusion` and `resolutionComment` for exactly that reason.
+      > Both channels share the SAME validator, so the `incidencia`-only rule applies **whichever
+      > way the change arrives**.
+      >
+      > **The state transition table (C-15) that used to be validated alongside C-17 here is gone
+      > (REQ-012): `invalid_state_transition` is no longer emitted by this command either.**
+
+      **REQ-015:** on a real transition into `resuelto`, this command declares a
+      `requirement.resolved` notification. Because no HTTP route publishes it,
+      `requirements.{id}.edit` declares the same thing on its own branch — both are required.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsResolve
+      summary: Resolve a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsResolve'
+
+  requirements.{id}.comment:
+    description: |
+      Comment on a requirement. Stored as a `RequirementActivity` of type `comment`.
+
+      **REQ-015 — it DOES notify now.** When the requirement is `public` **and** the comment is
+      `public`, the command declares a `requirement.comment.created` notification, and core
+      enqueues one `notification_outbox` row per subscriber other than the author. Note the two
+      defaults run in **opposite directions**: `requirements.visibility_level` defaults to
+      `public`, while a comment's `visibility_level` defaults to `internal` — so a comment sent
+      without `visibilityLevel` does **not** notify.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsComment
+      summary: Comment on a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsComment'
+
+  requirements.{id}.comment.{cid}.edit:
+    description: |
+      Edit a requirement's comment. Only the `RequirementActivity`'s author or an `admin` may
+      edit; the entry must be a `comment` (`activity_not_editable` otherwise).
+
+      **REQ-011.** Closes the asymmetry with tasks: today only the task's comment can be edited.
+      `visibilityLevel` is immutable once the comment exists and is rejected with `invalid_fields`
+      if sent. `fileIds` is the COMPLETE set that must end up linked, resolved with
+      `syncFileLinks` — same semantics as `requirements.{id}.edit`. **Does not notify BY PRODUCT
+      DECISION** (RF-16 / S-072 CA-8): creating a comment notifies, editing one does not — **even
+      though the notification channel now exists** (REQ-015). This is not an omission.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+      cid:
+        description: Comment id (`requirement_activities.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsCommentEdit
+      summary: Edit a comment on a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsCommentEdit'
+
+  requirements.{id}.subscriptors.new:
+    description: |
+      Subscribe a user to a requirement.
+
+      Core checks that the user exists and is not subscribed already. **The permission over the
+      project is validated by the api**, because it depends on the role.
+
+      **REQ-015:** declares a `requirement.created` notification aimed only at the newly
+      subscribed user (`recipientOverride`), not at the requirement's whole subscriber list. If
+      the actor subscribes themselves, nothing is enqueued.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+    publish:
+      operationId: requirementsSubscriptorsNew
+      summary: Subscribe a user to a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/RequirementsSubscriptorsNew'
+
+  requirements.{id}.subscriptors.{userId}.delete:
+    description: |
+      Unsubscribe a user from a requirement. No body: the user comes in the subject.
+
+      **Core does not check whose subscription it is** — "core deletes what it is told to".
+      That somebody can only unsubscribe themselves is validated by the api.
+    parameters:
+      id:
+        description: Requirement id (`requirements.id`).
+        schema:
+          type: string
+      userId:
+        description: |
+          User id in the identity provider (`users.id`, string). It may contain characters that
+          are not digits, and that is why subject matching is done by segments and not by regex.
+        schema:
+          type: string
+    publish:
+      operationId: requirementsSubscriptorsDelete
+      summary: Unsubscribe a user from a requirement
+      tags:
+        - name: requirements
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+  # -------------------------------------------------------------------------
+  # times
+  # -------------------------------------------------------------------------
+
+  # -------------------------------------------------------------------------
+  # files  (REQ-001 — S-002)
+  #
+  # The sixth module of core, and the first one that talks to an external system.
+  # `core` becomes the SINGLE OWNER of the storage: the api keeps no S3 credentials.
+  # -------------------------------------------------------------------------
+
+  files.request-upload:
+    description: |
+      Upload permission. Validates the upload policy, builds the S3 key, creates the `files` row
+      with the byte **unverified**, and signs a `PutObject` presigned URL.
+
+      **The byte never travels over the bus** (`max_payload` is 1 MB and attachments reach 10 MB,
+      ADR-002) **nor through the api**: the client PUTs it straight to S3 with the returned URL.
+
+      **The uploader does not choose where the file is stored** (D-08): core builds the key as
+      `{STORAGE_S3_KEY_PREFIX}/f/{uuid}{ext}`, with no `entityType` and no `entityId`.
+
+      **The double allowlist is validated here, not in the api**: extension AND MIME type, both
+      read live from `system_settings`. A new type has to be added to **both** lists (RF-17).
+
+      **The byte is NOT verified.** No `headObject`, because a network call inside the
+      dispatcher's transaction would risk the 5 s timeout of ADR-002. The failure surfaces on
+      download, never as a corrupted row.
+
+      > **Revised 2026-08-20.** It no longer surfaces as `file_not_available`: see
+      > `files.{fileId}.request-download`, which stopped checking `byte_status`. A byte that
+      > never arrived now reaches the browser as an opaque `NoSuchKey` from S3.
+    publish:
+      operationId: filesRequestUpload
+      summary: Request permission to upload a file
+      tags:
+        - name: files
+      message:
+        $ref: '#/components/messages/FilesRequestUpload'
+
+  files.{fileId}.request-download:
+    description: |
+      Read permission. Validates that the file exists and is alive, and signs a `GetObject`
+      presigned URL over its `storage_key`.
+
+      > **`byte_status` is NOT checked (revised 2026-08-20).** The original design answered
+      > `file_not_available` for a `pending` byte (CA-15, RF-21, D-15). That was unachievable
+      > together with RF-1 / CA-7: `pending` meant two things at once — "the byte never arrived"
+      > and "not linked yet" — because `uploaded` is written by the LINKING commands, when the
+      > entity is saved. Blocking it made every just-uploaded file unpreviewable **by
+      > construction**, which is exactly the case this command exists to serve.
+      >
+      > **What is given up:** a file whose PUT failed silently no longer answers a readable 404.
+      > The URL is signed, the browser follows the redirect and S3 answers an opaque `NoSuchKey`.
+      >
+      > To recover the 404 later, the way is NOT to restore the check — it would break the
+      > preview again — but to separate the two meanings of `pending`: confirm the PUT on upload,
+      > or sign anyway when the resolved actor is the file's `uploaded_by`.
+
+      **`fileId` is the id of `files`** — the file, not the link. The parameter name is explicit
+      on purpose so it is not confused with the `attachments` id that travels in the HTTP
+      contract. The api holds the `file_id` already, because it read the `attachments` row to
+      authorize.
+
+      **It carries no `requester`: ownership does NOT apply to reading.** A file is read through
+      the permission over the linked entity, not through who uploaded it. RF-12 is about
+      *linking*, not *reading* — a requirement can hold attachments from several people and the
+      whole project team has to be able to see them.
+
+      **What core does NOT validate here is the permission over the entity.** That stays with the
+      api (`canUserViewEntity` / `canUserAccessEntity`), because core knows nothing about roles or
+      end users. The api authorizes first and only then publishes.
+
+      > **Consequence to keep on the record (ADR-007 revision).** The command takes a `fileId`, so
+      > anyone able to publish on the bus can ask for the URL of **any file in the catalog**,
+      > bypassing the api's authorization. It is the same trust model ADR-007 already declares for
+      > every write — the auth-callout is the only defence — but it now covers **reading**, and the
+      > surface is the whole file catalog rather than the set of authorizable links. An optional
+      > `attachmentId` for core to validate was evaluated and **discarded**, to keep this command
+      > symmetric with `request-upload`; it stays available as an additive defence-in-depth.
+    parameters:
+      fileId:
+        description: File id (`files.id`) — **not** the link id (`attachments.id`).
+        schema:
+          type: string
+    publish:
+      operationId: filesRequestDownload
+      summary: Request permission to download a file
+      tags:
+        - name: files
+      message:
+        $ref: '#/components/messages/FilesRequestDownload'
+
+  # -------------------------------------------------------------------------
+  # attachments  (REQ-001 — S-004)
+  # -------------------------------------------------------------------------
+
+  attachments.{id}.delete:
+    description: |
+      Unlinks a file from an entity. **Deletes only the `attachments` row: the file is retained**
+      (D-04), and so is the object in the bucket.
+
+      With 0..N links per file, deleting the object would break the other links. Unlinking **is**
+      deleting the `Attachment`.
+
+      **Why it is a command and not a direct write.** It was the third implicit write of the api
+      (row + object). If the link becomes a domain row, deleting it MUST go through core, or it
+      would reopen through another door the ADR-001 exception this redesign closes.
+
+      **The parameter is the id of `attachments`** — the link — which is the opposite of
+      `files.{fileId}.request-download`. The name says so on purpose: `attachments.{id}.delete`
+      is more honest than `files.{id}.unlink`.
+    parameters:
+      id:
+        description: Link id (`attachments.id`).
+        schema:
+          type: string
+    publish:
+      operationId: attachmentsDelete
+      summary: Unlink a file from an entity
+      tags:
+        - name: attachments
+      message:
+        $ref: '#/components/messages/AttachmentsDelete'
+
+  worked-times.new:
+    description: |
+      Log worked time.
+
+      Cap of 1440 minutes (24 h) per person per day, counting worked time only.
+
+      `taskId` and `requirementId` are mutually exclusive (`oxor`). If `requirementId` is
+      present, it has to belong to the given project. **REQ-007: this is now the ONLY definition
+      of that exclusion** — the api's Joi `.oxor` was removed, so the two cannot diverge.
+
+      > **REQ-007 — the submission window and who may log for someone else now live HERE.**
+      > The previous wording said the window (the current day and the 10 before it) *"is validated
+      > by the api, not core: it depends on the calendar and not on the data"*. **That is
+      > derogated.** With the identity envelope core knows the end user, so:
+      >
+      > - **C-40, submission window** — `date` must fall between today and the 10 days before it.
+      >   Outside it: `invalid_date_range`. **Both edges are part of the rule**: a future date is
+      >   rejected too.
+      > - **C-41, logging for someone else** — if the resolved `personId` is not the actor's own
+      >   and the actor is not `admin`: `access_denied`.
+      > - **`personId` default** — see the schema: when absent it is resolved from the actor.
+    publish:
+      operationId: workedTimesNew
+      summary: Log worked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/WorkedTimesNew'
+
+  worked-times.{id}.delete:
+    description: |
+      Delete a worked time entry. No body.
+
+      > **REQ-007 — derogated.** This channel used to say *"core deletes what it is told to: that
+      > the entry is the caller's own and that the date is within the allowed window is validated
+      > by the api"*. **Both rules are enforced here now:**
+      >
+      > - **Ownership** — the entry has to belong to the actor's Person, unless the actor is
+      >   `admin`. Otherwise: `access_denied`.
+      > - **Submission window** — the entry's date has to be inside the window, same as on
+      >   creation. Otherwise: `invalid_date_range`.
+    parameters:
+      id:
+        description: Entry id (`worked_times.id`).
+        schema:
+          type: string
+    publish:
+      operationId: workedTimesDelete
+      summary: Delete worked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+  unworked-times.new:
+    description: |
+      Record unworked time.
+
+      Cap of 1440 minutes (24 h) per person per day, **adding up worked AND unworked time** —
+      unlike `worked-times.new`, which only counts worked time.
+    publish:
+      operationId: unworkedTimesNew
+      summary: Record unworked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/UnworkedTimesNew'
+
+  unworked-times.{id}.delete:
+    description: |
+      Delete an unworked time record. No body.
+
+      > **REQ-007 — derogated.** It used to say *"the permission is validated by the api"*.
+      > Ownership by actor is enforced here: the record has to belong to the actor's Person unless
+      > the actor is `admin`, otherwise `access_denied`. The shared 1440-minute daily cap was
+      > already in core and does **not** move.
+    parameters:
+      id:
+        description: Record id (`unworked_times.id`).
+        schema:
+          type: string
+    publish:
+      operationId: unworkedTimesDelete
+      summary: Delete unworked time
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/EmptyBody'
+
+  # -------------------------------------------------------------------------
+  # week-assigned-times  (REQ-007 — S-032)
+  # -------------------------------------------------------------------------
+
+  week-assigned-times.replace:
+    description: |
+      **The 21st command.** Replaces a FULL WEEK of the project x person assignment grid.
+
+      **Why it exists.** `PUT /api/week-assigned-times` was **the only domain write that did not
+      go through core**: the api ran it with the ORM (`destroy` + `bulkCreate` in a transaction of
+      its own) and `docs/flows/asignacion-semanal.md` documented it apart for that reason —
+      *"core: **does not take part**"*. REQ-007 needs C-36 and C-38 enforced by the writer, and
+      there was nowhere to put them. **This channel is that place.**
+
+      **The HTTP contract does not change.** Same verb, same body, same statuses. What changes is
+      who validates and who writes — and, with it, the credential: the grid is now written by
+      core's owner user instead of the api's role.
+
+      **Replace, not upsert.** Delete + recreate is the semantics the entity already has: it is
+      the only entity that is *replaced by whole week*. The delete and the recreate happen
+      **inside the dispatcher's transaction** (ADR-003), so a half-replaced week cannot survive.
+
+      **Rules it enforces:**
+
+      - **`admin` only (C-38)** — resolved by the **role -> method map**, NOT inside the command,
+        because it does not depend on the payload. A `user` gets `caller_not_authorized`.
+      - **No past weeks (C-36)** — `invalid_date_range`. This is `validateWeekNotPast`, which
+        stops being an api rule.
+      - **`dateFrom` must be a Monday** — `invalid_fields`. The week is identified by its Monday;
+        accepting any day would let two weeks overlap.
+      - **`internal` is DERIVED** from `projects.type === 'interno'`, never taken from the
+        payload, exactly as the api did.
+      - **Assignments with `minutes: 0` are discarded** — an empty grid cell is not a row.
+    publish:
+      operationId: weekAssignedTimesReplace
+      summary: Replace a full week of assignments
+      tags:
+        - name: times
+      message:
+        $ref: '#/components/messages/WeekAssignedTimesReplace'
+
+# ---------------------------------------------------------------------------
+
+components:
+
+  messages:
+
+    ClientsNew:
+      name: ClientsNew
+      title: clients.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ClientsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      # REQ-007 / S-030 — `access_denied` FIGURA EN LOS 20 CANALES DE COMANDO, y este comentario
+      # va UNA SOLA VEZ para no repetirlo veinte (el mismo criterio con que la clave `actor` se
+      # documenta una vez y no por canal).
+      #
+      # POR QUÉ `access_denied` SÍ Y `caller_not_authorized` NO. Son dos preguntas distintas,
+      # decididas en dos momentos distintos:
+      #
+      #   caller_not_authorized -> "¿tu rol habilita este método?". Lo decide el mapa rol → método
+      #      ANTES de resolver el canal, así que no es una respuesta DE ESTE canal sino del
+      #      despachador. Por eso no figura en el `x-error-codes` de ningún mensaje (mismo
+      #      criterio que `services/api/lib/utils/bus/protocol.ts`).
+      #
+      #   access_denied -> "¿podés tocar ESTA entidad?". Se decide CON LA ENTIDAD DEL CANAL
+      #      DELANTE —resolviendo el proyecto desde el tipo de entidad y exigiendo la fila en
+      #      `user_project_permissions`—, así que SÍ es una respuesta posible de este canal.
+      #
+      # SOLO SE EMITE EN MODO EXTERNO (clase de caller `external`). Un `admin`, un `user` o un
+      # conector NUNCA lo reciben: los usuarios internos no tienen filas en
+      # `user_project_permissions`, y exigírselas rompería toda la escritura interna.
+      #
+      # OJO CON `EmptyBody`: LO COMPARTEN TRES CANALES —`requirements.{id}.subscriptors.{userId}.delete`,
+      # `worked-times.{id}.delete` y `unworked-times.{id}.delete`—, así que el código se agrega
+      # una vez y aplica a los tres.
+      #
+      # EL TERCER LUGAR DEL CÓDIGO SIGUE ABIERTO: `STATUS_BY_ERROR_CODE` de la api tiene que
+      # mapear `access_denied` -> 403, y es de `S-030.api.*`. SIN ESE MAPEO el código cae en el
+      # `|| 500` de `httpStatusFor` y el frontend lo trata como error de servidor en vez de
+      # mostrar el mensaje. El síntoma no es un error de compilación.
+      x-error-codes: [invalid_fields, internal_error, access_denied]
+
+    ClientsEdit:
+      name: ClientsEdit
+      title: clients.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ClientsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
+
+    ProjectsNew:
+      name: ProjectsNew
+      title: projects.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ProjectsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, client_not_found, internal_error, access_denied]
+
+    ProjectsEdit:
+      name: ProjectsEdit
+      title: projects.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ProjectsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, project_not_found, client_not_found, internal_error, access_denied]
+
+    TasksNew:
+      name: TasksNew
+      title: tasks.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - project_not_found
+        - person_not_found
+        - requirement_project_mismatch
+        # S-003: el comando ahora vincula archivos. `invalid_attachment_id` NO figura acá: un
+        # `fileId` inexistente o retirado cae en `invalid_fields` (400), y uno ajeno en
+        # `file_not_owned` (403). La distinción es la regla nueva del REQ-001.
+        - file_not_owned
+        - internal_error
+        - access_denied
+
+    TasksEdit:
+      name: TasksEdit
+      title: tasks.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - objective_not_found
+        - person_not_found
+        - requirement_project_mismatch
+        - file_not_owned
+        - internal_error
+        - access_denied
+
+    TasksComment:
+      name: TasksComment
+      title: tasks.{id}.comment
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TasksCommentPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, objective_not_found, file_not_owned, internal_error, access_denied]
+
+    # REQ-011 — command 23. Edits return nothing (`commands.md`: "creations return only the id;
+    # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
+    TasksCommentEdit:
+      name: TasksCommentEdit
+      title: tasks.{id}.comment.{cid}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CommentEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - objective_not_found
+        - comment_not_found
+        - activity_not_editable
+        - comment_not_owned
+        - file_not_owned
+        - internal_error
+        - access_denied
+
+    RequirementsNew:
+      name: RequirementsNew
+      title: requirements.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - project_not_found
+        - invalid_responsible_person
+        - file_not_owned
+        - user_not_found
+        - internal_error
+        - access_denied
+
+    RequirementsEdit:
+      name: RequirementsEdit
+      title: requirements.{id}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - invalid_responsible_person
+        - file_not_owned
+        # REQ-012: invalid_state_transition removed from this list — state transitions are free.
+        # resolution_required survives, acotado again to type === 'incidencia' (C-17), because
+        # this is the channel resolution actually comes in through.
+        - resolution_required
+        - internal_error
+        - access_denied
+
+    # REQ-007 — S-032. `ReplyEmpty`, not `ReplyWithId`: it is a replacement, not a creation, so
+    # there is no id to return.
+    WeekAssignedTimesReplace:
+      name: WeekAssignedTimesReplace
+      title: week-assigned-times.replace
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WeekAssignedTimesReplacePayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - invalid_date_range
+        - project_not_found
+        - person_not_found
+        - internal_error
+        # S-032 (D-7). The spec declares `access_denied` UNIFORMLY across every command channel,
+        # including the thirteen whose `COMMAND_ENTITY` is `null` and which therefore cannot emit
+        # it either: it is a policy OF THE PLANE, not a per-command derivation. This channel used
+        # to be the one exception, and the only reason for it was that the 21st command was not
+        # registered yet — which stopped being true when S-032 registered it. A gate with an
+        # exception whose reason has expired turns into noise the next reader deletes unthinkingly.
+        - access_denied
+
+    RequirementsResolve:
+      name: RequirementsResolve
+      title: requirements.{id}.resolve
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsResolvePayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      # REQ-012: invalid_state_transition removed — state transitions are free.
+      x-error-codes: [invalid_fields, requirement_not_found, resolution_required, internal_error, access_denied]
+
+    RequirementsComment:
+      name: RequirementsComment
+      title: requirements.{id}.comment
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RequirementsCommentPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, requirement_not_found, file_not_owned, internal_error, access_denied]
+
+    # REQ-011 — command 22. Edits return nothing (`commands.md`: "creations return only the id;
+    # edits and deletions, nothing"), so `ReplyEmpty`, not `ReplyWithId`.
+    RequirementsCommentEdit:
+      name: RequirementsCommentEdit
+      title: requirements.{id}.comment.{cid}.edit
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CommentEditPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - comment_not_found
+        - activity_not_editable
+        - comment_not_owned
+        - file_not_owned
+        - internal_error
+        - access_denied
+
+    RequirementsSubscriptorsNew:
+      name: RequirementsSubscriptorsNew
+      title: requirements.{id}.subscriptors.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SubscriptorNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - requirement_not_found
+        - user_not_found
+        - already_subscribed
+        - internal_error
+        - access_denied
+
+    FilesRequestUpload:
+      name: FilesRequestUpload
+      title: files.request-upload
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/FilesRequestUploadPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithUploadTicket'
+      x-error-codes: [invalid_fields, file_type_not_allowed, file_too_large, internal_error, access_denied]
+
+    FilesRequestDownload:
+      name: FilesRequestDownload
+      title: files.{fileId}.request-download
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/FilesRequestDownloadPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithDownloadTicket'
+      # `file_not_available` YA NO SE EMITE (revisado 2026-08-20): el comando dejó de verificar
+      # `byte_status`. Se conserva en el catálogo de `ErrorCode` —no está cerrado y el paquete es
+      # compartido (ADR-005)— y la api lo sigue mapeando a 404, pero ningún comando lo devuelve.
+      x-error-codes: [file_not_found, internal_error, access_denied]
+
+    AttachmentsDelete:
+      name: AttachmentsDelete
+      title: attachments.{id}.delete
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EmptyPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes: [invalid_fields, internal_error, access_denied]
+
+    WorkedTimesNew:
+      name: WorkedTimesNew
+      title: worked-times.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkedTimesNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes:
+        - invalid_fields
+        - person_not_found
+        - project_not_found
+        - objective_not_found
+        - requirement_not_found
+        - requirement_project_mismatch
+        - daily_limit_exceeded
+        # REQ-007 (S-031): the submission window (C-40) is enforced HERE now, so this command
+        # emits `invalid_date_range`. It was missing from this list while the rule lived in the
+        # api. `daily_limit_exceeded` also carries `errorDetails: { remainingMinutes }` now — see
+        # `Reply.errorDetails`; it is additive and consumers that do not know it ignore it.
+        - invalid_date_range
+        - internal_error
+        - access_denied
+
+    UnworkedTimesNew:
+      name: UnworkedTimesNew
+      title: unworked-times.new
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/UnworkedTimesNewPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyWithId'
+      x-error-codes: [invalid_fields, person_not_found, daily_limit_exceeded, internal_error, access_denied]
+
+    EmptyBody:
+      name: EmptyBody
+      title: Command with no body
+      contentType: application/json
+      description: |
+        The delete commands and the unsubscribe carry no body. They are validated all the same,
+        with `joi.object({}).unknown(false)`, so **a payload with any field is rejected** with
+        `invalid_fields`. An absent or empty body is normalized to `{}`.
+      payload:
+        $ref: '#/components/schemas/EmptyPayload'
+      x-reply:
+        $ref: '#/components/schemas/ReplyEmpty'
+      x-error-codes:
+        - invalid_fields
+        - subscription_not_found
+        - worked_time_not_found
+        - unworked_time_not_found
+        # REQ-007 (S-031): emitted ONLY by `worked-times.{id}.delete`, whose entry has to fall
+        # inside the submission window. NOT by `unworked-times.{id}.delete` —absences never had
+        # that window and did not gain it— and NOT by the unsubscribe.
+        - invalid_date_range
+        - internal_error
+        - access_denied
+
+  schemas:
+
+    # -----------------------------------------------------------------------
+    # Reply — identical for every command
+    # -----------------------------------------------------------------------
+
+    Reply:
+      type: object
+      description: |
+        Reply format, the same for every command. Defined in
+        `@jiku/nats-protocol`.
+
+        **The `status` decides the transaction**: the dispatcher commits if it is `success` and
+        rolls back in any other case.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success, failure]
+        errorCode:
+          type: string
+          description: 'Present only with `status: failure`. See `ErrorCode`.'
+        errorMessage:
+          type: string
+          description: |
+            Free text. **It reaches the end user** through the api.
+
+            English and Spanish are mixed, sometimes in the same file. It is inherited
+            inconsistency that was not unified because the frontends display some of them
+            directly.
+
+            **Never put structured data in here** — see `errorDetails`. And **never the full
+            subject**: it carries the user id.
+        errorDetails:
+          type: object
+          additionalProperties: true
+          description: |
+            > **REQ-006 adds this field.** Optional, additive, and **absent** unless the emitter
+            > passes it: `failure(errorCode, errorMessage)` keeps producing a reply **without the
+            > key**, so the 21 commands are byte-for-byte unchanged.
+
+            Structured data about the error, so a caller never has to parse `errorMessage` with a
+            regex. The query contract (`jiku-queries`) uses it from day one — a rejected name comes
+            back as `{ field, value, allowed }` — and any command may start using it.
+
+            **What goes in here is CONTRACT data**: which field, which value, what was accepted.
+            Never stack traces, never database column names, never SQL fragments. It reaches the
+            caller and, once a consumer maps it to HTTP, potentially the end user.
+
+            Consumers that do not know the field ignore it (`services/api/lib/utils/bus/protocol.ts` parses
+            the envelope and drops unknown keys), so it is compatible in both directions.
+        data:
+          type: object
+          description: Reply body. Absent on edits and deletes.
+        events:
+          type: array
+          items:
+            $ref: '../apis/core-events.asyncapi.yaml#/components/schemas/DomainEvent'
+          description: |
+            Domain events emitted by the command (REQ-014). Full contract: `core-events.yaml`.
+
+            **Optional, additive, and absent by default**: `success()` and `failure()` in
+            `@jiku/nats-protocol` keep producing an envelope WITHOUT this key, so a `Reply`
+            without events travels **byte-for-byte** identical to today and the 23 commands are
+            unchanged.
+
+            **Nobody fills this today.** The post-commit emitter is S-063: only then does the
+            dispatcher build the `DomainEvent[]` and attach them to the already-built `Reply`,
+            after `COMMIT` and before responding.
+
+            `ReplyWithId`, `ReplyEmpty` and `ReplyWithUploadTicket` inherit this field through
+            `allOf` — none of the three needed a change of their own.
+
+    ReplyWithId:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of a creation. It returns **only the id**: since the contract with the frontends
+            is the full record with its relations, the api re-reads the entity from the database
+            after the command.
+          properties:
+            data:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+          example:
+            status: success
+            data:
+              id: 7
+
+    ReplyEmpty:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: 'Reply with no content: the `status` is the whole reply.'
+          example:
+            status: success
+
+    ReplyWithUploadTicket:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of `files.request-upload`.
+
+            > **Declared exception to `conventions/commands.md`** ("creations return only the
+            > `id`"). There is no alternative here: the presigned URL is generated by core, is
+            > single-use and short-lived, and the api cannot rebuild it by re-reading the database
+            > without duplicating the key policy and standing up its own write signer — which is
+            > exactly what D-08 centralizes in core. Documented as an exception, not as a pattern.
+
+            > **The field is `id` on the bus and `fileId` over HTTP.** On the bus `id` is the
+            > convention of every creation; over HTTP `fileId` says which id it is, which matters
+            > because the HTTP attachment contract handles **two** id spaces (the link's and the
+            > file's). The api translates, as it already does in its five documented contract
+            > translations.
+          properties:
+            data:
+              type: object
+              required: [id, uploadUrl, expiresIn]
+              properties:
+                id:
+                  type: integer
+                  description: '`files.id`. Travels as `fileIds` when saving the entity.'
+                uploadUrl:
+                  type: string
+                  description: |
+                    **PutObject** presigned URL, single object and short TTL (D-10). The client
+                    uses it straight against the storage: it goes through neither the api nor the
+                    bus. It grants no listing, no reading and no deleting.
+                expiresIn:
+                  type: integer
+                  description: 'Seconds of validity. Read from `system_settings`.'
+          example:
+            status: success
+            data:
+              id: 1234
+              uploadUrl: 'https://bucket.example/grava-gestion/f/9c1e.../abcd.pdf?X-Amz-...'
+              expiresIn: 300
+
+    ReplyWithDownloadTicket:
+      allOf:
+        - $ref: '#/components/schemas/Reply'
+        - type: object
+          description: |
+            Reply of `files.{fileId}.request-download`. Same declared exception as
+            `ReplyWithUploadTicket`.
+
+            The three metadata fields travel in the reply **on purpose**: the api needs them to
+            build the headers of its response (or of the 302) without querying the database again,
+            and the `HEAD` to the preview the frontends already use to resolve name and size keeps
+            working unchanged.
+          properties:
+            data:
+              type: object
+              required: [downloadUrl, expiresIn, fileName, mimeType, fileSize]
+              properties:
+                downloadUrl:
+                  type: string
+                  description: |
+                    **GetObject** presigned URL over `files.storage_key`, carrying
+                    `response-content-disposition` so the original file name travels signed and S3
+                    returns it without anybody proxying the byte.
+                expiresIn:
+                  type: integer
+                  description: |
+                    Seconds of validity, from `download-url-ttl-seconds`.
+
+                    > **Security note.** A leaked read URL grants access to the content with no
+                    > credential at all, and with the 302 that URL reaches the browser on **every**
+                    > preview: it lands in history, in proxy logs and in the `Referer`. The default
+                    > should be the shortest the UI tolerates.
+                fileName:
+                  type: string
+                mimeType:
+                  type: string
+                fileSize:
+                  type: integer
+          example:
+            status: success
+            data:
+              downloadUrl: 'https://bucket.example/grava-gestion/f/9c1e....pdf?X-Amz-...'
+              expiresIn: 300
+              fileName: informe.pdf
+              mimeType: application/pdf
+              fileSize: 4194304
+
+    ErrorCode:
+      type: string
+      description: |
+        Catalog of error codes, defined in `@jiku/nats-protocol`.
+
+        > **The catalog is not closed.** The api maps to HTTP only the codes its routes use
+        > today; any other one falls through to a 500. In particular, `unknown_command` has
+        > **no** mapping.
+
+        Three codes are emitted today as a string literal instead of the constant
+        (`resolution_required`, `worked_time_not_found`, `unworked_time_not_found`). The value is
+        correct, but it is duplicated by hand.
+
+        > **REQ-001 adds five codes** for the `files` module. All five MUST be mapped in
+        > `services/api/lib/utils/bus/protocol.ts` (ADR-002) or they fall through to a generic 500:
+        > `file_type_not_allowed` → 400, `file_too_large` → 400, `file_not_owned` → **403**,
+        > `file_not_found` → 404, `file_not_available` → 404.
+        >
+        > `file_not_owned` has to be **403, not 400**. Reusing `invalid_attachment_id` (mapped to
+        > 400) would make "the file does not exist" indistinguishable from "the file is not
+        > yours", and the second one is the new rule.
+
+        > **REQ-005 adds one code, and it is the first one emitted by the DISPATCHER rather than
+        > by a command**: `caller_not_authorized` → **403**. Core now authorises the CALLER of the
+        > subject against the roles persisted in `users.roles`, before resolving the method and
+        > before opening the transaction.
+        >
+        > **One code for two situations, deliberately.** "No row in `users`" and "there is a row
+        > but the role does not allow this method" answer **the same thing**. Telling them apart
+        > would leak to an unauthorised caller whether an identity exists in the database — a free
+        > oracle. `user_not_found` is **not** reused for the same reason, and because it is already
+        > mapped to **404**, which is the wrong status for a permissions refusal.
+        >
+        > **403 and not 400:** it describes a permission, not malformed input — the same argument
+        > already written next to `file_not_owned`. **In practice the api never receives it** (its
+        > channel is exempt from the gate, see `info.description`); it is mapped anyway because
+        > **the map belongs to the service, not to the endpoint**.
+
+        > **REQ-006 adds five codes, and NONE of them is emitted by a command.** They belong to the
+        > query plane (`jiku-queries`), whose contract lives in its own spec —
+        > `_jflow/apis/core-queries.asyncapi.yaml`. They are listed here because
+        > **`ErrorCode` is one shared catalog** in `@jiku/nats-protocol`, not one per plane.
+        >
+        > | Code | Emitter | HTTP (once a consumer exists) |
+        > |---|---|---|
+        > | `unknown_caller` | query dispatcher | **403** |
+        > | `query_timeout` | query engine (PostgreSQL `statement_timeout`, 8000 ms) | **504** |
+        > | `invalid_cursor` | query engine (keyset cursor) | **400** |
+        > | `comment_not_found` | `comments.get` | **404** |
+        > | `task_not_found` | `tasks.get` | **404** |
+        >
+        > **The HTTP column is documentation, not code.** REQ-006 does **not** implement
+        > `httpStatusForQuery` and does **not** touch `services/api/lib/utils/bus/protocol.ts`: when that REQ
+        > closes, `bus.query()` still has no caller, so none of these five ever reaches an HTTP
+        > response. The map belongs to the requirement that migrates the `GET` routes.
+        >
+        > **`unknown_caller` is NOT `caller_not_authorized`, and merging them would be a bug.**
+        > Two different questions, both live in the query plane, in this order:
+        > `authorizeCaller()` answers *"may this caller run this method?"* →
+        > `caller_not_authorized`; resolving the caller **class** answers *"what do I trim for
+        > them?"* → `unknown_caller` when there is no row in `users`, `roles` is empty, or the roles
+        > map to no known class. Merging them would force a future `httpStatusForQuery` to map one
+        > code to two causes and — worse — would erase the rule that **a caller with no row gets an
+        > ERROR, never an empty list**, which would read as "there is no data".
+        >
+        > **`task_not_found` COEXISTS with `objective_not_found`, deliberately.** The bus resource is
+        > called `tasks` (ADR-004: the product vocabulary lives in the contract, not in the schema),
+        > so its not-found code is `task_not_found`. `objective_not_found` stays exactly where it is
+        > — emitted by the commands — because retiring it would mean touching commands that REQ-006
+        > declares untouched, and changing `sendCommand`'s HTTP map, which it also declares
+        > untouched.
+        >
+        > **The `*_not_found` codes of the query plane do not distinguish "does not exist" from "you
+        > cannot see it".** Answering a permission error would confirm to an external user that the
+        > resource exists. And **a `list` never returns `*_not_found`**: a filter that matches
+        > nothing is `items: []`.
+
+        > **REQ-011 adds two codes**, emitted by `requirements.{id}.comment.{cid}.edit` and
+        > `tasks.{id}.comment.{cid}.edit`, commands 22 and 23. Both MUST be mapped in
+        > `services/api/lib/utils/bus/protocol.ts` (ADR-002) or they fall through to a generic 500:
+        > `comment_not_owned` → **403** (the actor is not the comment's author and does not have
+        > the `admin` role), `activity_not_editable` → **400** (the activity exists but
+        > `typeOfActivity != 'comment'`). `comment_not_found`, reused here, already has its mapping
+        > from `comments.get` (REQ-006).
+      enum:
+        - invalid_fields
+        - internal_error
+        - unknown_command
+        - caller_not_authorized
+        # REQ-006 — the five codes of the query plane. NONE is emitted by a command; see the note
+        # above. Their contract lives in `_jflow/apis/core-queries.asyncapi.yaml`.
+        - unknown_caller
+        - query_timeout
+        - invalid_cursor
+        - comment_not_found
+        - task_not_found
+        - client_not_found
+        - project_not_found
+        - objective_not_found
+        - requirement_not_found
+        - user_not_found
+        - person_not_found
+        - invalid_responsible_person
+        # CÓDIGO SIN EMISOR desde S-003: ningún comando lo devuelve ya. Los seis comandos de
+        # dominio dejaron de emitirlo al pasar de `attachmentIds` a `fileIds` —un `fileId`
+        # inválido cae en `invalid_fields` y uno ajeno en `file_not_owned`—. SE CONSERVA a
+        # propósito: el catálogo no está cerrado, `@jiku/nats-protocol` es compartido (ADR-005)
+        # y ningún criterio de aceptación pide retirarlo.
+        - invalid_attachment_id
+        - file_type_not_allowed
+        - file_too_large
+        - file_not_owned
+        - file_not_found
+        - file_not_available
+        - requirement_project_mismatch
+        - daily_limit_exceeded
+        - invalid_date_range
+        - already_subscribed
+        - subscription_not_found
+        # CÓDIGO SIN EMISOR desde REQ-012: `requirements.{id}.edit` y `.resolve` dejaron de
+        # emitirlo — las transiciones de estado son libres (C-15 sin secuencia). SE CONSERVA a
+        # propósito, misma política que `invalid_attachment_id`: el catálogo no está cerrado,
+        # `@jiku/nats-protocol` es compartido (ADR-005) y ningún criterio de aceptación pide
+        # retirarlo.
+        - invalid_state_transition
+        - stage_not_found
+        - resolution_required   # REQ-012: acotado de nuevo a type === 'incidencia' (C-17)
+        # REQ-007 — "can you touch THIS entity?", decided by THE GATE with the row in front of
+        # it. NOT the same question as `caller_not_authorized`, which is "does your role enable
+        # this method?" and is decided by the role -> method map before touching the domain.
+        #
+        # THE GATE, NOT THE COMMAND (S-030 CA-15). The check lives in the dispatcher — after Joi
+        # validation and before the transaction opens — and NONE of the 20 `execute()` were
+        # touched. That is what makes it possible to tell a gate bug from a command bug. It runs
+        # ONLY for callers in external mode.
+        # It is also the code both frontends already know for this case, which is what keeps the
+        # HTTP contract unchanged. Maps to 403 in the api's `STATUS_BY_ERROR_CODE`.
+        - access_denied
+        - worked_time_not_found
+        - unworked_time_not_found
+        # REQ-011 — the two comment-editing codes, emitted by `requirements.{id}.comment.{cid}.edit`
+        # and `tasks.{id}.comment.{cid}.edit`.
+        - comment_not_owned    # the actor is not the comment's author and does not have `admin` (403)
+        - activity_not_editable # the activity exists but `typeOfActivity != 'comment'` (400)
+
+    # REQ-007 — the identity envelope.
+    Actor:
+      type: object
+      description: |
+        **Reserved top-level key of every command message.** Optional, and only the trusted
+        publisher (`CORE_TRUSTED_PUBLISHER_ID`) may send it — any other caller that includes it is
+        rejected with `invalid_fields`.
+
+        The dispatcher **extracts it from the body before validating**, so the Joi schema of each
+        command never sees it and the 21 `execute()` functions are unchanged.
+
+        **It does not replace `creator` / `author` / `editor` / `uploader`.** Those are domain
+        data (they end up in `requirements.created_by`, in the Activity's author, in
+        `files.uploaded_by`). What changes is **who wins**:
+
+        ```
+        resolveActor(ctx, payload):
+          if there is an envelope                          -> actor.id
+          else if ctx.caller == CORE_TRUSTED_PUBLISHER_ID  -> payload.author/creator/editor/uploader
+          else                                             -> ctx.caller
+        ```
+
+        If the envelope AND the domain field are both present **and differ**, the command is
+        rejected with `invalid_fields` and `errorDetails: { field, value, expected }`. Two
+        different identities in one message is a publisher bug, and resolving it silently is how
+        one writes in someone else's name.
+
+        **All eleven domain-actor fields are OPTIONAL in their schema, `uploader` included.**
+        With an envelope, the field is redundant with `actor.id` — the trusted publisher no
+        longer has to repeat it, and if it does it has to match. Without an envelope — a person
+        or a connector publishing directly — the field is unused: identity comes from the
+        subject. **What stays mandatory is that SOME source produces an actor**; that is enforced
+        by `resolveActor()` inside `execute()`, not by Joi's `required`, because Joi never sees
+        the envelope (the dispatcher extracts it before validation runs). A command that ends up
+        with no actor at all answers `invalid_fields`, not a raw `NOT NULL` violation.
+      required: [id, roles]
+      properties:
+        id:
+          $ref: '#/components/schemas/IdentityUserId'
+        roles:
+          type: array
+          items:
+            type: string
+          description: |
+            From the `urn:zitadel:iam:org:project:roles` claim the api already verified against
+            Zitadel. **Mandatory**: it is the input of the authorisation decision, and the role
+            that decides is this one and not the publisher's.
+        name:
+          type: string
+          description: 'Optional. Missing logs a warning; on INSERT it falls back to `email` or `id`.'
+        username:
+          type: string
+          description: 'Optional. Same fallback as `name`.'
+        email:
+          type: string
+          description: |
+            Optional. **This is where the two mirrors differ on purpose:** the
+            `{instance}.events.auth` event DISCARDS a person event without `email` rather than
+            create a partial row; the command path does not, because rejecting a write over a
+            profile field is disproportionate and a misconfigured `CALLOUT_IDP_ENRICH` would leave
+            the product with no writes at all.
+
+    EmptyPayload:
+      type: object
+      additionalProperties: false
+      description: No fields. Any property is rejected with `invalid_fields`.
+
+    # -----------------------------------------------------------------------
+    # Reused types
+    # -----------------------------------------------------------------------
+
+    IdentityUserId:
+      type: string
+      description: |
+        User id from the identity provider (`users.id`). **Not to be confused with `personId`**,
+        which is the id from the `persons` table (a number). Both concepts coexist in
+        `worked-times`.
+
+    DateOnly:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: '`YYYY-MM-DD` date. The column is a STRING, not a DATE.'
+      example: '2026-08-12'
+
+    Property:
+      type: object
+      description: |
+        Pair from the bus contract. It is translated into the `key_value_pairs` column, which
+        stores a flat object: `[{code: 'documentacion', value: 'https://...'}]` is stored as
+        `{documentacion: 'https://...'}`.
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum: [documentacion, diseño, board_de_tareas, mattermost_group_name]
+          description: Accepted keys (`DefaultKeyValuePairs`).
+        value:
+          type: [string, 'null']
+          description: |
+            The first three codes are validated as a URI; `mattermost_group_name` is free text.
+            It accepts `null` and the empty string.
+
+    Tag:
+      type: object
+      description: Requirement tag. Stored in a JSONB column.
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+
+    FilesRequestUploadPayload:
+      type: object
+      required: [uploader, fileName, mimeType, fileSize]
+      properties:
+        uploader:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Who uploads. For the api it is the end user authenticated by JWT.
+
+            **An external publisher omits it: core resolves it from the subject's `caller`.** And
+            if it sends one, it is **ignored**. See `x-resolve-actor`.
+
+            It is optional on purpose: it is the lever of D-26.
+        fileName:
+          type: string
+          maxLength: 255
+          description: 'The original name. It is **not** the key — core builds the key.'
+        mimeType:
+          type: string
+          maxLength: 100
+          description: |
+            Declared by the client. Validated against `file-allowed-mime-types`, **and the
+            extension of `fileName` is validated against `file-allowed-extensions` as well**: a
+            new type has to be added to both lists (RF-17, D-18).
+        fileSize:
+          type: integer
+          minimum: 1
+          description: 'Declared by the client. Validated against `file-max-size-bytes`.'
+        checksum:
+          type: [string, 'null']
+          description: |
+            Hexadecimal sha256 declared by the client. **NOBODY verifies it** (D-25), the same way
+            nobody verifies `mimeType` or `fileSize` against the actual byte. The double allowlist
+            validates **what is declared**, which was never a guarantee about the byte; the
+            standing defence is the one on serving (`nosniff` + sandbox CSP), not the one on
+            uploading.
+
+    FilesRequestDownloadPayload:
+      type: object
+      properties:
+        disposition:
+          type: string
+          enum: [inline, attachment]
+          default: inline
+          description: |
+            `inline` for preview, `attachment` for download with a name. It determines the
+            presigned URL's `response-content-disposition`, so the original name travels in the
+            signed URL and S3 returns it without anybody proxying the byte.
+
+    FileIds:
+      type: array
+      maxItems: 10
+      description: |
+        Ids from `files` to link. Each one has to exist, be alive (`retention_status: 'active'`)
+        and have been uploaded by the actor of this command (REQ-001 RF-12). If any of them does
+        not comply, the reply is `file_not_owned` or `invalid_fields` and **the whole write is
+        discarded**.
+
+        **Replaces `AttachmentIds`** (REQ-001, S-003). There are no drafts any more: the file
+        already exists on its own and the link is created against the entity, which by then
+        exists too.
+
+        **Ownership is resolved per channel** — see `x-resolve-actor` below. It has **no
+        exception by role**: an administrator cannot link a file they did not upload either
+        (RF-13). Core knows nothing about roles, so the rule is uniform by construction.
+
+        `maxItems: 10` moves the 10-file cap from `multer` to **the bus contract** (D-20): it
+        stops being a transport limit and becomes a domain rule, validated by Joi.
+      items:
+        type: integer
+        minimum: 1
+
+    ResponsiblePersonIds:
+      type: array
+      description: |
+        Ids from the `persons` table. **The first one in the list becomes the lead** — the order is
+        information, not a detail.
+
+        It is validated with a `count` against the length of the list, so **it does not report
+        which one is missing**.
+      items:
+        type: integer
+
+    # -----------------------------------------------------------------------
+    # clients
+    # -----------------------------------------------------------------------
+
+    ClientsNewPayload:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          description: Accepts the empty string.
+
+    ClientsEditPayload:
+      type: object
+      description: |
+        Partial edit: no field is required. Absent = left untouched; with a value = replaced;
+        `null` = cleared; `null` on a field that is mandatory at creation = fails.
+      properties:
+        name:
+          type: string
+          description: '**Does not accept `null`**: it is mandatory at creation.'
+        description:
+          type: [string, 'null']
+
+    # -----------------------------------------------------------------------
+    # projects
+    # -----------------------------------------------------------------------
+
+    ProjectsNewPayload:
+      type: object
+      required: [name, code]
+      properties:
+        creator:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Who creates the project. **Optional in the schema**: with an envelope it is redundant
+            with `actor.id`; without one, identity comes from the subject. Some source has to
+            resolve an actor or the command answers `invalid_fields` — see `resolveActor` in
+            `Actor`'s description.
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [analisis, activo, inactivo, finalizado, cancelado]
+          default: analisis
+        type:
+          type: string
+          enum: [interno, comercial, investigacion, propuesta]
+          default: comercial
+        description:
+          type: string
+        initDate:
+          type: string
+          format: date-time
+          description: 'Default: the moment of validation.'
+        endDate:
+          type: [string, 'null']
+          format: date-time
+        clientId:
+          type: [integer, 'null']
+          description: If present, the actor is validated to exist.
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+
+    ProjectsEditPayload:
+      type: object
+      description: 'Partial edit: no field is required and no defaults are applied.'
+      properties:
+        name:
+          type: string
+          description: Does not accept `null`.
+        code:
+          type: string
+          description: Does not accept `null`.
+        status:
+          type: string
+          enum: [analisis, activo, inactivo, finalizado, cancelado]
+        type:
+          type: string
+          enum: [interno, comercial, investigacion, propuesta]
+        description:
+          type: [string, 'null']
+        initDate:
+          type: string
+          format: date-time
+          description: Does not accept `null`.
+        endDate:
+          type: [string, 'null']
+          format: date-time
+        clientId:
+          type: [integer, 'null']
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+
+    # -----------------------------------------------------------------------
+    # tasks
+    # -----------------------------------------------------------------------
+
+    TaskPriority:
+      type: string
+      description: |
+        Task priority. **An enum on the bus, an integer in the column** (`objectives.priority` is
+        INTEGER NOT NULL): `sin_prioridad`=0, `baja`=1, `media`=2, `alta`=3, `urgente`=4.
+
+        Not to be confused with `requirements.priority`, which is an actual enum in the database.
+      enum: [sin_prioridad, baja, media, alta, urgente]
+
+    TasksNewPayload:
+      type: object
+      required: [title, projectId, responsiblePersonIds]
+      properties:
+        creator:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        estimatedFinishDate:
+          type: [string, 'null']
+          description: |
+            Accepted as a date and coerced to `YYYY-MM-DD`: the column is a STRING, not a DATE.
+        state:
+          type: string
+          enum: [backlog, activo, finalizado, cancelado, en_revision]
+          default: backlog
+        area:
+          type: string
+          enum: [diseño, desarrollo, gestion, investigacion]
+          default: desarrollo
+          description: |
+            **Corrected:** an earlier prose version marked this both required and defaulted,
+            which is contradictory. It is optional, with default `desarrollo`.
+        priority:
+          allOf:
+            - $ref: '#/components/schemas/TaskPriority'
+          default: sin_prioridad
+        priorityValue:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: |
+            **A transitional escape hatch, not part of the contract.** The enum has 5 values and
+            the column accepted 0-5, so the round-trip translation would collapse 5 into 4. The api
+            sends the original number here and core uses it as is, ignoring `priority`.
+
+            It goes away once the web speaks in priority names.
+        projectId:
+          type: integer
+        responsiblePersonIds:
+          $ref: '#/components/schemas/ResponsiblePersonIds'
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: public
+        requirementId:
+          type: [integer, 'null']
+          description: If present, it has to belong to the given project.
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            Files to link to the task being created.
+
+            > **Discrepancy resolved by REQ-001 (S-003).** This payload did not declare
+            > `attachmentIds`, yet the message declared `invalid_attachment_id` among its
+            > `x-error-codes`. RF-9 requires linking files to tasks, so in the new model this
+            > command carries `fileIds`. **Verify against `services/core/src/commands/tasks/` when
+            > implementing** and keep spec and code consistent.
+
+    TasksEditPayload:
+      type: object
+      description: |
+        Partial edit: every field is optional, `editor` included. `objective_activities.changed_by`
+        has a foreign key against `users`, so an actor MUST be resolved — with an envelope or with
+        `editor` — or the command answers `invalid_fields`; see `resolveActor` in `Actor`'s
+        description.
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        estimatedFinishDate:
+          type: [string, 'null']
+        state:
+          type: string
+          enum: [backlog, activo, finalizado, cancelado, en_revision]
+        area:
+          type: string
+          enum: [diseño, desarrollo, gestion, investigacion]
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        priorityValue:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: See `TasksNewPayload.priorityValue`.
+        responsiblePersonIds:
+          allOf:
+            - $ref: '#/components/schemas/ResponsiblePersonIds'
+          description: |
+            Full replacement: the ones not present are deleted and the ones that are get upserted,
+            preserving the row and its `createdAt`.
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        requirementId:
+          type: [integer, 'null']
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            The **COMPLETE set** that must end up linked to the task, same semantics as
+            `RequirementsEditPayload.fileIds`.
+
+            > Same discrepancy as `TasksNewPayload.fileIds`, resolved the same way by REQ-001.
+
+    TasksCommentPayload:
+      type: object
+      required: [comment]
+      properties:
+        author:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        comment:
+          type: string
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: internal
+          description: |
+            The comment is the only activity type whose visibility the user chooses; in the rest it
+            is automatic, per field.
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            Files to link to the comment. **No draft `entityType` is involved any more**: the
+            files already exist on their own and the link is created against the comment once it
+            exists (REQ-001, S-003). The web always sends this field, even when the array is
+            empty.
+
+    # REQ-011 — commands 22 and 23. ONE payload shared by `requirements.{id}.comment.{cid}.edit`
+    # and `tasks.{id}.comment.{cid}.edit`, the same criterion `EmptyBody` already uses to be
+    # shared across channels. `additionalProperties: false` is what makes `visibilityLevel`
+    # rejected with `invalid_fields` if sent — the comment's visibility is immutable after
+    # creation (RF-8): there is no field to ignore it, there is no field to accept it.
+    CommentEditPayload:
+      type: object
+      required: [comment]
+      additionalProperties: false
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        comment:
+          type: string
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            The **COMPLETE set** that must end up linked to the comment, resolved with
+            `syncFileLinks` — same semantics as `RequirementsEditPayload.fileIds`: the ids not
+            already linked get a new `attachments` row, and the ones no longer present have their
+            **link** deleted. Ownership is validated only over the new ids.
+
+    # -----------------------------------------------------------------------
+    # requirements
+    # -----------------------------------------------------------------------
+
+    RequirementsNewPayload:
+      type: object
+      required: [title, description, projectId]
+      properties:
+        creator:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        title:
+          type: string
+        description:
+          type: string
+        projectId:
+          type: integer
+        type:
+          type: [string, 'null']
+          enum: [funcionalidad, mejora, incidencia, otro, null]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+          default: sin_prioridad
+          description: 'Unlike tasks, here the enum is an enum in the database too.'
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: public
+        state:
+          type: string
+          enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+          description: |
+            **Corrected:** an earlier prose version did not declare `state` on creation, but
+            the api accepts it and the web uses it. Default `analisis`.
+        responsiblePersonIds:
+          $ref: '#/components/schemas/ResponsiblePersonIds'
+        estimatedFinishDate:
+          type: [string, 'null']
+          format: date-time
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            Files to link to the requirement being created. The requirement and its links are
+            written in **a single transaction**: if anything fails, neither the requirement nor a
+            single link survives — but the `files` rows do, unlinked, which is a valid state
+            (REQ-001 RF-1).
+        # attachmentScope - REMOVED by REQ-001 (S-003). It existed only to choose the draft's
+        # anchor, and there are no drafts any more.
+        scope:
+          type: [string, 'null']
+        technicalSolution:
+          type: [string, 'null']
+        acceptanceCriteria:
+          type: [string, 'null']
+        subscriberUserIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityUserId'
+          description: |
+            Users to subscribe to the requirement being created. Written in the SAME transaction as
+            the requirement: if anything fails, neither the requirement nor a single subscription
+            survives. Optional and ADDITIVE — a client that does not send it behaves exactly as
+            before. Duplicates are collapsed by the command before inserting; a duplicate is NOT an
+            error (unlike `requirements.{id}.subscriptors.new`, which answers `already_subscribed`).
+
+    RequirementsEditPayload:
+      type: object
+      description: |
+        Partial edit: every field is optional, `editor` included. `requirement_activities.changed_by`
+        has an FK against `users`, so an actor MUST be resolved — with an envelope or with
+        `editor` — or the command answers `invalid_fields`; see `resolveActor` in `Actor`'s
+        description.
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: [string, 'null']
+          enum: [funcionalidad, mejora, incidencia, otro, null]
+        priority:
+          type: string
+          enum: [sin_prioridad, baja, media, alta, urgente]
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+        state:
+          type: string
+          enum: [analisis, planificacion, en_cola, desarrollo, revision, resuelto, cancelado]
+          description: |
+            A state change triggers the model's hook, which sets the transition timestamps and logs
+            the activity.
+        responsiblePersonIds:
+          allOf:
+            - $ref: '#/components/schemas/ResponsiblePersonIds'
+          description: 'Full replacement: ALL of them are deleted and recreated.'
+        estimatedFinishDate:
+          type: [string, 'null']
+          format: date-time
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            The **COMPLETE set** that must end up linked: the ones that were not there get a new
+            `attachments` row and the ones no longer present have their link deleted. This differs
+            from creation, where it is only the list to link.
+
+            **It operates on the link, not on the file** (REQ-001, S-003): deleting a link never
+            deletes the file, because a file can have 0..N links and removing the object would
+            break the others.
+        resolutionType:
+          type: [string, 'null']
+          enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro, null]
+          description: |
+            **Known overlap:** resolution has its own command (`requirements.{id}.resolve`), but
+            the api's `PATCH` still sends these three fields here, and in fact it is the only path
+            through which resolution happens today.
+        resolutionConclusion:
+          type: [string, 'null']
+        resolutionComment:
+          type: [string, 'null']
+        scope:
+          type: [string, 'null']
+        technicalSolution:
+          type: [string, 'null']
+        acceptanceCriteria:
+          type: [string, 'null']
+
+    RequirementsResolvePayload:
+      type: object
+      required: [type]
+      properties:
+        editor:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        type:
+          type: string
+          enum: [error_interno, fuera_de_alcance, error_externo, discutible, otro]
+          description: |
+            Resolution type (`RequirementResolution`). Not to be confused with the `state`, which
+            moves to `resuelto`: this is the REASON.
+        conclusion:
+          type: [string, 'null']
+          description: |
+            REQ-007 (S-033): required for every requirement type, not only `incidencia` — the one
+            in the payload or the one already stored. If there is neither, it replies
+            `resolution_required`.
+        comment:
+          type: [string, 'null']
+
+    RequirementsCommentPayload:
+      type: object
+      required: [comment]
+      properties:
+        author:
+          allOf:
+            - $ref: '#/components/schemas/IdentityUserId'
+          description: 'Optional in the schema. See `ProjectsNewPayload.creator`.'
+        comment:
+          type: string
+        visibilityLevel:
+          type: string
+          enum: [public, internal]
+          default: internal
+        fileIds:
+          allOf:
+            - $ref: '#/components/schemas/FileIds'
+          description: |
+            Files to link to the comment. **No draft `entityType` is involved any more**: the link
+            is created against the already existing comment (REQ-001, S-003).
+
+    SubscriptorNewPayload:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          $ref: '#/components/schemas/IdentityUserId'
+
+    # -----------------------------------------------------------------------
+    # times
+    # -----------------------------------------------------------------------
+
+    WorkedTimesNewPayload:
+      type: object
+      required: [date, minutes, projectId]
+      description: |
+        Extra constraint: `taskId` and `requirementId` are mutually exclusive.
+
+        **REQ-007: `personId` moved out of `required`.** See its description below.
+      properties:
+        date:
+          $ref: '#/components/schemas/DateOnly'
+        minutes:
+          type: integer
+          minimum: 1
+          description: 'Cap: the day''s total cannot go over 1440.'
+        projectId:
+          type: integer
+        taskId:
+          type: [integer, 'null']
+          description: |
+            The bus name for `objective_id`. **Exclusive with `requirementId`.**
+        requirementId:
+          type: [integer, 'null']
+          description: |
+            **Exclusive with `taskId`.** If present, it has to belong to the given project.
+        personId:
+          type: integer
+          description: |
+            Id from the `persons` table. **OPTIONAL since REQ-007** (S-031). When absent, core
+            resolves it **from the actor**: `SELECT id FROM people WHERE user_id = {actor}`. If
+            the actor has no linked Person: `person_not_found`.
+
+            > **The "Corrected" note that used to be here is DEROGATED.** It read: *"an earlier
+            > prose version declared it optional, defaulting to 'the authenticated user's person'.
+            > Core cannot do that — it does not know the end user. The api resolves that default
+            > before publishing."* **With the identity envelope, core DOES know the end user.**
+            >
+            > Without this change a person publishing straight to the bus would have to know their
+            > own `people.id` — an id no interface shows them — and the parity between the two
+            > paths would be false.
+
+            **If it IS sent and differs from the actor's own Person**, only an `admin` is allowed
+            (C-41); anyone else gets `access_denied`.
+
+    # REQ-007 — S-032. The 21st command.
+    WeekAssignedTimesReplacePayload:
+      type: object
+      required: [dateFrom, assignments]
+      additionalProperties: false
+      description: |
+        Full-week replacement of the assignment grid. `internal` is NOT accepted: core derives it
+        from `projects.type`.
+      properties:
+        dateFrom:
+          allOf:
+            - $ref: '#/components/schemas/DateOnly'
+          description: |
+            **Monday** of the week being replaced. Any other weekday: `invalid_fields`. A week in
+            the past: `invalid_date_range` (C-36).
+        assignments:
+          type: array
+          description: |
+            The whole grid for that week. Entries with `minutes: 0` are **discarded**, not stored.
+            An empty array is valid and clears the week.
+          items:
+            type: object
+            required: [projectId, personId, minutes]
+            additionalProperties: false
+            properties:
+              projectId:
+                type: integer
+              personId:
+                type: integer
+                description: 'Id from the `persons` table.'
+              minutes:
+                type: integer
+                minimum: 0
+
+    UnworkedTimesNewPayload:
+      type: object
+      required: [date, minutes, reason, personId]
+      properties:
+        date:
+          $ref: '#/components/schemas/DateOnly'
+        minutes:
+          type: integer
+          minimum: 1
+          description: |
+            Cap of 1440 per day, **adding up worked AND unworked time**.
+        reason:
+          type: string
+          enum:
+            - tramite
+            - corte_servicios
+            - vacaciones
+            - dia_no_laborable
+            - personal
+            - medico
+            - estudio
+            - enfermedad
+            - otro
+        personId:
+          type: integer
+          minimum: 1
+          description: |
+            **Still required, on purpose.** It used to say *"required, just like in
+            `worked-times.new`"* — that sentence went stale with REQ-007 (S-031), where
+            `personId` moved OUT of `required` in `worked-times.new`.
+
+            It did **not** move here: S-031 CA-10 only moved **ownership** to core for absences,
+            not the default resolution. The api keeps its `resolvePersonId` for this route.
+
+            > **Ownership (REQ-007, S-031):** if the Person is not the actor's own and the actor
+            > is not `admin`, core answers `access_denied`. Same rule as `worked-times.new`
+            > (C-41), and the same one that guards `unworked-times.{id}.delete`.
+
+tags:
+  - name: clients
+    description: Actors — called `clients` in the database and on the bus. 2 commands.
+  - name: projects
+    description: Projects. 2 commands.
+  - name: tasks
+    description: |
+      Tasks. 3 commands. The table is `objectives`; the protocol calls them `tasks`.
+  - name: requirements
+    description: Requirements, comments and subscriptions. 6 commands.
+  - name: times
+    description: |
+      Worked and unworked time logging, and the weekly assignment grid. **5 commands** since
+      REQ-007 added `week-assigned-times.replace`.

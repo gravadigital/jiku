@@ -83,6 +83,6 @@ cuando hace falta, `constants/`. El barrel `index.ts` es su superficie pública.
 | [../../analysis/services/opus-web.md](../../analysis/services/opus-web.md) | Análisis de importación |
 | [../../analysis/ux/opus-web/index.md](../../analysis/ux/opus-web/index.md) | Relevamiento UX de la interfaz actual |
 | [../web/index.md](../web/index.md) | El otro frontend: mismo stack, decisiones opuestas en datos y guard |
-| [../../apis/core.yaml](../../apis/core.yaml) | Contrato de `core` |
-| [../../apis/api.yaml](../../apis/api.yaml) | Contrato HTTP de `api` (`/opus/modules`, `/opus/docs/*`) |
+| [../../../_jflow/apis/core.asyncapi.yaml](../../../_jflow/apis/core.asyncapi.yaml) | Contrato de `core` |
+| [../../../_jflow/apis/api.openapi.yaml](../../../_jflow/apis/api.openapi.yaml) | Contrato HTTP de `api` (`/opus/modules`, `/opus/docs/*`) |
 | [../../adrs/ADR-015-modulos-opcionales-del-bus.md](../../adrs/ADR-015-modulos-opcionales-del-bus.md) | Módulos opcionales del bus |

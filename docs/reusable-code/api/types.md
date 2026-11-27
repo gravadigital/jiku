@@ -60,7 +60,7 @@ interface UploadTicketReply {
 **Location:** `api/lib/utils/bus/upload-ticket.ts`
 
 **Description:** The upload-permission contract as the frontends see it
-(`docs/apis/api.yaml`, schema `UploadTicket`). Produced from `UploadTicketReply` by
+(`_jflow/apis/api.openapi.yaml`, schema `UploadTicket`). Produced from `UploadTicketReply` by
 `toUploadTicket`.
 
 `uploadUrl` is a presigned **PUT** for a single object with a short TTL: the browser uses it

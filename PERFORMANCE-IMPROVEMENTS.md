@@ -269,7 +269,7 @@ Qué implica:
 ## 3. Mejoras en PostgreSQL
 
 Todas probadas dentro de `BEGIN … ROLLBACK`: la base quedó sin cambios. Van en una migración en
-`api/db-upgrade/migrations/`.
+`services/api/db-upgrade/migrations/`.
 
 ### P1. Índices para el orden por defecto — **[IMPLEMENTADA]** (`5246bd0`)
 
@@ -429,14 +429,14 @@ Apagada por defecto: sin `QUERY_TIMING=true` el camino de una request no cambia.
 
 | Archivo | Cambio |
 |---|---|
-| `core/src/timing.ts` (nuevo) | Traza por request en `AsyncLocalStorage`; `span`/`spanSync`; hooks del pool; `tagSql`; headers de respuesta; log `[timing]`; monitor del event loop |
-| `core/src/bus/service.ts` | Abre la traza por mensaje; tramos `decode`/`encode`; agrega los headers `Jiku-Timing`, `Jiku-Recv-At` y `Jiku-Resp-At` a la respuesta sin tocar el cuerpo |
-| `core/src/queries/engine/execute-sql.ts` | Tramo `sql:<label>` con filas; con traza, prefija el SQL con `/* <traceId> <label> */` |
-| `core/src/authorize-caller.ts` | Tramo `auth.readCaller` |
-| `core/src/queries/dispatcher.ts` | Tramo `validate` |
-| `core/src/queries/engine/run.ts` | Tramos `project` y `paginate` |
-| `core/src/models/index.ts`, `models/read.ts` | Hooks `beforePoolAcquire` y `afterPoolAcquire` (`pool.acquire:write` / `pool.acquire:read`) |
-| `core/src/index.ts` | Arranca el monitor del event loop |
+| `services/core/src/timing.ts` (nuevo) | Traza por request en `AsyncLocalStorage`; `span`/`spanSync`; hooks del pool; `tagSql`; headers de respuesta; log `[timing]`; monitor del event loop |
+| `services/core/src/bus/service.ts` | Abre la traza por mensaje; tramos `decode`/`encode`; agrega los headers `Jiku-Timing`, `Jiku-Recv-At` y `Jiku-Resp-At` a la respuesta sin tocar el cuerpo |
+| `services/core/src/queries/engine/execute-sql.ts` | Tramo `sql:<label>` con filas; con traza, prefija el SQL con `/* <traceId> <label> */` |
+| `services/core/src/authorize-caller.ts` | Tramo `auth.readCaller` |
+| `services/core/src/queries/dispatcher.ts` | Tramo `validate` |
+| `services/core/src/queries/engine/run.ts` | Tramos `project` y `paginate` |
+| `services/core/src/models/index.ts`, `models/read.ts` | Hooks `beforePoolAcquire` y `afterPoolAcquire` (`pool.acquire:write` / `pool.acquire:read`) |
+| `services/core/src/index.ts` | Arranca el monitor del event loop |
 | `deploy/docker-compose.local.yml` | Pasa `QUERY_TIMING`, `QUERY_TIMING_SQL` y `QUERY_TIMING_LOOP_MS` (default `false`) |
 
 Variables:

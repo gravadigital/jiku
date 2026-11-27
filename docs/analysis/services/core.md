@@ -2,7 +2,7 @@
 
 > Documento temporal del flujo de importación. Lo consume `/product-consolidate-services`
 > para armar el PRD. La documentación definitiva vive en
-> [`docs/architectures/core/`](../../architectures/core/), [`docs/apis/core.yaml`](../../apis/core.yaml)
+> [`docs/architectures/core/`](../../architectures/core/), [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml)
 > y [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md).
 
 ## Identificación
@@ -162,7 +162,7 @@ Tres comportamientos que core cambió a propósito respecto de lo que hacía la 
 
 ## Superficie: 17 comandos en 5 módulos
 
-Contrato completo en [`docs/apis/core.yaml`](../../apis/core.yaml) (AsyncAPI 2.6).
+Contrato completo en [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) (AsyncAPI 2.6).
 
 ### Gramática de subjects
 
@@ -354,5 +354,5 @@ arrancar; core no las toca. La primera mitad del comentario es correcta, la segu
 | Documento | Qué contiene |
 |---|---|
 | [`docs/architectures/core/`](../../architectures/core/) | Manifest, overview y las convenciones custom del servicio |
-| [`docs/apis/core.yaml`](../../apis/core.yaml) | Contrato AsyncAPI 2.6 de los 17 comandos. **Verificado contra el código en este análisis**: los 17 channels, los `required`, los defaults, los enums y los 21 códigos de error coinciden |
+| [`_jflow/apis/core.asyncapi.yaml`](../../../_jflow/apis/core.asyncapi.yaml) | Contrato AsyncAPI 2.6 de los 17 comandos. **Verificado contra el código en este análisis**: los 17 channels, los `required`, los defaults, los enums y los 21 códigos de error coinciden |
 | [`docs/db-schemas/jiku.md`](../../db-schemas/jiku.md) | Esquema de la base compartida. Ya documenta a core como el único escritor |

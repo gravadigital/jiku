@@ -166,7 +166,7 @@ Desaparecen del contrato `files` (el binario), `entityType`, `entityId` y `descr
 **Autorización:** solo el JWT. `canUserAccessEntity` **deja de aplicar** porque no hay entidad; el
 control por entidad se corre al momento de vincular (CA-26).
 
-**Ref:** `docs/apis/api.yaml` — `POST /api/attachments`, `POST /api/opus/attachments`
+**Ref:** `_jflow/apis/api.openapi.yaml` — `POST /api/attachments`, `POST /api/opus/attachments`
 
 ---
 
@@ -199,7 +199,7 @@ Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
 > clave reservada **`actor`** —`{ id, roles, name?, username?, email? }`— armada con el claim que la
 > api ya verificó contra Zitadel. La inyecta `sendCommand` una sola vez, así que **ninguna ruta la
 > arma a mano**. `core` la extrae **antes** de validar y espeja `users` en su propia transacción
-> antes de autorizar. Contrato: `components/schemas/Actor` de `docs/apis/core.yaml`.
+> antes de autorizar. Contrato: `components/schemas/Actor` de `_jflow/apis/core.asyncapi.yaml`.
 >
 > **`uploader` NO desaparece, y vale lo mismo que `actor.id`.** Es dato de dominio —termina en
 > `files.uploaded_by`— y los dos salen del token del usuario final, así que nadie pierde la
@@ -211,7 +211,7 @@ Requeridos: `uploader`, `fileName`, `mimeType`, `fileSize`.
 
 **Timeout:** 5000 ms ([ADR-002](../adrs/ADR-002-comandos-nats-sin-jetstream.md)).
 
-**Ref:** `docs/apis/core.yaml` — canal `files.request-upload`, `FilesRequestUploadPayload`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` — canal `files.request-upload`, `FilesRequestUploadPayload`
 
 ---
 
@@ -319,7 +319,7 @@ Sin `entityType` ni `entityId` (D-02). El namespace `/f/` separa lo nuevo del le
 > La URL prefirmada la genera `core`, es de un solo objeto y de vida corta, y la `api` no puede
 > reconstruirla releyendo la base sin duplicar la política de la clave y montar su propio firmador.
 
-**Ref:** `docs/apis/core.yaml` · `docs/db-schemas/jiku.md` — `files`, `system_settings`
+**Ref:** `_jflow/apis/core.asyncapi.yaml` · `docs/db-schemas/jiku.md` — `files`, `system_settings`
 
 ---
 

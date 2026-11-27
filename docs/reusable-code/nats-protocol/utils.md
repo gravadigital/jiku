@@ -82,7 +82,7 @@ authEventSubject(); // 'dev.events.auth'   (with NATS_INSTANCE=prod -> 'prod.eve
 
 - **It takes no parameters and there is no parametric variant.** No `eventsSubject(name)`, no
   `EVENTS_PREFIX` constant, and no `eventsGroupSubject()`. That is deny-by-default on the bus
-  (ADR-008): a wildcard helper would invite `{instance}.events.*`, which `docs/apis/core.yaml`
+  (ADR-008): a wildcard helper would invite `{instance}.events.*`, which `_jflow/apis/core.asyncapi.yaml`
   forbids explicitly. A future event MUST cost a new helper here **and** a new `sub.allow` line in
   `templates/core.yaml`.
 - **It derives from the `INSTANCE` constant, not from `process.env`.** That is what makes the test
@@ -154,7 +154,7 @@ endpointSubject('requirements.{id}.subscriptors.{userId}.delete'); // 'requireme
 
 **Note:** Applied to the 20 patterns of `core`'s `registry.patterns()`, `endpointName` and
 `endpointSubject` produce 20 distinct names and 20 distinct subjects. That table is published as a
-contract in `docs/apis/core.yaml`; the tests copy it rather than recompute it.
+contract in `_jflow/apis/core.asyncapi.yaml`; the tests copy it rather than recompute it.
 
 ## methodFromSubject
 

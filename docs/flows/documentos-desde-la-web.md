@@ -136,7 +136,7 @@ card de proyecto. El **"+"** abre el alta (Paso 2b) con las relaciones de la fic
 **Response (éxito):** `200` con el `data` de jiku-docs (`{ items, page }`; `page.cursor` pagina,
 `page.total` con `count`) más `clientRefs` y `projectRefs` en cada ítem, resueltos desde la base en lote.
 
-**Ref:** `docs/apis/api.yaml` (`GET /docs/documents`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /docs/documents`)
 
 ---
 
@@ -168,7 +168,7 @@ La web decide editar y compartir por la visibilidad del documento y el rol; los 
 solo lectura**: la Server Action `getDocument` descarga el contenido **del lado del servidor** y la
 interfaz no ofrece editar.
 
-**Ref:** `docs/apis/api.yaml` (`GET /docs/documents/{id}`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /docs/documents/{id}`)
 
 ---
 
@@ -242,7 +242,7 @@ en edición con la reserva tomada y sin recarga.
 
 **Response (éxito):** `200` con el `data` de jiku-docs. La reserva dura **120 s** en jiku-docs.
 
-**Ref:** `docs/apis/api.yaml` (`POST /docs/documents/{id}/lock`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`POST /docs/documents/{id}/lock`)
 
 ---
 
@@ -295,7 +295,7 @@ estilo; solo toca las claves que la persona cambió) y manda **un solo `PUT`** c
 mensaje. Con el frontmatter ilegible se edita el contenido completo, propiedades incluidas. Tras un
 `version_conflict`, el próximo `PUT` compone sobre el frontmatter de la versión actual.
 
-**Ref:** `docs/apis/api.yaml` (`PUT /docs/documents/{id}`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`PUT /docs/documents/{id}`)
 
 ---
 
@@ -313,7 +313,7 @@ mensaje. Con el frontmatter ilegible se edita el contenido completo, propiedades
   que valida sesión y ULIDs y reenvía **solo** `{ sessionId }` (`force` nunca se expone). Si el
   pedido no llega, la reserva vence sola a los 120 s.
 
-**Ref:** `docs/apis/api.yaml` (`POST /docs/documents/{id}/unlock`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`POST /docs/documents/{id}/unlock`)
 
 ---
 
@@ -346,7 +346,7 @@ mensaje. Con el frontmatter ilegible se edita el contenido completo, propiedades
 El archivo queda **sin vínculo** en `core` (no hay `file_link`): ver
 [`subida-de-archivos`](subida-de-archivos.md) (canal alternativo).
 
-**Ref:** `docs/apis/api.yaml` (`POST /docs/attachments`, `POST /docs/attachments/{id}/confirm`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`POST /docs/attachments`, `POST /docs/attachments/{id}/confirm`)
 
 ---
 
@@ -363,7 +363,7 @@ la api publica `attachments.{id}.request-download` y responde **302** con `Locat
 y `X-Content-Type-Options: nosniff`. La web **propaga** el 302: el navegador baja el archivo directo
 de S3, sin proxy del binario.
 
-**Ref:** `docs/apis/api.yaml` (`GET /docs/attachments/{id}`)
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /docs/attachments/{id}`)
 
 ---
 
@@ -409,7 +409,7 @@ documento no distingue: 403 sigue siendo "no existe o no compartido" (DD-9; DD-3
 Un documento con `contentUrl` (más de 256 KiB) se descarga **desde el navegador** (a diferencia de
 web, que lo hace del lado del servidor): requiere CORS `GET` en el bucket de jiku-docs.
 
-**Ref:** `docs/apis/api.yaml` (`GET /opus/docs/documents`, `GET /opus/docs/documents/{id}`,
+**Ref:** `_jflow/apis/api.openapi.yaml` (`GET /opus/docs/documents`, `GET /opus/docs/documents/{id}`,
 `GET /opus/docs/documents/{documentId}/attachments/{id}`)
 
 ## Manejo de Errores
