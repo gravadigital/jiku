@@ -176,7 +176,7 @@ No son de seguridad, así que no se cargaron en Jiku. La definición los documen
 
 ### B-17 Composes y versiones fijadas que no funcionan
 
-- **Qué pasa:** `deploy/.env.dist` fija `AUTH_CALLOUT_VERSION=0.1.0`, que rechaza el `rules.yaml` del repositorio (pide un campo `type`); `docker-compose.local.yml` usa una imagen de MinIO que ya no existe; `docker-compose.dev.yml` no arranca como se documenta (modo `mock` que api y core no pueden usar, sin creds ni MinIO); `NATS_EVENTS_VERSION` no llega a ningún contenedor; `api/run-ci-tests.sh` construye con el contexto equivocado.
+- **Qué pasa:** `deploy/.env.dist` fija `AUTH_CALLOUT_VERSION=0.1.0`, que rechaza el `rules.yaml` del repositorio (pide un campo `type`); `docker-compose.local.yml` usa una imagen de MinIO que ya no existe; `docker-compose.dev.yml` no arranca como se documenta (modo `mock` que api y core no pueden usar, sin creds ni MinIO); `NATS_EVENTS_VERSION` no llega a ningún contenedor; `services/api/run-ci-tests.sh` construye con el contexto equivocado.
 - **Dónde:** `deploy/`.
 - **Gravedad sugerida:** media.
 
@@ -212,7 +212,7 @@ No son de seguridad, así que no se cargaron en Jiku. La definición los documen
 
 ### B-23 Variables y comentarios que no corresponden al código
 
-- **Qué pasa:** los composes pasan `LAST_WEEK_MISSING_HOURS_ENABLED`, `CURRENT_WEEK_MISSING_HOURS_ENABLED` y `CONSOLIDATED_HOURS_REMINDER_ENABLED`, que ningún código lee; comentarios desactualizados (`protocol.ts:94-111`, `authorize-caller.ts:77` cita `templates/api.yaml`, que no existe; `recipients.ts:69` dice que no hay índice único de suscriptores, y lo hay); `core/README.md` dice 20 comandos y 6 consultas (son 23 y 23); la documentación dice 95 migraciones (son 108); `docs/flows/adjuntos.md` describe una subida que ya no existe.
+- **Qué pasa:** los composes pasan `LAST_WEEK_MISSING_HOURS_ENABLED`, `CURRENT_WEEK_MISSING_HOURS_ENABLED` y `CONSOLIDATED_HOURS_REMINDER_ENABLED`, que ningún código lee; comentarios desactualizados (`protocol.ts:94-111`, `authorize-caller.ts:77` cita `templates/api.yaml`, que no existe; `recipients.ts:69` dice que no hay índice único de suscriptores, y lo hay); `services/core/README.md` dice 20 comandos y 6 consultas (son 23 y 23); la documentación dice 95 migraciones (son 108); `docs/flows/adjuntos.md` describe una subida que ya no existe.
 - **Dónde:** varios.
 - **Gravedad sugerida:** baja.
 

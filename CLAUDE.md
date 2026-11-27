@@ -17,7 +17,7 @@ any variant in either language. When one appears, follow this procedure in full 
 | Version | Where it lives | Who moves it |
 | --- | --- | --- |
 | **The product** — what "versiona" means | root `CHANGELOG.md` + `scripts/set-version.sh` | This procedure |
-| The grava-workflow methodology | `.claude/VERSION` and `.claude/CHANGELOG.md` | The `/update-tools` skill. **Never touch it here** |
+| The workflow tooling (jiku flow, in `.claude/`) | `.claude/.jflow-version`, `.claude/VERSION` and `.claude/CHANGELOG.md` | The `/jflow-framework-update` skill. **Never touch it here** |
 
 The whole monorepo shares a single number: `api`, `core`, `web`, `opus-web` and the packages
 under `packages/` are released together and always carry the same one. The policy is in
@@ -35,15 +35,19 @@ git rev-list --left-right --count main...dev
 git status --porcelain
 ```
 
-**The cut has to land on a closed REQ.** Never version in the middle of a half-implemented
-request. To check, look at the story statuses of the latest REQ on the candidate branch:
+**The cut has to land on closed requirements.** Never version in the middle of a half-implemented
+requirement. Since the jiku flow adoption, requirements live in Jiku and each one is merged into
+`dev` from its own branch, so what `dev` has that `main` does not is a list of finished
+requirements:
 
 ```sh
-git ls-tree --name-only <branch> docs/requests/
-grep -l "status: Completed" docs/stories/S-*.md
+python3 .claude/scripts/jflow.py release-info     # requirements merged in dev that main lacks
 ```
 
-If `dev` is ahead but has pending stories, the cut is `main` — and **say so to the user**,
+Work from before the adoption is tracked in `docs/requests/` and `docs/stories/` (`status:
+Completed`). `/jflow-release` runs this whole cut with jiku flow.
+
+If `dev` is ahead but carries unfinished work, the cut is `main` — and **say so to the user**,
 do not resolve it silently. If `origin/main` is behind `main`, report that too, but **do not
 push** (see Step 8).
 

@@ -166,9 +166,12 @@ Start with its README: it maps how the parts fit together.
 | [_jflow/apis/core.asyncapi.yaml](_jflow/apis/core.asyncapi.yaml) | the bus contract (AsyncAPI) — source of truth for anything crossing the bus |
 | [known-limitations.md](documentation/known-limitations.md) | **read before adopting** |
 
-**[docs/](docs/)** — the internal working documentation: the operations guide, architecture per
-service, conventions, stories and decision records. Written in Spanish, for the team that builds
-Jiku. It follows the grava-workflow methodology in [`.claude/`](.claude/).
+**[docs/](docs/)** — for the team that operates and builds Jiku, in Spanish: the operations guide
+([operacion.md](docs/operacion.md)) and the adoption report ([adopcion.md](docs/adopcion.md)). The
+rest of `docs/` (architecture per service, conventions, requests, stories and decision records) is
+the record of the previous methodology, kept as history: since the jiku flow adoption the
+definition of what is built, its rules and decisions live in [`_jflow/`](_jflow/), and every change
+is a requirement in Jiku (see [AGENTS.md](AGENTS.md)).
 
 ## Contributing
 

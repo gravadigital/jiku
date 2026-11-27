@@ -82,6 +82,9 @@ test('a client user signs in and sees the projects they have access to', async (
   // /projects redirects to the requirements of the first project the user can see.
   await expect(page).toHaveURL(/localhost:3001\/projects\/\d+\/requirements/);
   await expect(page.getByText(projectName)).toBeVisible();
+  // Earlier runs leave other projects: open this run's one, as the user does from the sidebar.
+  await page.getByText(projectName).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${project.id}/requirements`));
   await page.waitForLoadState('networkidle');
   await page.screenshot({ path: '../../reports/screenshots/adoption/opus-web-projects.png', fullPage: true });
   expect(errors, errors.join('\n')).toEqual([]);
