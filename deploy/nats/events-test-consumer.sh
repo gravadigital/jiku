@@ -40,7 +40,7 @@ cd "$(dirname "$0")"
 OUT="creds"
 NETWORK="${NATS_DOCKER_NETWORK:-jiku-local_jiku}"
 NATS_URL="${NATS_INTERNAL_URL:-nats://nats:4222}"
-CORE_DIR="../../core"
+CORE_DIR="../../services/core"
 
 DURABLE="events-test-consumer"
 FROM_START=false
@@ -55,7 +55,7 @@ Consumidor de prueba del stream de eventos de dominio JIKU_EVENTS (S-067, CA-3).
 credencial DESCARTABLE con los tres permisos del molde `auth-callout/templates/connector.yaml`
 (sub sobre la versión entera de eventos, pub sobre los subjects de $JS.API acotados a
 JIKU_EVENTS, sub sobre su propio inbox) y corre
-el consumidor de `core/tests/tools/events-test-consumer.ts` con ella. La borra al salir, también
+el consumidor de `services/core/tests/tools/events-test-consumer.ts` con ella. La borra al salir, también
 si se corta con Ctrl-C.
 
 Es una HERRAMIENTA DE VERIFICACIÓN, NO el conector productivo — ese se desarrolla fuera de Jiku.

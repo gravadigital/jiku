@@ -9,10 +9,10 @@
   },
   "workspaces": [
     "packages/*",
-    "api",
-    "core",
-    "web",
-    "opus-web"
+    "services/api",
+    "services/core",
+    "services/web",
+    "services/opus-web"
   ],
   "scripts": {
     "postinstall": "npm run build:packages",
@@ -24,10 +24,14 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/pg": "8.23.1",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
     "@typescript-eslint/parser": "^8.51.0",
     "eslint": "^9.39.2",
     "mocha": "11.7.5",
+    "mocha-junit-reporter": "2.2.1",
+    "mocha-multi-reporters": "1.5.2",
     "prettier": "^3.9.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

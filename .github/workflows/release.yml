@@ -50,28 +50,10 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
 
-    # Mirrors ci.yml: api and core test against a real database.
-    services:
-      postgres:
-        image: postgres:15.4-alpine3.18
-        env:
-          POSTGRES_DB: gestionTest
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: testing
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      POSTGRESQL_HOST: localhost
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_DB: gestionTest
-      POSTGRESQL_USER: test
-      POSTGRESQL_PASSWORD: testing
+    # The fast part of `make check` (Engineering, CI): lint, typecheck, unit and integration
+    # tests. The integration tests bring up the `postgres-test` service of the root
+    # docker-compose.yml themselves (make test-integration). The end-to-end level runs
+    # locally against `make up`, not here.
 
     steps:
       - uses: actions/checkout@v4
@@ -82,9 +64,8 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run build
-      - run: npm run lint
-      - run: npm test
+      - run: make lint typecheck
+      - run: make test-unit test-integration
 
   publish:
     needs: test
@@ -131,7 +112,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.service }}/Dockerfile
+          file: services/${{ matrix.service }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

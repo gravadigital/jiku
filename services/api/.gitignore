@@ -1,0 +1,9 @@
+package-lock.json
+node_modules
+.env
+dist/
+doc.md
+*.log
+*.sql
+# The baseline schema of the migrations is code, not a dump (db-upgrade/baseline.js).
+!db-upgrade/baseline/schema.sql

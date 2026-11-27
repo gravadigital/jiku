@@ -1,0 +1,10 @@
+{
+  "name": "jiku-fake-docs",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Fake jiku-docs module for the local stack and the end-to-end tests",
+  "main": "server.js",
+  "dependencies": {
+    "nats": "2.29.3"
+  }
+}

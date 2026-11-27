@@ -11,8 +11,8 @@ out on purpose, a limitation you are aware of.
 
 ## Checklist
 
-- [ ] `npm run build`, `npm test` and `npm run lint` pass
+- [ ] `make check` passes (lint, typecheck, unit, integration and end-to-end tests)
 - [ ] Tests added or updated for the change in behaviour
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`, if a user would notice this
-- [ ] If it changes the NATS protocol, `docs/apis/core.yaml` was updated in
+- [ ] If it changes the NATS protocol, `_jflow/apis/core.asyncapi.yaml` was updated in
       the same PR — that document is the contract, and it wins over the code

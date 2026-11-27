@@ -102,7 +102,7 @@ export default class Attachment extends Model {
    *
    * Se conserva el `force: true` como requisito explícito: un `destroy` sin él es casi
    * siempre un descuido, y pedirlo obliga a escribir "sí, borrá la fila" en el call site.
-   * `core/src/commands/link-files.ts` y `attachments/attachments-delete.ts` ya lo pasan.
+   * `services/core/src/commands/link-files.ts` y `attachments/attachments-delete.ts` ya lo pasan.
    */
   @BeforeDestroy
   static requireForce(_attachment: Attachment, options: any) {

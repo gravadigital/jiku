@@ -64,7 +64,7 @@ deny-by-default* below.
 ### Authentication is deny-by-default
 
 `validateToken` is installed globally for every path, and exemptions are declared as an
-explicit list in `api/config/public.ts`. **That list is empty**: no route of the API is
+explicit list in `services/api/config/public.ts`. **That list is empty**: no route of the API is
 exempt, so a new endpoint is protected without its author doing anything.
 
 Adding an entry there makes an endpoint reachable **without credentials**. It is a security

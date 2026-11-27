@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md
 
 Instructions for agents working in this repository.
@@ -15,7 +17,7 @@ any variant in either language. When one appears, follow this procedure in full 
 | Version | Where it lives | Who moves it |
 | --- | --- | --- |
 | **The product** — what "versiona" means | root `CHANGELOG.md` + `scripts/set-version.sh` | This procedure |
-| The grava-workflow methodology | `.claude/VERSION` and `.claude/CHANGELOG.md` | The `/update-tools` skill. **Never touch it here** |
+| The workflow tooling (jiku flow, in `.claude/`) | `.claude/.jflow-version`, `.claude/VERSION` and `.claude/CHANGELOG.md` | The `/jflow-framework-update` skill. **Never touch it here** |
 
 The whole monorepo shares a single number: `api`, `core`, `web`, `opus-web` and the packages
 under `packages/` are released together and always carry the same one. The policy is in
@@ -33,15 +35,19 @@ git rev-list --left-right --count main...dev
 git status --porcelain
 ```
 
-**The cut has to land on a closed REQ.** Never version in the middle of a half-implemented
-request. To check, look at the story statuses of the latest REQ on the candidate branch:
+**The cut has to land on closed requirements.** Never version in the middle of a half-implemented
+requirement. Since the jiku flow adoption, requirements live in Jiku and each one is merged into
+`dev` from its own branch, so what `dev` has that `main` does not is a list of finished
+requirements:
 
 ```sh
-git ls-tree --name-only <branch> docs/requests/
-grep -l "status: Completed" docs/stories/S-*.md
+python3 .claude/scripts/jflow.py release-info     # requirements merged in dev that main lacks
 ```
 
-If `dev` is ahead but has pending stories, the cut is `main` — and **say so to the user**,
+`/jflow-release` runs this whole cut with jiku flow. (The requests and stories of the previous
+methodology were removed from `docs/`; they remain in git history.)
+
+If `dev` is ahead but carries unfinished work, the cut is `main` — and **say so to the user**,
 do not resolve it silently. If `origin/main` is behind `main`, report that too, but **do not
 push** (see Step 8).
 
@@ -58,11 +64,11 @@ git diff --stat v<last>..HEAD
 
 Sources, richest first:
 
-1. `docs/changelog/*.md` — per-story publication entries. The best thing available: they carry
-   the old contract against the new one, the deployment procedures and the decisions.
-2. `docs/requests/REQ-*.md` — the request and its rationale.
-3. `docs/stories/S-*.md` — the acceptance criteria.
-4. The commit bodies.
+1. The Jiku requirement of each change (`python3 .claude/scripts/jflow.py jiku fetch {id}`): the
+   request, its specification and acceptance criteria, and the closing comment of `/jflow-build`.
+2. The changes to the definition in `_jflow/` (`git diff v<last>..HEAD -- _jflow/`): decisions
+   added or reverted, contracts, schema.
+3. The commit bodies.
 
 And always review these diffs, because they are the ones that produce entries nobody wrote in
 any document:
@@ -70,10 +76,10 @@ any document:
 ```sh
 git diff v<last>..HEAD -- deploy/.env.dist                   # new/renamed variables
 git diff v<last>..HEAD -- packages/nats-protocol/src/          # the bus contract
-git diff v<last>..HEAD -- docs/apis/                           # HTTP and bus contracts
-git diff --stat v<last>..HEAD -- api/db-upgrade/migrations/    # migrations
+git diff v<last>..HEAD -- _jflow/apis/                           # HTTP and bus contracts
+git diff --stat v<last>..HEAD -- services/api/db-upgrade/migrations/    # migrations
 git diff v<last>..HEAD -- deploy/nats/auth-callout/            # roles and permissions
-git diff v<last>..HEAD -- api/lib/routes/ api/config/public.ts
+git diff v<last>..HEAD -- services/api/lib/routes/ services/api/config/public.ts
 git diff v<last>..HEAD --diff-filter=D --name-only             # what was deleted
 ```
 
@@ -125,7 +131,7 @@ Review and update where it applies:
 - **[documentation/](documentation/)** — the public docs. `configuration.md` is the one that
   goes stale most often, because environment variables change in nearly every release. Also
   review `features.md`, `installation.md`, `api-reference.md` and `known-limitations.md`.
-- `docs/apis/*.yaml` are the source of truth for the contracts: where the code and the
+- `_jflow/apis/*.yaml` are the source of truth for the contracts: where the code and the
   document disagree, the document wins — and that is a bug to report, not something to
   "fix" in the yaml during a release.
 
@@ -152,13 +158,13 @@ On the cut branch, with the CHANGELOG, the ten version files and whatever you to
 README / `documentation/`.
 
 **Never `git add -A` or `git add .` here.** The repository root deliberately carries untracked
-analysis documents — the inputs a REQ was captured from, which `docs/requests/` references as
-"must not be deleted" — and a blanket add would commit them. Stage the release files by name:
+analysis documents — the inputs a requirement was captured from, which must not be deleted —
+and a blanket add would commit them. Stage the release files by name:
 
 ```sh
 git add CHANGELOG.md README.md documentation/ \
-        package.json package-lock.json api/package.json core/package.json \
-        web/package.json opus-web/package.json packages/*/package.json \
+        package.json package-lock.json services/api/package.json services/core/package.json \
+        services/web/package.json services/opus-web/package.json packages/*/package.json \
         deploy/.env.dist
 git status --porcelain          # confirm nothing unintended is staged
 git commit -m "chore(release): X.Y.Z"

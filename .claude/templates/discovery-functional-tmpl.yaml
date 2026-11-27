@@ -1,331 +1,413 @@
 template:
   id: discovery-functional
   name: Discovery - Functional Analysis
-  version: 2.0
+  version: 3.0
 
   # This is a reference template (not executable)
   usage: reference
   used_by:
-    - .claude/skills/product-discovery-functional/SKILL.md
+    - .claude/specs/discovery.md (and every discovery skill that follows it)
 
   description: |
-    Structure specification for the Functional Analysis document, the first
-    artifact of the optional Discovery phase (BEFORE /product-initialize).
+    Structure specification for the Functional Analysis, the first document of the Discovery
+    phase. Discovery is the manual step of the workflow: the user defines everything here so
+    every later step runs autonomously.
 
-    PURPOSE: A decision-complete, exploratory "pre-PRD". It front-loads every
-    functional decision so that /product-initialize becomes transcription, not
-    discovery. Its single most important section is "Decisions Made": every
-    ambiguity resolved during discovery is recorded WITH its rationale.
+    LANGUAGE: the formats below show the Spanish structure (headings, columns, bold labels, fixed
+    values) with the Turnero examples. For any product language other than Spanish, write the same
+    structure with its English names (python3 .claude/scripts/jflow.py lang-terms), and the content
+    in the product language. See .claude/specs/language.md.
+
+    WHAT IT HOLDS: definitions, not context. Every section states what the product does and how
+    it behaves. No problem statement, no business rationale, no "why".
+
+    HOW IT IS CONDUCTED: see .claude/specs/discovery.md (input, interview order, failure
+    checklist, verification, resuming, closing).
 
     DOWNSTREAM CONTRACTS:
-    - /product-initialize reads this to derive goals, scope and the
-      requirements/feature-groups instead of interviewing the user.
-    - /product-discovery-technical reads this to build the requirement coverage
-      table (every functional requirement -> how it is covered).
+    - The domain phase of /product-discovery reads it to propose entities, states and
+      invariants. Entity names must match the ones the requirements use.
+    - The technical phase of /product-discovery reads it to infer services (from
+      surfaces), modules (from blocks) and auth (from actors).
+    - The plan of /jflow-product-discover and then /jflow-build carry it into the product definition (_jflow/prd/): actors and
+      surfaces into the index, each block into its own file, parameters, NFRs, out of scope and
+      decisions into theirs.
 
-    AUDIENCE: the team. This is NOT the formal PRD; it is the reasoning behind it.
+    ID CONVENTIONS (stable; every cross-reference uses them):
+    - Actors: U-01, U-02 …
+    - Requirements: {PREFIX}-01 … (prefix of the block, e.g. RES-01)
+    - Failure conditions: {PREFIX}-E1 …
+    - Notifications: NOT-01 … (the NOT block)
+    - External integrations: INT-01 …
+    - Non-functional requirements: NFR-01 …
+    - Decisions: DEC-01 …
+    - Parameters: referenced by name, in bold (**horizonte de reserva**)
 
 # Output specification
 output:
-  path: docs/discovery/analisis-funcional.md
+  path: _jflow/discovery/functional-analysis.md
   format: markdown
   frontmatter:
     - created: date
     - last_updated: date
-    - status: string  # "Análisis en progreso", "Análisis funcional cerrado"
-    - documento_base: string  # path to the base brief, or "ninguno (desde cero)"
+    - status: string  # "in-progress" | "closed"
+    - closed_sections: list  # ONLY while "in-progress"; removed on closing
+    - base_documents: string  # path(s) of the brief, or "ninguno (desde cero)"
+  section_ids:  # values allowed in closed_sections
+    - resumen
+    - actores
+    - superficies
+    - indice-bloques
+    - "{PREFIX} of each block (ACC, RES, NOT …)"
+    - fuera-de-alcance
+    - parametros
+    - integraciones
+    - nfr
+    - decisiones
 
 # Section definitions
 sections:
 
-  - id: context-and-scope
-    title: Context and Scope
+  - id: resumen
+    title: Resumen
     description: |
-      What the product is, why it exists, its guiding principles, what is in
-      and out of scope for v1, and any hard constraints (legal, technical).
-      Keep prose tight; the scope table is the load-bearing part.
-
-    subsections:
-      - product: One-paragraph description of what the product is and for whom
-      - strategic-objective: The business goal (e.g., brand awareness vs revenue)
-      - guiding-principles: Bullet list of the non-negotiable principles
-      - scope: In/out table for v1
-      - constraints: Legal/regulatory and hard technical constraints (only if relevant)
-
+      Product name and what it is, in 2-3 lines. It only identifies the product and gives
+      the product definition its name. No rationale, no goals.
     format: |
-      ## Contexto y Alcance
-
-      ### Producto
-      [Qué es el producto y para quién, en un párrafo]
-
-      ### Objetivo Estratégico
-      [El para qué de negocio]
-
-      ### Principios Rectores
-      - **[Principio]** — [qué implica]
-
-      ### Alcance v1
-
-      | Dentro del alcance v1 | Fuera del alcance v1 |
-      |---|---|
-      | [item] | [item] |
-
-      ### Restricciones
-      **Permitido:** [...]
-      **Prohibido:** [...]
-      **Estrategia:** [cómo se navega la restricción]
-
+      ## Resumen
+      **[Nombre]** — [Qué es, en 2-3 líneas]
     example: |
-      ## Contexto y Alcance
+      ## Resumen
+      **Turnero** — Sistema de gestión y reserva de turnos. Un administrador mantiene el catálogo
+      y opera la agenda desde un panel; los clientes reservan desde una cara pública, sin registro.
 
-      ### Producto
-      "Armá tu 11" es una microexperiencia web donde los usuarios arman su equipo
-      ideal de 11 jugadores. Dos modos: individual rápido y draft en vivo con amigos.
-
-      ### Objetivo Estratégico
-      Brand awareness. **No es un producto orientado a monetización.**
-
-      ### Principios Rectores
-      - **Zero friction** — armar y compartir en menos de 5 minutos sin registro.
-      - **Compartible por naturaleza** — todo output está diseñado para amplificarse.
-
-      ### Alcance v1
-
-      | Dentro del alcance v1 | Fuera del alcance v1 |
-      |---|---|
-      | Modo Solo | Scoring en vivo durante el torneo |
-      | Modo Draft | Monetización |
-
-      ### Restricciones
-      **Permitido:** nombres de jugadores, estadísticas públicas, banderas.
-      **Prohibido:** marcas registradas, logos oficiales, escudos de federaciones.
-      **Estrategia:** referencias genéricas, banderas en lugar de escudos, disclaimer permanente.
-
-  - id: functional-map
-    title: Functional Map
+  - id: actores
+    title: Actores
     description: |
-      A high-level tree of the feature groups + a "Transversales" branch for
-      cross-cutting concerns. This is a DRAFT that /product-initialize will
-      formalize into real feature-groups (FG1 = walking skeleton). Label it as draft.
-
+      Who operates the system. RULES:
+      - Only actors that operate the system. Something that does not participate (in Turnero,
+        the professional) is not an actor: it is a domain entity.
+      - Always include the actor "Sistema", which runs the system-process blocks.
+      - Do not define how many instances exist: there may always be more than one of each actor.
+      - Every actor whose access is not "anónimo" requires an access block (ACC) and, in the
+        domain analysis, an account entity.
     format: |
-      ## Mapa Funcional
-
-      ```
-      [Producto]
-      ├── [FG-1] [nombre]
-      ├── [FG-2] [nombre]
-      └── Transversales
-          ├── [concern 1]
-          └── [concern 2]
-      ```
-
+      ## Actores
+      | ID | Actor | Acceso | Recuperación de acceso |
+      |---|---|---|---|
+      | U-01 | [rol] | [anónimo / usuario y contraseña / SSO / link con token …] | [qué pasa si pierde el acceso, o "no aplica"] |
     example: |
-      ## Mapa Funcional
+      ## Actores
+      | ID | Actor | Acceso | Recuperación de acceso |
+      |---|---|---|---|
+      | U-01 | Administrador | Usuario y contraseña | Sin recuperación por email; la repone infraestructura |
+      | U-02 | Cliente | Anónimo; cancela con un link con token | No aplica |
+      | U-03 | Sistema | — | — |
 
-      ```
-      Armá tu 11
-      ├── [FG-1] Modo Solo
-      ├── [FG-2] Modo Draft
-      ├── [FG-3] Card + Código + Página Pública
-      └── Transversales
-          ├── Privacidad (cookie-free)
-          ├── Rate limiting / anti-abuso
-          └── i18n (ES + EN)
-      ```
-
-  - id: feature-group-detail
-    title: Feature Group Detail
+  - id: superficies
+    title: Superficies
     description: |
-      One subsection per feature group. Go DEEP where logic is complex (flows,
-      edge cases, state); stay brief on simple CRUD. Configurations with their
-      defaults, the step-by-step flow, the rules, and the failure/edge cases are
-      what make this decision-complete.
+      A surface is a face of the product: what each actor uses and from which device. It is a
+      functional definition, NOT a service: the technical analysis decides which service serves
+      each surface, with the minimum number of services (one app may serve several surfaces).
 
-    per_group_structure:
-      - objective: What this feature group lets the user do
-      - configurations: Table of options with their default and alternatives
-      - flow: Numbered step-by-step
-      - rules: Bullet list of business rules
-      - edge_cases: Table of failure conditions and their result
-      - states: State table (only for stateful flows; states + transitions)
+      CLOSED VOCABULARY:
+      | Plataforma    | Viewports posibles |
+      | web           | mobile, desktop    |
+      | mobile-app    | phone, tablet      |
+      | desktop-app   | desktop            |
 
+      Viewports: the supported ones, the primary first, without justification. Each declared
+      viewport has a cost (every screen needs a layout for it), so the user decides.
     format: |
-      ## FG-N — [Nombre]
+      ## Superficies
+      | Superficie | Plataforma | Actores | Viewports |
+      |---|---|---|---|
+      | [nombre] | [web / mobile-app / desktop-app] | [U-XX] | [principal (principal), secundario] |
+    example: |
+      ## Superficies
+      | Superficie | Plataforma | Actores | Viewports |
+      |---|---|---|---|
+      | Panel de administración | web | U-01 | desktop (principal), mobile |
+      | Reserva pública | web | U-02 | mobile (principal), desktop |
 
-      ### Objetivo
-      [Qué permite hacer]
+  - id: funcionalidades
+    title: Funcionalidades
+    description: |
+      THE core of the document, at maximum detail. Organized in FUNCTIONAL BLOCKS: a topic with
+      its own behavior. Each block has a prefix for its IDs and declares the surface(s) where it
+      lives. The surface is an attribute of the block, not the grouping axis: one functionality
+      may live on several surfaces.
 
-      ### Configuraciones
+      Blocks are NOT delivery units: a block groups by what the product does. The delivery order
+      is decided after bootstrap, as Jiku requirements that build one or more blocks.
 
+      BLOCK TYPES:
+      - User block: operated from one or more surfaces.
+      - System block: automatic processes, actor "Sistema", no surface.
+      - Notifications (NOT): one transversal block, because other blocks trigger notifications.
+        Its table adds its own columns (see notifications_format) plus the explicit list of what
+        is NOT notified. Triggering blocks reference it by ID ("envía NOT-02").
+      - Access (ACC): mandatory when some actor's access is not "anónimo". A regular user block;
+        the rule forces defining who creates accounts, session length, password change, and what
+        happens after failed attempts.
+
+      CONTENT OF EACH BLOCK:
+      - Superficie(s)
+      - Requisitos: `ID | Requisito | Actor`. One table for capabilities and rules; Actor is "—"
+        for rules.
+      - Condiciones de falla: `ID | Condición | Resultado`, same prefix. Produced by walking the
+        failure checklist of .claude/specs/discovery.md with the user.
+      - Configuraciones: options the USER chooses, with their default. Only if there are any.
+      - Ejemplos: cases with concrete values. Only for logic with calculations or conditions.
+
+      CONTENT RULES:
+      - Values are referenced, not repeated: a requirement says "dentro del **horizonte de
+        reserva**", not "30 días". The value lives in Parámetros.
+      - Do not ask the user for the CRUD operation, the entity or the priority of each
+        requirement. They are derived later.
+      - No interaction flow (order of screens and steps): UX defines it. What IS defined here:
+        - Business sequences: what the system does, in which order and with which guarantee,
+          regardless of screens. Written as one more requirement of the block (REP-02).
+        - Data an action asks for: inside the requirement ("con nombre, teléfono y email").
+        - An order of steps the client demands: an explicit requirement.
+      - What belongs to another block is referenced, not repeated (the token is created in RES,
+        its use lives in CAN; the notification is triggered in RES, its content lives in NOT).
+    index_format: |
+      ## Funcionalidades
+      | Bloque | Prefijo | Superficie(s) |
+      |---|---|---|
+      | [nombre] | [PRE] | [superficie(s), o "— (proceso del sistema)" / "— (transversal)"] |
+    block_format: |
+      ### [PRE] — [Nombre del bloque]
+      **Superficie(s):** [superficies]
+
+      **Requisitos**
+      | ID | Requisito | Actor |
+      |---|---|---|
+      | [PRE]-01 | [requisito] | [U-XX / Sistema / —] |
+
+      **Condiciones de falla**
+      | ID | Condición | Resultado |
+      |---|---|---|
+      | [PRE]-E1 | [condición] | [resultado] |
+
+      **Configuraciones** (solo si hay)
       | Configuración | Default | Alternativas |
       |---|---|---|
-      | [config] | [default] | [alternativas] |
 
-      ### Flujo
-      1. [paso]
-      2. [paso]
+      **Ejemplos** (solo si hay lógica con cálculos o condiciones)
+      - [PRE]-NN: [caso con valores concretos]
+    notifications_format: |
+      ### NOT — Notificaciones
+      **Superficie(s):** — (transversal)
 
-      ### Reglas
-      - [regla]
+      **Requisitos**
+      | ID | Evento | Canal | Destinatario | Contenido |
+      |---|---|---|---|---|
+      | NOT-01 | [qué la dispara] | [email / SMS / push …] | [actor o dato] | [qué dice] |
 
-      ### Edge cases / Condiciones de falla
+      **No se notifica:**
+      - [lo que explícitamente no genera notificación]
 
-      | Causa | Resultado |
-      |---|---|
-      | [causa] | [resultado] |
-
-    example: |
-      ## FG-1 — Modo Solo
-
-      ### Objetivo
-      Armar y compartir un equipo de 11 jugadores en menos de 5 minutos, sin registro.
-
-      ### Configuraciones
-
-      | Configuración | Default | Alternativas |
+      **Condiciones de falla**
+      | ID | Condición | Resultado |
       |---|---|---|
-      | Posiciones | Fijas | Libres |
-      | Presupuesto | Activado | Custom / Desactivado |
+    example: |
+      ## Funcionalidades
+      | Bloque | Prefijo | Superficie(s) |
+      |---|---|---|
+      | Acceso | ACC | Panel de administración |
+      | Catálogo | CAT | Panel de administración |
+      | Agenda | AGE | Panel de administración |
+      | Reserva | RES | Reserva pública, Panel de administración (turno manual) |
+      | Reprogramación | REP | Panel de administración |
+      | Cancelación por el cliente | CAN | Reserva pública (link) |
+      | Ausente automático | AUS | — (proceso del sistema) |
+      | Retención y anonimización | RET | — (proceso del sistema) |
+      | Notificaciones | NOT | — (transversal) |
 
-      ### Flujo
-      1. Elegir formación (8 predefinidas).
-      2. Seleccionar jugadores (búsqueda + filtros).
-      3. Confirmar (solo con 11 puestos llenos). **Inmutable.**
-      4. Card generada con código único + URL corta.
+      ### RES — Reserva
+      **Superficie(s):** Reserva pública, Panel de administración (turno manual)
 
-      ### Reglas
-      - Sin registro, anónimo, ilimitado.
-      - Equipo inmutable post-confirmación.
-      - No se puede repetir jugador en el mismo equipo.
+      **Requisitos**
+      | ID | Requisito | Actor |
+      |---|---|---|
+      | RES-01 | Reservar un turno sin registrarse, eligiendo servicio, profesional (o "cualquiera"), día y horario, con nombre, teléfono y email | U-02 |
+      | RES-02 | Cargar un turno manual para un cliente que llamó por teléfono, con nombre, teléfono y email obligatorios | U-01 |
+      | RES-03 | Las reglas de este bloque aplican igual en los dos canales. No hay excepción administrativa | — |
+      | RES-06 | Un horario se ofrece si la franja completa del servicio cae dentro de la disponibilidad semanal del profesional, no pisa un bloqueo vigente y no pisa otro turno | — |
+      | RES-08 | Solo se ofrecen horarios dentro del **horizonte de reserva** | — |
+      | RES-09 | Un cliente no puede superar el **tope de turnos activos por cliente** (turnos en RESERVADO), contados por clave de identidad | — |
+      | RES-11 | Al confirmar con "cualquiera", se asigna el profesional con menos turnos ese día; ante empate, uno al azar | Sistema |
+      | RES-13 | Al confirmar se envía NOT-01, que siempre indica el profesional asignado | Sistema |
 
-      ### Edge cases / Condiciones de falla
+      **Condiciones de falla**
+      | ID | Condición | Resultado |
+      |---|---|---|
+      | RES-E1 | Dos reservas concurrentes sobre el mismo horario y profesional | Prospera una. La otra recibe un aviso y vuelve a elegir horario, con la disponibilidad actualizada |
+      | RES-E3 | El cliente ya alcanzó el **tope de turnos activos por cliente** | La reserva se rechaza indicando que ya tiene un turno activo |
 
-      | Causa | Resultado |
-      |---|---|
-      | Presupuesto insuficiente | Botón confirmar deshabilitado |
+      **Ejemplos**
+      - RES-06: servicio de 45 min, profesional disponible de 9:00 a 12:00, con un turno de 10:00
+        a 10:30. Se ofrecen 9:00 y 9:15; 9:30 no (terminaría 10:15); de 10:30 a 11:15 sí; 11:30 no.
+      - RES-11: Ana tiene 3 turnos ese día y Luis 2 → Luis. Los dos con 2 → uno al azar.
 
-  - id: transversal-concerns
-    title: Transversal Concerns / NFRs
+      ### REP — Reprogramación
+      **Superficie(s):** Panel de administración
+
+      **Requisitos**
+      | ID | Requisito | Actor |
+      |---|---|---|
+      | REP-01 | Reprogramar un turno a un horario nuevo | U-01 |
+      | REP-02 | Reprogramar ejecuta, en una sola operación atómica: (1) la cancelación del turno original, con motivo completado por el sistema, y (2) la creación de un turno nuevo en el horario destino, en RESERVADO y encadenado al original | Sistema |
+      | REP-06 | Solo se envía NOT-05 (reprogramación). No se envía la notificación de cancelación del original | Sistema |
+
+      **Condiciones de falla**
+      | ID | Condición | Resultado |
+      |---|---|---|
+      | REP-E1 | El horario destino no está disponible | No se ejecuta nada: el turno original queda intacto |
+
+  - id: fuera-de-alcance
+    title: Fuera de alcance
     description: |
-      Cross-cutting concerns that span all feature groups: privacy, moderation,
-      rate-limiting, accessibility, audio, visual identity, i18n hooks, etc.
-      Include ONLY the concerns relevant to this product. These foreshadow the
-      Non-Functional Requirements section of the PRD; capture concrete numbers
-      where the user has them (rate limits, retention windows, WCAG level).
-
+      What does NOT enter v1, without justification. It keeps every later step from building it.
+      What enters is not listed: Funcionalidades defines it. Anything that cannot be defined yet
+      is either moved here or decided with a concrete value.
     format: |
-      ## Transversales
-
-      ### [Concern]
-
-      | Pieza | Definición |
-      |---|---|
-      | [aspecto] | [definición concreta] |
-
+      ## Fuera de alcance
+      - [ítem]
     example: |
-      ## Transversales
+      ## Fuera de alcance
+      - App nativa
+      - Pagos online
+      - Cuenta o historial para el cliente
+      - Acceso para profesionales
 
-      ### Rate limiting / anti-abuso
-
-      | Acción | Por minuto | Por hora |
-      |---|---|---|
-      | Crear equipo | 10 | 100 |
-      | Reportar equipo | — | 5 |
-
-      **Comportamiento:** HTTP 429 con mensaje genérico. Sin captcha. Sin baneo permanente.
-
-  - id: i18n
-    title: Internationalization
-    description: Languages for v1, future languages, and the localization rules. Include only if the product is multi-language.
-    format: |
-      ## Internacionalización (i18n)
-
-      **Idiomas v1:** [...]
-      **Reglas:**
-      - [regla de traducción]
-
-    example: |
-      ## Internacionalización (i18n)
-
-      **Idiomas v1:** Español (LATAM) + Inglés.
-      **Reglas:**
-      - Nombres propios no se traducen; categorías sí.
-      - URLs language-agnostic (sin `/es/` ni `/en/`).
-
-  - id: metrics
-    title: Metrics
-    description: What success looks like in measurable terms (reach, engagement, brand). These feed the success criteria of the PRD goals.
-    format: |
-      ## Métricas
-
-      ### [Categoría]
-      - [métrica]
-
-    example: |
-      ## Métricas
-
-      ### Alcance
-      - Equipos creados.
-      - Cards descargadas / compartidas.
-
-      ### Engagement
-      - Tasa de completado (start → confirm).
-
-  - id: dependencies-and-blockers
-    title: Dependencies and Open Blockers
-    description: External dependencies and decisions that block or constrain the build (providers, legal docs, pending design decisions).
-    format: |
-      ## Dependencias y Bloqueos Abiertos
-
-      ### [Dependencia]
-      [Qué falta validar y por qué bloquea]
-
-    example: |
-      ## Dependencias y Bloqueos Abiertos
-
-      ### Provider externo de datos
-      A evaluar entre opciones. Validar: términos de redistribución, costo por volumen,
-      confiabilidad de actualización.
-
-  - id: out-of-scope-open-questions
-    title: Out of Scope / Open Questions
+  - id: parametros
+    title: Parámetros
     description: |
-      Explicitly deferred features and questions that remain open. A deferred
-      decision is still a decision — list it so downstream phases don't re-open it.
-
+      A parameter is not a requirement but a VALUE several requirements use. Defined once, so a
+      change happens once. RULES:
+      - Descriptive name in the product language, properly written ("Horizonte de reserva"). The
+        English code identifier is a technical decision, derived later.
+      - Requirements reference it by name, in bold.
+      - If it is editable, a requirement that edits it must exist in some block.
+      - A non-editable value lives in the environment configuration (engineering defaults).
     format: |
-      ## Fuera de Alcance — Preguntas Abiertas
-
-      - **[feature diferida]** — [por qué / cuándo]
-      - [pregunta abierta]
-
+      ## Parámetros
+      | Parámetro | Valor | ¿Editable por un usuario? |
+      |---|---|---|
+      | [nombre descriptivo] | [valor con unidad] | [no / U-XX] |
     example: |
-      ## Fuera de Alcance — Preguntas Abiertas
+      ## Parámetros
+      | Parámetro | Valor | ¿Editable por un usuario? |
+      |---|---|---|
+      | Horizonte de reserva | 30 días | no |
+      | Tope de turnos activos por cliente | 1 | no |
+      | Granularidad de la grilla | 15 minutos | no |
+      | Duración máxima de sesión | 8 horas | no |
 
-      - **Feed público con estadísticas globales** — diferido a fase 2.
-      - **Monetización** — fuera de alcance del producto.
-
-  - id: decisions-made
-    title: Decisions Made
+  - id: integraciones
+    title: Integraciones externas
     description: |
-      THE load-bearing section. Every ambiguity that surfaced during discovery
-      is recorded here with the chosen resolution AND its rationale. This is what
-      lets downstream skills transcribe instead of re-asking. A decision without
-      a "por qué" is incomplete. REQUIRED — never omit this section.
-
+      ONLY integrations that are a definition of the product ("los turnos se sincronizan con el
+      Google Calendar del profesional"), not infrastructure providers ("los emails se mandan con
+      SendGrid": the channel is already in NOT; the provider is technical). RULES:
+      - Failures of an integration go as failure conditions of the block that uses it.
+      - When the user names an external system, the agent may consult its official docs and save
+        them to _jflow/references/; always confirm findings with the user.
+      - If the product has none, write "No hay integraciones externas."
     format: |
-      ## Decisiones Tomadas
-
-      | # | Tema | Decisión y por qué |
-      |---|---|---|
-      | 1 | [tema] | [qué se decidió] — [por qué] |
-
+      ## Integraciones externas
+      | ID | Sistema | Dirección | Datos | Cuándo | Fuente de verdad |
+      |---|---|---|---|---|---|
+      | INT-01 | [sistema] | [envía / recibe / ambas] | [qué se intercambia] | [evento, o periodicidad] | [qué sistema manda ante un conflicto] |
     example: |
-      ## Decisiones Tomadas
+      ## Integraciones externas
+      | ID | Sistema | Dirección | Datos | Cuándo | Fuente de verdad |
+      |---|---|---|---|---|---|
+      | INT-01 | Google Calendar del profesional | Envía | Turnos reservados, reprogramados y cancelados | Ante cada cambio de estado del turno | Producto |
 
-      | # | Tema | Decisión y por qué |
-      |---|---|---|
-      | 1 | Privacidad | Cookie-free, sin banner — el producto no necesita PII y reduce fricción |
-      | 2 | Moderación | Reactiva pura, anonimización a 24-48h — no hay budget para moderación proactiva y el riesgo es aceptable |
-      | 3 | Borrador modo solo | Un slot en localStorage, expira 24h — simple y suficiente para un solo equipo a la vez |
+  - id: nfr
+    title: Requisitos no funcionales
+    description: |
+      A NFR is a quality that spans every block and that the user can define. If it is the
+      behavior of a block, it is a requirement of that block. If it is how to implement it, the
+      technical phase solves it.
+
+      MANDATORY CATEGORIES — each one carries a value or an explicit "no aplica":
+      | Categoría                        | Qué se le pide al usuario |
+      | Volumen                          | Orders of magnitude per actor: users, concurrent peak, records per month |
+      | Tiempos                          | Times the user perceives, and experience targets |
+      | Disponibilidad                   | Operating hours (24/7 or business hours) and tolerated downtime |
+      | Privacidad y cumplimiento        | Which personal data is stored and which regulation applies. HOW it is retained or anonymized is a system block |
+      | Accesibilidad                    | WCAG level |
+      | Idioma, zona horaria y formatos  | Languages; one time zone or several; date and currency formats |
+      | Compatibilidad                   | Minimum browsers and OS versions |
+
+      Volumen and Tiempos targets are numbers (or orders of magnitude for Volumen: decenas, cientos,
+      miles), never adjectives: "tiempo real" or "rápido" are not targets — "menos de 5 segundos" is.
+
+      Security is NOT a category: actor access is in Actores, personal data in Privacidad, an
+      account-lockout rule is a requirement of ACC, and encryption/sessions/rate limiting are
+      technical.
+    format: |
+      ## Requisitos no funcionales
+      | ID | Categoría | Requisito | Target |
+      |---|---|---|---|
+      | NFR-01 | [categoría] | [qué se exige] | [valor medible, o "no aplica"] |
+    example: |
+      ## Requisitos no funcionales
+      | ID | Categoría | Requisito | Target |
+      |---|---|---|---|
+      | NFR-01 | Volumen | Turnos reservados por mes | Cientos |
+      | NFR-02 | Volumen | Clientes reservando a la vez en el pico | Decenas |
+      | NFR-03 | Tiempos | Reserva completa desde la cara pública | Menos de 1 minuto, desde el teléfono |
+      | NFR-04 | Disponibilidad | Cara pública | 24/7 |
+      | NFR-05 | Privacidad y cumplimiento | Datos personales guardados | Nombre, teléfono y email del cliente |
+      | NFR-06 | Accesibilidad | — | No aplica |
+      | NFR-07 | Idioma, zona horaria y formatos | Idioma | Español únicamente |
+      | NFR-08 | Idioma, zona horaria y formatos | Zona horaria | Una sola: America/Argentina/Buenos_Aires |
+      | NFR-09 | Compatibilidad | Navegadores | Las dos últimas versiones de Chrome, Safari y Firefox |
+
+  - id: decisiones
+    title: Decisiones tomadas
+    description: |
+      The whole document is already definitions, so this table does NOT repeat the requirements.
+      It records only the definitions that HAD A REAL ALTERNATIVE, so an autonomous agent does not
+      reopen them or propose them as an "improvement". "Descartado" names what is NOT done, and only
+      lists alternatives that were actually presented to the user — never one nobody raised.
+      "Afecta" links the decision to where it applies. "Motivo" is why the user chose it, in their words
+      (always asked, one line): it is what stops someone from "fixing" the decision later.
+    format: |
+      ## Decisiones tomadas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-01 | [tema] | [qué se eligió] | [la alternativa que no se hace] | [por qué, en una línea] | [IDs] |
+    example: |
+      ## Decisiones tomadas
+      | ID | Tema | Decisión | Descartado | Motivo | Afecta |
+      |---|---|---|---|---|---|
+      | DEC-01 | Bloqueo vs. desactivación | Un bloqueo no cancela turnos (se destacan); desactivar un profesional o un servicio sí cancela en cascada | Tratar los dos casos igual | Un bloqueo es temporal y el consultorio reubica los turnos a mano | CAT-05, CAT-09, AGE-11 |
+      | DEC-05 | Reparto de "cualquiera" | Se mide la carga por cantidad de turnos | Medirla por minutos de trabajo | Es lo que el consultorio entiende como "carga" | RES-11 |
+      | DEC-06 | Acceso del administrador | Sin recuperación de contraseña | Recuperación por email | Son pocas cuentas y las maneja infraestructura | U-01 |
+
+# Verification (see .claude/specs/discovery.md for when and how)
+checks:
+  mechanical:  # .claude/scripts/check-discovery.py
+    - Every referenced ID (U-XX, NOT-XX, INT-XX, {PREFIX}-XX, DEC "Afecta") exists
+    - Every bold parameter name used in a requirement exists in Parámetros
+    - Every surface a block names exists in Superficies, and every surface has at least one block
+    - The seven NFR categories are present
+    - If some actor's access is not "anónimo", the ACC block exists
+    - Volumen and Tiempos NFR targets carry a number, an order of magnitude or "no aplica"
+    - No requirement or failure condition repeats a parameter value (number + unit) instead of
+      naming the parameter
+    - Every decision has its Motivo; the Decisión column states only what was chosen
+    - A closed document has no closed_sections, HTML comments or pending markers
+  semantic:  # the agent, when closing the document
+    - Every editable parameter has the requirement that edits it
+    - Every notification has a requirement that triggers it
+    - Every block went through the failure checklist
+    - No requirement states context or rationale instead of a definition

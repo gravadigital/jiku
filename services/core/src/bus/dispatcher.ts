@@ -1,0 +1,546 @@
+import { Transaction } from 'sequelize';
+import { IdentityType } from '@jiku/models';
+import {
+  Actor,
+  ErrorCode,
+  Reply,
+  callerFromSubject,
+  commandFromSubject,
+  failure,
+  generateUlid,
+} from '@jiku/nats-protocol';
+import { sequelize } from '../models';
+import { Channel, authorizeWithRoles, readCallerIdentity } from '../authorize-caller';
+import { CallerClass, resolveCallerClass } from '../caller-class';
+import { getTrustedPublisherId } from '../config';
+import { authorizeEntityAccess } from '../entity-project';
+import logger from '../logger';
+import { CommandRegistry } from '../commands/registry';
+import { mirrorUser } from '../user-mirror';
+import { writeNotifications } from '../notifications/write-notifications';
+import { extractActor } from './actor';
+import { EventPublisher } from './event-publisher';
+import { emitEvents } from './emit-events';
+
+/**
+ * Traduce un mensaje del bus a la ejecución de un comando.
+ *
+ * Es el único lugar donde se maneja la transacción: commit si el comando responde
+ * `success`, rollback en cualquier otro caso. Los comandos no la abren ni la cierran, y
+ * así no pueden dejar una escritura a medias.
+ *
+ * Nunca lanza: un comando que falla se traduce a un `Reply` de error, porque del otro
+ * lado hay una request esperando respuesta. Quedarse sin contestar dejaría a la api
+ * esperando hasta su timeout.
+ */
+/**
+ * Claves del `data` de un reply cuyo valor NUNCA puede llegar al log.
+ *
+ * Una URL prefirmada lleva la firma: da acceso al contenido del objeto sin ninguna credencial,
+ * durante todo su TTL. Loguearla convierte el archivo de log en un repositorio de accesos
+ * anónimos, así que se redacta incluso bajo `LOG_COMMANDS`, que es una traza de diagnóstico y
+ * no una excepción a la regla.
+ */
+const REDACTED_REPLY_KEYS = ['uploadUrl', 'downloadUrl'];
+
+/** Reemplaza por un marcador los valores sensibles del reply, solo para el log. */
+function redactReply(reply: Reply): Reply {
+  let result = reply;
+
+  const data = reply.data;
+  if (data && typeof data === 'object') {
+    const redacted: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+    let touched = false;
+    for (const key of REDACTED_REPLY_KEYS) {
+      if (key in redacted) {
+        redacted[key] = '[redacted]';
+        touched = true;
+      }
+    }
+    if (touched) {
+      result = { ...result, data: redacted };
+    }
+  }
+
+  // `events` SE RECORTA A `{ type, eventId }` POR EVENTO (D-6 de S-063), NUNCA se loguea el
+  // sobre completo. Con `events` poblado, `JSON.stringify(reply)` incluiría título y descripción
+  // completa del requisito (`snapshot`) y el `name`/`email` de cada suscriptor (`recipients`) —
+  // exactamente lo que la convención `logging` prohíbe fuera de una traza opt-in, y esto ES una
+  // traza opt-in pero el email de un suscriptor no estaba antes en ninguna traza. El log del
+  // comando es sobre EL COMANDO; el evento tiene su propio log de fallo (`[events] publish
+  // failed`, en `emit-events.ts`) para lo que a él le pasa.
+  if (result.events?.length) {
+    result = {
+      ...result,
+      events: result.events.map((event) => ({ type: event.type, eventId: event.eventId }) as any),
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Espeja en `users` la identidad del sobre, EN SU PROPIA TRANSACCIÓN.
+ *
+ * TRES RAZONES PARA QUE LA TRANSACCIÓN SEA PROPIA Y COMMITEE ANTES DE LA DEL COMANDO (D-3):
+ *
+ *  1. TIENE QUE SOBREVIVIR AL ROLLBACK DEL COMANDO, porque es un hecho sobre la IDENTIDAD y no
+ *     sobre la operación. Una fila con `roles: []` cargada a mano queda corregida por cualquier
+ *     comando de esa persona, INCLUSO UNO QUE DESPUÉS FALLE (CA-9).
+ *  2. VAN EN SERIE, NUNCA ANIDADAS NI SIMULTÁNEAS. Una fila insertada en una transacción abierta
+ *     es INVISIBLE para otra, así que sin este commit previo la FK
+ *     `requirements.created_by -> users.id` fallaría igual y el espejo no serviría de nada.
+ *  3. Es idempotente (alta o reemplazo por PK), así que una transacción corta propia no introduce
+ *     ningún caso nuevo de consistencia.
+ *
+ * ESTO NO VIOLA ADR-003. La regla que ADR-003 protege es "un comando no puede dejar una escritura a
+ * medias": acá el que escribe es EL DESPACHADOR —el dueño de las transacciones—, antes de abrir la
+ * del comando y sobre una tabla que NINGÚN comando escribe. Ningún `execute()` ve, abre ni cierra
+ * esta transacción. Y no es una segunda conexión: es el mismo `sequelize`, dos transacciones en
+ * serie.
+ *
+ * LA CONSECUENCIA QUE ALGUIEN VA A LEER COMO BUG, Y NO LO ES: un comando rechazado por una regla de
+ * dominio IGUAL ESCRIBE EN `users`. Es deliberado (CA-9) y se acepta SOLO para el publicador de
+ * confianza — un caller no autorizado nunca llega acá, porque sin sobre no hay espejo y con sobre
+ * la guarda de `extractActor` ya lo rechazó (CA-13).
+ *
+ * UN FALLO DEL ESPEJO NO RECHAZA EL COMANDO (D-P1): se loguea `error` y el despacho sigue. Tres
+ * razones: "el despachador nunca lanza" (ADR-003) no admite un camino donde sí; rechazar
+ * convertiría un hipo de `users` en una CAÍDA TOTAL DE ESCRITURA; y en esta story el espejo no
+ * alimenta ninguna decisión —la compuerta sigue decidiendo por el caller del subject—, así que un
+ * espejo fallado solo deja la fila desactualizada, que es el estado del que el producto ya vive hoy
+ * cuando se pierde un evento. SI ALGUNA VEZ LA COMPUERTA LEE ESTA FILA PARA AUTORIZAR, HAY QUE
+ * REVISAR ESTA DECISIÓN: un espejo no fatal se convertiría en un bypass silencioso.
+ */
+async function mirrorActor(actor: Actor): Promise<string | undefined> {
+  // EN SU PROPIO `try`, y el precedente exacto está en `events/dispatcher.ts`: abrir una
+  // transacción PUEDE FALLAR SOLA (pool agotado, base caída), y ese rechazo escaparía de
+  // `dispatch()`.
+  let transaction: Transaction;
+  try {
+    transaction = await sequelize.transaction();
+  } catch (error: any) {
+    logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
+    return undefined;
+  }
+
+  try {
+    const { outcome, name } = await mirrorUser(
+      {
+        // EL SPREAD ACÁ SÍ, Y ES LA EXCEPCIÓN QUE CONFIRMA LA REGLA: `Actor` es una forma CERRADA
+        // de cinco claves que el contrato declara, no un payload abierto como el del evento, y
+        // `extractActor` ya descartó todo lo que no está en ella.
+        //
+        // Y ES LO QUE PROPAGA LA PRESENCIA: el espejo distingue "no vino" de "vino vacío" por
+        // `hasOwnProperty`, y de eso depende que un sobre sin `name` no borre el nombre que la fila
+        // ya tenía (CA-11). Enumerar los tres de perfil los volvería `undefined` PRESENTES y
+        // rompería justo esa distinción.
+        ...actor,
+        // LITERAL, Y NUNCA DEL SOBRE. `Actor` no declara `identity_type` y no es un olvido: la api
+        // autentica un JWT de usuario final y jamás de un machine user. Leerlo del cuerpo le daría
+        // la capacidad de declarar que una persona es un servicio, que es superficie de seguridad
+        // regalada a cambio de nada.
+        identityType: IdentityType.Person,
+      },
+      'best-effort',
+      transaction,
+      'dispatch'
+    );
+    await transaction.commit();
+
+    // Solo el ALTA se loguea, y solo con el id. Un `updated` por cada comando sería una línea de
+    // log por cada escritura del producto; un alta es un hito real: una identidad que no estaba.
+    if (outcome === 'created') {
+      logger.info(`[dispatch] ${actor.id}: created`);
+    }
+
+    return name;
+  } catch (error: any) {
+    // EL ROLLBACK NO PUEDE SER LA FUENTE DE UN RECHAZO: si lo que falló fue el `commit`, la
+    // transacción ya terminó y `rollback()` sobre una terminada rechaza. Ese segundo rechazo
+    // taparía el error original, que es el que hay que ver.
+    await transaction.rollback().catch(() => undefined);
+    logger.error(`[dispatch] espejo de ${actor.id}: ${error.message}`);
+    // Sin nombre: el espejo falló y no hay fila de la que leerlo. El evento cae al escalón
+    // siguiente de `resolveEventActor`, igual que antes de este enriquecimiento.
+    return undefined;
+  }
+}
+
+export class Dispatcher {
+  // EL PUBLICADOR SE INYECTA POR CONSTRUCTOR, IGUAL QUE `registry` (Task 1 de S-063). Es un
+  // efecto externo del despachador (ADR-003): el comando no tiene acceso a él, y este archivo lo
+  // consume una sola vez, entre el commit y el `return reply` — ver el bloque de emisión más
+  // abajo en `dispatch()`.
+  constructor(private registry: CommandRegistry, private publisher: EventPublisher) {}
+
+  async dispatch(subject: string, raw: unknown): Promise<Reply> {
+    const name = commandFromSubject(subject);
+    // El caller se resuelve UNA VEZ y se reusa en el contexto del comando: antes se calculaba
+    // inline dentro de la llamada a `execute`, y la compuerta lo necesita antes.
+    const caller = callerFromSubject(subject);
+
+    // UN `correlationId` POR INVOCACIÓN (CA-9, D-4 de S-063), generado ACÁ Y NO en el bloque de
+    // emisión de más abajo: la propiedad que CA-9 pide —que TODOS los eventos de un mismo comando
+    // lo compartan— se sostiene declarándolo donde se lee el invariante, aunque hoy un comando
+    // emita un solo evento. Se genera SIEMPRE, incluso para comandos que no van a declarar ningún
+    // evento: es un ULID, generarlo de más no cuesta nada medible, y así este bloque no necesita
+    // saber de antemano si va a hacer falta.
+    const correlationId = generateUlid();
+
+    // EL SOBRE VA ANTES QUE LA COMPUERTA (S-029), y hay que leer por qué eso NO debilita nada.
+    //
+    // Este bloque NO TOCA LA BASE, NO RESUELVE EL MÉTODO y NO ABRE NINGUNA TRANSACCIÓN: es una
+    // comparación de strings sobre el cuerpo. Y RECHAZA A TODO CALLER QUE NO SEA EL PUBLICADOR DE
+    // CONFIANZA antes de mirar nada más, así que la propiedad que la compuerta protege —que un
+    // caller no autorizado no llegue a consumir recursos ni a enterarse de qué comandos existen—
+    // se conserva entera.
+    //
+    // Tiene que ir acá y no después porque los 20 esquemas Joi rechazan claves desconocidas: si el
+    // sobre llegara a `command.validate()`, LOS 20 RESPONDERÍAN `invalid_fields`. Extraerlo acá es
+    // lo que permite que ni un `execute()` se toque (CA-18).
+    const extracted = extractActor(caller, raw);
+    if ('error' in extracted) {
+      return extracted.error;
+    }
+    const { payload } = extracted;
+    let { actor } = extracted;
+
+    // EL ESPEJO, ANTES DE AUTORIZAR (CA-8, RF-9) y en su propia transacción, que COMMITEA antes de
+    // que se abra la del comando. Sin sobre no hay espejo: ni una transacción de más ni una
+    // consulta de más para el 100% del tráfico de hoy. Ver `mirrorActor` para el porqué completo.
+    if (actor) {
+      const mirroredName = await mirrorActor(actor);
+
+      // ── EL SOBRE SE COMPLETA CON EL NOMBRE DE LA FILA ───────────────────────────────────────
+      //
+      // POR QUÉ HACE FALTA: el access token de Zitadel NO TRAE los claims de perfil (`name`,
+      // `preferred_username`, `email`) —verificado sobre un token real, y ya documentado en
+      // `_jflow/flows/sincronizacion-de-identidades.md`—, y la api arma el sobre exclusivamente de
+      // ese token. Así que el sobre llega con `id` y `roles` y NADA MÁS, y el `actor.name` de los
+      // 16 eventos de dominio salía con el `sub` de Zitadel en vez del nombre de la persona.
+      //
+      // POR QUÉ ACÁ Y NO EN LOS 16 CONSTRUCTORES: son PUROS a propósito (S-063, y hay un test que
+      // lo afirma) y todos reciben el mismo `ctx.actor`. Completar el sobre UNA VEZ, en el único
+      // lugar por el que pasan todos los comandos, los arregla a los 16 sin tocar ninguno.
+      //
+      // POR QUÉ NO CUESTA UNA CONSULTA: `mirrorActor` YA leyó (o escribió) la fila en la
+      // transacción que acaba de commitear. El nombre viene de ese mismo `findByPk`, no de uno
+      // nuevo. Es la razón por la que esto se resuelve acá y no en la api, que tendría que pagar
+      // una llamada HTTP a Zitadel por comando dentro del timeout de 5 s de ADR-002.
+      //
+      // DÓNDE SE INSERTA LA FILA EN LA PRECEDENCIA, que es la decisión fina de este bloque. El
+      // escalón que `resolveEventActor` declara es `name` -> `email` -> `id`, y la fila entra
+      // ENTRE `email` y `id`:
+      //
+      //     name del sobre  ->  email del sobre  ->  NAME DE LA FILA  ->  id
+      //
+      // NO POR ENCIMA DE `email`: los dos claims del sobre salen del token que la api YA VERIFICÓ
+      // contra Zitadel y son MÁS FRESCOS que la fila, que es un espejo. Pisarlos con la fila sería
+      // la misma inversión de fuentes que ADR-007 prohíbe, y rompería el fallback a `email` que
+      // REQ-014 ya había decidido.
+      //
+      // SÍ POR ENCIMA DEL `id`: un `sub` de Zitadel no es un nombre para nadie, y la fila casi
+      // siempre tiene el bueno —lo escribe el evento del callout, que sí viene enriquecido—. Este
+      // es exactamente el hueco que el token vacío dejaba al descubierto.
+      //
+      // EL CANAL DIRECTO SE RESUELVE MÁS ABAJO, junto a los roles (S-070): allá no hay sobre que
+      // completar, pero sí una fila —la que la compuerta ya lee— de la que sale el mismo dato.
+      //
+      // Y NO COMPLETA CON EL `id`: si la fila quedó con el fallback `email ?? id` de un alta en
+      // `best-effort`, `mirroredName` ES el `sub` y escribirlo en el sobre no agregaría nada —
+      // dejarlo ausente hace que el último escalón de `resolveEventActor` siga siendo el que
+      // decide, que es donde el contrato quiere que esa decisión viva.
+      const completable = actor.name === undefined && actor.email === undefined;
+      if (completable && mirroredName && mirroredName !== actor.id) {
+        actor = { ...actor, name: mirroredName };
+      }
+    }
+
+    // LA COMPUERTA VA ANTES QUE EL RESTO (CA-6 de S-017), y las dos cosas que quedan detrás son el
+    // motivo: `registry.resolve()` —un caller no autorizado no tiene por qué enterarse de si el
+    // comando existe— y `sequelize.transaction()` —no consume una conexión del pool de escritura—.
+    // Es el mismo criterio con que la validación de Joi corre antes de abrir la transacción.
+    //
+    // EL `try` ES OBLIGATORIO Y ES EL MISMO DE `queries/dispatcher.ts`. Hasta S-030 acá se llamaba
+    // a `authorizeCaller()`, que trae su propio try/catch y por eso "nunca rechaza". Al inlinear
+    // la lectura —para no pagar dos `SELECT` (CA-13)— ESA PROTECCIÓN HAY QUE TRAERLA:
+    // `getTrustedPublisherId()` lanza si `loadConfig()` no corrió y `readCallerRoles` puede
+    // rechazar (base caída, pool agotado), y los dos ocurrirían FUERA del `try` de más abajo, así
+    // que escaparían de `dispatch()`. "El despachador nunca lanza" (ADR-003) no admite un camino
+    // donde sí.
+    let callerClass: CallerClass;
+    // LOS ROLES DEL ACTOR, DECLARADOS ACÁ PARA QUE SOBREVIVAN AL `try` (S-031). El valor se
+    // calcula adentro —donde ya se calculaba— y se usa afuera, al armar el contexto del comando:
+    // es EL MISMO array, pasado un nivel más abajo, sin una sola consulta nueva. Es la misma forma
+    // que ya usa `callerClass`.
+    let roles: readonly string[];
+    // EL NOMBRE HUMANO DEL ACTOR, con la MISMA forma que `roles` y por la misma razón (S-070): se
+    // calcula adentro del `try`, donde está la lectura, y se usa afuera al armar el contexto.
+    //
+    // ARRANCA CON EL DEL SOBRE —ya enriquecido más arriba si hacía falta— y la rama directa lo
+    // completa con el de la fila. El exento lo deja en `undefined`: ese canal no toca la base.
+    let actorName: string | undefined = actor?.name;
+    // LA IDENTIDAD DEL ACTOR, resuelta una vez y usada por las DOS compuertas: la del método y la
+    // de entidad. Con sobre es `actor.id`, sin sobre el caller del subject — NUNCA el service user
+    // de la api. Es la misma identidad que `resolveActor` elige y que la api usaba en
+    // `req.user.id`.
+    const actorIdentity = actor ? actor.id : caller;
+    try {
+      // CON SOBRE MANDA `actor.roles`, Y NO SE LEE LA BASE (CA-2). El claim ya fue verificado
+      // contra Zitadel por la api y es MÁS FRESCO que la fila: consultar `users` sería autorizar
+      // dos veces desde dos fuentes, con la peor de las dos decidiendo. El espejo de arriba es lo
+      // que hace que las dos converjan para el caller directo.
+      //
+      // Y EL ROL QUE DECIDE ES EL DE LA PERSONA, NO EL DE LA API (CA-2). `internal-app` sigue
+      // exento como PUBLICADOR —es lo que le permite mandar el sobre—, pero ya no como
+      // AUTORIZADOR: antes de S-030 el caller era la api, tenía `ALL`, y el mapa nunca se
+      // consultaba con el rol del actor.
+      //
+      // SIN SOBRE, UN SOLO `SELECT` (CA-13), con la misma forma del plano de consultas desde
+      // S-023: el MISMO resultado alimenta las DOS decisiones, el mapa y la clase.
+      //
+      // Y EL EXENTO SIN SOBRE SIGUE SIN TOCAR LA BASE (S-017 CA-1). Es la diferencia deliberada
+      // con el plano de consultas, que lee SIEMPRE porque allá la clase la necesita TODO caller.
+      // Acá leer sería pagar un `SELECT` por cada escritura del producto, y sobre todo: es el
+      // caso donde `users` puede estar VACÍA porque el evento de autenticación se perdió, y
+      // hacerlo depender de esa fila reintroduce la caída total y silenciosa de escritura que la
+      // exención existe para evitar.
+      const exemptDirect = !actor && caller === getTrustedPublisherId();
+
+      if (actor) {
+        roles = actor.roles;
+      } else if (exemptDirect) {
+        roles = [];
+      } else {
+        // LA MISMA LECTURA DE SIEMPRE, que ahora además conserva el `name` (S-070). Era un
+        // `readCallerRoles(caller)` y pasó a `readCallerIdentity`, que hace EL MISMO `findByPk` y
+        // devuelve los dos campos en vez de tirar uno: cero consultas nuevas, y el nombre que los
+        // eventos necesitan sale de la fila que la compuerta ya traía.
+        const identity = await readCallerIdentity(caller);
+        roles = identity.roles;
+        // `!== caller` por lo mismo que en la rama del sobre: si la fila quedó con el fallback
+        // `email ?? id`, el "nombre" ES el `sub` y no agrega nada. Dejarlo en `undefined` hace que
+        // el último escalón de `resolveEventActor` siga siendo el que decide.
+        actorName = identity.name !== caller ? identity.name : undefined;
+      }
+
+      const channel: Channel = actor ? 'envelope' : 'direct';
+
+      // COMPUERTA 1 — "¿su rol habilita este método?".
+      //
+      // LA IDENTIDAD QUE SE EVALÚA ES LA DEL ACTOR CUANDO HAY SOBRE, Y ES LITERALMENTE CA-2:
+      // `internal-app` sigue exento como PUBLICADOR —es lo que le permite mandar el sobre— pero
+      // YA NO como AUTORIZADOR. Pasar el `caller` acá dejaría que la exención por `sub` de
+      // `authorizeWithRoles` cortara ANTES de mirar `actor.roles`, y el canal del sobre sería un
+      // no-op: cualquier rol publicado por la api quedaría autorizado en los 20 comandos. Es el
+      // modo de falla que TS-28/29/30 detectan.
+      //
+      // SIN SOBRE LA IDENTIDAD ES EL CALLER, así que la exención del publicador de confianza se
+      // conserva entera (S-017 CA-1) — y es el mismo criterio con el que `resolveActor` elige de
+      // quién es la escritura.
+      const denied = authorizeWithRoles(actorIdentity, roles, name, 'commands', channel);
+      if (denied) {
+        return denied;
+      }
+
+      // COMPUERTA 2 — LA CLASE DE CALLER DE ESCRITURA (CA-5): la MISMA función del plano de
+      // lectura, con la misma precedencia —gana el más restrictivo—. Reusarla en vez de copiar la
+      // tabla es la mitigación del "Riesgo medio" de la story: dos copias de una precedencia
+      // divergen, y el día que divergieran el aislamiento del portal tendría dos definiciones.
+      //
+      // EL EXENTO SIN SOBRE NO TIENE ROLES QUE LEER y no puede quedarse sin clase: es S-017 CA-1,
+      // el caso donde `users` está VACÍA porque el evento de autenticación se perdió. Sin este
+      // `??`, ese caso pasa de "escribe" a "no escribe nada", que es la caída total y silenciosa
+      // de escritura que la exención existe para evitar.
+      //
+      // Y NO HAY TERCERA RAMA: si el caller no es el exento y no tiene clase, `authorizeWithRoles`
+      // YA LO RECHAZÓ arriba, porque ningún rol sin entrada en `CLASS_BY_ROLE` autoriza ningún
+      // comando. Esa aserción implícita la sostiene un gate en los tests —"todo rol con comandos
+      // tiene clase"—, porque las dos tablas son deliberadamente independientes.
+      //
+      // ESTE PLANO NO EMITE `unknown_caller`, a diferencia del de consultas: acá el mapa ya
+      // rechazó a todo rol sin clase, así que el segundo código no tendría causa propia — y
+      // agregarlo obligaría a mapearlo a HTTP sin que nadie lo emita.
+      const resolved = resolveCallerClass(roles);
+      if (resolved) {
+        callerClass = resolved;
+      } else if (exemptDirect) {
+        // `exemptDirect` Y NO `caller === getTrustedPublisherId()`: la exención es del publicador
+        // DIRECTO. Con sobre, la api publica EN NOMBRE DE OTRO, y un rol sin clase tiene que
+        // fallar cerrado en vez de heredar `connector` —la clase MENOS restrictiva— por ser la
+        // api quien lo mandó.
+        callerClass = 'connector';
+      } else {
+        // INALCANZABLE HOY, Y FALLA CERRADA A PROPÓSITO. Llegar acá significa que un rol tiene
+        // comandos en `ROLE_METHODS` pero NO tiene entrada en `CLASS_BY_ROLE` — las dos tablas
+        // son deliberadamente independientes—. Un `'connector'` por defecto sería la clase MENOS
+        // restrictiva para un rol que nadie clasificó: exactamente al revés de cómo tiene que
+        // fallar una compuerta. Revienta acá, se traduce a `internal_error` abajo, y el gate
+        // "todo rol con comandos tiene clase" lo delata en los tests antes de llegar a producción.
+        throw new Error(`rol con comandos y sin clase de caller: ${roles.join(',')}`);
+      }
+    } catch (error: any) {
+      // UNA COMPUERTA QUE NO PUEDE DECIDIR DENIEGA. `internal_error` y no `caller_not_authorized`
+      // porque no es culpa del caller — lo que importa es que el comando NO se ejecuta.
+      logger.error(`[auth] commands: no se pudo autorizar ${name}: ${error.message}`);
+      return failure(ErrorCode.INTERNAL_ERROR, 'Internal error');
+    }
+
+    const resolved = this.registry.resolve(name);
+
+    if (!resolved) {
+      logger.warn(`[dispatch] comando desconocido: ${name}`);
+      return failure(ErrorCode.UNKNOWN_COMMAND, `Unknown command: ${name}`);
+    }
+
+    const { command, params } = resolved;
+
+    // Traza de diagnóstico: con LOG_COMMANDS=true imprime cada comando y su payload.
+    // Apagada por defecto porque el payload lleva datos de negocio.
+    //
+    // SIGUE ACÁ, DESPUÉS DE LA COMPUERTA, y es deliberado: de un caller rechazado se registra
+    // quién y qué método (en `[auth]`), NUNCA qué mandó.
+    //
+    // IMPRIME EL PAYLOAD YA SIN EL SOBRE, y no el `raw`: el sobre lleva `name`, `username` y
+    // `email` de una persona, y agregarlos a una traza de diagnóstico sería sumar datos personales
+    // al archivo de log sin que nadie lo pidiera.
+    if (process.env.LOG_COMMANDS === 'true') {
+      logger.info(`[cmd] ${name} <- ${JSON.stringify(payload)}`);
+    }
+
+    const validated = command.validate(payload);
+    if ('error' in validated) {
+      return validated.error;
+    }
+
+    // EL CHEQUEO DE ENTIDAD (CA-6, CA-7): **SOLO EN MODO EXTERNO**, y esa palabra es el criterio
+    // entero de la story. Para `'internal'` y `'connector'` no se ejecuta UNA SOLA CONSULTA, que
+    // es el 100% del tráfico de hoy.
+    //
+    // `validateProjectPermissions` de la api hace literalmente esto:
+    //
+    //     if (!req.decodedTokenRoles.includes('external-user')) { return next(); }
+    //
+    // LOS USUARIOS INTERNOS NO TIENEN FILAS en `user_project_permissions`: la tabla sostiene el
+    // aislamiento del portal y no se administra desde ninguna interfaz. Aplicarle el chequeo a
+    // `admin` y a `user` rechazaría CADA COMANDO SOBRE UNA ENTIDAD DE PROYECTO, y el síntoma
+    // sería "nadie puede hacer nada". Es H-3 del REQ y el error más caro que esta story podía
+    // cometer. Hay un test de regresión con nombre explícito que falla ruidosamente si alguien lo
+    // "endurece".
+    //
+    // VA ACÁ Y NO ADENTRO DE LOS COMANDOS (CA-15): los 20 `execute()` no se tocan, que es lo que
+    // permite saber si un bug es de la compuerta o del comando.
+    //
+    // VA DESPUÉS DE `validate()` porque necesita el payload YA VALIDADO —`requirements.new` saca
+    // el proyecto de `payload.projectId`— y los `params` del subject, que salen de
+    // `registry.resolve()`. Y ANTES de `transaction()` porque un caller sin permiso no tiene que
+    // consumir una conexión del pool de escritura: el mismo criterio de S-017 CA-6, intacto.
+    //
+    // NO ABRE TRANSACCIÓN, heredando la excepción DELIBERADA a la convención `orm` que la
+    // compuerta de S-017 ya declaró: acá TODAVÍA NO HAY transacción.
+    //
+    // LA IDENTIDAD ES LA DEL ACTOR, NUNCA LA DEL SERVICE USER DE LA API: es la misma que
+    // `resolveActor` elige y la que la api usaba en `req.user.id`. Con sobre, `actor.id`; sin
+    // sobre, el caller del subject.
+    if (callerClass === 'external') {
+      const deniedByEntity = await authorizeEntityAccess(
+        command.pattern,
+        actorIdentity,
+        params,
+        validated.value
+      );
+      if (deniedByEntity) {
+        return deniedByEntity;
+      }
+    }
+
+    const transaction = await sequelize.transaction();
+    try {
+      const reply = await command.execute(validated.value, {
+        caller, params, transaction, actor, roles, actorName, callerClass,
+      });
+
+      // LA ESCRITURA DE NOTIFICACIONES VA ACÁ, ANTES DEL COMMIT Y SIN try/catch PROPIO (REQ-015,
+      // S-071) — Y ES EL PUNTO EXACTO DONDE ESTE BLOQUE Y EL DE `emitEvents` DE MÁS ABAJO
+      // SIGNIFICAN LO OPUESTO, aunque se parecen en la forma. Léase ESTE comentario y el de
+      // `emitEvents` como un solo texto: los dos son la misma decisión (ADR-003, "el despachador
+      // es dueño de los efectos externos que un comando declara") aplicada a dos naturalezas
+      // distintas de efecto.
+      //
+      // POR QUÉ ACÁ Y NO DESPUÉS: el evento se publica a JetStream, un bus EXTERNO que no
+      // participa de esta transacción — por eso tiene que esperar al commit, y por eso su pérdida
+      // está asumida (ADR-014, best-effort, sin outbox). La fila de `notification_outbox`, en
+      // cambio, es una escritura MÁS sobre la MISMA base: no hay ninguna razón para sacarla de la
+      // transacción, y sacarla renunciaría a la única garantía que este REQ persigue —"si el
+      // comando commiteó, el mail existe; si el comando falló, rollback y no queda mail
+      // fantasma"—. Publicar un evento ANTES del commit sería el error inverso: emitiría eventos
+      // de una escritura que todavía puede no existir.
+      //
+      // POR QUÉ SIN try/catch PROPIO, A DIFERENCIA DEL BLOQUE DE EVENTOS: `writeNotifications`
+      // corre DENTRO del `try` que ya envuelve a `command.execute()`, así que un fallo suyo (una
+      // consulta que rechaza, un `bulkCreate` que rechaza, un tipo desconocido en el registro)
+      // PROPAGA hacia el `catch` de más abajo, que hace `rollback()` y responde
+      // `internal_error` — exactamente el mismo tratamiento que cualquier otro fallo de escritura
+      // del comando. Un `try/catch` acá, copiado del bloque de `emitEvents`, convertiría un fallo
+      // de encolado en un `success` silencioso SIN FILA Y SIN MAIL: es la clase de error que este
+      // REQ existe para evitar (R-4), y es EL ERROR MÁS FÁCIL DE COMETER ACÁ porque los dos
+      // bloques se parecen en la forma.
+      //
+      // `reply.notifications?.length` Y NO `!== undefined`, mismo criterio que `reply.events`:
+      // un `notifications: []` no tiene nada que escribir, y entrar igual solo arriesgaría sin
+      // ganar nada. Un comando que no declara el campo (los 23 de hoy) no cambia su
+      // comportamiento en absoluto.
+      if (reply.status === 'success' && reply.notifications?.length) {
+        await writeNotifications(reply.notifications, {
+          caller, params, transaction, actor, roles, actorName, callerClass,
+        });
+      }
+
+      if (reply.status === 'success') {
+        await transaction.commit();
+      } else {
+        await transaction.rollback();
+      }
+
+      // LA EMISIÓN VA ACÁ Y EN SU PROPIO try/catch, y las dos cosas son la story (S-063).
+      //
+      // DESPUÉS DEL COMMIT porque publicar antes emitiría eventos de escrituras que después
+      // rollean. La ventana entre el commit y el publish está ASUMIDA (R-6 del REQ): si falla
+      // acá, el evento SE PIERDE y no se repone.
+      //
+      // EN SU PROPIO try/catch PORQUE EL `catch` DE MÁS ABAJO HACE `rollback()` — y para este
+      // punto la transacción YA ESTÁ COMMITEADA. Un rechazo que escapara de acá haría un rollback
+      // sobre una transacción terminada, ese segundo rechazo taparía el original, y un comando
+      // que escribió bien saldría `failure internal_error`: el usuario vería un error de algo
+      // que SÍ pasó (R-A). El precedente de cómo se evita está 200 líneas más arriba, en
+      // `mirrorActor`.
+      //
+      // `reply.events?.length` Y NO `reply.events !== undefined`: un `events: []` no tiene que
+      // entrar a este camino (TS-7) — no hay nada que publicar y entrar igual solo arriesgaría
+      // sin ganar nada.
+      //
+      // Y `emitEvents` YA NO RECHAZA NUNCA (garantía de la Task 2) así que este `await` es
+      // seguro. AUN ASÍ el try/catch propio va igual: la garantía tiene que ser LOCAL Y VISIBLE
+      // en este archivo, no una propiedad que alguien pueda romper editando otro (R-B).
+      try {
+        if (reply.status === 'success' && reply.events?.length) {
+          await emitEvents(reply.events, correlationId, this.publisher);
+        }
+      } catch (error: any) {
+        // INALCANZABLE si `emitEvents` cumple su contrato, y acá igual: es la garantía de que
+        // ninguna futura edición de `emitEvents` pueda convertir un éxito en `internal_error`.
+        logger.error(`[events] emisión no manejada en ${name}: ${error.message}`);
+      }
+
+      if (process.env.LOG_COMMANDS === 'true') {
+        logger.info(`[cmd] ${name} -> ${JSON.stringify(redactReply(reply))}`);
+      }
+      return reply;
+    } catch (error: any) {
+      await transaction.rollback();
+      logger.error(`[dispatch] ${name}: ${error.message}`);
+      return failure(ErrorCode.INTERNAL_ERROR, 'Internal error');
+    }
+  }
+}

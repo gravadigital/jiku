@@ -1,7 +1,7 @@
 /**
  * El contrato del bus, en código.
  *
- * La fuente de verdad es `docs/apis/core.yaml`: ante cualquier
+ * La fuente de verdad es `_jflow/apis/core.asyncapi.yaml`: ante cualquier
  * discrepancia, manda el documento. Este paquete es la única definición de subjects y
  * formatos, compartida por la api (que publica) y core (que atiende).
  */
@@ -185,7 +185,7 @@ export function eventsStreamSubject(): string {
 /** Un segmento del patrón que es un parámetro: `{id}`, `{userId}`, `{fileId}`. */
 /**
  * Nombre del bucket KV de JetStream donde cada módulo opcional se registra (REQ-016 / S-077). El
- * stream subyacente es `KV_JIKU_MODULES`. Fuente de verdad: `docs/apis/jiku-modules.yaml`.
+ * stream subyacente es `KV_JIKU_MODULES`. Fuente de verdad: `_jflow/apis/jiku-modules.asyncapi.yaml`.
  *
  * El bucket lo crea el despliegue base, NO este paquete ni la api: la api lo abre con `bindOnly`.
  * Existe para que nadie escriba el literal `'JIKU_MODULES'`.
@@ -193,7 +193,7 @@ export function eventsStreamSubject(): string {
 export const MODULES_BUCKET = 'JIKU_MODULES';
 
 /**
- * Valor de una clave del bucket `JIKU_MODULES` (contrato: `docs/apis/jiku-modules.yaml`).
+ * Valor de una clave del bucket `JIKU_MODULES` (contrato: `_jflow/apis/jiku-modules.asyncapi.yaml`).
  *
  * Es el cable: `registeredAt` es un string ISO 8601 (no `Date`), igual que `occurredAt` en
  * `DomainEvent`. Los lectores DEBEN tolerar campos nuevos dentro de v1, por eso la interfaz no se
@@ -311,7 +311,7 @@ export function methodFromSubject(subject: string): string {
 /**
  * @deprecated Usá `methodFromSubject`: con dos servicios en el bus, el quinto segmento es un
  * método (comando o consulta), no siempre un comando. Es el MISMO símbolo, no una copia: se
- * mantiene para no tocar `core/src/bus/dispatcher.ts`. Se elimina cuando su caller se repunte.
+ * mantiene para no tocar `services/core/src/bus/dispatcher.ts`. Se elimina cuando su caller se repunte.
  */
 export const commandFromSubject = methodFromSubject;
 
@@ -401,7 +401,7 @@ export interface Reply<T = unknown> {
    * lleva el user id—. Esto llega al caller y, cuando exista un consumidor HTTP, potencialmente
    * al usuario final.
    *
-   * Un consumidor que no conoce el campo lo ignora (`api/lib/utils/bus/protocol.ts` proyecta el
+   * Un consumidor que no conoce el campo lo ignora (`services/api/lib/utils/bus/protocol.ts` proyecta el
    * envelope y descarta las claves que no declara), así que es compatible en las dos direcciones.
    */
   errorDetails?: Record<string, unknown>;
@@ -477,7 +477,7 @@ export const ErrorCode = {
   // despachadores autorizan al caller del subject contra los roles persistidos ANTES de resolver
   // el método y ANTES de abrir la transacción. Por eso es el CUARTO de la familia de arriba —los
   // que no vienen de un comando— y por eso NO figura en el `x-error-codes` de ninguno de los 20
-  // mensajes de `docs/apis/core.yaml`: esa lista enumera lo que devuelve un `execute()`.
+  // mensajes de `_jflow/apis/core.asyncapi.yaml`: esa lista enumera lo que devuelve un `execute()`.
   //
   // UN SOLO CÓDIGO PARA DOS SITUACIONES, A PROPÓSITO: "no hay fila para el caller" y "hay fila
   // pero ningún rol autoriza este método" responden LO MISMO. Distinguirlas le diría a un caller
@@ -486,20 +486,20 @@ export const ErrorCode = {
   // Y POR ESO `USER_NOT_FOUND` NO SE REUSA — además de que ya está mapeado a 404, que es el
   // status equivocado para un rechazo de permisos.
   //
-  // MAPEA A 403 en `api/lib/utils/bus/protocol.ts`, junto a `file_not_owned` y con su mismo
+  // MAPEA A 403 en `services/api/lib/utils/bus/protocol.ts`, junto a `file_not_owned` y con su mismo
   // argumento: describe un PERMISO, no una entrada inválida. En la práctica la api NUNCA lo
   // recibe —su canal está exento de la compuerta—, y se mapea igual porque el mapa es DEL
   // SERVICIO, no del endpoint.
   //
-  // Los tres lugares de la convención: este archivo, el `enum` de `docs/apis/core.yaml` (ya
+  // Los tres lugares de la convención: este archivo, el `enum` de `_jflow/apis/core.asyncapi.yaml` (ya
   // escrito, y la fuente de verdad del valor) y ese mapa. Faltando el tercero, el código cae en
   // el `|| 500` de `httpStatusFor()` y el usuario ve un 500 genérico.
   CALLER_NOT_AUTHORIZED: 'caller_not_authorized',
 
   // REQ-006 agrega CINCO códigos y NINGUNO lo emite un comando: son del plano de consultas
-  // (`jiku-queries`), cuyo contrato vive en `docs/apis/core-queries.yaml`. Están acá, y no en un
+  // (`jiku-queries`), cuyo contrato vive en `_jflow/apis/core-queries.asyncapi.yaml`. Están acá, y no en un
   // catálogo aparte, porque `ErrorCode` es UN catálogo compartido, no uno por plano. Por eso
-  // tampoco figuran en el `x-error-codes` de ninguno de los 20 mensajes de `docs/apis/core.yaml`:
+  // tampoco figuran en el `x-error-codes` de ninguno de los 20 mensajes de `_jflow/apis/core.asyncapi.yaml`:
   // esa lista enumera lo que devuelve un `execute()`. Van pegados a CALLER_NOT_AUTHORIZED porque
   // comparten con él lo que los separa de los otros 26: no los emite un comando.
   //
@@ -511,7 +511,7 @@ export const ErrorCode = {
   //
   // EL MAPEO HTTP PREVISTO ES DOCUMENTACIÓN, NO CÓDIGO: unknown_caller 403, query_timeout 504,
   // invalid_cursor 400, comment_not_found 404, task_not_found 404. NO SE AGREGAN a
-  // `api/lib/utils/bus/protocol.ts`: al cerrar REQ-006 `bus.query()` SIGUE SIN CALLER, así que
+  // `services/api/lib/utils/bus/protocol.ts`: al cerrar REQ-006 `bus.query()` SIGUE SIN CALLER, así que
   // ninguno de los cinco llega a una respuesta HTTP y el mapa sería código muerto que además hay
   // que mantener. Es la única excepción declarada a la regla de ADR-002 —"todo errorCode nuevo va
   // al mapa"— y el mapa es del requerimiento que migre las rutas GET.
@@ -588,8 +588,8 @@ export const ErrorCode = {
   // HOY NO LO EMITE NADIE. Su emisor llega en S-030 (core). Un código declarado sin emisor no
   // rompe nada; uno emitido sin declarar obliga al literal a mano.
   //
-  // LOS TRES LUGARES: este archivo, el `enum` de `docs/apis/core.yaml` (YA ESCRITO, y la fuente de
-  // verdad del valor) y `STATUS_BY_ERROR_CODE` de `api/lib/utils/bus/protocol.ts` -> 403, que es
+  // LOS TRES LUGARES: este archivo, el `enum` de `_jflow/apis/core.asyncapi.yaml` (YA ESCRITO, y la fuente de
+  // verdad del valor) y `STATUS_BY_ERROR_CODE` de `services/api/lib/utils/bus/protocol.ts` -> 403, que es
   // de S-030 (api). SIN EL TERCERO cae en el `|| 500` de httpStatusFor() y el frontend lo trata
   // como error de servidor en vez de mostrar el mensaje.
   ACCESS_DENIED: 'access_denied',
@@ -597,7 +597,7 @@ export const ErrorCode = {
   WORKED_TIME_NOT_FOUND: 'worked_time_not_found',
   UNWORKED_TIME_NOT_FOUND: 'unworked_time_not_found',
 
-  // Los cinco de archivos (REQ-001). El enum de `docs/apis/core.yaml` ya los declara: esto
+  // Los cinco de archivos (REQ-001). El enum de `_jflow/apis/core.asyncapi.yaml` ya los declara: esto
   // alinea el paquete con el contrato, que es la fuente de verdad.
   //
   // FILE_NOT_OWNED lo emite S-003 al vincular, no los comandos de storage de S-002. Se declara
@@ -607,7 +607,7 @@ export const ErrorCode = {
   //
   // FILE_NOT_OWNED mapea a 403, NO a 400: reusar `invalid_attachment_id` haría indistinguible
   // "el archivo no existe" de "el archivo no es tuyo", y el segundo es la regla nueva del REQ.
-  // El mapeo a HTTP en `api/lib/utils/bus/protocol.ts` es de S-004/S-005.
+  // El mapeo a HTTP en `services/api/lib/utils/bus/protocol.ts` es de S-004/S-005.
   FILE_TYPE_NOT_ALLOWED: 'file_type_not_allowed',
   FILE_TOO_LARGE: 'file_too_large',
   FILE_NOT_OWNED: 'file_not_owned',
@@ -620,7 +620,7 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 /**
  * El catálogo de los 16 eventos de dominio que `core` publica (REQ-014).
  *
- * FUENTE DE VERDAD: `docs/apis/core-events.yaml`. Los 16 valores de acá, los 16 nombres de canal
+ * FUENTE DE VERDAD: `_jflow/apis/core-events.asyncapi.yaml`. Los 16 valores de acá, los 16 nombres de canal
  * de ese contrato y los 16 sufijos de subject son LA MISMA LISTA — TS-155 en el contrato lo
  * verifica canal por canal, en el mismo orden.
  *
@@ -812,7 +812,7 @@ export interface AuthEvent {
 
 /**
  * El requisito completo, tal como viaja en `DomainEvent.snapshot` de un evento de requisito
- * (REQ-014). Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/RequirementSnapshot`.
+ * (REQ-014). Fuente de verdad: `_jflow/apis/core-events.asyncapi.yaml#/components/schemas/RequirementSnapshot`.
  *
  * La lista es FIJA y se declara en el contrato de eventos, no se deriva de la ficha de
  * `jiku-queries`: agregar o quitar un campo de acá es un cambio del contrato de eventos y, si es
@@ -845,7 +845,7 @@ export interface RequirementSnapshot {
 
 /**
  * La tarea completa, tal como viaja en `DomainEvent.snapshot` de un evento de tarea (REQ-014).
- * Fuente de verdad: `docs/apis/core-events.yaml#/components/schemas/TaskSnapshot`.
+ * Fuente de verdad: `_jflow/apis/core-events.asyncapi.yaml#/components/schemas/TaskSnapshot`.
  *
  * Usa `task`, NUNCA `objective` (ADR-004): la entidad se llama `task` en el bus y `objectives`
  * en la base, y la traducción vive dentro del comando, no acá.
@@ -928,7 +928,7 @@ export interface EventEntityRef {
  * acoplar el módulo de notificaciones a nada nuevo (ya importa de este paquete).
  */
 export interface NotificationDeclaration {
-  /** Clave del registro de tipos de `core/src/notifications/registry.ts`. */
+  /** Clave del registro de tipos de `services/core/src/notifications/registry.ts`. */
   type: string;
   entity: EventEntityRef;
   /**
@@ -1082,7 +1082,7 @@ export interface DomainEvent<S = RequirementSnapshot | TaskSnapshot> {
 
 /**
  * Generador de ULID, implementación propia y SIN dependencia (D-2 de REQ-014, conservada por
- * REQ-016). Movido desde `core/src/ulid.ts` en REQ-016 / S-077, sin cambiar la implementación.
+ * REQ-016). Movido desde `services/core/src/ulid.ts` en REQ-016 / S-077, sin cambiar la implementación.
  * Lo usan `core` (`eventId` de cada `DomainEvent`, `correlationId` de `dispatch()`) y la api (altas
  * de docs, DD-8 de REQ-016).
  *

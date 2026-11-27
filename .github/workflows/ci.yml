@@ -28,31 +28,10 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    # The api and core tests run against a real database. Outside CI they start it
-    # themselves in Docker; here the pipeline provides it, and `CI=true` — which
-    # Actions sets on its own — makes them use it instead of starting a container.
-    # These values have to match api/.env.test and core/.env.test.
-    services:
-      postgres:
-        image: postgres:15.4-alpine3.18
-        env:
-          POSTGRES_DB: gestionTest
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: testing
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      POSTGRESQL_HOST: localhost
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_DB: gestionTest
-      POSTGRESQL_USER: test
-      POSTGRESQL_PASSWORD: testing
+    # The fast part of `make check` (Engineering, CI): lint, typecheck, unit and integration
+    # tests. The integration tests bring up the `postgres-test` service of the root
+    # docker-compose.yml themselves (make test-integration). The end-to-end level runs
+    # locally against `make up`, not here.
 
     steps:
       - uses: actions/checkout@v4
@@ -71,11 +50,8 @@ jobs:
       - name: Versions agree across the monorepo
         run: ./scripts/set-version.sh --check
 
-      - name: Build
-        run: npm run build
+      - name: Lint and typecheck
+        run: make lint typecheck
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
+      - name: Unit and integration tests
+        run: make test-unit test-integration

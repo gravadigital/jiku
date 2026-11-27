@@ -29,4 +29,6 @@ deploy/nats/creds
 **/*.seed
 **/*.creds
 **/*.sql
+# The baseline schema of the migrations is code, not a dump (services/api/db-upgrade/baseline.js).
+!services/api/db-upgrade/baseline/schema.sql
 **/*-su.json

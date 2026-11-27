@@ -1,0 +1,10 @@
+{
+  "//": "Typecheck of the whole folder, tests included (make typecheck). Next's own check (next build) skips the tests; these add the vitest globals and a target with the regex flags the tests use.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "incremental": false,
+    "types": ["vitest/globals", "node"]
+  },
+  "exclude": ["node_modules", ".next"]
+}

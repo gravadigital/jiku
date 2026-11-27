@@ -3,9 +3,11 @@
 Project management for a services team, with a separate portal so clients can follow and
 request work without access to the internal tool.
 
-This is the documentation for **using and running Jiku**. The internal working documentation —
-architecture per service, conventions, stories, decision records — lives in [`docs/`](../docs/)
-and is written in Spanish for the team that builds it.
+This is the documentation for **using and running Jiku**. The definition of what is built — its
+rules, decisions, contracts, schema and flows — lives in [`_jflow/`](../_jflow/), written for the
+team and its agents. [`docs/`](../docs/) holds, in Spanish, the operations guide and the adoption
+report. The documents of the previous methodology (architecture per service, conventions,
+stories, decision records, design system) were removed; they remain in git history.
 
 | | |
 |---|---|
@@ -95,8 +97,8 @@ there is no reply at all to translate.
 
 ## Going further
 
-- The bus contract, command by command: [`docs/apis/core.yaml`](../docs/apis/core.yaml)
+- The bus contract, command by command: [`_jflow/apis/core.asyncapi.yaml`](../_jflow/apis/core.asyncapi.yaml)
   (AsyncAPI). It is the source of truth for anything crossing the bus.
-- Per-service architecture and conventions: [`docs/architectures/`](../docs/architectures/).
+- Services, modules and how they interact: [`_jflow/prd/architecture/`](../_jflow/prd/architecture/); each service's stack and conventions in its `AGENTS.md` (`services/{service}/AGENTS.md`).
 - Running and operating a deployment: [`deploy/README.md`](../deploy/README.md).
 - Contributing: [`CONTRIBUTING.md`](../CONTRIBUTING.md).

@@ -23,6 +23,7 @@ coverage/
 .env.*
 .env_*
 !.env.dist
+!.env.example
 !.env.defaults
 !.env.test
 *.env.bak
@@ -79,3 +80,4 @@ __pycache__/
 /local/
 # Registro interno del trabajo de publicacion. No va al repo publico.
 docs/publicacion/
+reports/

@@ -25,10 +25,10 @@ cd "$(dirname "$0")/.."
 
 WORKSPACES=(
   package.json
-  api/package.json
-  core/package.json
-  web/package.json
-  opus-web/package.json
+  services/api/package.json
+  services/core/package.json
+  services/web/package.json
+  services/opus-web/package.json
   packages/models/package.json
   packages/nats-protocol/package.json
   packages/zitadel-auth/package.json

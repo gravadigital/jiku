@@ -1,0 +1,789 @@
+import 'mocha';
+import 'should';
+import { ErrorCode, NatsError } from 'nats';
+import { start } from '../mocks/app';
+import request from 'supertest';
+import { Application } from 'express';
+import { Attachment, File, Objective, Person, PersonRequirement, Project, ProjectPerson, Requirement, RequirementActivity, RequirementSubscriptor, User } from '@jiku/models';
+import { fakeBus } from '../mocks/bus';
+
+describe('POST /api/requirements', () => {
+  let application: Application;
+
+  before(function () {
+    this.timeout(30000);
+    application = start();
+
+    // El stub de `storageService.uploadFromBuffer` se retiró con S-004: ninguna ruta mueve
+    // bytes ya, el módulo no existe y el doble solo cubría un camino que desapareció.
+    return User.create({ id: 'zitadel-sub-01', name: 'User 01', username: 'user01', email: 'user01@mail.com' })
+      .then(() => User.create({ id: 'zitadel-sub-04', name: 'User 04', username: 'user04', email: 'user04@mail.com' }))
+      .then(() => Project.create({ id: 1, name: 'Project1', code: 'P1', type: 'comercial', status: 'activo', initDate: new Date(), createdBy: 'zitadel-sub-01' }))
+      .then(() => Person.create({ id: 10, firstName: 'Ana', lastName: 'Gómez', enabled: true, initDate: new Date() }))
+      .then(() => Person.create({ id: 99, firstName: 'Otro', lastName: 'Persona', enabled: true, initDate: new Date() }))
+      .then(() => ProjectPerson.create({ projectId: 1, personId: 10 }))
+      // persona 99 NO asociada al proyecto
+      ;
+  });
+
+  /**
+   * Los `fileIds` son ids de `files`, no de `attachments` (REQ-001, S-003): el archivo ya
+   * existe por sí solo y el vínculo lo crea core contra el requisito recién guardado. Por eso
+   * el fixture es un `File`, y `uploadedBy` importa: es la regla de titularidad (RF-12).
+   */
+  function createFile(uploadedBy = 'zitadel-sub-01'): Promise<File> {
+    return File.create({
+      fileName: 'img.png',
+      fileSize: 1024,
+      mimeType: 'image/png',
+      storageKey: `grava-gestion/f/${Math.random()}.png`,
+      storageBucket: 'test-bucket',
+      storageRegion: 'sfo2',
+      byteStatus: 'pending',
+      retentionStatus: 'active',
+      uploadedBy,
+    } as any, { validate: false });
+  }
+
+  after(() => {
+    return RequirementActivity.destroy({ where: {} })
+      .then(() => RequirementSubscriptor.destroy({ where: {} }))
+      // Las FK de `people_requirements` no borran en cascada: los responsables van primero.
+      .then(() => PersonRequirement.destroy({ where: {} }))
+      .then(() => Requirement.destroy({ where: {} }))
+      .then(() => Attachment.destroy({ where: {}, force: true }))
+      .then(() => File.destroy({ where: {}, force: true }))
+      .then(() => ProjectPerson.destroy({ where: {} }))
+      .then(() => Person.destroy({ where: {} }))
+      .then(() => Project.destroy({ where: {} }))
+      .then(() => User.destroy({ where: {} }));
+  });
+
+  // TS-14: sin token
+  it('TS-14: should return 401 if no token is provided', () => {
+    return request(application)
+      .post('/api/requirements')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1 })
+      .expect(401);
+  });
+
+  // TS-4: enum state inválido
+  it('TS-4: should return 400 for invalid state enum', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, state: 'foo' })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // TS-5: enum type inválido
+  it('TS-5: should return 400 for invalid type enum', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'xxx', estimatedFinishDate: '2026-07-01', projectId: 1 })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // TS-6: enum visibilityLevel inválido
+  it('TS-6: should return 400 for invalid visibilityLevel enum', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, visibilityLevel: 'secret' })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // TS-8: proyecto inexistente
+  it('TS-8: should return 404 for non-existent project', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 99999 })
+      .expect(404)
+      .then((res) => {
+        res.body.code.should.equal('project_not_found');
+      });
+  });
+
+  it('should allow a responsible person that is not associated with the project', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', projectId: 1, responsiblePersonIds: [99] })
+      .expect(201)
+      .then((res) => {
+        res.body.responsiblePeople.should.have.length(1);
+        res.body.responsiblePeople[0].id.should.equal(99);
+        res.body.responsiblePeople[0].isLeader.should.equal(true);
+      });
+  });
+
+  // TS-3: responsable inexistente
+  it('TS-3: should return 400 invalid_responsible_person when a responsiblePersonIds entry does not exist', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, responsiblePersonIds: [9999] })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_responsible_person');
+      });
+  });
+
+  // TS-3 (S-062): sin vinculo parcial en people_requirements ni requisito creado
+  it('TS-3: should not create requirement nor partial people_requirements link when responsible does not exist', () => {
+    let countBefore: number;
+    return Requirement.count()
+      .then((c) => { countBefore = c; })
+      .then(() => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req sin vinculo parcial', description: 'D', type: 'funcionalidad', projectId: 1, responsiblePersonIds: [9999] })
+        .expect(400))
+      .then((res) => {
+        res.body.code.should.equal('invalid_responsible_person');
+        return Requirement.count();
+      })
+      .then((countAfter) => {
+        countAfter.should.equal(countBefore);
+        return Requirement.findOne({ where: { title: 'Req sin vinculo parcial' } });
+      })
+      .then((requirement) => {
+        (requirement === null).should.be.true();
+      });
+  });
+
+  // TS-2 (S-060): crear requisito con multiples responsables, primero como lider
+  it('TS-2: should create requirement with multiple responsiblePersonIds, first as leader', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Req multi', description: 'd', type: 'mejora', estimatedFinishDate: '2026-07-01', projectId: 1, responsiblePersonIds: [10, 99] })
+      .expect(201)
+      .then((res) => {
+        res.body.responsiblePeople.should.have.length(2);
+        res.body.responsiblePeople.should.containDeep([
+          { id: 10, isLeader: true },
+          { id: 99, isLeader: null },
+        ]);
+      });
+  });
+
+  // TS-1 (S-062): isLeader debe ser null (no false) para responsables no-lideres
+  it('TS-1: should create requirement with responsiblePersonIds, non-leader isLeader is null', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Req S-062', description: 'd', type: 'funcionalidad', projectId: 1, responsiblePersonIds: [10, 99] })
+      .expect(201)
+      .then((res) => {
+        res.body.responsiblePeople.should.have.length(2);
+        res.body.responsiblePeople.should.containDeep([
+          { id: 10, isLeader: true },
+          { id: 99, isLeader: null },
+        ]);
+      });
+  });
+
+  // estado default analisis
+  it('should default state to analisis and visibilityLevel to public', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Req B', description: 'd', type: 'mejora', estimatedFinishDate: '2026-07-01', projectId: 1 })
+      .expect(201)
+      .then((res) => {
+        res.body.state.should.equal('analisis');
+        res.body.visibilityLevel.should.equal('public');
+        res.body.responsiblePeople.should.be.an.Array();
+        res.body.responsiblePeople.should.have.length(0);
+      });
+  });
+
+  it('should create a requirement without estimatedFinishDate', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Sin fecha', description: 'd', type: 'mejora', projectId: 1 })
+      .expect(201)
+      .then((res) => {
+        (res.body.estimatedFinishDate === null).should.be.true();
+      });
+  });
+
+  // TS-3: estado válido explícito
+  it('TS-3: should respect explicit state value', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Req C', description: 'd', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, state: 'desarrollo' })
+      .expect(201)
+      .then((res) => {
+        res.body.state.should.equal('desarrollo');
+      });
+  });
+
+  // TS-9: `fileId` inexistente → 400 `invalid_fields` y rollback del requisito. El rollback es
+  // la mitad que importa: la entidad y sus vínculos quedan juntos o ninguno.
+  it('TS-9: should return 400 invalid_fields for a non-existent fileId and not create requirement', () => {
+    let countBefore: number;
+    return Requirement.count()
+      .then((c) => { countBefore = c; })
+      .then(() => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Con adjunto invalido', description: 'd', type: 'funcionalidad', estimatedFinishDate: '2026-07-01', projectId: 1, fileIds: [7777] })
+        .expect(400))
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+        return Requirement.count();
+      })
+      .then((countAfter) => {
+        countAfter.should.equal(countBefore);
+      });
+  });
+
+  // RF-12: titularidad. El archivo lo subió otro usuario, así que el actor no puede vincularlo.
+  it('should return 403 file_not_owned when the file was uploaded by another user', () => {
+    let countBefore: number;
+    return Requirement.count()
+      .then((c) => { countBefore = c; })
+      .then(() => createFile('zitadel-sub-04'))
+      .then((file) => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Archivo ajeno', description: 'd', type: 'funcionalidad', projectId: 1, fileIds: [file.id] })
+        .expect(403))
+      .then((res) => {
+        res.body.code.should.equal('file_not_owned');
+        return Requirement.count();
+      })
+      .then((countAfter) => {
+        countAfter.should.equal(countBefore);
+      });
+  });
+
+  // Más de 10 `fileIds`: lo corta Joi en la api, sin round-trip del bus.
+  it('should return 400 invalid_fields for more than 10 fileIds', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({
+        title: 'Demasiados',
+        description: 'd',
+        type: 'funcionalidad',
+        projectId: 1,
+        fileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // create completo con responsable y archivo vinculado
+  it('should create requirement with state, visibilityLevel, responsiblePersonIds and link the file', () => {
+    let file: File;
+    return createFile()
+      .then((created) => { file = created; })
+      .then(() => request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req A',
+          description: 'desc',
+          type: 'funcionalidad',
+          estimatedFinishDate: '2026-07-01',
+          projectId: 1,
+          state: 'planificacion',
+          visibilityLevel: 'internal',
+          responsiblePersonIds: [10],
+          fileIds: [file.id],
+        })
+        .expect(201))
+      .then((res) => {
+        res.body.should.have.property('id');
+        res.body.state.should.equal('planificacion');
+        res.body.visibilityLevel.should.equal('internal');
+        res.body.responsiblePeople.should.be.an.Array();
+        res.body.responsiblePeople.should.have.length(1);
+        res.body.responsiblePeople[0].id.should.equal(10);
+        res.body.responsiblePeople[0].firstName.should.equal('Ana');
+        res.body.responsiblePeople[0].lastName.should.equal('Gómez');
+        res.body.responsiblePeople[0].isLeader.should.equal(true);
+        const reqId = res.body.id;
+        return Attachment.findOne({ where: { fileId: file.id } })
+          .then((att) => {
+            att!.entityType.should.equal('requirement');
+            att!.entityId!.should.equal(reqId);
+            // El PUT al bucket lo reportó el cliente: vincular es lo que da por subido el byte.
+            return File.findByPk(file.id);
+          })
+          .then((refreshed) => {
+            (refreshed as any).byteStatus.should.equal('uploaded');
+          });
+      });
+  });
+
+  // Legacy tests preserved
+  it('should return 400 if projectId is missing', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', priority: 'baja', estimatedFinishDate: '2026-06-01' })
+      .expect(400)
+      .then((response) => {
+        response.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  it('should default priority to sin_prioridad when not provided', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Sin prioridad', description: 'Desc', type: 'funcionalidad', estimatedFinishDate: '2026-06-01', projectId: 1 })
+      .expect(201)
+      .then((response) => {
+        response.body.priority.should.equal('sin_prioridad');
+      });
+  });
+
+  // TS-9 (S-064): campos nuevos son null por defecto al crear sin especificarlos
+  it('TS-9: should default scope, technicalSolution and acceptanceCriteria to null', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Req sin info base', description: 'd', type: 'funcionalidad', projectId: 1 })
+      .expect(201)
+      .then((res) => {
+        (res.body.scope === null).should.be.true();
+        (res.body.technicalSolution === null).should.be.true();
+        (res.body.acceptanceCriteria === null).should.be.true();
+      });
+  });
+
+  // TS-10 (S-064): POST acepta los 3 campos opcionales de información base
+  it('TS-10: should accept scope, technicalSolution and acceptanceCriteria on create', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({
+        title: 'Req con info base',
+        description: 'd',
+        type: 'funcionalidad',
+        projectId: 1,
+        scope: 'texto',
+        technicalSolution: 'texto',
+        acceptanceCriteria: 'texto',
+      })
+      .expect(201)
+      .then((res) => {
+        res.body.scope.should.equal('texto');
+        res.body.technicalSolution.should.equal('texto');
+        res.body.acceptanceCriteria.should.equal('texto');
+      });
+  });
+
+  // TS-19 (S-064): valor de state inválido rechazado en POST
+  it('TS-19: should return 400 invalid_fields for invalid state value', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'funcionalidad', projectId: 1, state: 'estado_invalido' })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  it('should not create any Objective when creating a requirement', () => {
+    return Objective.count()
+      .then((countBefore) => {
+        return request(application)
+          .post('/api/requirements')
+          .set('Authorization', 'Bearer token_01_user')
+          .send({ title: 'Sin objetivo', description: 'D', type: 'incidencia', estimatedFinishDate: '2026-06-30', projectId: 1 })
+          .expect(201)
+          .then(() => Objective.count())
+          .then((countAfter) => {
+            countAfter.should.equal(countBefore);
+          });
+      });
+  });
+
+  // TS-20 (S-085/TS-1): crear requisito omitiendo type
+  it('TS-20: should create a requirement with type null when type is omitted', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Sin tipo omitido', description: 'D', projectId: 1 })
+      .expect(201)
+      .then((res) => {
+        (res.body.type === null).should.be.true();
+      });
+  });
+
+  // TS-21 (S-085/TS-2): crear requisito con type null explícito
+  it('TS-21: should create a requirement with type null when type is explicitly null', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Sin tipo explicito', description: 'D', projectId: 1, type: null })
+      .expect(201)
+      .then((res) => {
+        (res.body.type === null).should.be.true();
+      });
+  });
+
+  // TS-22 (S-085/TS-4): rechaza type sin_tipo
+  it('TS-22: should return 400 invalid_fields for type sin_tipo', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'T', description: 'D', type: 'sin_tipo', projectId: 1 })
+      .expect(400)
+      .then((res) => {
+        res.body.code.should.equal('invalid_fields');
+      });
+  });
+
+  // TS-23 (S-085/TS-10): regresión, type válido sigue funcionando
+  it('TS-23: should create a requirement with a valid type value', () => {
+    return request(application)
+      .post('/api/requirements')
+      .set('Authorization', 'Bearer token_01_user')
+      .send({ title: 'Con tipo', description: 'D', projectId: 1, type: 'incidencia' })
+      .expect(201)
+      .then((res) => {
+        res.body.type.should.equal('incidencia');
+      });
+  });
+  /**
+   * Los tres modos de falla del bus (S-014). El fixture es el mismo en los seis: el
+   * `before` ya dejó creados el usuario y el proyecto `id: 1`, así que la request pasa los
+   * permisos y la validación y llega a `sendCommand`, que es el punto que se ejercita.
+   *
+   * LA DISTINCIÓN SE HACE SOBRE LA SEÑAL DEL CLIENTE NATS, no sobre el tiempo transcurrido
+   * ni sobre el texto del mensaje: `no responders` llega en milisegundos —lo contesta el
+   * server— y un timeout que vence antes de lo esperado sigue siendo un timeout.
+   */
+  describe('los modos de falla del bus (S-014)', () => {
+    const BUS_FAILURE_BODY = {
+      title: 'T',
+      description: 'D',
+      type: 'funcionalidad',
+      estimatedFinishDate: '2026-07-01',
+      projectId: 1,
+    };
+
+    // TS-1 (CA-1): no hay ningún suscriptor del subject. Es un problema de DESPLIEGUE y el
+    // server lo contesta en milisegundos, sin esperar el timeout. La operación NO ocurrió.
+    it('TS-1: responde 503 service_unavailable cuando no hay ningún suscriptor', () => {
+      fakeBus.failWithNoResponders();
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+          res.body.message.should.equal('El servicio no está disponible en este momento');
+        });
+    });
+
+    // TS-2 (CA-2): la respuesta no llegó a tiempo. Es un problema de PERFORMANCE, y la
+    // operación PUDO haber ocurrido. El `message` se afirma a propósito: es el copy aprobado
+    // por la revisión UX y esta aserción es lo único que impide que se lo cambien sin que
+    // nada falle.
+    it('TS-2: responde 504 gateway_timeout cuando la respuesta no llega a tiempo', () => {
+      fakeBus.failWithTimeout();
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(504)
+        .then((res) => {
+          res.body.code.should.equal('gateway_timeout');
+          res.body.message.should.equal('La operación tardó demasiado');
+        });
+    });
+
+    // TS-3 (CA-3): EL TEST QUE HACE VERIFICABLE LA REGLA. Un `Error` cuyo texto dice
+    // 'timeout' pero que no lleva la señal de NATS NO es un timeout: cae en el default y
+    // sale 503. Si esto devolviera 504, la rama estaría leyendo el mensaje.
+    it('TS-3: no lee el texto del error: un Error("timeout") sin señal NATS sigue en 503', () => {
+      fakeBus.failWith(new Error('timeout'));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+          res.body.code.should.not.equal('gateway_timeout');
+        });
+    });
+
+    // TS-4 (CA-4): el default no cambió. El `catch` GANÓ una rama, no se reescribió.
+    it('TS-4: responde 503 ante una excepción genérica', () => {
+      fakeBus.failWith(new Error('boom'));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+        });
+    });
+
+    // TS-5 (CA-4): un `NatsError` que NO es de timeout también cae en el default. La rama
+    // discrimina por un código concreto, no por el tipo del error.
+    it('TS-5: responde 503 ante un NatsError que no es de timeout', () => {
+      fakeBus.failWith(NatsError.errorForCode(ErrorCode.ConnectionClosed));
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send(BUS_FAILURE_BODY)
+        .expect(503)
+        .then((res) => {
+          res.body.code.should.equal('service_unavailable');
+        });
+    });
+
+    // TS-6 (CA-1): con `no responders` nadie recibió el comando, así que la base tiene que
+    // quedar igual. Es la mitad que le falta al status: el 503 promete que la operación no
+    // ocurrió, y esto lo comprueba.
+    it('TS-6: no escribe nada cuando no hay ningún suscriptor', () => {
+      fakeBus.failWithNoResponders();
+
+      return Requirement.count().then((before) => {
+        return request(application)
+          .post('/api/requirements')
+          .set('Authorization', 'Bearer token_01_user')
+          .send(BUS_FAILURE_BODY)
+          .expect(503)
+          .then(() => Requirement.count())
+          .then((after) => after.should.equal(before));
+      });
+    });
+  });
+
+  /**
+   * CA-6 de S-063: la api IGNORA `Reply.events` por proyección de claves — el mismo mecanismo
+   * que ya usa con `errorDetails` — y el contrato HTTP de esta ruta no cambia en nada.
+   *
+   * ADR-013 exige verificar LAS TRES CAPAS (comando publicado, traducción HTTP, fila escrita),
+   * no solo el status: por eso este test corre el camino FELIZ con `fakeBus` ejecutando core de
+   * verdad (sin `reply()`/`failWith()`), y confirma además que el `Reply` que core devolvió SÍ
+   * traía `events` — así el test prueba que el campo estuvo presente y fue ignorado, no que
+   * nunca llegó.
+   */
+  describe('CA-6 de S-063: un Reply con events no rompe nada', () => {
+    afterEach(() => {
+      fakeBus.reset();
+    });
+
+    // TS-49: un `Reply` de `failure` que ADEMÁS trae `events` poblado (caso hipotético — hoy
+    // ningún comando emite eventos en un `failure`, CA-2 lo prohíbe) no cambia la traducción de
+    // errores: mismo status HTTP y mismo `body.code`/`body.message` que sin `events`, y la
+    // clave `events` no aparece en el body.
+    it('TS-49: un Reply de failure con events no cambia el status ni el body de error', () => {
+      fakeBus.reply('requirements.new', {
+        status: 'failure',
+        errorCode: 'invalid_fields',
+        errorMessage: '"title" is required',
+        events: [{ type: 'requirement.created', eventId: 'x' } as any],
+      } as any);
+
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'T', description: 'D', type: 'funcionalidad', projectId: 1 })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+          res.body.message.should.equal('"title" is required');
+          JSON.stringify(res.body).should.not.containEql('"events"');
+        });
+    });
+
+    it('201, recurso completo y fila escrita — con el camino feliz ejecutando core de verdad (ADR-013)', () => {
+      // NO usa `reply()`/`failWith()`: el `FakeBus` ejecuta `requirements.new` en `core` de
+      // verdad, que desde S-063 declara `requirement.created` en `Reply.events` para este
+      // comando (ver `requirements-new.ts`). Ese `Reply.events` SÍ existe en este camino — lo
+      // confirma la suite de `core` (`tests/commands/requirements.test.ts`, describe
+      // `requirement.created — de punta a punta`) — así que este test no repite esa aserción:
+      // fija que, estando presente, no cambia NADA de esta ruta.
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Con evento', description: 'D', type: 'funcionalidad', projectId: 1 })
+        .expect(201)
+        .then((res) => {
+          res.body.title.should.equal('Con evento');
+          JSON.stringify(res.body).should.not.containEql('"events"');
+
+          return Requirement.findByPk(res.body.id).then((requirement) => {
+            (requirement === null).should.be.false();
+          });
+        });
+    });
+  });
+
+  /**
+   * S-070: `requirements.new` acepta `subscriberUserIds`. Esta ruta lo pasa SIN transformar
+   * —no deduplica, no agrega al creador, no valida existencia (eso es de `core`)— así que
+   * los tests verifican las tres capas: el payload publicado, el status HTTP, y la fila
+   * escrita en `requirement_subscriptors`.
+   */
+  describe('S-070: subscriberUserIds en POST /api/requirements', () => {
+    afterEach(() => {
+      fakeBus.reset();
+    });
+
+    // TS-1: camino feliz, el campo llega SIN transformar y core crea la suscripción
+    it('TS-1: pasa subscriberUserIds sin transformar y crea la suscripción', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req con suscriptores', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['zitadel-sub-04'],
+        })
+        .expect(201)
+        .then((res) => {
+          fakeBus.last!.command.should.equal('requirements.new');
+          fakeBus.last!.payload.should.have.property('subscriberUserIds');
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual(['zitadel-sub-04']);
+          return RequirementSubscriptor.findAll({ where: { requirementId: res.body.id } });
+        })
+        .then((rows) => {
+          rows.should.have.length(1);
+          rows[0].userId.should.equal('zitadel-sub-04');
+        });
+    });
+
+    // TS-2: sin el campo, la clave NO está en el payload publicado (spread condicional)
+    it('TS-2: sin el campo, la clave subscriberUserIds no está en el payload publicado', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req sin suscriptores', description: 'Desc', projectId: 1 })
+        .expect(201)
+        .then((res) => {
+          Object.prototype.hasOwnProperty.call(fakeBus.last!.payload, 'subscriberUserIds').should.be.false();
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(0));
+    });
+
+    // TS-3: array vacío explícito, se pasa tal cual
+    it('TS-3: array vacío explícito se pasa tal cual y no crea suscripciones', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req array vacio', description: 'Desc', projectId: 1, subscriberUserIds: [] })
+        .expect(201)
+        .then((res) => {
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual([]);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(0));
+    });
+
+    // TS-4: id numérico rechazado por Joi antes del bus
+    it('TS-4: un id numérico en subscriberUserIds lo rechaza Joi antes del bus', () => {
+      fakeBus.reset();
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req ids numericos', description: 'Desc', projectId: 1, subscriberUserIds: [123] })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+          (fakeBus.last === undefined).should.be.true();
+        });
+    });
+
+    // TS-5: subscriberUserIds que no es array
+    it('TS-5: subscriberUserIds que no es un array es rechazado por Joi', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({ title: 'Req no array', description: 'Desc', projectId: 1, subscriberUserIds: 'zitadel-sub-04' })
+        .expect(400)
+        .then((res) => {
+          res.body.code.should.equal('invalid_fields');
+        });
+    });
+
+    // TS-6: userId inexistente → 404 user_not_found y rollback completo en core
+    it('TS-6: un userId inexistente responde 404 user_not_found y no queda nada escrito', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req usuario fantasma', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['no-existe-jamas'],
+        })
+        .expect(404)
+        .then((res) => {
+          res.body.code.should.equal('user_not_found');
+          return Requirement.findOne({ where: { title: 'Req usuario fantasma' } });
+        })
+        .then((requirement) => {
+          (requirement === null).should.be.true();
+        });
+    });
+
+    // TS-7: duplicados no son error, la api NO deduplica, core los colapsa
+    it('TS-7: duplicados no son error; la api no deduplica pero core colapsa a 1 fila', () => {
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req duplicado', description: 'Desc', projectId: 1,
+          subscriberUserIds: ['zitadel-sub-04', 'zitadel-sub-04'],
+        })
+        .expect(201)
+        .then((res) => {
+          (fakeBus.last!.payload as any).subscriberUserIds.should.deepEqual(['zitadel-sub-04', 'zitadel-sub-04']);
+          return RequirementSubscriptor.count({ where: { requirementId: res.body.id } });
+        })
+        .then((count) => count.should.equal(1));
+    });
+
+    // TS-19: regresión, el 404 project_not_found local sigue ganando antes del comando
+    it('TS-19 (S-070): el 404 project_not_found local sigue cortando antes del comando', () => {
+      fakeBus.reset();
+      return request(application)
+        .post('/api/requirements')
+        .set('Authorization', 'Bearer token_01_user')
+        .send({
+          title: 'Req proyecto fantasma', description: 'Desc', projectId: 99999,
+          subscriberUserIds: ['zitadel-sub-04'],
+        })
+        .expect(404)
+        .then((res) => {
+          res.body.code.should.equal('project_not_found');
+          (fakeBus.last === undefined).should.be.true();
+        });
+    });
+  });
+});

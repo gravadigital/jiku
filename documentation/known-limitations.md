@@ -20,23 +20,16 @@ That part is solved. What remains:
 
 You also need two service users in the identity provider, each with a JSON key.
 
-## The migrations cannot build the schema from scratch
+## The migrations only alter an existing schema — a baseline builds it
 
-The 95 migrations under `api/db-upgrade/migrations/` all assume an existing schema. The
-earliest one modifies the `objectives` table, and **no migration creates it**. Against an
-empty database the API fails on startup:
+The migrations under `services/api/db-upgrade/migrations/` assume an existing schema: the earliest
+one modifies `objectives`, which no migration creates. This is a consequence of how the project
+was imported: the schema predates the migration history.
 
-```
-ERROR: relation "public.objectives" does not exist
-```
-
-So a new installation needs a `.sql` with the schema, loaded before the first start
-(`DUMP_FILE` in `deploy/.env`). There is no `db:create` or baseline migration to generate it.
-
-This is a consequence of how the project was imported: the schema predates the migration
-history. Fixing it means writing a baseline migration that creates the current schema and
-marking the existing ones as applied — worth doing before there are external adopters, since
-right now nobody can start from zero without a dump they do not have.
+Since the jiku flow adoption, `services/api/db-upgrade/baseline.js` runs before them
+(`npm run upgrade-db`): on an empty database it loads `baseline/schema.sql` (the schema after the
+94 migrations listed in `baseline/applied-migrations.txt`) and records those as applied; on a
+database that already has the schema it does nothing. A new installation no longer needs a dump.
 
 ## Users are mirrored, not managed
 
@@ -127,7 +120,7 @@ being copied or forwarded. The only control is its lifetime, `download-url-ttl-s
 Attachment ids are still sequential integers, but enumerating them no longer reveals
 anything: every endpoint requires a bearer token, so an unauthenticated caller gets `401`
 before any id reaches the database. The only authentication
-exemption in `api/config/public.ts` is `GET /p/docs/`, the shared documentation links, and it
+exemption in `services/api/config/public.ts` is `GET /p/docs/`, the shared documentation links, and it
 carries its own controls: a host of its own, a rate limit, a 256-bit token and a `404` that does
 not reveal whether a link ever existed. Everything else needs a token — visibility level only
 governs what an **authenticated** user can see, not whether a file can be fetched anonymously.

@@ -1,6 +1,11 @@
 # Deploy
 
-How to run Jiku: on a development machine and on a server.
+How to run Jiku on a server, and on a development machine against a real Zitadel.
+
+**For local development you do not need this file:** `make up` from the repository root runs the
+whole product with only Docker, with local stand-ins for the identity provider, the docs module,
+S3 and SMTP, and no credentials (see the root README). What follows is for the composes under
+`deploy/`.
 
 ```
 deploy/
@@ -26,8 +31,9 @@ deploy/
     └── creds/                NATS identity — NOT versioned
 ```
 
-**Nothing needed to run the stack lives outside `deploy/`.** Secrets go in `deploy/.env` and
-in `deploy/nats/creds/`, neither of them versioned.
+**Nothing needed to run these composes lives outside `deploy/`.** Secrets go in `deploy/.env` and
+in `deploy/nats/creds/`, neither of them versioned. (The root `docker-compose.yml`, the local stack
+of `make up`, reuses `deploy/nats/` scripts and the callout's rules, and needs no secrets.)
 
 ---
 
@@ -39,7 +45,7 @@ Six steps, all one-time except bringing the stack up.
 `./local.sh up`, which creates the `JIKU_MODULES` registry and the `JIKU_KV` space with a throwaway administrative user
 (`curl -sf https://binaries.nats.dev/nats-io/nsc/v2@latest | sh`).
 
-**On a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
+**With `docker-compose.local.yml` on a development machine, steps 5 and 6 are already done.** `docker-compose.local.yml` brings up
 a MinIO of its own, `local.sh` creates the bucket, and `.env.dist` already comes pointed at it with
 CORS configured — there is nothing to fill in and nothing to configure in a provider's console.
 Read those two steps when the installation uses a real bucket (a server, or a local stack pointed
@@ -445,14 +451,14 @@ off**, which invalidates the signature independently of the host.
 
 The browser ends up knowing the bucket's address — on every upload and on every read, since the
 `302` sends it there directly. That is a deliberate exception, recorded as D-23 in
-[ADR-009](../docs/adrs/ADR-009-token-confinado-al-servidor.md).
+the token-on-the-server decision ([_jflow/prd/decisions.md](../_jflow/prd/decisions.md)).
 
 What keeps it narrow is **how** it gets there:
 
 - It arrives **inside the `uploadUrl` and the `Location` of the `302`** — both already absolute
   URLs, produced by core's signature and returned in the api's responses.
 - It is **never** a `NEXT_PUBLIC_*` variable. Nothing about the bucket is baked into the frontend
-  images: one image still serves every environment, which is the part of ADR-009 that matters most.
+  images: one image still serves every environment, which is the part of the token-on-the-server decision that matters most (DEC-T22 in `_jflow/prd/decisions.md`).
 - The access token still never reaches the browser.
 
 **Do not add a `NEXT_PUBLIC_*` for the bucket** to "make it easier" for the frontend. The frontend
@@ -583,7 +589,7 @@ every hour, unclipped.
 
 That is a real widening over what `external-publisher` granted (nine write subjects, zero
 queries), and it is deliberate. **If you need a narrower connector, it is a new role**, with its
-own template here and its own entry in `core/src/authorize-caller.ts` — not a variant of this one.
+own template here and its own entry in `services/core/src/authorize-caller.ts` — not a variant of this one.
 
 **It also gets the documentation plane.** `internal-app` additionally publishes docs commands and
 queries under its id (`{instance}.{user-id}.jiku-docs-commands.v1.>`,
@@ -618,7 +624,7 @@ That is no longer true for `admin`/`user`: they can publish a command straight a
 their own token, and it executes exactly as if it had come from `web`.
 
 **`external-user` is unaffected — it still cannot write, and it gained nothing.** Per REQ-007 it
-keeps writing exclusively through the portal, over HTTP. This is a **security change** (ADR-007:
+keeps writing exclusively through the portal, over HTTP. This is a **security change** (DEC-T10:
 *"a change to `rules.yaml` MUST be treated as a security change: it is what defines who can write
 to the product"*), and the widening applies to exactly two roles, not three.
 
@@ -643,7 +649,7 @@ the registry, not by ping.
 **Publishing under the commands prefix is the transport permission, not the authorisation.** The
 template opens the whole `jiku-commands.v1` prefix for `admin`/`user`; which of those commands each
 role may actually execute is decided by core's role → method map
-(`core/src/authorize-caller.ts`), which enumerates a different command list for `admin` than for
+(`services/core/src/authorize-caller.ts`), which enumerates a different command list for `admin` than for
 `user`.
 
 **`external-user` cannot publish a command, and two layers say so independently.** Either one is
@@ -798,6 +804,9 @@ traffic locally, read core's log (`bus-inspect.sh tail`), which prints every com
 
 ## Without external dependencies
 
+> **It does not start as documented today** (see B-17 in `docs/adopcion.md`): use `make up` from
+> the repository root for a local stack with no external dependencies.
+
 `docker-compose.dev.yml` brings the stack up with the callout's `mock` IdP, with no Zitadel and
 no network. Tokens have the form `mock:<sub>:<username>:<roles>`.
 
@@ -832,5 +841,5 @@ web on 3001, opus-web on 3002, NATS on 4222, PostgreSQL on 5432.
   the two permissions it already has are the whole of what a publisher needs. A consumer is the
   one that talks to `$JS.API`, and `templates/connector.yaml` grants it **scoped to
   `JIKU_EVENTS`** — never `$JS.API.>`, which is full JetStream administration over the account
-  (deleting, purging and reconfiguring any stream). The ADR-002 rule against `core` publishing is superseded by this,
+  (deleting, purging and reconfiguring any stream). The DEC-T02 rule against `core` publishing is superseded by this,
   though the ADR document itself is updated only at REQ-014's documentary close (S-068).

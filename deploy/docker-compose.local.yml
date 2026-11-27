@@ -108,7 +108,7 @@ services:
     build:
       # El contexto es el root: estos servicios usan los paquetes de packages/.
       context: ..
-      dockerfile: core/Dockerfile
+      dockerfile: services/core/Dockerfile
     container_name: jiku-local-core
     environment:
       # Core es el único que escribe: usa el usuario con permisos completos.
@@ -123,7 +123,7 @@ services:
       - POSTGRESQL_READ_USER=${DATABASE_READONLY_USER}
       - POSTGRESQL_READ_PASSWORD=${DATABASE_READONLY_PASSWORD}
       - POSTGRESQL_READ_POOL_MAX=${POSTGRESQL_READ_POOL_MAX}
-      # random_page_cost de las sesiones de lectura (core/src/models/read.ts); 1.1 si falta.
+      # random_page_cost de las sesiones de lectura (services/core/src/models/read.ts); 1.1 si falta.
       - POSTGRESQL_READ_RANDOM_PAGE_COST=${POSTGRESQL_READ_RANDOM_PAGE_COST:-1.1}
       # Corte de la sentencia de lectura, ESTRICTAMENTE MENOR que NATS_QUERY_TIMEOUT_MS: la
       # base tiene que vencer antes que el bus, o el caller espera sin saber por qué.
@@ -204,7 +204,7 @@ services:
     build:
       # El contexto es el root: estos servicios usan los paquetes de packages/.
       context: ..
-      dockerfile: api/Dockerfile
+      dockerfile: services/api/Dockerfile
     container_name: jiku-local-api
     ports:
       - "3100:3000"
@@ -264,7 +264,7 @@ services:
   web:
     build:
       context: ..
-      dockerfile: web/Dockerfile
+      dockerfile: services/web/Dockerfile
     container_name: jiku-local-web
     ports:
       - "3000:3000"
@@ -288,7 +288,7 @@ services:
   opus-web:
     build:
       context: ..
-      dockerfile: opus-web/Dockerfile
+      dockerfile: services/opus-web/Dockerfile
     container_name: jiku-local-opus-web
     ports:
       - "3001:3000"

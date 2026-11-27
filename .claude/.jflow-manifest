@@ -1,0 +1,83 @@
+{
+ "files": {
+  "CHANGELOG.md": "0359bed0cb3ce50a446f03a3db85aff1b20fd7fb753f12c433a25d0f9ed78f1c",
+  "METHODOLOGY.md": "58eebf2bd3ea8b1b61fd6ecc93d611a71ac743145a2f307221156a081895d4bc",
+  "VERSION": "59854984853104df5c353e2f681a15fc7924742f9a2e468c29af248dce45ce03",
+  "agents/jflow-verifier-agent.md": "45403205b9db7b3914b0c67cc308e934c43f22f38c84e6385c5e492407d4c58a",
+  "hooks/jflow-pre-compact.sh": "0a32c5698db2038b679ef97abd08a826c84b9b6e77cd25b3e23850196b8989c3",
+  "hooks/jflow-session-resume.sh": "51eef1a074735d02463f4d05730d2b9e84eb0e5f98db3e8b1b000ad33a161e8f",
+  "migrations/README.md": "11467ed29cc9a90fb1f20bda01c8d7f7776e4af8f039a3de494c150a0d4e5ff9",
+  "scripts/check-discovery.py": "c76c478861528972980e19e97c5771d6a41e5036f120f2df7d652c28cba2e015",
+  "scripts/framework-update.sh": "a6c4f70a32df1d64e6c7e42599d16c3c4c89f728edebfba7e1f3557173f70ae9",
+  "scripts/jflow.py": "ee3e04c89823d447503ccc1f01337d77f3afb30c09e736b2b26112c56eb09e79",
+  "scripts/jflowlib/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scripts/jflowlib/conformance.py": "b21865d8ca42026b86212d998099ec052fc4d3a750f1d830ce83d74a96853458",
+  "scripts/jflowlib/definition.py": "15955db14af472b12009fa2553d4a19eb643fb181755ed85b0f66ef21ee26218",
+  "scripts/jflowlib/diff.py": "78f42024f5faa0624e5ecc7e85d88a5421d1b2321483157bbcf403b5dae7c0d7",
+  "scripts/jflowlib/evidence.py": "887e91ebf9bcc00d32abb2a23484edcd30ee1bcd29158c87dc9140ba9e34e845",
+  "scripts/jflowlib/install.py": "9eeea27fb9ae0f61644b8973768b9e0d62e489c2dd9703cbaab7d4a7ef82eb53",
+  "scripts/jflowlib/jiku.py": "20288bcd52c1b10d2997d8f38a21c3d158f39cb2a5a79cc55f7a44c1b4230b68",
+  "scripts/jflowlib/lang.py": "73a2e81e775f7e53f9af873385620ac7e18fc4629d7122cc8efe3036c14e6ed4",
+  "scripts/jflowlib/md.py": "668ed939ad3f2cd6069b297058130b13ed7acd61178da89bdb1329d011f12fd9",
+  "scripts/jflowlib/plan.py": "fe56929048553986a9ca9c8acd3d3cef91404b6f06548a670ca73f2df223a322",
+  "scripts/jflowlib/repo.py": "b568fc4d6d60b1e12c5c6423493b7495b36ccca589b1de594f4ca7608bfa0ea2",
+  "scripts/jflowlib/spec.py": "f72ede622e8cdc0cdad3e4aec156adc6e70d33ac678476ba05cff6135b28ee14",
+  "scripts/jflowlib/transcribe.py": "106a5eeda2a3ccb01b6c2dc02cfb1ee1f65c84a6a3c2cb8fa6db954e955d7a7d",
+  "scripts/jflowlib/visual.py": "cbd0f02a74153c2c0db812cf518057d779fe54519f36f5d2be48c91a9ad83a93",
+  "scripts/jflowlib/workflow.py": "eb1ce9f98ac923c5805e2a45f9c495c911a4540328d7a65a0cbe001260e35840",
+  "scripts/migrate.sh": "b9dc0e8551bb35025d1054f827a537219cbc658089d0a51322fc39b434a92a0a",
+  "skills/jflow-build/SKILL.md": "f4187cd03fb1dbf69bcfb271dc79f983603dd791892e7a3958a0fc86b24fa072",
+  "skills/jflow-fix/SKILL.md": "cd6d6eea3c9b9bf69cdb51d9e0e4a127ce8891772b5acdb566cc3af5a74579b9",
+  "skills/jflow-framework-update/SKILL.md": "72b8cd4b44ca21421dadd8b193a35c83c5d0b7902ce341648d934e1663d9a462",
+  "skills/jflow-product-brownfield/SKILL.md": "c4df19a4cc286194a52c6b616789a86ed6ce7cdf91157ed5c9938d405e3d1a62",
+  "skills/jflow-product-discover/SKILL.md": "f808d2767560da4aab595faace5a6a97bc576416d27c399f8a6bb3719abd6b38",
+  "skills/jflow-product-scaffold/SKILL.md": "673579c3d1de5cd67d3b4bd8e405e4feca242168f08960fd375640a9184931b3",
+  "skills/jflow-release/SKILL.md": "023d99e15f8b8fd631644a00332256b8a33d7c61be302012ccd238f320bd6ec8",
+  "skills/jflow-spec/SKILL.md": "4986c6f52b5caabc148c521428d4fbcc08c350d998cdfc778c64895d41e5be85",
+  "skills/jflow-status/SKILL.md": "ee71f902b3b88237288173df3cd14499cc9bc3f0971c61ca0a7d7455967ea531",
+  "specs/database.md": "51efac8453cc992ea7c455e054fc252309dc0332fed0fae40d65683a467865bd",
+  "specs/discovery.md": "6384ea4c7daa4b931899f53d0df8e8b9d023bfd969c5e0872cbf6d292f8e1643",
+  "specs/engineering.md": "7f0e07fe9bbef938038a252882e2192bf562c6ff594f1b45b42be1703f3fd79c",
+  "specs/functional-analysis.md": "3071aab1fd8df065ed1bb77f91a41cfe7b9a488395c5af80ac68d8190cd30de3",
+  "specs/jiku.md": "96b0d54601831e62ea1036cc8b45b7abea208287c611b5536924e5e0392c8d0d",
+  "specs/language.md": "bf7194537230d999f52de0f97177403c72ce8cbf6436746a661815b4468741cf",
+  "specs/product-definition.md": "96f31579ab64081bdd271b44b7fde7dfc3521b20968695b0687bc840f698414a",
+  "specs/requirement.md": "8c1f22a5974efa322b09482b4fdffef7d594f947770f7eea867adcde822ccabb",
+  "templates/AGENTS.md": "d0a38891168c082f48fbf0b168f605c9f5b05325e6d37c9845c65ff442bcbb0e",
+  "templates/discovery-db-schema-tmpl.yaml": "c40627f6a0bc1e9778a399cbc12f68bba3f9ebbdd6a120bcd5e45d0b0ee37eb6",
+  "templates/discovery-domain-tmpl.yaml": "8d8c20d22a1751d5de03015f9c7e53294692fa94bcd71260983aec0aa6c6347a",
+  "templates/discovery-functional-tmpl.yaml": "d9e21d1d52a5472c7789f412c9febded8415afae9874c589c7ccf619f0ae675f",
+  "templates/discovery-technical-tmpl.yaml": "759c55f88bf344a91baad84baac99ca17d0a4752eadf4b16fa9be73d3199056d",
+  "templates/en/README.md": "9ec9d78bfa6d0d7a6585622ea7de1d428a24a4a7cb94eef34c20d183ae6a842c",
+  "templates/en/adoption.md": "4d5408848f9ac801cb38538f02602b7efa745e057f520a436052e58826e31172",
+  "templates/en/base-requirement.md": "9ee6908d9429c33d2f1518ec96b911e339cec69f8434d1243126a202f9d518e7",
+  "templates/en/operations.md": "0f15047eac343c5ac30db0cd4bdf87a79894f7e377b03cb21b82cd3d5077b917",
+  "templates/es/README.md": "9fe8a7aaa6062b9c62f328b6aae2d0d5c53afaa8694dd4f7e078bac19857a741",
+  "templates/es/adopcion.md": "ed345ee427cab8ddf536383276b2040a61d2f14b0f216de45595622d77c9de19",
+  "templates/es/base-requirement.md": "cdbda487aaaadb2c383765a9505e35b0096a5b95a9be9b0d3b7f4785273b62a5",
+  "templates/es/operacion.md": "f426ec0c60e0968169a7c18b39bfb72581d13dd0374bdbee18254f9c50bef1cf",
+  "templates/service-AGENTS.md": "9791477fcbc0f77ced343241c6e24331fe9cc52472d2732d6d86c0a797af7208"
+ },
+ "settings": {
+  "allow": [
+   "WebSearch",
+   "WebFetch",
+   "Bash(python3 .claude/scripts/jflow.py:*)",
+   "Bash(make:*)",
+   "Bash(git:*)"
+  ],
+  "hooks": [
+   [
+    "PreCompact",
+    "",
+    ".claude/hooks/jflow-pre-compact.sh"
+   ],
+   [
+    "SessionStart",
+    "",
+    ".claude/hooks/jflow-session-resume.sh"
+   ]
+  ]
+ },
+ "version": "1.0.0"
+}

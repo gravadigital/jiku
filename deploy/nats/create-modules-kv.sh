@@ -56,7 +56,7 @@ if ! command -v nsc >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
+if [[ "${NATS_BOX_INLINE:-}" != 1 ]] && ! command -v docker >/dev/null 2>&1; then
   echo "error: docker is missing. It runs the nats client via natsio/nats-box, no local install needed." >&2
   exit 1
 fi
@@ -69,6 +69,13 @@ for f in "$OUT/nats-resolver.conf" "$OUT/app-account.pub" "$OUT/app-account.sk.s
 done
 
 nats_box() {
+  # NATS_BOX_INLINE=1: this script is already running inside natsio/nats-box (the
+  # `nats-setup` service of the root docker-compose.yml), so the client runs directly
+  # and /tmp-creds is the throwaway credentials folder itself.
+  if [[ "${NATS_BOX_INLINE:-}" == 1 ]]; then
+    "$@"
+    return
+  fi
   docker run --rm -i --network "$NETWORK" \
     -v "$PWD/creds:/creds:ro" \
     -v "$TMP_CREDS:/tmp-creds:ro" \
@@ -78,7 +85,12 @@ nats_box() {
 APP_PUB=$(cat "$OUT/app-account.pub")
 
 STORE="$(mktemp -d)"
-TMP_CREDS="$(mktemp -d)"
+if [[ "${NATS_BOX_INLINE:-}" == 1 ]]; then
+  TMP_CREDS=/tmp-creds
+  mkdir -p "$TMP_CREDS"
+else
+  TMP_CREDS="$(mktemp -d)"
+fi
 USER_NAME="modules-kv-admin-$$"
 ACCOUNT=""
 
