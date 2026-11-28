@@ -80,6 +80,32 @@ OPUS_WEB_VERSION=dev
   `cd nats && NATS_DOCKER_NETWORK=jiku_jiku-bus ./create-kv-space.sh`, then restart the
   auth-callout so it reads the new templates.
 
+### Security
+
+- **The api and the bus only accept tokens of the product's project (#626).** Before, the api
+  checked only the token's signature and read the instance-wide roles claim, and the auth-callout
+  did not check the audience: a user of another project or organization of the same Zitadel
+  instance with a role of the same name (`admin`, `user`) got in with that role. Now every token,
+  person or machine, must carry the configured issuer (`IDENTITY_ISSUER`) and the product's project
+  (`ZITADEL_PROJECT_ID` = `GESTION_ZITADEL_PROJECT_ID`) in its audience, and roles come only from
+  that project's claim. A token that fails gets the usual 401 `unauthorized`; the api log says why.
+  **Breaks** any HTTP caller of the api, or bus client, whose machine token does not ask for the
+  project audience. The api contract moves to 2.0.0.
+
+### Notes for existing installations
+
+- **`IDENTITY_ISSUER` is now required by the api** (it was already in `deploy/.env.dist` for the
+  frontends): the instance's public issuer, exactly as in the tokens' `iss`. The api does not start
+  without it, nor without `GESTION_ZITADEL_PROJECT_ID`; the error names the missing variable.
+- **`IDENTITY_PROJECT_ID` and `GESTION_ZITADEL_PROJECT_ID` must be the same project.** If they differ,
+  the frontends' tokens lack the audience the api requires and every operation answers 401.
+- **Auth-callout 1.1.0** (`AUTH_CALLOUT_VERSION=1.1.0`), with `CALLOUT_ZITADEL_REQUIRE_PROJECT_AUDIENCE=true`
+  set by the composes. Its image must be published on Docker Hub before deploying.
+- **Every machine user must ask for the project audience** with the scope
+  `urn:zitadel:iam:org:project:id:{GESTION_ZITADEL_PROJECT_ID}:aud`. `@jiku/zitadel-auth` (api, core)
+  already does it when `ZITADEL_PROJECT_ID` is set. **jiku-docs and every connector have to request
+  it too**, or the bus refuses their connection; check them before upgrading.
+
 ## [1.7.0] - 2026-10-27
 
 ### Added
