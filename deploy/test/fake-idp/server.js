@@ -15,7 +15,11 @@
  *   GET  /oidc/v1/userinfo                   profile of the token's subject
  *   GET  /oidc/v1/end_session                back to post_logout_redirect_uri
  *   GET  /test/token?user=<user>             a signed access token of a test user, for the
- *                                            end-to-end tests that enter as an HTTP or NATS client
+ *                                            end-to-end tests that enter as an HTTP or NATS client;
+ *                                            `&variant=other-issuer` signs it (same key) with another
+ *                                            issuer, `&variant=other-project` as a user of another
+ *                                            project of the instance: that project in `aud` and in
+ *                                            its roles claim, the same roles in the generic claim
  *   GET  /health                             liveness
  *
  * The users come from users.json. On start it writes, for each machine user, the key file in
@@ -31,6 +35,12 @@ const PORT = Number(process.env.FAKE_IDP_PORT || 9400);
 const ISSUER = (process.env.FAKE_IDP_ISSUER || `http://localhost:${PORT}`).replace(/\/$/, '');
 const PROJECT_ID = process.env.FAKE_IDP_PROJECT_ID || 'jiku-project';
 const ORG_ID = process.env.FAKE_IDP_ORG_ID || 'jiku-org';
+// For the refusals of #626: another project of the same instance, and another issuer signing
+// with the same key (an instance reached by another domain, or a copy of its keys).
+const OTHER_PROJECT_ID = process.env.FAKE_IDP_OTHER_PROJECT_ID || 'other-project';
+const OTHER_ISSUER = process.env.FAKE_IDP_OTHER_ISSUER || 'http://other-instance.localhost:9400';
+// The scope a machine user adds to get the project in `aud` (and its roles claim), as in Zitadel.
+const projectAudienceScope = (projectId) => `urn:zitadel:iam:org:project:id:${projectId}:aud`;
 const KEYS_DIR = process.env.FAKE_IDP_KEYS_DIR || '/keys';
 const TOKEN_TTL = Number(process.env.FAKE_IDP_TOKEN_TTL_SECONDS || 43200);
 const USERS = JSON.parse(fs.readFileSync(path.join(__dirname, 'users.json'), 'utf8'));
@@ -80,20 +90,28 @@ function profile(user) {
   return out;
 }
 
-function accessToken(user, clientId) {
+/**
+ * An access token as Zitadel signs it for a project: the project in `aud`, its roles in the
+ * generic claim and in the project's claim. `options.project` = null is a token that did not ask
+ * for any project audience (a machine user without the scope): no project in `aud`, only the
+ * generic claim.
+ */
+function accessToken(user, clientId, options = {}) {
   const now = Math.floor(Date.now() / 1000);
   const roles = rolesClaim(user);
+  const project = options.project === undefined ? PROJECT_ID : options.project;
+  const audience = [clientId || project || user.username, project].filter((v, i, a) => v && a.indexOf(v) === i);
   return sign({
-    iss: ISSUER,
+    iss: options.issuer || ISSUER,
     sub: user.sub,
-    aud: [clientId || PROJECT_ID, PROJECT_ID].filter((v, i, a) => a.indexOf(v) === i),
+    aud: audience,
     iat: now,
     nbf: now,
     exp: now + TOKEN_TTL,
     client_id: clientId || user.username,
     ...profile(user),
     'urn:zitadel:iam:org:project:roles': roles,
-    [`urn:zitadel:iam:org:project:${PROJECT_ID}:roles`]: roles,
+    ...(project ? { [`urn:zitadel:iam:org:project:${project}:roles`]: roles } : {}),
   });
 }
 
@@ -212,7 +230,10 @@ function token(req, form, res) {
       if (!machine || !crypto.verify('RSA-SHA256', assertion.signed, machine.publicKey, assertion.signature)) {
         return send(res, 400, { error: 'invalid_grant', error_description: 'unknown key' });
       }
-      return send(res, 200, { access_token: accessToken(machine.user), token_type: 'Bearer', expires_in: TOKEN_TTL });
+      // As Zitadel: the project goes in `aud` only when the scope asks for its audience.
+      const scopes = (form.get('scope') || '').split(/\s+/);
+      const project = scopes.includes(projectAudienceScope(PROJECT_ID)) ? PROJECT_ID : null;
+      return send(res, 200, { access_token: accessToken(machine.user, undefined, { project }), token_type: 'Bearer', expires_in: TOKEN_TTL });
     } catch (error) {
       return send(res, 400, { error: 'invalid_grant', error_description: error.message });
     }
@@ -280,7 +301,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/test/token') {
       const user = USERS.find((u) => u.username === url.searchParams.get('user') || u.sub === url.searchParams.get('user'));
       if (!user) return send(res, 404, { error: 'unknown_user' });
-      return send(res, 200, { access_token: accessToken(user, url.searchParams.get('client_id')), sub: user.sub, token_type: 'Bearer', expires_in: TOKEN_TTL });
+      const variant = url.searchParams.get('variant');
+      const options = { 'other-issuer': { issuer: OTHER_ISSUER }, 'other-project': { project: OTHER_PROJECT_ID } }[variant || ''];
+      if (variant && !options) return send(res, 400, { error: 'unknown_variant' });
+      return send(res, 200, { access_token: accessToken(user, url.searchParams.get('client_id'), options), sub: user.sub, token_type: 'Bearer', expires_in: TOKEN_TTL });
     }
     return send(res, 404, { error: 'not_found' });
   } catch (error) {

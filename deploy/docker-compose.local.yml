@@ -60,6 +60,9 @@ services:
       - CALLOUT_IDP_MODE=zitadel
       - CALLOUT_ZITADEL_ISSUER_URL=${GESTION_ZITADEL_ISSUER_URL}
       - CALLOUT_ZITADEL_PROJECT_ID=${GESTION_ZITADEL_PROJECT_ID}
+      # #626: la audiencia del token tiene que incluir el proyecto y los roles salen solo del
+      # claim del proyecto: un usuario de otro proyecto de la instancia no se conecta al bus.
+      - CALLOUT_ZITADEL_REQUIRE_PROJECT_AUDIENCE=true
       - CALLOUT_LOG_LEVEL=debug
       # Eventos de autenticación. El detalle de por qué NO hay CALLOUT_EVENTS_STREAM está en
       # docker-compose.yml. Desde S-061 JetStream y JIKU_EVENTS ya existen; el motivo pasó a

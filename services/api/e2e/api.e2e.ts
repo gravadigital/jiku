@@ -8,6 +8,10 @@
  * API_URL and IDP_URL point elsewhere when needed (defaults: the ports `make up` publishes).
  */
 import assert from 'assert';
+import { execFileSync } from 'child_process';
+import { createHash, randomBytes } from 'crypto';
+import path from 'path';
+import { ZitadelServiceUser } from '@jiku/zitadel-auth';
 
 const API_URL = (process.env.API_URL || 'http://localhost:3100').replace(/\/$/, '');
 const IDP_URL = (process.env.IDP_URL || 'http://localhost:9400').replace(/\/$/, '');
@@ -17,10 +21,56 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || 'http://127.0.0.1:3100').replace(/
 // The one link the fake jiku-docs module of the local stack resolves (deploy/test/fake-docs).
 const SHARE_TOKEN = process.env.FAKE_DOCS_SHARE_TOKEN || 'jds_e2e-shared-document-00000000000000000000000';
 
-async function tokenOf(user: string): Promise<string> {
-  const response = await fetch(`${IDP_URL}/test/token?user=${user}`);
+// The OIDC application of both frontends in the local stack (docker-compose.yml) and its project.
+const CLIENT_ID = process.env.IDENTITY_CLIENT_ID || 'jiku-web';
+const PROJECT_ID = process.env.IDENTITY_PROJECT_ID || 'jiku-project';
+const ROOT = path.join(__dirname, '..', '..', '..');
+
+/** `variant`: `other-issuer` or `other-project`, the refused tokens of #626 (deploy/test/fake-idp). */
+async function tokenOf(user: string, variant?: string): Promise<string> {
+  const response = await fetch(`${IDP_URL}/test/token?user=${user}${variant ? `&variant=${variant}` : ''}`);
   assert.strictEqual(response.status, 200, `fake-idp did not give a token for ${user}`);
   return ((await response.json()) as { access_token: string }).access_token;
+}
+
+/**
+ * The access token the frontends get: the authorization code flow with PKCE of their OIDC
+ * application, with the scopes they ask for (services/web/src/lib/auth.ts).
+ */
+async function frontendTokenOf(user: string): Promise<string> {
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const redirectUri = 'http://localhost:3000/api/auth/callback/zitadel';
+  const authorize = new URL(`${IDP_URL}/oauth/v2/authorize`);
+  authorize.search = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: `openid profile email urn:zitadel:iam:org:projects:roles urn:zitadel:iam:org:project:id:${PROJECT_ID}:aud`,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    login_hint: user,
+  }).toString();
+  const redirect = await fetch(authorize, { redirect: 'manual' });
+  const code = new URL(redirect.headers.get('location') || '').searchParams.get('code');
+  assert.ok(code, 'the fake identity provider gave an authorization code');
+  const response = await fetch(`${IDP_URL}/oauth/v2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: CLIENT_ID, code_verifier: verifier }),
+  });
+  assert.strictEqual(response.status, 200);
+  return ((await response.json()) as { access_token: string }).access_token;
+}
+
+/** The machine token `@jiku/zitadel-auth` gets with the api's key (in the `idp-keys` volume). */
+async function machineTokenOf(username: string): Promise<string> {
+  const key = execFileSync(
+    'docker',
+    ['compose', '-f', path.join(ROOT, 'docker-compose.yml'), 'exec', '-T', 'fake-idp', 'cat', `/keys/${username}.json`],
+    { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }
+  ).toString();
+  return new ZitadelServiceUser({ key: JSON.parse(key), issuer: IDP_URL, projectId: PROJECT_ID }).token();
 }
 
 async function call(token: string | null, method: string, path: string, body?: unknown) {
@@ -50,6 +100,40 @@ describe('api HTTP — end to end against make up', () => {
 
   before(async () => {
     [admin, user, external] = await Promise.all([tokenOf('admin'), tokenOf('user'), tokenOf('external')]);
+  });
+
+  it('[ACC-E1] [626-AC-01] refuses a token of another issuer, even an admin one, with 401', async () => {
+    const foreign = await tokenOf('admin', 'other-issuer');
+    for (const [method, route, body] of [['GET', '/projects'], ['POST', '/clients', { name: `Ajeno ${run}`, description: '' }]] as const) {
+      const response = await call(foreign, method, route, body);
+      assert.strictEqual(response.status, 401, `${method} ${route} answered ${response.status}`);
+      assert.deepStrictEqual(response.body, { code: 'unauthorized', message: 'Unauthorized' });
+    }
+  });
+
+  it('[ACC-E1] [626-AC-01] refuses an admin or user of another project of the instance with 401', async () => {
+    for (const who of ['admin', 'user']) {
+      const foreign = await tokenOf(who, 'other-project');
+      const read = await call(foreign, 'GET', '/projects');
+      assert.strictEqual(read.status, 401, `GET /projects as ${who} of another project answered ${read.status}`);
+      assert.deepStrictEqual(read.body, { code: 'unauthorized', message: 'Unauthorized' });
+      const write = await call(foreign, 'POST', '/clients', { name: `Ajeno ${who} ${run}`, description: '' });
+      assert.strictEqual(write.status, 401, `POST /clients as ${who} of another project answered ${write.status}`);
+    }
+  });
+
+  it('[626-AC-02] the frontends\' token is still accepted with its roles', async () => {
+    const asUser = await call(await frontendTokenOf('user'), 'GET', '/requirements?limit=5');
+    assert.strictEqual(asUser.status, 200);
+    const asExternal = await call(await frontendTokenOf('external'), 'GET', '/requirements?limit=5');
+    assert.strictEqual(asExternal.status, 403, 'a client user keeps its role: refused from internal requirements');
+  });
+
+  it('[626-AC-02] the machine token of @jiku/zitadel-auth (with the project id) is still accepted with its role', async () => {
+    const response = await call(await machineTokenOf('jiku-api'), 'GET', '/requirements?limit=5');
+    // Accepted (not 401) with its role `internal-app`, which does not read internal requirements.
+    assert.strictEqual(response.status, 403, `answered ${response.status}: ${JSON.stringify(response.body)}`);
+    assert.strictEqual((response.body as { code: string }).code, 'access_denied');
   });
 
   it('rejects a request without a token', async () => {

@@ -189,7 +189,7 @@ services:
     restart: "no"
 
   auth-callout:
-    image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-1.0.0}
+    image: ${AUTH_CALLOUT_IMAGE:-gravadigital/nats-zitadel-auth-callout}:${AUTH_CALLOUT_VERSION:-1.1.0}
     depends_on:
       nats:
         condition: service_healthy
@@ -209,6 +209,9 @@ services:
       # Discovery by the service name; the issuer the tokens carry comes from the discovery.
       CALLOUT_ZITADEL_ISSUER_URL: http://fake-idp:9400
       CALLOUT_ZITADEL_PROJECT_ID: ${IDENTITY_PROJECT_ID:-jiku-project}
+      # #626 (DEC-T35): the token's `aud` must include the project and roles come only from the
+      # project's claim, so a user of another project of the instance does not connect.
+      CALLOUT_ZITADEL_REQUIRE_PROJECT_AUDIENCE: "true"
       CALLOUT_LOG_LEVEL: info
       CALLOUT_EVENTS_SUBJECT: ${NATS_INSTANCE:-local}.events.auth
       CALLOUT_EVENTS_CREDS: /etc/nats-creds/callout-events.creds
@@ -234,6 +237,7 @@ services:
       NATS_CREDS: /nats-creds/sentinel-client.creds
       NATS_INSTANCE: ${NATS_INSTANCE:-local}
       ZITADEL_ISSUER_URL: http://fake-idp:9400
+      ZITADEL_PROJECT_ID: ${IDENTITY_PROJECT_ID:-jiku-project}
       ZITADEL_SERVICE_USER_KEY: /idp-keys/jiku-docs.json
     volumes:
       - nats-creds:/nats-creds:ro
@@ -341,6 +345,8 @@ services:
       POSTGRESQL_MIGRATION_USER: ${DATABASE_USER:-jiku}
       POSTGRESQL_MIGRATION_PASSWORD: ${DATABASE_PASSWORD:-jiku}
       IDENTITY_URL: http://fake-idp:9400
+      # The issuer the tokens carry (#626): the public one, not the address the keys come from.
+      IDENTITY_ISSUER: http://idp.localhost:9400
       KEY_SYNC_ATTEMPS: "3"
       ZITADEL_SERVICE_USER_KEY: /idp-keys/jiku-api.json
       NATS_REQUEST_TIMEOUT_MS: ${NATS_REQUEST_TIMEOUT_MS:-5000}

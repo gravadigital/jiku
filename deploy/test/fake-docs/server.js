@@ -32,6 +32,7 @@ const NATS_URL = process.env.NATS_URL || 'nats://nats:4222';
 const NATS_CREDS = process.env.NATS_CREDS;
 const INSTANCE = process.env.NATS_INSTANCE || 'local';
 const ISSUER = (process.env.ZITADEL_ISSUER_URL || 'http://fake-idp:9400').replace(/\/$/, '');
+const PROJECT_ID = process.env.ZITADEL_PROJECT_ID || 'jiku-project';
 const KEY_FILE = process.env.ZITADEL_SERVICE_USER_KEY || '/idp-keys/jiku-docs.json';
 const SERVICE_NAME = 'jiku-docs';
 const PROTOCOL = 'v1';
@@ -79,7 +80,8 @@ async function fetchToken(key) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      scope: 'openid profile urn:zitadel:iam:org:projects:roles',
+      // The project audience: the auth-callout refuses a token without it (#626, DEC-T35).
+      scope: `openid profile urn:zitadel:iam:org:projects:roles urn:zitadel:iam:org:project:id:${PROJECT_ID}:aud`,
       assertion: `${header}.${payload}.${b64url(signature)}`,
     }),
   });

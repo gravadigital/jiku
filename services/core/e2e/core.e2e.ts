@@ -29,15 +29,16 @@ function sentinelCreds(): Uint8Array {
   return new Uint8Array(out);
 }
 
-async function tokenOf(user: string): Promise<{ token: string; sub: string }> {
-  const response = await fetch(`${IDP_URL}/test/token?user=${user}`);
+/** `variant`: `other-issuer` or `other-project`, the refused tokens of #626 (deploy/test/fake-idp). */
+async function tokenOf(user: string, variant?: string): Promise<{ token: string; sub: string }> {
+  const response = await fetch(`${IDP_URL}/test/token?user=${user}${variant ? `&variant=${variant}` : ''}`);
   assert.strictEqual(response.status, 200);
   const body = (await response.json()) as { access_token: string; sub: string };
   return { token: body.access_token, sub: body.sub };
 }
 
-async function connectAs(user: string): Promise<{ nc: NatsConnection; sub: string }> {
-  const { token, sub } = await tokenOf(user);
+async function connectAs(user: string, variant?: string): Promise<{ nc: NatsConnection; sub: string }> {
+  const { token, sub } = await tokenOf(user, variant);
   const nc = await connect({
     servers: NATS_URL,
     authenticator: [credsAuthenticator(sentinelCreds()), tokenAuthenticator(token)],
@@ -73,6 +74,22 @@ describe('core NATS — end to end against make up', () => {
       await nc.close();
     }
   });
+
+  for (const variant of ['other-issuer', 'other-project']) {
+    for (const who of ['admin', 'user']) {
+      it(`[CON-E16] [626-AC-01] refuses the connection of ${who} with a token of ${variant}`, async () => {
+        // The roles carry the product's names (admin, user): only the issuer or the audience differ.
+        await assert.rejects(
+          async () => {
+            const { nc } = await connectAs(who, variant);
+            await nc.close();
+          },
+          /authorization|authentication/i,
+          'the auth-callout refuses the connection'
+        );
+      });
+    }
+  }
 
   it('a caller cannot publish under another identity', async () => {
     const { nc } = await connectAs('external');
