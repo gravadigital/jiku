@@ -1,5 +1,5 @@
 import {NextFunction, Request, Response} from 'express';
-import {decodeAuthToken, getRolesFromToken} from '../auth-helper';
+import {decodeAuthToken, expectedIssuer, getRolesFromToken, projectId} from '../auth-helper';
 import { User } from '@jiku/models';
 import logger from '../../logger';
 
@@ -46,6 +46,20 @@ export function assertAuthConfig() {
     throw new Error(
       'Falta IDENTITY_URL. Configurala con la instancia de Zitadel, o declará AUTH_BYPASS=true ' +
       'fuera de producción para desarrollo local.'
+    );
+  }
+  // #626 (ACC-E7): sin el emisor o el proyecto, la api aceptaría tokens de cualquier proyecto u
+  // organización de la instancia. No se arranca sin verificar: se lo reabriría por olvido.
+  if (!expectedIssuer()) {
+    throw new Error(
+      'Falta IDENTITY_ISSUER: el emisor público de la instancia de Zitadel, el que va en el `iss` ' +
+      'de los tokens. Sin él la api no puede verificar el emisor del token.'
+    );
+  }
+  if (!projectId()) {
+    throw new Error(
+      'Falta ZITADEL_PROJECT_ID: el id del proyecto de Zitadel con los roles del producto. Sin él ' +
+      'la api no puede verificar la audiencia del token ni leer sus roles.'
     );
   }
 }
@@ -124,7 +138,9 @@ function validateToken(req: Request, res: Response, next: NextFunction) {
       };
       return next();
     })
-    .catch(() => {
+    .catch((error: Error) => {
+      // The client gets the same 401 whatever the cause (DEC-T15); the reason goes only here.
+      logger.warn(`Token refused (401) on ${req.method} ${req.path}: ${error?.message || error}`);
       return res.status(401).json({
         code: 'unauthorized',
         message: 'Unauthorized'

@@ -1,12 +1,19 @@
+/** Zitadel's roles claim: `{ "<role>": { "<orgId>": "<domain>" } }`. */
+export type RolesClaim = Record<string, Record<string, string>>;
+
 export interface DecodedToken {
-  aud: string[];
+  // A JWT may carry one audience as a string or several as an array (RFC 7519 §4.1.3).
+  aud: string | string[];
   exp: number;
   iat: number;
   iss: string;
   jti: string;
   nbf: number;
   sub: string;
-  'urn:zitadel:iam:org:project:roles': Record<string, Record<string, string>>;
+  // The generic claim carries the roles of the project the token was asked for, whichever it is:
+  // the api never reads it (#626, ACC-16). It reads only the claim of the product's project.
+  'urn:zitadel:iam:org:project:roles'?: RolesClaim;
+  [projectRoles: `urn:zitadel:iam:org:project:${string}:roles`]: RolesClaim | undefined;
   // Los tres son OPCIONALES porque el access token los trae SOLO si la instancia de Zitadel los
   // emite con los scopes `profile` / `email` que piden los dos frontends. Su ausencia no rechaza
   // nada: el espejo de core es best-effort en los campos de perfil (CA-11).

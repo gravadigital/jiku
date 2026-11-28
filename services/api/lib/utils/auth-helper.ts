@@ -3,7 +3,7 @@ import {createPublicKey} from 'crypto';
 import jwt, {Jwt, JwtHeader, JwtPayload, SigningKeyCallback} from 'jsonwebtoken';
 import logger from '../logger';
 import { DecodedToken } from '../interfaces/decoded-token';
-let keys: KeyInterface[];
+let keys: KeyInterface[] = [];
 const IDENTITY_URL = process.env.IDENTITY_URL as string;
 const KEY_SYNC_ATTEMPS = Number(process.env.KEY_SYNC_ATTEMPS);
 
@@ -76,11 +76,51 @@ async function getKey(header: JwtHeader, callback: SigningKeyCallback) {
   return callback(error, publicKey);
 }
 
+/**
+ * What the api expects of every token (#626, DEC-T34): the issuer of the configured instance, as
+ * it goes in `iss` (`IDENTITY_ISSUER`, which may differ from `IDENTITY_URL`, the address the keys
+ * are fetched from), and the product's project (`ZITADEL_PROJECT_ID`), which must be in `aud` and
+ * whose roles claim is the only one read. Read on every call: `assertAuthConfig` refuses to start
+ * without them.
+ */
+function expectedIssuer(): string {
+  return (process.env.IDENTITY_ISSUER || '').trim().replace(/\/+$/, '');
+}
+
+function projectId(): string {
+  return (process.env.ZITADEL_PROJECT_ID || '').trim();
+}
+
+/** A token whose signature verifies but that is not for this product. The message is the reason. */
+class TokenNotForThisProduct extends Error {}
+
+/**
+ * Same instance is not enough: another project or organization of the instance signs with the
+ * same keys. No exception for machine tokens (CRED-02): they ask for the project audience too.
+ */
+function assertTokenIsForThisProduct(decoded: DecodedToken): void {
+  const issuer = expectedIssuer();
+  const tokenIssuer = typeof decoded.iss === 'string' ? decoded.iss.replace(/\/+$/, '') : '';
+  if (!issuer || tokenIssuer !== issuer) {
+    throw new TokenNotForThisProduct(`issuer "${decoded.iss}" is not the configured issuer "${issuer}"`);
+  }
+  const project = projectId();
+  const audience = Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud];
+  if (!project || !audience.includes(project)) {
+    throw new TokenNotForThisProduct(`audience ${JSON.stringify(decoded.aud)} does not include the project "${project}"`);
+  }
+}
+
 function decodeAuthToken(token: string): Promise<DecodedToken> {
   return new Promise((resolve, reject) => {
     return jwt.verify(token, getKey, (err: Error | null, decoded: T | undefined) => {
       if (err) {
         return reject(err);
+      }
+      try {
+        assertTokenIsForThisProduct(decoded as DecodedToken);
+      } catch (error) {
+        return reject(error);
       }
       return resolve(decoded as DecodedToken);
     });
@@ -91,11 +131,16 @@ function getKeys() {
   return keys;
 }
 
+/**
+ * Only the roles claim of the product's project: the generic one carries the roles of whichever
+ * project the token was asked for. Without the claim, no roles (ACC-16).
+ */
 function getRolesFromToken(decodedToken: DecodedToken) {
-  if (!decodedToken['urn:zitadel:iam:org:project:roles']) {
+  const claim = decodedToken[`urn:zitadel:iam:org:project:${projectId()}:roles`];
+  if (!claim || typeof claim !== 'object') {
     return [];
   }
-  return Object.keys(decodedToken['urn:zitadel:iam:org:project:roles']);
+  return Object.keys(claim);
 }
 
 function getUserInformationFromToken(token: string) {
@@ -120,6 +165,8 @@ function getUserInformationFromToken(token: string) {
 
 export {
   decodeAuthToken,
+  expectedIssuer,
+  projectId,
   getKey,
   getKeys,
   getRolesFromToken,

@@ -9,6 +9,11 @@
  * resuelve imports relativos sin extensión. Acá el mock se carga con `require`, que sí
  * pasa por la resolución de ts-node.
  */
+import path from 'path';
+import * as dotenv from 'dotenv';
+// The test tokens read IDENTITY_ISSUER, IDENTITY_CLIENT_ID and ZITADEL_PROJECT_ID when the mock is
+// loaded, which is before `setup-env.ts`: load `.env.test` here too, or their claims stay empty.
+dotenv.config({ path: path.join(process.cwd(), '.env.test'), quiet: true });
 import * as realJWT from 'jsonwebtoken';
 import mockery from 'mockery';
 import jsonwebtokenMock from './mocks/jsonwebtoken-mock';
