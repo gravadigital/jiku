@@ -15,12 +15,17 @@ blank by design** — see [Shared documentation links](#shared-documentation-lin
 | `DOMAIN`, `OPUS_DOMAIN` | public hostnames of the two frontends, **bare hosts with no scheme** — see below |
 | `DATABASE_READONLY_PASSWORD` | password for the read-only user, shared by api and core |
 | `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID` | the identity provider application the frontends use |
-| `GESTION_ZITADEL_PROJECT_ID` | the project where the roles live |
+| `GESTION_ZITADEL_PROJECT_ID` | the project where the roles live. Must be the same as `IDENTITY_PROJECT_ID`: the api and the auth-callout require it in every token's audience and read the roles only from its claim |
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`, one each |
 | `API_SERVICE_USER_KEY_B64`, `CORE_SERVICE_USER_KEY_B64` | the machine-user keys each service uses to reach the bus — `deploy/service-user-key.sh` |
 | `CORE_TRUSTED_PUBLISHER_ID` | the `sub` of the api's machine user. **`core` refuses to start without it** — see below |
 | `DUMP_FILE` | optional: a `.sql` with existing data to load the first time; the schema itself is built by the migrations — see [installation.md](installation.md) |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | the mail server notifications go out through — see below |
+
+The identity URLs (`IDENTITY_URL`, `IDENTITY_ISSUER`, `GESTION_ZITADEL_ISSUER_URL`) come with the
+placeholder `https://<tu-instancia-zitadel>`: replace it with your instance. `IDENTITY_ISSUER` has to
+be exactly the issuer that goes in the tokens' `iss`: the api refuses tokens of any other issuer, and
+does not start without it.
 
 Two more are not in that list but must not keep their defaults on a server:
 `DATABASE_PASSWORD` and the `STORAGE_S3_*` credentials.
@@ -166,7 +171,7 @@ carry business data.
 | `API_TRUST_PROXY` | api | proxy hops to trust for the client address (`1` behind the ingress) | empty |
 | `NATS_USER_ID` | api | identity on the bus when there is no machine-user key (tests) | `api` |
 | `ZITADEL_SERVICE_USER_KEY` / `ZITADEL_SERVICE_USER_KEY_B64` | api, core | the machine-user key, as a file path or as base64 JSON | — |
-| `IDENTITY_ISSUER` | api, core | issuer of the machine-user token when `ZITADEL_ISSUER_URL` is unset | — |
+| `IDENTITY_ISSUER` | core | issuer of the machine-user token when `ZITADEL_ISSUER_URL` is unset | — |
 | `QUERY_TIMING`, `QUERY_TIMING_SQL`, `QUERY_TIMING_LOOP_MS` | core | one `[timing]` log line per message (and its SQL), and the `Jiku-Timing` reply header | `false`, `false`, `30000` |
 | `EXTERNAL_LINKS` | web | shortcuts to the team's tools in the navigation: JSON `[{"tool":"github","href":"https://…","label":"Código"}]`; without it the block is hidden | — |
 | `APP_NAME`, `APP_DESCRIPTION` | web | page title and description | `Jiku`, `Gestión de proyectos` |

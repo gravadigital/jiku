@@ -281,7 +281,9 @@ Dos ausencias que fallan **en silencio**, sin loop y sin error:
 1. Crear un **machine user** en Zitadel con **Access Token Type = JWT** (el `Bearer` por defecto
    emite tokens opacos que el callout rechaza).
 2. Asignarle el rol **`internal-app`** en `GESTION_ZITADEL_PROJECT_ID`.
-3. Darle una JSON key y entregársela al servicio.
+3. Darle una JSON key y entregársela al servicio, que pide el token con el scope de audiencia del
+   proyecto (`urn:zitadel:iam:org:project:id:{GESTION_ZITADEL_PROJECT_ID}:aud`; `@jiku/zitadel-auth`
+   lo pide cuando tiene `ZITADEL_PROJECT_ID`): sin él, el callout y la api rechazan el token (#626).
 
 **Nada de este directorio hay que tocar**: la regla y la plantilla ya están versionadas.
 
@@ -300,7 +302,9 @@ jiku-docs son clase `service`, o sea que **leen toda la documentación** (R-3, a
 1. Crear el rol **`docs`** en el proyecto de Zitadel (`GESTION_ZITADEL_PROJECT_ID`).
 2. Crear el machine user de jiku-docs con **Access Token Type = JWT** y asignarle los roles
    **`internal-app` y `docs`** (los dos: el segundo solo agrega, no reemplaza).
-3. Darle una JSON key y entregársela al servicio.
+3. Darle una JSON key y entregársela al servicio. El servicio tiene que pedir el token con el scope
+   de audiencia del proyecto, `urn:zitadel:iam:org:project:id:{GESTION_ZITADEL_PROJECT_ID}:aud`:
+   el callout corre con `CALLOUT_ZITADEL_REQUIRE_PROJECT_AUDIENCE=true` (#626) y rechaza el token sin él.
 
 **Nada de este directorio hay que tocar**: la regla `docs` y su plantilla ya están versionadas. Sí
 hace falta reiniciar el auth-callout si se editaron las plantillas: las lee al arrancar.

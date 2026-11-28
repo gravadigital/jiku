@@ -16,7 +16,7 @@ How each entry point of the product is tested end to end, against `make up` and 
 
 | Role | How the identity is obtained in tests | Origin |
 |---|---|---|
-| admin | Usuario `admin` (Ana Admin) del proveedor de identidad falso (`deploy/test/fake-idp/users.json`): en el navegador se elige en su página de login; los clientes HTTP y NATS piden el token firmado a `GET /test/token?user=admin`. Los tokens llevan los mismos claims que Zitadel (`sub`, `aud`, `urn:zitadel:iam:org:project:roles` y el del proyecto) | initial |
+| admin | Usuario `admin` (Ana Admin) del proveedor de identidad falso (`deploy/test/fake-idp/users.json`): en el navegador se elige en su página de login; los clientes HTTP y NATS piden el token firmado a `GET /test/token?user=admin`. Los tokens llevan los mismos claims que Zitadel (`sub`, `aud` con el proyecto, `urn:zitadel:iam:org:project:roles` y el del proyecto). Para los rechazos, `&variant=other-issuer` da el mismo token con otro emisor (misma clave) y `&variant=other-project` el de un usuario de otro proyecto de la instancia (ese proyecto en `aud` y en su claim de roles, los mismos roles en el genérico) | #626 |
 | user | Usuario `user` (Uriel Usuario) del proveedor falso, igual que admin | initial |
 | external-user | Usuario `external` (Elena Externa) del proveedor falso, igual que admin; su permiso sobre un proyecto lo crea el test en `user_project_permissions` | initial |
 | internal-app | Usuario de máquina `jiku-api` del proveedor falso: al arrancar escribe su clave en el volumen `idp-keys` y la api pide el token con el grant jwt-bearer, como con Zitadel. Es el publicador de confianza (`CORE_TRUSTED_PUBLISHER_ID`) | initial |
@@ -27,11 +27,11 @@ How each entry point of the product is tested end to end, against `make up` and 
 
 | System | How it is replaced in tests | Origin |
 |---|---|---|
-| INT-01 Zitadel (proveedor de identidad: OIDC, JWKS, userinfo, jwt-bearer) | El proveedor de identidad falso `deploy/test/fake-idp` (servicio `fake-idp` del compose, emisor `http://idp.localhost:9400`): discovery, JWKS, autorización con código + PKCE, token (código y jwt-bearer), userinfo y fin de sesión en las mismas rutas que Zitadel. Los servicios y el auth-callout apuntan a él solo por configuración | initial |
+| INT-01 Zitadel (proveedor de identidad: OIDC, JWKS, userinfo, jwt-bearer) | El proveedor de identidad falso `deploy/test/fake-idp` (servicio `fake-idp` del compose, emisor `http://idp.localhost:9400`): discovery, JWKS, autorización con código + PKCE, token (código y jwt-bearer; como Zitadel, el grant jwt-bearer pone el proyecto en `aud` solo si se pide su scope de audiencia), userinfo y fin de sesión en las mismas rutas que Zitadel. Los servicios y el auth-callout apuntan a él solo por configuración | #626 |
 | INT-02 Almacenamiento S3 compatible | MinIO local (servicio `storage`, alias `storage.localhost:9000` para que la URL prefirmada sea la misma para core y para el navegador), con el bucket creado por `storage-setup` | initial |
 | INT-03 Servidor SMTP | Mailpit (servicio `mailpit`, SMTP en 1025, interfaz en `http://localhost:8025`) | initial |
 | INT-04 jiku-docs (módulo opcional de documentación, por el bus, descubierto en el KV `JIKU_MODULES`) | El módulo de documentación falso `deploy/test/fake-docs` (servicio `fake-docs`): se conecta al bus con la identidad `docs`, se registra en `JIKU_MODULES` como el real, atiende `jiku-docs-queries` y `jiku-docs-commands`, responde `shares.resolve` para el token de prueba y listas vacías a las lecturas de las pantallas; las escrituras responden error | initial |
-| INT-05 NATS auth-callout (gravadigital/nats-zitadel-auth-callout) | No se reemplaza: corre la imagen real `gravadigital/nats-zitadel-auth-callout:1.0.0` con las reglas del repositorio, validando los tokens contra el proveedor falso; la identidad de NATS la genera `deploy/nats/bootstrap.sh` en un contenedor | initial |
+| INT-05 NATS auth-callout (gravadigital/nats-zitadel-auth-callout) | No se reemplaza: corre la imagen real `gravadigital/nats-zitadel-auth-callout:1.1.0` con las reglas del repositorio y la verificación de audiencia del proyecto activada, validando los tokens contra el proveedor falso; la identidad de NATS la genera `deploy/nats/bootstrap.sh` en un contenedor | #626 |
 
 ## How to run them
 

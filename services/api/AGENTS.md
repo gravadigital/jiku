@@ -18,7 +18,7 @@ shows its users are in the product language (`language` in `_jflow/project.yaml`
 | Validation | Joi, one schema per route (`lib/utils/validate-body-fields.ts`, `validate-query-params.ts`) | 18 | — |
 | Persistence | Sequelize + sequelize-typescript + `pg`, models from `@jiku/models` | 6.37, 2.1.6, 8.x | Models shared with core (DEC-T08). Read-only DB role: the read/write split is enforced by the database (DEC-T01) |
 | Migrations | sequelize-cli, run at startup (`npm run upgrade-db`: `db-upgrade/baseline.js` + `db-upgrade/migrations/`) | 6.6 | The api owns the schema; it migrates with `POSTGRESQL_MIGRATION_USER` |
-| Authentication | `jsonwebtoken` + JWKS fetched from `${IDENTITY_URL}/oauth/v2/keys`; deny by default (`config/public.ts`) | 9.0.3 | Zitadel tokens (DEC-T10); authorization deny-by-default (DEC-T13) |
+| Authentication | `jsonwebtoken` + JWKS fetched from `${IDENTITY_URL}/oauth/v2/keys`; then `iss` must equal `IDENTITY_ISSUER` and `aud` must include `ZITADEL_PROJECT_ID`, roles only from that project's claim (`lib/utils/auth-helper.ts`); deny by default (`config/public.ts`) | 9.0.3 | Zitadel tokens (DEC-T10, DEC-T34); authorization deny-by-default (DEC-T13) |
 | Bus | `nats` request/reply, subjects from `@jiku/nats-protocol`, machine-user token from `@jiku/zitadel-auth` | 2.29.3 | Commands are NATS request/reply, without JetStream (DEC-T02); optional modules discovered in KV `JIKU_MODULES` (DEC-T19) |
 | Rate limit | express-rate-limit, only on `/p/docs/*` | 8.7 | — |
 | Logging | winston + express-winston (text, files in production) | 3.19, 4.2.0 | No OpenTelemetry yet (see `docs/operacion.md`) |
@@ -56,7 +56,9 @@ the Makefile's `TEST_DB_ENV` (or let `tests/setup-env.ts` start its own containe
   on `dev`: add a new one), `config.js`.
 - `tests/` `routes/` (HTTP through supertest on the real app), `utils/`, `00-configurations/`
   (connection, models, migration tests), `mocks/` (`bus.ts`: fake bus running core's real dispatcher
-  in-process; `jsonwebtoken-mock.ts`: the test tokens). `e2e/` end to end against `make up`.
+  in-process; `jsonwebtoken-mock.ts`: the named test tokens, whose signature is skipped; any other
+  string goes to the real `jsonwebtoken`, see `tests/routes/token-validation.test.ts`). `e2e/` end to
+  end against `make up`.
 
 ## Canonical examples
 

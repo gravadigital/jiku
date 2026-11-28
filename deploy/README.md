@@ -65,8 +65,9 @@ Fill in, in `.env`:
 | --------------------------------------------- | ---------------------------------------------------------------------- |
 | `DATABASE_PASSWORD`                           | password of the database owner                                         |
 | `DATABASE_READONLY_PASSWORD`                  | password of the api's read-only user                                   |
+| `IDENTITY_ISSUER`                             | the instance's public issuer, exactly as it goes in the tokens' `iss`: the api refuses any other issuer and does not start without it |
 | `IDENTITY_CLIENT_ID`, `IDENTITY_PROJECT_ID`   | the Zitadel application the frontends use                              |
-| `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live                                       |
+| `GESTION_ZITADEL_PROJECT_ID`                  | the project where the roles live. **Must be the same project as `IDENTITY_PROJECT_ID`**: the api and the auth-callout require it in every token's audience, so with two different projects every operation answers 401 |
 | `WEB_NEXTAUTH_SECRET`, `OPUS_NEXTAUTH_SECRET` | `openssl rand -base64 32`                                              |
 | `CORE_TRUSTED_PUBLISHER_ID`                   | the `userId` from the api's service user JSON key — **core will not start without it** |
 | `STORAGE_S3_*`                                | **Locally: leave them as they come.** `.env.dist` already points them at the MinIO the stack brings up. They only get filled in to use a real provider. **core** signs both uploads and downloads, so the credentials need read **and** write permission. **Only `core` receives them** — the api has no access to the bucket, so it cannot touch an object core did not sign for it. |

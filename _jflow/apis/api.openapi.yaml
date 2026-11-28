@@ -60,7 +60,7 @@ openapi: 3.0.3
 
 info:
   title: Jiku api — contrato HTTP
-  version: 1.0.0
+  version: 2.0.0
   description: |
     Única puerta HTTP del producto. Autentica contra Zitadel, autoriza por rol y por entidad,
     **lee la base de datos directamente** y convierte toda mutación en un comando publicado en
@@ -4907,10 +4907,19 @@ components:
         (`{IDENTITY_URL}/oauth/v2/keys`), resincronizado con reintentos cuando aparece un `kid`
         desconocido.
 
+        **Emisor y audiencia (#626, DEC-T34).** Además de la firma, el `iss` tiene que ser el
+        emisor configurado (`IDENTITY_ISSUER`) y el `aud` (string o lista) tiene que incluir el
+        proyecto del producto (`ZITADEL_PROJECT_ID`), en todo token, de persona o de máquina. Un
+        token de máquina pide esa audiencia con el scope
+        `urn:zitadel:iam:org:project:id:{id del proyecto}:aud`. Si no cumple: el mismo 401
+        `unauthorized` que un token mal firmado o vencido; el motivo va solo al log de la api.
+
         **Solo por header.** El fallback por query param (`?jwt=`) se eliminó: los query params
         quedan en logs de acceso, historial y `Referer`.
 
-        Los roles salen del claim `urn:zitadel:iam:org:project:roles`, como las claves del objeto.
+        Los roles salen solo del claim `urn:zitadel:iam:org:project:{id del proyecto}:roles`,
+        como las claves del objeto; el genérico `urn:zitadel:iam:org:project:roles` no se lee, y sin
+        el claim del proyecto la identidad queda sin roles.
         Roles del producto: `admin`, `user`, `external-user`.
 
         > **REQ-007 (S-034) — `- ELIMINADO`.** Acá decía: *"El `sub` tiene que existir en la

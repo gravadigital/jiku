@@ -5,7 +5,7 @@ surfaces: [Gestor interno, Portal de clientes]
 covers: Ingreso por el proveedor de identidad en el gestor y en el portal, quién entra a cada superficie, presentación de la identidad, duración y cierre de la sesión, autenticación de la api y espejo del usuario
 entities: [Usuario]
 last_requirement: ACC-19
-last_failure: ACC-E6
+last_failure: ACC-E7
 ---
 
 # ACC — Ingreso y sesión
@@ -28,7 +28,7 @@ last_failure: ACC-E6
 | ACC-13 | «Cerrar sesión» (barra lateral del gestor, barra lateral del portal, «Acceso no autorizado» y portal sin proyectos) borra solo la sesión de la aplicación y vuelve al ingreso; la sesión en el proveedor de identidad queda abierta | U-01, U-02, U-03 | initial |
 | ACC-14 | La barra lateral del gestor ofrece Actores, Proyectos, Requisitos (Reporte), Tareas (Por proyecto, Por responsable), Asignación de Tiempo, Horas Trabajadas (Carga, Visualización) y, solo si el módulo de documentación está instalado, Documentación; debajo, un bloque opcional de links externos definido por configuración | U-01, U-02 | initial |
 | ACC-15 | La api exige un token de acceso como `Authorization: Bearer` en toda operación, salvo la lectura de documentos compartidos por link | — | initial |
-| ACC-16 | La api valida la firma del token contra las claves públicas del proveedor de identidad, sin verificar emisor ni audiencia: acepta cualquier token firmado por la misma instancia del proveedor. Toma los roles del claim genérico de roles de proyecto y arma la identidad (id, nombre, usuario, email) solo con el token, sin consultar la base. Ante una clave desconocida vuelve a descargar las claves del proveedor antes de rechazar | — | initial |
+| ACC-16 | La api valida la firma del token contra las claves públicas del proveedor de identidad, que el emisor sea el de la instancia configurada y que la audiencia incluya el proyecto del producto, en todo token, de persona o de máquina. Toma los roles solo del claim de roles de ese proyecto (sin ese claim, la identidad queda sin roles) y arma la identidad (id, nombre, usuario, email) solo con el token, sin consultar la base. Ante una clave desconocida vuelve a descargar las claves del proveedor antes de rechazar | — | #626 |
 | ACC-17 | En los dos frontends, la sesión que la aplicación entrega al navegador incluye el token de acceso de la persona | — | initial |
 | ACC-18 | Cada vez que una identidad se autentica en el bus, core crea o actualiza su usuario con el id del proveedor, nombre, usuario, email, roles y tipo (persona o servicio), reemplazando todos esos datos. Las identidades con rol `internal-app`, `core` o `docs` quedan como servicio y pueden no tener email | — | initial |
 | ACC-19 | Cuando la api publica un comando en nombre de una persona, core crea o actualiza el usuario de esa persona con los datos del token: los roles siempre; nombre, usuario y email solo si vienen; al crearlo, lo que falte se completa con el email o, sin email, con el id. Una persona sin usuario guardado opera igual desde su primera pantalla | — | initial |
@@ -36,9 +36,10 @@ last_failure: ACC-E6
 ## Failure conditions
 | ID | Condition | Result | Origin |
 |---|---|---|---|
-| ACC-E1 | Operación de la api sin token, o con un token mal firmado, vencido o firmado con una clave que el proveedor no publica | 401 `unauthorized` «Unauthorized» | initial |
+| ACC-E1 | Operación de la api sin token, o con un token mal firmado, vencido, firmado con una clave que el proveedor no publica, de otro emisor o sin la audiencia del proyecto | 401 `unauthorized` «Unauthorized», sin decir el motivo; el log de la api registra el motivo | #626 |
 | ACC-E2 | Operación de la api que chequea rol, llamada sin ninguno de los roles que admite | 403 `access_denied` «Access denied» | initial |
 | ACC-E3 | La presentación de la identidad ante la api falla | Se ignora: el ingreso sigue y abre el inicio | initial |
 | ACC-E4 | Pantalla del gestor o del portal pedida sin sesión, o con la sesión terminada | Redirige a la pantalla de ingreso | initial |
 | ACC-E5 | La api rechaza con 401 una operación del gestor mientras la sesión sigue vigente | No redirige al ingreso: la pantalla muestra el error de la operación | initial |
 | ACC-E6 | Comando publicado en nombre de una persona cuyos roles del token no autorizan ese comando (por ejemplo, sin roles) | 403 `caller_not_authorized` «El caller no está autorizado a ejecutar este método» | initial |
+| ACC-E7 | La api arranca sin el emisor esperado o sin el id del proyecto configurados | No arranca, y el error nombra la variable que falta | #626 |

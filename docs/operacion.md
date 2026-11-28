@@ -54,8 +54,8 @@ En un servidor se configuran en `deploy/.env`, copiado de
 a cada servicio. [documentation/configuration.md](../documentation/configuration.md) tiene el
 detalle de cada una.
 
-**Validación al arrancar: parcial.** La api no arranca sin `IDENTITY_URL` (salvo `AUTH_BYPASS`
-fuera de producción) o con un `JIKU_PUBLIC_URL` que no sea un origen; core no arranca sin
+**Validación al arrancar: parcial.** La api no arranca sin `IDENTITY_URL`, `IDENTITY_ISSUER` ni
+`ZITADEL_PROJECT_ID` (salvo `AUTH_BYPASS` fuera de producción; el error nombra la que falta) o con un `JIKU_PUBLIC_URL` que no sea un origen; core no arranca sin
 `CORE_TRUSTED_PUBLISHER_ID` ni `OPUS_URL`. El resto no se valida: S3 y SMTP fallan recién en el
 primer uso, y a la api sin `KEY_SYNC_ATTEMPS` le rechaza todos los tokens.
 
@@ -69,10 +69,12 @@ primer uso, y a la api sin `KEY_SYNC_ATTEMPS` le rechaza todos los tokens.
 | `POSTGRESQL_USER` / `_PASSWORD` | El rol de **solo lectura** con el que lee | — |
 | `POSTGRESQL_MIGRATION_USER` / `_PASSWORD` | El dueño de la base, para las migraciones al arrancar | los de `POSTGRESQL_USER` |
 | `IDENTITY_URL` | Zitadel: de ahí baja las claves (`/oauth/v2/keys`) para validar los tokens | obligatoria |
+| `IDENTITY_ISSUER` | El emisor público de la instancia, tal como va en el `iss` de los tokens: rechaza (401) todo token de otro emisor. Puede diferir de `IDENTITY_URL` | obligatoria |
 | `KEY_SYNC_ATTEMPS` | Cuántas veces vuelve a bajar las claves ante un `kid` desconocido | `3` (de `.env.defaults`) |
 | `AUTH_BYPASS`, `DEV_USER_ID` | Solo desarrollo: todo pedido entra como ese usuario con rol `admin`. Prohibido con `NODE_ENV=production` | `false` |
 | `ZITADEL_SERVICE_USER_KEY_B64` / `ZITADEL_SERVICE_USER_KEY` | Clave JSON del usuario de máquina de la api (en base64 o como ruta) | — |
-| `ZITADEL_ISSUER_URL` (o `IDENTITY_ISSUER`), `ZITADEL_PROJECT_ID` | Dónde pide el token de servicio y para qué proyecto | — |
+| `ZITADEL_ISSUER_URL` (o `IDENTITY_ISSUER`) | Dónde pide el token de servicio | — |
+| `ZITADEL_PROJECT_ID` | El proyecto de los roles del producto: todo token tiene que traerlo en la audiencia (si no, 401) y los roles salen solo de su claim. También es el proyecto para el que pide el token de servicio | obligatoria |
 | `NATS_URL`, `NATS_CREDS` | El bus y la credencial centinela | `nats://localhost:4222` / — |
 | `NATS_INSTANCE`, `NATS_COMMAND_SERVICE`, `NATS_QUERY_SERVICE`, `NATS_PROTOCOL_VERSION`, `NATS_EVENTS_VERSION` | Arman los subjects del bus | `dev`, `jiku-commands`, `jiku-queries`, `v1`, `v1` |
 | `NATS_USER_ID` | Identidad en el bus cuando no hay usuario de máquina (tests) | `api` |
