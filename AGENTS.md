@@ -62,7 +62,10 @@ variables, none is needed):
   as the `docs` identity, registers in `JIKU_MODULES` and answers empty lists, plus one shared link
   (`jds_e2e-shared-document-00000000000000000000000`, on `http://127.0.0.1:3100/p/docs/…`).
 - **Bus**: NATS (`4222`, monitoring `8222`) in operator mode, its identity generated into a volume by
-  `nats-identity`, plus the auth-callout image `gravadigital/nats-zitadel-auth-callout:1.0.0`.
+  `nats-identity`, plus the auth-callout image `gravadigital/nats-zitadel-auth-callout:1.1.0` with
+  `CALLOUT_ZITADEL_REQUIRE_PROJECT_AUDIENCE=true` (a token without the project in `aud` does not connect).
+  The fake-idp's `GET /test/token?user={username}&variant=other-issuer|other-project` gives the tokens
+  the api and the bus must refuse.
 - **Database**: `migrate` builds the schema from an empty database (`services/api/db-upgrade/baseline.js`,
   then the migrations); the read-only role comes from `deploy/compose/postgres-init.sh`.
 - URLs: web `http://localhost:3000`, opus-web `http://localhost:3001`, api `http://localhost:3100`.
